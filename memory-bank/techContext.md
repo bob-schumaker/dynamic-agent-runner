@@ -20,7 +20,7 @@
 ## Main Dependencies
 
 - `docopt-ng >=0.9.0`
-- `ocihelper ^0.3.22`
+- `ai-tools-core ^0.4.0`
 - `roschumalib ^0.3.386` with extras: `application`, `graphics`,
   `spreadsheets`
 
@@ -75,7 +75,13 @@
 
 - No validation command was run at memory-bank creation beyond file inspection
   and `git status --short`.
-- `ocihelper` has been moved to the main dependency set because the planned
-  runtime path uses `ocihelper.employee.EmployeeChatClient`.
+- `ocihelper` was removed from the runtime dependency set. Initial implementation
+  should use `ai-tools-core` and OpenAI-compatible interfaces directly; similar
+  functionality may be replicated locally if the package proves poorly
+  supported.
 - Project configuration was committed in `ad3eb90`; build configuration was
-  committed in `ed7917f`.
+  committed in `ed7917f`; memory-bank baseline was committed in `c7f292b`; the
+  SDD spec was committed in `b1182e9`; README runtime direction was committed in
+  `c9cd13c`.
+- Current uncommitted dependency files are expected to remove `ocihelper` from
+  `pyproject.toml` and `poetry.lock` while retaining `ai-tools-core ^0.4.0`.

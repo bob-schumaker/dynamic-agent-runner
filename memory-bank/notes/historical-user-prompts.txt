@@ -49,3 +49,40 @@ commit the following files as build config
 ---
 
 update memory-bank and commit
+
+---
+
+- `format_version: 1` the only runtime manifest and tool index version that must be supported initially
+- the agent-design.md file referecnces the other two files and they all must be internally consistent with each other
+- a tool registry (TBD) will be provided as an optional argument if tool use is expected
+- all three input formats should be accepted
+- the library owns the `EmployeeChatClient` but leave room in the design for an optional protocol-similar client to be passed in
+- the repository should expose a CLI
+- the safety, authentication, logging, and redaction requirements apply to workflow execution will be discovered as
+  we develop the first implementation, some of these definitions may become part of the workflow specification
+
+---
+
+- the initial tool registry support will be using the https://github.com/idolgoff/openai-tools-core (ai-tools-core package)
+- the implementation may also use this since the `EmployeeChatClient` also uses OpenAI underneath
+- we'll start with OpenAI compatible models and interfaces
+
+---
+
+`tool-index.yaml` will be part of the inputs, if required by the workflow
+
+---
+
+remove the ocihelper dependency, let's got straight for ai-core-tools from the start. we may end up replicating the repo functionality ourselves, since it is a poorly supported package
+
+---
+
+commit specs/
+
+---
+
+commit README.md
+
+---
+
+update memory-bank and commit
