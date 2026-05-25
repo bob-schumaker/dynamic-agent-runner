@@ -19,10 +19,23 @@
 
 ## Main Dependencies
 
+Observed committed or in-flight dependency state may lag behind the latest spec.
+At the latest memory-bank refresh, `pyproject.toml` and `poetry.lock` are
+uncommitted local changes.
+
+Current committed/observed dependency context includes:
+
 - `docopt-ng >=0.9.0`
-- `ai-tools-core ^0.4.0`
 - `roschumalib ^0.3.386` with extras: `application`, `graphics`,
   `spreadsheets`
+
+Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
+
+- include the official `openai` package from `https://pypi.org/project/openai/`
+  for the default model execution path
+- do not require `ocihelper`
+- do not require `ai-tools-core` / `openai-tools-core`
+- implement the tool registry pattern in this repository
 
 ## Development and Test Dependencies
 
@@ -40,7 +53,7 @@
 - isort uses Black-compatible multiline output with trailing commas and line
   length `88`.
 - pre-commit hooks include YAML checks, JSON formatting, isort, flake8,
-  TOML syntax checks, and Black.
+  TOML syntax checks, Black, and repository Markdown checks when available.
 
 ## Environment Setup
 
@@ -73,15 +86,16 @@
 
 ## Notes
 
-- No validation command was run at memory-bank creation beyond file inspection
-  and `git status --short`.
-- `ocihelper` was removed from the runtime dependency set. Initial implementation
-  should use `ai-tools-core` and OpenAI-compatible interfaces directly; similar
-  functionality may be replicated locally if the package proves poorly
-  supported.
+- `ocihelper` was removed from the intended runtime dependency set.
+- The latest spec direction supersedes the earlier `ai-tools-core` direction:
+  initial implementation should use the official `openai` package directly and
+  implement the tool registry locally.
 - Project configuration was committed in `ad3eb90`; build configuration was
   committed in `ed7917f`; memory-bank baseline was committed in `c7f292b`; the
-  SDD spec was committed in `b1182e9`; README runtime direction was committed in
-  `c9cd13c`.
-- Current uncommitted dependency files are expected to remove `ocihelper` from
-  `pyproject.toml` and `poetry.lock` while retaining `ai-tools-core ^0.4.0`.
+  initial SDD spec was committed in `b1182e9`; README runtime direction was
+  committed in `c9cd13c`; memory-bank runtime direction was refreshed in
+  `4e69ea9`; the spec was updated for OpenAI-package/custom-registry direction
+  in `b247e11`.
+- Current uncommitted dependency files are expected to need reconciliation with
+  the latest spec: add the official `openai` package and avoid required
+  `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependencies.

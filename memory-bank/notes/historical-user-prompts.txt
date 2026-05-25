@@ -86,3 +86,15 @@ commit README.md
 ---
 
 update memory-bank and commit
+
+---
+
+update the plan to use the OpenAI package (https://pypi.org/project/openai/) and we will write our own tool registry pattern
+
+---
+
+update the spec to use the OpenAI package (https://pypi.org/project/openai/) and we will write our own tool registry pattern
+
+---
+
+commit the spec and update memroy-bank and commit
