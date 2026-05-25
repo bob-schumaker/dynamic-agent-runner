@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 4 complete; ready for Slice 5
+- State: Slice 5 complete; ready for Slice 6
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 5 — OpenAI client adapter
+- Next active slice: Slice 6 — Workflow executor
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -174,15 +174,32 @@
 
 ## Slice 5 — OpenAI client adapter
 
-- [ ] T5.1 Define the runtime's minimal OpenAI client protocol for injected
+- [x] T5.1 Define the runtime's minimal OpenAI client protocol for injected
       fake/stub clients.
-- [ ] T5.2 Implement the default adapter using the official `openai` Python
+- [x] T5.2 Implement the default adapter using the official `openai` Python
       package.
-- [ ] T5.3 Implement request construction for rendered messages and optional
+- [x] T5.3 Implement request construction for rendered messages and optional
       OpenAI tool schemas.
-- [ ] T5.4 Normalize model responses into internal result/event structures.
-- [ ] T5.5 Surface OpenAI/model failures as project-specific errors.
-- [ ] T5.6 Add tests using fake clients only; no live API calls in unit tests.
+- [x] T5.4 Normalize model responses into internal result/event structures.
+- [x] T5.5 Surface OpenAI/model failures as project-specific errors.
+- [x] T5.6 Add tests using fake clients only; no live API calls in unit tests.
+
+## Slice 5 Completion Evidence
+
+- `src/dynamic_agent_runner/openai_client.py` defines the runtime's minimal
+  OpenAI client protocol, request and response dataclasses, lazy default OpenAI
+  client construction, and `OpenAIClientAdapter` for the official Responses API
+  boundary.
+- `build_openai_request(...)` constructs model requests from rendered messages,
+  optional OpenAI tool schemas, tool choice, response format, and extra model
+  parameters.
+- `normalize_openai_response(...)` extracts model text and function-tool calls
+  into internal `ModelResponse` and `ModelToolCall` structures.
+- Adapter failures are wrapped in `ModelExecutionError` so callers see
+  project-specific model errors.
+- `tests/test_openai_client.py` uses fake clients only and covers request
+  construction, injected-client execution, response normalization, error
+  wrapping, and input validation.
 
 ## Slice 6 — Workflow executor
 

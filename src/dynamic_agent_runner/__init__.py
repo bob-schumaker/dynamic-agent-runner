@@ -1,6 +1,17 @@
 """Runtime for generated dynamic agent workflow artifacts."""
 
 from dynamic_agent_runner.api import load_agent_workflow, run_agent_workflow
+from dynamic_agent_runner.openai_client import (
+    ModelResponse,
+    ModelToolCall,
+    OpenAIClientAdapter,
+    OpenAIClientProtocol,
+    OpenAIMessage,
+    OpenAIModelRequest,
+    build_openai_request,
+    create_default_openai_client,
+    normalize_openai_response,
+)
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
@@ -25,7 +36,16 @@ __all__ = [
     "ArtifactLoadError",
     "DynamicAgentRunnerError",
     "ModelExecutionError",
+    "ModelResponse",
+    "ModelToolCall",
+    "OpenAIClientAdapter",
+    "OpenAIClientProtocol",
+    "OpenAIMessage",
+    "OpenAIModelRequest",
     "ToolRegistryError",
+    "build_openai_request",
+    "create_default_openai_client",
+    "normalize_openai_response",
     "validate_registry_tool_references",
     "openai_tool_schema",
     "create_local_workspace_registry",
