@@ -42,6 +42,8 @@
   `07edab0 docs(spec): expand slice 4 registry scope`.
 - Slice 4 registry foundation commit exists:
   `cba3f43 feat(registry): add tool registry foundation`.
+- Slice 5 OpenAI client adapter commit exists:
+  `42f8d15 feat(openai): add client adapter boundary`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -51,37 +53,42 @@
   external tool-index structure. Slice 4 planning now clarifies that execution
   requires callable registry entries, with `tool-index.yaml` acting as optional
   metadata.
+- The OpenAI adapter boundary now supports fake-client-compatible Responses API
+  calls, request construction from rendered messages and optional tool schemas,
+  response normalization, and `ModelExecutionError` wrapping.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Slice 5 — OpenAI client adapter — is the next active implementation slice.
+- Slice 6 — Workflow executor — is the next active implementation slice.
 
 ## Remaining
 
-- Implement Slice 5 — OpenAI client adapter:
-  - define the runtime's minimal OpenAI client protocol for injected fake/stub
-    clients
-  - implement the default adapter using the official `openai` Python package
-  - implement request construction for rendered messages and optional OpenAI tool
-    schemas
-  - normalize model responses into internal result/event structures
-  - surface OpenAI/model failures as project-specific errors
-  - add tests using fake clients only, with no live API calls
+- Implement Slice 6 — Workflow executor:
+  - implement execution state for prompt, node inputs, node outputs, tool
+    results, final result, and errors
+  - implement `llm_step` prompt rendering and model-call execution
+  - implement `tool_use_step` input resolution, registry dispatch, output
+    recording, and configured failure behavior
+  - implement `decision_step` with `decision_subtype: llm_route`
+  - implement `sequential` and `branch` control-flow edges
+  - fail clearly for unsupported node kinds, decision subtypes, or edge semantics
+  - add fake-client/fake-tool end-to-end tests
 - Define the concrete public Python API beyond reserved placeholders.
-- Implement workflow execution through the official `openai` Python package.
-- Extend from the completed repository-owned tool registry foundation into the
-  OpenAI adapter, workflow executor, and CLI slices.
+- Implement workflow execution through the completed OpenAI adapter and
+  repository-owned tool registry foundation.
+- Extend from the completed loader, validation, registry, and OpenAI adapter
+  foundation into workflow executor and CLI slices.
 - Add tests and validation commands once code exists.
 - Expose a CLI in addition to the library API, per the current spec.
 - Update the memory bank after the first meaningful implementation milestone.
 
 ## Risks or Follow-ups
 
-- Loader, validation, and registry source now exist, but architecture sections
-  should remain conservative until OpenAI adapter and runtime execution behavior
-  exist.
-- Slice 4 is complete, but unrestricted runtime implementation should still
+- Loader, validation, registry, and OpenAI adapter source now exist, but
+  architecture sections should remain conservative until runtime execution
+  behavior exists.
+- Slice 5 is complete, but unrestricted runtime implementation should still
   proceed slice-by-slice from the committed task list.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.
@@ -94,5 +101,7 @@
 - Slice 4 preserves the distinction between optional tool-index metadata and
   executable registry tools; metadata-only tools cannot satisfy runtime tool
   dependencies.
+- Slice 5 preserves the OpenAI SDK behind a small adapter boundary and keeps unit
+  tests free of live model calls.
 - Memory-bank pre-commit validation for this refresh should be recorded in the
   commit result.

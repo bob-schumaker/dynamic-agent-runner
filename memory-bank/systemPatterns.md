@@ -10,13 +10,16 @@
   - `src/dynamic_agent_runner/models.py` preserves internal artifact metadata
   - `src/dynamic_agent_runner/validation.py` validates loaded artifact
     relationships and supported `format_version: 1` enum values
+  - `src/dynamic_agent_runner/openai_client.py` isolates the official OpenAI
+    client behind a small fake-client-compatible adapter boundary
   - `src/dynamic_agent_runner/errors.py` defines project-specific exception
     types
-- Tests currently contain an import smoke test at `tests/test_import.py` and
-  artifact loader tests at `tests/test_artifacts.py`, plus validation tests at
-  `tests/test_validation.py`.
-- Current repository structure has loader/model/validation/registry behavior;
-  adapter, executor, and CLI behavior remain future slices.
+- Tests currently contain an import smoke test at `tests/test_import.py`,
+  artifact loader tests at `tests/test_artifacts.py`, validation tests at
+  `tests/test_validation.py`, registry tests at `tests/test_registry.py`, and
+  OpenAI adapter tests at `tests/test_openai_client.py`.
+- Current repository structure has loader/model/validation/registry/adapter
+  behavior; executor and CLI behavior remain future slices.
 
 ## Observed Patterns
 
@@ -51,6 +54,12 @@
   generated artifacts.
 - Built-in default tools are explicit opt-in registry packs; the current
   `local_workspace` pack is read-only and not an ambient global capability.
+- `openai_client.py` defines a protocol around `client.responses.create(...)`,
+  so unit tests can inject fake clients without live OpenAI API calls.
+- OpenAI request construction uses `input` messages plus optional `tools`,
+  `tool_choice`, `response_format`, and extra model parameters.
+- OpenAI response normalization extracts text and function calls into internal
+  `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 
 ## Boundaries and Unknowns
 
@@ -59,18 +68,18 @@
 - Supported pattern metadata preservation: implemented for loader/model scope.
 - Validation engine: implemented for Slice 3 scope.
 - Tool registry protocol and concrete registry: implemented for Slice 4 scope.
-- OpenAI client adapter: not implemented yet; this is the next active slice.
+- OpenAI client adapter: implemented for Slice 5 scope.
 - Workflow executor and CLI: not implemented yet.
 
 ## Guidance for Future Work
 
-- Continue from Slice 5 in `specs/dynamic-agent-runner/tasks.md`.
+- Continue from Slice 6 in `specs/dynamic-agent-runner/tasks.md`.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
   `decision_step` unless a later format version changes the contract.
-- In Slice 5, implement the OpenAI adapter without yet adding full workflow
-  executor behavior. Keep OpenAI API calls behind a small adapter boundary and
-  keep unit tests free of live model calls.
+- In Slice 6, implement workflow execution by composing existing loader,
+  validation, registry, and OpenAI adapter boundaries without turning the package
+  into a generic agent framework.
 - Update this file as concrete modules, entry points, and architectural
   boundaries become real.

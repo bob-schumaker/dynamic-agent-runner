@@ -2,8 +2,8 @@
 
 ## Current Focus
 
-- Slice 4 repository-owned tool registry foundation is complete and committed
-  in `cba3f43`; Slice 5 OpenAI client adapter is next.
+- Slice 5 OpenAI client adapter is complete and committed in `42f8d15`; Slice 6
+  workflow executor is next.
 
 ## Current Status
 
@@ -36,10 +36,11 @@
     authoritative, treat `tool-index.yaml` as optional metadata, add runtime
     tool overrides, and include opt-in built-in default tool packs.
   - Completed Slice 4 repository-owned tool registry foundation in `cba3f43`.
+  - Completed Slice 5 OpenAI client adapter boundary in `42f8d15`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
-  - OpenAI adapter, executor, and CLI implementation.
+  - Workflow executor and CLI implementation.
 
 ## Important Current Facts
 
@@ -57,7 +58,7 @@
   - `specs/dynamic-agent-runner/tasks.md`
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0, 1, 2, 3, and 4 are complete; Slice 5 is the next
+  implementation. Slices 0, 1, 2, 3, 4, and 5 are complete; Slice 6 is the next
   active implementation slice.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
@@ -84,6 +85,19 @@
   - `tests/test_registry.py` covers registry lookup, schema conversion,
     invocation, missing tools, bad inputs, tool failures, override layering,
     built-in pack enablement, path restrictions, and node-reference requirements.
+- Slice 5 implementation from `42f8d15`:
+  - `src/dynamic_agent_runner/openai_client.py` now defines the minimal OpenAI
+    client protocol, request/response dataclasses, lazy default official OpenAI
+    client construction, and `OpenAIClientAdapter`.
+  - `build_openai_request(...)` constructs Responses API requests from rendered
+    messages, optional tool schemas, tool choice, response format, and extra
+    model parameters.
+  - `normalize_openai_response(...)` extracts response text and function calls
+    into `ModelResponse` and `ModelToolCall` structures.
+  - Adapter and request-construction failures surface as `ModelExecutionError`.
+  - `tests/test_openai_client.py` uses fake clients only and covers request
+    construction, injected-client execution, response normalization, error
+    wrapping, and input validation.
 - Slice 4 scope decisions from `07edab0`:
   - `tool-index.yaml` is optional metadata, not an execution prerequisite.
   - A required tool registry or approved registry source is authoritative for
@@ -94,6 +108,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `42f8d15 feat(openai): add client adapter boundary`
   - `cba3f43 feat(registry): add tool registry foundation`
   - `07edab0 docs(spec): expand slice 4 registry scope`
   - `3469d49 feat(validation): add artifact validation engine`
@@ -111,9 +126,9 @@
 
 ## Next Steps
 
-- Begin Slice 5 — OpenAI client adapter.
-- Define the runtime's minimal OpenAI client protocol for injected fake/stub
-  clients.
-- Implement the default adapter through the official `openai` package behind a
-  small boundary, using fake clients in tests only.
-- Keep executor and CLI runtime behavior deferred to later committed task slices.
+- Begin Slice 6 — Workflow executor.
+- Implement execution state for prompt, node inputs, node outputs, tool results,
+  final result, and errors.
+- Wire `llm_step` execution through the Slice 5 OpenAI adapter and
+  `tool_use_step` execution through the Slice 4 registry.
+- Keep CLI runtime behavior deferred to a later committed task slice.

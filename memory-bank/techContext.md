@@ -128,3 +128,7 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - Slice 4 implementation was committed in `cba3f43`. It added `registry.py`,
   `tests/test_registry.py`, public registry exports, optional `tool_registry`
   validation in `load_agent_workflow(...)`, and registry-aware validation support.
+- Slice 5 implementation was committed in `42f8d15`. It added
+  `openai_client.py`, `tests/test_openai_client.py`, public OpenAI adapter
+  exports, fake-client-compatible request construction, response normalization,
+  lazy official OpenAI client construction, and `ModelExecutionError` wrapping.
