@@ -103,3 +103,7 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - `specs/dynamic-agent-runner/plan.md` and `tasks.md` are tracked planning
   artifacts. Slice 0 and Slice 1 are complete; Slice 2 now gates deeper runtime
   parser, registry, OpenAI adapter, executor, or CLI behavior.
+- Supported agent-pattern metadata was incorporated into `spec.md`, `plan.md`,
+  and `tasks.md` in `db13d29`. Slice 2 loader/model work should preserve the 11
+  documented pattern IDs, `patterns_present`, `participant_groups`, `modes`,
+  `phases`, and `roles` without treating patterns as primitive node kinds.

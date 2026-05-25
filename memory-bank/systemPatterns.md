@@ -26,11 +26,17 @@
   executor behavior.
 - Error taxonomy starts with a base `DynamicAgentRunnerError` and specific
   loading, validation, registry, model, and workflow execution errors.
+- Runtime artifact design preserves documented supported agent-pattern IDs as
+  manifest metadata instead of expanding the primitive node taxonomy.
+- Pattern-specific structures should be modeled through `patterns_present`,
+  `participant_groups`, `roles`, `modes`, `phases`, declared tools, state,
+  execution policy, and control-flow edges.
 
 ## Boundaries and Unknowns
 
 - Runtime manifest model: not implemented yet.
 - Artifact loading behavior: not implemented yet.
+- Supported pattern metadata preservation: specified but not implemented yet.
 - Validation engine: not implemented yet.
 - Tool registry protocol and concrete registry: not implemented yet.
 - OpenAI client adapter: not implemented yet.
@@ -41,6 +47,10 @@
 - Continue from Slice 2 in `specs/dynamic-agent-runner/tasks.md`.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
+- Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
+  `decision_step` unless a later format version changes the contract.
+- In Slice 2, preserve metadata for the documented supported pattern IDs and
+  structural sections without claiming full executor support for every pattern.
 - Keep OpenAI API calls behind a small adapter boundary and keep unit tests free
   of live model calls.
 - Update this file as concrete modules, entry points, and architectural

@@ -32,21 +32,28 @@
   `ea5a88a docs(spec): mark readiness checkpoint complete`.
 - Slice 1 package scaffold commit exists:
   `d2766c0 feat(package): add initial runner scaffold`.
+- Supported pattern metadata planning update commit exists:
+  `db13d29 docs(spec): record supported agent patterns`.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
 - Slice 2 — artifact models and loaders — is the next active slice.
+- Planning artifacts now include the 11 documented supported agent patterns as
+  metadata that loaders must preserve.
 
 ## Remaining
 
 - Implement Slice 2 — artifact models and loaders:
-  - define internal manifest, node, edge, tool, skill, and validation models
+  - define internal manifest, supported pattern, node, edge, tool, skill,
+    participant group, mode, phase, role, output contract, and validation models
   - implement runtime YAML loading from path, raw string, and parsed objects
   - implement Mermaid graph loading and reference resolution
   - implement optional external `tool-index.yaml` loading
   - implement lightweight `agent-design.md` reference checks
-  - add fixture-based tests
+  - preserve `patterns_present` metadata without treating patterns as primitive
+    node kinds
+  - add fixture-based tests, including at least one metadata-rich pattern shape
 - Define the concrete public Python API beyond reserved placeholders.
 - Implement workflow execution through the official `openai` Python package.
 - Design and implement the repository-owned tool registry pattern, including
@@ -65,6 +72,9 @@
   proceed slice-by-slice from the committed task list.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.
+- Supported agent-pattern IDs are metadata-level compatibility targets for
+  loader/model work; full executor support depends on later primitive node,
+  edge, tool, policy, and adapter implementation.
 - Future implementation should start with the official `openai` package and a
   repository-owned tool registry pattern; `ocihelper`, `ai-tools-core`, and
   `openai-tools-core` are intentionally not required by the latest spec.

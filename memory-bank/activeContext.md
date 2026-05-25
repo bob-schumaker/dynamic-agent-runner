@@ -3,7 +3,8 @@
 ## Current Focus
 
 - Slice 1 package scaffold and dependency alignment is complete and committed
-  in `d2766c0`; Slice 2 artifact models/loaders is next.
+  in `d2766c0`; supported agent-pattern metadata was incorporated into the
+  SDD artifacts in `db13d29`; Slice 2 artifact models/loaders is next.
 
 ## Current Status
 
@@ -28,6 +29,8 @@
   - Marked Slice 0 complete and advanced the task list to Slice 1 in `ea5a88a`.
   - Completed Slice 1 package scaffold, dependency alignment, and import smoke
     test in `d2766c0`.
+  - Updated `spec.md`, `plan.md`, and `tasks.md` for the 11 documented supported
+    agent-pattern IDs and committed that planning drift update in `db13d29`.
 - In progress:
   - No work is currently in progress.
 - Not started:
@@ -51,7 +54,12 @@
   ready only for a narrow readiness/scaffold slice, not unrestricted runtime
   implementation. Slice 0 and Slice 1 are now complete; Slice 2 is the next
   active slice.
+- Supported agent patterns from the upstream agent-development skill are now
+  treated as manifest metadata to preserve during loading, not as new primitive
+  runtime node kinds. Slice 2 should preserve `patterns_present`,
+  `participant_groups`, `modes`, `phases`, and `roles` metadata.
 - Latest observed branch history includes:
+  - `db13d29 docs(spec): record supported agent patterns`
   - `d2766c0 feat(package): add initial runner scaffold`
   - `ea5a88a docs(spec): mark readiness checkpoint complete`
   - `2979342 docs(spec): record implementation readiness gate`
@@ -65,6 +73,9 @@
 ## Next Steps
 
 - Begin Slice 2 — artifact models and loaders.
+- Preserve supported pattern metadata and structural metadata during Slice 2
+  loader/model work without expanding the primitive node taxonomy beyond
+  `llm_step`, `tool_use_step`, and `decision_step`.
 - Keep unit tests free of live OpenAI API calls.
 - Deeper validation engine, registry, OpenAI adapter, executor, and CLI runtime
   behavior should continue to follow the committed task order.

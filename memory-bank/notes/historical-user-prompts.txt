@@ -142,3 +142,15 @@ update memory-bank and commit
 ---
 
 execute slice 1 and commit, then update memory-bank and commit
+
+---
+
+all supported patterns are now documented in /Users/roschuma/Repos/roschuma/clinerules-roschuma/skills/agent-development-skill/references/examples/agent-pattern-examples.md. how does this affect the spec and plan?
+
+---
+
+do recommended next step
+
+---
+
+commit spec updates and upate memory-bank and commit
