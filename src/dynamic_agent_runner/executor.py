@@ -26,6 +26,12 @@ from dynamic_agent_runner.retry import (
     retry_policy_from_value,
     run_with_retry,
 )
+from dynamic_agent_runner.token_budget import (
+    TokenBudgetPolicy,
+    TokenUsageRecord,
+    estimate_messages_tokens,
+    token_budget_policy_from_value,
+)
 
 
 @dataclass(frozen=True)
@@ -48,6 +54,7 @@ class WorkflowExecutionState:
     tool_results: dict[str, ToolResult] = field(default_factory=dict)
     executions: list[NodeExecution] = field(default_factory=list)
     retry_records: list[RetryRecord] = field(default_factory=list)
+    token_usage: list[TokenUsageRecord] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     final_result: Any = None
 
@@ -132,8 +139,10 @@ def _execute_llm_step(
         tools = registry.to_openai_tools(
             tool.id for tool in registry.list_tools_for_node(node)
         )
+    model = _model_name(node, workflow)
+    _enforce_token_budget(node, workflow, messages, model, state)
     request = build_openai_request(
-        model=_model_name(node, workflow),
+        model=model,
         messages=messages,
         tools=tools,
         tool_choice=node.raw.get("tool_choice"),
@@ -297,6 +306,48 @@ def _record_outputs(
         state_key = outputs.get("state_key") or outputs.get("key")
         if state_key:
             state.node_outputs[str(state_key)] = output
+
+
+def _enforce_token_budget(
+    node: RuntimeNode,
+    workflow: LoadedAgentWorkflow,
+    messages: Sequence[OpenAIMessage],
+    model: str,
+    state: WorkflowExecutionState,
+) -> None:
+    policy = _token_budget_policy(node, workflow)
+    if not policy.enabled:
+        return
+    budget_model = policy.model or model
+    estimate = estimate_messages_tokens(
+        tuple(message.to_mapping() for message in messages),
+        model=budget_model,
+    )
+    exceeded = (
+        policy.max_prompt_tokens is not None
+        and estimate.token_count > policy.max_prompt_tokens
+    )
+    state.token_usage.append(
+        TokenUsageRecord(
+            node_id=str(node.id),
+            model=budget_model,
+            estimated_prompt_tokens=estimate.token_count,
+            max_prompt_tokens=policy.max_prompt_tokens,
+            encoding_name=estimate.encoding_name,
+            used_fallback_encoding=estimate.used_fallback_encoding,
+            exceeded=exceeded,
+        )
+    )
+    if exceeded and policy.on_exceed == "error":
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} estimated prompt tokens "
+            f"{estimate.token_count} exceeds budget {policy.max_prompt_tokens}"
+        )
+    if exceeded:
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} token budget policy on_exceed "
+            f"{policy.on_exceed!r} is not supported"
+        )
 
 
 def _validate_model_output_contract(
@@ -575,6 +626,18 @@ def _model_retry_policy(
     if value is None:
         value = workflow.runtime_manifest.execution_policy.get("retry_policy")
     return retry_policy_from_value(value)
+
+
+def _token_budget_policy(
+    node: RuntimeNode,
+    workflow: LoadedAgentWorkflow,
+) -> TokenBudgetPolicy:
+    value = node.raw.get("token_budget") or node.raw.get("token_budget_policy")
+    if value is None:
+        value = workflow.runtime_manifest.execution_policy.get("token_budget")
+    if value is None:
+        value = workflow.runtime_manifest.execution_policy.get("token_budget_policy")
+    return token_budget_policy_from_value(value)
 
 
 def _tool_retry_policy(node: RuntimeNode, registry: ToolRegistry) -> RetryPolicy:

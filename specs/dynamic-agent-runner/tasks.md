@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 9 complete; ready for Slice 10
+- State: Slice 10 complete; ready for Slice 11
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 10 — token budgeting and context preflight
+- Next active slice: Slice 11 — execution tracing and observability hooks
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -334,16 +334,39 @@
 
 ## Slice 10 — Token budgeting and context preflight
 
-- [ ] T10.1 Add optional token-estimation support for rendered OpenAI messages,
+- [x] T10.1 Add optional token-estimation support for rendered OpenAI messages,
       using `tiktoken` as the preferred implementation dependency.
-- [ ] T10.2 Add a token-budget policy model that can be configured per workflow,
+- [x] T10.2 Add a token-budget policy model that can be configured per workflow,
       model, or call site without changing generated artifacts.
-- [ ] T10.3 Fail clearly, or apply an explicitly configured truncation policy,
+- [x] T10.3 Fail clearly, or apply an explicitly configured truncation policy,
       when rendered messages exceed configured limits.
-- [ ] T10.4 Add CLI/debug reporting for estimated token counts only if it can be
+- [x] T10.4 Add CLI/debug reporting for estimated token counts only if it can be
       done without live model calls.
-- [ ] T10.5 Add tests for token estimation, over-budget failure, disabled-budget
+- [x] T10.5 Add tests for token estimation, over-budget failure, disabled-budget
       pass-through behavior, and unknown-model fallback behavior.
+
+## Slice 10 Completion Evidence
+
+- `src/dynamic_agent_runner/token_budget.py` defines package-owned
+  `TokenBudgetPolicy`, `TokenUsageRecord`, and `TokenEstimate` models plus
+  `tiktoken`-backed prompt-token estimation.
+- `execute_workflow(...)` runs token preflight for `llm_step` nodes when
+  node-level or manifest-level `token_budget` / `token_budget_policy` metadata is
+  configured.
+- Default behavior remains pass-through with no token estimation and no model
+  request blocking when no token budget is configured.
+- Over-budget prompts fail clearly before the OpenAI adapter is called.
+- Token estimates are recorded in `WorkflowExecutionState.token_usage`, including
+  model, estimated prompt tokens, configured budget, encoding name,
+  fallback-encoding flag, and exceeded status.
+- Unknown models fall back to `cl100k_base` and record the fallback flag.
+- Automatic truncation remains unsupported; unsupported `on_exceed` policies fail
+  clearly if the budget is exceeded.
+- `tests/test_token_budget.py` covers token estimation, unknown-model fallback,
+  policy parsing, disabled policy behavior, and invalid policy values.
+- `tests/test_executor.py` covers budget-enabled execution, over-budget failure
+  before model call, and disabled-budget pass-through behavior.
+- `README.md` documents token-budget configuration and token-usage recording.
 
 ## Slice 11 — Execution tracing and observability hooks
 

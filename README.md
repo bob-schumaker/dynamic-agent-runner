@@ -53,6 +53,7 @@ Known configuration:
 - local mise configuration selects Python `3.13`
 - primary runtime dependencies on `roschumalib` and the official `openai` package
 - retry support uses `tenacity` behind package-owned retry policy interfaces
+- token estimation uses `tiktoken` behind package-owned token-budget interfaces
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
 - the initial implementation targets the OpenAI Python SDK behind a small adapter
@@ -152,6 +153,26 @@ or JSON model output must match one of the allowed path ids before branch
 traversal continues. Model-assisted repair of malformed outputs is intentionally
 out of scope for the current runtime.
 
+## Token Budgeting
+
+Token budgeting is disabled by default. Workflows can opt into prompt-token
+preflight with node-level or manifest-level metadata such as:
+
+```yaml
+execution_policy:
+  token_budget:
+    model: gpt-4o-mini
+    max_prompt_tokens: 4000
+    on_exceed: error
+```
+
+The runtime estimates rendered OpenAI input messages with `tiktoken` before the
+model call is made. If the estimate exceeds `max_prompt_tokens`, execution fails
+clearly before making the model request. Token estimates are recorded in
+`WorkflowExecutionState.token_usage`, including the model, estimated prompt token
+count, configured budget, encoding name, fallback-encoding flag, and whether the
+budget was exceeded. Automatic truncation is intentionally not supported yet.
+
 ## CLI Usage
 
 After installation, run a workflow package from artifact paths:
@@ -195,6 +216,8 @@ Current tests cover:
 - constructing the OpenAI package-backed model execution path through an adapter
 - applying bounded model and tool retry policies without live model calls
 - validating LLM output contracts and decision routes before trusting node output
+- estimating prompt tokens and enforcing configured token budgets before model
+  calls
 - converting repository-owned tool registry definitions to OpenAI tool schema
 - dispatching registered tools without live model calls in unit tests
 - running supported workflows from a user prompt with fake clients/tools

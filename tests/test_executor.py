@@ -407,6 +407,105 @@ def test_execute_workflow_rejects_unknown_output_contract_ref() -> None:
         execute_workflow(workflow, prompt="Hello", model_adapter=adapter)
 
 
+def test_execute_workflow_records_token_usage_when_budget_enabled() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "token-budget-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {
+                "model": "gpt-test",
+                "token_budget": {
+                    "model": "gpt-4o-mini",
+                    "max_prompt_tokens": 1000,
+                },
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Hello",
+        model_adapter=make_adapter([{"id": "resp", "output_text": "done"}]),
+    )
+
+    assert result.final_result == "done"
+    assert len(result.state.token_usage) == 1
+    assert result.state.token_usage[0].node_id == "answer"
+    assert result.state.token_usage[0].estimated_prompt_tokens > 0
+    assert result.state.token_usage[0].exceeded is False
+
+
+def test_execute_workflow_fails_when_prompt_exceeds_token_budget() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "token-budget-failure-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                    "token_budget": {
+                        "model": "gpt-4o-mini",
+                        "max_prompt_tokens": 1,
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+
+    with pytest.raises(WorkflowExecutionError, match="exceeds budget"):
+        execute_workflow(workflow, prompt="Hello", model_adapter=adapter)
+
+    assert adapter.client.responses.calls == []
+
+
+def test_execute_workflow_skips_token_usage_when_budget_disabled() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "token-budget-disabled-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Hello",
+        model_adapter=make_adapter([{"id": "resp", "output_text": "done"}]),
+    )
+
+    assert result.state.token_usage == []
+
+
 def test_execute_workflow_errors_on_tool_failure_by_default() -> None:
     workflow = workflow_from(
         {
