@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
 from dynamic_agent_runner.errors import WorkflowValidationError
 from dynamic_agent_runner.models import (
@@ -37,10 +38,18 @@ REQUIRED_RUNTIME_FIELDS = (
 )
 
 
-def validate_agent_workflow(workflow: LoadedAgentWorkflow) -> None:
+def validate_agent_workflow(
+    workflow: LoadedAgentWorkflow,
+    *,
+    tool_registry: Any | None = None,
+) -> None:
     """Validate a loaded workflow artifact bundle before execution."""
 
-    validate_runtime_manifest(workflow.runtime_manifest, workflow.tool_index)
+    validate_runtime_manifest(
+        workflow.runtime_manifest,
+        workflow.tool_index,
+        tool_registry=tool_registry,
+    )
     if workflow.tool_index is not None:
         validate_tool_index(workflow.tool_index)
 
@@ -48,6 +57,8 @@ def validate_agent_workflow(workflow: LoadedAgentWorkflow) -> None:
 def validate_runtime_manifest(
     manifest: RuntimeManifest,
     tool_index: ToolIndex | None = None,
+    *,
+    tool_registry: Any | None = None,
 ) -> None:
     """Validate manifest fields, enums, and intra-manifest relationships."""
 
@@ -56,7 +67,7 @@ def validate_runtime_manifest(
     _extend(errors, _unsupported_runtime_enums(manifest))
     _extend(errors, _node_id_errors(manifest.nodes))
     _extend(errors, _edge_reference_errors(manifest))
-    _extend(errors, _tool_reference_errors(manifest, tool_index))
+    _extend(errors, _tool_reference_errors(manifest, tool_index, tool_registry))
     _extend(errors, _llm_prompt_errors(manifest.nodes))
     if errors:
         raise WorkflowValidationError(_format_errors("runtime manifest", errors))
@@ -162,16 +173,33 @@ def _edge_reference_errors(manifest: RuntimeManifest) -> list[str]:
 def _tool_reference_errors(
     manifest: RuntimeManifest,
     tool_index: ToolIndex | None,
+    tool_registry: Any | None,
 ) -> list[str]:
     errors: list[str] = []
+    if tool_registry is not None:
+        for node in manifest.nodes:
+            if node.kind != "tool_use_step":
+                continue
+            if not node.tool_id:
+                errors.append(f"tool_use_step node {node.id!r} is missing tool_id")
+                continue
+            try:
+                tool_registry.get_tool(node.tool_id)
+            except Exception as exc:  # noqa: BLE001 - protocol may raise custom errors.
+                errors.append(
+                    f"tool_use_step node {node.id!r} references unavailable "
+                    f"registry tool {node.tool_id!r}: {exc}"
+                )
+        return errors
+
     tool_ids = {tool.id for tool in manifest.tools if tool.id}
     if tool_index is not None:
         tool_ids.update(tool.id for tool in tool_index.tools if tool.id)
     for node in manifest.nodes:
         if node.kind == "tool_use_step" and node.tool_id not in tool_ids:
             errors.append(
-                f"tool_use_step node {node.id!r} references unknown tool "
-                f"{node.tool_id!r}"
+                f"tool_use_step node {node.id!r} references unknown metadata "
+                f"tool {node.tool_id!r}"
             )
     return errors
 

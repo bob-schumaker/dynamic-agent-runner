@@ -17,6 +17,7 @@ def load_agent_workflow(
     mermaid_diagram: str | None = None,
     agent_design: str | None = None,
     tool_index: Any | None = None,
+    tool_registry: Any | None = None,
 ) -> LoadedAgentWorkflow:
     """Load generated workflow artifacts without executing the workflow.
 
@@ -38,7 +39,7 @@ def load_agent_workflow(
         agent_design=agent_design,
         tool_index=tool_index,
     )
-    validate_agent_workflow(workflow)
+    validate_agent_workflow(workflow, tool_registry=tool_registry)
     return workflow
 
 

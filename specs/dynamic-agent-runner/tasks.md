@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 3 complete; ready for Slice 4
+- State: Slice 4 complete; ready for Slice 5
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 4 — repository-owned tool registry
+- Next active slice: Slice 5 — OpenAI client adapter
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -125,34 +125,52 @@
 
 ## Slice 4 — Repository-owned tool registry
 
-- [ ] T4.1 Define `ToolDefinition`, `RegisteredTool`, `ToolResult`, and a
+- [x] T4.1 Define `ToolDefinition`, `RegisteredTool`, `ToolResult`, and a
       `ToolRegistry` protocol.
-- [ ] T4.2 Implement `InMemoryToolRegistry` for tests and simple callers.
-- [ ] T4.3 Implement conversion from registry tool definitions to OpenAI tool
+- [x] T4.2 Implement `InMemoryToolRegistry` for tests and simple callers.
+- [x] T4.3 Implement conversion from registry tool definitions to OpenAI tool
       schema.
-- [ ] T4.4 Implement tool invocation dispatch by manifest `tool_id`.
-- [ ] T4.5 Preserve side-effect metadata, approval metadata, timeout/retry
+- [x] T4.4 Implement tool invocation dispatch by manifest `tool_id`.
+- [x] T4.5 Preserve side-effect metadata, approval metadata, timeout/retry
       policy, and failure behavior in registry data structures.
-- [ ] T4.6 Add runtime tool overrides for adding, replacing, disabling, and
+- [x] T4.6 Add runtime tool overrides for adding, replacing, disabling, and
       restricting or extending tools globally or per `llm_step` without mutating
       generated agent-design artifacts.
-- [ ] T4.7 Validate override consistency, including unknown base tools,
+- [x] T4.7 Validate override consistency, including unknown base tools,
       malformed added tools, disabled tools still required by `tool_use_step`
       nodes, and overrides targeting non-`llm_step` nodes.
-- [ ] T4.8 Reconcile validation so `tool_use_step` execution dependencies must
+- [x] T4.8 Reconcile validation so `tool_use_step` execution dependencies must
       resolve to the effective callable registry; manifest and `tool-index.yaml`
       entries are metadata and do not make a tool callable by themselves.
-- [ ] T4.9 Add opt-in built-in default tool-pack support, starting with a
+- [x] T4.9 Add opt-in built-in default tool-pack support, starting with a
       read-only `local_workspace` pack for `read_file`, `list_files`,
       `search_files`, and `inspect_path` constrained to approved workspace roots.
-- [ ] T4.10 Keep write and command tools out of the default enabled set; if
+- [x] T4.10 Keep write and command tools out of the default enabled set; if
       introduced, model them as separate opt-in approval-aware packs.
-- [ ] T4.11 Add tests for lookup, schema conversion, successful invocation,
+- [x] T4.11 Add tests for lookup, schema conversion, successful invocation,
       missing tools, bad inputs, and tool failures.
-- [ ] T4.12 Add tests for override layering, effective registry additions,
+- [x] T4.12 Add tests for override layering, effective registry additions,
       replacement definitions, disabled tools, and per-node tool exposure.
-- [ ] T4.13 Add tests for built-in pack enablement, disabled-by-default behavior,
+- [x] T4.13 Add tests for built-in pack enablement, disabled-by-default behavior,
       workspace path restrictions, and node-reference requirements.
+
+## Slice 4 Completion Evidence
+
+- `src/dynamic_agent_runner/registry.py` defines the repository-owned registry
+  protocol, `RegisteredTool`, `ToolResult`, runtime override models,
+  `InMemoryToolRegistry`, OpenAI tool schema conversion, registry invocation,
+  registry-authoritative tool reference validation, and the opt-in read-only
+  `local_workspace` built-in tool pack.
+- `src/dynamic_agent_runner/validation.py` accepts an optional callable registry
+  during workflow validation so `tool_use_step` dependencies can be checked
+  against executable registry entries instead of metadata-only tool-index entries.
+- `load_agent_workflow(...)` accepts an optional `tool_registry` for validation
+  while still avoiding workflow execution.
+- `tests/test_registry.py` covers lookup, OpenAI schema conversion, invocation,
+  missing tools, bad inputs, tool failures, runtime override layering,
+  disabled-tool validation, registry-authoritative tool references,
+  built-in pack enablement, workspace path restrictions, and node-reference
+  requirements.
 
 ## Slice 5 — OpenAI client adapter
 

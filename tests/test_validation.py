@@ -200,12 +200,12 @@ def test_entrypoint_reference_fails() -> None:
 
 
 def test_tool_use_step_requires_known_tool() -> None:
-    """Tool-use nodes must reference manifest or external tool-index tools."""
+    """Tool-use nodes must reference manifest or external tool-index metadata."""
 
     data = valid_manifest_data()
     data["tools"] = []
 
-    with pytest.raises(WorkflowValidationError, match="unknown tool"):
+    with pytest.raises(WorkflowValidationError, match="unknown metadata tool"):
         validate_mapping(data)
 
 
