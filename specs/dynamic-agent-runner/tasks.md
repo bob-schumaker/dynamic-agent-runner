@@ -2,7 +2,7 @@
 
 ## Status
 
-- State: Slice 1 complete; ready for Slice 2
+- State: Slice 1 complete; planning drift update complete; ready for Slice 2
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
@@ -57,8 +57,9 @@
 
 ## Slice 2 — Artifact models and loaders
 
-- [ ] T2.1 Define internal models for runtime manifest metadata, nodes, edges,
-      tools, skills, output contracts, and validation sections.
+- [ ] T2.1 Define internal models for runtime manifest metadata, documented
+      supported pattern IDs, nodes, edges, tools, skills, participant groups,
+      modes, phases, roles, output contracts, and validation sections.
 - [ ] T2.2 Implement runtime YAML loading from path, raw string, and
       already-parsed object inputs.
 - [ ] T2.3 Implement Mermaid graph loading and `mermaid_diagram` reference
@@ -67,7 +68,11 @@
       string, and already-parsed object inputs.
 - [ ] T2.5 Implement lightweight `agent-design.md` loading and reference checks
       for the runtime manifest and Mermaid graph.
-- [ ] T2.6 Add fixture-based tests for valid and malformed artifact inputs.
+- [ ] T2.6 Preserve `patterns_present` metadata for the documented supported
+      agent pattern IDs without treating patterns as primitive node kinds.
+- [ ] T2.7 Add fixture-based tests for valid and malformed artifact inputs,
+      including at least one metadata-rich pattern shape such as
+      `multi-agent-collaboration` or `memory-augmented-agent`.
 
 ## Slice 3 — Validation engine
 

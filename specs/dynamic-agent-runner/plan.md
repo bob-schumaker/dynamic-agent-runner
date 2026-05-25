@@ -20,16 +20,18 @@ or a clear error.
 
 ## Current Repository State
 
-- No source package exists yet.
-- `pyproject.toml` and `poetry.lock` have uncommitted dependency/package metadata
-  changes.
-- `poetry check` passed after metadata cleanup.
-- The package include points to `src/dynamic_agent_runner`, so the first
-  implementation slice should scaffold that package before build validation.
+- Slice 1 is complete and committed: the initial source package scaffold exists
+  under `src/dynamic_agent_runner/` with public API placeholders, project error
+  types, and an import smoke test.
+- `pyproject.toml` and `poetry.lock` include the official `openai` dependency
+  and package include for `src/dynamic_agent_runner`.
+- `poetry check`, the import smoke test, targeted pytest, and targeted
+  pre-commit passed for the package scaffold slice.
 - README has been refreshed to align with the official `openai` package and
   repository-owned registry direction before deeper runtime implementation.
 - A 3-round implementation-readiness debate concluded this plan is ready only
-  for a narrow readiness/scaffold slice, not unrestricted runtime coding.
+  for slice-by-slice implementation, not unrestricted runtime coding.
+- The next active implementation slice is Slice 2: artifact models and loaders.
 
 ## Technical Approach
 
@@ -91,10 +93,32 @@ Initial parser responsibilities:
 - optional `tool-index.yaml`
 - lightweight `agent-design.md` reference checks for runtime manifest and Mermaid
   graph mentions
+- preservation of documented supported agent-pattern metadata from
+  `patterns_present`
+- preservation of structural metadata used by broader pattern shapes, including
+  `participant_groups`, `modes`, `phases`, and `roles`
 
 Use strongly typed internal dataclasses or Pydantic models only if they reduce
 complexity. Prefer standard-library dataclasses for the first slice unless schema
 validation becomes too large.
+
+Supported agent patterns from the agent-development skill's
+`references/examples/agent-pattern-examples.md` should be treated as manifest
+classification metadata during loading, not as new primitive node kinds. Loader
+models should preserve these pattern IDs without requiring executor support for
+every pattern in the first implementation:
+
+- `basic-reasoning-agent`
+- `tool-based-function-calling-agent`
+- `tool-server-or-mcp-style-agent`
+- `computer-use-agent`
+- `coding-agent`
+- `speech-or-voice-agent`
+- `workflow-orchestration-agent`
+- `memory-augmented-agent`
+- `simulation-or-test-bed-agent`
+- `observer-or-monitoring-agent`
+- `multi-agent-collaboration`
 
 ### Validation
 
@@ -166,6 +190,14 @@ Implement the minimum node execution needed for the observed example:
 Keep unsupported node kinds, decision subtypes, and edge kinds explicit errors
 until implemented.
 
+Do not expand the primitive node-kind taxonomy to represent agent patterns.
+Pattern-specific structures such as multi-agent collaboration, memory-augmented
+agents, observer workflows, computer-use loops, or speech workflows should be
+modeled with `patterns_present`, `participant_groups`, `roles`, `phases`,
+ordinary primitive nodes, declared tools, and control-flow edges. Executor
+support can then be added incrementally for the relevant primitive nodes, edge
+semantics, tools, and policies.
+
 Execution state should track:
 
 - original user prompt
@@ -212,6 +244,8 @@ and execution failures.
 2. **Artifact models and loaders**
    - parse runtime YAML, Mermaid text, optional tool index, and design document
    - support path, raw-string, and already-parsed-object inputs
+   - preserve supported pattern metadata, participant groups, modes, phases, and
+     roles for later validation and execution slices
    - add fixture-based tests
 
 3. **Validation engine**
@@ -256,12 +290,15 @@ model behavior and fake registries for tool behavior.
 - README must remain aligned with the spec's official `openai` package and
   repository-owned registry direction; stale `ai-tools-core` language should not
   survive into implementation commits.
-- `pyproject.toml` points to `src/dynamic_agent_runner`; builds may fail until
-  the source package exists.
+- The source package now exists; future slices should keep the package layout,
+  `pyproject.toml`, and tests aligned as modules are added.
 - Exact OpenAI SDK call shape should be isolated behind the adapter because SDK
   APIs may evolve.
 - Tool schema validation depth should start pragmatic and become stricter as
   real generated manifests stabilize.
+- Supported agent patterns are currently metadata-level compatibility targets;
+  full executor support depends on later primitive node, edge, tool, policy, and
+  adapter implementation.
 - Safety, authentication, logging, and redaction requirements remain expected
   drift points from the spec and should be promoted into artifacts when clarified.
 
@@ -280,6 +317,6 @@ a qualified verdict:
 
 ## Plan Gate
 
-This plan is accepted as the current technical planning artifact for a narrow
-readiness/scaffold slice. Deeper runtime implementation should wait until that
-slice is complete and validated.
+This plan is accepted as the current technical planning artifact. The
+readiness/scaffold slice is complete and validated. Continue with Slice 2 before
+deeper validation, registry, OpenAI adapter, executor, or CLI runtime work.

@@ -14,6 +14,8 @@
   - `memory-bank/techContext.md`
   - summarized details from the agent-development skill's
     `references/agent-runtime-package.md`
+  - supported agent-pattern metadata from the agent-development skill's
+    `references/examples/agent-pattern-examples.md`
   - observed example artifacts from the agent-development skill's
     `references/examples/` directory
 
@@ -146,10 +148,18 @@ Acceptance criteria:
 - Given manifest metadata such as `package_id`, `name`, `entrypoint`,
   `packaging`, `patterns_present`, and `execution_policy`, when parsing
   succeeds, then that metadata is available to workflow preparation.
+- Given `patterns_present` metadata, when parsing succeeds, then the library
+  preserves documented pattern identifiers even when the current executor does
+  not yet implement pattern-specific adapters.
 - Given manifest sections for `state`, `skills`, `tools`, `modes`, `phases`,
   `roles`, `nodes`, `edges`, `output_contracts`, and `validation`, when parsing
   succeeds, then the library preserves the relationships needed for validation
   and execution.
+- Given manifest sections for `participant_groups`, `modes`, `phases`, and
+  `roles`, when parsing succeeds, then the library preserves the metadata needed
+  to represent multi-agent, debate, council-like, workflow-orchestration,
+  observer, simulation, memory, speech, computer-use, and other documented
+  patterns without inventing new primitive node kinds.
 
 ### FR-2: Validate artifact relationship
 
@@ -381,6 +391,54 @@ Control-flow execution should use control-flow edges. Tool availability should
 use capability overlay edges so capability display is not confused with actual
 tool invocation.
 
+## Supported Pattern Metadata
+
+The agent-development skill now documents the supported primary agent pattern
+IDs in `references/examples/agent-pattern-examples.md`. Runtime consumers should
+treat these IDs as coarse design-classification metadata rather than as new
+primitive execution node kinds:
+
+- `basic-reasoning-agent`
+- `tool-based-function-calling-agent`
+- `tool-server-or-mcp-style-agent`
+- `computer-use-agent`
+- `coding-agent`
+- `speech-or-voice-agent`
+- `workflow-orchestration-agent`
+- `memory-augmented-agent`
+- `simulation-or-test-bed-agent`
+- `observer-or-monitoring-agent`
+- `multi-agent-collaboration`
+
+Initial loader and model work must preserve these pattern IDs when they appear
+in `patterns_present`. Initial execution compatibility may remain narrower than
+the full pattern catalog, but parsing must not discard pattern metadata merely
+because concrete adapters for a pattern are not implemented yet.
+
+For `format_version: 1`, documented pattern shapes should still compile down to
+the small primitive execution taxonomy:
+
+- `llm_step`
+- `tool_use_step`
+- `decision_step`
+
+Pattern-specific structure should be represented with metadata and graph fields
+such as `participant_groups`, `roles`, `modes`, `phases`, `state`,
+`execution_policy`, `available_tools`, and control-flow edge kinds including
+`loopback`, `parallel_fanout`, `parallel_join`, `event`, and `capability`.
+Examples:
+
+- Multi-agent collaboration should use participant groups, role nodes, parallel
+  or batched LLM steps, join or synthesis nodes, and decision gates rather than
+  a `multi_agent_step` node kind.
+- Memory-augmented agents should use retrieval or memory tools, state metadata,
+  confidence decisions, and synthesis LLM steps rather than a `memory_step` node
+  kind.
+- Computer-use, speech or voice, observer, simulation, and tool-server patterns
+  should expose their capabilities through declared tools, policy metadata,
+  phases, events, and ordinary primitive nodes until a later format version
+  defines stronger semantics.
+
 ## Tool Index Shape
 
 The runtime manifest may inline tool definitions under top-level `tools`. A
@@ -458,6 +516,8 @@ The runtime should start with OpenAI package model and client interfaces:
 - Defining validation expectations and test coverage areas.
 - Capturing the observed runtime manifest shape from the available example.
 - Capturing the external tool-index shape from the available example.
+- Preserving documented supported agent-pattern metadata from the
+  agent-development skill's pattern examples.
 - Supporting package loading for the recommended runtime package artifact set.
 - Accepting input artifacts as paths, raw strings, or already-parsed objects.
 - Exposing a CLI for running workflows from the generated package artifacts.
@@ -497,6 +557,9 @@ The runtime should start with OpenAI package model and client interfaces:
   while allowing an optional protocol-similar client to be passed in.
 - Initial implementation starts with the official OpenAI Python package and
   OpenAI-compatible model semantics.
+- Supported agent patterns are manifest metadata for initial loader/model work;
+  they do not imply that every pattern has full executor or adapter support in
+  the first implementation.
 - Safety, authentication, logging, and redaction requirements will be discovered
   during the first implementation and may be promoted into workflow-spec fields.
 
@@ -539,6 +602,10 @@ Before implementation is considered complete, add validation covering:
       runtime YAML and Mermaid graph
 - [ ] runtime YAML parsing for `format_version: 1` and `package_type:
       dynamic_agent_design`
+- [ ] `patterns_present` parsing and preservation for documented supported
+      agent-pattern IDs
+- [ ] participant-group, mode, phase, and role metadata parsing for multi-agent
+      and other structured pattern shapes
 - [ ] Mermaid diagram reference resolution and relationship validation
 - [ ] embedded `tools` section parsing and tool-reference validation
 - [ ] external `tool-index.yaml` parsing for `index_type:
@@ -570,6 +637,9 @@ Before implementation is considered complete, add validation covering:
   agent-development skill's `references/examples/` directory.
 - This spec now incorporates the runtime package reference's manifest,
   packaging, tool-index, node-kind, edge-kind, and validation guidance.
+- This spec now incorporates the agent-development skill's documented supported
+  pattern IDs as metadata that loaders should preserve without expanding the
+  primitive node taxonomy.
 - User clarification resolved initial version support, input forms, CLI exposure,
   default execution-path ownership, optional client injection, optional tool
   registry, and evolving safety/logging requirements.
@@ -582,8 +652,9 @@ Before implementation is considered complete, add validation covering:
   implementing the needed tool registry locally.
 - User clarification resolved `tool-index.yaml` handling: it is an explicit input
   when required by the workflow.
-- No source package exists yet, so implementation details remain intentionally
-  abstract.
+- The initial source package scaffold exists; deeper parser, registry, OpenAI
+  adapter, executor, and CLI implementation details remain intentionally staged
+  through follow-on slices.
 - Follow-on implementation planning artifacts now exist at
   `specs/dynamic-agent-runner/plan.md` and
   `specs/dynamic-agent-runner/tasks.md`. Treat them as the current technical
