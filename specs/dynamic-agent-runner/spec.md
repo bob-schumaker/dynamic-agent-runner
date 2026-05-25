@@ -173,6 +173,10 @@ Acceptance criteria:
   to represent multi-agent, debate, council-like, workflow-orchestration,
   observer, simulation, memory, speech, computer-use, and other documented
   patterns without inventing new primitive node kinds.
+- Given the repository's hello-world pattern fixture packages under
+  `tests/fixtures/agent-patterns/`, when fixture validation runs, then every
+  documented supported agent-pattern ID has a loadable `agent-design.md`,
+  `agent-runtime.yaml`, and `agent-graph.mmd` resource package.
 
 ### FR-2: Validate artifact relationship
 
@@ -493,6 +497,19 @@ in `patterns_present`. Initial execution compatibility may remain narrower than
 the full pattern catalog, but parsing must not discard pattern metadata merely
 because concrete adapters for a pattern are not implemented yet.
 
+The repository also maintains a hello-world fixture surface for these pattern
+IDs under `tests/fixtures/agent-patterns/`. Each pattern directory is expected to
+contain:
+
+- `agent-design.md`
+- `agent-runtime.yaml`
+- `agent-graph.mmd`
+
+These fixtures are small test resources, not production-ready agent designs.
+They should remain aligned with `SUPPORTED_AGENT_PATTERNS` so future executor,
+CLI, and compatibility work can grow toward full pattern coverage without
+depending on machine-specific source checkouts.
+
 For `format_version: 1`, documented pattern shapes should still compile down to
 the small primitive execution taxonomy:
 
@@ -619,6 +636,9 @@ The runtime should start with OpenAI package model and client interfaces:
 - Capturing the external tool-index metadata shape from the available example.
 - Preserving documented supported agent-pattern metadata from the
   agent-development skill's pattern examples.
+- Maintaining hello-world fixture runtime packages for all 11 documented
+  supported agent patterns as the repository's broad pattern-coverage test
+  surface.
 - Supporting package loading for the recommended runtime package artifact set.
 - Accepting input artifacts as paths, raw strings, or already-parsed objects.
 - Exposing a CLI for running workflows from the generated package artifacts.
@@ -669,6 +689,9 @@ The runtime should start with OpenAI package model and client interfaces:
 - Supported agent patterns are manifest metadata for initial loader/model work;
   they do not imply that every pattern has full executor or adapter support in
   the first implementation.
+- Hello-world pattern fixtures are test resources used to preserve and validate
+  package shape across all 11 supported pattern IDs; they do not by themselves
+  imply full runtime support for every pattern-specific behavior.
 - Safety, authentication, logging, and redaction requirements will be discovered
   during the first implementation and may be promoted into workflow-spec fields.
 
@@ -713,6 +736,8 @@ Before implementation is considered complete, add validation covering:
       dynamic_agent_design`
 - [ ] `patterns_present` parsing and preservation for documented supported
       agent-pattern IDs
+- [ ] hello-world runtime fixture packages for all documented supported
+      agent-pattern IDs under `tests/fixtures/agent-patterns/`
 - [ ] participant-group, mode, phase, and role metadata parsing for multi-agent
       and other structured pattern shapes
 - [ ] Mermaid diagram reference resolution and relationship validation
@@ -754,6 +779,8 @@ Before implementation is considered complete, add validation covering:
 - This spec now incorporates the agent-development skill's documented supported
   pattern IDs as metadata that loaders should preserve without expanding the
   primitive node taxonomy.
+- This spec now records `tests/fixtures/agent-patterns/` as the repository's
+  hello-world test-resource surface for all 11 documented supported pattern IDs.
 - User clarification resolved initial version support, input forms, CLI exposure,
   default execution-path ownership, optional client injection, optional tool
   registry, and evolving safety/logging requirements.

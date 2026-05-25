@@ -1,0 +1,144 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: hello-world-observer-or-monitoring-agent
+name: Hello World Observer Or Monitoring Agent
+description: Hello-world test resource for the Observer Or Monitoring Agent pattern.
+entrypoint: read_event
+mermaid_diagram: agent-graph.mmd
+
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+
+patterns_present:
+  - observer-or-monitoring-agent
+
+execution_policy:
+  autonomy_level: assistive
+  allowed_execution_modes:
+    - sequential_fallback
+  external_backend_allowed: no
+  max_iterations: 3
+  timeout: runtime_default
+  approval_required_for:
+    - live write or mutation
+  forbidden_actions:
+    - store secrets in prompts or logs
+  model: gpt-test
+
+state:
+  artifacts:
+    - id: user_request
+      description: Original hello-world request.
+      source: user
+    - id: hello_message
+      description: Final hello-world response.
+      source: llm
+  mutable_fields:
+    - hello_message
+
+skills:
+  - id: agent-development
+    label: Agent development skill
+    source_type: repo_skill
+    source_path: skills/agent-development-skill/SKILL.md
+    packaging_mode: referenced_only
+    notes: Provides agent pattern vocabulary for this fixture.
+
+tools:
+  - id: read_hello_event
+    label: Read Hello Event
+    description_for_llm: |
+      Hello-world fixture tool for the read_hello_event capability.
+    adapter: fixtures.read_hello_event
+    input_schema:
+      type: object
+      properties:
+        query:
+          type: string
+      required:
+        - query
+    output_schema:
+      type: object
+      properties:
+        message:
+          type: string
+    side_effect: read
+    approval_required: no
+    timeout: runtime_default
+    retry_policy: none
+    failure_behavior: fallback
+
+participant_groups: []
+
+modes:
+  - id: default
+    description: Hello-world fixture mode for Observer Or Monitoring Agent.
+    enabled_phases:
+      - hello
+    batching_allowed: false
+
+phases:
+  - id: hello
+    label: Hello phase
+    phase_kind: preparation
+    repeatable: false
+    participant_group: null
+    peer_visibility: none
+    enabled_when: always
+
+roles:
+  - id: hello_designer
+    label: Hello designer
+
+nodes:
+  - id: read_event
+    kind: tool_use_step
+    label: Read event
+    tool_id: read_hello_event
+    inputs:
+      query: hello event
+    failure_behavior: fallback
+    outputs:
+      state_key: read_event_result
+  - id: detect_anomaly
+    kind: decision_step
+    label: Detect anomaly
+    decision_subtype: llm_route
+    route_from: read_event
+    decision_contract:
+      allowed_paths:
+        - id: proceed
+          target: hello_done
+      default_path: proceed
+  - id: explain_observation
+    kind: llm_step
+    label: Explain observation
+    model: gpt-test
+    prompt:
+      user_template: |
+        Say hello from observation: {read_event}
+      input_vars:
+        - prompt
+      output_schema_ref: hello_message
+
+edges:
+  - source: read_event
+    target: detect_anomaly
+    edge_kind: sequential
+  - source: detect_anomaly
+    target: explain_observation
+    edge_kind: branch
+    condition: proceed
+
+output_contracts:
+  hello_message:
+    required_fields:
+      - message
+    validation: fixture_load_check
+
+validation:
+  package_checks:
+    - Every node id is unique.
+    - Every edge endpoint references an existing node.
+    - Every llm_step has a prompt or a prompt_source.
