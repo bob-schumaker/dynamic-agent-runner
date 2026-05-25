@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 2 complete; ready for Slice 3
+- State: Slice 3 complete; ready for Slice 4
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 3 — validation engine
+- Next active slice: Slice 4 — repository-owned tool registry
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -93,21 +93,33 @@
 
 ## Slice 3 — Validation engine
 
-- [ ] T3.1 Validate required runtime manifest fields: `format_version`,
+- [x] T3.1 Validate required runtime manifest fields: `format_version`,
       `package_type`, `package_id`, `entrypoint`, `packaging`, `nodes`, and
       `edges`.
-- [ ] T3.2 Validate supported enums for initial scope: `format_version: 1`,
+- [x] T3.2 Validate supported enums for initial scope: `format_version: 1`,
       `package_type: dynamic_agent_design`, observed node kinds, decision
       subtypes, and edge kinds.
-- [ ] T3.3 Validate node IDs are unique and every edge endpoint references an
+- [x] T3.3 Validate node IDs are unique and every edge endpoint references an
       existing node.
-- [ ] T3.4 Validate every `tool_use_step` references an available manifest or
+- [x] T3.4 Validate every `tool_use_step` references an available manifest or
       external tool-index tool.
-- [ ] T3.5 Validate every `llm_step` has prompt data or a prompt source.
-- [ ] T3.6 Validate external `tool-index.yaml` structure: `format_version`,
+- [x] T3.5 Validate every `llm_step` has prompt data or a prompt source.
+- [x] T3.6 Validate external `tool-index.yaml` structure: `format_version`,
       `index_type`, `tools`, and `skills`.
-- [ ] T3.7 Add tests for clear errors on missing artifacts, malformed schemas,
+- [x] T3.7 Add tests for clear errors on missing artifacts, malformed schemas,
       unsupported versions, inconsistent nodes, and missing tools.
+
+## Slice 3 Completion Evidence
+
+- `src/dynamic_agent_runner/validation.py` validates required manifest fields,
+  supported enum values, node identity, edge references, tool references, LLM
+  prompt presence, and external tool-index structure.
+- `load_agent_workflow(...)` now validates loaded artifacts before returning
+  them for later execution slices.
+- `tests/test_validation.py` covers passing validation, required-field failures,
+  unsupported enum failures, duplicate node IDs, bad edge endpoints, missing
+  entrypoints, unknown tool references, missing LLM prompts, and malformed tool
+  indexes.
 
 ## Slice 4 — Repository-owned tool registry
 

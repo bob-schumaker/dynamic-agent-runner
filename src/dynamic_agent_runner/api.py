@@ -6,6 +6,7 @@ from typing import Any
 
 from dynamic_agent_runner.artifacts import load_agent_workflow_artifacts
 from dynamic_agent_runner.models import LoadedAgentWorkflow
+from dynamic_agent_runner.validation import validate_agent_workflow
 
 
 def load_agent_workflow(
@@ -31,12 +32,14 @@ def load_agent_workflow(
         raise TypeError("load_agent_workflow requires runtime_manifest")
 
     graph_input = mermaid_graph if mermaid_graph is not None else mermaid_diagram
-    return load_agent_workflow_artifacts(
+    workflow = load_agent_workflow_artifacts(
         runtime_manifest=runtime_input,
         mermaid_graph=graph_input,
         agent_design=agent_design,
         tool_index=tool_index,
     )
+    validate_agent_workflow(workflow)
+    return workflow
 
 
 def run_agent_workflow(*args: Any, **kwargs: Any) -> Any:

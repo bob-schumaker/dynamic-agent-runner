@@ -53,6 +53,8 @@ nodes:
   - id: analyze_request
     kind: llm_step
     label: Analyze request
+    prompt:
+      user_template: Analyze {prompt}
     available_tools:
       - retrieve_memory
   - id: retrieve_context
