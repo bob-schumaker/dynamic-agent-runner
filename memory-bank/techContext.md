@@ -29,6 +29,7 @@ Current committed dependency context includes:
 - `openai ^2.38.0`
 - `PyYAML >=6.0`
 - `tenacity >=9.0.0`
+- `tiktoken >=0.12.0`
 
 Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 
@@ -44,6 +45,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - use `PyYAML` for runtime YAML and tool-index parsing
 - use `tenacity` behind package-owned retry policy helpers for bounded model
   and tool retry behavior
+- use `tiktoken` behind package-owned token-budget helpers for rendered-message
+  prompt-token estimation
 
 ## Development and Test Dependencies
 
@@ -184,3 +187,10 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   included `poetry run pytest` with 70 passing tests and targeted
   `pre-commit run --files` on the changed README, task-list, executor, and
   test files.
+- Slice 10 token budgeting was committed in `d3a5c51`. It added
+  `tiktoken >=0.12.0`, `src/dynamic_agent_runner/token_budget.py`, token-budget
+  exports, executor preflight integration, README token-budget guidance, and
+  token-budget tests. Validation observed before commit included
+  `poetry run pytest` with 80 passing tests, `poetry check`, and targeted
+  `pre-commit run --files` on the changed implementation, dependency, README,
+  task-list, and test files.

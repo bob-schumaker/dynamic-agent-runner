@@ -60,6 +60,8 @@
   `a274b8b feat(executor): add retry policy support`.
 - Slice 9 output contract validation commit exists:
   `69b68ef feat(executor): validate output contracts`.
+- Slice 10 token budget preflight commit exists:
+  `d3a5c51 feat(executor): add token budget preflight`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -97,16 +99,19 @@
   on `WorkflowExecutionState`.
 - Slice 9 validates `llm_step` output contracts and `llm_route` decision
   paths before trusting model output or traversing branches.
+- Slice 10 adds `tiktoken`, package-owned token budget models, prompt-token
+  preflight for configured `llm_step` calls, and `token_usage` records on
+  `WorkflowExecutionState`.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Slice 10 — token budgeting and context preflight — is the next active
+- Slice 11 — execution tracing and observability hooks — is the next active
   implementation slice.
 
 ## Remaining
 
-- Implement Slice 10 token budgeting and context preflight when development
+- Implement Slice 11 execution tracing and observability hooks when development
   resumes.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, and all-pattern fixture foundation into the next scoped slice.
@@ -151,6 +156,9 @@
 - Slice 9 implements output contract and route validation only; model-assisted
   repair, Instructor-style retries, richer JSON Schema validation, and route
   repair remain future extension areas.
+- Slice 10 implements token estimation and fail-fast budget enforcement only;
+  automatic truncation, summarization, and CLI token-reporting UX remain future
+  extension areas.
 - `parallel_join`, `parallel_fanout`, and broader multi-agent execution are still
   unsupported runtime behavior. The CLI test suite now checks that this fails
   clearly instead of silently succeeding.
