@@ -28,6 +28,7 @@ Current committed dependency context includes:
   `spreadsheets`
 - `openai ^2.38.0`
 - `PyYAML >=6.0`
+- `tenacity >=9.0.0`
 
 Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 
@@ -41,6 +42,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - support runtime tool overrides and opt-in built-in default tool packs in the
   implemented Slice 4 registry scope
 - use `PyYAML` for runtime YAML and tool-index parsing
+- use `tenacity` behind package-owned retry policy helpers for bounded model
+  and tool retry behavior
 
 ## Development and Test Dependencies
 
@@ -167,3 +170,10 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - The source article used for the package-addition evaluation was committed in
   `33632d4` at `cline-tasks/libraries-that-made-my-ai-agents-work.md` with
   markdown lint disables for archival line length and image-alt issues.
+- Slice 8 retry/resilience was committed in `a274b8b`. It added
+  `tenacity >=9.0.0`, `src/dynamic_agent_runner/retry.py`, retry exports,
+  executor retry integration, README retry metadata guidance, and fake-client/
+  fake-tool retry tests. Validation observed before commit included
+  `poetry run pytest` with 64 passing tests, `poetry check`, and targeted
+  `pre-commit run --files` on the changed implementation, dependency, README,
+  task-list, and test files.

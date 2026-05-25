@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-- Slice 7 CLI and documentation is complete and committed in `30a6b0a`; the
-  repository now also has explicit all-fixture CLI coverage and unsupported-edge
-  failure behavior committed in `da1848d`. The library-evaluation source was
-  committed in `33632d4`, and its concrete hardening roadmap was added to the
-  spec/tasks in `a0b1490`.
+- Slice 8 retry and resilience policy is complete and committed in `a274b8b`.
+  The executor now supports package-owned bounded retry policy metadata for
+  model and tool call sites, backed by Tenacity and recorded in execution
+  state. The next active implementation slice is Slice 9 — output contracts
+  and route validation.
 
 ## Current Status
 
@@ -51,10 +51,11 @@
     a source artifact for package-addition evaluation.
   - Updated `spec.md` and `tasks.md` with runtime hardening requirements and
     follow-on slices in `a0b1490`.
+  - Completed Slice 8 retry and resilience policy in `a274b8b`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
-  - Post-CLI follow-on planning.
+  - Slice 9 output contracts and route validation.
 
 ## Important Current Facts
 
@@ -72,8 +73,8 @@
   - `specs/dynamic-agent-runner/tasks.md`
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0, 1, 2, 3, 4, 5, 6, and 7 are complete; the next
-  active implementation slice is Slice 8 — retry and resilience policy.
+  implementation. Slices 0 through 8 are complete; the next active
+  implementation slice is Slice 9 — output contracts and route validation.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -161,6 +162,18 @@
     Slice 10 token budgeting, and Slice 11 tracing/observability.
   - LiteLLM, Watchfiles, Rich, and Diskcache are deferred unless later scoped
     requirements justify them.
+- Slice 8 implementation from `a274b8b`:
+  - `src/dynamic_agent_runner/retry.py` defines package-owned `RetryPolicy`
+    and `RetryRecord` models plus Tenacity-backed retry helpers.
+  - `src/dynamic_agent_runner/executor.py` applies bounded retry policy to
+    model calls and tool calls while preserving default one-attempt fail-closed
+    behavior.
+  - `WorkflowExecutionState.retry_records` records operation, attempts,
+    outcome, and final error for model and tool call sites.
+  - Retry policy can come from node metadata, manifest execution policy, or
+    callable registry tool metadata, depending on call site.
+  - `tests/test_executor.py` covers retryable, non-retryable, exhaustion, and
+    default no-retry behavior using fake clients and fake tools.
 - Slice 4 scope decisions from `07edab0`:
   - `tool-index.yaml` is optional metadata, not an execution prerequisite.
   - A required tool registry or approved registry source is authoritative for
@@ -171,6 +184,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `a274b8b feat(executor): add retry policy support`
   - `33632d4 docs(cline-tasks): add agent library evaluation source`
   - `a0b1490 docs(spec): add runtime hardening roadmap`
   - `da1848d fix(executor): fail on unsupported edge kinds`
@@ -195,7 +209,7 @@
 
 ## Next Steps
 
-- Continue with Slice 8 — retry and resilience policy — from
+- Continue with Slice 9 — output contracts and route validation — from
   `specs/dynamic-agent-runner/tasks.md` when implementation resumes.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
   requirements rather than broad framework adoption.

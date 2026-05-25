@@ -56,6 +56,8 @@
   `a0b1490 docs(spec): add runtime hardening roadmap`.
 - Agent library evaluation source commit exists:
   `33632d4 docs(cline-tasks): add agent library evaluation source`.
+- Slice 8 retry policy support commit exists:
+  `a274b8b feat(executor): add retry policy support`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -88,16 +90,20 @@
 - The spec now includes follow-on runtime hardening requirements for bounded
   retries, output-contract validation, token budgeting, and package-owned
   tracing hooks.
+- Slice 8 adds `tenacity`, package-owned retry policy models, bounded retry
+  execution for retryable model and tool failures, and retry outcome records
+  on `WorkflowExecutionState`.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Slice 8 — retry and resilience policy — is the next active implementation
-  slice.
+- Slice 9 — output contracts and route validation — is the next active
+  implementation slice.
 
 ## Remaining
 
-- Implement Slice 8 retry and resilience policy when development resumes.
+- Implement Slice 9 output contracts and route validation when development
+  resumes.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, and all-pattern fixture foundation into the next scoped slice.
 - Use the all-pattern hello-world fixtures as the broad pattern test surface for
@@ -135,6 +141,9 @@
 - Slice 7 implements a minimal CLI over existing public seams; richer registry
   configuration, live-model ergonomics, and production packaging behavior remain
   future extension areas.
+- Slice 8 implements retry/resilience for model and tool call sites only;
+  broader output repair, token budgeting, trace sinks, and advanced workflow
+  policies remain future slices.
 - `parallel_join`, `parallel_fanout`, and broader multi-agent execution are still
   unsupported runtime behavior. The CLI test suite now checks that this fails
   clearly instead of silently succeeding.

@@ -13,7 +13,9 @@
   - `src/dynamic_agent_runner/openai_client.py` isolates the official OpenAI
     client behind a small fake-client-compatible adapter boundary
   - `src/dynamic_agent_runner/executor.py` composes loaded workflows, registry
-    tools, and the OpenAI adapter into executable workflow runs
+    tools, retry policy, and the OpenAI adapter into executable workflow runs
+  - `src/dynamic_agent_runner/retry.py` owns retry policy parsing and
+    Tenacity-backed bounded retry helpers
   - `src/dynamic_agent_runner/cli.py` exposes an injectable CLI implementation
     and console-script entry point for artifact-path workflow execution
   - `src/dynamic_agent_runner/errors.py` defines project-specific exception
@@ -28,8 +30,8 @@
   for each documented supported agent pattern. Each fixture package has
   `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`.
 - Current repository structure has loader/model/validation/registry/adapter/
-  executor/CLI behavior; follow-on runtime expansion should be planned as a new
-  scoped slice.
+  executor/retry/CLI behavior; follow-on runtime expansion should be planned as
+  a new scoped slice.
 
 ## Observed Patterns
 
@@ -75,7 +77,8 @@
 - OpenAI response normalization extracts text and function calls into internal
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 - `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,
-  node outputs, tool results, execution records, errors, and final result.
+  node outputs, tool results, execution records, retry records, errors, and
+  final result.
 - Executor control flow currently supports sequential edges and branch edges for
   `decision_step` nodes with `decision_subtype: llm_route`.
 - Executor control flow fails explicitly for unsupported outgoing edge kinds such
@@ -92,8 +95,9 @@
   enables only the read-only `local_workspace` built-in tool pack. Broader
   registry configuration remains a future extension area.
 - Runtime hardening should proceed through package-owned interfaces rather than
-  broad framework adoption. Current follow-on priorities are retry/resilience,
-  output-contract validation, token budgeting, and trace hooks.
+  broad framework adoption. Slice 8 completed retry/resilience through
+  package-owned retry models and Tenacity-backed helpers; current follow-on
+  priorities are output-contract validation, token budgeting, and trace hooks.
 
 ## Boundaries and Unknowns
 
@@ -105,10 +109,11 @@
 - OpenAI client adapter: implemented for Slice 5 scope.
 - Workflow executor: implemented for Slice 6 scope.
 - CLI: implemented for Slice 7 scope.
+- Retry/resilience: implemented for Slice 8 scope.
 
 ## Guidance for Future Work
 
-- Continue from Slice 8 — retry and resilience policy — in
+- Continue from Slice 9 — output contracts and route validation — in
   `specs/dynamic-agent-runner/tasks.md`.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
