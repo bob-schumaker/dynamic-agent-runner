@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 8 complete; ready for Slice 9
+- State: Slice 9 complete; ready for Slice 10
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 9 — output contracts and route validation
+- Next active slice: Slice 10 — token budgeting and context preflight
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -301,16 +301,36 @@
 
 ## Slice 9 — Output contracts and route validation
 
-- [ ] T9.1 Define how manifest `output_contracts` map to runtime validation for
+- [x] T9.1 Define how manifest `output_contracts` map to runtime validation for
       model outputs.
-- [ ] T9.2 Validate required output fields for `llm_step` results before storing
+- [x] T9.2 Validate required output fields for `llm_step` results before storing
       them as trusted node state.
-- [ ] T9.3 Tighten `decision_step` / `llm_route` validation so malformed routes
+- [x] T9.3 Tighten `decision_step` / `llm_route` validation so malformed routes
       or routes outside declared branch conditions fail clearly.
-- [ ] T9.4 Keep model-assisted repair or Instructor-style retry behavior out of
+- [x] T9.4 Keep model-assisted repair or Instructor-style retry behavior out of
       scope unless explicitly introduced by a later spec update.
-- [ ] T9.5 Add tests for valid output contracts, malformed model output,
+- [x] T9.5 Add tests for valid output contracts, malformed model output,
       malformed route output, and unknown route values.
+
+## Slice 9 Completion Evidence
+
+- `execute_workflow(...)` validates `llm_step` `output_schema_ref` declarations
+  against `runtime_manifest.output_contracts` before storing model output as
+  trusted node state.
+- Output contract required fields are validated against JSON object model output
+  or adapter-provided structured output. Plain text remains accepted only for the
+  fixture-compatible single-field `message` contract.
+- `decision_step` nodes with `decision_subtype: llm_route` now validate extracted
+  routes against `decision_contract.allowed_paths` when that contract is present.
+- Malformed route output and routes outside declared allowed paths fail clearly
+  before branch traversal.
+- Model-assisted repair or Instructor-style retry behavior remains out of scope.
+- `tests/test_executor.py` covers valid output contracts, missing fields,
+  unstructured model output, unknown output contracts, malformed route output,
+  and unknown route values.
+- `tests/test_cli.py` fixture fake responses now satisfy the declared
+  `hello_message` contract while still exercising route extraction.
+- `README.md` documents current output-contract and route-validation behavior.
 
 ## Slice 10 — Token budgeting and context preflight
 

@@ -137,6 +137,21 @@ Tool registry definitions may also carry `retry_policy` metadata. Retry outcomes
 are recorded in `WorkflowExecutionState.retry_records` with the operation, attempt
 count, final outcome, and final error when one remains.
 
+## Output Contracts and Route Validation
+
+`llm_step` nodes may declare an `output_schema_ref` either on the node or in the
+node prompt metadata. The reference maps to `runtime_manifest.output_contracts`.
+For the current runtime slice, output contracts validate declared required fields
+against JSON object model output or adapter-provided structured output. Plain text
+remains accepted only for the common single-field `message` contract used by the
+hello-world fixtures.
+
+`decision_step` nodes with `decision_subtype: llm_route` may declare
+`decision_contract.allowed_paths`. When present, routes extracted from plain text
+or JSON model output must match one of the allowed path ids before branch
+traversal continues. Model-assisted repair of malformed outputs is intentionally
+out of scope for the current runtime.
+
 ## CLI Usage
 
 After installation, run a workflow package from artifact paths:
@@ -179,6 +194,7 @@ Current tests cover:
   relationships
 - constructing the OpenAI package-backed model execution path through an adapter
 - applying bounded model and tool retry policies without live model calls
+- validating LLM output contracts and decision routes before trusting node output
 - converting repository-owned tool registry definitions to OpenAI tool schema
 - dispatching registered tools without live model calls in unit tests
 - running supported workflows from a user prompt with fake clients/tools

@@ -159,6 +159,7 @@ def _execute_llm_step(
         )
         raise
     _record_retry(state, node, "model", attempts=attempts, outcome="success")
+    _validate_model_output_contract(node, workflow, response)
     return response
 
 
@@ -241,6 +242,7 @@ def _execute_decision_step(node: RuntimeNode, state: WorkflowExecutionState) -> 
         raise WorkflowExecutionError(
             f"decision_step node {node.id!r} produced no route"
         )
+    _validate_decision_route(node, route_text)
     return route_text
 
 
@@ -295,6 +297,42 @@ def _record_outputs(
         state_key = outputs.get("state_key") or outputs.get("key")
         if state_key:
             state.node_outputs[str(state_key)] = output
+
+
+def _validate_model_output_contract(
+    node: RuntimeNode,
+    workflow: LoadedAgentWorkflow,
+    response: ModelResponse,
+) -> None:
+    contract_ref = _output_schema_ref(node)
+    if not contract_ref:
+        return
+    contract = workflow.runtime_manifest.output_contracts.get(contract_ref)
+    if not isinstance(contract, Mapping):
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} references unknown output contract "
+            f"{contract_ref!r}"
+        )
+    required_fields = _required_fields(contract)
+    if not required_fields:
+        return
+    output = _structured_model_output(response)
+    if isinstance(output, Mapping):
+        missing = [field for field in required_fields if field not in output]
+        if missing:
+            missing_text = ", ".join(repr(field) for field in missing)
+            raise WorkflowExecutionError(
+                f"llm_step node {node.id!r} output contract {contract_ref!r} "
+                f"missing required field(s): {missing_text}"
+            )
+        return
+    if len(required_fields) == 1 and required_fields[0] == "message":
+        if response.content:
+            return
+    raise WorkflowExecutionError(
+        f"llm_step node {node.id!r} output contract {contract_ref!r} requires "
+        f"structured output fields: {', '.join(required_fields)}"
+    )
 
 
 def _next_node_id(
@@ -444,6 +482,78 @@ def _route_from_value(value: Any) -> str | None:
         route = value.get("route") or value.get("decision") or value.get("next")
         return str(route) if route is not None else None
     return str(value) if value is not None else None
+
+
+def _output_schema_ref(node: RuntimeNode) -> str | None:
+    value = node.raw.get("output_schema_ref")
+    prompt = node.raw.get("prompt")
+    if value is None and isinstance(prompt, Mapping):
+        value = prompt.get("output_schema_ref")
+    return str(value) if value is not None else None
+
+
+def _required_fields(contract: Mapping[str, Any]) -> tuple[str, ...]:
+    value = contract.get("required_fields") or contract.get("required")
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray, str)):
+        return tuple(str(item) for item in value)
+    schema = contract.get("schema")
+    if isinstance(schema, Mapping):
+        schema_required = schema.get("required")
+        if isinstance(schema_required, Sequence) and not isinstance(
+            schema_required, (bytes, bytearray, str)
+        ):
+            return tuple(str(item) for item in schema_required)
+    return ()
+
+
+def _structured_model_output(response: ModelResponse) -> Mapping[str, Any] | None:
+    if isinstance(response.raw, Mapping):
+        output = response.raw.get("structured_output") or response.raw.get(
+            "output_json"
+        )
+        if isinstance(output, Mapping):
+            return output
+    if not response.content:
+        return None
+    try:
+        decoded = json.loads(response.content)
+    except json.JSONDecodeError:
+        return None
+    return decoded if isinstance(decoded, Mapping) else None
+
+
+def _validate_decision_route(node: RuntimeNode, route: str) -> None:
+    allowed_routes = _allowed_routes(node)
+    if not allowed_routes:
+        return
+    if route not in allowed_routes:
+        allowed = ", ".join(sorted(repr(item) for item in allowed_routes))
+        raise WorkflowExecutionError(
+            f"decision_step node {node.id!r} produced route {route!r} outside "
+            f"allowed paths: {allowed}"
+        )
+
+
+def _allowed_routes(node: RuntimeNode) -> set[str]:
+    contract = node.raw.get("decision_contract")
+    if not isinstance(contract, Mapping):
+        return set()
+    paths = contract.get("allowed_paths")
+    if isinstance(paths, Mapping):
+        return {str(key) for key in paths}
+    if isinstance(paths, Sequence) and not isinstance(paths, (bytes, bytearray, str)):
+        routes: set[str] = set()
+        for path in paths:
+            if isinstance(path, Mapping):
+                value = path.get("id") or path.get("route") or path.get("condition")
+            else:
+                value = path
+            if value is not None:
+                routes.add(str(value))
+        return routes
+    return set()
 
 
 def _edge_condition(edge: RuntimeEdge) -> str | None:

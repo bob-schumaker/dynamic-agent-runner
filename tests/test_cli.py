@@ -172,9 +172,18 @@ def test_cli_runs_all_currently_executable_pattern_fixtures(pattern_id: str) -> 
     stderr = StringIO()
     adapter = make_adapter(
         [
-            {"id": f"{pattern_id}-response-1", "output_text": '{"route":"proceed"}'},
-            {"id": f"{pattern_id}-response-2", "output_text": f"final {pattern_id}"},
-            {"id": f"{pattern_id}-response-3", "output_text": f"final {pattern_id}"},
+            {
+                "id": f"{pattern_id}-response-1",
+                "output_text": '{"message":"hello","route":"proceed"}',
+            },
+            {
+                "id": f"{pattern_id}-response-2",
+                "output_text": f'{{"message":"final {pattern_id}"}}',
+            },
+            {
+                "id": f"{pattern_id}-response-3",
+                "output_text": f'{{"message":"final {pattern_id}"}}',
+            },
         ]
     )
 
@@ -216,7 +225,12 @@ def test_cli_fails_clearly_for_unsupported_pattern_fixture_features(
             f"Run hello-world fixture for {pattern_id}.",
         ],
         model_adapter=make_adapter(
-            [{"id": f"{pattern_id}-response", "output_text": "architect says hello"}]
+            [
+                {
+                    "id": f"{pattern_id}-response",
+                    "output_text": '{"message":"architect says hello"}',
+                }
+            ]
         ),
         tool_registry=make_fixture_registry(fixture),
         stdout=stdout,

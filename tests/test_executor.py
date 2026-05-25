@@ -213,6 +213,200 @@ def test_execute_workflow_routes_llm_decision_branch() -> None:
     ]
 
 
+def test_execute_workflow_rejects_malformed_route_output() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "route-malformed-agent",
+            "entrypoint": "choose",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "choose",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Route"},
+                },
+                {
+                    "id": "route",
+                    "kind": "decision_step",
+                    "decision_subtype": "llm_route",
+                    "route_from": "choose",
+                    "decision_contract": {
+                        "allowed_paths": [{"id": "left"}, {"id": "right"}]
+                    },
+                },
+            ],
+            "edges": [
+                {"source": "choose", "target": "route", "edge_kind": "sequential"},
+            ],
+        }
+    )
+    adapter = make_adapter([{"id": "route", "output_text": '{"status":"lost"}'}])
+
+    with pytest.raises(WorkflowExecutionError, match="produced no route"):
+        execute_workflow(workflow, prompt="Pick", model_adapter=adapter)
+
+
+def test_execute_workflow_rejects_route_outside_allowed_paths() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "route-unknown-agent",
+            "entrypoint": "choose",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "choose",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Route"},
+                },
+                {
+                    "id": "route",
+                    "kind": "decision_step",
+                    "decision_subtype": "llm_route",
+                    "route_from": "choose",
+                    "decision_contract": {"allowed_paths": ["left", "right"]},
+                },
+            ],
+            "edges": [
+                {"source": "choose", "target": "route", "edge_kind": "sequential"},
+            ],
+        }
+    )
+    adapter = make_adapter([{"id": "route", "output_text": '{"route":"middle"}'}])
+
+    with pytest.raises(WorkflowExecutionError, match="outside allowed paths"):
+        execute_workflow(workflow, prompt="Pick", model_adapter=adapter)
+
+
+def test_execute_workflow_validates_llm_output_contract_fields() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "contract-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "{prompt}",
+                        "output_schema_ref": "answer_contract",
+                    },
+                }
+            ],
+            "edges": [],
+            "output_contracts": {
+                "answer_contract": {"required_fields": ["message", "confidence"]}
+            },
+        }
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp",
+                "output_text": '{"message":"done","confidence":"high"}',
+            }
+        ]
+    )
+
+    result = execute_workflow(workflow, prompt="Hello", model_adapter=adapter)
+
+    assert result.final_result == '{"message":"done","confidence":"high"}'
+
+
+def test_execute_workflow_rejects_missing_output_contract_fields() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "contract-missing-field-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                    "output_schema_ref": "answer_contract",
+                }
+            ],
+            "edges": [],
+            "output_contracts": {
+                "answer_contract": {"required_fields": ["message", "confidence"]}
+            },
+        }
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": '{"message":"done"}'}])
+
+    with pytest.raises(WorkflowExecutionError, match="missing required field"):
+        execute_workflow(workflow, prompt="Hello", model_adapter=adapter)
+
+
+def test_execute_workflow_rejects_unstructured_contract_output() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "contract-unstructured-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                    "output_schema_ref": "answer_contract",
+                }
+            ],
+            "edges": [],
+            "output_contracts": {
+                "answer_contract": {"required_fields": ["message", "confidence"]}
+            },
+        }
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": "plain answer"}])
+
+    with pytest.raises(WorkflowExecutionError, match="requires structured output"):
+        execute_workflow(workflow, prompt="Hello", model_adapter=adapter)
+
+
+def test_execute_workflow_rejects_unknown_output_contract_ref() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "contract-unknown-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                    "output_schema_ref": "missing_contract",
+                }
+            ],
+            "edges": [],
+            "output_contracts": {},
+        }
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": "plain answer"}])
+
+    with pytest.raises(WorkflowExecutionError, match="unknown output contract"):
+        execute_workflow(workflow, prompt="Hello", model_adapter=adapter)
+
+
 def test_execute_workflow_errors_on_tool_failure_by_default() -> None:
     workflow = workflow_from(
         {
