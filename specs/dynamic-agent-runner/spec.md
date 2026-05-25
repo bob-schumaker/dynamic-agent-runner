@@ -351,6 +351,103 @@ Acceptance criteria:
   configured tool registry, then the CLI fails clearly instead of silently
   ignoring tool steps.
 
+### FR-7: Apply bounded retry and resilience policy
+
+The runtime should provide bounded retry behavior for transient model and tool
+failures. Retry behavior must be explicit, observable, and derived from runtime
+policy metadata rather than hidden in broad catch-all loops.
+
+Acceptance criteria:
+
+- Given a transient OpenAI/model failure and a retry policy that permits retry,
+  when model execution runs, then the runtime retries with bounded attempts and
+  backoff before surfacing a final failure.
+- Given a non-retryable model failure, when model execution runs, then the
+  runtime fails without retrying.
+- Given a tool invocation failure and a tool retry policy that permits retry,
+  when the tool is invoked, then the runtime retries only according to the
+  declared policy and records the retry attempts.
+- Given a workflow has no retry policy, when model or tool execution fails, then
+  the runtime preserves current fail-closed behavior.
+- Given retries are attempted, when execution completes or fails, then execution
+  state or trace data records enough information to diagnose retry count,
+  failure reason, and final outcome.
+
+Implementation note: `tenacity` is the preferred candidate library for this
+capability because it provides bounded retry, exponential backoff, and retry
+classification without changing the runtime's artifact-interpreter architecture.
+
+### FR-8: Enforce structured outputs and output contracts
+
+The runtime should validate model outputs against declared workflow output
+contracts before treating them as reliable state or routing decisions.
+
+Acceptance criteria:
+
+- Given an `output_contracts` entry for an `llm_step`, when the model returns a
+  structured output, then the runtime validates required fields and supported
+  schema constraints before storing the output as node state.
+- Given a `decision_step` with `decision_subtype: llm_route`, when route output
+  is malformed or not one of the allowed branch values, then the runtime fails
+  with a clear validation or execution error.
+- Given output-contract validation fails, when retry or repair behavior is not
+  explicitly enabled, then the runtime fails closed instead of silently accepting
+  malformed output.
+- Given output-contract validation succeeds, when execution continues, then
+  downstream prompt rendering and tool input resolution use the validated output.
+
+Implementation note: the immediate requirement is package-owned validation of
+declared contracts. A library such as Instructor may be considered later for
+retry-and-repair structured output behavior, but a high-level model wrapper must
+not replace the current official-OpenAI adapter boundary without an explicit spec
+change.
+
+### FR-9: Support token budgeting and context preflight
+
+The runtime should be able to estimate prompt and message token usage before
+model calls so callers can detect context-window and cost risks early.
+
+Acceptance criteria:
+
+- Given rendered OpenAI messages, when token budgeting is enabled, then the
+  runtime estimates token usage for the target model before sending the request.
+- Given an estimated token count exceeds a configured context limit, when model
+  execution is about to run, then the runtime fails clearly or applies an
+  explicitly configured truncation policy.
+- Given CLI/debug reporting requests token information, when a workflow runs,
+  then the runtime can report estimated token counts without making a live model
+  call.
+- Given no token-budgeting configuration is provided, when execution runs, then
+  current behavior remains unchanged.
+
+Implementation note: `tiktoken` is the preferred candidate for OpenAI-compatible
+token estimation. Character-count heuristics should not be treated as accurate
+token budgeting.
+
+### FR-10: Provide execution tracing and observability hooks
+
+The runtime should expose structured execution events so callers and CLI/debug
+tools can inspect what happened without scraping logs or raw stdout.
+
+Acceptance criteria:
+
+- Given a workflow execution, when tracing is enabled, then the runtime emits or
+  records structured events for node start, node completion, model request,
+  model response, tool invocation, retry attempts, decisions, errors, and final
+  result.
+- Given tracing is disabled, when a workflow runs, then the runtime avoids adding
+  required external observability dependencies.
+- Given a trace sink is provided, when events occur, then the runtime forwards
+  events through a stable package-owned interface.
+- Given trace data includes prompt, model, tool, or result details, when the data
+  is exposed, then future redaction policy can filter sensitive fields before
+  external emission.
+
+Implementation note: start with package-owned trace/event hooks. Logfire,
+OpenTelemetry, or structured logging integrations can be optional sinks later;
+they should not become required core dependencies before the trace interface is
+stable.
+
 ## Non-Functional Requirements
 
 - The library must be testable without requiring live model calls in unit tests.
@@ -358,6 +455,9 @@ Acceptance criteria:
   validation independently from execution.
 - Runtime dependencies must include the official `openai` package because the
   initial default model execution path is built on OpenAI's Python SDK.
+- Candidate resilience, token-budgeting, structured-output, observability, cache,
+  or CLI-display dependencies must be added only when they support a scoped
+  runtime requirement and remain behind package-owned interfaces.
 - `ocihelper` must not be a required runtime dependency. The project may
   replicate needed runtime behavior locally rather than depending on
   `ai-tools-core` or adjacent ecosystem packages.
@@ -380,6 +480,9 @@ Acceptance criteria:
 - Initial implementation should favor the official OpenAI Python client,
   OpenAI-compatible model semantics, and a repository-owned tool registry and
   tool-call convention mapping.
+- Multi-provider model routing is not part of the current runtime direction.
+  Provider abstraction libraries such as LiteLLM should be deferred unless the
+  spec explicitly changes to support non-OpenAI-compatible providers.
 
 ## Observed Runtime Manifest Shape
 
@@ -650,6 +753,11 @@ The runtime should start with OpenAI package model and client interfaces:
   as part of the repository-owned registry scope.
 - Supporting opt-in built-in default tool packs as pre-registered registry
   sources, starting with conservative local read-only tools.
+- Adding bounded retry/resilience policy for model and tool calls.
+- Adding structured-output and output-contract validation for model outputs and
+  route decisions.
+- Adding token budgeting and context preflight for OpenAI-compatible model calls.
+- Adding package-owned execution tracing and observability hooks.
 - Starting with OpenAI package model/client integration and an in-repo tool-call
   registry pattern.
 - Leaving unresolved schema/API details explicitly marked for clarification.
@@ -664,6 +772,12 @@ The runtime should start with OpenAI package model and client interfaces:
 - Requiring `ai-tools-core` or `openai-tools-core` in the initial implementation.
 - Supporting non-OpenAI-compatible model or tool-call interfaces in the initial
   implementation.
+- Adding LiteLLM or another multi-provider abstraction without an explicit change
+  to the OpenAI-first runtime direction.
+- Adding Watchfiles as a core runtime dependency; file watching may be a local
+  dev helper later, but it is not part of workflow execution.
+- Adding Rich or Diskcache as required runtime dependencies before a scoped CLI
+  UX or caching requirement justifies them.
 
 ## Assumptions
 
@@ -694,6 +808,12 @@ The runtime should start with OpenAI package model and client interfaces:
   imply full runtime support for every pattern-specific behavior.
 - Safety, authentication, logging, and redaction requirements will be discovered
   during the first implementation and may be promoted into workflow-spec fields.
+- The useful near-term package additions from the library evaluation are, in
+  priority order: Tenacity-style retries, structured output validation,
+  tiktoken-based token budgeting, and package-owned tracing hooks.
+- Rich CLI formatting and Diskcache-backed caching are optional later additions;
+  they should remain out of the core dependency set until concrete requirements
+  need them.
 
 ## Open Questions
 
@@ -701,6 +821,15 @@ The runtime should start with OpenAI package model and client interfaces:
   client behavior should the optional protocol-similar client implement?
 - NEEDS CLARIFICATION: Which safety, authentication, logging, and redaction
   requirements belong in code configuration versus workflow specification?
+- NEEDS CLARIFICATION: What retry policy vocabulary should runtime manifests use
+  for model calls and tool invocations?
+- NEEDS CLARIFICATION: Should output-contract enforcement use only standard
+  JSON-schema-like validation first, or should model-assisted repair/retry be
+  introduced in a later slice?
+- NEEDS CLARIFICATION: Which token limits should be configured per model, per
+  workflow, or per call site?
+- NEEDS CLARIFICATION: What trace event schema and redaction boundaries should be
+  stable before adding external observability sinks?
 
 ## Suggested Public API Shape
 
@@ -761,9 +890,18 @@ Before implementation is considered complete, add validation covering:
       is expected
 - [ ] OpenAI package client adapter and tool-call behavior
 - [ ] CLI loading, execution, output, and non-zero error behavior
+- [ ] CLI coverage for every currently executable hello-world pattern fixture and
+      expected failures for unsupported pattern features
 - [ ] `llm_step`, `tool_use_step`, and `decision_step` execution using a fake or
       stub chat client and fake tool registry
 - [ ] successful workflow execution using a fake or stub chat client
+- [ ] bounded retry behavior for retryable model and tool failures
+- [ ] non-retry behavior for non-retryable model and tool failures
+- [ ] output-contract validation and malformed-output failure behavior
+- [ ] `llm_route` route validation against allowed branch values
+- [ ] token-budget preflight behavior without live model calls
+- [ ] structured trace/event hooks for node, model, tool, decision, retry, error,
+      and final-result events
 - [ ] clear error behavior for missing artifacts
 - [ ] clear error behavior for inconsistent artifacts
 - [ ] clear error behavior for model/client failures
@@ -800,6 +938,11 @@ Before implementation is considered complete, add validation covering:
 - User clarification added optional built-in default tool packs to Slice 4 as
   explicitly enabled pre-registered registry sources, beginning with conservative
   local read-only tools.
+- Library evaluation in `cline-tasks/libraries-that-made-my-ai-agents-work.md`
+  was reviewed after Slice 7. The resulting spec direction prioritizes
+  Tenacity-style retries, output-contract enforcement, tiktoken-based token
+  budgeting, and package-owned tracing hooks while deferring LiteLLM, Watchfiles,
+  Rich, and Diskcache unless later scoped requirements justify them.
 - The initial source package scaffold exists; deeper parser, registry, OpenAI
   adapter, executor, and CLI implementation details remain intentionally staged
   through follow-on slices.

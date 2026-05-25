@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 7 complete; ready for post-CLI follow-on planning
+- State: Slice 7 complete; ready for Slice 8
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: post-Slice 7 follow-on planning
+- Next active slice: Slice 8 — retry and resilience policy
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -264,6 +264,72 @@
   it covers path-based execution, prompt-file input, stdin input, missing prompt
   errors, and execution error reporting.
 - `README.md` now documents concrete Python API and CLI usage.
+
+## Slice 8 — Retry and resilience policy
+
+- [ ] T8.1 Add a small package-owned retry policy model for model calls and tool
+      calls, preserving fail-closed behavior when no retry policy is configured.
+- [ ] T8.2 Add Tenacity-backed bounded retry execution for retryable OpenAI/model
+      failures behind the existing OpenAI adapter boundary.
+- [ ] T8.3 Add bounded retry execution for retryable tool invocation failures
+      using registry/tool policy metadata.
+- [ ] T8.4 Record retry attempt count, final failure reason, and final outcome in
+      execution state or trace data.
+- [ ] T8.5 Add tests for retryable failures, non-retryable failures, retry limit
+      exhaustion, and default no-retry behavior using fake clients/tools only.
+- [ ] T8.6 Update README or usage notes only if a new public API or CLI option is
+      introduced.
+
+## Slice 9 — Output contracts and route validation
+
+- [ ] T9.1 Define how manifest `output_contracts` map to runtime validation for
+      model outputs.
+- [ ] T9.2 Validate required output fields for `llm_step` results before storing
+      them as trusted node state.
+- [ ] T9.3 Tighten `decision_step` / `llm_route` validation so malformed routes
+      or routes outside declared branch conditions fail clearly.
+- [ ] T9.4 Keep model-assisted repair or Instructor-style retry behavior out of
+      scope unless explicitly introduced by a later spec update.
+- [ ] T9.5 Add tests for valid output contracts, malformed model output,
+      malformed route output, and unknown route values.
+
+## Slice 10 — Token budgeting and context preflight
+
+- [ ] T10.1 Add optional token-estimation support for rendered OpenAI messages,
+      using `tiktoken` as the preferred implementation dependency.
+- [ ] T10.2 Add a token-budget policy model that can be configured per workflow,
+      model, or call site without changing generated artifacts.
+- [ ] T10.3 Fail clearly, or apply an explicitly configured truncation policy,
+      when rendered messages exceed configured limits.
+- [ ] T10.4 Add CLI/debug reporting for estimated token counts only if it can be
+      done without live model calls.
+- [ ] T10.5 Add tests for token estimation, over-budget failure, disabled-budget
+      pass-through behavior, and unknown-model fallback behavior.
+
+## Slice 11 — Execution tracing and observability hooks
+
+- [ ] T11.1 Define a package-owned trace event model for node start/completion,
+      model request/response, tool invocation, retry, decision, error, and final
+      result events.
+- [ ] T11.2 Add an optional trace sink interface that can receive events without
+      requiring external observability dependencies.
+- [ ] T11.3 Ensure trace data can later support redaction of prompt, model, tool,
+      and result fields before external emission.
+- [ ] T11.4 Add tests that trace events are emitted in expected order for
+      successful workflows, tool failures, model failures, and retry attempts.
+- [ ] T11.5 Defer Logfire/OpenTelemetry integration until the package-owned trace
+      interface is stable.
+
+## Deferred library-evaluation follow-ups
+
+- [ ] D1. Revisit Rich only when CLI UX/debug output needs structured tables,
+      trees, or colorized output.
+- [ ] D2. Revisit Diskcache only when a concrete model/tool/result caching policy
+      is specified, including side-effect and staleness semantics.
+- [ ] D3. Revisit LiteLLM only if the runtime direction changes from
+      OpenAI-first to multi-provider model routing.
+- [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
+      helper if prompt/artifact hot-reload workflows become valuable.
 
 ## Cross-Cutting Validation Tasks
 
