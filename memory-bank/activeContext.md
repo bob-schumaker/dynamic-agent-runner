@@ -2,9 +2,9 @@
 
 ## Current Focus
 
-- Slice 6 workflow executor is complete and committed in `4ce8c67`; Slice 7 CLI
-  and documentation is next. The 11-pattern hello-world fixture surface is
-  complete and committed in `ef1fd38`.
+- Slice 7 CLI and documentation is complete and committed in `30a6b0a`; the
+  repository is ready for post-CLI follow-on planning. The 11-pattern
+  hello-world fixture surface is complete and committed in `ef1fd38`.
 
 ## Current Status
 
@@ -42,10 +42,11 @@
   - Added hello-world test-resource runtime packages for all 11 supported
     agent-pattern IDs and updated the spec to record that test surface in
     `ef1fd38`.
+  - Completed Slice 7 CLI and documentation in `30a6b0a`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
-  - CLI implementation.
+  - Post-CLI follow-on planning.
 
 ## Important Current Facts
 
@@ -63,8 +64,8 @@
   - `specs/dynamic-agent-runner/tasks.md`
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0, 1, 2, 3, 4, 5, and 6 are complete; Slice 7 is the
-  next active implementation slice.
+  implementation. Slices 0, 1, 2, 3, 4, 5, 6, and 7 are complete; the next
+  active step is post-CLI follow-on planning.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -78,11 +79,11 @@
 - `load_agent_workflow(...)` loads artifacts without execution and validates
   loaded artifacts before returning them. `run_agent_workflow(...)` now loads,
   validates, executes, and returns the final workflow result.
-- Slice 3 validation currently checks required manifest fields, supported enum
-  values, node ID uniqueness, edge endpoint references, tool-use references, LLM
-  prompt presence, and external tool-index structure. Slice 4 must reconcile
-  execution semantics so callable registry entries, not manifest/tool-index
-  metadata alone, determine tool availability.
+- Validation checks required manifest fields, supported enum values, node ID
+  uniqueness, edge endpoint references, tool-use references, LLM prompt presence,
+  and external tool-index structure. Slice 4 reconciled execution semantics so
+  callable registry entries, not manifest/tool-index metadata alone, determine
+  tool availability.
 - `PyYAML >=6.0` is now a direct runtime dependency for YAML artifact loading.
 - Slice 4 implementation from `cba3f43`:
   - `src/dynamic_agent_runner/registry.py` now defines `ToolRegistry`,
@@ -121,6 +122,18 @@
   - `tests/test_executor.py` uses fake clients and fake tools only and covers
     successful execution, tool failure behavior, branch routing, public API final
     result behavior, and step-limit failures.
+- Slice 7 implementation from `30a6b0a`:
+  - `src/dynamic_agent_runner/cli.py` now defines the CLI parser, injectable
+    `main(...)`, and `console_main()` entry point.
+  - `pyproject.toml` exposes the `dynamic-agent-runner` console script through
+    `[project.scripts]`.
+  - CLI options support runtime manifest, optional design/graph/tool-index paths,
+    prompt text, prompt-file input, stdin prompt input, max steps, and opt-in
+    read-only local workspace registry roots.
+  - `tests/test_cli.py` uses fixture artifacts and fake OpenAI clients only and
+    covers successful path execution, prompt input modes, missing prompt errors,
+    and model/execution error reporting.
+  - `README.md` now documents concrete Python API and CLI usage.
 - Slice 4 scope decisions from `07edab0`:
   - `tool-index.yaml` is optional metadata, not an execution prerequisite.
   - A required tool registry or approved registry source is authoritative for
@@ -131,6 +144,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `30a6b0a feat(cli): add workflow runner command`
   - `ef1fd38 test(fixtures): add agent pattern runtime packages`
   - `4ce8c67 feat(executor): add workflow execution engine`
   - `42f8d15 feat(openai): add client adapter boundary`
@@ -151,11 +165,11 @@
 
 ## Next Steps
 
-- Begin Slice 7 — CLI and documentation.
-- Add a CLI entry point for loading artifacts and running a workflow from a
-  prompt.
-- Support CLI options for runtime YAML, optional design/graph/tool-index inputs,
-  registry configuration, and prompt input.
+- Use `specs/dynamic-agent-runner/tasks.md` as the starting point for
+  post-Slice 7 follow-on planning.
+- Decide the next implementation slice before expanding runtime behavior beyond
+  the committed CLI and executor scope.
 - Use the 11 hello-world pattern fixture packages as broad package-shape coverage
   when extending loader, executor, CLI, or compatibility tests.
-- Update README with concrete API and CLI usage once the CLI shape is real.
+- Preserve fake-client/fake-tool testing for CLI and executor coverage; do not
+  introduce live OpenAI API calls into unit tests.

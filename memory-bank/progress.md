@@ -48,6 +48,8 @@
   `4ce8c67 feat(executor): add workflow execution engine`.
 - Agent-pattern fixture commit exists:
   `ef1fd38 test(fixtures): add agent pattern runtime packages`.
+- Slice 7 CLI implementation commit exists:
+  `30a6b0a feat(cli): add workflow runner command`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -67,35 +69,36 @@
 - The repository now has hello-world runtime package fixtures for all 11
   documented supported agent patterns under `tests/fixtures/agent-patterns/`,
   with load/validation coverage in `tests/test_agent_pattern_fixtures.py`.
+- CLI behavior now exists in `src/dynamic_agent_runner/cli.py`, with a
+  `dynamic-agent-runner` console script, artifact path options, prompt input
+  modes, opt-in read-only local workspace registry roots, stdout final-result
+  output, and stderr/non-zero error reporting.
+- `tests/test_cli.py` covers CLI execution with fixture artifacts and fake OpenAI
+  clients only.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Slice 7 — CLI and documentation — is the next active implementation slice.
+- Post-Slice 7 follow-on planning is the next active work area.
 
 ## Remaining
 
-- Implement Slice 7 — CLI and documentation:
-  - add a CLI entry point for loading artifacts and running a workflow from a
-    prompt
-  - support CLI options for `agent-design.md`, runtime YAML, Mermaid graph,
-    optional `tool-index.yaml` metadata, registry configuration, and prompt input
-  - return final output on success and clear non-zero errors on loading,
-    validation, registry, model, or execution failure
-  - add CLI tests using local fixtures and fake clients/tools
-  - update README with concrete API and CLI usage
-- Extend from the completed loader, validation, registry, OpenAI adapter, and
-  executor foundation into the CLI slice.
+- Decide and document the next post-CLI implementation slice before expanding
+  runtime behavior beyond the committed CLI and executor scope.
+- Extend from the completed loader, validation, registry, OpenAI adapter,
+  executor, CLI, and all-pattern fixture foundation into the next scoped slice.
 - Use the all-pattern hello-world fixtures as the broad pattern test surface for
-  future CLI and compatibility coverage.
+  future compatibility coverage.
 - Update the memory bank after the first meaningful implementation milestone.
 
 ## Risks or Follow-ups
 
-- Loader, validation, registry, OpenAI adapter, and executor source now exist,
-  but architecture sections should remain conservative until CLI behavior exists.
-- Slice 6 is complete, but unrestricted runtime implementation should still
-  proceed slice-by-slice from the committed task list.
+- Loader, validation, registry, OpenAI adapter, executor, and CLI source now
+  exist, but architecture sections should remain conservative until the next
+  scoped runtime behavior is planned.
+- Slice 7 is complete, but unrestricted runtime implementation should still
+  proceed slice-by-slice from the committed task list or an updated follow-on
+  plan.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.
 - Supported agent-pattern IDs are preserved by loader/model work; full executor
@@ -111,6 +114,9 @@
   tests free of live model calls.
 - Slice 6 implements minimal executor semantics only; more advanced edge kinds,
   policies, approvals, and tool-call loops remain future extension areas.
+- Slice 7 implements a minimal CLI over existing public seams; richer registry
+  configuration, live-model ergonomics, and production packaging behavior remain
+  future extension areas.
 - The all-pattern fixtures validate package shape and pattern metadata coverage;
   they do not prove full runtime execution support for every pattern-specific
   behavior.

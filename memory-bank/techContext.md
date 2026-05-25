@@ -16,6 +16,8 @@
   - `dev` optional group
   - `docs` optional group
   - `test` group
+- Console script: `dynamic-agent-runner` declared under `[project.scripts]` and
+  pointing to `dynamic_agent_runner.cli:console_main`.
 
 ## Main Dependencies
 
@@ -143,3 +145,10 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `tests/test_agent_pattern_fixtures.py` to verify all supported pattern IDs have
   loadable `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`
   packages.
+- Slice 7 implementation was committed in `30a6b0a`. It added
+  `src/dynamic_agent_runner/cli.py`, `tests/test_cli.py`, the
+  `dynamic-agent-runner` console script metadata, README API/CLI usage, and task
+  completion evidence. Validation observed for the slice included `poetry check`,
+  `PYTHONPATH=src python -m pytest` with 45 passing tests, and targeted
+  `pre-commit run --files` on the README, `pyproject.toml`, Slice 7 task list,
+  CLI module, and CLI tests.

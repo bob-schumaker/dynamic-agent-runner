@@ -214,3 +214,7 @@ update the spec as needed to record the new test surface
 ---
 
 commit spec and test changes then update memory-bank and commit
+
+---
+
+execute slice 7 and commit, the update memory-bank and commit

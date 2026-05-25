@@ -14,19 +14,22 @@
     client behind a small fake-client-compatible adapter boundary
   - `src/dynamic_agent_runner/executor.py` composes loaded workflows, registry
     tools, and the OpenAI adapter into executable workflow runs
+  - `src/dynamic_agent_runner/cli.py` exposes an injectable CLI implementation
+    and console-script entry point for artifact-path workflow execution
   - `src/dynamic_agent_runner/errors.py` defines project-specific exception
     types
 - Tests currently contain an import smoke test at `tests/test_import.py`,
   artifact loader tests at `tests/test_artifacts.py`, validation tests at
-  `tests/test_validation.py`, registry tests at `tests/test_registry.py`, and
-  OpenAI adapter tests at `tests/test_openai_client.py`, and executor tests at
-  `tests/test_executor.py`. Pattern fixture coverage lives in
-  `tests/test_agent_pattern_fixtures.py`.
+  `tests/test_validation.py`, registry tests at `tests/test_registry.py`, OpenAI
+  adapter tests at `tests/test_openai_client.py`, executor tests at
+  `tests/test_executor.py`, and CLI tests at `tests/test_cli.py`. Pattern
+  fixture coverage lives in `tests/test_agent_pattern_fixtures.py`.
 - `tests/fixtures/agent-patterns/` contains 11 hello-world runtime packages, one
   for each documented supported agent pattern. Each fixture package has
   `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`.
 - Current repository structure has loader/model/validation/registry/adapter/
-  executor behavior; CLI behavior remains a future slice.
+  executor/CLI behavior; follow-on runtime expansion should be planned as a new
+  scoped slice.
 
 ## Observed Patterns
 
@@ -77,6 +80,12 @@
   `decision_step` nodes with `decision_subtype: llm_route`.
 - Executor unit tests use fake OpenAI clients and fake registry tools only;
   no live OpenAI API calls are required.
+- CLI tests use the injectable `main(...)` seam, fixture artifact paths, fake
+  OpenAI clients, and in-memory streams so command behavior is covered without
+  live model calls or subprocess setup.
+- CLI registry configuration is currently intentionally narrow: `--workspace-root`
+  enables only the read-only `local_workspace` built-in tool pack. Broader
+  registry configuration remains a future extension area.
 
 ## Boundaries and Unknowns
 
@@ -87,17 +96,18 @@
 - Tool registry protocol and concrete registry: implemented for Slice 4 scope.
 - OpenAI client adapter: implemented for Slice 5 scope.
 - Workflow executor: implemented for Slice 6 scope.
-- CLI: not implemented yet.
+- CLI: implemented for Slice 7 scope.
 
 ## Guidance for Future Work
 
-- Continue from Slice 7 in `specs/dynamic-agent-runner/tasks.md`.
+- Continue from post-Slice 7 follow-on planning in
+  `specs/dynamic-agent-runner/tasks.md`.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
   `decision_step` unless a later format version changes the contract.
-- In Slice 7, add the CLI and documentation on top of the existing public API and
-  executor without widening executor semantics beyond the committed task scope.
+- Treat the Slice 7 CLI as a thin public surface over existing API/executor
+  seams; do not widen executor semantics from CLI work alone.
 - Use `tests/fixtures/agent-patterns/` as a reusable coverage source for future
   loader, executor, and CLI compatibility tests.
 - Update this file as concrete modules, entry points, and architectural
