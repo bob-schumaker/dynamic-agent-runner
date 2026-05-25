@@ -10,9 +10,9 @@ the Cline rules/skills repository:
 - a Mermaid diagram
 - a tool index
 
-It uses `EmployeeChatClient` from `ocihelper.employee` to execute the model side
-of the workflow, accepts a user prompt, runs the configured agent workflow, and
-returns the final result.
+It uses OpenAI-compatible model and tool-call interfaces with `ai-tools-core` as
+the initial tool-registry foundation. The library accepts a user prompt, runs the
+configured agent workflow, and returns the final result.
 
 ## Source Artifact Producers
 
@@ -31,7 +31,8 @@ is responsible for reading them and executing the resulting workflow.
    tool index.
 2. Load the workflow definition into `dynamic-agent-runner`.
 3. Provide a user prompt.
-4. Execute the workflow using `EmployeeChatClient` from `ocihelper.employee`.
+4. Execute the workflow using OpenAI-compatible model/tool interfaces and
+   `ai-tools-core`-based tool handling.
 5. Return the final agent result to the caller.
 
 ## Current Repository Status
@@ -44,9 +45,9 @@ Known configuration:
 - Python package managed by Poetry
 - Python compatibility: `>=3.11,<3.14`
 - local mise configuration selects Python `3.13`
-- primary runtime dependencies on `roschumalib` and `ocihelper`
-- `ocihelper` provides the intended workflow execution client:
-  `ocihelper.employee.EmployeeChatClient`
+- primary runtime dependencies on `roschumalib` and `ai-tools-core`
+- initial implementation targets OpenAI-compatible model and tool-call
+  interfaces directly
 
 ## Development Setup
 
@@ -89,6 +90,7 @@ that cover at least:
 
 - parsing the definition YAML
 - validating the Mermaid diagram and tool index relationship
-- constructing the `EmployeeChatClient` execution path
+- constructing the OpenAI-compatible model execution path
+- integrating `ai-tools-core` tool registry behavior
 - running a workflow from a user prompt
 - returning the final result and surfacing errors clearly
