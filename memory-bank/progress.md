@@ -40,6 +40,8 @@
   `3469d49 feat(validation): add artifact validation engine`.
 - Slice 4 registry scope update commit exists:
   `07edab0 docs(spec): expand slice 4 registry scope`.
+- Slice 4 registry foundation commit exists:
+  `cba3f43 feat(registry): add tool registry foundation`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -53,47 +55,33 @@
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Slice 4 — repository-owned tool registry — is the next active implementation
-  slice, with expanded registry-authoritative scope recorded in `07edab0`.
+- Slice 5 — OpenAI client adapter — is the next active implementation slice.
 
 ## Remaining
 
-- Implement Slice 4 — repository-owned tool registry:
-  - define `ToolDefinition`, `RegisteredTool`, `ToolResult`, and a
-    `ToolRegistry` protocol
-  - implement `InMemoryToolRegistry` for tests and simple callers
-  - implement conversion from registry tool definitions to OpenAI tool schema
-  - implement tool invocation dispatch by manifest `tool_id`
-  - preserve side-effect metadata, approval metadata, timeout/retry policy, and
-    failure behavior
-  - add runtime tool overrides for adding, replacing, disabling, and per-node
-    tool exposure changes
-  - reconcile validation so `tool_use_step` dependencies resolve to callable
-    registry entries rather than manifest/tool-index metadata alone
-  - add opt-in built-in default tool-pack support, starting with a read-only
-    `local_workspace` pack for `read_file`, `list_files`, `search_files`, and
-    `inspect_path`
-  - keep write and command tools out of the default enabled set unless modeled as
-    separate opt-in approval-aware packs
-  - add tests for lookup, schema conversion, successful invocation, missing
-    tools, bad inputs, tool failures, override layering, built-in pack enablement,
-    workspace path restrictions, and node-reference requirements
+- Implement Slice 5 — OpenAI client adapter:
+  - define the runtime's minimal OpenAI client protocol for injected fake/stub
+    clients
+  - implement the default adapter using the official `openai` Python package
+  - implement request construction for rendered messages and optional OpenAI tool
+    schemas
+  - normalize model responses into internal result/event structures
+  - surface OpenAI/model failures as project-specific errors
+  - add tests using fake clients only, with no live API calls
 - Define the concrete public Python API beyond reserved placeholders.
 - Implement workflow execution through the official `openai` Python package.
-- Design and implement the repository-owned tool registry pattern, including
-  registry-authoritative tool lookup, optional manifest/tool-index metadata
-  enrichment, conversion to OpenAI tool schema, invocation dispatch, side-effect
-  metadata, approval metadata, timeout/retry policy, override layering, built-in
-  pack enablement, and structured result or failure reporting.
+- Extend from the completed repository-owned tool registry foundation into the
+  OpenAI adapter, workflow executor, and CLI slices.
 - Add tests and validation commands once code exists.
 - Expose a CLI in addition to the library API, per the current spec.
 - Update the memory bank after the first meaningful implementation milestone.
 
 ## Risks or Follow-ups
 
-- Loader and validation source now exist, but architecture sections should remain
-  conservative until registry and runtime execution behavior exist.
-- Slice 3 is complete, but unrestricted runtime implementation should still
+- Loader, validation, and registry source now exist, but architecture sections
+  should remain conservative until OpenAI adapter and runtime execution behavior
+  exist.
+- Slice 4 is complete, but unrestricted runtime implementation should still
   proceed slice-by-slice from the committed task list.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.
@@ -103,7 +91,7 @@
 - Future implementation should start with the official `openai` package and a
   repository-owned tool registry pattern; `ocihelper`, `ai-tools-core`, and
   `openai-tools-core` are intentionally not required by the latest spec.
-- Slice 4 must preserve the distinction between optional tool-index metadata and
+- Slice 4 preserves the distinction between optional tool-index metadata and
   executable registry tools; metadata-only tools cannot satisfy runtime tool
   dependencies.
 - Memory-bank pre-commit validation for this refresh should be recorded in the

@@ -2,8 +2,8 @@
 
 ## Current Focus
 
-- Slice 4 repository-owned tool registry scope was expanded in `07edab0`;
-  implementation of that registry remains next.
+- Slice 4 repository-owned tool registry foundation is complete and committed
+  in `cba3f43`; Slice 5 OpenAI client adapter is next.
 
 ## Current Status
 
@@ -35,10 +35,11 @@
   - Expanded Slice 4 planning scope in `07edab0` to make the callable registry
     authoritative, treat `tool-index.yaml` as optional metadata, add runtime
     tool overrides, and include opt-in built-in default tool packs.
+  - Completed Slice 4 repository-owned tool registry foundation in `cba3f43`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
-  - Tool registry implementation, OpenAI adapter, executor, and CLI implementation.
+  - OpenAI adapter, executor, and CLI implementation.
 
 ## Important Current Facts
 
@@ -56,7 +57,7 @@
   - `specs/dynamic-agent-runner/tasks.md`
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0, 1, 2, and 3 are complete; Slice 4 is the next
+  implementation. Slices 0, 1, 2, 3, and 4 are complete; Slice 5 is the next
   active implementation slice.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
@@ -72,6 +73,17 @@
   execution semantics so callable registry entries, not manifest/tool-index
   metadata alone, determine tool availability.
 - `PyYAML >=6.0` is now a direct runtime dependency for YAML artifact loading.
+- Slice 4 implementation from `cba3f43`:
+  - `src/dynamic_agent_runner/registry.py` now defines `ToolRegistry`,
+    `RegisteredTool`, `ToolResult`, runtime override models,
+    `InMemoryToolRegistry`, OpenAI schema conversion, invocation dispatch,
+    registry-authoritative tool reference validation, and an opt-in read-only
+    `local_workspace` built-in tool pack.
+  - `load_agent_workflow(...)` accepts an optional `tool_registry` for validation
+    while still avoiding execution.
+  - `tests/test_registry.py` covers registry lookup, schema conversion,
+    invocation, missing tools, bad inputs, tool failures, override layering,
+    built-in pack enablement, path restrictions, and node-reference requirements.
 - Slice 4 scope decisions from `07edab0`:
   - `tool-index.yaml` is optional metadata, not an execution prerequisite.
   - A required tool registry or approved registry source is authoritative for
@@ -82,6 +94,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `cba3f43 feat(registry): add tool registry foundation`
   - `07edab0 docs(spec): expand slice 4 registry scope`
   - `3469d49 feat(validation): add artifact validation engine`
   - `64ad379 feat(artifacts): add workflow artifact loaders`
@@ -98,13 +111,9 @@
 
 ## Next Steps
 
-- Begin implementation of Slice 4 — repository-owned tool registry.
-- Define registry protocols and simple in-memory registry behavior for tool
-  lookup, OpenAI schema conversion, invocation dispatch, side-effect metadata,
-  approval metadata, timeout/retry policy, and failure handling.
-- Include Slice 4 scope additions: runtime tool overrides, registry-authoritative
-  tool availability, optional tool-index metadata, and opt-in built-in
-  `local_workspace` tool packs.
-- Keep unit tests free of live OpenAI API calls.
-- Deeper OpenAI adapter, executor, and CLI runtime behavior should continue to
-  follow the committed task order.
+- Begin Slice 5 — OpenAI client adapter.
+- Define the runtime's minimal OpenAI client protocol for injected fake/stub
+  clients.
+- Implement the default adapter through the official `openai` package behind a
+  small boundary, using fake clients in tests only.
+- Keep executor and CLI runtime behavior deferred to later committed task slices.

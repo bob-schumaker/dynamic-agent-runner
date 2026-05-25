@@ -190,3 +190,7 @@ update slice 4 with this option
 ---
 
 commit spec changes, then update memory-bank and commit
+
+---
+
+execute slice 4 and commit, then update memory-bank and commit

@@ -15,8 +15,8 @@
 - Tests currently contain an import smoke test at `tests/test_import.py` and
   artifact loader tests at `tests/test_artifacts.py`, plus validation tests at
   `tests/test_validation.py`.
-- Current repository structure has loader/model/validation behavior only;
-  registry, adapter, executor, and CLI behavior remain future slices.
+- Current repository structure has loader/model/validation/registry behavior;
+  adapter, executor, and CLI behavior remain future slices.
 
 ## Observed Patterns
 
@@ -43,15 +43,14 @@
   path or raw-string inputs.
 - Validation fails closed for missing required manifest fields, unsupported
   manifest/tool-index enum values, duplicate or missing node IDs, bad edge
-  endpoints, unknown tool references, and LLM nodes without prompt or
-  prompt-source metadata. Slice 4 will update tool semantics so execution depends
-  on callable registry entries, not metadata-only tool-index presence.
-- Slice 4 planning now defines runtime tool overrides as overlay inputs that can
-  add, replace, disable, or restrict tools globally or per `llm_step` without
-  mutating generated artifacts.
-- Built-in default tools, if provided, should be explicit opt-in registry packs;
-  the initial pack should be read-only `local_workspace` tools and not ambient
-  global capabilities.
+  endpoints, unknown metadata tool references, and LLM nodes without prompt or
+  prompt-source metadata. With an effective registry, tool-use dependencies can
+  be validated against callable registry entries.
+- `registry.py` defines runtime tool overrides as overlay inputs that can add,
+  replace, disable, or restrict tools globally or per `llm_step` without mutating
+  generated artifacts.
+- Built-in default tools are explicit opt-in registry packs; the current
+  `local_workspace` pack is read-only and not an ambient global capability.
 
 ## Boundaries and Unknowns
 
@@ -59,24 +58,19 @@
 - Artifact loading behavior: implemented for Slice 2 scope.
 - Supported pattern metadata preservation: implemented for loader/model scope.
 - Validation engine: implemented for Slice 3 scope.
-- Tool registry protocol and concrete registry: not implemented yet; Slice 4
-  scope now includes registry-authoritative tool availability, runtime tool
-  overrides, and opt-in built-in default tool packs.
-- OpenAI client adapter: not implemented yet.
+- Tool registry protocol and concrete registry: implemented for Slice 4 scope.
+- OpenAI client adapter: not implemented yet; this is the next active slice.
 - Workflow executor and CLI: not implemented yet.
 
 ## Guidance for Future Work
 
-- Continue from Slice 4 in `specs/dynamic-agent-runner/tasks.md`.
+- Continue from Slice 5 in `specs/dynamic-agent-runner/tasks.md`.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
   `decision_step` unless a later format version changes the contract.
-- In Slice 4, implement the repository-owned tool registry without yet adding
-  OpenAI adapter or workflow executor behavior. Include callable registry lookup,
-  optional metadata enrichment from manifest/tool-index data, runtime overrides,
-  and opt-in built-in `local_workspace` tools.
-- Keep OpenAI API calls behind a small adapter boundary and keep unit tests free
-  of live model calls.
+- In Slice 5, implement the OpenAI adapter without yet adding full workflow
+  executor behavior. Keep OpenAI API calls behind a small adapter boundary and
+  keep unit tests free of live model calls.
 - Update this file as concrete modules, entry points, and architectural
   boundaries become real.

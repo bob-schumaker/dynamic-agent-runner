@@ -37,7 +37,7 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - treat `tool-index.yaml` as optional metadata; callable tool availability comes
   from the effective registry
 - support runtime tool overrides and opt-in built-in default tool packs in the
-  Slice 4 registry scope
+  implemented Slice 4 registry scope
 - use `PyYAML` for runtime YAML and tool-index parsing
 
 ## Development and Test Dependencies
@@ -125,3 +125,6 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   authoritative for executable tools, adds runtime tool overrides, and allows
   explicit opt-in built-in default tool packs starting with read-only local
   workspace tools.
+- Slice 4 implementation was committed in `cba3f43`. It added `registry.py`,
+  `tests/test_registry.py`, public registry exports, optional `tool_registry`
+  validation in `load_agent_workflow(...)`, and registry-aware validation support.
