@@ -28,6 +28,8 @@
   `bef8817 docs(memory-bank): record openai runtime direction`.
 - Implementation-readiness gate commit exists:
   `2979342 docs(spec): record implementation readiness gate`.
+- Slice 0 completion commit exists:
+  `ea5a88a docs(spec): mark readiness checkpoint complete`.
 
 ## In Flight
 
@@ -38,7 +40,8 @@
 ## Remaining
 
 - Reconcile and commit dependency/package metadata changes separately.
-- Complete readiness/scaffold slice before deeper runtime implementation:
+- Complete Slice 1 — package scaffold and dependency alignment:
+  - reconcile and commit dependency/package metadata changes
   - create `src/dynamic_agent_runner/`
   - define initial public exports and project-specific errors
   - add import smoke test
@@ -61,7 +64,7 @@
 - The repository currently lacks source code, so architecture sections
   intentionally avoid detailed implementation claims.
 - The plan and debate explicitly warn against starting unrestricted runtime
-  implementation before the readiness/scaffold slice is complete.
+  implementation before Slice 1 is complete.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.
 - Future implementation should start with the official `openai` package and a

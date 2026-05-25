@@ -97,10 +97,10 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `4e69ea9`; the spec was updated for OpenAI-package/custom-registry direction
   in `b247e11`; memory-bank OpenAI context was refreshed in `bef8817`;
   implementation-readiness planning artifacts and README alignment were committed
-  in `2979342`.
+  in `2979342`; Slice 0 was marked complete in `ea5a88a`.
 - Current uncommitted dependency files are expected to need reconciliation with
   the latest spec: add the official `openai` package and avoid required
   `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependencies.
-- `specs/dynamic-agent-runner/plan.md` and `tasks.md` are now tracked planning
-  artifacts. They gate implementation to a narrow readiness/scaffold slice before
-  deeper runtime parser, registry, OpenAI adapter, executor, or CLI behavior.
+- `specs/dynamic-agent-runner/plan.md` and `tasks.md` are tracked planning
+  artifacts. Slice 0 is complete, and Slice 1 now gates deeper runtime parser,
+  registry, OpenAI adapter, executor, or CLI behavior.

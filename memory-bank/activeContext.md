@@ -2,9 +2,8 @@
 
 ## Current Focus
 
-- Repository bootstrap/specification work has been refreshed after committing the
-  implementation-readiness gate for the dynamic-agent-runner spec, plan, tasks,
-  and README.
+- Repository bootstrap/specification work has been refreshed after completing
+  Slice 0 and committing the readiness checkpoint in `ea5a88a`.
 
 ## Current Status
 
@@ -26,6 +25,7 @@
   - Committed memory-bank OpenAI runtime direction refresh in `bef8817`.
   - Created and committed implementation-readiness planning artifacts and README
     alignment in `2979342`.
+  - Marked Slice 0 complete and advanced the task list to Slice 1 in `ea5a88a`.
 - In progress:
   - Dependency files remain modified and uncommitted: `pyproject.toml` and
     `poetry.lock`.
@@ -47,8 +47,9 @@
   - `specs/dynamic-agent-runner/tasks.md`
 - A Council review and a 3-round debate both concluded the artifact set is ready
   only for a narrow readiness/scaffold slice, not unrestricted runtime
-  implementation.
+  implementation. Slice 0 is now complete; Slice 1 is the next active slice.
 - Latest observed branch history includes:
+  - `ea5a88a docs(spec): mark readiness checkpoint complete`
   - `2979342 docs(spec): record implementation readiness gate`
   - `bef8817 docs(memory-bank): record openai runtime direction`
   - `b247e11 docs(spec): use openai package runtime direction`
@@ -62,7 +63,7 @@
 
 - Reconcile dependency/lock changes with the latest spec direction and commit
   them separately when ready.
-- Begin the narrow readiness/scaffold slice:
+- Begin Slice 1 — package scaffold and dependency alignment:
   - create `src/dynamic_agent_runner/`
   - add initial public exports and error types
   - add an import smoke test

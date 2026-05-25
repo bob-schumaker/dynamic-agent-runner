@@ -126,3 +126,15 @@ debate the plan and spec for 3 rounds for implementation readiness
 ---
 
 implement debate recommendations and commit the updated spec, plan and README
+
+---
+
+update memory-bank and commit
+
+---
+
+execute slice 0 and commit
+
+---
+
+update memory-bank and commit
