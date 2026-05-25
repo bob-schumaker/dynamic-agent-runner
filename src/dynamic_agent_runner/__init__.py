@@ -37,6 +37,12 @@ from dynamic_agent_runner.token_budget import (
     estimate_messages_tokens,
     token_budget_policy_from_value,
 )
+from dynamic_agent_runner.tracing import (
+    InMemoryTraceSink,
+    TraceEvent,
+    TraceSink,
+    WorkflowTracer,
+)
 from dynamic_agent_runner.errors import (
     ArtifactLoadError,
     DynamicAgentRunnerError,
@@ -58,7 +64,10 @@ __all__ = [
     "OpenAIMessage",
     "OpenAIModelRequest",
     "ToolRegistryError",
+    "TraceEvent",
+    "TraceSink",
     "WorkflowExecutionState",
+    "WorkflowTracer",
     "build_openai_request",
     "create_default_openai_client",
     "execute_workflow",
@@ -77,6 +86,7 @@ __all__ = [
     "TokenEstimate",
     "TokenUsageRecord",
     "InMemoryToolRegistry",
+    "InMemoryTraceSink",
     "estimate_messages_tokens",
     "retry_policy_from_value",
     "token_budget_policy_from_value",

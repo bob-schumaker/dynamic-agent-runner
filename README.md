@@ -54,6 +54,7 @@ Known configuration:
 - primary runtime dependencies on `roschumalib` and the official `openai` package
 - retry support uses `tenacity` behind package-owned retry policy interfaces
 - token estimation uses `tiktoken` behind package-owned token-budget interfaces
+- workflow tracing uses package-owned trace events and optional trace sinks
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
 - the initial implementation targets the OpenAI Python SDK behind a small adapter
@@ -173,6 +174,23 @@ clearly before making the model request. Token estimates are recorded in
 count, configured budget, encoding name, fallback-encoding flag, and whether the
 budget was exceeded. Automatic truncation is intentionally not supported yet.
 
+## Execution Tracing
+
+Workflow tracing is available without external observability dependencies.
+`execute_workflow(...)` records ordered `TraceEvent` objects in
+`WorkflowExecutionState.trace_events` and accepts an optional `trace_sink` for
+callers that want to receive events as they are emitted. `run_agent_workflow(...)`
+also forwards an optional trace sink.
+
+Current trace events cover workflow start/completion, node start/completion,
+model request/response, token-budget checks, tool invocation/result, retry
+records, decisions, node errors, workflow errors, and final results. Trace
+payloads mark prompt, request, model-response content, tool arguments, tool
+outputs, node outputs, and final results as sensitive where applicable;
+`TraceEvent.redacted()` and `TraceEvent.redacted_payload()` provide a shallow
+redaction path before external emission. Logfire/OpenTelemetry integration is
+intentionally deferred until this package-owned interface is stable.
+
 ## CLI Usage
 
 After installation, run a workflow package from artifact paths:
@@ -218,6 +236,8 @@ Current tests cover:
 - validating LLM output contracts and decision routes before trusting node output
 - estimating prompt tokens and enforcing configured token budgets before model
   calls
+- emitting package-owned trace events through execution state and optional trace
+  sinks without external observability dependencies
 - converting repository-owned tool registry definitions to OpenAI tool schema
 - dispatching registered tools without live model calls in unit tests
 - running supported workflows from a user prompt with fake clients/tools

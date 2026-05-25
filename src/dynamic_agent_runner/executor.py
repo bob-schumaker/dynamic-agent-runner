@@ -32,6 +32,7 @@ from dynamic_agent_runner.token_budget import (
     estimate_messages_tokens,
     token_budget_policy_from_value,
 )
+from dynamic_agent_runner.tracing import TraceEvent, TraceSink, WorkflowTracer
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,7 @@ class WorkflowExecutionState:
     executions: list[NodeExecution] = field(default_factory=list)
     retry_records: list[RetryRecord] = field(default_factory=list)
     token_usage: list[TokenUsageRecord] = field(default_factory=list)
+    trace_events: list[TraceEvent] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     final_result: Any = None
 
@@ -74,6 +76,7 @@ def execute_workflow(
     tool_registry: ToolRegistry | None = None,
     model_adapter: OpenAIClientAdapter | None = None,
     max_steps: int | None = None,
+    trace_sink: TraceSink | None = None,
 ) -> WorkflowResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -86,24 +89,58 @@ def execute_workflow(
     edges_by_source = _edges_by_source(tuple(manifest.edges))
     adapter = model_adapter or OpenAIClientAdapter()
     state = WorkflowExecutionState(prompt=prompt)
+    tracer = WorkflowTracer(events=state.trace_events, sink=trace_sink)
     current_node_id: str | None = manifest.entrypoint
     limit = max_steps or _max_steps(manifest.execution_policy) or (len(nodes) + 10)
+    tracer.emit(
+        "workflow_started",
+        payload={"entrypoint": manifest.entrypoint, "prompt": prompt},
+        sensitive_fields=("prompt",),
+    )
 
     for _step_index in range(limit):
         if current_node_id is None:
             state.final_result = _last_output(state)
+            tracer.emit(
+                "workflow_completed",
+                payload={"final_result": state.final_result},
+                sensitive_fields=("final_result",),
+            )
             return WorkflowResult(final_result=state.final_result, state=state)
         node = nodes[current_node_id]
-        output = _execute_node(node, workflow, state, tool_registry, adapter)
+        tracer.emit(
+            "node_started",
+            node_id=str(node.id),
+            payload={"kind": node.kind},
+        )
+        try:
+            output = _execute_node(
+                node, workflow, state, tool_registry, adapter, tracer
+            )
+        except Exception as exc:
+            tracer.emit(
+                "node_error",
+                node_id=str(node.id),
+                payload={"kind": node.kind, "error": str(exc)},
+            )
+            raise
         state.node_outputs[current_node_id] = output
         state.executions.append(
             NodeExecution(node_id=current_node_id, kind=str(node.kind), output=output)
+        )
+        tracer.emit(
+            "node_completed",
+            node_id=str(node.id),
+            payload={"kind": node.kind, "output": _unwrap_output(output)},
+            sensitive_fields=("output",),
         )
         current_node_id = _next_node_id(
             node, output, edges_by_source.get(current_node_id, ())
         )
 
-    raise WorkflowExecutionError(f"workflow exceeded maximum step count {limit}")
+    error = f"workflow exceeded maximum step count {limit}"
+    tracer.emit("workflow_error", payload={"error": error})
+    raise WorkflowExecutionError(error)
 
 
 def _execute_node(
@@ -112,13 +149,14 @@ def _execute_node(
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
     adapter: OpenAIClientAdapter,
+    tracer: WorkflowTracer,
 ) -> Any:
     if node.kind == "llm_step":
-        return _execute_llm_step(node, workflow, state, registry, adapter)
+        return _execute_llm_step(node, workflow, state, registry, adapter, tracer)
     if node.kind == "tool_use_step":
-        return _execute_tool_step(node, state, registry)
+        return _execute_tool_step(node, state, registry, tracer)
     if node.kind == "decision_step":
-        return _execute_decision_step(node, state)
+        return _execute_decision_step(node, state, tracer)
     raise WorkflowExecutionError(f"unsupported node kind {node.kind!r}")
 
 
@@ -128,6 +166,7 @@ def _execute_llm_step(
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
     adapter: OpenAIClientAdapter,
+    tracer: WorkflowTracer,
 ) -> ModelResponse:
     messages = _render_messages(node, state)
     tools: list[dict[str, Any]] = []
@@ -140,7 +179,7 @@ def _execute_llm_step(
             tool.id for tool in registry.list_tools_for_node(node)
         )
     model = _model_name(node, workflow)
-    _enforce_token_budget(node, workflow, messages, model, state)
+    _enforce_token_budget(node, workflow, messages, model, state, tracer)
     request = build_openai_request(
         model=model,
         messages=messages,
@@ -150,6 +189,17 @@ def _execute_llm_step(
         **_model_parameters(node),
     )
     state.node_inputs[str(node.id)] = request.to_kwargs()
+    tracer.emit(
+        "model_request",
+        node_id=str(node.id),
+        payload={
+            "model": model,
+            "message_count": len(messages),
+            "tool_count": len(tools),
+            "request": request.to_kwargs(),
+        },
+        sensitive_fields=("request",),
+    )
     policy = _model_retry_policy(node, workflow)
     try:
         response, attempts = run_with_retry(
@@ -165,9 +215,18 @@ def _execute_llm_step(
             attempts=policy.max_attempts if _retries_exceptions(policy) else 1,
             outcome="failure",
             final_error=str(exc),
+            tracer=tracer,
         )
         raise
-    _record_retry(state, node, "model", attempts=attempts, outcome="success")
+    _record_retry(
+        state, node, "model", attempts=attempts, outcome="success", tracer=tracer
+    )
+    tracer.emit(
+        "model_response",
+        node_id=str(node.id),
+        payload={"response_id": response.response_id, "content": response.content},
+        sensitive_fields=("content",),
+    )
     _validate_model_output_contract(node, workflow, response)
     return response
 
@@ -176,6 +235,7 @@ def _execute_tool_step(
     node: RuntimeNode,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
+    tracer: WorkflowTracer,
 ) -> ToolResult:
     if registry is None:
         raise WorkflowExecutionError(
@@ -187,8 +247,25 @@ def _execute_tool_step(
         )
     arguments = _tool_arguments(node, state)
     state.node_inputs[str(node.id)] = arguments
-    result = _invoke_tool_with_retry(node, registry, arguments, state)
+    tracer.emit(
+        "tool_invocation",
+        node_id=str(node.id),
+        payload={"tool_id": node.tool_id, "arguments": arguments},
+        sensitive_fields=("arguments",),
+    )
+    result = _invoke_tool_with_retry(node, registry, arguments, state, tracer)
     state.tool_results[str(node.id)] = result
+    tracer.emit(
+        "tool_result",
+        node_id=str(node.id),
+        payload={
+            "tool_id": node.tool_id,
+            "success": result.success,
+            "error": result.error,
+            "output": result.output,
+        },
+        sensitive_fields=("output",),
+    )
     if not result.success and _failure_behavior(node) == "error":
         error = result.error or f"tool {node.tool_id!r} failed"
         state.errors.append(error)
@@ -202,6 +279,7 @@ def _invoke_tool_with_retry(
     registry: ToolRegistry,
     arguments: Mapping[str, Any],
     state: WorkflowExecutionState,
+    tracer: WorkflowTracer,
 ) -> ToolResult:
     policy = _tool_retry_policy(node, registry)
     retry_failures = _retries_failures(policy)
@@ -218,11 +296,19 @@ def _invoke_tool_with_retry(
                 attempts=attempt,
                 outcome="failure",
                 final_error=str(exc),
+                tracer=tracer,
             )
             raise
         last_result = result
         if result.success or not retry_failures:
-            _record_retry(state, node, "tool", attempts=attempt, outcome="success")
+            _record_retry(
+                state,
+                node,
+                "tool",
+                attempts=attempt,
+                outcome="success",
+                tracer=tracer,
+            )
             return result
     if last_result is None:
         raise WorkflowExecutionError(f"tool_use_step node {node.id!r} did not run")
@@ -233,11 +319,16 @@ def _invoke_tool_with_retry(
         attempts=max_attempts,
         outcome="failure",
         final_error=last_result.error,
+        tracer=tracer,
     )
     return last_result
 
 
-def _execute_decision_step(node: RuntimeNode, state: WorkflowExecutionState) -> str:
+def _execute_decision_step(
+    node: RuntimeNode,
+    state: WorkflowExecutionState,
+    tracer: WorkflowTracer,
+) -> str:
     if node.decision_subtype != "llm_route":
         raise WorkflowExecutionError(
             f"decision_step node {node.id!r} has unsupported decision_subtype "
@@ -252,6 +343,7 @@ def _execute_decision_step(node: RuntimeNode, state: WorkflowExecutionState) -> 
             f"decision_step node {node.id!r} produced no route"
         )
     _validate_decision_route(node, route_text)
+    tracer.emit("decision", node_id=str(node.id), payload={"route": route_text})
     return route_text
 
 
@@ -314,6 +406,7 @@ def _enforce_token_budget(
     messages: Sequence[OpenAIMessage],
     model: str,
     state: WorkflowExecutionState,
+    tracer: WorkflowTracer,
 ) -> None:
     policy = _token_budget_policy(node, workflow)
     if not policy.enabled:
@@ -327,16 +420,27 @@ def _enforce_token_budget(
         policy.max_prompt_tokens is not None
         and estimate.token_count > policy.max_prompt_tokens
     )
-    state.token_usage.append(
-        TokenUsageRecord(
-            node_id=str(node.id),
-            model=budget_model,
-            estimated_prompt_tokens=estimate.token_count,
-            max_prompt_tokens=policy.max_prompt_tokens,
-            encoding_name=estimate.encoding_name,
-            used_fallback_encoding=estimate.used_fallback_encoding,
-            exceeded=exceeded,
-        )
+    record = TokenUsageRecord(
+        node_id=str(node.id),
+        model=budget_model,
+        estimated_prompt_tokens=estimate.token_count,
+        max_prompt_tokens=policy.max_prompt_tokens,
+        encoding_name=estimate.encoding_name,
+        used_fallback_encoding=estimate.used_fallback_encoding,
+        exceeded=exceeded,
+    )
+    state.token_usage.append(record)
+    tracer.emit(
+        "token_budget_checked",
+        node_id=str(node.id),
+        payload={
+            "model": record.model,
+            "estimated_prompt_tokens": record.estimated_prompt_tokens,
+            "max_prompt_tokens": record.max_prompt_tokens,
+            "encoding_name": record.encoding_name,
+            "used_fallback_encoding": record.used_fallback_encoding,
+            "exceeded": record.exceeded,
+        },
     )
     if exceeded and policy.on_exceed == "error":
         raise WorkflowExecutionError(
@@ -669,16 +773,27 @@ def _record_retry(
     attempts: int,
     outcome: str,
     final_error: str | None = None,
+    tracer: WorkflowTracer | None = None,
 ) -> None:
-    state.retry_records.append(
-        RetryRecord(
-            node_id=str(node.id),
-            operation=operation,
-            attempts=attempts,
-            outcome=outcome,
-            final_error=final_error,
-        )
+    record = RetryRecord(
+        node_id=str(node.id),
+        operation=operation,
+        attempts=attempts,
+        outcome=outcome,
+        final_error=final_error,
     )
+    state.retry_records.append(record)
+    if tracer is not None:
+        tracer.emit(
+            "retry_recorded",
+            node_id=str(node.id),
+            payload={
+                "operation": record.operation,
+                "attempts": record.attempts,
+                "outcome": record.outcome,
+                "final_error": record.final_error,
+            },
+        )
 
 
 def _max_steps(execution_policy: Mapping[str, Any]) -> int | None:

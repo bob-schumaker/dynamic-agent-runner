@@ -2,12 +2,13 @@
 
 ## Status
 
-- State: Slice 10 complete; ready for Slice 11
+- State: Slice 11 complete; ready for post-hardening follow-up direction
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 11 — execution tracing and observability hooks
+- Next active slice: none currently defined; deferred library-evaluation
+  follow-ups remain available
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -370,17 +371,38 @@
 
 ## Slice 11 — Execution tracing and observability hooks
 
-- [ ] T11.1 Define a package-owned trace event model for node start/completion,
+- [x] T11.1 Define a package-owned trace event model for node start/completion,
       model request/response, tool invocation, retry, decision, error, and final
       result events.
-- [ ] T11.2 Add an optional trace sink interface that can receive events without
+- [x] T11.2 Add an optional trace sink interface that can receive events without
       requiring external observability dependencies.
-- [ ] T11.3 Ensure trace data can later support redaction of prompt, model, tool,
+- [x] T11.3 Ensure trace data can later support redaction of prompt, model, tool,
       and result fields before external emission.
-- [ ] T11.4 Add tests that trace events are emitted in expected order for
+- [x] T11.4 Add tests that trace events are emitted in expected order for
       successful workflows, tool failures, model failures, and retry attempts.
-- [ ] T11.5 Defer Logfire/OpenTelemetry integration until the package-owned trace
+- [x] T11.5 Defer Logfire/OpenTelemetry integration until the package-owned trace
       interface is stable.
+
+## Slice 11 Completion Evidence
+
+- `src/dynamic_agent_runner/tracing.py` defines package-owned `TraceEvent`,
+  `TraceSink`, `InMemoryTraceSink`, and `WorkflowTracer` primitives with no
+  external observability dependency.
+- `execute_workflow(...)` records ordered events in
+  `WorkflowExecutionState.trace_events` and accepts an optional `trace_sink`
+  for live event delivery.
+- Trace events cover workflow start/completion, node start/completion, model
+  request/response, token-budget checks, tool invocation/result, retry
+  records, decisions, node errors, workflow errors, and final results.
+- `TraceEvent.redacted_payload()` and `TraceEvent.redacted()` support shallow
+  redaction of prompt, request, model content, tool arguments, tool outputs,
+  node outputs, and final-result fields before external emission.
+- `run_agent_workflow(...)` forwards an optional trace sink while continuing
+  to return the final result.
+- `tests/test_tracing.py` covers successful workflows, tool failures, model
+  failures, and retry-attempt tracing with fake clients/tools only.
+- Logfire/OpenTelemetry integration remains deferred until the package-owned
+  trace interface is stable.
 
 ## Deferred library-evaluation follow-ups
 

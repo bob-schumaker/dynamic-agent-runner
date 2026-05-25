@@ -56,6 +56,7 @@ def run_agent_workflow(
     tool_registry: Any | None = None,
     model_adapter: Any | None = None,
     max_steps: int | None = None,
+    trace_sink: Any | None = None,
 ) -> Any:
     """Run an agent workflow from generated artifacts and a user prompt.
 
@@ -78,5 +79,6 @@ def run_agent_workflow(
         tool_registry=tool_registry,
         model_adapter=model_adapter,
         max_steps=max_steps,
+        trace_sink=trace_sink,
     )
     return result.final_result
