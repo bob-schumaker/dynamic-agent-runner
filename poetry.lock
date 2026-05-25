@@ -3146,4 +3146,4 @@ reference = "global-release-pypi"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "0f630c8731a3fa6a0a020a44b202e73c77a1e32497119d4746a7756d9521eeb3"
+content-hash = "f884f574bd22eae82e607bbef18902f4c356f701f6120ccc3867016bebcebd01"

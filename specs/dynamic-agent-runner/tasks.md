@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 1 complete; planning drift update complete; ready for Slice 2
+- State: Slice 2 complete; ready for Slice 3
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 2 — artifact models and loaders
+- Next active slice: Slice 3 — validation engine
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -57,22 +57,39 @@
 
 ## Slice 2 — Artifact models and loaders
 
-- [ ] T2.1 Define internal models for runtime manifest metadata, documented
+- [x] T2.1 Define internal models for runtime manifest metadata, documented
       supported pattern IDs, nodes, edges, tools, skills, participant groups,
       modes, phases, roles, output contracts, and validation sections.
-- [ ] T2.2 Implement runtime YAML loading from path, raw string, and
+- [x] T2.2 Implement runtime YAML loading from path, raw string, and
       already-parsed object inputs.
-- [ ] T2.3 Implement Mermaid graph loading and `mermaid_diagram` reference
+- [x] T2.3 Implement Mermaid graph loading and `mermaid_diagram` reference
       resolution relative to the runtime YAML path.
-- [ ] T2.4 Implement optional external `tool-index.yaml` loading from path, raw
+- [x] T2.4 Implement optional external `tool-index.yaml` loading from path, raw
       string, and already-parsed object inputs.
-- [ ] T2.5 Implement lightweight `agent-design.md` loading and reference checks
+- [x] T2.5 Implement lightweight `agent-design.md` loading and reference checks
       for the runtime manifest and Mermaid graph.
-- [ ] T2.6 Preserve `patterns_present` metadata for the documented supported
+- [x] T2.6 Preserve `patterns_present` metadata for the documented supported
       agent pattern IDs without treating patterns as primitive node kinds.
-- [ ] T2.7 Add fixture-based tests for valid and malformed artifact inputs,
+- [x] T2.7 Add fixture-based tests for valid and malformed artifact inputs,
       including at least one metadata-rich pattern shape such as
       `multi-agent-collaboration` or `memory-augmented-agent`.
+
+## Slice 2 Completion Evidence
+
+- `src/dynamic_agent_runner/models.py` defines internal artifact models for
+  runtime manifests, nodes, edges, tools, tool indexes, agent designs, and loaded
+  workflow bundles.
+- `src/dynamic_agent_runner/artifacts.py` loads runtime YAML, Mermaid graph text,
+  optional tool indexes, and optional agent design markdown from paths, raw
+  strings, or already-parsed mapping inputs.
+- `load_agent_workflow(...)` now loads artifacts without executing workflows;
+  `run_agent_workflow(...)` remains reserved for later executor slices.
+- `PyYAML >=6.0` is declared as a direct runtime dependency for YAML artifact
+  loading.
+- `tests/test_artifacts.py` covers valid raw-string, path-based, and parsed
+  object loading; malformed YAML; missing referenced Mermaid graphs; and
+  metadata-rich pattern preservation for `multi-agent-collaboration` and
+  `memory-augmented-agent`.
 
 ## Slice 3 — Validation engine
 

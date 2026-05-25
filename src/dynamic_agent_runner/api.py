@@ -1,26 +1,49 @@
-"""Initial public API placeholders for dynamic-agent-runner."""
+"""Public API for loading and running dynamic-agent workflow artifacts."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from dynamic_agent_runner.artifacts import load_agent_workflow_artifacts
+from dynamic_agent_runner.models import LoadedAgentWorkflow
 
-def load_agent_workflow(*args: Any, **kwargs: Any) -> Any:
-    """Load and validate agent workflow artifacts.
 
-    The concrete implementation will be added in the artifact loading and
-    validation slices. This placeholder reserves the public API surface while
-    keeping the package importable during the scaffold slice.
+def load_agent_workflow(
+    *,
+    runtime_manifest: Any | None = None,
+    definition_yaml: Any | None = None,
+    mermaid_graph: str | None = None,
+    mermaid_diagram: str | None = None,
+    agent_design: str | None = None,
+    tool_index: Any | None = None,
+) -> LoadedAgentWorkflow:
+    """Load generated workflow artifacts without executing the workflow.
+
+    `runtime_manifest` is the preferred name for the generated
+    `agent-runtime.yaml` input. `definition_yaml` is accepted as a compatibility
+    alias for the earlier README sketch.
     """
 
-    raise NotImplementedError("workflow loading is not implemented yet")
+    runtime_input = (
+        runtime_manifest if runtime_manifest is not None else definition_yaml
+    )
+    if runtime_input is None:
+        raise TypeError("load_agent_workflow requires runtime_manifest")
+
+    graph_input = mermaid_graph if mermaid_graph is not None else mermaid_diagram
+    return load_agent_workflow_artifacts(
+        runtime_manifest=runtime_input,
+        mermaid_graph=graph_input,
+        agent_design=agent_design,
+        tool_index=tool_index,
+    )
 
 
 def run_agent_workflow(*args: Any, **kwargs: Any) -> Any:
     """Run an agent workflow from generated artifacts and a user prompt.
 
-    The concrete implementation will be added after artifact loading,
-    validation, registry, OpenAI adapter, and executor slices are implemented.
+    The concrete implementation will be added after validation, registry, OpenAI
+    adapter, and executor slices are implemented.
     """
 
     raise NotImplementedError("workflow execution is not implemented yet")
