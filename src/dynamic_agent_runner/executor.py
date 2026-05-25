@@ -233,11 +233,16 @@ def _next_node_id(
     output: Any,
     edges: Sequence[RuntimeEdge],
 ) -> str | None:
+    if not edges:
+        return None
     control_edges = [
         edge for edge in edges if edge.edge_kind in {"sequential", "branch"}
     ]
     if not control_edges:
-        return None
+        edge_kinds = ", ".join(sorted({str(edge.edge_kind) for edge in edges}))
+        raise WorkflowExecutionError(
+            f"node {node.id!r} has unsupported outgoing edge kind(s): {edge_kinds}"
+        )
     if len(control_edges) == 1 and control_edges[0].edge_kind == "sequential":
         return control_edges[0].target
     if node.kind == "decision_step":

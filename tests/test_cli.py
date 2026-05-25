@@ -5,11 +5,22 @@ from __future__ import annotations
 from io import StringIO
 from pathlib import Path
 
+import pytest
+import yaml
+
 from dynamic_agent_runner.cli import main
+from dynamic_agent_runner.models import SUPPORTED_AGENT_PATTERNS, ToolDefinition
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
+from dynamic_agent_runner.registry import InMemoryToolRegistry, RegisteredTool
 
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "agent-patterns"
+EXECUTABLE_PATTERN_IDS = tuple(
+    pattern_id
+    for pattern_id in SUPPORTED_AGENT_PATTERNS
+    if pattern_id != "multi-agent-collaboration"
+)
+UNSUPPORTED_PATTERN_IDS = ("multi-agent-collaboration",)
 
 
 class FakeResponses:
@@ -31,8 +42,27 @@ def make_adapter(responses: list[object]) -> OpenAIClientAdapter:
     return OpenAIClientAdapter(FakeClient(responses))
 
 
+def make_fixture_registry(fixture: Path) -> InMemoryToolRegistry:
+    manifest = yaml.safe_load((fixture / "agent-runtime.yaml").read_text())
+    return InMemoryToolRegistry(
+        RegisteredTool(
+            ToolDefinition.from_mapping(tool),
+            lambda args, tool_id=tool["id"]: {
+                "message": f"hello from {tool_id}",
+                "query": args.get("query"),
+                "route": "proceed",
+            },
+        )
+        for tool in manifest.get("tools", [])
+    )
+
+
 def basic_reasoning_fixture() -> Path:
     return FIXTURE_ROOT / "basic-reasoning-agent"
+
+
+def fixture_path(pattern_id: str) -> Path:
+    return FIXTURE_ROOT / pattern_id
 
 
 def test_cli_runs_workflow_from_artifact_paths_and_prompt() -> None:
@@ -133,3 +163,85 @@ def test_cli_returns_error_for_execution_failure() -> None:
 
     assert exit_code == 1
     assert "OpenAI model request failed" in stderr.getvalue()
+
+
+@pytest.mark.parametrize("pattern_id", EXECUTABLE_PATTERN_IDS)
+def test_cli_runs_all_currently_executable_pattern_fixtures(pattern_id: str) -> None:
+    fixture = fixture_path(pattern_id)
+    stdout = StringIO()
+    stderr = StringIO()
+    adapter = make_adapter(
+        [
+            {"id": f"{pattern_id}-response-1", "output_text": '{"route":"proceed"}'},
+            {"id": f"{pattern_id}-response-2", "output_text": f"final {pattern_id}"},
+            {"id": f"{pattern_id}-response-3", "output_text": f"final {pattern_id}"},
+        ]
+    )
+
+    exit_code = main(
+        [
+            "--runtime-manifest",
+            str(fixture / "agent-runtime.yaml"),
+            "--agent-design",
+            str(fixture / "agent-design.md"),
+            "--prompt",
+            f"Run hello-world fixture for {pattern_id}.",
+        ],
+        model_adapter=adapter,
+        tool_registry=make_fixture_registry(fixture),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    assert exit_code == 0, stderr.getvalue()
+    assert stdout.getvalue().strip()
+    assert stderr.getvalue() == ""
+
+
+@pytest.mark.parametrize("pattern_id", UNSUPPORTED_PATTERN_IDS)
+def test_cli_fails_clearly_for_unsupported_pattern_fixture_features(
+    pattern_id: str,
+) -> None:
+    fixture = fixture_path(pattern_id)
+    stdout = StringIO()
+    stderr = StringIO()
+
+    exit_code = main(
+        [
+            "--runtime-manifest",
+            str(fixture / "agent-runtime.yaml"),
+            "--agent-design",
+            str(fixture / "agent-design.md"),
+            "--prompt",
+            f"Run hello-world fixture for {pattern_id}.",
+        ],
+        model_adapter=make_adapter(
+            [{"id": f"{pattern_id}-response", "output_text": "architect says hello"}]
+        ),
+        tool_registry=make_fixture_registry(fixture),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    assert exit_code == 1
+    assert stdout.getvalue() == ""
+    assert "unsupported outgoing edge kind(s): parallel_join" in stderr.getvalue()
+
+
+def test_cli_fails_clearly_for_tool_fixture_without_registry() -> None:
+    fixture = fixture_path("tool-based-function-calling-agent")
+    stderr = StringIO()
+
+    exit_code = main(
+        [
+            "--runtime-manifest",
+            str(fixture / "agent-runtime.yaml"),
+            "--prompt",
+            "Run without a callable registry.",
+        ],
+        model_adapter=make_adapter([]),
+        stderr=stderr,
+    )
+
+    assert exit_code == 1
+    assert "exposes tools but no registry was provided" in stderr.getvalue()
