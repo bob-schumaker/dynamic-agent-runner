@@ -41,9 +41,10 @@ is responsible for reading them and executing the resulting workflow.
 
 ## Current Repository Status
 
-This repository currently contains project configuration, dependency setup, and
-SDD planning artifacts. The public Python API and source layout are still
-expected to be added.
+This repository currently contains the initial runtime library, artifact loaders,
+validation engine, repository-owned tool registry, OpenAI adapter boundary,
+workflow executor, CLI entry point, fixture packages, tests, and SDD planning
+artifacts.
 
 Known configuration:
 
@@ -53,8 +54,9 @@ Known configuration:
 - primary runtime dependencies on `roschumalib` and the official `openai` package
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
-- initial implementation targets the OpenAI Python SDK behind a small adapter
+- the initial implementation targets the OpenAI Python SDK behind a small adapter
   boundary and a repository-owned tool registry pattern
+- the CLI console script is `dynamic-agent-runner`
 
 ## Planning Artifacts
 
@@ -64,11 +66,11 @@ Current SDD artifacts live under `specs/dynamic-agent-runner/`:
 - `plan.md` — technical implementation plan
 - `tasks.md` — traceable task list
 
-A 3-round implementation-readiness debate concluded that the project is ready
-only for a narrow readiness/scaffold slice, not unrestricted runtime
-implementation. The next implementation work should align documentation,
-dependency state, package scaffolding, and import smoke tests before deeper
-runtime parser, registry, OpenAI adapter, executor, or CLI behavior.
+A 3-round implementation-readiness debate concluded that the project was ready
+only for narrow implementation slices rather than unrestricted runtime
+implementation. Completed slices now cover the package scaffold, artifact
+loaders, validation, registry, OpenAI adapter, executor, fixture surface, and CLI
+entry point.
 
 ## Development Setup
 
@@ -86,10 +88,10 @@ must be sourced rather than executed directly:
 source env_setup
 ```
 
-## Planned Usage Shape
+## Python API Usage
 
-The exact public API is not implemented in the repository yet. The intended
-library shape is expected to look conceptually like this:
+Use `run_agent_workflow(...)` to load generated artifacts, validate them, execute
+the supported workflow graph, and return the final result:
 
 ```python
 from dynamic_agent_runner import run_agent_workflow
@@ -101,21 +103,57 @@ result = run_agent_workflow(
     tool_index="path/to/tool-index.yaml",
     prompt="Run the workflow for this user request.",
     tool_registry=None,
-    chat_client=None,
+    model_adapter=None,
 )
 ```
 
-Treat this as design intent until the source package defines the concrete API.
+Use `load_agent_workflow(...)` when callers only need to load and validate the
+artifact relationship without executing model or tool calls.
+
+## CLI Usage
+
+After installation, run a workflow package from artifact paths:
+
+```bash
+dynamic-agent-runner \
+  --runtime-manifest path/to/agent-runtime.yaml \
+  --agent-design path/to/agent-design.md \
+  --mermaid-graph path/to/agent-graph.mmd \
+  --tool-index path/to/tool-index.yaml \
+  --prompt "Say hello from this workflow."
+```
+
+If `--mermaid-graph` is omitted, the loader resolves the manifest's
+`mermaid_diagram` reference relative to the runtime manifest path. The prompt may
+also be supplied with `--prompt-file`; when neither prompt option is used, the
+CLI reads the prompt from standard input.
+
+Tool-using workflows need an explicit registry source. The first CLI-supported
+registry configuration is the opt-in read-only `local_workspace` tool pack:
+
+```bash
+dynamic-agent-runner \
+  --runtime-manifest path/to/agent-runtime.yaml \
+  --prompt "Inspect this workspace." \
+  --workspace-root .
+```
+
+The CLI prints the final workflow result to standard output. Loading,
+validation, registry, model, and execution failures are reported to standard
+error with a non-zero exit code.
 
 ## Validation
 
-No runnable library entry point exists yet. Once implementation starts, add tests
-that cover at least:
+Current tests cover:
 
-- parsing the runtime manifest
-- validating the design document, Mermaid graph, and tool index relationship
+- parsing runtime manifests, Mermaid graph references, design documents, and
+  optional tool-index metadata
+- validating design document, Mermaid graph, manifest, registry, and tool-index
+  relationships
 - constructing the OpenAI package-backed model execution path through an adapter
 - converting repository-owned tool registry definitions to OpenAI tool schema
 - dispatching registered tools without live model calls in unit tests
-- running a workflow from a user prompt with fake clients/tools
-- returning the final result and surfacing errors clearly
+- running supported workflows from a user prompt with fake clients/tools
+- loading hello-world fixture packages for all 11 supported agent-pattern IDs
+- running the CLI with artifact paths, prompt input, fake model clients, and
+  clear error reporting

@@ -7,6 +7,9 @@ authors = [
 ]
 dynamic = ["dependencies", "requires-python"]
 
+[project.scripts]
+dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
+
 [tool.poetry]
 packages = [
     { include = "dynamic_agent_runner", from = "src" },

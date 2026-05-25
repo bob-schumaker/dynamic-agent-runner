@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 6 complete; ready for Slice 7
+- State: Slice 7 complete; ready for post-CLI follow-on planning
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 7 — CLI and documentation
+- Next active slice: post-Slice 7 follow-on planning
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -237,17 +237,33 @@
 
 ## Slice 7 — CLI and documentation
 
-- [ ] T7.1 Add a CLI entry point for loading artifacts and running a workflow
+- [x] T7.1 Add a CLI entry point for loading artifacts and running a workflow
       from a prompt.
-- [ ] T7.2 Support CLI options for `agent-design.md`, runtime YAML, Mermaid
+- [x] T7.2 Support CLI options for `agent-design.md`, runtime YAML, Mermaid
       graph, optional `tool-index.yaml` metadata, registry configuration, and
       prompt input.
-- [ ] T7.3 Return final output on success and clear non-zero errors on loading,
+- [x] T7.3 Return final output on success and clear non-zero errors on loading,
       validation, registry, model, or execution failure.
-- [ ] T7.4 Add CLI tests using local fixtures and fake clients/tools.
-- [ ] T7.5 Update README with concrete API and CLI usage.
-- [ ] T7.6 Run full available validation and update memory bank after the first
+- [x] T7.4 Add CLI tests using local fixtures and fake clients/tools.
+- [x] T7.5 Update README with concrete API and CLI usage.
+- [x] T7.6 Run full available validation and update memory bank after the first
       meaningful implementation milestone.
+
+## Slice 7 Completion Evidence
+
+- `src/dynamic_agent_runner/cli.py` defines `main(...)`, `build_parser()`, and
+  `console_main()` for running generated workflow artifacts from the command
+  line.
+- `pyproject.toml` exposes the `dynamic-agent-runner` console script.
+- CLI options cover runtime manifest, agent design, Mermaid graph, optional tool
+  index metadata, prompt text, prompt file, stdin prompt input, max steps, and
+  the opt-in read-only local workspace registry pack via `--workspace-root`.
+- The CLI prints the final workflow result to stdout and reports runtime-specific
+  errors to stderr with exit code `1`.
+- `tests/test_cli.py` uses local fixture artifacts and fake OpenAI clients only;
+  it covers path-based execution, prompt-file input, stdin input, missing prompt
+  errors, and execution error reporting.
+- `README.md` now documents concrete Python API and CLI usage.
 
 ## Cross-Cutting Validation Tasks
 
