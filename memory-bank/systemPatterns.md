@@ -20,7 +20,11 @@
   artifact loader tests at `tests/test_artifacts.py`, validation tests at
   `tests/test_validation.py`, registry tests at `tests/test_registry.py`, and
   OpenAI adapter tests at `tests/test_openai_client.py`, and executor tests at
-  `tests/test_executor.py`.
+  `tests/test_executor.py`. Pattern fixture coverage lives in
+  `tests/test_agent_pattern_fixtures.py`.
+- `tests/fixtures/agent-patterns/` contains 11 hello-world runtime packages, one
+  for each documented supported agent pattern. Each fixture package has
+  `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`.
 - Current repository structure has loader/model/validation/registry/adapter/
   executor behavior; CLI behavior remains a future slice.
 
@@ -41,6 +45,10 @@
   loading, validation, registry, model, and workflow execution errors.
 - Runtime artifact design preserves documented supported agent-pattern IDs as
   manifest metadata instead of expanding the primitive node taxonomy.
+- The all-pattern fixture surface is intentionally package-shape coverage: it
+  validates that every supported pattern ID can be represented by a portable
+  runtime package, but it does not imply full executor support for every
+  pattern-specific behavior.
 - Pattern-specific structures should be modeled through `patterns_present`,
   `participant_groups`, `roles`, `modes`, `phases`, declared tools, state,
   execution policy, and control-flow edges.
@@ -90,5 +98,7 @@
   `decision_step` unless a later format version changes the contract.
 - In Slice 7, add the CLI and documentation on top of the existing public API and
   executor without widening executor semantics beyond the committed task scope.
+- Use `tests/fixtures/agent-patterns/` as a reusable coverage source for future
+  loader, executor, and CLI compatibility tests.
 - Update this file as concrete modules, entry points, and architectural
   boundaries become real.

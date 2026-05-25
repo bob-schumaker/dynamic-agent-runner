@@ -46,6 +46,8 @@
   `42f8d15 feat(openai): add client adapter boundary`.
 - Slice 6 workflow executor commit exists:
   `4ce8c67 feat(executor): add workflow execution engine`.
+- Agent-pattern fixture commit exists:
+  `ef1fd38 test(fixtures): add agent pattern runtime packages`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -62,6 +64,9 @@
   `llm_route` decisions, sequential and branch control flow, public
   `run_agent_workflow(...)` final-result execution, and fake-client/fake-tool
   executor tests.
+- The repository now has hello-world runtime package fixtures for all 11
+  documented supported agent patterns under `tests/fixtures/agent-patterns/`,
+  with load/validation coverage in `tests/test_agent_pattern_fixtures.py`.
 
 ## In Flight
 
@@ -81,6 +86,8 @@
   - update README with concrete API and CLI usage
 - Extend from the completed loader, validation, registry, OpenAI adapter, and
   executor foundation into the CLI slice.
+- Use the all-pattern hello-world fixtures as the broad pattern test surface for
+  future CLI and compatibility coverage.
 - Update the memory bank after the first meaningful implementation milestone.
 
 ## Risks or Follow-ups
@@ -104,5 +111,8 @@
   tests free of live model calls.
 - Slice 6 implements minimal executor semantics only; more advanced edge kinds,
   policies, approvals, and tool-call loops remain future extension areas.
+- The all-pattern fixtures validate package shape and pattern metadata coverage;
+  they do not prove full runtime execution support for every pattern-specific
+  behavior.
 - Memory-bank pre-commit validation for this refresh should be recorded in the
   commit result.

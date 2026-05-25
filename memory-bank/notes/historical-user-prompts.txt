@@ -202,3 +202,15 @@ execute slice 5 and commit then update memory-bank and commit
 ---
 
 execute slice 6 and commit, then update memory-bank and commit
+
+---
+
+use the agent-development skill to create a "hello world" version of all 11 types of agent designs as test resources so that we can get full coverage eventually
+
+---
+
+update the spec as needed to record the new test surface
+
+---
+
+commit spec and test changes then update memory-bank and commit

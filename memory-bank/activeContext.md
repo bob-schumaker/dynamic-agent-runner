@@ -3,7 +3,8 @@
 ## Current Focus
 
 - Slice 6 workflow executor is complete and committed in `4ce8c67`; Slice 7 CLI
-  and documentation is next.
+  and documentation is next. The 11-pattern hello-world fixture surface is
+  complete and committed in `ef1fd38`.
 
 ## Current Status
 
@@ -38,6 +39,9 @@
   - Completed Slice 4 repository-owned tool registry foundation in `cba3f43`.
   - Completed Slice 5 OpenAI client adapter boundary in `42f8d15`.
   - Completed Slice 6 workflow executor in `4ce8c67`.
+  - Added hello-world test-resource runtime packages for all 11 supported
+    agent-pattern IDs and updated the spec to record that test surface in
+    `ef1fd38`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
@@ -65,6 +69,12 @@
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
   `roles` metadata during loading.
+- `tests/fixtures/agent-patterns/` now contains a hello-world runtime package for
+  every `SUPPORTED_AGENT_PATTERNS` entry. Each package contains
+  `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`.
+- `tests/test_agent_pattern_fixtures.py` verifies that the fixture directory
+  covers all 11 supported pattern IDs and that each package loads and validates
+  through `load_agent_workflow(...)`.
 - `load_agent_workflow(...)` loads artifacts without execution and validates
   loaded artifacts before returning them. `run_agent_workflow(...)` now loads,
   validates, executes, and returns the final workflow result.
@@ -121,6 +131,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `ef1fd38 test(fixtures): add agent pattern runtime packages`
   - `4ce8c67 feat(executor): add workflow execution engine`
   - `42f8d15 feat(openai): add client adapter boundary`
   - `cba3f43 feat(registry): add tool registry foundation`
@@ -145,4 +156,6 @@
   prompt.
 - Support CLI options for runtime YAML, optional design/graph/tool-index inputs,
   registry configuration, and prompt input.
+- Use the 11 hello-world pattern fixture packages as broad package-shape coverage
+  when extending loader, executor, CLI, or compatibility tests.
 - Update README with concrete API and CLI usage once the CLI shape is real.

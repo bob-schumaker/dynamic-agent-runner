@@ -137,3 +137,9 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `run_agent_workflow(...)` API, execution state tracking, `llm_step`,
   `tool_use_step`, and `llm_route` decision execution, and sequential/branch
   control-flow support.
+- Agent-pattern fixture coverage was committed in `ef1fd38`. It added
+  `tests/fixtures/agent-patterns/` with 11 hello-world runtime packages, updated
+  `specs/dynamic-agent-runner/spec.md` to record that test surface, and added
+  `tests/test_agent_pattern_fixtures.py` to verify all supported pattern IDs have
+  loadable `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`
+  packages.
