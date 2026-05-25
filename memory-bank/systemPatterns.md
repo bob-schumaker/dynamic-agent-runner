@@ -13,7 +13,8 @@
   - `src/dynamic_agent_runner/openai_client.py` isolates the official OpenAI
     client behind a small fake-client-compatible adapter boundary
   - `src/dynamic_agent_runner/executor.py` composes loaded workflows, registry
-    tools, retry policy, and the OpenAI adapter into executable workflow runs
+    tools, retry policy, output validation, route validation, and the OpenAI
+    adapter into executable workflow runs
   - `src/dynamic_agent_runner/retry.py` owns retry policy parsing and
     Tenacity-backed bounded retry helpers
   - `src/dynamic_agent_runner/cli.py` exposes an injectable CLI implementation
@@ -30,8 +31,8 @@
   for each documented supported agent pattern. Each fixture package has
   `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`.
 - Current repository structure has loader/model/validation/registry/adapter/
-  executor/retry/CLI behavior; follow-on runtime expansion should be planned as
-  a new scoped slice.
+  executor/retry/output-contract/CLI behavior; follow-on runtime expansion
+  should be planned as a new scoped slice.
 
 ## Observed Patterns
 
@@ -80,7 +81,8 @@
   node outputs, tool results, execution records, retry records, errors, and
   final result.
 - Executor control flow currently supports sequential edges and branch edges for
-  `decision_step` nodes with `decision_subtype: llm_route`.
+  `decision_step` nodes with `decision_subtype: llm_route`, with optional
+  `decision_contract.allowed_paths` validation before branch traversal.
 - Executor control flow fails explicitly for unsupported outgoing edge kinds such
   as `parallel_join` instead of silently treating those nodes as terminal.
 - Executor unit tests use fake OpenAI clients and fake registry tools only;
@@ -96,8 +98,9 @@
   registry configuration remains a future extension area.
 - Runtime hardening should proceed through package-owned interfaces rather than
   broad framework adoption. Slice 8 completed retry/resilience through
-  package-owned retry models and Tenacity-backed helpers; current follow-on
-  priorities are output-contract validation, token budgeting, and trace hooks.
+  package-owned retry models and Tenacity-backed helpers, and Slice 9 completed
+  output-contract and route validation; current follow-on priorities are token
+  budgeting and trace hooks.
 
 ## Boundaries and Unknowns
 
@@ -110,10 +113,11 @@
 - Workflow executor: implemented for Slice 6 scope.
 - CLI: implemented for Slice 7 scope.
 - Retry/resilience: implemented for Slice 8 scope.
+- Output contracts and route validation: implemented for Slice 9 scope.
 
 ## Guidance for Future Work
 
-- Continue from Slice 9 — output contracts and route validation — in
+- Continue from Slice 10 — token budgeting and context preflight — in
   `specs/dynamic-agent-runner/tasks.md`.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.

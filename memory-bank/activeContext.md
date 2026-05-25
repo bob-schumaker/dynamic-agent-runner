@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-- Slice 8 retry and resilience policy is complete and committed in `a274b8b`.
-  The executor now supports package-owned bounded retry policy metadata for
-  model and tool call sites, backed by Tenacity and recorded in execution
-  state. The next active implementation slice is Slice 9 — output contracts
-  and route validation.
+- Slice 9 output contracts and route validation is complete and committed in
+  `69b68ef`. The executor now validates `llm_step` output contracts and
+  `llm_route` decisions before trusting model output or traversing branch
+  edges. The next active implementation slice is Slice 10 — token budgeting
+  and context preflight.
 
 ## Current Status
 
@@ -52,10 +52,11 @@
   - Updated `spec.md` and `tasks.md` with runtime hardening requirements and
     follow-on slices in `a0b1490`.
   - Completed Slice 8 retry and resilience policy in `a274b8b`.
+  - Completed Slice 9 output contracts and route validation in `69b68ef`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
-  - Slice 9 output contracts and route validation.
+  - Slice 10 token budgeting and context preflight.
 
 ## Important Current Facts
 
@@ -73,8 +74,8 @@
   - `specs/dynamic-agent-runner/tasks.md`
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0 through 8 are complete; the next active
-  implementation slice is Slice 9 — output contracts and route validation.
+  implementation. Slices 0 through 9 are complete; the next active
+  implementation slice is Slice 10 — token budgeting and context preflight.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -174,6 +175,21 @@
     callable registry tool metadata, depending on call site.
   - `tests/test_executor.py` covers retryable, non-retryable, exhaustion, and
     default no-retry behavior using fake clients and fake tools.
+- Slice 9 implementation from `69b68ef`:
+  - `src/dynamic_agent_runner/executor.py` validates `llm_step`
+    `output_schema_ref` declarations against `runtime_manifest.output_contracts`
+    before model output is stored as trusted node state.
+  - Required output fields are validated against JSON object model output or
+    adapter-provided structured output; plain text remains accepted only for
+    the fixture-compatible single-field `message` contract.
+  - `decision_step` nodes with `decision_subtype: llm_route` validate extracted
+    routes against `decision_contract.allowed_paths` when present.
+  - Malformed route output and routes outside allowed paths fail clearly before
+    branch traversal.
+  - Model-assisted repair or Instructor-style retry behavior remains out of
+    scope.
+  - `tests/test_executor.py` and `tests/test_cli.py` cover output contracts,
+    route validation, and fixture responses that satisfy `hello_message`.
 - Slice 4 scope decisions from `07edab0`:
   - `tool-index.yaml` is optional metadata, not an execution prerequisite.
   - A required tool registry or approved registry source is authoritative for
@@ -184,6 +200,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `69b68ef feat(executor): validate output contracts`
   - `a274b8b feat(executor): add retry policy support`
   - `33632d4 docs(cline-tasks): add agent library evaluation source`
   - `a0b1490 docs(spec): add runtime hardening roadmap`
@@ -209,7 +226,7 @@
 
 ## Next Steps
 
-- Continue with Slice 9 — output contracts and route validation — from
+- Continue with Slice 10 — token budgeting and context preflight — from
   `specs/dynamic-agent-runner/tasks.md` when implementation resumes.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
   requirements rather than broad framework adoption.

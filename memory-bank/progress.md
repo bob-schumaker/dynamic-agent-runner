@@ -58,6 +58,8 @@
   `33632d4 docs(cline-tasks): add agent library evaluation source`.
 - Slice 8 retry policy support commit exists:
   `a274b8b feat(executor): add retry policy support`.
+- Slice 9 output contract validation commit exists:
+  `69b68ef feat(executor): validate output contracts`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -93,16 +95,18 @@
 - Slice 8 adds `tenacity`, package-owned retry policy models, bounded retry
   execution for retryable model and tool failures, and retry outcome records
   on `WorkflowExecutionState`.
+- Slice 9 validates `llm_step` output contracts and `llm_route` decision
+  paths before trusting model output or traversing branches.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Slice 9 — output contracts and route validation — is the next active
+- Slice 10 — token budgeting and context preflight — is the next active
   implementation slice.
 
 ## Remaining
 
-- Implement Slice 9 output contracts and route validation when development
+- Implement Slice 10 token budgeting and context preflight when development
   resumes.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, and all-pattern fixture foundation into the next scoped slice.
@@ -144,6 +148,9 @@
 - Slice 8 implements retry/resilience for model and tool call sites only;
   broader output repair, token budgeting, trace sinks, and advanced workflow
   policies remain future slices.
+- Slice 9 implements output contract and route validation only; model-assisted
+  repair, Instructor-style retries, richer JSON Schema validation, and route
+  repair remain future extension areas.
 - `parallel_join`, `parallel_fanout`, and broader multi-agent execution are still
   unsupported runtime behavior. The CLI test suite now checks that this fails
   clearly instead of silently succeeding.
