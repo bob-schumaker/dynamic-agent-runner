@@ -102,7 +102,8 @@
 - [x] T3.3 Validate node IDs are unique and every edge endpoint references an
       existing node.
 - [x] T3.4 Validate every `tool_use_step` references an available manifest or
-      external tool-index tool.
+      external tool-index tool. Superseded for execution by Slice 4 registry
+      semantics: callable registry entries are authoritative.
 - [x] T3.5 Validate every `llm_step` has prompt data or a prompt source.
 - [x] T3.6 Validate external `tool-index.yaml` structure: `format_version`,
       `index_type`, `tools`, and `skills`.
@@ -113,7 +114,8 @@
 
 - `src/dynamic_agent_runner/validation.py` validates required manifest fields,
   supported enum values, node identity, edge references, tool references, LLM
-  prompt presence, and external tool-index structure.
+  prompt presence, and external tool-index structure. Slice 4 must reconcile
+  this with the clarified registry-authoritative execution semantics.
 - `load_agent_workflow(...)` now validates loaded artifacts before returning
   them for later execution slices.
 - `tests/test_validation.py` covers passing validation, required-field failures,
@@ -131,8 +133,26 @@
 - [ ] T4.4 Implement tool invocation dispatch by manifest `tool_id`.
 - [ ] T4.5 Preserve side-effect metadata, approval metadata, timeout/retry
       policy, and failure behavior in registry data structures.
-- [ ] T4.6 Add tests for lookup, schema conversion, successful invocation,
+- [ ] T4.6 Add runtime tool overrides for adding, replacing, disabling, and
+      restricting or extending tools globally or per `llm_step` without mutating
+      generated agent-design artifacts.
+- [ ] T4.7 Validate override consistency, including unknown base tools,
+      malformed added tools, disabled tools still required by `tool_use_step`
+      nodes, and overrides targeting non-`llm_step` nodes.
+- [ ] T4.8 Reconcile validation so `tool_use_step` execution dependencies must
+      resolve to the effective callable registry; manifest and `tool-index.yaml`
+      entries are metadata and do not make a tool callable by themselves.
+- [ ] T4.9 Add opt-in built-in default tool-pack support, starting with a
+      read-only `local_workspace` pack for `read_file`, `list_files`,
+      `search_files`, and `inspect_path` constrained to approved workspace roots.
+- [ ] T4.10 Keep write and command tools out of the default enabled set; if
+      introduced, model them as separate opt-in approval-aware packs.
+- [ ] T4.11 Add tests for lookup, schema conversion, successful invocation,
       missing tools, bad inputs, and tool failures.
+- [ ] T4.12 Add tests for override layering, effective registry additions,
+      replacement definitions, disabled tools, and per-node tool exposure.
+- [ ] T4.13 Add tests for built-in pack enablement, disabled-by-default behavior,
+      workspace path restrictions, and node-reference requirements.
 
 ## Slice 5 — OpenAI client adapter
 
@@ -165,7 +185,8 @@
 - [ ] T7.1 Add a CLI entry point for loading artifacts and running a workflow
       from a prompt.
 - [ ] T7.2 Support CLI options for `agent-design.md`, runtime YAML, Mermaid
-      graph, optional `tool-index.yaml`, and prompt input.
+      graph, optional `tool-index.yaml` metadata, registry configuration, and
+      prompt input.
 - [ ] T7.3 Return final output on success and clear non-zero errors on loading,
       validation, registry, model, or execution failure.
 - [ ] T7.4 Add CLI tests using local fixtures and fake clients/tools.

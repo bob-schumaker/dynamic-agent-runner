@@ -90,7 +90,7 @@ Initial parser responsibilities:
 
 - runtime YAML for `format_version: 1`
 - Mermaid graph text loading and reference resolution
-- optional `tool-index.yaml`
+- optional `tool-index.yaml` metadata
 - lightweight `agent-design.md` reference checks for runtime manifest and Mermaid
   graph mentions
 - preservation of documented supported agent-pattern metadata from
@@ -132,11 +132,11 @@ Initial checks:
 - `package_type == dynamic_agent_design`
 - node IDs are unique
 - edge endpoints reference existing nodes
-- `tool_use_step` tool IDs resolve to manifest or external tool-index entries
+- `tool_use_step` tool IDs resolve to callable entries in the effective registry
 - `llm_step` has prompt data or a resolvable prompt source
 - Mermaid graph references the same node IDs where practical
-- external `tool-index.yaml` has supported `format_version`, `index_type`,
-  `tools`, and `skills` sections
+- external `tool-index.yaml` metadata, when supplied, has supported
+  `format_version`, `index_type`, `tools`, and `skills` sections
 
 ### Tool registry pattern
 
@@ -151,16 +151,37 @@ Core concepts:
   convert registered tools to OpenAI tool schema, and invoke tools by ID.
 - `InMemoryToolRegistry` — first concrete implementation for tests and simple
   callers.
+- Runtime tool overrides — caller-provided additions, replacements, disabled
+  tool ids, and per-`llm_step` exposure changes layered over the generated
+  manifest/tool-index baseline without mutating generated artifacts.
+- Built-in tool packs — optional pre-registered registry sources that callers
+  explicitly enable, starting with a conservative read-only `local_workspace`
+  pack.
 
 Registry responsibilities:
 
-- translate manifest/tool-index definitions into runtime-callable entries
+- combine callable registry adapters with manifest/tool-index metadata when
+  useful, while treating the effective registry as authoritative for executable
+  tool availability
 - convert tool definitions to OpenAI tool schema
 - validate required tool inputs using the declared input schema where practical
 - record side-effect metadata, approval metadata, timeout/retry policy, and
   structured success/failure results
 - fail clearly for missing tools, malformed tool inputs, and unapproved
   side-effecting tools
+- apply runtime tool overrides so callers can add new tools, replace existing
+  tool definitions, disable tools, or restrict/extend tool exposure for a single
+  `llm_step`
+- fail closed when overrides remove tools that `tool_use_step` nodes still
+  require or target nodes that are not existing `llm_step` nodes
+- fail closed when a `tool_use_step` references a tool id that appears only in
+  manifest/tool-index metadata and has no callable registry entry
+- provide opt-in built-in tool packs without making their tools ambient; nodes
+  must still reference built-in tool ids before the tools are exposed or invoked
+- constrain the initial `local_workspace` pack to read-only, workspace-rooted
+  tools such as `read_file`, `list_files`, `search_files`, and `inspect_path`
+- keep write and command-execution tools in separate, explicitly enabled,
+  approval-aware packs if they are introduced
 
 ### OpenAI client adapter
 
@@ -217,6 +238,7 @@ dynamic-agent-runner run \
   --runtime path/to/agent-runtime.yaml \
   --graph path/to/agent-graph.mmd \
   --tool-index path/to/tool-index.yaml \
+  --registry path/to/registry-config.yaml \
   --prompt "..."
 ```
 
@@ -242,20 +264,22 @@ and execution failures.
     repository-owned registry direction
 
 2. **Artifact models and loaders**
-   - parse runtime YAML, Mermaid text, optional tool index, and design document
+   - parse runtime YAML, Mermaid text, optional tool-index metadata, and design
+     document
    - support path, raw-string, and already-parsed-object inputs
    - preserve supported pattern metadata, participant groups, modes, phases, and
      roles for later validation and execution slices
    - add fixture-based tests
 
 3. **Validation engine**
-   - implement manifest, graph, tool-index, and relationship checks
+   - implement manifest, graph, optional tool-index metadata, and relationship checks
    - add clear error objects/messages
 
 4. **Repository-owned tool registry**
-   - implement registry protocols, in-memory registry, schema conversion, and
-     invocation dispatch
-   - add tests for lookup, OpenAI schema conversion, tool invocation, and failure
+   - implement registry protocols, in-memory registry, schema conversion,
+     invocation dispatch, runtime tool overrides, and opt-in built-in tool packs
+   - add tests for lookup, OpenAI schema conversion, tool invocation, override
+     layering, built-in pack enablement, per-node tool exposure, and failure
      cases
 
 5. **OpenAI adapter**
@@ -296,6 +320,14 @@ model behavior and fake registries for tool behavior.
   APIs may evolve.
 - Tool schema validation depth should start pragmatic and become stricter as
   real generated manifests stabilize.
+- Runtime tool overrides are part of the Slice 4 registry contract because they
+  affect effective tool availability, but they should remain overlay inputs that
+  preserve generated artifacts as the baseline source of truth.
+- Tool-index files are optional metadata catalogs, not execution prerequisites;
+  a tool can function only when the effective registry provides a callable entry.
+- Built-in default tools should be opt-in registry packs, not implicit ambient
+  capabilities. Start with read-only local workspace tools and keep write or
+  command tools in stricter packs.
 - Supported agent patterns are currently metadata-level compatibility targets;
   full executor support depends on later primitive node, edge, tool, policy, and
   adapter implementation.
