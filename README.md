@@ -1,18 +1,21 @@
 # dynamic-agent-runner
 
-`dynamic-agent-runner` is a Python library for running agent workflows from
-agent-design artifacts.
+`dynamic-agent-runner` is a Python library for running generated agent workflows
+from agent-development artifacts.
 
 The library reads the artifacts produced by the agent-development workflow in
 the Cline rules/skills repository:
 
-- a definition YAML file
-- a Mermaid diagram
-- a tool index
+- an `agent-design.md` design document
+- an `agent-runtime.yaml` runtime manifest
+- an `agent-graph.mmd` Mermaid diagram
+- an optional `tool-index.yaml` when the workflow requires reusable tool
+  definitions
 
-It uses OpenAI-compatible model and tool-call interfaces with `ai-tools-core` as
-the initial tool-registry foundation. The library accepts a user prompt, runs the
-configured agent workflow, and returns the final result.
+It uses the official `openai` Python package for the default model execution
+path and a repository-owned tool registry pattern for tool lookup, OpenAI tool
+schema conversion, and tool invocation. The library accepts a user prompt, runs
+the configured agent workflow, and returns the final result.
 
 ## Source Artifact Producers
 
@@ -27,27 +30,45 @@ is responsible for reading them and executing the resulting workflow.
 
 ## Intended Flow
 
-1. Generate or provide an agent workflow definition YAML, Mermaid diagram, and
-   tool index.
+1. Generate or provide an agent design document, runtime manifest, Mermaid graph,
+   and optional tool index.
 2. Load the workflow definition into `dynamic-agent-runner`.
 3. Provide a user prompt.
-4. Execute the workflow using OpenAI-compatible model/tool interfaces and
-   `ai-tools-core`-based tool handling.
-5. Return the final agent result to the caller.
+4. Validate the artifact relationship and supported runtime manifest version.
+5. Execute supported workflow nodes through the official `openai` package and
+   repository-owned tool registry interfaces.
+6. Return the final agent result to the caller.
 
 ## Current Repository Status
 
-This repository currently contains project configuration and dependency setup.
-The public Python API and source layout are still expected to be added.
+This repository currently contains project configuration, dependency setup, and
+SDD planning artifacts. The public Python API and source layout are still
+expected to be added.
 
 Known configuration:
 
 - Python package managed by Poetry
 - Python compatibility: `>=3.11,<3.14`
 - local mise configuration selects Python `3.13`
-- primary runtime dependencies on `roschumalib` and `ai-tools-core`
-- initial implementation targets OpenAI-compatible model and tool-call
-  interfaces directly
+- primary runtime dependencies on `roschumalib` and the official `openai` package
+- no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
+  the current implementation direction
+- initial implementation targets the OpenAI Python SDK behind a small adapter
+  boundary and a repository-owned tool registry pattern
+
+## Planning Artifacts
+
+Current SDD artifacts live under `specs/dynamic-agent-runner/`:
+
+- `spec.md` — product/repository specification
+- `plan.md` — technical implementation plan
+- `tasks.md` — traceable task list
+
+A 3-round implementation-readiness debate concluded that the project is ready
+only for a narrow readiness/scaffold slice, not unrestricted runtime
+implementation. The next implementation work should align documentation,
+dependency state, package scaffolding, and import smoke tests before deeper
+runtime parser, registry, OpenAI adapter, executor, or CLI behavior.
 
 ## Development Setup
 
@@ -74,10 +95,13 @@ library shape is expected to look conceptually like this:
 from dynamic_agent_runner import run_agent_workflow
 
 result = run_agent_workflow(
-    definition_yaml="path/to/agent-definition.yaml",
-    mermaid_diagram="path/to/workflow.mmd",
-    tool_index="path/to/tool-index.json",
+    agent_design="path/to/agent-design.md",
+    runtime_manifest="path/to/agent-runtime.yaml",
+    mermaid_diagram="path/to/agent-graph.mmd",
+    tool_index="path/to/tool-index.yaml",
     prompt="Run the workflow for this user request.",
+    tool_registry=None,
+    chat_client=None,
 )
 ```
 
@@ -88,9 +112,10 @@ Treat this as design intent until the source package defines the concrete API.
 No runnable library entry point exists yet. Once implementation starts, add tests
 that cover at least:
 
-- parsing the definition YAML
-- validating the Mermaid diagram and tool index relationship
-- constructing the OpenAI-compatible model execution path
-- integrating `ai-tools-core` tool registry behavior
-- running a workflow from a user prompt
+- parsing the runtime manifest
+- validating the design document, Mermaid graph, and tool index relationship
+- constructing the OpenAI package-backed model execution path through an adapter
+- converting repository-owned tool registry definitions to OpenAI tool schema
+- dispatching registered tools without live model calls in unit tests
+- running a workflow from a user prompt with fake clients/tools
 - returning the final result and surfacing errors clearly

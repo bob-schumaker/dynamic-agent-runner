@@ -584,6 +584,11 @@ Before implementation is considered complete, add validation covering:
   when required by the workflow.
 - No source package exists yet, so implementation details remain intentionally
   abstract.
-- This light-mode spec intentionally does not create `plan.md` or `tasks.md`.
-  If implementation begins from this artifact, create a technical plan and task
-  list first or explicitly continue under a user-approved compressed workflow.
+- Follow-on implementation planning artifacts now exist at
+  `specs/dynamic-agent-runner/plan.md` and
+  `specs/dynamic-agent-runner/tasks.md`. Treat them as the current technical
+  planning and task-decomposition companions to this light-mode spec.
+- Debate review concluded this artifact set is ready only for a narrow
+  implementation-readiness/scaffold slice, not unrestricted runtime
+  implementation. Resolve stale docs, dependency state, and package scaffold
+  before deeper parser, registry, OpenAI adapter, or executor work.
