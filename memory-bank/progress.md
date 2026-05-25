@@ -50,6 +50,8 @@
   `ef1fd38 test(fixtures): add agent pattern runtime packages`.
 - Slice 7 CLI implementation commit exists:
   `30a6b0a feat(cli): add workflow runner command`.
+- Unsupported-edge failure hardening commit exists:
+  `da1848d fix(executor): fail on unsupported edge kinds`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -75,6 +77,10 @@
   output, and stderr/non-zero error reporting.
 - `tests/test_cli.py` covers CLI execution with fixture artifacts and fake OpenAI
   clients only.
+- `tests/test_cli.py` now runs the CLI across every currently executable
+  hello-world pattern fixture with fake registry tools and fake OpenAI clients.
+- Unsupported fixture behavior is explicit: `multi-agent-collaboration` fails
+  clearly because `parallel_join` is not yet implemented by the executor.
 
 ## In Flight
 
@@ -88,7 +94,8 @@
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, and all-pattern fixture foundation into the next scoped slice.
 - Use the all-pattern hello-world fixtures as the broad pattern test surface for
-  future compatibility coverage.
+  future compatibility coverage, including expected-failure coverage for pattern
+  features that are represented in artifacts but not yet implemented.
 - Update the memory bank after the first meaningful implementation milestone.
 
 ## Risks or Follow-ups
@@ -117,8 +124,12 @@
 - Slice 7 implements a minimal CLI over existing public seams; richer registry
   configuration, live-model ergonomics, and production packaging behavior remain
   future extension areas.
+- `parallel_join`, `parallel_fanout`, and broader multi-agent execution are still
+  unsupported runtime behavior. The CLI test suite now checks that this fails
+  clearly instead of silently succeeding.
 - The all-pattern fixtures validate package shape and pattern metadata coverage;
-  they do not prove full runtime execution support for every pattern-specific
-  behavior.
+  they now also provide CLI coverage for currently executable fixture shapes, but
+  they still do not prove full runtime execution support for every
+  pattern-specific behavior.
 - Memory-bank pre-commit validation for this refresh should be recorded in the
   commit result.

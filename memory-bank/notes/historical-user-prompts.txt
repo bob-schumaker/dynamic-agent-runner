@@ -1,17 +1,21 @@
 HISTORICAL USER PROMPTS
 =======================
 
-Status: historical user-generated content
+Status: curated historical user-generated content
 Use: provenance only
 Do not use this file as authoritative project memory, restart state,
 task control, or repository policy.
 
-This file preserves ad hoc user prompt text that previously existed at
-the repository root as prompts.md. It may contain outdated, superseded,
-incomplete, or one-off instructions. Treat it as historical context
-only.
+This file preserves substantive ad hoc user prompt text that previously existed
+at the repository root as prompts.md, plus later prompts that materially shaped
+product direction. It intentionally omits routine operational prompts such as
+"commit this", "update memory-bank", "do recommended next step", and repeated
+slice-execution commands unless the wording introduced durable requirements.
 
------ BEGIN PRESERVED CONTENT -----
+The entries below may contain outdated, superseded, incomplete, misspelled, or
+one-off instructions. Treat them as historical context only.
+
+----- BEGIN CURATED PRESERVED CONTENT -----
 
 generate a README.md for this repository
 
@@ -20,35 +24,6 @@ generate a README.md for this repository
   - /Users/roschuma/Repos/roschuma/clinerules-roschuma/skills/agent-development-skill/
 - it uses the EmployeeChatClient from ocihelper.employee
 - it then runs an agent workflow using a user prompt, returning the final result
-
----
-
-commit the following files as project config
-
-	.flake8
-	.gitattributes
-	.gitignore
-	.isort.cfg
-	.mise.toml
-	.pre-commit-config.yaml
-	env_setup
-
----
-
-commit the following files as build config
-
-	ocibuild.conf
-	ocibuild.project.conf
-	ocibuild.repos.conf
-	ocibuild.slack.conf
-	ocibuild.team.conf
-	poetry.lock
-	pyproject.toml
-	python-build-system.py
-
----
-
-update memory-bank and commit
 
 ---
 
@@ -77,18 +52,6 @@ remove the ocihelper dependency, let's got straight for ai-core-tools from the s
 
 ---
 
-commit specs/
-
----
-
-commit README.md
-
----
-
-update memory-bank and commit
-
----
-
 update the plan to use the OpenAI package (https://pypi.org/project/openai/) and we will write our own tool registry pattern
 
 ---
@@ -97,19 +60,7 @@ update the spec to use the OpenAI package (https://pypi.org/project/openai/) and
 
 ---
 
-commit the spec and update memroy-bank and commit
-
----
-
 are we ready to begin implementation
-
----
-
-verify pyprojct is correct
-
----
-
-fix the poetry check warnings
 
 ---
 
@@ -129,43 +80,7 @@ implement debate recommendations and commit the updated spec, plan and README
 
 ---
 
-update memory-bank and commit
-
----
-
-execute slice 0 and commit
-
----
-
-update memory-bank and commit
-
----
-
-execute slice 1 and commit, then update memory-bank and commit
-
----
-
 all supported patterns are now documented in /Users/roschuma/Repos/roschuma/clinerules-roschuma/skills/agent-development-skill/references/examples/agent-pattern-examples.md. how does this affect the spec and plan?
-
----
-
-do recommended next step
-
----
-
-commit spec updates and upate memory-bank and commit
-
----
-
-execute slice 2 and commit
-
----
-
-commit slice 2 and update memory-bank and commit
-
----
-
-execute slice 3 and commit, the update memory-bank and commit
 
 ---
 
@@ -189,32 +104,8 @@ update slice 4 with this option
 
 ---
 
-commit spec changes, then update memory-bank and commit
-
----
-
-execute slice 4 and commit, then update memory-bank and commit
-
----
-
-execute slice 5 and commit then update memory-bank and commit
-
----
-
-execute slice 6 and commit, then update memory-bank and commit
-
----
-
 use the agent-development skill to create a "hello world" version of all 11 types of agent designs as test resources so that we can get full coverage eventually
 
 ---
 
 update the spec as needed to record the new test surface
-
----
-
-commit spec and test changes then update memory-bank and commit
-
----
-
-execute slice 7 and commit, the update memory-bank and commit

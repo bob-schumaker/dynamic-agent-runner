@@ -78,11 +78,16 @@
   node outputs, tool results, execution records, errors, and final result.
 - Executor control flow currently supports sequential edges and branch edges for
   `decision_step` nodes with `decision_subtype: llm_route`.
+- Executor control flow fails explicitly for unsupported outgoing edge kinds such
+  as `parallel_join` instead of silently treating those nodes as terminal.
 - Executor unit tests use fake OpenAI clients and fake registry tools only;
   no live OpenAI API calls are required.
 - CLI tests use the injectable `main(...)` seam, fixture artifact paths, fake
   OpenAI clients, and in-memory streams so command behavior is covered without
   live model calls or subprocess setup.
+- CLI tests now cover all currently executable hello-world pattern fixtures and
+  explicit expected-failure behavior for the unsupported
+  `multi-agent-collaboration` fixture.
 - CLI registry configuration is currently intentionally narrow: `--workspace-root`
   enables only the read-only `local_workspace` built-in tool pack. Broader
   registry configuration remains a future extension area.
@@ -108,6 +113,8 @@
   `decision_step` unless a later format version changes the contract.
 - Treat the Slice 7 CLI as a thin public surface over existing API/executor
   seams; do not widen executor semantics from CLI work alone.
+- Keep unsupported fixture features visible through expected-failure tests until
+  a later scoped slice implements them.
 - Use `tests/fixtures/agent-patterns/` as a reusable coverage source for future
   loader, executor, and CLI compatibility tests.
 - Update this file as concrete modules, entry points, and architectural

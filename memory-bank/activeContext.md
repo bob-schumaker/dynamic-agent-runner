@@ -3,8 +3,9 @@
 ## Current Focus
 
 - Slice 7 CLI and documentation is complete and committed in `30a6b0a`; the
-  repository is ready for post-CLI follow-on planning. The 11-pattern
-  hello-world fixture surface is complete and committed in `ef1fd38`.
+  repository now also has explicit all-fixture CLI coverage and unsupported-edge
+  failure behavior committed in `da1848d`. The 11-pattern hello-world fixture
+  surface is complete and committed in `ef1fd38`.
 
 ## Current Status
 
@@ -43,6 +44,8 @@
     agent-pattern IDs and updated the spec to record that test surface in
     `ef1fd38`.
   - Completed Slice 7 CLI and documentation in `30a6b0a`.
+  - Added all-fixture CLI coverage and explicit unsupported-edge failure behavior
+    in `da1848d`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
@@ -134,6 +137,17 @@
     covers successful path execution, prompt input modes, missing prompt errors,
     and model/execution error reporting.
   - `README.md` now documents concrete Python API and CLI usage.
+- Follow-on CLI/executor test hardening from `da1848d`:
+  - `tests/test_cli.py` now runs the CLI across all currently executable
+    hello-world pattern fixtures with fake registry tools and fake OpenAI
+    clients.
+  - `multi-agent-collaboration` is covered as an expected unsupported fixture
+    because it uses `parallel_join`, which is not implemented by the current
+    executor.
+  - `src/dynamic_agent_runner/executor.py` now fails clearly when a node has only
+    unsupported outgoing edge kinds instead of silently ending the workflow.
+  - Tool-using CLI fixtures without a callable registry now assert the expected
+    missing-registry failure path.
 - Slice 4 scope decisions from `07edab0`:
   - `tool-index.yaml` is optional metadata, not an execution prerequisite.
   - A required tool registry or approved registry source is authoritative for
@@ -144,6 +158,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `da1848d fix(executor): fail on unsupported edge kinds`
   - `30a6b0a feat(cli): add workflow runner command`
   - `ef1fd38 test(fixtures): add agent pattern runtime packages`
   - `4ce8c67 feat(executor): add workflow execution engine`
@@ -173,3 +188,5 @@
   when extending loader, executor, CLI, or compatibility tests.
 - Preserve fake-client/fake-tool testing for CLI and executor coverage; do not
   introduce live OpenAI API calls into unit tests.
+- Treat `parallel_join`, `parallel_fanout`, and broader multi-agent execution as
+  unsupported runtime behavior until a later scoped slice implements them.

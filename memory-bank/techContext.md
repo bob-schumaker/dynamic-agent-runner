@@ -152,3 +152,10 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `PYTHONPATH=src python -m pytest` with 45 passing tests, and targeted
   `pre-commit run --files` on the README, `pyproject.toml`, Slice 7 task list,
   CLI module, and CLI tests.
+- CLI fixture hardening was committed in `da1848d`. It expanded
+  `tests/test_cli.py` to run every currently executable hello-world pattern
+  fixture through the CLI with fake registry tools and fake OpenAI clients, and
+  it made `parallel_join`-only outgoing edges fail clearly as unsupported runtime
+  behavior. Validation observed for the slice included
+  `PYTHONPATH=src python -m pytest tests/test_cli.py tests/test_executor.py` with
+  22 passing tests and targeted pre-commit on `executor.py` and `test_cli.py`.
