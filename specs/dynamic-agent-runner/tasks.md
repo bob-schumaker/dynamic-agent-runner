@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 0 complete; ready for Slice 1
+- State: Slice 1 complete; ready for Slice 2
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 1 — package scaffold and dependency alignment
+- Next active slice: Slice 2 — artifact models and loaders
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -31,18 +31,29 @@
 
 ## Slice 1 — Package scaffold and dependency alignment
 
-- [ ] T1.1 Verify `pyproject.toml` and `poetry.lock` match the latest spec
+- [x] T1.1 Verify `pyproject.toml` and `poetry.lock` match the latest spec
       direction: official `openai`, no required `ocihelper`, no required
       `ai-tools-core` / `openai-tools-core`.
-- [ ] T1.2 Create `src/dynamic_agent_runner/__init__.py` with initial public
+- [x] T1.2 Create `src/dynamic_agent_runner/__init__.py` with initial public
       exports reserved for the API surface.
-- [ ] T1.3 Add foundational modules: `errors.py`, `api.py`, and minimal package
+- [x] T1.3 Add foundational modules: `errors.py`, `api.py`, and minimal package
       metadata/docstrings.
-- [ ] T1.4 Create `tests/` and a smoke test that imports `dynamic_agent_runner`.
-- [ ] T1.5 Confirm `README.md` remains aligned with the official `openai`
+- [x] T1.4 Create `tests/` and a smoke test that imports `dynamic_agent_runner`.
+- [x] T1.5 Confirm `README.md` remains aligned with the official `openai`
       package and repository-owned tool registry direction.
-- [ ] T1.6 Run `poetry check`, import smoke tests, and targeted pre-commit for
+- [x] T1.6 Run `poetry check`, import smoke tests, and targeted pre-commit for
       changed files.
+
+## Slice 1 Completion Evidence
+
+- `pyproject.toml` and `poetry.lock` align with the official `openai`
+  package direction and do not require `ocihelper`, `ai-tools-core`, or
+  `openai-tools-core`.
+- `src/dynamic_agent_runner/` exists with initial public API exports and
+  project-specific exception classes.
+- `tests/test_import.py` covers the package import smoke test.
+- README remains aligned with the official `openai` package and
+  repository-owned registry direction.
 
 ## Slice 2 — Artifact models and loaders
 

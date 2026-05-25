@@ -5,12 +5,18 @@ description = ""
 authors = [
     {name = "Bob Schumaker",email = "bob.schumaker@oracle.com"}
 ]
+dynamic = ["dependencies", "requires-python"]
+
+[tool.poetry]
+packages = [
+    { include = "dynamic_agent_runner", from = "src" },
+]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.14"
 docopt-ng = ">=0.9.0"
-ocihelper = "^0.3.22"
 roschumalib = {version = "^0.3.386", extras = ["application", "graphics", "spreadsheets"]}
+openai = "^2.38.0"
 
 [tool.poetry.group.dev]
 optional = true
