@@ -34,6 +34,10 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - do not require `ocihelper`
 - do not require `ai-tools-core` / `openai-tools-core`
 - implement the tool registry pattern in this repository
+- treat `tool-index.yaml` as optional metadata; callable tool availability comes
+  from the effective registry
+- support runtime tool overrides and opt-in built-in default tool packs in the
+  Slice 4 registry scope
 - use `PyYAML` for runtime YAML and tool-index parsing
 
 ## Development and Test Dependencies
@@ -116,3 +120,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `tests/test_validation.py`, and validation from `load_agent_workflow(...)` for
   required fields, supported enums, node/edge relationships, tool references,
   LLM prompt presence, and external tool-index structure.
+- Slice 4 registry scope was expanded in `07edab0`. The spec now treats
+  `tool-index.yaml` as optional metadata, makes the effective callable registry
+  authoritative for executable tools, adds runtime tool overrides, and allows
+  explicit opt-in built-in default tool packs starting with read-only local
+  workspace tools.

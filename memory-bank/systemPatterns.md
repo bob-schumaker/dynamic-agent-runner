@@ -44,7 +44,14 @@
 - Validation fails closed for missing required manifest fields, unsupported
   manifest/tool-index enum values, duplicate or missing node IDs, bad edge
   endpoints, unknown tool references, and LLM nodes without prompt or
-  prompt-source metadata.
+  prompt-source metadata. Slice 4 will update tool semantics so execution depends
+  on callable registry entries, not metadata-only tool-index presence.
+- Slice 4 planning now defines runtime tool overrides as overlay inputs that can
+  add, replace, disable, or restrict tools globally or per `llm_step` without
+  mutating generated artifacts.
+- Built-in default tools, if provided, should be explicit opt-in registry packs;
+  the initial pack should be read-only `local_workspace` tools and not ambient
+  global capabilities.
 
 ## Boundaries and Unknowns
 
@@ -52,7 +59,9 @@
 - Artifact loading behavior: implemented for Slice 2 scope.
 - Supported pattern metadata preservation: implemented for loader/model scope.
 - Validation engine: implemented for Slice 3 scope.
-- Tool registry protocol and concrete registry: not implemented yet.
+- Tool registry protocol and concrete registry: not implemented yet; Slice 4
+  scope now includes registry-authoritative tool availability, runtime tool
+  overrides, and opt-in built-in default tool packs.
 - OpenAI client adapter: not implemented yet.
 - Workflow executor and CLI: not implemented yet.
 
@@ -64,7 +73,9 @@
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
   `decision_step` unless a later format version changes the contract.
 - In Slice 4, implement the repository-owned tool registry without yet adding
-  OpenAI adapter or workflow executor behavior.
+  OpenAI adapter or workflow executor behavior. Include callable registry lookup,
+  optional metadata enrichment from manifest/tool-index data, runtime overrides,
+  and opt-in built-in `local_workspace` tools.
 - Keep OpenAI API calls behind a small adapter boundary and keep unit tests free
   of live model calls.
 - Update this file as concrete modules, entry points, and architectural

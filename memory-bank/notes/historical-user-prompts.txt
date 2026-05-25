@@ -166,3 +166,27 @@ commit slice 2 and update memory-bank and commit
 ---
 
 execute slice 3 and commit, the update memory-bank and commit
+
+---
+
+should adding overrides so that tools could be added/changed/deleted per llm node and additional tools added to the too index without having to modify the underlying agent design be part of the main spec or a new feature spec for later
+
+---
+
+add this as part of slice 4
+
+---
+
+since a tool registry is required, i think that the tool-index file as input is redundant. if an node uses a tool that's not in the registry then it can't function regardless of its status in the index
+
+---
+
+should the runner provide any default tools such as file management? what would be a good list of default tools to have available? the nodes would still have to reference them, but they would be "pre-registered"
+
+---
+
+update slice 4 with this option
+
+---
+
+commit spec changes, then update memory-bank and commit
