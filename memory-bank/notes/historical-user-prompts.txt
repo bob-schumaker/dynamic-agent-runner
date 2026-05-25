@@ -109,3 +109,15 @@ use the agent-development skill to create a "hello world" version of all 11 type
 ---
 
 update the spec as needed to record the new test surface
+
+---
+
+evaluate cline-tasks/libraries-that-made-my-ai-agents-work.md for any possible useful additions to the package
+
+the possible packages that look reasonable to me are:
+
+- LiteLLM to improve overall model support, even if we default to OpenAI
+- Instructor
+- Tiktoken
+
+integrating logfire with whatever the caller is doing for logging seems like a problem not to solve at this time

@@ -159,3 +159,11 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   behavior. Validation observed for the slice included
   `PYTHONPATH=src python -m pytest tests/test_cli.py tests/test_executor.py` with
   22 passing tests and targeted pre-commit on `executor.py` and `test_cli.py`.
+- Runtime hardening roadmap updates were committed in `a0b1490`. The spec and
+  task list now prioritize Tenacity-style retries, output-contract enforcement,
+  tiktoken-based token budgeting, and package-owned tracing hooks. LiteLLM,
+  Watchfiles, Rich, and Diskcache are deferred until later scoped requirements
+  justify them.
+- The source article used for the package-addition evaluation was committed in
+  `33632d4` at `cline-tasks/libraries-that-made-my-ai-agents-work.md` with
+  markdown lint disables for archival line length and image-alt issues.

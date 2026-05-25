@@ -4,8 +4,9 @@
 
 - Slice 7 CLI and documentation is complete and committed in `30a6b0a`; the
   repository now also has explicit all-fixture CLI coverage and unsupported-edge
-  failure behavior committed in `da1848d`. The 11-pattern hello-world fixture
-  surface is complete and committed in `ef1fd38`.
+  failure behavior committed in `da1848d`. The library-evaluation source was
+  committed in `33632d4`, and its concrete hardening roadmap was added to the
+  spec/tasks in `a0b1490`.
 
 ## Current Status
 
@@ -46,6 +47,10 @@
   - Completed Slice 7 CLI and documentation in `30a6b0a`.
   - Added all-fixture CLI coverage and explicit unsupported-edge failure behavior
     in `da1848d`.
+  - Added `cline-tasks/libraries-that-made-my-ai-agents-work.md` in `33632d4` as
+    a source artifact for package-addition evaluation.
+  - Updated `spec.md` and `tasks.md` with runtime hardening requirements and
+    follow-on slices in `a0b1490`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
@@ -68,7 +73,7 @@
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
   implementation. Slices 0, 1, 2, 3, 4, 5, 6, and 7 are complete; the next
-  active step is post-CLI follow-on planning.
+  active implementation slice is Slice 8 — retry and resilience policy.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -148,6 +153,14 @@
     unsupported outgoing edge kinds instead of silently ending the workflow.
   - Tool-using CLI fixtures without a callable registry now assert the expected
     missing-registry failure path.
+- Library-evaluation roadmap update from `a0b1490`:
+  - `spec.md` now includes requirements for bounded retry/resilience policy,
+    output-contract enforcement, token budgeting/context preflight, and
+    execution tracing hooks.
+  - `tasks.md` now defines Slice 8 retry/resilience, Slice 9 output contracts,
+    Slice 10 token budgeting, and Slice 11 tracing/observability.
+  - LiteLLM, Watchfiles, Rich, and Diskcache are deferred unless later scoped
+    requirements justify them.
 - Slice 4 scope decisions from `07edab0`:
   - `tool-index.yaml` is optional metadata, not an execution prerequisite.
   - A required tool registry or approved registry source is authoritative for
@@ -158,6 +171,8 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `33632d4 docs(cline-tasks): add agent library evaluation source`
+  - `a0b1490 docs(spec): add runtime hardening roadmap`
   - `da1848d fix(executor): fail on unsupported edge kinds`
   - `30a6b0a feat(cli): add workflow runner command`
   - `ef1fd38 test(fixtures): add agent pattern runtime packages`
@@ -180,10 +195,10 @@
 
 ## Next Steps
 
-- Use `specs/dynamic-agent-runner/tasks.md` as the starting point for
-  post-Slice 7 follow-on planning.
-- Decide the next implementation slice before expanding runtime behavior beyond
-  the committed CLI and executor scope.
+- Continue with Slice 8 — retry and resilience policy — from
+  `specs/dynamic-agent-runner/tasks.md` when implementation resumes.
+- Keep runtime hardening additions behind package-owned interfaces and scoped
+  requirements rather than broad framework adoption.
 - Use the 11 hello-world pattern fixture packages as broad package-shape coverage
   when extending loader, executor, CLI, or compatibility tests.
 - Preserve fake-client/fake-tool testing for CLI and executor coverage; do not

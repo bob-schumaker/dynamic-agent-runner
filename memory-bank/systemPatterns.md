@@ -91,6 +91,9 @@
 - CLI registry configuration is currently intentionally narrow: `--workspace-root`
   enables only the read-only `local_workspace` built-in tool pack. Broader
   registry configuration remains a future extension area.
+- Runtime hardening should proceed through package-owned interfaces rather than
+  broad framework adoption. Current follow-on priorities are retry/resilience,
+  output-contract validation, token budgeting, and trace hooks.
 
 ## Boundaries and Unknowns
 
@@ -105,7 +108,7 @@
 
 ## Guidance for Future Work
 
-- Continue from post-Slice 7 follow-on planning in
+- Continue from Slice 8 — retry and resilience policy — in
   `specs/dynamic-agent-runner/tasks.md`.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
@@ -115,6 +118,8 @@
   seams; do not widen executor semantics from CLI work alone.
 - Keep unsupported fixture features visible through expected-failure tests until
   a later scoped slice implements them.
+- Defer LiteLLM, Watchfiles, Rich, and Diskcache until a future scoped requirement
+  justifies them; the current OpenAI-first adapter boundary remains in force.
 - Use `tests/fixtures/agent-patterns/` as a reusable coverage source for future
   loader, executor, and CLI compatibility tests.
 - Update this file as concrete modules, entry points, and architectural

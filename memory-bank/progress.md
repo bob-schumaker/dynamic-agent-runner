@@ -52,6 +52,10 @@
   `30a6b0a feat(cli): add workflow runner command`.
 - Unsupported-edge failure hardening commit exists:
   `da1848d fix(executor): fail on unsupported edge kinds`.
+- Runtime hardening roadmap spec commit exists:
+  `a0b1490 docs(spec): add runtime hardening roadmap`.
+- Agent library evaluation source commit exists:
+  `33632d4 docs(cline-tasks): add agent library evaluation source`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -81,16 +85,19 @@
   hello-world pattern fixture with fake registry tools and fake OpenAI clients.
 - Unsupported fixture behavior is explicit: `multi-agent-collaboration` fails
   clearly because `parallel_join` is not yet implemented by the executor.
+- The spec now includes follow-on runtime hardening requirements for bounded
+  retries, output-contract validation, token budgeting, and package-owned
+  tracing hooks.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Post-Slice 7 follow-on planning is the next active work area.
+- Slice 8 — retry and resilience policy — is the next active implementation
+  slice.
 
 ## Remaining
 
-- Decide and document the next post-CLI implementation slice before expanding
-  runtime behavior beyond the committed CLI and executor scope.
+- Implement Slice 8 retry and resilience policy when development resumes.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, and all-pattern fixture foundation into the next scoped slice.
 - Use the all-pattern hello-world fixtures as the broad pattern test surface for
@@ -106,6 +113,10 @@
 - Slice 7 is complete, but unrestricted runtime implementation should still
   proceed slice-by-slice from the committed task list or an updated follow-on
   plan.
+- The library-evaluation roadmap prioritizes Tenacity-style retries,
+  output-contract enforcement, tiktoken-based token budgeting, and package-owned
+  tracing hooks. LiteLLM, Watchfiles, Rich, and Diskcache are deferred unless a
+  later scoped requirement justifies them.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.
 - Supported agent-pattern IDs are preserved by loader/model work; full executor
