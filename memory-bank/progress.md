@@ -62,6 +62,8 @@
   `69b68ef feat(executor): validate output contracts`.
 - Slice 10 token budget preflight commit exists:
   `d3a5c51 feat(executor): add token budget preflight`.
+- Slice 11 workflow tracing hooks commit exists:
+  `ecb8115 feat(executor): add workflow tracing hooks`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -102,23 +104,25 @@
 - Slice 10 adds `tiktoken`, package-owned token budget models, prompt-token
   preflight for configured `llm_step` calls, and `token_usage` records on
   `WorkflowExecutionState`.
+- Slice 11 adds package-owned trace events, optional trace sinks, shallow
+  redaction helpers, and `trace_events` records on `WorkflowExecutionState`.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Slice 11 — execution tracing and observability hooks — is the next active
-  implementation slice.
+- No next implementation slice is currently defined.
 
 ## Remaining
 
-- Implement Slice 11 execution tracing and observability hooks when development
-  resumes.
+- Await follow-up direction for the next scoped runtime slice or deferred
+  library-evaluation follow-up.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, and all-pattern fixture foundation into the next scoped slice.
 - Use the all-pattern hello-world fixtures as the broad pattern test surface for
   future compatibility coverage, including expected-failure coverage for pattern
   features that are represented in artifacts but not yet implemented.
-- Update the memory bank after the first meaningful implementation milestone.
+- Update the memory bank after each future meaningful implementation
+  milestone.
 
 ## Risks or Follow-ups
 
@@ -130,8 +134,9 @@
   plan.
 - The library-evaluation roadmap prioritizes Tenacity-style retries,
   output-contract enforcement, tiktoken-based token budgeting, and package-owned
-  tracing hooks. LiteLLM, Watchfiles, Rich, and Diskcache are deferred unless a
-  later scoped requirement justifies them.
+  tracing hooks. Those runtime hardening slices are now complete. LiteLLM,
+  Watchfiles, Rich, and Diskcache are deferred unless a later scoped
+  requirement justifies them.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.
 - Supported agent-pattern IDs are preserved by loader/model work; full executor
@@ -159,6 +164,9 @@
 - Slice 10 implements token estimation and fail-fast budget enforcement only;
   automatic truncation, summarization, and CLI token-reporting UX remain future
   extension areas.
+- Slice 11 implements package-owned trace events and optional trace sinks only;
+  external Logfire/OpenTelemetry integration, deep recursive redaction, and
+  richer production observability remain future extension areas.
 - `parallel_join`, `parallel_fanout`, and broader multi-agent execution are still
   unsupported runtime behavior. The CLI test suite now checks that this fails
   clearly instead of silently succeeding.

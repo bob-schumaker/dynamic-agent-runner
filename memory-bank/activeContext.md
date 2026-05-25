@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-- Slice 10 token budgeting and context preflight is complete and committed in
-  `d3a5c51`. The executor now estimates rendered prompt tokens with
-  `tiktoken`, enforces optional token budgets before model calls, and records
-  token usage in execution state. The next active implementation slice is
-  Slice 11 — execution tracing and observability hooks.
+- Slice 11 execution tracing and observability hooks are complete and
+  committed in `ecb8115`. The executor now records ordered package-owned
+  trace events, supports optional trace sinks, and exposes shallow redaction
+  helpers for sensitive trace payload fields. No next implementation slice is
+  currently defined; deferred library-evaluation follow-ups remain available.
 
 ## Current Status
 
@@ -54,10 +54,12 @@
   - Completed Slice 8 retry and resilience policy in `a274b8b`.
   - Completed Slice 9 output contracts and route validation in `69b68ef`.
   - Completed Slice 10 token budgeting and context preflight in `d3a5c51`.
+  - Completed Slice 11 execution tracing and observability hooks in `ecb8115`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
-  - Slice 11 execution tracing and observability hooks.
+  - No next implementation slice is currently defined. Deferred
+    library-evaluation follow-ups remain available.
 
 ## Important Current Facts
 
@@ -75,8 +77,8 @@
   - `specs/dynamic-agent-runner/tasks.md`
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0 through 10 are complete; the next active
-  implementation slice is Slice 11 — execution tracing and observability hooks.
+  implementation. Slices 0 through 11 are complete; no next implementation
+  slice is currently defined.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -206,6 +208,19 @@
     unsupported.
   - `tests/test_token_budget.py` and `tests/test_executor.py` cover token
     estimation, fallback, parsing, over-budget failure, and disabled behavior.
+- Slice 11 implementation from `ecb8115`:
+  - `src/dynamic_agent_runner/tracing.py` defines package-owned `TraceEvent`,
+    `TraceSink`, `InMemoryTraceSink`, and `WorkflowTracer` primitives.
+  - `WorkflowExecutionState.trace_events` records ordered events during
+    execution, and `execute_workflow(...)` / `run_agent_workflow(...)` accept
+    optional trace sinks for live event delivery.
+  - Trace events cover workflow start/completion, node start/completion, model
+    request/response, token-budget checks, tool invocation/result, retry
+    records, decisions, node errors, workflow errors, and final results.
+  - `TraceEvent.redacted_payload()` and `TraceEvent.redacted()` support shallow
+    redaction before external emission.
+  - `tests/test_tracing.py` covers successful workflows, tool failures, model
+    failures, and retry-attempt tracing with fake clients/tools only.
 - Slice 4 scope decisions from `07edab0`:
   - `tool-index.yaml` is optional metadata, not an execution prerequisite.
   - A required tool registry or approved registry source is authoritative for
@@ -216,6 +231,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `ecb8115 feat(executor): add workflow tracing hooks`
   - `d3a5c51 feat(executor): add token budget preflight`
   - `69b68ef feat(executor): validate output contracts`
   - `a274b8b feat(executor): add retry policy support`
@@ -243,8 +259,8 @@
 
 ## Next Steps
 
-- Continue with Slice 11 — execution tracing and observability hooks — from
-  `specs/dynamic-agent-runner/tasks.md` when implementation resumes.
+- Await follow-up direction; no next implementation slice is currently defined
+  in `specs/dynamic-agent-runner/tasks.md`.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
   requirements rather than broad framework adoption.
 - Use the 11 hello-world pattern fixture packages as broad package-shape coverage

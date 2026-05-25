@@ -14,7 +14,10 @@
     client behind a small fake-client-compatible adapter boundary
   - `src/dynamic_agent_runner/executor.py` composes loaded workflows, registry
     tools, retry policy, output validation, route validation, token-budget
-    preflight, and the OpenAI adapter into executable workflow runs
+    preflight, tracing hooks, and the OpenAI adapter into executable workflow
+    runs
+  - `src/dynamic_agent_runner/tracing.py` owns package trace event, trace sink,
+    redaction, and in-memory tracing primitives
   - `src/dynamic_agent_runner/token_budget.py` owns `tiktoken`-backed prompt
     estimation and token-budget policy parsing
   - `src/dynamic_agent_runner/retry.py` owns retry policy parsing and
@@ -27,14 +30,15 @@
   artifact loader tests at `tests/test_artifacts.py`, validation tests at
   `tests/test_validation.py`, registry tests at `tests/test_registry.py`, OpenAI
   adapter tests at `tests/test_openai_client.py`, executor tests at
-  `tests/test_executor.py`, and CLI tests at `tests/test_cli.py`. Pattern
-  fixture coverage lives in `tests/test_agent_pattern_fixtures.py`.
+  `tests/test_executor.py`, tracing tests at `tests/test_tracing.py`, and CLI
+  tests at `tests/test_cli.py`. Pattern fixture coverage lives in
+  `tests/test_agent_pattern_fixtures.py`.
 - `tests/fixtures/agent-patterns/` contains 11 hello-world runtime packages, one
   for each documented supported agent pattern. Each fixture package has
   `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`.
 - Current repository structure has loader/model/validation/registry/adapter/
-  executor/retry/output-contract/token-budget/CLI behavior; follow-on runtime
-  expansion should be planned as a new scoped slice.
+  executor/retry/output-contract/token-budget/tracing/CLI behavior; follow-on
+  runtime expansion should be planned as a new scoped slice.
 
 ## Observed Patterns
 
@@ -81,7 +85,7 @@
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 - `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,
   node outputs, tool results, execution records, retry records, token usage,
-  errors, and final result.
+  trace events, errors, and final result.
 - Executor control flow currently supports sequential edges and branch edges for
   `decision_step` nodes with `decision_subtype: llm_route`, with optional
   `decision_contract.allowed_paths` validation before branch traversal.
@@ -98,10 +102,13 @@
 - CLI registry configuration is currently intentionally narrow: `--workspace-root`
   enables only the read-only `local_workspace` built-in tool pack. Broader
   registry configuration remains a future extension area.
-- Runtime hardening should proceed through package-owned interfaces rather than
-  broad framework adoption. Slice 8 completed retry/resilience, Slice 9
-  completed output-contract and route validation, and Slice 10 completed
-  token budgeting; current follow-on priority is trace hooks.
+- Runtime hardening proceeded through package-owned interfaces rather than broad
+  framework adoption. Slice 8 completed retry/resilience, Slice 9 completed
+  output-contract and route validation, Slice 10 completed token budgeting, and
+  Slice 11 completed trace hooks.
+- Trace events are emitted to `WorkflowExecutionState.trace_events` and an
+  optional `TraceSink`; sensitive payload keys can be shallow-redacted before
+  external emission.
 
 ## Boundaries and Unknowns
 
@@ -116,10 +123,12 @@
 - Retry/resilience: implemented for Slice 8 scope.
 - Output contracts and route validation: implemented for Slice 9 scope.
 - Token budgeting and context preflight: implemented for Slice 10 scope.
+- Execution tracing and observability hooks: implemented for Slice 11 scope.
 
 ## Guidance for Future Work
 
-- Continue from Slice 11 — execution tracing and observability hooks — in
+- Await follow-up direction for the next scoped runtime slice; no next active
+  implementation slice is currently defined in
   `specs/dynamic-agent-runner/tasks.md`.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.

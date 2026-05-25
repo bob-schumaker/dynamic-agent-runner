@@ -47,6 +47,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   and tool retry behavior
 - use `tiktoken` behind package-owned token-budget helpers for rendered-message
   prompt-token estimation
+- use package-owned tracing primitives for execution events and optional trace
+  sinks; no external observability dependency is required for Slice 11
 
 ## Development and Test Dependencies
 
@@ -194,3 +196,10 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `poetry run pytest` with 80 passing tests, `poetry check`, and targeted
   `pre-commit run --files` on the changed implementation, dependency, README,
   task-list, and test files.
+- Slice 11 workflow tracing was committed in `ecb8115`. It added
+  `src/dynamic_agent_runner/tracing.py`, public tracing exports, optional
+  `trace_sink` forwarding through `execute_workflow(...)` and
+  `run_agent_workflow(...)`, executor trace event emission, README tracing
+  guidance, and `tests/test_tracing.py`. Validation observed before commit
+  included `poetry run pytest` with 84 passing tests, `poetry check`,
+  targeted `pre-commit run --files`, and `git diff --check`.
