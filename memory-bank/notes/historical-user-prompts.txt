@@ -154,3 +154,11 @@ do recommended next step
 ---
 
 commit spec updates and upate memory-bank and commit
+
+---
+
+execute slice 2 and commit
+
+---
+
+commit slice 2 and update memory-bank and commit

@@ -4,13 +4,16 @@
 
 - The repository now has an initial `src/` package scaffold:
   - `src/dynamic_agent_runner/__init__.py` reserves public exports
-  - `src/dynamic_agent_runner/api.py` reserves `load_agent_workflow` and
-    `run_agent_workflow` placeholders
+  - `src/dynamic_agent_runner/api.py` exposes `load_agent_workflow` for artifact
+    loading while reserving `run_agent_workflow` for later executor slices
+  - `src/dynamic_agent_runner/artifacts.py` loads generated workflow artifacts
+  - `src/dynamic_agent_runner/models.py` preserves internal artifact metadata
   - `src/dynamic_agent_runner/errors.py` defines project-specific exception
     types
-- Tests currently contain an import smoke test at `tests/test_import.py`.
-- Current repository structure remains intentionally minimal while artifact
-  loader/runtime behavior is implemented slice-by-slice.
+- Tests currently contain an import smoke test at `tests/test_import.py` and
+  artifact loader tests at `tests/test_artifacts.py`.
+- Current repository structure has loader/model behavior only; validation,
+  registry, adapter, executor, and CLI behavior remain future slices.
 
 ## Observed Patterns
 
@@ -21,9 +24,10 @@
 - `env_setup` adds `lib`, `src`, and `bin` to `PYTHONPATH`/`PATH` when those
   directories exist.
 - Ruff, flake8, isort, and pre-commit are configured.
-- Initial public API uses placeholders that raise `NotImplementedError` until
-  later implementation slices add loaders, validation, registry, adapter, and
-  executor behavior.
+- `load_agent_workflow(...)` loads generated workflow artifacts without
+  executing them.
+- `run_agent_workflow(...)` still raises `NotImplementedError` until later
+  validation, registry, adapter, and executor slices are implemented.
 - Error taxonomy starts with a base `DynamicAgentRunnerError` and specific
   loading, validation, registry, model, and workflow execution errors.
 - Runtime artifact design preserves documented supported agent-pattern IDs as
@@ -31,12 +35,15 @@
 - Pattern-specific structures should be modeled through `patterns_present`,
   `participant_groups`, `roles`, `modes`, `phases`, declared tools, state,
   execution policy, and control-flow edges.
+- Artifact inputs support path, raw-string, and already-parsed mapping forms for
+  runtime manifests and tool indexes. Mermaid graphs and agent designs support
+  path or raw-string inputs.
 
 ## Boundaries and Unknowns
 
-- Runtime manifest model: not implemented yet.
-- Artifact loading behavior: not implemented yet.
-- Supported pattern metadata preservation: specified but not implemented yet.
+- Runtime manifest model: implemented for loader/model scope.
+- Artifact loading behavior: implemented for Slice 2 scope.
+- Supported pattern metadata preservation: implemented for loader/model scope.
 - Validation engine: not implemented yet.
 - Tool registry protocol and concrete registry: not implemented yet.
 - OpenAI client adapter: not implemented yet.
@@ -44,13 +51,13 @@
 
 ## Guidance for Future Work
 
-- Continue from Slice 2 in `specs/dynamic-agent-runner/tasks.md`.
+- Continue from Slice 3 in `specs/dynamic-agent-runner/tasks.md`.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
   `decision_step` unless a later format version changes the contract.
-- In Slice 2, preserve metadata for the documented supported pattern IDs and
-  structural sections without claiming full executor support for every pattern.
+- In Slice 3, add validation over the loaded artifact models without claiming
+  full executor support for every documented pattern.
 - Keep OpenAI API calls behind a small adapter boundary and keep unit tests free
   of live model calls.
 - Update this file as concrete modules, entry points, and architectural

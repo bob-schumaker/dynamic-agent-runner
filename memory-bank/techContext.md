@@ -25,6 +25,7 @@ Current committed dependency context includes:
 - `roschumalib ^0.3.386` with extras: `application`, `graphics`,
   `spreadsheets`
 - `openai ^2.38.0`
+- `PyYAML >=6.0`
 
 Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 
@@ -33,6 +34,7 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - do not require `ocihelper`
 - do not require `ai-tools-core` / `openai-tools-core`
 - implement the tool registry pattern in this repository
+- use `PyYAML` for runtime YAML and tool-index parsing
 
 ## Development and Test Dependencies
 
@@ -101,9 +103,12 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - Initial source scaffold was committed in `d2766c0` under
   `src/dynamic_agent_runner/` with import smoke coverage in `tests/test_import.py`.
 - `specs/dynamic-agent-runner/plan.md` and `tasks.md` are tracked planning
-  artifacts. Slice 0 and Slice 1 are complete; Slice 2 now gates deeper runtime
-  parser, registry, OpenAI adapter, executor, or CLI behavior.
+  artifacts. Slices 0, 1, and 2 are complete; Slice 3 now gates deeper registry,
+  OpenAI adapter, executor, or CLI behavior.
 - Supported agent-pattern metadata was incorporated into `spec.md`, `plan.md`,
   and `tasks.md` in `db13d29`. Slice 2 loader/model work should preserve the 11
   documented pattern IDs, `patterns_present`, `participant_groups`, `modes`,
   `phases`, and `roles` without treating patterns as primitive node kinds.
+- Slice 2 was committed in `64ad379`. It added `artifacts.py`, `models.py`,
+  `tests/test_artifacts.py`, direct `PyYAML` dependency metadata, and
+  `load_agent_workflow(...)` artifact-loading behavior.

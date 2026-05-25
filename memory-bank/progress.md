@@ -34,26 +34,28 @@
   `d2766c0 feat(package): add initial runner scaffold`.
 - Supported pattern metadata planning update commit exists:
   `db13d29 docs(spec): record supported agent patterns`.
+- Slice 2 artifact loader commit exists:
+  `64ad379 feat(artifacts): add workflow artifact loaders`.
+- Artifact loading now works for runtime YAML, optional Mermaid graph, optional
+  `agent-design.md`, and optional `tool-index.yaml` inputs.
+- `load_agent_workflow(...)` now loads generated artifacts without executing
+  workflows.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Slice 2 — artifact models and loaders — is the next active slice.
-- Planning artifacts now include the 11 documented supported agent patterns as
-  metadata that loaders must preserve.
+- Slice 3 — validation engine — is the next active slice.
 
 ## Remaining
 
-- Implement Slice 2 — artifact models and loaders:
-  - define internal manifest, supported pattern, node, edge, tool, skill,
-    participant group, mode, phase, role, output contract, and validation models
-  - implement runtime YAML loading from path, raw string, and parsed objects
-  - implement Mermaid graph loading and reference resolution
-  - implement optional external `tool-index.yaml` loading
-  - implement lightweight `agent-design.md` reference checks
-  - preserve `patterns_present` metadata without treating patterns as primitive
-    node kinds
-  - add fixture-based tests, including at least one metadata-rich pattern shape
+- Implement Slice 3 — validation engine:
+  - validate required runtime manifest fields
+  - validate supported initial enum values
+  - validate unique node IDs and edge endpoint references
+  - validate `tool_use_step` tool references
+  - validate `llm_step` prompt or prompt-source presence
+  - validate external `tool-index.yaml` structure
+  - add clear validation-error tests
 - Define the concrete public Python API beyond reserved placeholders.
 - Implement workflow execution through the official `openai` Python package.
 - Design and implement the repository-owned tool registry pattern, including
@@ -66,15 +68,15 @@
 
 ## Risks or Follow-ups
 
-- Source code now exists only as the initial scaffold; architecture sections
-  should remain conservative until real loader/runtime behavior exists.
-- Slice 1 is complete, but unrestricted runtime implementation should still
+- Loader source now exists, but architecture sections should remain conservative
+  until validation and runtime behavior exist.
+- Slice 2 is complete, but unrestricted runtime implementation should still
   proceed slice-by-slice from the committed task list.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.
-- Supported agent-pattern IDs are metadata-level compatibility targets for
-  loader/model work; full executor support depends on later primitive node,
-  edge, tool, policy, and adapter implementation.
+- Supported agent-pattern IDs are preserved by loader/model work; full executor
+  support still depends on later primitive node, edge, tool, policy, and adapter
+  implementation.
 - Future implementation should start with the official `openai` package and a
   repository-owned tool registry pattern; `ocihelper`, `ai-tools-core`, and
   `openai-tools-core` are intentionally not required by the latest spec.
