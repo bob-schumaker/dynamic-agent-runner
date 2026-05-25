@@ -2,8 +2,8 @@
 
 ## Current Focus
 
-- Repository bootstrap/specification work has been refreshed after completing
-  Slice 0 and committing the readiness checkpoint in `ea5a88a`.
+- Slice 1 package scaffold and dependency alignment is complete and committed
+  in `d2766c0`; Slice 2 artifact models/loaders is next.
 
 ## Current Status
 
@@ -26,15 +26,17 @@
   - Created and committed implementation-readiness planning artifacts and README
     alignment in `2979342`.
   - Marked Slice 0 complete and advanced the task list to Slice 1 in `ea5a88a`.
+  - Completed Slice 1 package scaffold, dependency alignment, and import smoke
+    test in `d2766c0`.
 - In progress:
-  - Dependency files remain modified and uncommitted: `pyproject.toml` and
-    `poetry.lock`.
+  - No work is currently in progress.
 - Not started:
-  - Source layout, implementation, tests, and concrete tool registry design.
+  - Artifact models/loaders, validation engine, tool registry, OpenAI adapter,
+    executor, and CLI implementation.
 
 ## Important Current Facts
 
-- No source code is present outside configuration and environment files.
+- Initial source package scaffold now exists under `src/dynamic_agent_runner/`.
 - Product purpose is confirmed by user instruction: read generated agent workflow
   artifacts, use the official `openai` Python package for default model
   execution, use a repository-owned tool registry pattern for tool calls, run
@@ -45,28 +47,24 @@
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/plan.md`
   - `specs/dynamic-agent-runner/tasks.md`
-- A Council review and a 3-round debate both concluded the artifact set is ready
-  only for a narrow readiness/scaffold slice, not unrestricted runtime
-  implementation. Slice 0 is now complete; Slice 1 is the next active slice.
+- A Council review and a 3-round debate both concluded the artifact set was
+  ready only for a narrow readiness/scaffold slice, not unrestricted runtime
+  implementation. Slice 0 and Slice 1 are now complete; Slice 2 is the next
+  active slice.
 - Latest observed branch history includes:
+  - `d2766c0 feat(package): add initial runner scaffold`
   - `ea5a88a docs(spec): mark readiness checkpoint complete`
   - `2979342 docs(spec): record implementation readiness gate`
   - `bef8817 docs(memory-bank): record openai runtime direction`
   - `b247e11 docs(spec): use openai package runtime direction`
   - `4e69ea9 docs(memory-bank): refresh runtime direction context`
   - `c9cd13c docs(readme): document ai-tools runtime direction`
-- Current uncommitted dependency files are `pyproject.toml` and `poetry.lock`.
-  They should be reconciled and committed separately from documentation/spec
-  commits.
+- Dependency/package metadata changes were reconciled and committed in
+  `d2766c0`.
 
 ## Next Steps
 
-- Reconcile dependency/lock changes with the latest spec direction and commit
-  them separately when ready.
-- Begin Slice 1 — package scaffold and dependency alignment:
-  - create `src/dynamic_agent_runner/`
-  - add initial public exports and error types
-  - add an import smoke test
-  - run `poetry check`, targeted tests, and pre-commit
-- Deeper parser, registry, OpenAI adapter, executor, and CLI runtime work should
-  wait until the readiness/scaffold slice is complete and validated.
+- Begin Slice 2 — artifact models and loaders.
+- Keep unit tests free of live OpenAI API calls.
+- Deeper validation engine, registry, OpenAI adapter, executor, and CLI runtime
+  behavior should continue to follow the committed task order.

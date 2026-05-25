@@ -19,15 +19,12 @@
 
 ## Main Dependencies
 
-Observed committed or in-flight dependency state may lag behind the latest spec.
-At the latest memory-bank refresh, `pyproject.toml` and `poetry.lock` are
-uncommitted local changes.
-
-Current committed/observed dependency context includes:
+Current committed dependency context includes:
 
 - `docopt-ng >=0.9.0`
 - `roschumalib ^0.3.386` with extras: `application`, `graphics`,
   `spreadsheets`
+- `openai ^2.38.0`
 
 Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 
@@ -98,9 +95,11 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   in `b247e11`; memory-bank OpenAI context was refreshed in `bef8817`;
   implementation-readiness planning artifacts and README alignment were committed
   in `2979342`; Slice 0 was marked complete in `ea5a88a`.
-- Current uncommitted dependency files are expected to need reconciliation with
-  the latest spec: add the official `openai` package and avoid required
-  `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependencies.
+- Dependency files were reconciled in `d2766c0`: the official `openai`
+  package is present, and required `ocihelper`, `ai-tools-core`, and
+  `openai-tools-core` dependencies are absent.
+- Initial source scaffold was committed in `d2766c0` under
+  `src/dynamic_agent_runner/` with import smoke coverage in `tests/test_import.py`.
 - `specs/dynamic-agent-runner/plan.md` and `tasks.md` are tracked planning
-  artifacts. Slice 0 is complete, and Slice 1 now gates deeper runtime parser,
-  registry, OpenAI adapter, executor, or CLI behavior.
+  artifacts. Slice 0 and Slice 1 are complete; Slice 2 now gates deeper runtime
+  parser, registry, OpenAI adapter, executor, or CLI behavior.

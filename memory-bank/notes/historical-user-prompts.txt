@@ -138,3 +138,7 @@ execute slice 0 and commit
 ---
 
 update memory-bank and commit
+
+---
+
+execute slice 1 and commit, then update memory-bank and commit

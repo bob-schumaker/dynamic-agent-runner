@@ -30,26 +30,24 @@
   `2979342 docs(spec): record implementation readiness gate`.
 - Slice 0 completion commit exists:
   `ea5a88a docs(spec): mark readiness checkpoint complete`.
+- Slice 1 package scaffold commit exists:
+  `d2766c0 feat(package): add initial runner scaffold`.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Dependency changes are currently uncommitted: `pyproject.toml` and
-  `poetry.lock` need separate reconciliation/commit handling.
+- Slice 2 — artifact models and loaders — is the next active slice.
 
 ## Remaining
 
-- Reconcile and commit dependency/package metadata changes separately.
-- Complete Slice 1 — package scaffold and dependency alignment:
-  - reconcile and commit dependency/package metadata changes
-  - create `src/dynamic_agent_runner/`
-  - define initial public exports and project-specific errors
-  - add import smoke test
-  - verify `poetry check`, targeted tests, and pre-commit
-- Add or identify the actual source layout.
-- Define the concrete public Python API.
-- Implement reading of runtime manifest, Mermaid diagram, design document, and
-  tool index.
+- Implement Slice 2 — artifact models and loaders:
+  - define internal manifest, node, edge, tool, skill, and validation models
+  - implement runtime YAML loading from path, raw string, and parsed objects
+  - implement Mermaid graph loading and reference resolution
+  - implement optional external `tool-index.yaml` loading
+  - implement lightweight `agent-design.md` reference checks
+  - add fixture-based tests
+- Define the concrete public Python API beyond reserved placeholders.
 - Implement workflow execution through the official `openai` Python package.
 - Design and implement the repository-owned tool registry pattern, including
   manifest/tool-index tool lookup, conversion to OpenAI tool schema, invocation
@@ -61,10 +59,10 @@
 
 ## Risks or Follow-ups
 
-- The repository currently lacks source code, so architecture sections
-  intentionally avoid detailed implementation claims.
-- The plan and debate explicitly warn against starting unrestricted runtime
-  implementation before Slice 1 is complete.
+- Source code now exists only as the initial scaffold; architecture sections
+  should remain conservative until real loader/runtime behavior exists.
+- Slice 1 is complete, but unrestricted runtime implementation should still
+  proceed slice-by-slice from the committed task list.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.
 - Future implementation should start with the official `openai` package and a
