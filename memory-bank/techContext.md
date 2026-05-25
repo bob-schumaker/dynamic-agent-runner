@@ -132,3 +132,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `openai_client.py`, `tests/test_openai_client.py`, public OpenAI adapter
   exports, fake-client-compatible request construction, response normalization,
   lazy official OpenAI client construction, and `ModelExecutionError` wrapping.
+- Slice 6 implementation was committed in `4ce8c67`. It added `executor.py`,
+  `tests/test_executor.py`, public executor exports, a working
+  `run_agent_workflow(...)` API, execution state tracking, `llm_step`,
+  `tool_use_step`, and `llm_route` decision execution, and sequential/branch
+  control-flow support.

@@ -12,14 +12,17 @@
     relationships and supported `format_version: 1` enum values
   - `src/dynamic_agent_runner/openai_client.py` isolates the official OpenAI
     client behind a small fake-client-compatible adapter boundary
+  - `src/dynamic_agent_runner/executor.py` composes loaded workflows, registry
+    tools, and the OpenAI adapter into executable workflow runs
   - `src/dynamic_agent_runner/errors.py` defines project-specific exception
     types
 - Tests currently contain an import smoke test at `tests/test_import.py`,
   artifact loader tests at `tests/test_artifacts.py`, validation tests at
   `tests/test_validation.py`, registry tests at `tests/test_registry.py`, and
-  OpenAI adapter tests at `tests/test_openai_client.py`.
-- Current repository structure has loader/model/validation/registry/adapter
-  behavior; executor and CLI behavior remain future slices.
+  OpenAI adapter tests at `tests/test_openai_client.py`, and executor tests at
+  `tests/test_executor.py`.
+- Current repository structure has loader/model/validation/registry/adapter/
+  executor behavior; CLI behavior remains a future slice.
 
 ## Observed Patterns
 
@@ -32,8 +35,8 @@
 - Ruff, flake8, isort, and pre-commit are configured.
 - `load_agent_workflow(...)` loads generated workflow artifacts without
   executing them, then validates the loaded bundle before returning it.
-- `run_agent_workflow(...)` still raises `NotImplementedError` until later
-  validation, registry, adapter, and executor slices are implemented.
+- `run_agent_workflow(...)` now loads, validates, executes, and returns the final
+  workflow result; `execute_workflow(...)` exposes detailed execution state.
 - Error taxonomy starts with a base `DynamicAgentRunnerError` and specific
   loading, validation, registry, model, and workflow execution errors.
 - Runtime artifact design preserves documented supported agent-pattern IDs as
@@ -60,6 +63,12 @@
   `tool_choice`, `response_format`, and extra model parameters.
 - OpenAI response normalization extracts text and function calls into internal
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
+- `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,
+  node outputs, tool results, execution records, errors, and final result.
+- Executor control flow currently supports sequential edges and branch edges for
+  `decision_step` nodes with `decision_subtype: llm_route`.
+- Executor unit tests use fake OpenAI clients and fake registry tools only;
+  no live OpenAI API calls are required.
 
 ## Boundaries and Unknowns
 
@@ -69,17 +78,17 @@
 - Validation engine: implemented for Slice 3 scope.
 - Tool registry protocol and concrete registry: implemented for Slice 4 scope.
 - OpenAI client adapter: implemented for Slice 5 scope.
-- Workflow executor and CLI: not implemented yet.
+- Workflow executor: implemented for Slice 6 scope.
+- CLI: not implemented yet.
 
 ## Guidance for Future Work
 
-- Continue from Slice 6 in `specs/dynamic-agent-runner/tasks.md`.
+- Continue from Slice 7 in `specs/dynamic-agent-runner/tasks.md`.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
   `decision_step` unless a later format version changes the contract.
-- In Slice 6, implement workflow execution by composing existing loader,
-  validation, registry, and OpenAI adapter boundaries without turning the package
-  into a generic agent framework.
+- In Slice 7, add the CLI and documentation on top of the existing public API and
+  executor without widening executor semantics beyond the committed task scope.
 - Update this file as concrete modules, entry points, and architectural
   boundaries become real.

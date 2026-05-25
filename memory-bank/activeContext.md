@@ -2,8 +2,8 @@
 
 ## Current Focus
 
-- Slice 5 OpenAI client adapter is complete and committed in `42f8d15`; Slice 6
-  workflow executor is next.
+- Slice 6 workflow executor is complete and committed in `4ce8c67`; Slice 7 CLI
+  and documentation is next.
 
 ## Current Status
 
@@ -37,10 +37,11 @@
     tool overrides, and include opt-in built-in default tool packs.
   - Completed Slice 4 repository-owned tool registry foundation in `cba3f43`.
   - Completed Slice 5 OpenAI client adapter boundary in `42f8d15`.
+  - Completed Slice 6 workflow executor in `4ce8c67`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
-  - Workflow executor and CLI implementation.
+  - CLI implementation.
 
 ## Important Current Facts
 
@@ -58,16 +59,15 @@
   - `specs/dynamic-agent-runner/tasks.md`
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0, 1, 2, 3, 4, and 5 are complete; Slice 6 is the next
-  active implementation slice.
+  implementation. Slices 0, 1, 2, 3, 4, 5, and 6 are complete; Slice 7 is the
+  next active implementation slice.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
   `roles` metadata during loading.
-- `load_agent_workflow(...)` now loads artifacts without execution;
-  validates loaded artifacts before returning them, and still does not execute
-  workflows. `run_agent_workflow(...)` remains reserved for later executor
-  slices.
+- `load_agent_workflow(...)` loads artifacts without execution and validates
+  loaded artifacts before returning them. `run_agent_workflow(...)` now loads,
+  validates, executes, and returns the final workflow result.
 - Slice 3 validation currently checks required manifest fields, supported enum
   values, node ID uniqueness, edge endpoint references, tool-use references, LLM
   prompt presence, and external tool-index structure. Slice 4 must reconcile
@@ -98,6 +98,19 @@
   - `tests/test_openai_client.py` uses fake clients only and covers request
     construction, injected-client execution, response normalization, error
     wrapping, and input validation.
+- Slice 6 implementation from `4ce8c67`:
+  - `src/dynamic_agent_runner/executor.py` now defines `WorkflowExecutionState`,
+    `NodeExecution`, `WorkflowResult`, and `execute_workflow(...)`.
+  - `llm_step` execution renders prompt templates, exposes node tools through the
+    registry-to-OpenAI schema path, and calls the Slice 5 OpenAI adapter.
+  - `tool_use_step` execution resolves inputs, dispatches through the Slice 4
+    registry, records structured tool results, and honors configured failure
+    behavior.
+  - `decision_step` with `decision_subtype: llm_route` extracts JSON-like or text
+    routes and follows matching branch edges.
+  - `tests/test_executor.py` uses fake clients and fake tools only and covers
+    successful execution, tool failure behavior, branch routing, public API final
+    result behavior, and step-limit failures.
 - Slice 4 scope decisions from `07edab0`:
   - `tool-index.yaml` is optional metadata, not an execution prerequisite.
   - A required tool registry or approved registry source is authoritative for
@@ -108,6 +121,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `4ce8c67 feat(executor): add workflow execution engine`
   - `42f8d15 feat(openai): add client adapter boundary`
   - `cba3f43 feat(registry): add tool registry foundation`
   - `07edab0 docs(spec): expand slice 4 registry scope`
@@ -126,9 +140,9 @@
 
 ## Next Steps
 
-- Begin Slice 6 — Workflow executor.
-- Implement execution state for prompt, node inputs, node outputs, tool results,
-  final result, and errors.
-- Wire `llm_step` execution through the Slice 5 OpenAI adapter and
-  `tool_use_step` execution through the Slice 4 registry.
-- Keep CLI runtime behavior deferred to a later committed task slice.
+- Begin Slice 7 — CLI and documentation.
+- Add a CLI entry point for loading artifacts and running a workflow from a
+  prompt.
+- Support CLI options for runtime YAML, optional design/graph/tool-index inputs,
+  registry configuration, and prompt input.
+- Update README with concrete API and CLI usage once the CLI shape is real.
