@@ -103,8 +103,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - Initial source scaffold was committed in `d2766c0` under
   `src/dynamic_agent_runner/` with import smoke coverage in `tests/test_import.py`.
 - `specs/dynamic-agent-runner/plan.md` and `tasks.md` are tracked planning
-  artifacts. Slices 0, 1, and 2 are complete; Slice 3 now gates deeper registry,
-  OpenAI adapter, executor, or CLI behavior.
+  artifacts. Slices 0, 1, 2, and 3 are complete; Slice 4 now gates deeper OpenAI
+  adapter, executor, or CLI behavior.
 - Supported agent-pattern metadata was incorporated into `spec.md`, `plan.md`,
   and `tasks.md` in `db13d29`. Slice 2 loader/model work should preserve the 11
   documented pattern IDs, `patterns_present`, `participant_groups`, `modes`,
@@ -112,3 +112,7 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - Slice 2 was committed in `64ad379`. It added `artifacts.py`, `models.py`,
   `tests/test_artifacts.py`, direct `PyYAML` dependency metadata, and
   `load_agent_workflow(...)` artifact-loading behavior.
+- Slice 3 was committed in `3469d49`. It added `validation.py`,
+  `tests/test_validation.py`, and validation from `load_agent_workflow(...)` for
+  required fields, supported enums, node/edge relationships, tool references,
+  LLM prompt presence, and external tool-index structure.

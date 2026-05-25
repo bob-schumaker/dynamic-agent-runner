@@ -36,26 +36,33 @@
   `db13d29 docs(spec): record supported agent patterns`.
 - Slice 2 artifact loader commit exists:
   `64ad379 feat(artifacts): add workflow artifact loaders`.
+- Slice 3 validation engine commit exists:
+  `3469d49 feat(validation): add artifact validation engine`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
-  workflows.
+  workflows, validates loaded artifacts, and returns the validated bundle.
+- Validation now covers required manifest fields, supported enum values, node ID
+  uniqueness, edge references, tool-use references, LLM prompt presence, and
+  external tool-index structure.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- Slice 3 — validation engine — is the next active slice.
+- Slice 4 — repository-owned tool registry — is the next active slice.
 
 ## Remaining
 
-- Implement Slice 3 — validation engine:
-  - validate required runtime manifest fields
-  - validate supported initial enum values
-  - validate unique node IDs and edge endpoint references
-  - validate `tool_use_step` tool references
-  - validate `llm_step` prompt or prompt-source presence
-  - validate external `tool-index.yaml` structure
-  - add clear validation-error tests
+- Implement Slice 4 — repository-owned tool registry:
+  - define `ToolDefinition`, `RegisteredTool`, `ToolResult`, and a
+    `ToolRegistry` protocol
+  - implement `InMemoryToolRegistry` for tests and simple callers
+  - implement conversion from registry tool definitions to OpenAI tool schema
+  - implement tool invocation dispatch by manifest `tool_id`
+  - preserve side-effect metadata, approval metadata, timeout/retry policy, and
+    failure behavior
+  - add tests for lookup, schema conversion, successful invocation, missing
+    tools, bad inputs, and tool failures
 - Define the concrete public Python API beyond reserved placeholders.
 - Implement workflow execution through the official `openai` Python package.
 - Design and implement the repository-owned tool registry pattern, including
@@ -68,9 +75,9 @@
 
 ## Risks or Follow-ups
 
-- Loader source now exists, but architecture sections should remain conservative
-  until validation and runtime behavior exist.
-- Slice 2 is complete, but unrestricted runtime implementation should still
+- Loader and validation source now exist, but architecture sections should remain
+  conservative until registry and runtime execution behavior exist.
+- Slice 3 is complete, but unrestricted runtime implementation should still
   proceed slice-by-slice from the committed task list.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.

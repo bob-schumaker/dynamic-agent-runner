@@ -2,8 +2,8 @@
 
 ## Current Focus
 
-- Slice 2 artifact models/loaders is complete and committed in `64ad379`;
-  Slice 3 validation engine is next.
+- Slice 3 validation engine is complete and committed in `3469d49`; Slice 4
+  repository-owned tool registry is next.
 
 ## Current Status
 
@@ -31,11 +31,11 @@
   - Updated `spec.md`, `plan.md`, and `tasks.md` for the 11 documented supported
     agent-pattern IDs and committed that planning drift update in `db13d29`.
   - Completed Slice 2 artifact models/loaders in `64ad379`.
+  - Completed Slice 3 validation engine in `3469d49`.
 - In progress:
   - No work is currently in progress.
 - Not started:
-  - Validation engine, tool registry, OpenAI adapter, executor, and CLI
-    implementation.
+  - Tool registry, OpenAI adapter, executor, and CLI implementation.
 
 ## Important Current Facts
 
@@ -53,16 +53,22 @@
   - `specs/dynamic-agent-runner/tasks.md`
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for a narrow readiness/scaffold slice, not unrestricted runtime
-  implementation. Slices 0, 1, and 2 are now complete; Slice 3 is the next
+  implementation. Slices 0, 1, 2, and 3 are now complete; Slice 4 is the next
   active slice.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
   `roles` metadata during loading.
 - `load_agent_workflow(...)` now loads artifacts without execution;
-  `run_agent_workflow(...)` remains reserved for later executor slices.
+  validates loaded artifacts before returning them, and still does not execute
+  workflows. `run_agent_workflow(...)` remains reserved for later executor
+  slices.
+- Slice 3 validation currently checks required manifest fields, supported enum
+  values, node ID uniqueness, edge endpoint references, tool-use references, LLM
+  prompt presence, and external tool-index structure.
 - `PyYAML >=6.0` is now a direct runtime dependency for YAML artifact loading.
 - Latest observed branch history includes:
+  - `3469d49 feat(validation): add artifact validation engine`
   - `64ad379 feat(artifacts): add workflow artifact loaders`
   - `db13d29 docs(spec): record supported agent patterns`
   - `d2766c0 feat(package): add initial runner scaffold`
@@ -77,10 +83,10 @@
 
 ## Next Steps
 
-- Begin Slice 3 — validation engine.
-- Validate required runtime manifest fields, supported enum values, node and edge
-  relationships, tool references, LLM prompt presence, and external tool-index
-  structure.
+- Begin Slice 4 — repository-owned tool registry.
+- Define registry protocols and simple in-memory registry behavior for tool
+  lookup, OpenAI schema conversion, invocation dispatch, side-effect metadata,
+  approval metadata, timeout/retry policy, and failure handling.
 - Keep unit tests free of live OpenAI API calls.
-- Deeper registry, OpenAI adapter, executor, and CLI runtime behavior should
-  continue to follow the committed task order.
+- Deeper OpenAI adapter, executor, and CLI runtime behavior should continue to
+  follow the committed task order.
