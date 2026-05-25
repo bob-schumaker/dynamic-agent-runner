@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: planned
+- State: Slice 0 complete; ready for Slice 1
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 0 — planning and documentation readiness checkpoint
+- Next active slice: Slice 1 — package scaffold and dependency alignment
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -20,6 +20,14 @@
 - [x] T0.4 Keep `pyproject.toml` and `poetry.lock` dependency changes separate
       from documentation/spec commits unless explicitly committing dependency
       state.
+
+## Slice 0 Completion Evidence
+
+- `spec.md` acknowledges `plan.md` and `tasks.md` as follow-on planning artifacts.
+- `plan.md` and `tasks.md` are tracked in commit `2979342`.
+- `README.md` is aligned with the official `openai` package and
+  repository-owned registry direction.
+- `pyproject.toml` and `poetry.lock` remain separate uncommitted dependency changes.
 
 ## Slice 1 — Package scaffold and dependency alignment
 
