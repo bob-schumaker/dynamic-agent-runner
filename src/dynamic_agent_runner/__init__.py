@@ -29,6 +29,7 @@ from dynamic_agent_runner.registry import (
     openai_tool_schema,
     validate_registry_tool_references,
 )
+from dynamic_agent_runner.retry import RetryPolicy, RetryRecord, retry_policy_from_value
 from dynamic_agent_runner.errors import (
     ArtifactLoadError,
     DynamicAgentRunnerError,
@@ -63,7 +64,10 @@ __all__ = [
     "ToolRegistry",
     "ToolExposureOverride",
     "RegisteredTool",
+    "RetryPolicy",
+    "RetryRecord",
     "InMemoryToolRegistry",
+    "retry_policy_from_value",
     "WorkflowExecutionError",
     "WorkflowResult",
     "WorkflowValidationError",

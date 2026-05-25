@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 7 complete; ready for Slice 8
+- State: Slice 8 complete; ready for Slice 9
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 8 — retry and resilience policy
+- Next active slice: Slice 9 — output contracts and route validation
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -267,18 +267,37 @@
 
 ## Slice 8 — Retry and resilience policy
 
-- [ ] T8.1 Add a small package-owned retry policy model for model calls and tool
+- [x] T8.1 Add a small package-owned retry policy model for model calls and tool
       calls, preserving fail-closed behavior when no retry policy is configured.
-- [ ] T8.2 Add Tenacity-backed bounded retry execution for retryable OpenAI/model
+- [x] T8.2 Add Tenacity-backed bounded retry execution for retryable OpenAI/model
       failures behind the existing OpenAI adapter boundary.
-- [ ] T8.3 Add bounded retry execution for retryable tool invocation failures
+- [x] T8.3 Add bounded retry execution for retryable tool invocation failures
       using registry/tool policy metadata.
-- [ ] T8.4 Record retry attempt count, final failure reason, and final outcome in
+- [x] T8.4 Record retry attempt count, final failure reason, and final outcome in
       execution state or trace data.
-- [ ] T8.5 Add tests for retryable failures, non-retryable failures, retry limit
+- [x] T8.5 Add tests for retryable failures, non-retryable failures, retry limit
       exhaustion, and default no-retry behavior using fake clients/tools only.
-- [ ] T8.6 Update README or usage notes only if a new public API or CLI option is
+- [x] T8.6 Update README or usage notes only if a new public API or CLI option is
       introduced.
+
+## Slice 8 Completion Evidence
+
+- `src/dynamic_agent_runner/retry.py` defines package-owned `RetryPolicy` and
+  `RetryRecord` models plus Tenacity-backed bounded retry execution helpers.
+- `execute_workflow(...)` records retry outcomes in
+  `WorkflowExecutionState.retry_records` for model and tool call sites.
+- Model retry policy can come from node `retry_policy`, manifest
+  `execution_policy.model_retry_policy`, or manifest
+  `execution_policy.retry_policy`.
+- Tool retry policy can come from node `retry_policy` or callable registry tool
+  definition metadata.
+- Default behavior remains one attempt with fail-closed error propagation when no
+  retry policy is configured.
+- `tests/test_executor.py` covers retryable model failures, non-retryable model
+  failures, model retry exhaustion, retryable tool failures, non-retryable tool
+  failures, tool retry exhaustion, and default no-retry behavior using fake
+  clients and fake tools only.
+- `README.md` documents retry metadata and retry outcome recording.
 
 ## Slice 9 — Output contracts and route validation
 

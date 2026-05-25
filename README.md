@@ -52,6 +52,7 @@ Known configuration:
 - Python compatibility: `>=3.11,<3.14`
 - local mise configuration selects Python `3.13`
 - primary runtime dependencies on `roschumalib` and the official `openai` package
+- retry support uses `tenacity` behind package-owned retry policy interfaces
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
 - the initial implementation targets the OpenAI Python SDK behind a small adapter
@@ -110,6 +111,32 @@ result = run_agent_workflow(
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 artifact relationship without executing model or tool calls.
 
+## Retry Policy
+
+By default, model and tool calls are attempted once and fail closed. Workflows can
+opt into bounded retries with manifest or registry metadata such as:
+
+```yaml
+execution_policy:
+  model_retry_policy:
+    max_attempts: 3
+    retry_on: [model_error]
+```
+
+```yaml
+nodes:
+  - id: lookup
+    kind: tool_use_step
+    tool_id: search_repo
+    retry_policy:
+      max_attempts: 2
+      retry_on: [tool_failure]
+```
+
+Tool registry definitions may also carry `retry_policy` metadata. Retry outcomes
+are recorded in `WorkflowExecutionState.retry_records` with the operation, attempt
+count, final outcome, and final error when one remains.
+
 ## CLI Usage
 
 After installation, run a workflow package from artifact paths:
@@ -151,6 +178,7 @@ Current tests cover:
 - validating design document, Mermaid graph, manifest, registry, and tool-index
   relationships
 - constructing the OpenAI package-backed model execution path through an adapter
+- applying bounded model and tool retry policies without live model calls
 - converting repository-owned tool registry definitions to OpenAI tool schema
 - dispatching registered tools without live model calls in unit tests
 - running supported workflows from a user prompt with fake clients/tools

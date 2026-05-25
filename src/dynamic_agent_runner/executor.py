@@ -7,7 +7,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from dynamic_agent_runner.errors import WorkflowExecutionError
+from dynamic_agent_runner.errors import (
+    ModelExecutionError,
+    ToolRegistryError,
+    WorkflowExecutionError,
+)
 from dynamic_agent_runner.models import LoadedAgentWorkflow, RuntimeEdge, RuntimeNode
 from dynamic_agent_runner.openai_client import (
     ModelResponse,
@@ -16,6 +20,12 @@ from dynamic_agent_runner.openai_client import (
     build_openai_request,
 )
 from dynamic_agent_runner.registry import ToolRegistry, ToolResult
+from dynamic_agent_runner.retry import (
+    RetryPolicy,
+    RetryRecord,
+    retry_policy_from_value,
+    run_with_retry,
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +47,7 @@ class WorkflowExecutionState:
     node_outputs: dict[str, Any] = field(default_factory=dict)
     tool_results: dict[str, ToolResult] = field(default_factory=dict)
     executions: list[NodeExecution] = field(default_factory=list)
+    retry_records: list[RetryRecord] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     final_result: Any = None
 
@@ -130,7 +141,25 @@ def _execute_llm_step(
         **_model_parameters(node),
     )
     state.node_inputs[str(node.id)] = request.to_kwargs()
-    return adapter.create_response(request)
+    policy = _model_retry_policy(node, workflow)
+    try:
+        response, attempts = run_with_retry(
+            lambda: adapter.create_response(request),
+            policy=_exception_retry_policy(policy, "model_error"),
+            retry_exceptions=(ModelExecutionError,),
+        )
+    except ModelExecutionError as exc:
+        _record_retry(
+            state,
+            node,
+            "model",
+            attempts=policy.max_attempts if _retries_exceptions(policy) else 1,
+            outcome="failure",
+            final_error=str(exc),
+        )
+        raise
+    _record_retry(state, node, "model", attempts=attempts, outcome="success")
+    return response
 
 
 def _execute_tool_step(
@@ -148,7 +177,7 @@ def _execute_tool_step(
         )
     arguments = _tool_arguments(node, state)
     state.node_inputs[str(node.id)] = arguments
-    result = registry.invoke_tool(node.tool_id, arguments)
+    result = _invoke_tool_with_retry(node, registry, arguments, state)
     state.tool_results[str(node.id)] = result
     if not result.success and _failure_behavior(node) == "error":
         error = result.error or f"tool {node.tool_id!r} failed"
@@ -156,6 +185,46 @@ def _execute_tool_step(
         raise WorkflowExecutionError(error)
     _record_outputs(node, result.output, state)
     return result
+
+
+def _invoke_tool_with_retry(
+    node: RuntimeNode,
+    registry: ToolRegistry,
+    arguments: Mapping[str, Any],
+    state: WorkflowExecutionState,
+) -> ToolResult:
+    policy = _tool_retry_policy(node, registry)
+    retry_failures = _retries_failures(policy)
+    max_attempts = policy.max_attempts if retry_failures else 1
+    last_result: ToolResult | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = registry.invoke_tool(str(node.tool_id), arguments)
+        except ToolRegistryError as exc:
+            _record_retry(
+                state,
+                node,
+                "tool",
+                attempts=attempt,
+                outcome="failure",
+                final_error=str(exc),
+            )
+            raise
+        last_result = result
+        if result.success or not retry_failures:
+            _record_retry(state, node, "tool", attempts=attempt, outcome="success")
+            return result
+    if last_result is None:
+        raise WorkflowExecutionError(f"tool_use_step node {node.id!r} did not run")
+    _record_retry(
+        state,
+        node,
+        "tool",
+        attempts=max_attempts,
+        outcome="failure",
+        final_error=last_result.error,
+    )
+    return last_result
 
 
 def _execute_decision_step(node: RuntimeNode, state: WorkflowExecutionState) -> str:
@@ -384,6 +453,59 @@ def _edge_condition(edge: RuntimeEdge) -> str | None:
 
 def _failure_behavior(node: RuntimeNode) -> str:
     return str(node.raw.get("failure_behavior") or "error")
+
+
+def _model_retry_policy(
+    node: RuntimeNode,
+    workflow: LoadedAgentWorkflow,
+) -> RetryPolicy:
+    value = node.raw.get("retry_policy")
+    if value is None:
+        value = workflow.runtime_manifest.execution_policy.get("model_retry_policy")
+    if value is None:
+        value = workflow.runtime_manifest.execution_policy.get("retry_policy")
+    return retry_policy_from_value(value)
+
+
+def _tool_retry_policy(node: RuntimeNode, registry: ToolRegistry) -> RetryPolicy:
+    value = node.raw.get("retry_policy")
+    if value is None and node.tool_id:
+        value = registry.get_tool(node.tool_id).definition.raw.get("retry_policy")
+    return retry_policy_from_value(value)
+
+
+def _exception_retry_policy(policy: RetryPolicy, retry_name: str) -> RetryPolicy:
+    if not _retries_exceptions(policy) and retry_name not in policy.retry_on:
+        return RetryPolicy()
+    return policy
+
+
+def _retries_exceptions(policy: RetryPolicy) -> bool:
+    return bool({"exception", "model_error"} & set(policy.retry_on))
+
+
+def _retries_failures(policy: RetryPolicy) -> bool:
+    return bool({"failure", "tool_failure"} & set(policy.retry_on))
+
+
+def _record_retry(
+    state: WorkflowExecutionState,
+    node: RuntimeNode,
+    operation: str,
+    *,
+    attempts: int,
+    outcome: str,
+    final_error: str | None = None,
+) -> None:
+    state.retry_records.append(
+        RetryRecord(
+            node_id=str(node.id),
+            operation=operation,
+            attempts=attempts,
+            outcome=outcome,
+            final_error=final_error,
+        )
+    )
 
 
 def _max_steps(execution_policy: Mapping[str, Any]) -> int | None:

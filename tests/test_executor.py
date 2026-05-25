@@ -6,7 +6,7 @@ import pytest
 
 from dynamic_agent_runner.api import run_agent_workflow
 from dynamic_agent_runner.artifacts import load_runtime_manifest
-from dynamic_agent_runner.errors import WorkflowExecutionError
+from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
 from dynamic_agent_runner.executor import execute_workflow
 from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
@@ -20,7 +20,10 @@ class FakeResponses:
 
     def create(self, **kwargs: object) -> object:
         self.calls.append(kwargs)
-        return self.responses.pop(0)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 class FakeClient:
@@ -32,21 +35,52 @@ def make_adapter(responses: list[object]) -> OpenAIClientAdapter:
     return OpenAIClientAdapter(FakeClient(responses))
 
 
-def make_tool(tool_id: str, output: object | None = None) -> RegisteredTool:
+def make_tool(
+    tool_id: str,
+    output: object | None = None,
+    *,
+    raw: dict[str, object] | None = None,
+) -> RegisteredTool:
+    tool_raw: dict[str, object] = {
+        "id": tool_id,
+        "description_for_llm": f"Use {tool_id}",
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    }
+    tool_raw.update(raw or {})
     return RegisteredTool(
-        ToolDefinition.from_mapping(
-            {
-                "id": tool_id,
-                "description_for_llm": f"Use {tool_id}",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {"query": {"type": "string"}},
-                    "required": ["query"],
-                },
-            }
-        ),
+        ToolDefinition.from_mapping(tool_raw),
         lambda args: output if output is not None else {"result": args["query"]},
     )
+
+
+def make_flaky_tool(
+    tool_id: str,
+    outputs: list[object | Exception],
+    *,
+    raw: dict[str, object] | None = None,
+) -> RegisteredTool:
+    tool_raw: dict[str, object] = {
+        "id": tool_id,
+        "description_for_llm": f"Use {tool_id}",
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    }
+    tool_raw.update(raw or {})
+
+    def handler(_args: object) -> object:
+        output = outputs.pop(0)
+        if isinstance(output, Exception):
+            raise output
+        return output
+
+    return RegisteredTool(ToolDefinition.from_mapping(tool_raw), handler)
 
 
 def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
@@ -253,3 +287,237 @@ def test_execute_workflow_fails_on_step_limit() -> None:
 
     with pytest.raises(WorkflowExecutionError, match="exceeded maximum step count"):
         execute_workflow(workflow, prompt="Loop", model_adapter=adapter, max_steps=2)
+
+
+def test_execute_workflow_retries_retryable_model_failures() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "model-retry-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {
+                "model": "gpt-test",
+                "model_retry_policy": {
+                    "max_attempts": 3,
+                    "retry_on": ["model_error"],
+                },
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter(
+        [RuntimeError("temporary outage"), {"id": "resp", "output_text": "done"}]
+    )
+
+    result = execute_workflow(workflow, prompt="Hello", model_adapter=adapter)
+
+    assert result.final_result == "done"
+    assert len(adapter.client.responses.calls) == 2
+    assert result.state.retry_records[-1].attempts == 2
+    assert result.state.retry_records[-1].outcome == "success"
+
+
+def test_execute_workflow_does_not_retry_model_by_default() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "model-no-retry-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter(
+        [RuntimeError("temporary outage"), {"id": "resp", "output_text": "done"}]
+    )
+
+    with pytest.raises(ModelExecutionError, match="temporary outage"):
+        execute_workflow(workflow, prompt="Hello", model_adapter=adapter)
+
+    assert len(adapter.client.responses.calls) == 1
+
+
+def test_execute_workflow_does_not_retry_non_retryable_model_failures() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "model-non-retry-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {
+                "model": "gpt-test",
+                "retry_policy": {"max_attempts": 3, "retry_on": ["tool_failure"]},
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter(
+        [RuntimeError("non-retryable outage"), {"id": "resp", "output_text": "done"}]
+    )
+
+    with pytest.raises(ModelExecutionError, match="non-retryable outage"):
+        execute_workflow(workflow, prompt="Hello", model_adapter=adapter)
+
+    assert len(adapter.client.responses.calls) == 1
+
+
+def test_execute_workflow_records_model_retry_exhaustion() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "model-retry-exhaustion-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {
+                "model": "gpt-test",
+                "retry_policy": {"max_attempts": 2, "retry_on": ["exception"]},
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter([RuntimeError("outage 1"), RuntimeError("outage 2")])
+
+    with pytest.raises(ModelExecutionError, match="outage 2"):
+        execute_workflow(workflow, prompt="Hello", model_adapter=adapter)
+
+    assert len(adapter.client.responses.calls) == 2
+
+
+def test_execute_workflow_retries_tool_failures_from_registry_metadata() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-retry-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry(
+        [
+            make_flaky_tool(
+                "search_repo",
+                [RuntimeError("temporary tool failure"), {"answer": "42"}],
+                raw={"retry_policy": {"max_attempts": 3, "retry_on": ["failure"]}},
+            )
+        ]
+    )
+
+    result = execute_workflow(workflow, prompt="Run", tool_registry=registry)
+
+    assert result.state.tool_results["lookup"].output == {"answer": "42"}
+    assert result.state.retry_records[-1].operation == "tool"
+    assert result.state.retry_records[-1].attempts == 2
+    assert result.state.retry_records[-1].outcome == "success"
+
+
+def test_execute_workflow_exhausts_retryable_tool_failures() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-retry-exhaustion-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                    "retry_policy": {"max_attempts": 2, "retry_on": ["tool_failure"]},
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry(
+        [
+            make_flaky_tool(
+                "search_repo",
+                [RuntimeError("temporary 1"), RuntimeError("temporary 2")],
+            )
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="temporary 2"):
+        execute_workflow(workflow, prompt="Run", tool_registry=registry)
+
+
+def test_execute_workflow_does_not_retry_non_retryable_tool_failures() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-non-retry-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                    "retry_policy": {"max_attempts": 3, "retry_on": ["exception"]},
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry(
+        [
+            make_flaky_tool(
+                "search_repo",
+                [RuntimeError("non-retryable tool failure"), {"answer": "42"}],
+            )
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="non-retryable tool failure"):
+        execute_workflow(workflow, prompt="Run", tool_registry=registry)
