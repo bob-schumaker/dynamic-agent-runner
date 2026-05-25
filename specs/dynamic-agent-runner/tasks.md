@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: Slice 5 complete; ready for Slice 6
+- State: Slice 6 complete; ready for Slice 7
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: Slice 6 — Workflow executor
+- Next active slice: Slice 7 — CLI and documentation
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -203,17 +203,37 @@
 
 ## Slice 6 — Workflow executor
 
-- [ ] T6.1 Implement execution state for prompt, node inputs, node outputs,
+- [x] T6.1 Implement execution state for prompt, node inputs, node outputs,
       tool results, final result, and errors.
-- [ ] T6.2 Implement `llm_step` prompt rendering and model-call execution.
-- [ ] T6.3 Implement `tool_use_step` input resolution, registry dispatch, output
+- [x] T6.2 Implement `llm_step` prompt rendering and model-call execution.
+- [x] T6.3 Implement `tool_use_step` input resolution, registry dispatch, output
       recording, and configured failure behavior.
-- [ ] T6.4 Implement `decision_step` with `decision_subtype: llm_route`.
-- [ ] T6.5 Implement `sequential` and `branch` control-flow edges.
-- [ ] T6.6 Fail clearly for unsupported node kinds, decision subtypes, or edge
+- [x] T6.4 Implement `decision_step` with `decision_subtype: llm_route`.
+- [x] T6.5 Implement `sequential` and `branch` control-flow edges.
+- [x] T6.6 Fail clearly for unsupported node kinds, decision subtypes, or edge
       semantics.
-- [ ] T6.7 Add fake-client/fake-tool end-to-end tests for successful workflow,
+- [x] T6.7 Add fake-client/fake-tool end-to-end tests for successful workflow,
       partial failure, and final-result return behavior.
+
+## Slice 6 Completion Evidence
+
+- `src/dynamic_agent_runner/executor.py` defines workflow execution state,
+  execution records, final result objects, and `execute_workflow(...)`.
+- `llm_step` execution renders prompt templates, exposes node tools through the
+  registry-to-OpenAI schema path, and calls the Slice 5 OpenAI adapter boundary.
+- `tool_use_step` execution resolves inputs, dispatches through the Slice 4
+  registry, records structured tool results, and honors error/fallback failure
+  behavior.
+- `decision_step` with `decision_subtype: llm_route` extracts a route from model
+  or JSON-like output and follows matching branch edges.
+- Sequential and branch control-flow edges are implemented; unsupported node,
+  decision, and edge configurations fail with `WorkflowExecutionError`.
+- `run_agent_workflow(...)` now loads, validates, executes, and returns the final
+  workflow result while `execute_workflow(...)` remains available for detailed
+  state inspection.
+- `tests/test_executor.py` uses fake clients and fake tools only and covers
+  successful workflow execution, tool failure behavior, branch routing, public
+  API final-result behavior, and step-limit failures.
 
 ## Slice 7 — CLI and documentation
 
