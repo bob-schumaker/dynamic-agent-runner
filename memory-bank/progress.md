@@ -8,7 +8,8 @@
   - mise local environment configuration in `.mise.toml`
   - shell environment helper in `env_setup`
   - lint and pre-commit configuration files
-- Product intent is documented in `README.md`.
+- Product intent and current implementation-readiness state are documented in
+  `README.md`.
 - Project configuration commit exists:
   `ad3eb90 chore(config): add project configuration`.
 - Build configuration commit exists:
@@ -23,21 +24,29 @@
   `4e69ea9 docs(memory-bank): refresh runtime direction context`.
 - Spec update commit exists:
   `b247e11 docs(spec): use openai package runtime direction`.
+- Memory-bank OpenAI runtime direction refresh commit exists:
+  `bef8817 docs(memory-bank): record openai runtime direction`.
+- Implementation-readiness gate commit exists:
+  `2979342 docs(spec): record implementation readiness gate`.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
 - Dependency changes are currently uncommitted: `pyproject.toml` and
-  `poetry.lock` were already modified before this memory-bank refresh. They may
-  need another dependency reconciliation pass because the latest spec direction
-  selects the official `openai` package and a repository-owned tool registry
-  pattern instead of required `ai-tools-core`.
+  `poetry.lock` need separate reconciliation/commit handling.
 
 ## Remaining
 
+- Reconcile and commit dependency/package metadata changes separately.
+- Complete readiness/scaffold slice before deeper runtime implementation:
+  - create `src/dynamic_agent_runner/`
+  - define initial public exports and project-specific errors
+  - add import smoke test
+  - verify `poetry check`, targeted tests, and pre-commit
 - Add or identify the actual source layout.
 - Define the concrete public Python API.
-- Implement reading of definition YAML, Mermaid diagram, and tool index.
+- Implement reading of runtime manifest, Mermaid diagram, design document, and
+  tool index.
 - Implement workflow execution through the official `openai` Python package.
 - Design and implement the repository-owned tool registry pattern, including
   manifest/tool-index tool lookup, conversion to OpenAI tool schema, invocation
@@ -51,13 +60,12 @@
 
 - The repository currently lacks source code, so architecture sections
   intentionally avoid detailed implementation claims.
-- Pre-commit passed for the project-configuration commit, build-configuration
-  commit, initial spec commit, README runtime-direction commit, memory-bank
-  runtime-direction refresh commit, and OpenAI-package spec update commit.
-  Memory-bank pre-commit validation for this refresh should be recorded in the
-  commit result.
+- The plan and debate explicitly warn against starting unrestricted runtime
+  implementation before the readiness/scaffold slice is complete.
 - Future sessions should verify artifact schemas before implementing parser or
   execution behavior.
 - Future implementation should start with the official `openai` package and a
   repository-owned tool registry pattern; `ocihelper`, `ai-tools-core`, and
   `openai-tools-core` are intentionally not required by the latest spec.
+- Memory-bank pre-commit validation for this refresh should be recorded in the
+  commit result.

@@ -98,3 +98,31 @@ update the spec to use the OpenAI package (https://pypi.org/project/openai/) and
 ---
 
 commit the spec and update memroy-bank and commit
+
+---
+
+are we ready to begin implementation
+
+---
+
+verify pyprojct is correct
+
+---
+
+fix the poetry check warnings
+
+---
+
+Create an implementation plan and task list
+
+---
+
+/council review the spec and plan
+
+---
+
+debate the plan and spec for 3 rounds for implementation readiness
+
+---
+
+implement debate recommendations and commit the updated spec, plan and README

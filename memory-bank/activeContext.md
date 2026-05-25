@@ -3,8 +3,8 @@
 ## Current Focus
 
 - Repository bootstrap/specification work has been refreshed after committing the
-  SDD spec update that selects the official `openai` Python package and a
-  repository-owned tool registry pattern.
+  implementation-readiness gate for the dynamic-agent-runner spec, plan, tasks,
+  and README.
 
 ## Current Status
 
@@ -23,8 +23,12 @@
   - Committed memory-bank runtime-direction refresh in `4e69ea9`.
   - Committed spec update selecting the official `openai` package and custom
     registry direction in `b247e11`.
+  - Committed memory-bank OpenAI runtime direction refresh in `bef8817`.
+  - Created and committed implementation-readiness planning artifacts and README
+    alignment in `2979342`.
 - In progress:
-  - No source implementation work is currently in progress.
+  - Dependency files remain modified and uncommitted: `pyproject.toml` and
+    `poetry.lock`.
 - Not started:
   - Source layout, implementation, tests, and concrete tool registry design.
 
@@ -37,22 +41,31 @@
   from a prompt, and return the final result.
 - `ai-tools-core` / `openai-tools-core` and `ocihelper` are not part of the
   intended initial runtime implementation direction.
-- Concrete architecture and public API remain unimplemented.
+- Current planning artifacts are:
+  - `specs/dynamic-agent-runner/spec.md`
+  - `specs/dynamic-agent-runner/plan.md`
+  - `specs/dynamic-agent-runner/tasks.md`
+- A Council review and a 3-round debate both concluded the artifact set is ready
+  only for a narrow readiness/scaffold slice, not unrestricted runtime
+  implementation.
 - Latest observed branch history includes:
+  - `2979342 docs(spec): record implementation readiness gate`
+  - `bef8817 docs(memory-bank): record openai runtime direction`
   - `b247e11 docs(spec): use openai package runtime direction`
   - `4e69ea9 docs(memory-bank): refresh runtime direction context`
   - `c9cd13c docs(readme): document ai-tools runtime direction`
-  - `b1182e9 docs(spec): add dynamic agent runner specification`
-  - `c7f292b docs(memory-bank): add project memory baseline`
 - Current uncommitted dependency files are `pyproject.toml` and `poetry.lock`.
-  Earlier dependency changes removed `ocihelper` and retained `ai-tools-core`,
-  but the latest spec direction now expects the official `openai` package and no
-  required `ai-tools-core` dependency.
+  They should be reconciled and committed separately from documentation/spec
+  commits.
 
 ## Next Steps
 
-- Reconcile dependency/lock changes with the latest spec direction when ready:
-  add the official `openai` package and remove required `ai-tools-core` if that
-  matches the next implementation slice.
-- When implementation begins, update `systemPatterns.md` and `progress.md` with
-  observed source layout and behavior.
+- Reconcile dependency/lock changes with the latest spec direction and commit
+  them separately when ready.
+- Begin the narrow readiness/scaffold slice:
+  - create `src/dynamic_agent_runner/`
+  - add initial public exports and error types
+  - add an import smoke test
+  - run `poetry check`, targeted tests, and pre-commit
+- Deeper parser, registry, OpenAI adapter, executor, and CLI runtime work should
+  wait until the readiness/scaffold slice is complete and validated.
