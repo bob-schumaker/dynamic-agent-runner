@@ -1,0 +1,145 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: hello-world-simulation-or-test-bed-agent
+name: Hello World Simulation Or Test Bed Agent
+description: Hello-world test resource for the Simulation Or Test Bed Agent pattern.
+entrypoint: generate_scenario
+mermaid_diagram: agent-graph.mmd
+
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+
+patterns_present:
+  - simulation-or-test-bed-agent
+
+execution_policy:
+  autonomy_level: bounded autonomous
+  allowed_execution_modes:
+    - sequential_fallback
+  external_backend_allowed: no
+  max_iterations: 3
+  timeout: runtime_default
+  approval_required_for:
+    - live write or mutation
+  forbidden_actions:
+    - store secrets in prompts or logs
+  model: gpt-test
+
+state:
+  artifacts:
+    - id: user_request
+      description: Original hello-world request.
+      source: user
+    - id: hello_message
+      description: Final hello-world response.
+      source: llm
+  mutable_fields:
+    - hello_message
+
+skills:
+  - id: agent-development
+    label: Agent development skill
+    source_type: repo_skill
+    source_path: skills/agent-development-skill/SKILL.md
+    packaging_mode: referenced_only
+    notes: Provides agent pattern vocabulary for this fixture.
+
+tools:
+  - id: run_hello_simulation
+    label: Run Hello Simulation
+    description_for_llm: |
+      Hello-world fixture tool for the run_hello_simulation capability.
+    adapter: fixtures.run_hello_simulation
+    input_schema:
+      type: object
+      properties:
+        query:
+          type: string
+      required:
+        - query
+    output_schema:
+      type: object
+      properties:
+        message:
+          type: string
+    side_effect: read
+    approval_required: no
+    timeout: runtime_default
+    retry_policy: none
+    failure_behavior: fallback
+
+participant_groups: []
+
+modes:
+  - id: default
+    description: Hello-world fixture mode for Simulation Or Test Bed Agent.
+    enabled_phases:
+      - hello
+    batching_allowed: false
+
+phases:
+  - id: hello
+    label: Hello phase
+    phase_kind: preparation
+    repeatable: false
+    participant_group: null
+    peer_visibility: none
+    enabled_when: always
+
+roles:
+  - id: hello_designer
+    label: Hello designer
+
+nodes:
+  - id: generate_scenario
+    kind: llm_step
+    label: Generate scenario
+    model: gpt-test
+    prompt:
+      system: |
+        You create synthetic hello-world scenarios.
+      user_template: |
+        Generate a hello-world test for: {prompt}
+      input_vars:
+        - prompt
+      output_schema_ref: hello_message
+  - id: run_simulation
+    kind: tool_use_step
+    label: Run simulation
+    tool_id: run_hello_simulation
+    inputs_from:
+      query: generate_scenario
+    failure_behavior: fallback
+    outputs:
+      state_key: run_simulation_result
+  - id: score_result
+    kind: decision_step
+    label: Score result
+    decision_subtype: llm_route
+    route_from: run_simulation
+    decision_contract:
+      allowed_paths:
+        - id: proceed
+          target: hello_done
+      default_path: proceed
+
+edges:
+  - source: generate_scenario
+    target: run_simulation
+    edge_kind: sequential
+  - source: run_simulation
+    target: score_result
+    edge_kind: sequential
+
+output_contracts:
+  hello_message:
+    required_fields:
+      - message
+    validation: fixture_load_check
+
+validation:
+  package_checks:
+    - Every node id is unique.
+    - Every edge endpoint references an existing node.
+    - Every llm_step has a prompt or a prompt_source.

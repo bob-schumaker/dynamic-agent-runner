@@ -1,0 +1,34 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    - id: check-yaml
+    - id: pretty-format-json
+      args: [--autofix]
+      exclude: "build-project.json"
+-   repo: local
+    hooks:
+    - id: tomlcheck
+      name: Check TOML Syntax
+      description: Checks TOML files for valid syntax.
+      entry: tomlcheck
+      language: system
+      files: \**/.*\.toml$
+      stages: [pre-commit, pre-push, manual]
+    - id: ruff-check
+      name: Ruff Check
+      entry: /Users/roschuma/.local/bin/ruff check --fix
+      language: system
+      files: \**/.*\.py$
+      stages: [pre-commit, pre-push, manual]
+    - id: ruff-format
+      name: Ruff Format
+      entry: /Users/roschuma/.local/bin/ruff format
+      language: system
+      files: \**/.*\.py$
+      stages: [pre-commit, pre-push, manual]
+- repo: https://github.com/rvben/rumdl-pre-commit
+  rev: v0.1.62
+  hooks:
+    - id: rumdl
+    - id: rumdl-fmt

@@ -1,0 +1,6 @@
+flowchart TD
+    read_event[Read event]
+    detect_anomaly{Detect anomaly}
+    explain_observation[Explain observation]
+    read_event -->|sequential| detect_anomaly
+    detect_anomaly -->|proceed| explain_observation

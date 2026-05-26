@@ -1,18 +1,21 @@
 # dynamic-agent-runner
 
-`dynamic-agent-runner` is a Python library for running agent workflows from
-agent-design artifacts.
+`dynamic-agent-runner` is a Python library for running generated agent workflows
+from agent-development artifacts.
 
 The library reads the artifacts produced by the agent-development workflow in
 the Cline rules/skills repository:
 
-- a definition YAML file
-- a Mermaid diagram
-- a tool index
+- an `agent-design.md` design document
+- an `agent-runtime.yaml` runtime manifest
+- an `agent-graph.mmd` Mermaid diagram
+- an optional `tool-index.yaml` when the workflow requires reusable tool
+  definitions
 
-It uses `EmployeeChatClient` from `ocihelper.employee` to execute the model side
-of the workflow, accepts a user prompt, runs the configured agent workflow, and
-returns the final result.
+It uses the official `openai` Python package for the default model execution
+path and a repository-owned tool registry pattern for tool lookup, OpenAI tool
+schema conversion, and tool invocation. The library accepts a user prompt, runs
+the configured agent workflow, and returns the final result.
 
 ## Source Artifact Producers
 
@@ -27,26 +30,50 @@ is responsible for reading them and executing the resulting workflow.
 
 ## Intended Flow
 
-1. Generate or provide an agent workflow definition YAML, Mermaid diagram, and
-   tool index.
+1. Generate or provide an agent design document, runtime manifest, Mermaid graph,
+   and optional tool index.
 2. Load the workflow definition into `dynamic-agent-runner`.
 3. Provide a user prompt.
-4. Execute the workflow using `EmployeeChatClient` from `ocihelper.employee`.
-5. Return the final agent result to the caller.
+4. Validate the artifact relationship and supported runtime manifest version.
+5. Execute supported workflow nodes through the official `openai` package and
+   repository-owned tool registry interfaces.
+6. Return the final agent result to the caller.
 
 ## Current Repository Status
 
-This repository currently contains project configuration and dependency setup.
-The public Python API and source layout are still expected to be added.
+This repository currently contains the initial runtime library, artifact loaders,
+validation engine, repository-owned tool registry, OpenAI adapter boundary,
+workflow executor, CLI entry point, fixture packages, tests, and SDD planning
+artifacts.
 
 Known configuration:
 
 - Python package managed by Poetry
 - Python compatibility: `>=3.11,<3.14`
 - local mise configuration selects Python `3.13`
-- primary runtime dependencies on `roschumalib` and `ocihelper`
-- `ocihelper` provides the intended workflow execution client:
-  `ocihelper.employee.EmployeeChatClient`
+- primary runtime dependencies on `roschumalib` and the official `openai` package
+- retry support uses `tenacity` behind package-owned retry policy interfaces
+- token estimation uses `tiktoken` behind package-owned token-budget interfaces
+- workflow tracing uses package-owned trace events and optional trace sinks
+- no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
+  the current implementation direction
+- the initial implementation targets the OpenAI Python SDK behind a small adapter
+  boundary and a repository-owned tool registry pattern
+- the CLI console script is `dynamic-agent-runner`
+
+## Planning Artifacts
+
+Current SDD artifacts live under `specs/dynamic-agent-runner/`:
+
+- `spec.md` — product/repository specification
+- `plan.md` — technical implementation plan
+- `tasks.md` — traceable task list
+
+A 3-round implementation-readiness debate concluded that the project was ready
+only for narrow implementation slices rather than unrestricted runtime
+implementation. Completed slices now cover the package scaffold, artifact
+loaders, validation, registry, OpenAI adapter, executor, fixture surface, and CLI
+entry point.
 
 ## Development Setup
 
@@ -64,31 +91,156 @@ must be sourced rather than executed directly:
 source env_setup
 ```
 
-## Planned Usage Shape
+## Python API Usage
 
-The exact public API is not implemented in the repository yet. The intended
-library shape is expected to look conceptually like this:
+Use `run_agent_workflow(...)` to load generated artifacts, validate them, execute
+the supported workflow graph, and return the final result:
 
 ```python
 from dynamic_agent_runner import run_agent_workflow
 
 result = run_agent_workflow(
-    definition_yaml="path/to/agent-definition.yaml",
-    mermaid_diagram="path/to/workflow.mmd",
-    tool_index="path/to/tool-index.json",
+    agent_design="path/to/agent-design.md",
+    runtime_manifest="path/to/agent-runtime.yaml",
+    mermaid_diagram="path/to/agent-graph.mmd",
+    tool_index="path/to/tool-index.yaml",
     prompt="Run the workflow for this user request.",
+    tool_registry=None,
+    model_adapter=None,
 )
 ```
 
-Treat this as design intent until the source package defines the concrete API.
+Use `load_agent_workflow(...)` when callers only need to load and validate the
+artifact relationship without executing model or tool calls.
+
+## Retry Policy
+
+By default, model and tool calls are attempted once and fail closed. Workflows can
+opt into bounded retries with manifest or registry metadata such as:
+
+```yaml
+execution_policy:
+  model_retry_policy:
+    max_attempts: 3
+    retry_on: [model_error]
+```
+
+```yaml
+nodes:
+  - id: lookup
+    kind: tool_use_step
+    tool_id: search_repo
+    retry_policy:
+      max_attempts: 2
+      retry_on: [tool_failure]
+```
+
+Tool registry definitions may also carry `retry_policy` metadata. Retry outcomes
+are recorded in `WorkflowExecutionState.retry_records` with the operation, attempt
+count, final outcome, and final error when one remains.
+
+## Output Contracts and Route Validation
+
+`llm_step` nodes may declare an `output_schema_ref` either on the node or in the
+node prompt metadata. The reference maps to `runtime_manifest.output_contracts`.
+For the current runtime slice, output contracts validate declared required fields
+against JSON object model output or adapter-provided structured output. Plain text
+remains accepted only for the common single-field `message` contract used by the
+hello-world fixtures.
+
+`decision_step` nodes with `decision_subtype: llm_route` may declare
+`decision_contract.allowed_paths`. When present, routes extracted from plain text
+or JSON model output must match one of the allowed path ids before branch
+traversal continues. Model-assisted repair of malformed outputs is intentionally
+out of scope for the current runtime.
+
+## Token Budgeting
+
+Token budgeting is disabled by default. Workflows can opt into prompt-token
+preflight with node-level or manifest-level metadata such as:
+
+```yaml
+execution_policy:
+  token_budget:
+    model: gpt-4o-mini
+    max_prompt_tokens: 4000
+    on_exceed: error
+```
+
+The runtime estimates rendered OpenAI input messages with `tiktoken` before the
+model call is made. If the estimate exceeds `max_prompt_tokens`, execution fails
+clearly before making the model request. Token estimates are recorded in
+`WorkflowExecutionState.token_usage`, including the model, estimated prompt token
+count, configured budget, encoding name, fallback-encoding flag, and whether the
+budget was exceeded. Automatic truncation is intentionally not supported yet.
+
+## Execution Tracing
+
+Workflow tracing is available without external observability dependencies.
+`execute_workflow(...)` records ordered `TraceEvent` objects in
+`WorkflowExecutionState.trace_events` and accepts an optional `trace_sink` for
+callers that want to receive events as they are emitted. `run_agent_workflow(...)`
+also forwards an optional trace sink.
+
+Current trace events cover workflow start/completion, node start/completion,
+model request/response, token-budget checks, tool invocation/result, retry
+records, decisions, node errors, workflow errors, and final results. Trace
+payloads mark prompt, request, model-response content, tool arguments, tool
+outputs, node outputs, and final results as sensitive where applicable;
+`TraceEvent.redacted()` and `TraceEvent.redacted_payload()` provide a shallow
+redaction path before external emission. Logfire/OpenTelemetry integration is
+intentionally deferred until this package-owned interface is stable.
+
+## CLI Usage
+
+After installation, run a workflow package from artifact paths:
+
+```bash
+dynamic-agent-runner \
+  --runtime-manifest path/to/agent-runtime.yaml \
+  --agent-design path/to/agent-design.md \
+  --mermaid-graph path/to/agent-graph.mmd \
+  --tool-index path/to/tool-index.yaml \
+  --prompt "Say hello from this workflow."
+```
+
+If `--mermaid-graph` is omitted, the loader resolves the manifest's
+`mermaid_diagram` reference relative to the runtime manifest path. The prompt may
+also be supplied with `--prompt-file`; when neither prompt option is used, the
+CLI reads the prompt from standard input.
+
+Tool-using workflows need an explicit registry source. The first CLI-supported
+registry configuration is the opt-in read-only `local_workspace` tool pack:
+
+```bash
+dynamic-agent-runner \
+  --runtime-manifest path/to/agent-runtime.yaml \
+  --prompt "Inspect this workspace." \
+  --workspace-root .
+```
+
+The CLI prints the final workflow result to standard output. Loading,
+validation, registry, model, and execution failures are reported to standard
+error with a non-zero exit code.
 
 ## Validation
 
-No runnable library entry point exists yet. Once implementation starts, add tests
-that cover at least:
+Current tests cover:
 
-- parsing the definition YAML
-- validating the Mermaid diagram and tool index relationship
-- constructing the `EmployeeChatClient` execution path
-- running a workflow from a user prompt
-- returning the final result and surfacing errors clearly
+- parsing runtime manifests, Mermaid graph references, design documents, and
+  optional tool-index metadata
+- validating design document, Mermaid graph, manifest, registry, and tool-index
+  relationships
+- constructing the OpenAI package-backed model execution path through an adapter
+- applying bounded model and tool retry policies without live model calls
+- validating LLM output contracts and decision routes before trusting node output
+- estimating prompt tokens and enforcing configured token budgets before model
+  calls
+- emitting package-owned trace events through execution state and optional trace
+  sinks without external observability dependencies
+- converting repository-owned tool registry definitions to OpenAI tool schema
+- dispatching registered tools without live model calls in unit tests
+- running supported workflows from a user prompt with fake clients/tools
+- loading hello-world fixture packages for all 11 supported agent-pattern IDs
+- running the CLI with artifact paths, prompt input, fake model clients, and
+  clear error reporting

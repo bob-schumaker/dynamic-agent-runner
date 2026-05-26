@@ -1,0 +1,6 @@
+flowchart TD
+    check_status[Check status]
+    route_workflow{Route workflow}
+    draft_update[Draft update]
+    check_status -->|sequential| route_workflow
+    route_workflow -->|proceed| draft_update

@@ -1,0 +1,8 @@
+flowchart TD
+    observe_screen[Observe screen]
+    plan_ui_action[Plan UI action]
+    confirm_safe{Confirm safe route}
+    report_ui_plan[Report UI plan]
+    observe_screen -->|sequential| plan_ui_action
+    plan_ui_action -->|sequential| confirm_safe
+    confirm_safe -->|proceed| report_ui_plan

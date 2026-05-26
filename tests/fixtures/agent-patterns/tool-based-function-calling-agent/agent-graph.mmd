@@ -1,0 +1,6 @@
+flowchart TD
+    plan_tool_call[Plan tool call]
+    lookup_hello[Lookup hello]
+    summarize_tool_result[Summarize tool result]
+    plan_tool_call -->|sequential| lookup_hello
+    lookup_hello -->|sequential| summarize_tool_result

@@ -1,0 +1,6 @@
+flowchart TD
+    generate_scenario[Generate scenario]
+    run_simulation[Run simulation]
+    score_result{Score result}
+    generate_scenario -->|sequential| run_simulation
+    run_simulation -->|sequential| score_result

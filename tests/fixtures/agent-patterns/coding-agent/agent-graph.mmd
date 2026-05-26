@@ -1,0 +1,6 @@
+flowchart TD
+    read_repo[Read repo]
+    draft_patch_plan[Draft patch plan]
+    validation_gate{Validation gate}
+    read_repo -->|sequential| draft_patch_plan
+    draft_patch_plan -->|sequential| validation_gate
