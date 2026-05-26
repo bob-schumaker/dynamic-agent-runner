@@ -7,7 +7,11 @@
   - `src/dynamic_agent_runner/api.py` exposes `load_agent_workflow` for artifact
     loading while reserving `run_agent_workflow` for later executor slices
   - `src/dynamic_agent_runner/artifacts.py` loads generated workflow artifacts
+    and optional runtime behavior override artifacts
   - `src/dynamic_agent_runner/models.py` preserves internal artifact metadata
+    and runtime behavior override models
+  - `src/dynamic_agent_runner/behavior.py` derives effective per-node prompt and
+    skill behavior without mutating generated artifacts
   - `src/dynamic_agent_runner/validation.py` validates loaded artifact
     relationships and supported `format_version: 1` enum values
   - `src/dynamic_agent_runner/openai_client.py` isolates the official OpenAI
@@ -37,8 +41,8 @@
   for each documented supported agent pattern. Each fixture package has
   `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`.
 - Current repository structure has loader/model/validation/registry/adapter/
-  executor/retry/output-contract/token-budget/tracing/CLI behavior; follow-on
-  runtime expansion should be planned as a new scoped slice.
+  executor/retry/output-contract/token-budget/tracing/behavior-override/CLI
+  behavior; follow-on runtime expansion should be planned as a new scoped slice.
 
 ## Observed Patterns
 
@@ -104,8 +108,8 @@
   registry configuration remains a future extension area.
 - Runtime hardening proceeded through package-owned interfaces rather than broad
   framework adoption. Slice 8 completed retry/resilience, Slice 9 completed
-  output-contract and route validation, Slice 10 completed token budgeting, and
-  Slice 11 completed trace hooks.
+  output-contract and route validation, Slice 10 completed token budgeting, Slice
+  11 completed trace hooks, and Slice 12 completed runtime behavior overrides.
 - Trace events are emitted to `WorkflowExecutionState.trace_events` and an
   optional `TraceSink`; sensitive payload keys can be shallow-redacted before
   external emission.
@@ -124,6 +128,8 @@
 - Output contracts and route validation: implemented for Slice 9 scope.
 - Token budgeting and context preflight: implemented for Slice 10 scope.
 - Execution tracing and observability hooks: implemented for Slice 11 scope.
+- Runtime behavior overrides for prompts and skills: implemented for Slice 12
+  scope.
 
 ## Guidance for Future Work
 

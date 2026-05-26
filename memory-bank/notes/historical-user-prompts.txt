@@ -121,3 +121,7 @@ the possible packages that look reasonable to me are:
 - Tiktoken
 
 integrating logfire with whatever the caller is doing for logging seems like a problem not to solve at this time
+
+---
+
+design a way to override individual node prompts and skills so we don't have to modify the core agent design to change how each node behaves

@@ -49,6 +49,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   prompt-token estimation
 - use package-owned tracing primitives for execution events and optional trace
   sinks; no external observability dependency is required for Slice 11
+- support runtime behavior overrides for prompt patches and inline skill
+  bindings without adding new external dependencies
 
 ## Development and Test Dependencies
 
@@ -202,4 +204,12 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `run_agent_workflow(...)`, executor trace event emission, README tracing
   guidance, and `tests/test_tracing.py`. Validation observed before commit
   included `poetry run pytest` with 84 passing tests, `poetry check`,
+  targeted `pre-commit run --files`, and `git diff --check`.
+- Slice 12 runtime behavior overrides were committed in `7d950b7`. It added
+  `src/dynamic_agent_runner/behavior.py`, runtime behavior override models,
+  optional `runtime_overrides` loading/API/CLI inputs, effective prompt and skill
+  rendering, fail-closed override validation, and tests for loading, validation,
+  execution, CLI wiring, node isolation, artifact immutability, and invalid
+  overrides. Validation observed before commit included `pytest -q` with 93
+  passing tests, `ruff check src tests`, `ruff format --check src tests`,
   targeted `pre-commit run --files`, and `git diff --check`.

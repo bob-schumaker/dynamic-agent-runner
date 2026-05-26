@@ -64,6 +64,8 @@
   `d3a5c51 feat(executor): add token budget preflight`.
 - Slice 11 workflow tracing hooks commit exists:
   `ecb8115 feat(executor): add workflow tracing hooks`.
+- Slice 12 runtime behavior override commit exists:
+  `7d950b7 feat(runtime): add behavior overrides`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -106,18 +108,21 @@
   `WorkflowExecutionState`.
 - Slice 11 adds package-owned trace events, optional trace sinks, shallow
   redaction helpers, and `trace_events` records on `WorkflowExecutionState`.
+- Slice 12 adds runtime behavior override support for per-node prompt patches and
+  inline skill bindings without mutating generated artifacts.
 
 ## In Flight
 
 - No source implementation work is currently in flight.
-- No next implementation slice is currently defined.
+- No next implementation slice is currently defined after Slice 12.
 
 ## Remaining
 
 - Await follow-up direction for the next scoped runtime slice or deferred
   library-evaluation follow-up.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
-  executor, CLI, and all-pattern fixture foundation into the next scoped slice.
+  executor, CLI, behavior-override, and all-pattern fixture foundation into the
+  next scoped slice.
 - Use the all-pattern hello-world fixtures as the broad pattern test surface for
   future compatibility coverage, including expected-failure coverage for pattern
   features that are represented in artifacts but not yet implemented.
@@ -167,6 +172,9 @@
 - Slice 11 implements package-owned trace events and optional trace sinks only;
   external Logfire/OpenTelemetry integration, deep recursive redaction, and
   richer production observability remain future extension areas.
+- Slice 12 implements inline skill instructions and prompt-role placement only;
+  arbitrary `SKILL.md` source-path resolution remains deferred until trust,
+  packaging, and precedence rules are specified.
 - `parallel_join`, `parallel_fanout`, and broader multi-agent execution are still
   unsupported runtime behavior. The CLI test suite now checks that this fails
   clearly instead of silently succeeding.

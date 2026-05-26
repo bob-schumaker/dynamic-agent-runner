@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-- Slice 11 execution tracing and observability hooks are complete and
-  committed in `ecb8115`. The executor now records ordered package-owned
-  trace events, supports optional trace sinks, and exposes shallow redaction
-  helpers for sensitive trace payload fields. No next implementation slice is
-  currently defined; deferred library-evaluation follow-ups remain available.
+- Slice 12 runtime behavior overrides for prompts and skills are complete and
+  committed in `7d950b7`. The runtime can now layer per-node prompt patches and
+  inline skill instruction bindings over generated artifacts without mutating the
+  underlying agent design package. No next implementation slice is currently
+  defined; deferred library-evaluation follow-ups remain available.
 
 ## Current Status
 
@@ -55,6 +55,8 @@
   - Completed Slice 9 output contracts and route validation in `69b68ef`.
   - Completed Slice 10 token budgeting and context preflight in `d3a5c51`.
   - Completed Slice 11 execution tracing and observability hooks in `ecb8115`.
+  - Updated the SDD artifacts to define runtime behavior override requirements,
+    then completed Slice 12 prompt/skill behavior overrides in `7d950b7`.
 - In progress:
   - No source implementation work is currently in progress.
 - Not started:
@@ -77,7 +79,7 @@
   - `specs/dynamic-agent-runner/tasks.md`
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0 through 11 are complete; no next implementation
+  implementation. Slices 0 through 12 are complete; no next implementation
   slice is currently defined.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
@@ -208,6 +210,23 @@
     unsupported.
   - `tests/test_token_budget.py` and `tests/test_executor.py` cover token
     estimation, fallback, parsing, over-budget failure, and disabled behavior.
+- Slice 12 implementation from `7d950b7`:
+  - `src/dynamic_agent_runner/behavior.py` derives effective per-node prompt and
+    skill behavior without mutating loaded generated artifacts.
+  - `src/dynamic_agent_runner/models.py` defines runtime behavior override models
+    for prompt `replace` / `prepend` / `append`, inline skill overlays, and
+    per-node skill binding `add` / `remove` / `only` operations.
+  - `src/dynamic_agent_runner/artifacts.py` loads optional runtime behavior
+    overrides from path, raw YAML, or parsed mapping inputs.
+  - `src/dynamic_agent_runner/validation.py` validates override format, target
+    nodes, prompt operations, skill references, and effective prompts before
+    execution.
+  - `execute_workflow(...)`, `load_agent_workflow(...)`, `run_agent_workflow(...)`,
+    and the CLI now accept or apply runtime behavior overrides.
+  - `tests/test_artifacts.py`, `tests/test_validation.py`,
+    `tests/test_executor.py`, and `tests/test_cli.py` cover override loading,
+    validation, prompt patching, skill add/remove/only behavior, node isolation,
+    artifact immutability, CLI wiring, and invalid override failures.
 - Slice 11 implementation from `ecb8115`:
   - `src/dynamic_agent_runner/tracing.py` defines package-owned `TraceEvent`,
     `TraceSink`, `InMemoryTraceSink`, and `WorkflowTracer` primitives.
@@ -231,6 +250,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `7d950b7 feat(runtime): add behavior overrides`
   - `ecb8115 feat(executor): add workflow tracing hooks`
   - `d3a5c51 feat(executor): add token budget preflight`
   - `69b68ef feat(executor): validate output contracts`
@@ -260,7 +280,7 @@
 ## Next Steps
 
 - Await follow-up direction; no next implementation slice is currently defined
-  in `specs/dynamic-agent-runner/tasks.md`.
+  in `specs/dynamic-agent-runner/tasks.md` after Slice 12.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
   requirements rather than broad framework adoption.
 - Use the 11 hello-world pattern fixture packages as broad package-shape coverage
