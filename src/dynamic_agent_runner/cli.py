@@ -39,6 +39,7 @@ def main(
             agent_design=args.agent_design,
             mermaid_graph=args.mermaid_graph,
             tool_index=args.tool_index,
+            runtime_overrides=args.runtime_overrides,
             tool_registry=registry,
             model_adapter=model_adapter,
             max_steps=args.max_steps,
@@ -83,6 +84,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--tool-index",
         type=Path,
         help="Optional path to reusable tool-index.yaml metadata.",
+    )
+    parser.add_argument(
+        "--runtime-overrides",
+        type=Path,
+        help="Optional path to runtime prompt and skill overrides YAML.",
     )
     prompt_group = parser.add_mutually_exclusive_group()
     prompt_group.add_argument("--prompt", help="Prompt text for the workflow run.")

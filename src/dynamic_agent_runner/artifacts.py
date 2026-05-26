@@ -12,6 +12,7 @@ from dynamic_agent_runner.errors import ArtifactLoadError
 from dynamic_agent_runner.models import (
     AgentDesign,
     LoadedAgentWorkflow,
+    RuntimeBehaviorOverrides,
     RuntimeManifest,
     ToolIndex,
 )
@@ -26,6 +27,17 @@ def load_runtime_manifest(value: ArtifactInput) -> RuntimeManifest:
 
     mapping = _load_yaml_mapping(value, artifact_name="runtime manifest")
     return RuntimeManifest.from_mapping(mapping)
+
+
+def load_runtime_behavior_overrides(
+    value: ArtifactInput | None,
+) -> RuntimeBehaviorOverrides | None:
+    """Load optional runtime behavior overrides."""
+
+    if value is None:
+        return None
+    mapping = _load_yaml_mapping(value, artifact_name="runtime behavior overrides")
+    return RuntimeBehaviorOverrides.from_mapping(mapping)
 
 
 def load_tool_index(value: ArtifactInput | None) -> ToolIndex | None:
@@ -59,6 +71,7 @@ def load_agent_workflow_artifacts(
     mermaid_graph: TextInput | None = None,
     agent_design: TextInput | None = None,
     tool_index: ArtifactInput | None = None,
+    runtime_overrides: ArtifactInput | None = None,
 ) -> LoadedAgentWorkflow:
     """Load generated agent workflow artifacts without executing them."""
 
@@ -73,6 +86,7 @@ def load_agent_workflow_artifacts(
         mermaid_graph=loaded_graph,
         agent_design=load_agent_design(agent_design),
         tool_index=load_tool_index(tool_index),
+        runtime_overrides=load_runtime_behavior_overrides(runtime_overrides),
     )
 
 

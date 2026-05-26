@@ -54,6 +54,9 @@ The library must accept, at minimum:
 - optional runtime tool overrides that can add, replace, disable, or restrict
   tools globally or for individual `llm_step` nodes without modifying the
   generated agent-design artifacts
+- optional runtime behavior overrides that can replace, prepend, or append
+  per-node prompts and add, remove, or restrict per-node skill bindings without
+  modifying the generated agent-design artifacts
 - optional built-in default tool packs that can pre-register conservative local
   tools when explicitly enabled by the caller
 - a required tool registry argument or approved registry source when the workflow
@@ -139,6 +142,10 @@ Acceptance criteria:
   then the library can add, replace, disable, or restrict tool exposure globally
   or for a specific `llm_step` without requiring changes to the generated runtime
   manifest, tool index, Mermaid graph, or design document.
+- Given caller-provided runtime behavior overrides, when the workflow is
+  prepared, then the library can change prompt text and node skill bindings for
+  a specific `llm_step` without requiring changes to the generated runtime
+  manifest, tool index, Mermaid graph, or design document.
 - Given caller-enabled built-in tool packs, when registry preparation runs, then
   the selected pack's tools are pre-registered in the effective registry but are
   usable only when workflow nodes reference their tool ids.
@@ -168,6 +175,8 @@ Acceptance criteria:
   `roles`, `nodes`, `edges`, `output_contracts`, and `validation`, when parsing
   succeeds, then the library preserves the relationships needed for validation
   and execution.
+- Given optional `skill_refs` on `llm_step` nodes, when parsing succeeds, then
+  the library preserves which top-level skills are intended to affect each node.
 - Given manifest sections for `participant_groups`, `modes`, `phases`, and
   `roles`, when parsing succeeds, then the library preserves the metadata needed
   to represent multi-agent, debate, council-like, workflow-orchestration,
@@ -210,6 +219,10 @@ Acceptance criteria:
   are schema-compatible with the registry contract, disabled tools are not still
   required by `tool_use_step` nodes, and per-node overrides only target existing
   `llm_step` nodes.
+- Given behavior overrides are supplied during workflow preparation, then
+  validation verifies that target nodes exist, target nodes are `llm_step` nodes,
+  referenced skills exist after override layering, prompt override operations are
+  schema-compatible, and the resulting effective prompt remains executable.
 
 ### FR-3: Execute with the official OpenAI Python package
 
@@ -311,6 +324,41 @@ Acceptance criteria:
   those tools are converted through the same registry-to-OpenAI schema path as
   caller-registered tools.
 
+### FR-3d: Apply runtime prompt and skill overrides
+
+The runtime must support caller-provided behavior overrides that alter prompt
+construction and skill bindings for individual `llm_step` nodes without
+regenerating or editing the core agent-design package.
+
+Acceptance criteria:
+
+- Given a runtime behavior override artifact, when workflow preparation runs,
+  then the library can load it from a path, raw YAML string, or already-parsed
+  object.
+- Given a prompt override for an `llm_step`, when that node executes, then the
+  runtime applies the declared `replace`, `prepend`, and `append` operations to
+  the effective prompt for that node only.
+- Given a skill binding override for an `llm_step`, when that node executes, then
+  the runtime applies `only`, `add`, and `remove` semantics to the node's
+  effective skill set without changing unrelated nodes.
+- Given skills with inline runtime instructions, when effective messages are
+  rendered, then those instructions are materialized into the configured prompt
+  role before the final model request is built.
+- Given generated artifacts are loaded with behavior overrides, when execution
+  completes or fails, then the original loaded manifest, Mermaid graph, tool
+  index, and design document remain unmodified.
+- Given a behavior override references a missing node, a non-`llm_step` node, an
+  unknown skill id, or an unsupported prompt operation, then workflow preparation
+  fails closed with a clear validation error.
+- Given a top-level skill only has `source_path` metadata and no inline runtime
+  instructions, then initial execution does not implicitly read arbitrary
+  `SKILL.md` files; full skill-source resolution is deferred until a later scoped
+  requirement defines loading, trust, and precedence rules.
+
+Implementation note: initial support should mirror the existing tool override
+architecture by computing effective node behavior at execution time rather than
+mutating `RuntimeNode.raw` or other loaded artifact objects.
+
 ### FR-4: Run workflow from a user prompt
 
 The library must accept a user prompt and use it as the initial request for the
@@ -345,6 +393,9 @@ Acceptance criteria:
   optional `tool-index.yaml` metadata, when a user runs the CLI with a prompt and
   a configured registry source, then the CLI loads the package and returns the
   final workflow result.
+- Given a path to an optional runtime behavior override artifact, when a user runs
+  the CLI, then the CLI applies per-node prompt and skill overrides before
+  execution and fails clearly if the override artifact is invalid.
 - Given invalid or inconsistent artifacts, when a user runs the CLI, then the CLI
   exits non-zero and reports the validation error clearly.
 - Given a workflow that expects tool use, when a user runs the CLI without a
@@ -698,6 +749,57 @@ such as `read_file`, `list_files`, `search_files`, and `inspect_path`. Write and
 command execution tools should live in separate, more restrictive packs and must
 not be enabled implicitly.
 
+## Runtime Behavior Override Shape
+
+Runtime behavior overrides may layer on top of the generated runtime manifest to
+change prompt construction and skill bindings for specific `llm_step` nodes. They
+are caller-provided runtime inputs and must not mutate `agent-design.md`,
+`agent-runtime.yaml`, `agent-graph.mmd`, or `tool-index.yaml`.
+
+The recommended override artifact shape is:
+
+```yaml
+format_version: 1
+override_type: dynamic_agent_runtime_overrides
+skills:
+  added:
+    - id: concise-writer
+      label: Concise Writer
+      prompt_role: developer
+      instructions: |
+        Write tersely and prefer direct declarative sentences.
+nodes:
+  summarize_tool_result:
+    prompt:
+      append:
+        developer: |
+          Keep the final answer short.
+      replace:
+        user_template: |
+          Summarize this lookup result: {lookup_hello}
+    skill_refs:
+      add:
+        - concise-writer
+```
+
+Prompt override operations should be explicit:
+
+- `replace` substitutes one prompt field such as `system`, `developer`,
+  `user_template`, or `output_schema_ref`.
+- `prepend` adds text before an existing string prompt field.
+- `append` adds text after an existing string prompt field.
+
+Skill binding overrides should use the same semantics as per-node tool exposure:
+
+- `only` replaces the node's effective skill-reference set.
+- `add` appends skill ids to the node's effective skill-reference set.
+- `remove` removes skill ids from the node's effective skill-reference set.
+
+Initial behavior override support should use inline skill `instructions` or
+manifest-provided inline skill instructions only. Resolving arbitrary skill
+source files such as `source_path: skills/.../SKILL.md` is deferred until a later
+scope defines file loading, trust boundaries, packaging, and precedence rules.
+
 ## Tool Registry and OpenAI Package Interfaces
 
 Initial model execution support will use the official `openai` package from
@@ -751,6 +853,8 @@ The runtime should start with OpenAI package model and client interfaces:
   when tool use is expected.
 - Supporting runtime tool overrides for global and per-`llm_step` tool exposure
   as part of the repository-owned registry scope.
+- Supporting runtime behavior overrides for per-`llm_step` prompt patches and
+  skill bindings without modifying generated agent-design artifacts.
 - Supporting opt-in built-in default tool packs as pre-registered registry
   sources, starting with conservative local read-only tools.
 - Adding bounded retry/resilience policy for model and tool calls.
@@ -778,6 +882,9 @@ The runtime should start with OpenAI package model and client interfaces:
   dev helper later, but it is not part of workflow execution.
 - Adding Rich or Diskcache as required runtime dependencies before a scoped CLI
   UX or caching requirement justifies them.
+- Implicitly reading arbitrary `SKILL.md` source files as executable prompt
+  material before a later requirement defines skill-source loading, trust,
+  packaging, and precedence semantics.
 
 ## Assumptions
 
@@ -796,6 +903,9 @@ The runtime should start with OpenAI package model and client interfaces:
 - Runtime tool overrides are caller-provided execution/preparation inputs layered
   over generated artifacts; they do not mutate or replace the authoritative
   generated agent-design package.
+- Runtime behavior overrides are caller-provided execution/preparation inputs
+  layered over generated artifacts; they change effective per-node prompt and
+  skill behavior without mutating the generated agent-design package.
 - The library constructs and owns the default OpenAI package execution path,
   while allowing an optional protocol-similar client to be passed in.
 - Initial implementation starts with the official OpenAI Python package and
@@ -830,6 +940,9 @@ The runtime should start with OpenAI package model and client interfaces:
   workflow, or per call site?
 - NEEDS CLARIFICATION: What trace event schema and redaction boundaries should be
   stable before adding external observability sinks?
+- NEEDS CLARIFICATION: What trust, packaging, and precedence rules should govern
+  full `SKILL.md` source resolution if runtime behavior overrides later need to
+  load skill bodies from files instead of inline instructions?
 
 ## Suggested Public API Shape
 
@@ -843,6 +956,7 @@ result = run_agent_workflow(
     definition_yaml="path/to/agent-definition.yaml",
     mermaid_diagram="path/to/workflow.mmd",
     tool_index="path/to/tool-index.yaml",  # optional metadata
+    runtime_overrides="path/to/agent-runtime-overrides.yaml",  # optional
     prompt="Run the workflow for this user request.",
     tool_registry=registry,
     chat_client=None,
@@ -883,6 +997,8 @@ Before implementation is considered complete, add validation covering:
 - [ ] repository-owned tool registry integration
 - [ ] runtime tool overrides for adding, replacing, disabling, and per-node tool
       exposure changes
+- [ ] runtime behavior overrides for per-node prompt patches and skill binding
+      changes
 - [ ] opt-in built-in default tool packs, beginning with read-only local
       workspace tools
 - [ ] optional protocol-compatible chat-client injection
@@ -935,6 +1051,10 @@ Before implementation is considered complete, add validation covering:
 - User clarification added runtime tool overrides to Slice 4 so callers can add,
   change, delete, or restrict tools per `llm_step` and add tools to the effective
   tool index without modifying generated agent-design artifacts.
+- User clarification added runtime behavior overrides so callers can patch
+  per-node prompts and skill bindings without modifying generated agent-design
+  artifacts. Initial scope uses inline skill instructions and defers arbitrary
+  `SKILL.md` source resolution.
 - User clarification added optional built-in default tool packs to Slice 4 as
   explicitly enabled pre-registered registry sources, beginning with conservative
   local read-only tools.

@@ -2,13 +2,13 @@
 
 ## Status
 
-- State: Slice 11 complete; ready for post-hardening follow-up direction
+- State: Slice 12 complete; runtime behavior overrides are implemented and
+  validated
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: none currently defined; deferred library-evaluation
-  follow-ups remain available
+- Next active slice: none currently defined
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -403,6 +403,50 @@
   failures, and retry-attempt tracing with fake clients/tools only.
 - Logfire/OpenTelemetry integration remains deferred until the package-owned
   trace interface is stable.
+
+## Slice 12 — Runtime behavior overrides for prompts and skills
+
+- [x] T12.1 Add runtime behavior override models for prompt patch operations,
+      skill definition overlays, and per-node skill binding changes.
+- [x] T12.2 Load optional behavior override artifacts from path, raw YAML, and
+      already-parsed mapping inputs without mutating generated artifacts.
+- [x] T12.3 Preserve optional `skill_refs` metadata on `llm_step` nodes and
+      validate referenced skills against the effective skill catalog.
+- [x] T12.4 Validate override targets, prompt operations, and skill binding
+      operations so invalid overrides fail before execution.
+- [x] T12.5 Compute effective `llm_step` prompt and skill behavior at execution
+      time while leaving `RuntimeNode.raw` and loaded artifacts unchanged.
+- [x] T12.6 Support inline skill instructions and prompt roles in initial scope;
+      defer arbitrary `SKILL.md` source-path resolution.
+- [x] T12.7 Add API and CLI inputs for runtime behavior overrides.
+- [x] T12.8 Add tests for loading, validation, prompt replacement/prepend/append,
+      skill binding add/remove/only, node isolation, artifact immutability, and
+      invalid override failures.
+
+## Slice 12 Completion Evidence
+
+- `src/dynamic_agent_runner/models.py` defines runtime behavior override models
+  for prompt `replace` / `prepend` / `append`, skill definition overlays, and
+  per-node skill binding `add` / `remove` / `only` operations.
+- `src/dynamic_agent_runner/artifacts.py` loads optional runtime behavior
+  overrides from paths, raw YAML strings, and already-parsed mappings.
+- `RuntimeNode` preserves optional `skill_refs` metadata while keeping raw
+  manifest data unchanged.
+- `src/dynamic_agent_runner/behavior.py` derives effective prompt and skill
+  behavior without mutating loaded generated artifacts.
+- `src/dynamic_agent_runner/validation.py` validates override versions, target
+  node existence, `llm_step` scoping, prompt operations, skill references, and
+  effective prompts before execution.
+- `execute_workflow(...)` renders effective prompts and inline skill
+  instructions, including prompt-role placement, during `llm_step` execution.
+- `load_agent_workflow(...)`, `run_agent_workflow(...)`, and the CLI accept
+  optional runtime behavior override inputs.
+- `tests/test_artifacts.py`, `tests/test_validation.py`,
+  `tests/test_executor.py`, and `tests/test_cli.py` cover loading, validation,
+  prompt replacement/prepend/append, skill add/remove/only, node isolation,
+  artifact immutability, CLI input wiring, and invalid override failures.
+- Validation run: `ruff check src tests && ruff format --check src tests &&
+  pytest -q` — pass; 93 tests passed.
 
 ## Deferred library-evaluation follow-ups
 

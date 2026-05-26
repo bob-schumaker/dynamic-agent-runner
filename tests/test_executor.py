@@ -446,6 +446,184 @@ def test_execute_workflow_records_token_usage_when_budget_enabled() -> None:
     assert result.state.token_usage[0].exceeded is False
 
 
+def test_execute_workflow_applies_prompt_and_skill_overrides() -> None:
+    """Runtime overrides alter one LLM node without mutating loaded artifacts."""
+
+    manifest = {
+        "format_version": 1,
+        "package_type": "dynamic_agent_design",
+        "package_id": "behavior-override-agent",
+        "entrypoint": "draft",
+        "packaging": {"mode": "hybrid_bundle"},
+        "execution_policy": {"model": "gpt-test"},
+        "nodes": [
+            {
+                "id": "draft",
+                "kind": "llm_step",
+                "prompt": {
+                    "system": "Base system.",
+                    "developer": "Base developer.",
+                    "user_template": "Base {prompt}",
+                },
+                "skill_refs": ["base-skill"],
+            }
+        ],
+        "edges": [],
+        "skills": [
+            {
+                "id": "base-skill",
+                "prompt_role": "developer",
+                "instructions": "Use base style.",
+            }
+        ],
+    }
+    overrides = {
+        "format_version": 1,
+        "override_type": "dynamic_agent_runtime_overrides",
+        "skills": {
+            "added": [
+                {
+                    "id": "concise-writer",
+                    "prompt_role": "developer",
+                    "instructions": "Write tersely for {prompt}.",
+                }
+            ]
+        },
+        "nodes": {
+            "draft": {
+                "prompt": {
+                    "prepend": {"system": "Prepended. "},
+                    "append": {"developer": " Appended."},
+                    "replace": {"user_template": "Override {prompt}"},
+                },
+                "skill_refs": {"add": ["concise-writer"]},
+            }
+        },
+    }
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+
+    final_result = run_agent_workflow(
+        runtime_manifest=manifest,
+        runtime_overrides=overrides,
+        prompt="Hello",
+        model_adapter=adapter,
+    )
+
+    assert final_result == "done"
+    call = adapter.client.responses.calls[0]
+    assert call["input"] == [
+        {"role": "system", "content": "Prepended. Base system."},
+        {"role": "developer", "content": "Base developer. Appended."},
+        {"role": "developer", "content": "Use base style."},
+        {"role": "developer", "content": "Write tersely for Hello."},
+        {"role": "user", "content": "Override Hello"},
+    ]
+    assert manifest["nodes"][0]["prompt"]["user_template"] == "Base {prompt}"
+
+
+def test_execute_workflow_applies_skill_only_remove_and_node_isolation() -> None:
+    """Per-node skill binding overrides stay scoped to their target node."""
+
+    manifest = {
+        "format_version": 1,
+        "package_type": "dynamic_agent_design",
+        "package_id": "skill-scope-agent",
+        "entrypoint": "first",
+        "packaging": {"mode": "hybrid_bundle"},
+        "execution_policy": {"model": "gpt-test"},
+        "nodes": [
+            {
+                "id": "first",
+                "kind": "llm_step",
+                "prompt": {"user_template": "First {prompt}"},
+                "skill_refs": ["base", "extra"],
+            },
+            {
+                "id": "second",
+                "kind": "llm_step",
+                "prompt": {"user_template": "Second {first}"},
+                "skill_refs": ["extra"],
+            },
+        ],
+        "edges": [{"source": "first", "target": "second", "edge_kind": "sequential"}],
+        "skills": [
+            {"id": "base", "prompt_role": "developer", "instructions": "Base."},
+            {"id": "extra", "prompt_role": "developer", "instructions": "Extra."},
+            {"id": "only", "prompt_role": "developer", "instructions": "Only."},
+        ],
+    }
+    overrides = {
+        "format_version": 1,
+        "override_type": "dynamic_agent_runtime_overrides",
+        "nodes": {"first": {"skill_refs": {"only": ["only"], "remove": ["base"]}}},
+    }
+    adapter = make_adapter(
+        [
+            {"id": "first", "output_text": "first output"},
+            {"id": "second", "output_text": "second output"},
+        ]
+    )
+
+    result = run_agent_workflow(
+        runtime_manifest=manifest,
+        runtime_overrides=overrides,
+        prompt="Hello",
+        model_adapter=adapter,
+    )
+
+    assert result == "second output"
+    first_messages = adapter.client.responses.calls[0]["input"]
+    second_messages = adapter.client.responses.calls[1]["input"]
+    assert {message["content"] for message in first_messages} == {
+        "Only.",
+        "First Hello",
+    }
+    assert {message["content"] for message in second_messages} == {
+        "Extra.",
+        "Second first output",
+    }
+
+
+def test_execute_workflow_uses_overridden_output_schema_ref() -> None:
+    """Prompt replacement of output_schema_ref participates in validation."""
+
+    manifest = {
+        "format_version": 1,
+        "package_type": "dynamic_agent_design",
+        "package_id": "schema-override-agent",
+        "entrypoint": "answer",
+        "packaging": {"mode": "hybrid_bundle"},
+        "execution_policy": {"model": "gpt-test"},
+        "nodes": [
+            {
+                "id": "answer",
+                "kind": "llm_step",
+                "prompt": {"user_template": "Answer {prompt}"},
+            }
+        ],
+        "edges": [],
+        "output_contracts": {
+            "strict_answer": {"required_fields": ["message", "confidence"]}
+        },
+    }
+    overrides = {
+        "format_version": 1,
+        "override_type": "dynamic_agent_runtime_overrides",
+        "nodes": {
+            "answer": {"prompt": {"replace": {"output_schema_ref": "strict_answer"}}}
+        },
+    }
+    adapter = make_adapter([{"id": "resp", "output_text": '{"message":"done"}'}])
+
+    with pytest.raises(WorkflowExecutionError, match="missing required field"):
+        run_agent_workflow(
+            runtime_manifest=manifest,
+            runtime_overrides=overrides,
+            prompt="Hello",
+            model_adapter=adapter,
+        )
+
+
 def test_execute_workflow_fails_when_prompt_exceeds_token_budget() -> None:
     workflow = workflow_from(
         {

@@ -115,6 +115,49 @@ def test_cli_reads_prompt_from_file(tmp_path: Path) -> None:
     assert stdout.getvalue() == "file prompt result\n"
 
 
+def test_cli_accepts_runtime_overrides_path(tmp_path: Path) -> None:
+    """The CLI passes runtime behavior overrides into workflow execution."""
+
+    fixture = basic_reasoning_fixture()
+    stdout = StringIO()
+    overrides_path = tmp_path / "agent-runtime-overrides.yaml"
+    overrides_path.write_text(
+        "\n".join(
+            [
+                "format_version: 1",
+                "override_type: dynamic_agent_runtime_overrides",
+                "nodes:",
+                "  reason_about_request:",
+                "    prompt:",
+                "      replace:",
+                "        user_template: 'CLI override {prompt}'",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": "override result"}])
+
+    exit_code = main(
+        [
+            "--runtime-manifest",
+            str(fixture / "agent-runtime.yaml"),
+            "--runtime-overrides",
+            str(overrides_path),
+            "--prompt",
+            "Hello",
+        ],
+        model_adapter=adapter,
+        stdout=stdout,
+    )
+
+    assert exit_code == 0
+    assert stdout.getvalue() == "override result\n"
+    assert adapter.client.responses.calls[0]["input"][-1] == {
+        "role": "user",
+        "content": "CLI override Hello",
+    }
+
+
 def test_cli_reads_prompt_from_stdin() -> None:
     fixture = basic_reasoning_fixture()
     stdout = StringIO()

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from dynamic_agent_runner.errors import WorkflowValidationError
+from dynamic_agent_runner.behavior import effective_node_behavior, skill_catalog
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
     PRIMITIVE_NODE_KINDS,
@@ -27,6 +28,15 @@ SUPPORTED_EDGE_KINDS = (
     "capability",
 )
 SUPPORTED_TOOL_INDEX_TYPE = "agent_runtime_tool_index"
+SUPPORTED_OVERRIDE_TYPE = "dynamic_agent_runtime_overrides"
+PROMPT_REPLACE_FIELDS = {
+    "system",
+    "developer",
+    "user",
+    "user_template",
+    "output_schema_ref",
+}
+PROMPT_STRING_FIELDS = {"system", "developer", "user", "user_template"}
 REQUIRED_RUNTIME_FIELDS = (
     "format_version",
     "package_type",
@@ -52,6 +62,47 @@ def validate_agent_workflow(
     )
     if workflow.tool_index is not None:
         validate_tool_index(workflow.tool_index)
+    if workflow.runtime_overrides is not None:
+        validate_runtime_behavior_overrides(workflow)
+    else:
+        validate_manifest_skill_references(workflow)
+
+
+def validate_runtime_behavior_overrides(workflow: LoadedAgentWorkflow) -> None:
+    """Validate runtime prompt and skill overrides against a loaded workflow."""
+
+    overrides = workflow.runtime_overrides
+    if overrides is None:
+        return
+    errors: list[str] = []
+    if overrides.format_version != SUPPORTED_FORMAT_VERSION:
+        errors.append(
+            "unsupported behavior override format_version "
+            f"{overrides.format_version!r}; expected {SUPPORTED_FORMAT_VERSION!r}"
+        )
+    if overrides.override_type != SUPPORTED_OVERRIDE_TYPE:
+        errors.append(
+            "unsupported behavior override override_type "
+            f"{overrides.override_type!r}; expected {SUPPORTED_OVERRIDE_TYPE!r}"
+        )
+    catalog = skill_catalog(workflow)
+    _extend(errors, _override_skill_definition_errors(overrides))
+    node_map = {node.id: node for node in workflow.runtime_manifest.nodes if node.id}
+    _extend(errors, _node_behavior_override_errors(overrides, node_map, catalog))
+    _extend(errors, _effective_skill_reference_errors(workflow, catalog))
+    _extend(errors, _effective_prompt_errors(workflow))
+    if errors:
+        raise WorkflowValidationError(
+            _format_errors("runtime behavior overrides", errors)
+        )
+
+
+def validate_manifest_skill_references(workflow: LoadedAgentWorkflow) -> None:
+    """Validate base node `skill_refs` without behavior overrides."""
+
+    errors = _effective_skill_reference_errors(workflow, skill_catalog(workflow))
+    if errors:
+        raise WorkflowValidationError(_format_errors("runtime manifest", errors))
 
 
 def validate_runtime_manifest(
@@ -97,6 +148,117 @@ def validate_tool_index(tool_index: ToolIndex) -> None:
             errors.append(f"tool index skill at position {index} is missing id")
     if errors:
         raise WorkflowValidationError(_format_errors("tool index", errors))
+
+
+def _override_skill_definition_errors(overrides: Any) -> list[str]:
+    errors: list[str] = []
+    for skill in (*overrides.added_skills, *overrides.replacement_skills):
+        if not skill.id:
+            errors.append("behavior override skill is missing id")
+        if skill.raw.get("instructions") is None:
+            errors.append(
+                f"behavior override skill {skill.id!r} is missing instructions"
+            )
+    return errors
+
+
+def _node_behavior_override_errors(
+    overrides: Any,
+    node_map: Mapping[str, RuntimeNode],
+    catalog: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    for node_id, node_override in overrides.node_overrides.items():
+        node = node_map.get(node_id)
+        if node is None:
+            errors.append(f"behavior override targets unknown node {node_id!r}")
+            continue
+        if node.kind != "llm_step":
+            errors.append(f"behavior override targets non-llm_step node {node_id!r}")
+            continue
+        _extend(errors, _prompt_override_errors(node_id, node_override.prompt))
+        _extend(
+            errors,
+            _skill_reference_override_errors(
+                node_id, node_override.skill_refs, catalog
+            ),
+        )
+    return errors
+
+
+def _prompt_override_errors(
+    node_id: str,
+    prompt_override: Any,
+) -> list[str]:
+    if prompt_override is None:
+        return []
+    errors: list[str] = []
+    for field in prompt_override.replace:
+        if field not in PROMPT_REPLACE_FIELDS:
+            errors.append(
+                f"prompt override for node {node_id!r} replaces unsupported field "
+                f"{field!r}"
+            )
+    for operation_name, fields in (
+        ("prepends", prompt_override.prepend),
+        ("appends", prompt_override.append),
+    ):
+        for field in fields:
+            if field not in PROMPT_STRING_FIELDS:
+                errors.append(
+                    f"prompt override for node {node_id!r} {operation_name} "
+                    f"unsupported field {field!r}"
+                )
+    return errors
+
+
+def _skill_reference_override_errors(
+    node_id: str,
+    skill_override: Any,
+    catalog: Mapping[str, Any],
+) -> list[str]:
+    if skill_override is None:
+        return []
+    errors: list[str] = []
+    referenced = set(skill_override.add) | set(skill_override.remove)
+    if skill_override.only is not None:
+        referenced.update(skill_override.only)
+    for skill_id in sorted(referenced - set(catalog)):
+        errors.append(
+            f"skill override for node {node_id!r} references unknown skill {skill_id!r}"
+        )
+    return errors
+
+
+def _effective_skill_reference_errors(
+    workflow: LoadedAgentWorkflow,
+    catalog: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    for node in workflow.runtime_manifest.nodes:
+        if node.kind != "llm_step":
+            continue
+        behavior = effective_node_behavior(node, workflow)
+        for skill_id in behavior.skill_refs:
+            if skill_id not in catalog:
+                errors.append(
+                    f"llm_step node {node.id!r} references unknown skill {skill_id!r}"
+                )
+    return errors
+
+
+def _effective_prompt_errors(workflow: LoadedAgentWorkflow) -> list[str]:
+    errors: list[str] = []
+    for node in workflow.runtime_manifest.nodes:
+        if node.kind != "llm_step":
+            continue
+        prompt = effective_node_behavior(node, workflow).prompt
+        if not prompt.get("user_template") and not prompt.get("user"):
+            errors.append(
+                f"llm_step node {node.id!r} effective prompt must define "
+                "user_template or user"
+            )
+    return errors
 
 
 def _missing_runtime_fields(manifest: RuntimeManifest) -> list[str]:

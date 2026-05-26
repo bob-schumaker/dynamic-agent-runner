@@ -6,7 +6,11 @@ from copy import deepcopy
 
 import pytest
 
-from dynamic_agent_runner.artifacts import load_runtime_manifest, load_tool_index
+from dynamic_agent_runner.artifacts import (
+    load_runtime_behavior_overrides,
+    load_runtime_manifest,
+    load_tool_index,
+)
 from dynamic_agent_runner.errors import WorkflowValidationError
 from dynamic_agent_runner.models import LoadedAgentWorkflow
 from dynamic_agent_runner.validation import (
@@ -220,6 +224,134 @@ def test_llm_step_requires_prompt_or_prompt_source() -> None:
 
     with pytest.raises(WorkflowValidationError, match="prompt or prompt_source"):
         validate_mapping(data)
+
+
+def test_runtime_behavior_overrides_pass_validation() -> None:
+    """Valid prompt and skill overrides pass before execution."""
+
+    data = valid_manifest_data()
+    data["nodes"] = [
+        {
+            "id": "analyze_request",
+            "kind": "llm_step",
+            "prompt": {"user_template": "Analyze {prompt}"},
+            "skill_refs": ["base-skill"],
+        },
+    ]
+    data["edges"] = []
+    data["skills"] = [
+        {
+            "id": "base-skill",
+            "prompt_role": "developer",
+            "instructions": "Use the base style.",
+        }
+    ]
+    workflow = LoadedAgentWorkflow(
+        runtime_manifest=load_runtime_manifest(data),
+        runtime_overrides=load_runtime_behavior_overrides(
+            {
+                "format_version": 1,
+                "override_type": "dynamic_agent_runtime_overrides",
+                "skills": {
+                    "added": [
+                        {
+                            "id": "concise-writer",
+                            "prompt_role": "developer",
+                            "instructions": "Write tersely.",
+                        }
+                    ]
+                },
+                "nodes": {
+                    "analyze_request": {
+                        "prompt": {
+                            "append": {"developer": " Keep it short."},
+                            "replace": {"user_template": "Override {prompt}"},
+                        },
+                        "skill_refs": {"add": ["concise-writer"]},
+                    }
+                },
+            }
+        ),
+    )
+
+    validate_agent_workflow(workflow)
+
+
+def test_runtime_behavior_overrides_fail_closed() -> None:
+    """Invalid override versions, targets, fields, and skill refs fail closed."""
+
+    data = valid_manifest_data()
+    data["skills"] = [{"id": "known-skill", "instructions": "Known."}]
+    data["nodes"] = [
+        {
+            "id": "analyze_request",
+            "kind": "llm_step",
+            "prompt": {"user_template": "Analyze {prompt}"},
+            "skill_refs": ["missing-base-skill"],
+        },
+        {"id": "lookup_context", "kind": "tool_use_step", "tool_id": "search_repo"},
+    ]
+    data["edges"] = [
+        {
+            "source": "analyze_request",
+            "target": "lookup_context",
+            "edge_kind": "sequential",
+        }
+    ]
+    workflow = LoadedAgentWorkflow(
+        runtime_manifest=load_runtime_manifest(data),
+        runtime_overrides=load_runtime_behavior_overrides(
+            {
+                "format_version": 2,
+                "override_type": "wrong",
+                "skills": {"added": [{"id": "bad-skill"}]},
+                "nodes": {
+                    "missing_node": {"prompt": {"replace": {"user_template": "x"}}},
+                    "lookup_context": {"prompt": {"replace": {"user_template": "x"}}},
+                    "analyze_request": {
+                        "prompt": {
+                            "replace": {"unsupported": "x"},
+                            "append": {"output_schema_ref": "schema"},
+                        },
+                        "skill_refs": {"add": ["unknown-skill"]},
+                    },
+                },
+            }
+        ),
+    )
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_agent_workflow(workflow)
+
+    message = str(exc_info.value)
+    assert "unsupported behavior override format_version" in message
+    assert "unsupported behavior override override_type" in message
+    assert "behavior override skill 'bad-skill' is missing instructions" in message
+    assert "targets unknown node 'missing_node'" in message
+    assert "targets non-llm_step node 'lookup_context'" in message
+    assert "replaces unsupported field 'unsupported'" in message
+    assert "appends unsupported field 'output_schema_ref'" in message
+    assert "references unknown skill 'unknown-skill'" in message
+    assert "references unknown skill 'missing-base-skill'" in message
+
+
+def test_manifest_skill_refs_fail_when_no_override_artifact() -> None:
+    """Base node skill references are checked against the skill catalog."""
+
+    data = valid_manifest_data()
+    data["nodes"] = [
+        {
+            "id": "analyze_request",
+            "kind": "llm_step",
+            "prompt": {"user_template": "Analyze {prompt}"},
+            "skill_refs": ["missing-skill"],
+        }
+    ]
+    data["edges"] = []
+    workflow = LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
+
+    with pytest.raises(WorkflowValidationError, match="unknown skill 'missing-skill'"):
+        validate_agent_workflow(workflow)
 
 
 def test_tool_index_validation_rejects_bad_shape() -> None:

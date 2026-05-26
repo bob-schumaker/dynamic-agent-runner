@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.errors import (
     ModelExecutionError,
     ToolRegistryError,
@@ -168,7 +169,8 @@ def _execute_llm_step(
     adapter: OpenAIClientAdapter,
     tracer: WorkflowTracer,
 ) -> ModelResponse:
-    messages = _render_messages(node, state)
+    behavior = effective_node_behavior(node, workflow)
+    messages = _render_messages(behavior, state)
     tools: list[dict[str, Any]] = []
     if node.available_tools:
         if registry is None:
@@ -227,7 +229,7 @@ def _execute_llm_step(
         payload={"response_id": response.response_id, "content": response.content},
         sensitive_fields=("content",),
     )
-    _validate_model_output_contract(node, workflow, response)
+    _validate_model_output_contract(node, workflow, response, behavior.prompt)
     return response
 
 
@@ -348,13 +350,9 @@ def _execute_decision_step(
 
 
 def _render_messages(
-    node: RuntimeNode, state: WorkflowExecutionState
+    behavior: Any, state: WorkflowExecutionState
 ) -> tuple[OpenAIMessage, ...]:
-    prompt_data = node.raw.get("prompt")
-    if not isinstance(prompt_data, Mapping):
-        prompt_data = {
-            "user_template": str(node.raw.get("prompt_source") or "{prompt}")
-        }
+    prompt_data = behavior.prompt
     context = _format_context(state)
     messages: list[OpenAIMessage] = []
     for role in ("system", "developer"):
@@ -363,6 +361,14 @@ def _render_messages(
             messages.append(
                 OpenAIMessage(role=role, content=_format_text(str(value), context))
             )
+    for skill in behavior.skills:
+        instructions = skill.raw.get("instructions")
+        if instructions is None:
+            continue
+        role = str(skill.raw.get("prompt_role") or "developer")
+        messages.append(
+            OpenAIMessage(role=role, content=_format_text(str(instructions), context))
+        )
     user_template = (
         prompt_data.get("user_template") or prompt_data.get("user") or "{prompt}"
     )
@@ -458,8 +464,9 @@ def _validate_model_output_contract(
     node: RuntimeNode,
     workflow: LoadedAgentWorkflow,
     response: ModelResponse,
+    prompt: Mapping[str, Any] | None = None,
 ) -> None:
-    contract_ref = _output_schema_ref(node)
+    contract_ref = _output_schema_ref(node, prompt)
     if not contract_ref:
         return
     contract = workflow.runtime_manifest.output_contracts.get(contract_ref)
@@ -639,11 +646,17 @@ def _route_from_value(value: Any) -> str | None:
     return str(value) if value is not None else None
 
 
-def _output_schema_ref(node: RuntimeNode) -> str | None:
+def _output_schema_ref(
+    node: RuntimeNode,
+    prompt: Mapping[str, Any] | None = None,
+) -> str | None:
     value = node.raw.get("output_schema_ref")
-    prompt = node.raw.get("prompt")
     if value is None and isinstance(prompt, Mapping):
         value = prompt.get("output_schema_ref")
+    if value is None:
+        prompt = node.raw.get("prompt")
+        if isinstance(prompt, Mapping):
+            value = prompt.get("output_schema_ref")
     return str(value) if value is not None else None
 
 

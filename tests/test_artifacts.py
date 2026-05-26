@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from dynamic_agent_runner import load_agent_workflow
-from dynamic_agent_runner.artifacts import load_runtime_manifest, load_tool_index
+from dynamic_agent_runner.artifacts import (
+    load_runtime_behavior_overrides,
+    load_runtime_manifest,
+    load_tool_index,
+)
 from dynamic_agent_runner.errors import ArtifactLoadError
 from dynamic_agent_runner.models import PRIMITIVE_NODE_KINDS, SUPPORTED_AGENT_PATTERNS
 
@@ -131,9 +135,74 @@ def test_load_runtime_manifest_from_raw_yaml_preserves_pattern_metadata() -> Non
     assert manifest.phases[0].id == "fanout"
     assert manifest.roles[0].id == "architect"
     assert manifest.nodes[0].available_tools == ("retrieve_memory",)
+    assert manifest.nodes[0].skill_refs == ()
     assert manifest.nodes[1].tool_id == "retrieve_memory"
     assert manifest.nodes[2].decision_subtype == "llm_route"
     assert manifest.edges[0].edge_kind == "sequential"
+
+
+def test_load_runtime_manifest_preserves_node_skill_refs() -> None:
+    """LLM node skill references are preserved for behavior overrides."""
+
+    manifest = load_runtime_manifest(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "skill-ref-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "skill_refs": ["concise-writer", "policy-reviewer"],
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    assert manifest.nodes[0].skill_refs == ("concise-writer", "policy-reviewer")
+
+
+def test_load_runtime_behavior_overrides_from_mapping() -> None:
+    """Behavior override artifacts preserve skill and node operations."""
+
+    overrides = load_runtime_behavior_overrides(
+        {
+            "format_version": 1,
+            "override_type": "dynamic_agent_runtime_overrides",
+            "skills": {
+                "added": [
+                    {
+                        "id": "concise-writer",
+                        "prompt_role": "developer",
+                        "instructions": "Write briefly.",
+                    }
+                ]
+            },
+            "nodes": {
+                "answer": {
+                    "prompt": {
+                        "prepend": {"system": "Before. "},
+                        "append": {"developer": " After."},
+                        "replace": {"user_template": "Override {prompt}"},
+                    },
+                    "skill_refs": {"add": ["concise-writer"]},
+                }
+            },
+        }
+    )
+
+    assert overrides is not None
+    assert overrides.added_skills[0].id == "concise-writer"
+    assert overrides.node_overrides["answer"].prompt is not None
+    assert overrides.node_overrides["answer"].prompt.replace == {
+        "user_template": "Override {prompt}"
+    }
+    assert overrides.node_overrides["answer"].skill_refs is not None
+    assert overrides.node_overrides["answer"].skill_refs.add == ("concise-writer",)
 
 
 def test_load_runtime_manifest_from_parsed_object() -> None:

@@ -11,7 +11,8 @@ or a clear error.
 
 ## Source Artifacts
 
-- `specs/dynamic-agent-runner/spec.md` — feature source of truth.
+- `specs/dynamic-agent-runner/spec.md` — feature source of truth, now including
+  runtime behavior overrides for per-node prompts and skill bindings.
 - `README.md` — repository overview; aligned with the official `openai`
   package and repository-owned tool registry direction.
 - `pyproject.toml` — package/dependency configuration; currently includes the
@@ -142,6 +143,33 @@ Initial checks:
 
 Implement a repository-owned registry instead of depending on `ai-tools-core`.
 
+### Runtime behavior override pattern
+
+Implement runtime behavior overrides as a sibling overlay to runtime tool
+overrides. The generated runtime manifest remains the baseline source of truth,
+while caller-provided override artifacts compute effective node behavior at
+preparation or execution time.
+
+Core concepts:
+
+- `RuntimeBehaviorOverrides` — caller-provided override bundle loaded from path,
+  raw YAML, or parsed mapping input.
+- `PromptOverride` — explicit `replace`, `prepend`, and `append` operations for
+  prompt fields such as `system`, `developer`, `user_template`, and
+  `output_schema_ref`.
+- `SkillReferenceOverride` — per-node `only`, `add`, and `remove` semantics for
+  skill references.
+- `SkillDefinition` or equivalent structured model — skill metadata with
+  optional inline runtime `instructions` and `prompt_role` for initial execution
+  support.
+- Effective node behavior — a derived runtime view that combines the base node
+  prompt, base node `skill_refs`, override skill references, inline skill
+  instructions, and prompt patch operations without mutating `RuntimeNode.raw`.
+
+Initial scope should support inline skill instructions only. Arbitrary
+`SKILL.md` source-path resolution should remain deferred until a later scoped
+slice defines trust, packaging, precedence, and file-loading rules.
+
 Core concepts:
 
 - `ToolDefinition` — manifest/tool-index metadata, JSON schema, side-effect and
@@ -154,6 +182,9 @@ Core concepts:
 - Runtime tool overrides — caller-provided additions, replacements, disabled
   tool ids, and per-`llm_step` exposure changes layered over the generated
   manifest/tool-index baseline without mutating generated artifacts.
+- Runtime behavior overrides — caller-provided prompt patches and skill binding
+  changes for individual `llm_step` nodes, layered over generated artifacts
+  without mutating the manifest, graph, tool index, or design document.
 - Built-in tool packs — optional pre-registered registry sources that callers
   explicitly enable, starting with a conservative read-only `local_workspace`
   pack.
@@ -296,6 +327,13 @@ and execution failures.
    - update README usage examples
    - add CLI tests and validation notes
 
+8. **Runtime behavior overrides (Slice 12 follow-up)**
+   - add override artifact models and loaders
+   - preserve optional node `skill_refs` metadata
+   - validate per-node prompt patches and skill binding overrides
+   - compute effective prompt/skill behavior without mutating generated artifacts
+   - add API/CLI override inputs and fake-client tests
+
 ## Validation Strategy
 
 Use staged validation as implementation grows:
@@ -323,6 +361,9 @@ model behavior and fake registries for tool behavior.
 - Runtime tool overrides are part of the Slice 4 registry contract because they
   affect effective tool availability, but they should remain overlay inputs that
   preserve generated artifacts as the baseline source of truth.
+- Runtime behavior overrides are the prompt/skill counterpart to tool overrides:
+  they should compute effective `llm_step` behavior from overlay inputs while
+  preserving generated artifacts as immutable baselines.
 - Tool-index files are optional metadata catalogs, not execution prerequisites;
   a tool can function only when the effective registry provides a callable entry.
 - Built-in default tools should be opt-in registry packs, not implicit ambient

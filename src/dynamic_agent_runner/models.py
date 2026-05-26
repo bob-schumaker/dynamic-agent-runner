@@ -71,6 +71,7 @@ class RuntimeNode:
     tool_id: str | None = None
     decision_subtype: str | None = None
     available_tools: tuple[str, ...] = ()
+    skill_refs: tuple[str, ...] = ()
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> RuntimeNode:
@@ -80,6 +81,7 @@ class RuntimeNode:
         available_tools = tuple(
             str(item) for item in _copy_list(raw.get("available_tools"))
         )
+        skill_refs = tuple(str(item) for item in _copy_list(raw.get("skill_refs")))
         return cls(
             id=str(raw["id"]) if raw.get("id") is not None else None,
             kind=str(raw["kind"]) if raw.get("kind") is not None else None,
@@ -91,6 +93,7 @@ class RuntimeNode:
                 else None
             ),
             available_tools=available_tools,
+            skill_refs=skill_refs,
             raw=raw,
         )
 
@@ -217,6 +220,111 @@ class RuntimeManifest:
 
 
 @dataclass(frozen=True)
+class PromptOverride:
+    """Prompt patch operations for one runtime node."""
+
+    replace: Mapping[str, Any] = field(default_factory=dict)
+    prepend: Mapping[str, str] = field(default_factory=dict)
+    append: Mapping[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> PromptOverride:
+        """Build prompt override operations from a mapping."""
+
+        raw_replace = _copy_mapping(_as_mapping(value.get("replace")))
+        raw_prepend = _copy_mapping(_as_mapping(value.get("prepend")))
+        raw_append = _copy_mapping(_as_mapping(value.get("append")))
+        return cls(
+            replace=raw_replace,
+            prepend={str(key): str(item) for key, item in raw_prepend.items()},
+            append={str(key): str(item) for key, item in raw_append.items()},
+        )
+
+
+@dataclass(frozen=True)
+class SkillReferenceOverride:
+    """Per-node skill binding changes layered over node `skill_refs`."""
+
+    add: tuple[str, ...] = ()
+    remove: tuple[str, ...] = ()
+    only: tuple[str, ...] | None = None
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> SkillReferenceOverride:
+        """Build skill-reference override operations from a mapping."""
+
+        only_value = value.get("only")
+        return cls(
+            add=tuple(str(item) for item in _copy_list(value.get("add"))),
+            remove=tuple(str(item) for item in _copy_list(value.get("remove"))),
+            only=(
+                tuple(str(item) for item in _copy_list(only_value))
+                if only_value is not None
+                else None
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class NodeBehaviorOverride:
+    """Runtime behavior override for a single `llm_step` node."""
+
+    prompt: PromptOverride | None = None
+    skill_refs: SkillReferenceOverride | None = None
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> NodeBehaviorOverride:
+        """Build a per-node behavior override from a mapping."""
+
+        prompt_value = value.get("prompt")
+        skill_refs_value = value.get("skill_refs")
+        return cls(
+            prompt=(
+                PromptOverride.from_mapping(prompt_value)
+                if isinstance(prompt_value, Mapping)
+                else None
+            ),
+            skill_refs=(
+                SkillReferenceOverride.from_mapping(skill_refs_value)
+                if isinstance(skill_refs_value, Mapping)
+                else None
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class RuntimeBehaviorOverrides:
+    """Runtime prompt and skill override bundle."""
+
+    raw: Mapping[str, Any] = field(default_factory=dict)
+    format_version: Any = None
+    override_type: str | None = None
+    added_skills: tuple[ManifestObject, ...] = ()
+    replacement_skills: tuple[ManifestObject, ...] = ()
+    node_overrides: Mapping[str, NodeBehaviorOverride] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> RuntimeBehaviorOverrides:
+        """Build runtime behavior overrides from parsed YAML data."""
+
+        raw = dict(value)
+        skills = _as_mapping(raw.get("skills")) or {}
+        nodes = _as_mapping(raw.get("nodes")) or {}
+        return cls(
+            raw=raw,
+            format_version=raw.get("format_version"),
+            override_type=_optional_str(raw.get("override_type")),
+            added_skills=tuple(_manifest_objects(skills.get("added"))),
+            replacement_skills=tuple(_manifest_objects(skills.get("replacement"))),
+            node_overrides={
+                str(node_id): NodeBehaviorOverride.from_mapping(node_override)
+                for node_id, node_override in nodes.items()
+                if isinstance(node_override, Mapping)
+            },
+        )
+
+
+@dataclass(frozen=True)
 class ToolIndex:
     """Loaded reusable `tool-index.yaml` catalog."""
 
@@ -274,6 +382,7 @@ class LoadedAgentWorkflow:
     mermaid_graph: str | None = None
     agent_design: AgentDesign | None = None
     tool_index: ToolIndex | None = None
+    runtime_overrides: RuntimeBehaviorOverrides | None = None
 
 
 def _optional_str(value: object) -> str | None:

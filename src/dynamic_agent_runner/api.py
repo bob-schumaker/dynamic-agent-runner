@@ -18,6 +18,7 @@ def load_agent_workflow(
     mermaid_diagram: str | None = None,
     agent_design: str | None = None,
     tool_index: Any | None = None,
+    runtime_overrides: Any | None = None,
     tool_registry: Any | None = None,
 ) -> LoadedAgentWorkflow:
     """Load generated workflow artifacts without executing the workflow.
@@ -39,6 +40,7 @@ def load_agent_workflow(
         mermaid_graph=graph_input,
         agent_design=agent_design,
         tool_index=tool_index,
+        runtime_overrides=runtime_overrides,
     )
     validate_agent_workflow(workflow, tool_registry=tool_registry)
     return workflow
@@ -53,6 +55,7 @@ def run_agent_workflow(
     mermaid_diagram: str | None = None,
     agent_design: str | None = None,
     tool_index: Any | None = None,
+    runtime_overrides: Any | None = None,
     tool_registry: Any | None = None,
     model_adapter: Any | None = None,
     max_steps: int | None = None,
@@ -71,6 +74,7 @@ def run_agent_workflow(
         mermaid_diagram=mermaid_diagram,
         agent_design=agent_design,
         tool_index=tool_index,
+        runtime_overrides=runtime_overrides,
         tool_registry=tool_registry,
     )
     result = execute_workflow(
