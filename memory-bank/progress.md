@@ -66,6 +66,8 @@
   `ecb8115 feat(executor): add workflow tracing hooks`.
 - Slice 12 runtime behavior override commit exists:
   `7d950b7 feat(runtime): add behavior overrides`.
+- Future interpreter middleware spec commit exists:
+  `e305b55 docs(specs): add llm step interpreter middleware spec`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -110,16 +112,22 @@
   redaction helpers, and `trace_events` records on `WorkflowExecutionState`.
 - Slice 12 adds runtime behavior override support for per-node prompt patches and
   inline skill bindings without mutating generated artifacts.
+- `specs/llm-step-interpreter-middleware/spec.md` now records a future optional
+  interpreter middleware feature. It proposes caller-registered custom
+  interpreters attachable to `llm_step` nodes and packages the original Deep
+  Agents source note under the spec `references/` directory.
 
 ## In Flight
 
+- Memory-bank refresh is in flight after committing the interpreter future
+  feature spec.
 - No source implementation work is currently in flight.
-- No next implementation slice is currently defined after Slice 12.
+- No next main-runner implementation slice is currently defined after Slice 12.
 
 ## Remaining
 
-- Await follow-up direction for the next scoped runtime slice or deferred
-  library-evaluation follow-up.
+- Await follow-up direction for the next scoped runtime slice, deferred
+  library-evaluation follow-up, or interpreter middleware prototype work.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, behavior-override, and all-pattern fixture foundation into the
   next scoped slice.
@@ -175,6 +183,9 @@
 - Slice 12 implements inline skill instructions and prompt-role placement only;
   arbitrary `SKILL.md` source-path resolution remains deferred until trust,
   packaging, and precedence rules are specified.
+- Interpreter middleware is specified only as a future feature; custom
+  interpreter interface details, dependency availability, safety gates,
+  benchmark fixtures, and backend selection remain unresolved.
 - `parallel_join`, `parallel_fanout`, and broader multi-agent execution are still
   unsupported runtime behavior. The CLI test suite now checks that this fails
   clearly instead of silently succeeding.

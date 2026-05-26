@@ -3,10 +3,10 @@
 ## Current Focus
 
 - Slice 12 runtime behavior overrides for prompts and skills are complete and
-  committed in `7d950b7`. The runtime can now layer per-node prompt patches and
-  inline skill instruction bindings over generated artifacts without mutating the
-  underlying agent design package. No next implementation slice is currently
-  defined; deferred library-evaluation follow-ups remain available.
+  committed in `7d950b7`. A future `llm_step` interpreter middleware feature
+  spec was added in `e305b55`; it proposes optional custom interpreter adapters
+  attachable to `llm_step` nodes, without choosing an implementation backend.
+  No source implementation work is currently in progress.
 
 ## Current Status
 
@@ -57,11 +57,15 @@
   - Completed Slice 11 execution tracing and observability hooks in `ecb8115`.
   - Updated the SDD artifacts to define runtime behavior override requirements,
     then completed Slice 12 prompt/skill behavior overrides in `7d950b7`.
+  - Added future feature spec `specs/llm-step-interpreter-middleware/spec.md`
+    in `e305b55`, with packaged source reference
+    `specs/llm-step-interpreter-middleware/references/give-your-agents-an-interpreter.md`.
 - In progress:
-  - No source implementation work is currently in progress.
+  - Memory-bank refresh for the interpreter future-spec checkpoint.
 - Not started:
-  - No next implementation slice is currently defined. Deferred
-    library-evaluation follow-ups remain available.
+  - Interpreter middleware implementation is not started; the future spec
+    explicitly defers backend selection until prototypes and benchmarks exist.
+  - No next implementation slice is currently defined for the main runner.
 
 ## Important Current Facts
 
@@ -77,6 +81,8 @@
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/plan.md`
   - `specs/dynamic-agent-runner/tasks.md`
+  - `specs/llm-step-interpreter-middleware/spec.md` — future feature spec for
+    optional interpreter middleware and custom interpreter registration
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
   implementation. Slices 0 through 12 are complete; no next implementation
@@ -240,6 +246,18 @@
     redaction before external emission.
   - `tests/test_tracing.py` covers successful workflows, tool failures, model
     failures, and retry-attempt tracing with fake clients/tools only.
+- Interpreter middleware future spec from `e305b55`:
+  - `specs/llm-step-interpreter-middleware/spec.md` records an optional future
+    capability for attaching interpreter backends to `llm_step` nodes.
+  - The spec proposes a caller-provided `InterpreterRegistry` /
+    `RegisteredInterpreter` style interface so custom QuickJS, restricted
+    Python, DSL, WebAssembly, or subprocess-backed adapters can be evaluated
+    without hard-coding one backend.
+  - Manifest-level `interpreters` metadata is explicitly non-executable; a
+    caller-provided registry or approved source must supply executable adapters.
+  - The packaged supporting reference was moved from `cline-tasks/` to
+    `specs/llm-step-interpreter-middleware/references/`.
+  - Backend selection, dependencies, prototypes, and benchmarks remain deferred.
 - Slice 4 scope decisions from `07edab0`:
   - `tool-index.yaml` is optional metadata, not an execution prerequisite.
   - A required tool registry or approved registry source is authoritative for
@@ -279,8 +297,10 @@
 
 ## Next Steps
 
-- Await follow-up direction; no next implementation slice is currently defined
-  in `specs/dynamic-agent-runner/tasks.md` after Slice 12.
+- Await follow-up direction; no next main-runner implementation slice is
+  currently defined in `specs/dynamic-agent-runner/tasks.md` after Slice 12.
+- Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
+  before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
   requirements rather than broad framework adoption.
 - Use the 11 hello-world pattern fixture packages as broad package-shape coverage

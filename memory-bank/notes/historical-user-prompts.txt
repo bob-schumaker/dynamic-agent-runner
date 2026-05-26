@@ -125,3 +125,26 @@ integrating logfire with whatever the caller is doing for logging seems like a p
 ---
 
 design a way to override individual node prompts and skills so we don't have to modify the core agent design to change how each node behaves
+---
+
+evaluate /Users/roschuma/Repos/roschuma/dynamic-agent-runner/cline-tasks/give-your-agents-an-interpreter.md as a possible implementation detail for speeding up llm nodes. propose possible interpreters, but do not choose one yet
+
+---
+
+save this analysis as a future feature spec
+
+---
+
+the referenced deepagent repo is available locally at /Users/roschuma/Repos/github/deepagents/
+
+---
+
+add the repo url `https://github.com/langchain-ai/deepagents.git` as part of the context provenance
+
+---
+
+expand the future interpreter spec to have an interface so that the client can specific custom interpreters and attach them to llm nodes
+
+---
+
+move cline-tasks/give-your-agents-an-interpreter.md to specs/llm-step-interpreter-middleware/ as a reference using the appropriate spec structure
