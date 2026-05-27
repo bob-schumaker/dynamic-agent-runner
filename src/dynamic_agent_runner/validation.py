@@ -14,6 +14,7 @@ from dynamic_agent_runner.models import (
     RuntimeNode,
     ToolIndex,
 )
+from dynamic_agent_runner.prompt_cache import prompt_cache_policy_from_value
 
 SUPPORTED_FORMAT_VERSION = 1
 SUPPORTED_PACKAGE_TYPE = "dynamic_agent_design"
@@ -120,6 +121,7 @@ def validate_runtime_manifest(
     _extend(errors, _edge_reference_errors(manifest))
     _extend(errors, _tool_reference_errors(manifest, tool_index, tool_registry))
     _extend(errors, _llm_prompt_errors(manifest.nodes))
+    _extend(errors, _prompt_cache_policy_errors(manifest))
     if errors:
         raise WorkflowValidationError(_format_errors("runtime manifest", errors))
 
@@ -376,6 +378,14 @@ def _llm_prompt_errors(nodes: Iterable[RuntimeNode]) -> list[str]:
                 f"llm_step node {node.id!r} must define prompt or prompt_source"
             )
     return errors
+
+
+def _prompt_cache_policy_errors(manifest: RuntimeManifest) -> list[str]:
+    try:
+        prompt_cache_policy_from_value(manifest.execution_policy.get("prompt_cache"))
+    except Exception as exc:  # noqa: BLE001 - normalized into validation errors.
+        return [str(exc)]
+    return []
 
 
 def _extend(target: list[str], values: Iterable[str]) -> None:

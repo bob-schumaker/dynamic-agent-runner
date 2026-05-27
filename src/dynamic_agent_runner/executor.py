@@ -20,6 +20,10 @@ from dynamic_agent_runner.openai_client import (
     OpenAIMessage,
     build_openai_request,
 )
+from dynamic_agent_runner.prompt_cache import (
+    build_prompt_cache_observation,
+    prompt_cache_policy_from_value,
+)
 from dynamic_agent_runner.registry import ToolRegistry, ToolResult
 from dynamic_agent_runner.retry import (
     RetryPolicy,
@@ -78,6 +82,7 @@ def execute_workflow(
     model_adapter: OpenAIClientAdapter | None = None,
     max_steps: int | None = None,
     trace_sink: TraceSink | None = None,
+    prompt_cache: bool | None = None,
 ) -> WorkflowResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -116,7 +121,7 @@ def execute_workflow(
         )
         try:
             output = _execute_node(
-                node, workflow, state, tool_registry, adapter, tracer
+                node, workflow, state, tool_registry, adapter, tracer, prompt_cache
             )
         except Exception as exc:
             tracer.emit(
@@ -151,9 +156,12 @@ def _execute_node(
     registry: ToolRegistry | None,
     adapter: OpenAIClientAdapter,
     tracer: WorkflowTracer,
+    prompt_cache: bool | None,
 ) -> Any:
     if node.kind == "llm_step":
-        return _execute_llm_step(node, workflow, state, registry, adapter, tracer)
+        return _execute_llm_step(
+            node, workflow, state, registry, adapter, tracer, prompt_cache
+        )
     if node.kind == "tool_use_step":
         return _execute_tool_step(node, state, registry, tracer)
     if node.kind == "decision_step":
@@ -168,9 +176,11 @@ def _execute_llm_step(
     registry: ToolRegistry | None,
     adapter: OpenAIClientAdapter,
     tracer: WorkflowTracer,
+    prompt_cache: bool | None,
 ) -> ModelResponse:
     behavior = effective_node_behavior(node, workflow)
-    messages = _render_messages(behavior, state)
+    message_parts = _render_message_parts(behavior, state)
+    messages = tuple(message for _part, message in message_parts)
     tools: list[dict[str, Any]] = []
     if node.available_tools:
         if registry is None:
@@ -181,6 +191,14 @@ def _execute_llm_step(
             tool.id for tool in registry.list_tools_for_node(node)
         )
     model = _model_name(node, workflow)
+    _check_prompt_cache(
+        workflow,
+        message_parts,
+        model,
+        tracer,
+        node,
+        prompt_cache=prompt_cache,
+    )
     _enforce_token_budget(node, workflow, messages, model, state, tracer)
     request = build_openai_request(
         model=model,
@@ -229,8 +247,39 @@ def _execute_llm_step(
         payload={"response_id": response.response_id, "content": response.content},
         sensitive_fields=("content",),
     )
+    _record_prompt_cache_provider_telemetry(response, node, tracer)
     _validate_model_output_contract(node, workflow, response, behavior.prompt)
     return response
+
+
+def _record_prompt_cache_provider_telemetry(
+    response: ModelResponse,
+    node: RuntimeNode,
+    tracer: WorkflowTracer,
+) -> None:
+    cached_tokens = _read_path(
+        response.raw, ("usage", "input_tokens_details", "cached_tokens")
+    )
+    if cached_tokens is None:
+        cached_tokens = _read_path(
+            response.raw, ("usage", "prompt_tokens_details", "cached_tokens")
+        )
+    if cached_tokens is None:
+        return
+    tracer.emit(
+        "prompt_cache_provider_telemetry",
+        node_id=str(node.id),
+        payload={"cached_tokens": cached_tokens},
+    )
+
+
+def _read_path(value: Any, path: Sequence[str]) -> Any:
+    current = value
+    for key in path:
+        current = _read_value(current, key)
+        if current is None:
+            return None
+    return current
 
 
 def _execute_tool_step(
@@ -352,14 +401,23 @@ def _execute_decision_step(
 def _render_messages(
     behavior: Any, state: WorkflowExecutionState
 ) -> tuple[OpenAIMessage, ...]:
+    return tuple(message for _part, message in _render_message_parts(behavior, state))
+
+
+def _render_message_parts(
+    behavior: Any, state: WorkflowExecutionState
+) -> tuple[tuple[str, OpenAIMessage], ...]:
     prompt_data = behavior.prompt
     context = _format_context(state)
-    messages: list[OpenAIMessage] = []
+    messages: list[tuple[str, OpenAIMessage]] = []
     for role in ("system", "developer"):
         value = prompt_data.get(role)
         if value is not None:
             messages.append(
-                OpenAIMessage(role=role, content=_format_text(str(value), context))
+                (
+                    role,
+                    OpenAIMessage(role=role, content=_format_text(str(value), context)),
+                )
             )
     for skill in behavior.skills:
         instructions = skill.raw.get("instructions")
@@ -367,15 +425,61 @@ def _render_messages(
             continue
         role = str(skill.raw.get("prompt_role") or "developer")
         messages.append(
-            OpenAIMessage(role=role, content=_format_text(str(instructions), context))
+            (
+                "skill_instructions",
+                OpenAIMessage(
+                    role=role, content=_format_text(str(instructions), context)
+                ),
+            )
         )
     user_template = (
         prompt_data.get("user_template") or prompt_data.get("user") or "{prompt}"
     )
     messages.append(
-        OpenAIMessage(role="user", content=_format_text(str(user_template), context))
+        (
+            "user_prompt",
+            OpenAIMessage(
+                role="user", content=_format_text(str(user_template), context)
+            ),
+        )
     )
     return tuple(messages)
+
+
+def _check_prompt_cache(
+    workflow: LoadedAgentWorkflow,
+    message_parts: Sequence[tuple[str, OpenAIMessage]],
+    model: str,
+    tracer: WorkflowTracer,
+    node: RuntimeNode,
+    *,
+    prompt_cache: bool | None,
+) -> None:
+    raw_policy = workflow.runtime_manifest.execution_policy.get("prompt_cache")
+    caller_override = "manifest"
+    if prompt_cache is False:
+        raw_policy = {"enabled": False}
+        caller_override = "disabled"
+    elif prompt_cache is True and raw_policy is None:
+        raw_policy = {"enabled": True}
+        caller_override = "enabled"
+    elif raw_policy is None:
+        raw_policy = None
+        caller_override = "manifest_absent"
+    policy = prompt_cache_policy_from_value(raw_policy)
+    observation = build_prompt_cache_observation(
+        policy=policy,
+        message_parts=message_parts,
+        model=model,
+        caller_override=caller_override,
+    )
+    if observation is None:
+        return
+    tracer.emit(
+        "prompt_cache_checked",
+        node_id=str(node.id),
+        payload=observation.payload,
+    )
 
 
 def _tool_arguments(node: RuntimeNode, state: WorkflowExecutionState) -> dict[str, Any]:

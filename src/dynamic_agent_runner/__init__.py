@@ -7,6 +7,12 @@ from dynamic_agent_runner.executor import (
     WorkflowResult,
     execute_workflow,
 )
+from dynamic_agent_runner.prompt_cache import (
+    PromptCacheObservation,
+    PromptCachePolicy,
+    build_prompt_cache_observation,
+    prompt_cache_policy_from_value,
+)
 from dynamic_agent_runner.openai_client import (
     ModelResponse,
     ModelToolCall,
@@ -70,6 +76,7 @@ __all__ = [
     "WorkflowExecutionState",
     "WorkflowTracer",
     "build_openai_request",
+    "build_prompt_cache_observation",
     "create_default_openai_client",
     "execute_workflow",
     "normalize_openai_response",
@@ -81,6 +88,8 @@ __all__ = [
     "ToolRegistry",
     "ToolExposureOverride",
     "RegisteredTool",
+    "PromptCacheObservation",
+    "PromptCachePolicy",
     "RetryPolicy",
     "RuntimeBehaviorOverrides",
     "RetryRecord",
@@ -92,6 +101,7 @@ __all__ = [
     "estimate_messages_tokens",
     "retry_policy_from_value",
     "token_budget_policy_from_value",
+    "prompt_cache_policy_from_value",
     "WorkflowExecutionError",
     "WorkflowResult",
     "WorkflowValidationError",

@@ -2,8 +2,8 @@
 
 ## Status
 
-- State: Slice 12 complete; runtime behavior overrides are implemented and
-  validated
+- State: Slice 13 complete; prompt-cache intent is parsed, validated,
+  traced, and covered by tests
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
@@ -447,6 +447,51 @@
   artifact immutability, CLI input wiring, and invalid override failures.
 - Validation run: `ruff check src tests && ruff format --check src tests &&
   pytest -q` — pass; 93 tests passed.
+
+## Slice 13 — Prompt-cache intent and trace observation
+
+- [x] T13.1 Parse and preserve optional `execution_policy.prompt_cache` metadata
+      as provider-neutral cache intent without requiring it for existing
+      manifests.
+- [x] T13.2 Validate prompt-cache metadata shape, including `enabled`,
+      `strategy`, `min_prefix_tokens`, `prefix_parts`, `variable_parts`,
+      `cache_key_hint`, and optional `provider_hints`.
+- [x] T13.3 Preserve declared stable-prefix ordering during message rendering
+      when doing so does not change prompt semantics.
+- [x] T13.4 Reuse existing token-budget estimation to compute stable-prefix token
+      estimates and clearly record when estimation is unavailable.
+- [x] T13.5 Emit trace/debug evidence for cache eligibility, rendered
+      stable-prefix part names, prefix token estimate, prefix hash, first
+      variable part, caller override status, and adapter fallback status.
+- [x] T13.6 Allow runtime callers to disable or override prompt-cache behavior
+      per execution request before any provider-specific behavior is applied.
+- [x] T13.7 Keep provider-specific cache pass-through adapter-gated and add it
+      only after SDK/API support is verified.
+- [x] T13.8 Record observed cached-token usage, cache-read status, or equivalent
+      provider response metadata when the provider exposes it.
+- [x] T13.9 Add tests for disabled, enabled-but-ineligible, eligible,
+      override-disabled, invalid metadata, unsupported prompt part names,
+      `x-` extension part names, provider-hint behavior, missing token-estimator
+      behavior, and missing provider cache telemetry behavior.
+
+## Slice 13 Completion Evidence
+
+- `src/dynamic_agent_runner/prompt_cache.py` defines provider-neutral
+  `PromptCachePolicy` parsing and prompt-cache eligibility observation helpers.
+- `src/dynamic_agent_runner/validation.py` validates optional
+  `execution_policy.prompt_cache` metadata and fails closed for malformed
+  policy shape.
+- `src/dynamic_agent_runner/executor.py` preserves rendered message part names,
+  emits `prompt_cache_checked` trace events, supports per-execution
+  `prompt_cache=False` overrides, and records provider cached-token telemetry
+  when exposed by the model response.
+- `src/dynamic_agent_runner/api.py` forwards the optional `prompt_cache` runtime
+  execution override.
+- `tests/test_prompt_cache.py` covers parsing, invalid metadata, eligible and
+  ineligible prefixes, override-disabled behavior, `x-` extension part names,
+  missing token-estimator behavior, and provider cached-token telemetry.
+- Validation run: `ruff check src tests && ruff format --check src tests &&
+  python -m pytest -q` — pass; 104 tests passed.
 
 ## Deferred library-evaluation follow-ups
 
