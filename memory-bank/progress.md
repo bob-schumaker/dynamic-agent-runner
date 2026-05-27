@@ -68,6 +68,8 @@
   `7d950b7 feat(runtime): add behavior overrides`.
 - Future interpreter middleware spec commit exists:
   `e305b55 docs(specs): add llm step interpreter middleware spec`.
+- Slice 13 prompt-cache intent tracing commit exists:
+  `aed3b13 feat(prompt-cache): add prompt cache intent tracing`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -116,18 +118,23 @@
   interpreter middleware feature. It proposes caller-registered custom
   interpreters attachable to `llm_step` nodes and packages the original Deep
   Agents source note under the spec `references/` directory.
+- Slice 13 adds provider-neutral prompt-cache intent support: optional
+  `execution_policy.prompt_cache` metadata is parsed and validated, eligibility
+  evidence is emitted as trace data, `prompt_cache=False` can disable behavior per
+  execution, and provider cached-token telemetry is recorded when present.
 
 ## In Flight
 
-- Memory-bank refresh is in flight after committing the interpreter future
-  feature spec.
+- Memory-bank refresh is in flight after committing Slice 13 prompt-cache intent
+  tracing.
 - No source implementation work is currently in flight.
-- No next main-runner implementation slice is currently defined after Slice 12.
+- No next main-runner implementation slice is currently defined after Slice 13.
 
 ## Remaining
 
-- Await follow-up direction for the next scoped runtime slice, deferred
-  library-evaluation follow-up, or interpreter middleware prototype work.
+- Await follow-up direction for the next scoped runtime slice, adapter-gated
+  prompt-cache provider pass-through, deferred library-evaluation follow-up, or
+  interpreter middleware prototype work.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, behavior-override, and all-pattern fixture foundation into the
   next scoped slice.
@@ -183,6 +190,9 @@
 - Slice 12 implements inline skill instructions and prompt-role placement only;
   arbitrary `SKILL.md` source-path resolution remains deferred until trust,
   packaging, and precedence rules are specified.
+- Slice 13 intentionally stops short of provider-specific prompt-cache request
+  pass-through; that remains adapter-gated until exact SDK/API support is
+  verified.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.

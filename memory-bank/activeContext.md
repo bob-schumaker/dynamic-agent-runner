@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-- Slice 12 runtime behavior overrides for prompts and skills are complete and
-  committed in `7d950b7`. A future `llm_step` interpreter middleware feature
-  spec was added in `e305b55`; it proposes optional custom interpreter adapters
-  attachable to `llm_step` nodes, without choosing an implementation backend.
-  No source implementation work is currently in progress.
+- Slice 13 prompt-cache intent and trace observation is complete and committed
+  in `aed3b13`. The runtime now parses optional
+  `execution_policy.prompt_cache` metadata, validates policy shape, emits
+  prompt-cache eligibility trace evidence, supports per-execution disable
+  overrides, and records provider cached-token telemetry when exposed.
 
 ## Current Status
 
@@ -60,9 +60,12 @@
   - Added future feature spec `specs/llm-step-interpreter-middleware/spec.md`
     in `e305b55`, with packaged source reference
     `specs/llm-step-interpreter-middleware/references/give-your-agents-an-interpreter.md`.
+  - Completed Slice 13 prompt-cache intent and trace observation in `aed3b13`.
 - In progress:
-  - Memory-bank refresh for the interpreter future-spec checkpoint.
+  - Memory-bank refresh for the Slice 13 prompt-cache checkpoint.
 - Not started:
+  - Provider-specific prompt-cache request pass-through is deferred until exact
+    SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
   - No next implementation slice is currently defined for the main runner.
@@ -85,7 +88,7 @@
     optional interpreter middleware and custom interpreter registration
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0 through 12 are complete; no next implementation
+  implementation. Slices 0 through 13 are complete; no next implementation
   slice is currently defined.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
@@ -246,6 +249,20 @@
     redaction before external emission.
   - `tests/test_tracing.py` covers successful workflows, tool failures, model
     failures, and retry-attempt tracing with fake clients/tools only.
+- Slice 13 implementation from `aed3b13`:
+  - `src/dynamic_agent_runner/prompt_cache.py` defines provider-neutral
+    `PromptCachePolicy` parsing and prompt-cache eligibility observation helpers.
+  - `src/dynamic_agent_runner/validation.py` validates optional
+    `execution_policy.prompt_cache` metadata before execution.
+  - `src/dynamic_agent_runner/executor.py` records named rendered message parts,
+    emits `prompt_cache_checked`, supports per-execution `prompt_cache=False`,
+    and records `prompt_cache_provider_telemetry` when cached-token metadata is
+    present in the model response.
+  - `tests/test_prompt_cache.py` covers parsing, validation failures, eligible
+    and ineligible prefixes, `x-` extension part names, missing token-estimator
+    behavior, caller disable overrides, and provider cached-token telemetry.
+  - Provider-specific prompt-cache request pass-through remains deferred until
+    exact SDK/API support is verified.
 - Interpreter middleware future spec from `e305b55`:
   - `specs/llm-step-interpreter-middleware/spec.md` records an optional future
     capability for attaching interpreter backends to `llm_step` nodes.
@@ -268,6 +285,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `aed3b13 feat(prompt-cache): add prompt cache intent tracing`
   - `7d950b7 feat(runtime): add behavior overrides`
   - `ecb8115 feat(executor): add workflow tracing hooks`
   - `d3a5c51 feat(executor): add token budget preflight`
@@ -298,7 +316,7 @@
 ## Next Steps
 
 - Await follow-up direction; no next main-runner implementation slice is
-  currently defined in `specs/dynamic-agent-runner/tasks.md` after Slice 12.
+  currently defined in `specs/dynamic-agent-runner/tasks.md` after Slice 13.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
