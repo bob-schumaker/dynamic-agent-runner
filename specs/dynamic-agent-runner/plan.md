@@ -37,6 +37,9 @@ or a clear error.
   `WorkflowExecutionContext` / `RunContext` as a stable execution envelope that
   groups a loaded workflow with runtime collaborators while preserving the
   existing `execute_workflow(workflow, ...)` call shape.
+- Evaluation follow-up Slice B is complete and committed: the registry now
+  validates OpenAI-compatible tool input schemas before model exposure or
+  invocation input validation.
 
 ## Technical Approach
 
@@ -199,6 +202,10 @@ Registry responsibilities:
   useful, while treating the effective registry as authoritative for executable
   tool availability
 - convert tool definitions to OpenAI tool schema
+- validate tool input schemas before model exposure or invocation validation,
+  including object-shaped schemas, mapping-shaped `properties`, string-only
+  `required` entries, no top-level `oneOf` / `anyOf` / `allOf`, and no `$schema`
+  metadata in model-facing parameters
 - validate required tool inputs using the declared input schema where practical
 - record side-effect metadata, approval metadata, timeout/retry policy, and
   structured success/failure results
@@ -353,6 +360,14 @@ and execution failures.
      artifact keyword arguments
    - validate with focused executor/API/import tests and the full test suite
 
+10. **Evaluation follow-up Slice B: stronger tool schema validation**
+    - normalize registry tool input schemas through one validation path before
+      OpenAI schema exposure and invocation required-field checks
+    - reject malformed object schemas, malformed `properties` or `required`, and
+      unsupported top-level schema combinators
+    - strip `$schema` metadata from model-facing OpenAI tool parameters
+    - validate with focused registry tests and the full test suite
+
 ## Validation Strategy
 
 Use staged validation as implementation grows:
@@ -387,6 +402,9 @@ model behavior and fake registries for tool behavior.
   `WorkflowExecutionContext` / `RunContext`; future runtime envelope additions
   should attach there when they are caller-provided execution collaborators or
   per-run policy controls rather than mutable workflow state.
+- Tool input schemas now fail closed for malformed OpenAI-compatible function
+  parameter shapes; future support for top-level schema combinators should be an
+  explicit compatibility expansion rather than pass-through behavior.
 - Tool-index files are optional metadata catalogs, not execution prerequisites;
   a tool can function only when the effective registry provides a callable entry.
 - Built-in default tools should be opt-in registry packs, not implicit ambient

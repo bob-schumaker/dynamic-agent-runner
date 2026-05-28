@@ -517,8 +517,16 @@
 - [ ] E2. Add a lightweight `ModelCapabilities` model for context window,
       structured-output support, reasoning support, modalities, and parallel
       tool-call support.
-- [ ] E3. Strengthen tool input-schema validation for OpenAI-compatible
+- [x] E3. Strengthen tool input-schema validation for OpenAI-compatible
       object-shaped function schemas.
+      - Implemented in commit `44b0847`: added a shared registry schema
+        normalization path for OpenAI tool exposure and invocation validation.
+      - The registry now rejects malformed `input_schema` values, non-object
+        schemas, non-mapping `properties`, non-list or non-string `required`
+        entries, and unsupported top-level `oneOf` / `anyOf` / `allOf`.
+      - Model-facing OpenAI tool parameters now omit top-level `$schema` metadata.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 116 tests passed.
 - [ ] E4. Add explicit tool exposure states: `direct`, `deferred`,
       `direct_model_only`, and `hidden`.
 - [ ] E5. Clarify separation between tool catalog metadata, callable registry

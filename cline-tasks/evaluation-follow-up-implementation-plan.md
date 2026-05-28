@@ -77,7 +77,7 @@ Completion evidence:
 - Validation: `ruff check src tests && ruff format --check src tests &&
   python -m pytest -q` — pass; 108 tests passed.
 
-## Slice B — E3: Stronger Tool Schema Validation
+## Slice B — E3: Stronger Tool Schema Validation — Complete
 
 **Goal:** Fail early on malformed OpenAI-compatible function schemas.
 
@@ -98,6 +98,18 @@ Checks to add:
 
 **Why second:** This is low-risk and supports all later tool exposure and policy
 work.
+
+Completion evidence:
+
+- Implemented in commit `44b0847`.
+- Added shared registry-side schema normalization for OpenAI tool schema exposure
+  and invocation input validation.
+- Rejected malformed `input_schema` values, non-object schemas, non-mapping
+  `properties`, invalid `required` entries, and top-level `oneOf` / `anyOf` /
+  `allOf` combinators.
+- Removed top-level `$schema` metadata from model-facing OpenAI tool parameters.
+- Validation: `ruff check src tests && ruff format --check src tests &&
+  python -m pytest -q` — pass; 116 tests passed.
 
 ## Slice C — E4 + E5: Tool Exposure States and Policy Separation
 

@@ -222,6 +222,12 @@ Acceptance criteria:
   are schema-compatible with the registry contract, disabled tools are not still
   required by `tool_use_step` nodes, and per-node overrides only target existing
   `llm_step` nodes.
+- Given a tool definition includes `input_schema`, when registry preparation or
+  OpenAI tool-schema conversion runs, then the schema must be mapping-based,
+  object-shaped or inferable as object-shaped, use mapping-shaped `properties`,
+  use string-only `required` entries, avoid ambiguous top-level `oneOf` /
+  `anyOf` / `allOf`, and omit `$schema` metadata from the model-facing OpenAI
+  parameters payload.
 - Given behavior overrides are supplied during workflow preparation, then
   validation verifies that target nodes exist, target nodes are `llm_step` nodes,
   referenced skills exist after override layering, prompt override operations are
@@ -1081,6 +1087,9 @@ Before implementation is considered complete, add validation covering:
   narrow lifecycle hooks, trace vocabulary, MCP registry-source design,
   context-management seams, constrained file-backed prompt context, and
   primitive-node-preserving sub-agent delegation.
+- Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
+  validation in commit `44b0847`, including fail-closed malformed schema checks
+  and `$schema` removal from model-facing tool parameters.
 - The initial source package scaffold exists; deeper parser, registry, OpenAI
   adapter, executor, and CLI implementation details remain intentionally staged
   through follow-on slices.
