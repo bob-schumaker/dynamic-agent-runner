@@ -212,7 +212,7 @@ Completion evidence:
 - Validation: `ruff check src tests && ruff format --check src tests &&
   python -m pytest -q` — pass; 123 tests passed.
 
-## Slice E — E8: Extended Trace Vocabulary
+## Slice E — E8: Extended Trace Vocabulary — Complete
 
 **Goal:** Add richer event types around existing operations without requiring
 external observability.
@@ -234,6 +234,17 @@ carefully.
 
 **Why before hooks:** Hooks should be able to rely on the new event vocabulary
 once introduced.
+
+Completion evidence:
+
+- Implemented in commit `bcd76d4`.
+- Added `tool_started` and `tool_finished` events around direct tool invocation
+  while preserving existing `tool_invocation` and `tool_result` compatibility
+  events.
+- Added warning `status_notice` events for fallback tool failures, including a
+  stable code, message, tool id, and error detail.
+- Validation: `ruff check src tests && ruff format --check src tests &&
+  python -m pytest -q` — pass; 125 tests passed.
 
 ## Slice F — E7: Narrow In-Process Lifecycle Hooks
 

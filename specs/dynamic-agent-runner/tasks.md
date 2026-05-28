@@ -554,8 +554,15 @@
         python -m pytest -q` — pass; 123 tests passed.
 - [ ] E7. Define narrow in-process lifecycle hook protocols for model, tool,
       node, permission, and workflow boundaries.
-- [ ] E8. Extend trace vocabulary for tool lifecycle, usage updates, status
+- [x] E8. Extend trace vocabulary for tool lifecycle, usage updates, status
       notices, and future permission/context-management events.
+      - Implemented in commit `bcd76d4`: added `tool_started` and
+        `tool_finished` events around direct tool invocation while preserving the
+        existing `tool_invocation` and `tool_result` compatibility events.
+      - The executor now emits warning `status_notice` events for fallback tool
+        failures with stable code, message, tool id, and error detail.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 125 tests passed.
 - [ ] E9. Draft MCP registry-source support with server provenance, visibility,
       status, tool cache, disabled state, operation locking, and memory-pollution
       metadata.

@@ -517,6 +517,12 @@ Acceptance criteria:
   records structured events for node start, node completion, model request,
   model response, tool invocation, retry attempts, decisions, errors, and final
   result.
+- Given a direct tool step, when tracing is enabled, then the runtime emits
+  `tool_started` and `tool_finished` lifecycle events around the existing
+  `tool_invocation` and `tool_result` compatibility events.
+- Given a non-fatal tool failure that continues because of fallback behavior, when
+  tracing is enabled, then the runtime emits a `status_notice` event with a
+  warning severity, stable code, message, tool id, and error detail.
 - Given tracing is disabled, when a workflow runs, then the runtime avoids adding
   required external observability dependencies.
 - Given a trace sink is provided, when events occur, then the runtime forwards
@@ -1062,6 +1068,7 @@ Before implementation is considered complete, add validation covering:
 - [ ] token-budget preflight behavior without live model calls
 - [ ] structured trace/event hooks for node, model, tool, decision, retry, error,
       and final-result events
+- [ ] extended trace vocabulary for tool lifecycle and status notice events
 - [ ] structured tool-result facets for model-facing output, raw output, log
       preview, event payload, and sensitive trace fields
 - [ ] clear error behavior for missing artifacts
@@ -1128,6 +1135,10 @@ Before implementation is considered complete, add validation covering:
   `815f55a`, including model-facing output fallback, raw output, log preview,
   event payload, sensitive trace fields, registry preservation of structured tool
   results, and executor use of model-facing output for prompt/state references.
+- Evaluation follow-up Slice E completed extended trace vocabulary in commit
+  `bcd76d4`, including `tool_started`, `tool_finished`, and fallback
+  `status_notice` events while preserving existing `tool_invocation` and
+  `tool_result` compatibility events.
 - The initial source package scaffold exists; deeper parser, registry, OpenAI
   adapter, executor, and CLI implementation details remain intentionally staged
   through follow-on slices.

@@ -47,6 +47,9 @@ or a clear error.
 - Evaluation follow-up Slice D is complete and committed: `ToolResult` now
   preserves separate model-facing, raw, log-preview, event-payload, and sensitive
   trace facets while retaining backward-compatible `output` fallback behavior.
+- Evaluation follow-up Slice E is complete and committed: tool execution tracing
+  now emits `tool_started`, `tool_finished`, and fallback `status_notice` events
+  while preserving the older `tool_invocation` and `tool_result` events.
 
 ## Technical Approach
 
@@ -411,6 +414,16 @@ and execution failures.
     - validate with focused registry/executor/tracing/import tests and the full
       test suite
 
+13. **Evaluation follow-up Slice E: extended trace vocabulary**
+    - emit `tool_started` before direct tool invocation with tool id and redacted
+      arguments
+    - preserve existing `tool_invocation` and `tool_result` events for
+      compatibility
+    - emit `tool_finished` after tool results are recorded for both success and
+      fail-closed error paths
+    - emit `status_notice` warnings for non-fatal fallback tool failures
+    - validate with focused tracing/executor tests and the full test suite
+
 ## Validation Strategy
 
 Use staged validation as implementation grows:
@@ -459,6 +472,10 @@ model behavior and fake registries for tool behavior.
   prompt/state references when present, `output` remains the fallback for existing
   callers, and raw/log/event facets are available for trace payloads and future
   hooks.
+- Tool trace vocabulary now includes explicit `tool_started` and `tool_finished`
+  lifecycle events around the existing compatibility events, plus warning
+  `status_notice` events for fallback tool failures; hooks can rely on this
+  vocabulary as the starting tool lifecycle surface.
 - Tool-index files are optional metadata catalogs, not execution prerequisites;
   a tool can function only when the effective registry provides a callable entry.
 - Built-in default tools should be opt-in registry packs, not implicit ambient
