@@ -2,10 +2,12 @@
 
 ## Current Focus
 
-- Follow-up design documentation for concurrent invocation and async/sync
-  interface support is recorded. Governing docs commit `d9fa4ad` adds future
-  thread-safety work for shared collaborators and future async execution APIs
-  while preserving synchronous APIs as wrappers over the same runtime semantics.
+- E13 concurrent invocation support is implemented and recorded for the first
+  planned customer, `../power-marimo/`, a PySide6/qtpy application expected to
+  run multiple QThreads with agents. Implementation commit `2e45888` adds
+  run-correlated execution, traces, hooks, and synchronized package-owned shared
+  helpers; governing docs commit `a4fe7e9` records the completed thread-safety
+  contract. E14 async interface work remains deferred.
 
 ## Current Status
 
@@ -97,17 +99,21 @@
     Slice G / E2 completion evidence in `97fe320`.
   - Updated governing spec/plan/task documents for future concurrent invocation
     and async/sync interface work in `d9fa4ad`.
+  - Completed E13 concurrent invocation support in `2e45888`, adding `run_id`
+    correlation and synchronized package-owned shared helpers for QThread-style
+    callers.
+  - Updated governing spec/plan/task documents for completed E13 support in
+    `a4fe7e9`.
 - In progress:
-  - None currently; awaiting the next scoped follow-up direction after this
-    memory-bank checkpoint.
+  - Memory-bank checkpoint for E13 implementation and governing-docs commits.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
-  - Remaining deferred Codex/Cline follow-ups include E9 through E14; no next
-    candidate slice has been selected after recording concurrency and async
-    interface follow-ups.
+  - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, E12, and
+    E14; E13 is implemented and documented. No next candidate slice has been
+    selected after the E13 checkpoint.
 
 ## Important Current Facts
 
@@ -128,8 +134,8 @@
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
   implementation. Slices 0 through 13 plus evaluation follow-up Slices A, B,
-  C, D, E, F, and G are complete; E9 through E14 remain deferred follow-up
-  candidates.
+  C, D, E, F, G, and H / E13 are complete; E9, E10, E11, E12, and E14 remain
+  deferred follow-up candidates.
 - `cline-tasks/codex-cli-evaluation.md` and `cline-tasks/cline-evaluation.md`
   capture read-only external runtime-pattern evaluations. The synthesized
   proposal lives at `cline-tasks/codex-cline-combined-package-proposal.md`.
@@ -144,8 +150,11 @@
   implementation commit `13c6dac`. `spec.md`, `plan.md`, `tasks.md`, and
   `cline-tasks/evaluation-follow-up-implementation-plan.md` were refreshed for
   Slice G / E2 in `97fe320`.
-  Future E13 and E14 are recorded for thread-safety / concurrent invocation and
-  async/sync interface design, respectively, in `d9fa4ad`.
+  E13 is complete in `2e45888` and documented in `a4fe7e9`: execution state now
+  carries per-run `run_id`, trace events and lifecycle hook contexts are
+  run-correlated, and package-owned in-memory/shared helpers are synchronized for
+  concurrent QThread-style callers. E14 remains recorded for future async/sync
+  interface design in `d9fa4ad`.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -331,6 +340,26 @@
     behavior, caller disable overrides, and provider cached-token telemetry.
   - Provider-specific prompt-cache request pass-through remains deferred until
     exact SDK/API support is verified.
+- Evaluation follow-up Slice H / E13 implementation from `2e45888`:
+  - `execute_workflow(...)` and `run_agent_workflow(...)` now accept optional
+    caller-provided `run_id` values and otherwise generate per-run IDs.
+  - `WorkflowExecutionState`, `TraceEvent`, and lifecycle hook context objects
+    carry run-correlation metadata for interleaved executions.
+  - `InMemoryTraceSink`, `WorkflowTracer`, `OpenAIClientAdapter` lazy default
+    client initialization, and `InMemoryToolRegistry` read/mutation helpers use
+    synchronization for package-owned shared surfaces.
+  - Caller-provided mutable tool handlers and lifecycle hook implementations
+    remain responsible for synchronizing their own shared state.
+  - `tests/test_concurrency.py` covers shared-context concurrent runs,
+    run-correlated traces/hooks, public API `run_id` propagation, synchronized
+    registry registration/invocation, and lazy-client initialization across
+    threads.
+  - Validation: `poetry run pytest -q && poetry run python -m compileall -q src
+    tests && pre-commit run --files ...` — pass; 136 tests passed.
+- Governing-docs update from `a4fe7e9`:
+  - `specs/dynamic-agent-runner/spec.md`, `plan.md`, and `tasks.md` mark E13
+    complete, record the current thread-safety contract, and leave E14 async
+    interface work deferred.
 - Evaluation follow-up Slice A implementation from `38929f1`:
   - `src/dynamic_agent_runner/context.py` defines `WorkflowExecutionContext` and
     `RunContext` as a stable execution envelope for a loaded workflow, optional
@@ -428,6 +457,8 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `a4fe7e9 docs(spec): record concurrent invocation support`
+  - `2e45888 feat(executor): add concurrent run correlation`
   - `d9fa4ad docs(spec): record concurrency and async follow-ups`
   - `97fe320 docs(spec): record model capabilities slice`
   - `13c6dac feat(models): add model capabilities metadata`
@@ -476,8 +507,8 @@
 ## Next Steps
 
 - Await follow-up direction for the next deferred Codex/Cline follow-up slice.
-  Remaining candidates in `specs/dynamic-agent-runner/tasks.md` include E9
-  through E14.
+  Remaining candidates in `specs/dynamic-agent-runner/tasks.md` include E9,
+  E10, E11, E12, and E14.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped

@@ -166,3 +166,7 @@ move the deferred section to tasks.md
 - do we currently support multiple concurrent agents created by the client or will we have low-level crosstalk
 - what are the pros and cons of making the package async
 - should we support both interface styles
+---
+
+the repo ../power-marimo/ will be a PySide6 (through qtpy) application and our first customer. should we do E13 since they will be running mulltiple QThreads with agents, and since we have no customers does implementing E14 make sense now as well?
+

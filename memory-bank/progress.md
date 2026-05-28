@@ -104,6 +104,10 @@
   `97fe320 docs(spec): record model capabilities slice`.
 - Concurrency and async follow-up governing-docs commit exists:
   `d9fa4ad docs(spec): record concurrency and async follow-ups`.
+- E13 concurrent invocation implementation commit exists:
+  `2e45888 feat(executor): add concurrent run correlation`.
+- E13 governing-docs commit exists:
+  `a4fe7e9 docs(spec): record concurrent invocation support`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -202,20 +206,20 @@
   `RuntimeManifest`. The model is exported publicly and remains metadata-only for
   now, so capability declarations do not alter OpenAI request parameters. Full
   validation passed with 132 tests.
-- Future concurrent invocation and async/sync interface work is now recorded in
-  governing spec artifacts. The runtime should preserve per-run
-  `WorkflowExecutionState` isolation, add explicit thread-safety contracts for
-  shared collaborators before claiming full concurrent-agent support, and later
-  prefer async-first internals with synchronous APIs retained as convenience
-  wrappers over the same semantics.
+- E13 concurrent invocation support is implemented for the first planned
+  customer scenario: `../power-marimo/`, a PySide6/qtpy application expected to
+  run multiple QThreads with agents. The runtime now preserves per-run
+  `WorkflowExecutionState` isolation, adds `run_id` correlation to execution
+  state, trace events, and lifecycle hook contexts, and synchronizes current
+  package-owned in-memory/shared helper surfaces. E14 async/sync interface work
+  remains deferred.
 
 ## In Flight
 
-- No source implementation work is currently in flight after implementation
-  commit `13c6dac` and governing-docs commit `d9fa4ad`.
-- Remaining deferred Codex/Cline follow-ups include E9 through E14; no next
-  candidate slice has been selected after recording concurrency and async
-  interface follow-ups.
+- No source implementation work is currently in flight after E13 implementation
+  commit `2e45888` and governing-docs commit `a4fe7e9`.
+- Remaining deferred Codex/Cline follow-ups include E9, E10, E11, E12, and E14;
+  no next candidate slice has been selected after the E13 checkpoint.
 
 ## Remaining
 
@@ -281,14 +285,16 @@
 - Slice 13 intentionally stops short of provider-specific prompt-cache request
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
-- Codex/Cline follow-ups E1, E2, E3, E4, E5, E6, E7, and E8 are implemented.
-  Remaining follow-ups E9 through E14 are deferred backlog items, not implemented
-  runtime behavior. They should be introduced through package-owned contracts
-  before broad integrations such as MCP, plugins, shell hooks, app-server
-  protocols, or multi-provider routing.
-- E13 records future thread-safety / concurrent invocation work: run correlation,
-  shared collaborator contracts, lazy adapter initialization policy, registry
-  mutation/read behavior, mutable tool-handler behavior, and concurrent tests.
+- Codex/Cline follow-ups E1, E2, E3, E4, E5, E6, E7, E8, and E13 are
+  implemented. Remaining follow-ups E9, E10, E11, E12, and E14 are deferred
+  backlog items, not implemented runtime behavior. They should be introduced
+  through package-owned contracts before broad integrations such as MCP, plugins,
+  shell hooks, app-server protocols, or multi-provider routing.
+- E13 is complete for the current package-owned contract: run correlation,
+  synchronized current in-memory/shared helpers, lazy adapter initialization
+  protection, registry mutation/read behavior, and concurrent tests.
+  Caller-provided mutable tool handlers and lifecycle hooks remain
+  caller-managed for synchronization.
 - E14 records future async interface work: async public APIs, sync wrappers over
   one semantic runtime path, event-loop misuse handling, mixed sync/async
   collaborator policy, cancellation/timeout propagation, and parity validation.
