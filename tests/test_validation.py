@@ -213,6 +213,34 @@ def test_tool_use_step_requires_known_tool() -> None:
         validate_mapping(data)
 
 
+def test_tool_metadata_rejects_unknown_exposure() -> None:
+    """Tool exposure metadata fails closed for manifests and tool indexes."""
+
+    data = valid_manifest_data()
+    data["tools"] = [
+        {
+            "id": "search_repo",
+            "adapter": "runtime.search_files",
+            "exposure": "surprise",
+        }
+    ]
+
+    with pytest.raises(WorkflowValidationError, match="unsupported exposure"):
+        validate_mapping(data)
+
+    tool_index = load_tool_index(
+        {
+            "format_version": 1,
+            "index_type": "agent_runtime_tool_index",
+            "tools": [{"id": "external_search", "exposure": "surprise"}],
+        }
+    )
+    assert tool_index is not None
+
+    with pytest.raises(WorkflowValidationError, match="unsupported exposure"):
+        validate_tool_index(tool_index)
+
+
 def test_llm_step_requires_prompt_or_prompt_source() -> None:
     """LLM steps need inline prompt data or a prompt source."""
 

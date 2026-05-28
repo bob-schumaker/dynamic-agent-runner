@@ -12,6 +12,8 @@ from dynamic_agent_runner.models import (
     PRIMITIVE_NODE_KINDS,
     RuntimeManifest,
     RuntimeNode,
+    ToolDefinition,
+    ToolExposure,
     ToolIndex,
 )
 from dynamic_agent_runner.prompt_cache import prompt_cache_policy_from_value
@@ -119,6 +121,7 @@ def validate_runtime_manifest(
     _extend(errors, _unsupported_runtime_enums(manifest))
     _extend(errors, _node_id_errors(manifest.nodes))
     _extend(errors, _edge_reference_errors(manifest))
+    _extend(errors, _tool_definition_errors(manifest.tools, "runtime manifest tool"))
     _extend(errors, _tool_reference_errors(manifest, tool_index, tool_registry))
     _extend(errors, _llm_prompt_errors(manifest.nodes))
     _extend(errors, _prompt_cache_policy_errors(manifest))
@@ -145,6 +148,7 @@ def validate_tool_index(tool_index: ToolIndex) -> None:
     for index, tool in enumerate(tool_index.tools):
         if not tool.id:
             errors.append(f"tool index tool at position {index} is missing id")
+    _extend(errors, _tool_definition_errors(tool_index.tools, "tool index tool"))
     for index, skill in enumerate(tool_index.skills):
         if not skill.id:
             errors.append(f"tool index skill at position {index} is missing id")
@@ -364,6 +368,20 @@ def _tool_reference_errors(
             errors.append(
                 f"tool_use_step node {node.id!r} references unknown metadata "
                 f"tool {node.tool_id!r}"
+            )
+    return errors
+
+
+def _tool_definition_errors(
+    tools: Iterable[ToolDefinition],
+    label: str,
+) -> list[str]:
+    errors: list[str] = []
+    for index, tool in enumerate(tools):
+        if not isinstance(tool.exposure, ToolExposure):
+            errors.append(
+                f"{label} {tool.id!r} at position {index} has unsupported exposure "
+                f"{tool.exposure!r}"
             )
     return errors
 

@@ -25,7 +25,11 @@ from dynamic_agent_runner.openai_client import (
     create_default_openai_client,
     normalize_openai_response,
 )
-from dynamic_agent_runner.models import RuntimeBehaviorOverrides
+from dynamic_agent_runner.models import (
+    RuntimeBehaviorOverrides,
+    ToolExposure,
+    ToolPolicy,
+)
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
@@ -88,6 +92,8 @@ __all__ = [
     "ToolRegistryOverrides",
     "ToolRegistry",
     "ToolExposureOverride",
+    "ToolExposure",
+    "ToolPolicy",
     "RegisteredTool",
     "PromptCacheObservation",
     "PromptCachePolicy",

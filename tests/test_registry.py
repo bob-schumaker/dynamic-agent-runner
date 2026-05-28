@@ -8,7 +8,7 @@ import pytest
 
 from dynamic_agent_runner.artifacts import load_runtime_manifest
 from dynamic_agent_runner.errors import ToolRegistryError
-from dynamic_agent_runner.models import RuntimeNode, ToolDefinition
+from dynamic_agent_runner.models import RuntimeNode, ToolDefinition, ToolExposure
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
@@ -20,7 +20,12 @@ from dynamic_agent_runner.registry import (
 )
 
 
-def make_tool(tool_id: str, output: object | None = None) -> RegisteredTool:
+def make_tool(
+    tool_id: str,
+    output: object | None = None,
+    *,
+    exposure: str = "direct",
+) -> RegisteredTool:
     raw = {
         "id": tool_id,
         "label": tool_id.replace("_", " ").title(),
@@ -32,6 +37,7 @@ def make_tool(tool_id: str, output: object | None = None) -> RegisteredTool:
         },
         "side_effect": "read",
         "approval_required": "no",
+        "exposure": exposure,
         "timeout": "runtime_default",
         "retry_policy": "none",
         "failure_behavior": "error",
@@ -158,6 +164,32 @@ def test_openai_tool_schema_strips_schema_metadata_for_model_output() -> None:
     }
 
 
+def test_tool_definition_separates_exposure_and_policy_metadata() -> None:
+    definition = ToolDefinition.from_mapping(
+        {
+            "id": "review_notebook",
+            "label": "Review notebook",
+            "exposure": "hidden",
+            "side_effect": "write",
+            "approval_required": "yes",
+            "sandbox": "workspace",
+            "timeout": "short",
+            "retry_policy": "none",
+            "failure_behavior": "error",
+        }
+    )
+
+    assert definition.exposure is ToolExposure.HIDDEN
+    assert definition.side_effect == "write"
+    assert definition.approval_required == "yes"
+    assert definition.policy.side_effect == "write"
+    assert definition.policy.approval_required == "yes"
+    assert definition.policy.sandbox == "workspace"
+    assert definition.policy.timeout == "short"
+    assert definition.policy.retry_policy == "none"
+    assert definition.policy.failure_behavior == "error"
+
+
 def test_registry_validates_callable_tool_references_not_metadata_only() -> None:
     manifest = manifest_with_tool("metadata_only")
     registry = InMemoryToolRegistry([])
@@ -169,6 +201,16 @@ def test_registry_validates_callable_tool_references_not_metadata_only() -> None
         manifest,
         InMemoryToolRegistry([make_tool("metadata_only")]),
     )
+
+
+def test_registry_rejects_model_only_tools_for_direct_tool_steps() -> None:
+    manifest = manifest_with_tool("model_only_tool")
+    registry = InMemoryToolRegistry(
+        [make_tool("model_only_tool", exposure="direct_model_only")]
+    )
+
+    with pytest.raises(ToolRegistryError, match="not callable for direct execution"):
+        validate_registry_tool_references(manifest, registry)
 
 
 def test_runtime_overrides_add_replace_disable_and_restrict_per_node() -> None:
@@ -239,6 +281,65 @@ def test_llm_node_tool_exposure_requires_node_references() -> None:
     )
 
     assert [tool.id for tool in exposed.list_tools_for_node(node)] == ["read_file"]
+
+
+def test_tool_exposure_states_control_model_visibility_and_invocation() -> None:
+    registry = InMemoryToolRegistry(
+        [
+            make_tool("direct_tool", exposure="direct"),
+            make_tool("deferred_tool", exposure="deferred"),
+            make_tool("model_only_tool", exposure="direct_model_only"),
+            make_tool("hidden_tool", exposure="hidden"),
+        ]
+    )
+    node = RuntimeNode.from_mapping(
+        {
+            "id": "llm",
+            "kind": "llm_step",
+            "prompt_source": "inline",
+            "available_tools": [
+                "direct_tool",
+                "deferred_tool",
+                "model_only_tool",
+                "hidden_tool",
+            ],
+        }
+    )
+
+    assert [tool.id for tool in registry.list_tools_for_node(node)] == [
+        "direct_tool",
+        "model_only_tool",
+    ]
+    assert registry.to_openai_tools(["model_only_tool"])[0]["function"]["name"] == (
+        "model_only_tool"
+    )
+    assert [tool["function"]["name"] for tool in registry.to_openai_tools()] == [
+        "direct_tool",
+        "model_only_tool",
+    ]
+    with pytest.raises(ToolRegistryError, match="not model-exposable"):
+        registry.to_openai_tools(["hidden_tool"])
+    blocked = registry.invoke_tool("model_only_tool", {"query": "x"})
+    internal = registry.invoke_tool("hidden_tool", {"query": "x"})
+
+    assert blocked.success is False
+    assert "not callable for direct execution" in str(blocked.error)
+    assert internal.success is True
+
+
+def test_unknown_tool_exposure_fails_closed() -> None:
+    registry = InMemoryToolRegistry([make_tool("bad", exposure="surprise")])
+    node = RuntimeNode.from_mapping(
+        {
+            "id": "llm",
+            "kind": "llm_step",
+            "prompt_source": "inline",
+            "available_tools": ["bad"],
+        }
+    )
+
+    with pytest.raises(ToolRegistryError, match="unsupported exposure"):
+        registry.list_tools_for_node(node)
 
 
 def test_local_workspace_tool_pack_is_opt_in_and_path_restricted(

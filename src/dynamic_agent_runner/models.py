@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Mapping
 
 SUPPORTED_AGENT_PATTERNS = (
@@ -36,6 +37,40 @@ def _copy_list(value: object) -> list[Any]:
     if isinstance(value, list):
         return list(value)
     return [value]
+
+
+class ToolExposure(str, Enum):
+    """How a tool may be exposed to models and direct workflow execution."""
+
+    DIRECT = "direct"
+    DEFERRED = "deferred"
+    DIRECT_MODEL_ONLY = "direct_model_only"
+    HIDDEN = "hidden"
+
+
+@dataclass(frozen=True)
+class ToolPolicy:
+    """Lightweight tool policy metadata separated from callable registration."""
+
+    side_effect: str | None = None
+    approval_required: str | None = None
+    sandbox: str | None = None
+    timeout: str | None = None
+    retry_policy: str | None = None
+    failure_behavior: str | None = None
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> ToolPolicy:
+        """Build tool policy metadata from a manifest or tool-index mapping."""
+
+        return cls(
+            side_effect=_optional_str(value.get("side_effect")),
+            approval_required=_optional_str(value.get("approval_required")),
+            sandbox=_optional_str(value.get("sandbox")),
+            timeout=_optional_str(value.get("timeout")),
+            retry_policy=_optional_str(value.get("retry_policy")),
+            failure_behavior=_optional_str(value.get("failure_behavior")),
+        )
 
 
 @dataclass(frozen=True)
@@ -139,24 +174,23 @@ class ToolDefinition:
     adapter: str | None = None
     side_effect: str | None = None
     approval_required: str | None = None
+    exposure: ToolExposure | str = ToolExposure.DIRECT
+    policy: ToolPolicy = field(default_factory=ToolPolicy)
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> ToolDefinition:
         """Build a tool definition from a manifest or tool-index mapping."""
 
         raw = dict(value)
+        policy = ToolPolicy.from_mapping(raw)
         return cls(
             id=str(raw["id"]) if raw.get("id") is not None else None,
             label=str(raw["label"]) if raw.get("label") is not None else None,
             adapter=str(raw["adapter"]) if raw.get("adapter") is not None else None,
-            side_effect=(
-                str(raw["side_effect"]) if raw.get("side_effect") is not None else None
-            ),
-            approval_required=(
-                str(raw["approval_required"])
-                if raw.get("approval_required") is not None
-                else None
-            ),
+            side_effect=policy.side_effect,
+            approval_required=policy.approval_required,
+            exposure=_tool_exposure_from_value(raw.get("exposure")),
+            policy=policy,
             raw=raw,
         )
 
@@ -387,6 +421,15 @@ class LoadedAgentWorkflow:
 
 def _optional_str(value: object) -> str | None:
     return str(value) if value is not None else None
+
+
+def _tool_exposure_from_value(value: object) -> ToolExposure | str:
+    if value is None:
+        return ToolExposure.DIRECT
+    try:
+        return ToolExposure(str(value))
+    except ValueError:
+        return str(value)
 
 
 def _as_mapping(value: object) -> Mapping[str, Any] | None:

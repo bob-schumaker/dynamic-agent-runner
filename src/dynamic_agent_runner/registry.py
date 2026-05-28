@@ -9,7 +9,12 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from dynamic_agent_runner.errors import ToolRegistryError
-from dynamic_agent_runner.models import RuntimeManifest, RuntimeNode, ToolDefinition
+from dynamic_agent_runner.models import (
+    RuntimeManifest,
+    RuntimeNode,
+    ToolDefinition,
+    ToolExposure,
+)
 
 ToolHandler = Callable[[Mapping[str, Any]], Any]
 
@@ -163,7 +168,11 @@ class InMemoryToolRegistry:
             tool_ids.extend(override.add)
             remove = set(override.remove)
             tool_ids = [tool_id for tool_id in tool_ids if tool_id not in remove]
-        return tuple(self.get_tool(tool_id) for tool_id in _dedupe(tool_ids))
+        return tuple(
+            tool
+            for tool in (self.get_tool(tool_id) for tool_id in _dedupe(tool_ids))
+            if _is_model_exposable(tool.definition)
+        )
 
     def to_openai_tools(
         self,
@@ -171,7 +180,14 @@ class InMemoryToolRegistry:
     ) -> list[dict[str, Any]]:
         """Convert registered tools to OpenAI function tool schema entries."""
 
-        selected_ids = tuple(tool_ids) if tool_ids is not None else tuple(self._tools)
+        if tool_ids is None:
+            selected_ids = tuple(
+                tool_id
+                for tool_id, tool in self._tools.items()
+                if _is_model_exposable(tool.definition)
+            )
+        else:
+            selected_ids = tuple(tool_ids)
         return [
             openai_tool_schema(self.get_tool(tool_id).definition)
             for tool_id in selected_ids
@@ -187,6 +203,7 @@ class InMemoryToolRegistry:
         args = dict(arguments or {})
         tool = self.get_tool(tool_id)
         try:
+            _require_direct_callable(tool.definition)
             _validate_input_schema(tool.definition, args)
             output = tool.handler(args)
         except Exception as exc:  # noqa: BLE001 - convert all tool failures.
@@ -199,6 +216,7 @@ def openai_tool_schema(definition: ToolDefinition) -> dict[str, Any]:
 
     if not definition.id:
         raise ToolRegistryError("cannot convert tool without id to OpenAI schema")
+    _require_model_exposable(definition)
     raw = dict(definition.raw)
     description = raw.get("description_for_llm") or definition.label or definition.id
     parameters = _normalized_input_schema(definition)
@@ -226,7 +244,9 @@ def validate_registry_tool_references(
             errors.append(f"tool_use_step node {node.id!r} is missing tool_id")
             continue
         try:
-            registry.get_tool(node.tool_id)
+            tool = registry.get_tool(node.tool_id)
+            if isinstance(tool.definition, ToolDefinition):
+                _require_direct_callable(tool.definition)
         except ToolRegistryError as exc:
             errors.append(
                 f"tool_use_step node {node.id!r} references unavailable registry "
@@ -264,7 +284,8 @@ def _override_tool_definition_errors(
     for tool in (*overrides.added_tools, *overrides.replacement_tools):
         try:
             _require_tool_id(tool)
-            openai_tool_schema(tool.definition)
+            _tool_exposure(tool.definition)
+            _normalized_input_schema(tool.definition)
         except ToolRegistryError as exc:
             errors.append(str(exc))
     for tool in overrides.replacement_tools:
@@ -528,6 +549,37 @@ def _normalized_input_schema(definition: ToolDefinition) -> dict[str, Any]:
     normalized = {key: value for key, value in schema.items() if key != "$schema"}
     normalized.setdefault("type", "object")
     return dict(normalized)
+
+
+def _require_model_exposable(definition: ToolDefinition) -> None:
+    exposure = _tool_exposure(definition)
+    if exposure not in (ToolExposure.DIRECT, ToolExposure.DIRECT_MODEL_ONLY):
+        raise ToolRegistryError(
+            f"tool {definition.id!r} exposure {exposure.value!r} is not model-exposable"
+        )
+
+
+def _is_model_exposable(definition: ToolDefinition) -> bool:
+    exposure = _tool_exposure(definition)
+    return exposure in (ToolExposure.DIRECT, ToolExposure.DIRECT_MODEL_ONLY)
+
+
+def _require_direct_callable(definition: ToolDefinition) -> None:
+    exposure = _tool_exposure(definition)
+    if exposure not in (ToolExposure.DIRECT, ToolExposure.HIDDEN):
+        raise ToolRegistryError(
+            f"tool {definition.id!r} exposure {exposure.value!r} is not callable "
+            "for direct execution"
+        )
+
+
+def _tool_exposure(definition: ToolDefinition) -> ToolExposure:
+    exposure = definition.exposure
+    if isinstance(exposure, ToolExposure):
+        return exposure
+    raise ToolRegistryError(
+        f"tool {definition.id!r} has unsupported exposure {exposure!r}"
+    )
 
 
 def _dedupe(values: Iterable[str]) -> tuple[str, ...]:
