@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from threading import RLock
 from typing import Any, Protocol
 
 from dynamic_agent_runner.errors import ModelExecutionError
@@ -87,14 +88,16 @@ class OpenAIClientAdapter:
 
     def __init__(self, client: OpenAIClientProtocol | None = None) -> None:
         self._client = client
+        self._client_lock = RLock()
 
     @property
     def client(self) -> OpenAIClientProtocol:
         """Return the injected or lazily constructed official OpenAI client."""
 
-        if self._client is None:
-            self._client = create_default_openai_client()
-        return self._client
+        with self._client_lock:
+            if self._client is None:
+                self._client = create_default_openai_client()
+            return self._client
 
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Send a request and normalize the returned model response."""

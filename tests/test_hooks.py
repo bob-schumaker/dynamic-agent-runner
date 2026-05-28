@@ -168,29 +168,33 @@ def test_lifecycle_hook_contexts_include_stable_observation_fields() -> None:
         after_workflow=after_workflow,
     )
 
-    execute_workflow(
+    result = execute_workflow(
         workflow,
         prompt="Run",
         tool_registry=registry,
         lifecycle_hooks=hooks,
     )
+    run_id = result.state.run_id
 
     assert seen["before_node"] == NodeHookContext(
-        node_id="lookup", kind="tool_use_step"
+        node_id="lookup", kind="tool_use_step", run_id=run_id
     )
     assert seen["before_tool"] == ToolHookContext(
         node_id="lookup",
         tool_id="search_repo",
         arguments={"query": "agents"},
+        run_id=run_id,
     )
     after_tool_context = seen["after_tool"]
     assert isinstance(after_tool_context, ToolHookContext)
     assert after_tool_context.node_id == "lookup"
     assert after_tool_context.tool_id == "search_repo"
     assert after_tool_context.result is not None
+    assert after_tool_context.run_id == run_id
     workflow_context = seen["after_workflow"]
     assert isinstance(workflow_context, WorkflowHookContext)
     assert workflow_context.final_result == {"answer": "42"}
+    assert workflow_context.run_id == run_id
 
 
 def test_run_agent_workflow_accepts_lifecycle_hooks() -> None:

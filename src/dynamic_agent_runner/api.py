@@ -65,6 +65,7 @@ def run_agent_workflow(
     trace_sink: Any | None = None,
     prompt_cache: bool | None = None,
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
+    run_id: str | None = None,
 ) -> Any:
     """Run an agent workflow from generated artifacts and a user prompt.
 
@@ -95,7 +96,7 @@ def run_agent_workflow(
                 "execution_context cannot be combined with artifact or runtime "
                 "keyword arguments"
             )
-        result = execute_workflow(execution_context, prompt=prompt)
+        result = execute_workflow(execution_context, prompt=prompt, run_id=run_id)
         return result.final_result
 
     workflow = load_agent_workflow(
@@ -117,5 +118,6 @@ def run_agent_workflow(
         trace_sink=trace_sink,
         prompt_cache=prompt_cache,
         lifecycle_hooks=lifecycle_hooks,
+        run_id=run_id,
     )
     return result.final_result

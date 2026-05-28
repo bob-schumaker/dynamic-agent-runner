@@ -6,6 +6,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import uuid4
 
 from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.context import WorkflowExecutionContext
@@ -63,6 +64,7 @@ class WorkflowExecutionState:
     """Mutable execution state accumulated while a workflow runs."""
 
     prompt: str
+    run_id: str | None = None
     node_inputs: dict[str, Any] = field(default_factory=dict)
     node_outputs: dict[str, Any] = field(default_factory=dict)
     tool_results: dict[str, ToolResult] = field(default_factory=dict)
@@ -92,6 +94,7 @@ def execute_workflow(
     trace_sink: TraceSink | None = None,
     prompt_cache: bool | None = None,
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
+    run_id: str | None = None,
 ) -> WorkflowResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -112,8 +115,12 @@ def execute_workflow(
         raise WorkflowExecutionError("workflow entrypoint does not reference a node")
     edges_by_source = _edges_by_source(tuple(manifest.edges))
     adapter = context.model_adapter or OpenAIClientAdapter()
-    state = WorkflowExecutionState(prompt=prompt)
-    tracer = WorkflowTracer(events=state.trace_events, sink=context.trace_sink)
+    state = WorkflowExecutionState(prompt=prompt, run_id=run_id or _new_run_id())
+    tracer = WorkflowTracer(
+        events=state.trace_events,
+        sink=context.trace_sink,
+        run_id=state.run_id,
+    )
     current_node_id: str | None = manifest.entrypoint
     limit = (
         context.max_steps or _max_steps(manifest.execution_policy) or (len(nodes) + 10)
@@ -135,7 +142,10 @@ def execute_workflow(
             hooks = context.lifecycle_hooks
             _call_hook(
                 hooks.after_workflow if hooks else None,
-                WorkflowHookContext(final_result=state.final_result),
+                WorkflowHookContext(
+                    run_id=state.run_id,
+                    final_result=state.final_result,
+                ),
             )
             return WorkflowResult(final_result=state.final_result, state=state)
         node = nodes[current_node_id]
@@ -147,7 +157,11 @@ def execute_workflow(
         hooks = context.lifecycle_hooks
         _call_hook(
             hooks.before_node if hooks else None,
-            NodeHookContext(node_id=str(node.id), kind=str(node.kind)),
+            NodeHookContext(
+                node_id=str(node.id),
+                kind=str(node.kind),
+                run_id=state.run_id,
+            ),
         )
         try:
             output = _execute_node(
@@ -180,7 +194,10 @@ def execute_workflow(
         _call_hook(
             hooks.after_node if hooks else None,
             NodeHookContext(
-                node_id=str(node.id), kind=str(node.kind), output=_unwrap_output(output)
+                node_id=str(node.id),
+                kind=str(node.kind),
+                output=_unwrap_output(output),
+                run_id=state.run_id,
             ),
         )
         current_node_id = _next_node_id(
@@ -192,7 +209,7 @@ def execute_workflow(
     hooks = context.lifecycle_hooks
     _call_hook(
         hooks.after_workflow if hooks else None,
-        WorkflowHookContext(error=error),
+        WorkflowHookContext(run_id=state.run_id, error=error),
     )
     raise WorkflowExecutionError(error)
 
@@ -267,6 +284,10 @@ def _execute_node(
     raise WorkflowExecutionError(f"unsupported node kind {node.kind!r}")
 
 
+def _new_run_id() -> str:
+    return str(uuid4())
+
+
 def _execute_llm_step(
     node: RuntimeNode,
     workflow: LoadedAgentWorkflow,
@@ -322,7 +343,10 @@ def _execute_llm_step(
     _call_hook(
         lifecycle_hooks.before_model if lifecycle_hooks else None,
         ModelHookContext(
-            node_id=str(node.id), model=model, request=request.to_kwargs()
+            node_id=str(node.id),
+            model=model,
+            request=request.to_kwargs(),
+            run_id=state.run_id,
         ),
     )
     policy = _model_retry_policy(node, workflow)
@@ -359,6 +383,7 @@ def _execute_llm_step(
             model=model,
             request=request.to_kwargs(),
             response=response,
+            run_id=state.run_id,
         ),
     )
     _record_prompt_cache_provider_telemetry(response, node, tracer)
@@ -428,7 +453,10 @@ def _execute_tool_step(
     _call_hook(
         lifecycle_hooks.before_tool if lifecycle_hooks else None,
         ToolHookContext(
-            node_id=str(node.id), tool_id=str(node.tool_id), arguments=arguments
+            node_id=str(node.id),
+            tool_id=str(node.tool_id),
+            arguments=arguments,
+            run_id=state.run_id,
         ),
     )
     result = _invoke_tool_with_retry(node, registry, arguments, state, tracer)
@@ -459,6 +487,7 @@ def _execute_tool_step(
                 arguments=arguments,
                 result=result,
                 error=error,
+                run_id=state.run_id,
             ),
         )
         raise WorkflowExecutionError(error)
@@ -491,6 +520,7 @@ def _execute_tool_step(
             arguments=arguments,
             result=result,
             error=result.error,
+            run_id=state.run_id,
         ),
     )
     _record_outputs(node, result, state)

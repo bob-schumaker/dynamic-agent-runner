@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from threading import RLock
 from typing import Any, Protocol
 
 from dynamic_agent_runner.errors import ToolRegistryError
@@ -127,6 +128,7 @@ class InMemoryToolRegistry:
         node_overrides: Mapping[str, ToolExposureOverride] | None = None,
         disabled_tools: Iterable[str] | None = None,
     ) -> None:
+        self._lock = RLock()
         self._tools: dict[str, RegisteredTool] = {}
         self._node_overrides = dict(node_overrides or {})
         self._disabled_tools = set(disabled_tools or ())
@@ -137,9 +139,10 @@ class InMemoryToolRegistry:
         """Register a callable tool."""
 
         tool_id = tool.id
-        if tool_id in self._tools and not replace:
-            raise ToolRegistryError(f"tool {tool_id!r} is already registered")
-        self._tools[tool_id] = tool
+        with self._lock:
+            if tool_id in self._tools and not replace:
+                raise ToolRegistryError(f"tool {tool_id!r} is already registered")
+            self._tools[tool_id] = tool
 
     def with_overrides(
         self,
@@ -149,18 +152,21 @@ class InMemoryToolRegistry:
     ) -> InMemoryToolRegistry:
         """Return a new registry with runtime overrides applied."""
 
-        validate_tool_overrides(overrides, self, manifest=manifest)
-        tools = dict(self._tools)
-        for tool in overrides.added_tools:
-            if tool.id in tools:
-                raise ToolRegistryError(f"added tool {tool.id!r} already exists")
-            tools[tool.id] = tool
-        for tool in overrides.replacement_tools:
-            if tool.id not in tools:
-                raise ToolRegistryError(f"replacement tool {tool.id!r} does not exist")
-            tools[tool.id] = tool
-        disabled = self._disabled_tools | set(overrides.disabled_tools)
-        node_overrides = {**self._node_overrides, **overrides.node_overrides}
+        with self._lock:
+            validate_tool_overrides(overrides, self, manifest=manifest)
+            tools = dict(self._tools)
+            for tool in overrides.added_tools:
+                if tool.id in tools:
+                    raise ToolRegistryError(f"added tool {tool.id!r} already exists")
+                tools[tool.id] = tool
+            for tool in overrides.replacement_tools:
+                if tool.id not in tools:
+                    raise ToolRegistryError(
+                        f"replacement tool {tool.id!r} does not exist"
+                    )
+                tools[tool.id] = tool
+            disabled = self._disabled_tools | set(overrides.disabled_tools)
+            node_overrides = {**self._node_overrides, **overrides.node_overrides}
         return InMemoryToolRegistry(
             tools.values(),
             node_overrides=node_overrides,
@@ -170,17 +176,19 @@ class InMemoryToolRegistry:
     def has_tool(self, tool_id: str) -> bool:
         """Return whether a callable, non-disabled tool exists."""
 
-        return tool_id in self._tools and tool_id not in self._disabled_tools
+        with self._lock:
+            return tool_id in self._tools and tool_id not in self._disabled_tools
 
     def get_tool(self, tool_id: str) -> RegisteredTool:
         """Return a registered tool by id."""
 
-        if tool_id in self._disabled_tools:
-            raise ToolRegistryError(f"tool {tool_id!r} is disabled")
-        try:
-            return self._tools[tool_id]
-        except KeyError as exc:
-            raise ToolRegistryError(f"tool {tool_id!r} is not registered") from exc
+        with self._lock:
+            if tool_id in self._disabled_tools:
+                raise ToolRegistryError(f"tool {tool_id!r} is disabled")
+            try:
+                return self._tools[tool_id]
+            except KeyError as exc:
+                raise ToolRegistryError(f"tool {tool_id!r} is not registered") from exc
 
     def list_tools_for_node(self, node: RuntimeNode) -> tuple[RegisteredTool, ...]:
         """Return callable tools exposed to an LLM node."""
@@ -209,11 +217,12 @@ class InMemoryToolRegistry:
         """Convert registered tools to OpenAI function tool schema entries."""
 
         if tool_ids is None:
-            selected_ids = tuple(
-                tool_id
-                for tool_id, tool in self._tools.items()
-                if _is_model_exposable(tool.definition)
-            )
+            with self._lock:
+                selected_ids = tuple(
+                    tool_id
+                    for tool_id, tool in self._tools.items()
+                    if _is_model_exposable(tool.definition)
+                )
         else:
             selected_ids = tuple(tool_ids)
         return [
@@ -297,7 +306,8 @@ def validate_tool_overrides(
     """Validate runtime tool overrides before applying them."""
 
     errors: list[str] = []
-    known_ids = set(registry._tools)
+    with registry._lock:
+        known_ids = set(registry._tools)
     _extend(errors, _override_tool_definition_errors(overrides, known_ids))
     _extend(errors, _disabled_tool_errors(overrides.disabled_tools, known_ids))
     if manifest is not None:

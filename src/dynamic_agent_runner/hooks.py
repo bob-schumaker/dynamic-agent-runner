@@ -15,6 +15,7 @@ class NodeHookContext:
     kind: str
     output: Any = None
     error: str | None = None
+    run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class ModelHookContext:
     request: Mapping[str, Any] | None = None
     response: Any = None
     error: str | None = None
+    run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,7 @@ class ToolHookContext:
     arguments: Mapping[str, Any] | None = None
     result: Any = None
     error: str | None = None
+    run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,7 @@ class PermissionHookContext:
     node_id: str
     boundary: str
     metadata: Mapping[str, Any] | None = None
+    run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +58,7 @@ class WorkflowHookContext:
 
     final_result: Any = None
     error: str | None = None
+    run_id: str | None = None
 
 
 @dataclass(frozen=True)
