@@ -3,7 +3,8 @@
 ## Status
 
 - State: Slice 13 complete; prompt-cache intent is parsed, validated,
-  traced, and covered by tests
+  traced, and covered by tests; future thread-safety and async interface work is
+  recorded but not implemented
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
@@ -588,6 +589,39 @@
 - [ ] E12. Keep multi-agent collaboration represented through primitive nodes and
       optional delegation tools; defer durable team runtime until requirements
       justify it.
+- [ ] E13. Define and validate the package's thread-safety and concurrent
+      invocation contract for multiple client-created agents.
+      - Preserve the current per-run `WorkflowExecutionState` isolation boundary
+        for prompts, node inputs, node outputs, tool results, retries, token
+        usage, trace events, errors, and final results.
+      - Decide whether shared collaborators such as trace sinks, model adapters,
+        registries, tool handlers, and lifecycle hooks are caller-managed,
+        runtime-synchronized, cloned per run, or unsupported for concurrent use.
+      - Add run-correlation metadata such as `run_id` or `agent_instance_id` to
+        trace events and lifecycle hook contexts before claiming observability is
+        safe for interleaved runs.
+      - Cover lazy OpenAI client initialization, registry mutation/read behavior,
+        mutable tool handlers, built-in tool packs, and shared hook state with
+        explicit documentation and tests.
+- [ ] E14. Define async execution APIs and sync wrapper behavior without creating
+      a separate runtime implementation.
+      - Add async public API targets such as `execute_workflow_async(...)` and
+        `run_agent_workflow_async(...)` for event-loop callers.
+      - Keep synchronous APIs available for CLI, scripts, tests, cron jobs, and
+        simple automation as wrappers over the same runtime semantics.
+      - Define behavior when sync wrappers are called from an already-running
+        event loop, preferring a clear error with guidance to use async APIs
+        unless a safe bridge is explicitly implemented.
+      - Define compatibility rules for synchronous and asynchronous model
+        adapters, tool registries, tool handlers, trace sinks, and lifecycle
+        hooks.
+      - Define cancellation and timeout propagation across workflow, node, model,
+        tool, hook, and registry boundaries.
+      - Align async orchestration with future `parallel_fanout` and
+        `parallel_join` edge semantics while preserving deterministic joins and
+        run-correlated traces.
+      - Verify sync and async entry points do not drift in validation, tracing,
+        hook, or error behavior.
 
 ## Cross-Cutting Validation Tasks
 
@@ -597,3 +631,11 @@
 - [ ] V4. Run `pre-commit run --files <changed files>` before scoped commits.
 - [ ] V5. Track drift: update `spec.md`, `plan.md`, or this task list when
       implementation reveals changed requirements, architecture, or task order.
+- [ ] V6. Add concurrency validation before claiming full thread safety: run
+      concurrent fake-client/fake-tool executions and verify there is no
+      library-owned run-state crosstalk and that shared-collaborator behavior
+      matches the documented contract.
+- [ ] V7. Add async-interface validation before claiming async support: cover
+      async public APIs, sync wrapper event-loop misuse, cancellation/timeout
+      propagation, mixed sync/async collaborators, and parity between sync and
+      async runtime semantics.

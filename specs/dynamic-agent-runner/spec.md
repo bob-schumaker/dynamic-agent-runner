@@ -536,6 +536,91 @@ OpenTelemetry, or structured logging integrations can be optional sinks later;
 they should not become required core dependencies before the trace interface is
 stable.
 
+### FR-11: Define concurrent invocation and thread-safety guarantees
+
+The runtime should support multiple client-created agents or workflow runs in the
+same process without library-owned run state crosstalk. A future scoped slice
+must define the precise thread-safety contract before the library claims strong
+concurrent-agent isolation.
+
+Acceptance criteria:
+
+- Given two workflow executions run concurrently, when both executions use the
+  same loaded workflow or reusable `WorkflowExecutionContext`, then
+  library-owned per-run state such as prompts, node inputs, node outputs, tool
+  results, retry records, token usage, trace events, errors, and final results
+  remains isolated per invocation.
+- Given callers share runtime collaborators such as a `trace_sink`,
+  `model_adapter`, `tool_registry`, tool handler, or lifecycle hook object, when
+  concurrent executions use those collaborators, then the library either documents
+  that the collaborator must be thread-safe or provides an explicit isolation or
+  synchronization boundary.
+- Given trace events or lifecycle hook contexts are emitted during concurrent
+  executions, when callers inspect observability data, then each event or hook
+  context includes enough run correlation metadata, such as a `run_id` or
+  `agent_instance_id`, to distinguish interleaved runs.
+- Given `OpenAIClientAdapter` is shared across concurrent executions, when its
+  default client is lazily initialized, then initialization is thread-safe or the
+  adapter contract clearly states that callers must provide one adapter per
+  concurrent run.
+- Given `InMemoryToolRegistry` or future registry sources are shared across
+  concurrent executions, when tools are registered, overridden, disabled, listed,
+  or invoked, then mutation and read behavior is covered by a documented
+  concurrency policy and tests.
+- Given a built-in tool pack or caller-provided tool handler stores mutable state,
+  when concurrent invocations call that tool, then the runtime contract identifies
+  whether the tool is responsible for synchronization or whether the registry
+  wrapper provides it.
+- Given lifecycle hooks are shared between runs, when hooks store observations or
+  abort execution, then hook context data is run-correlated and shared hook state
+  is either caller-managed or protected by the runtime contract.
+- Given no thread-safety contract has been implemented for a shared collaborator,
+  when documentation describes concurrency support, then it must limit the claim
+  to core per-run `WorkflowExecutionState` isolation and avoid claiming full
+  thread safety.
+
+### FR-12: Define async execution interfaces without splitting runtime semantics
+
+The runtime should eventually support async execution for I/O-bound model calls,
+remote tools, MCP-style registry sources, timeout/cancellation handling, and
+future parallel graph edges. Async support should be introduced as a scoped future
+design rather than a second independent implementation.
+
+Acceptance criteria:
+
+- Given callers use event-loop-based applications such as web services,
+  notebooks, async workers, or orchestration systems, when they run workflows,
+  then the package offers async public APIs such as `execute_workflow_async(...)`
+  and `run_agent_workflow_async(...)` instead of forcing event-loop callers
+  through blocking wrappers.
+- Given simple scripts, CLIs, tests, cron jobs, or synchronous automation call the
+  package, when they run workflows, then the existing synchronous API style
+  remains available as a convenience interface.
+- Given both sync and async API styles are supported, when runtime behavior is
+  implemented, then both styles use one semantic execution path rather than two
+  drifting implementations.
+- Given the sync API wraps async internals, when it is called from an already
+  running event loop, then the package either clearly rejects the nested-loop
+  call with guidance to use the async API or provides a documented safe bridge.
+- Given tool handlers, model adapters, trace sinks, lifecycle hooks, or registry
+  sources may be synchronous or asynchronous, when async runtime support is
+  introduced, then each collaborator interface has an explicit compatibility
+  policy for sync callables, async callables, blocking work, cancellation, and
+  timeout propagation.
+- Given future graph semantics include `parallel_fanout` or `parallel_join`, when
+  those edges are implemented, then async orchestration can run independent
+  branches concurrently while preserving deterministic state joins and trace
+  correlation.
+- Given async execution is added before full thread-safety work is complete, when
+  documentation describes concurrency, then it must distinguish async task
+  concurrency from thread safety and avoid implying that async alone protects
+  shared mutable collaborators.
+
+Implementation note: prefer an async-first internal executor once real
+concurrency, remote registry sources, or parallel graph execution are in scope.
+Keep synchronous functions as convenience wrappers over that async core rather
+than as a separate runtime path.
+
 ## Non-Functional Requirements
 
 - The library must be testable without requiring live model calls in unit tests.
@@ -571,6 +656,16 @@ stable.
 - Multi-provider model routing is not part of the current runtime direction.
   Provider abstraction libraries such as LiteLLM should be deferred unless the
   spec explicitly changes to support non-OpenAI-compatible providers.
+- The runtime should preserve library-owned per-run execution-state isolation for
+  concurrent invocations. Strong thread-safety guarantees for shared
+  collaborators such as trace sinks, model adapters, registries, tool handlers,
+  and lifecycle hooks must be defined and validated before they are claimed.
+- Async execution support should be designed as an additive public API and
+  internal execution strategy. The current synchronous API must remain stable for
+  simple callers unless a later breaking-change decision explicitly replaces it.
+- The package must not maintain separate sync and async behavior forks; sync and
+  async entry points should share the same runtime semantics, validation,
+  tracing, hooks, and error behavior.
 
 ## Observed Runtime Manifest Shape
 
@@ -990,6 +1085,12 @@ The runtime should start with OpenAI package model and client interfaces:
   workflow, or per call site?
 - NEEDS CLARIFICATION: What trace event schema and redaction boundaries should be
   stable before adding external observability sinks?
+- NEEDS CLARIFICATION: What concurrency contract should apply to shared runtime
+  collaborators, and should the package provide synchronization or require
+  callers to supply one collaborator instance per concurrent run?
+- NEEDS CLARIFICATION: What async interface policy should apply to model
+  adapters, tool registries, tool handlers, trace sinks, and lifecycle hooks, and
+  when should the package switch to an async-first internal executor?
 - NEEDS CLARIFICATION: What trust, packaging, and precedence rules should govern
   full `SKILL.md` source resolution if runtime behavior overrides later need to
   load skill bodies from files instead of inline instructions?
@@ -1070,6 +1171,10 @@ Before implementation is considered complete, add validation covering:
 - [ ] token-budget preflight behavior without live model calls
 - [ ] structured trace/event hooks for node, model, tool, decision, retry, error,
       and final-result events
+- [ ] concurrent invocation isolation for library-owned per-run state and explicit
+      thread-safety behavior for shared collaborators
+- [ ] async public APIs and sync wrapper behavior, including event-loop misuse,
+      cancellation, timeout propagation, and mixed sync/async collaborator support
 - [ ] narrow in-process lifecycle hooks for node, model, tool, permission, and
       workflow boundaries
 - [ ] extended trace vocabulary for tool lifecycle and status notice events
@@ -1132,6 +1237,18 @@ Before implementation is considered complete, add validation covering:
   in commit `13c6dac`, preserving context-window, structured-output, reasoning,
   modality, and parallel-tool-call support metadata from runtime execution policy
   without leaking capability metadata into OpenAI request parameters.
+- Follow-up concurrency review found that core `WorkflowExecutionState` is
+  per-run, but full thread-safety is not yet guaranteed for shared caller-provided
+  collaborators such as trace sinks, model adapters, registries, tool handlers,
+  or lifecycle hooks. A future scoped slice should add explicit run correlation,
+  collaborator thread-safety contracts, and validation before claiming full
+  concurrent-agent isolation.
+- Follow-up async interface analysis concluded that async execution is a good
+  future fit for model/tool I/O, MCP-style registry sources, cancellation,
+  timeouts, and parallel graph edges. The package should eventually support both
+  async and sync interface styles, with async as the long-term internal execution
+  path and synchronous APIs retained as convenience wrappers over the same
+  semantics.
 - Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
   validation in commit `44b0847`, including fail-closed malformed schema checks
   and `$schema` removal from model-facing tool parameters.
