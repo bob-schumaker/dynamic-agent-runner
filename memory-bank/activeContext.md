@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-- Evaluation follow-up Slice D is complete: `ToolResult` now preserves
-  model-facing, raw, log-preview, event-payload, and sensitive-field facets while
-  keeping `output` as the backward-compatible fallback. Implementation commit
-  `815f55a` and governing-docs commit `521c288` recorded the code, validation,
-  spec, plan, task, and cline-task evidence.
+- Evaluation follow-up Slice E is complete: tool execution tracing now emits
+  `tool_started`, `tool_finished`, and fallback `status_notice` events while
+  preserving the older `tool_invocation` and `tool_result` compatibility events.
+  Implementation commit `bcd76d4` and governing-docs commit `93ddb91` recorded
+  the code, validation, spec, plan, task, and cline-task evidence.
 
 ## Current Status
 
@@ -82,6 +82,11 @@
     sensitive-field output handling.
   - Updated governing spec/plan/task documents and the implementation plan for
     Slice D completion evidence in `521c288`.
+  - Completed evaluation follow-up Slice E in `bcd76d4`, adding `tool_started`,
+    `tool_finished`, and fallback `status_notice` trace events while preserving
+    existing tool trace compatibility events.
+  - Updated governing spec/plan/task documents and the implementation plan for
+    Slice E completion evidence in `93ddb91`.
 - In progress:
   - None currently; awaiting the next scoped follow-up direction after this
     memory-bank checkpoint.
@@ -90,9 +95,9 @@
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
-  - Deferred Codex/Cline follow-ups E7 and E8 remain candidate next
-    implementation slices after E1/Slice A, E3/Slice B, E4/E5/Slice C, and
-    E6/Slice D.
+  - Deferred Codex/Cline follow-up E7 remains the next candidate implementation
+    slice after E1/Slice A, E3/Slice B, E4/E5/Slice C, E6/Slice D, and
+    E8/Slice E.
 
 ## Important Current Facts
 
@@ -113,7 +118,7 @@
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
   implementation. Slices 0 through 13 plus evaluation follow-up Slices A, B,
-  C, and D are complete; E7/E8 remain deferred follow-up candidates.
+  C, D, and E are complete; E7 remains a deferred follow-up candidate.
 - `cline-tasks/codex-cli-evaluation.md` and `cline-tasks/cline-evaluation.md`
   capture read-only external runtime-pattern evaluations. The synthesized
   proposal lives at `cline-tasks/codex-cline-combined-package-proposal.md`.
@@ -121,10 +126,11 @@
   evaluation follow-ups` E1 through E12. E1 is complete and checked off with
   implementation commit `38929f1`, E3 is complete and checked off with
   implementation commit `44b0847`, E4/E5 are complete and checked off with
-  implementation commit `61f1548`, and E6 is complete and checked off with
-  implementation commit `815f55a`. `spec.md`, `plan.md`, `tasks.md`, and
+  implementation commit `61f1548`, E6 is complete and checked off with
+  implementation commit `815f55a`, and E8 is complete and checked off with
+  implementation commit `bcd76d4`. `spec.md`, `plan.md`, `tasks.md`, and
   `cline-tasks/evaluation-follow-up-implementation-plan.md` were refreshed for
-  Slice D in `521c288`.
+  Slice E in `93ddb91`.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -284,6 +290,18 @@
     redaction before external emission.
   - `tests/test_tracing.py` covers successful workflows, tool failures, model
     failures, and retry-attempt tracing with fake clients/tools only.
+- Evaluation follow-up Slice E implementation from `bcd76d4`:
+  - `src/dynamic_agent_runner/executor.py` now emits `tool_started` before direct
+    tool invocation and `tool_finished` after tool results are recorded on both
+    success and fail-closed error paths.
+  - Existing `tool_invocation` and `tool_result` events remain available for
+    compatibility.
+  - Non-fatal fallback tool failures emit warning `status_notice` events with a
+    stable code, human-readable message, tool id, and error detail.
+  - `tests/test_tracing.py` covers tool lifecycle events, fail-closed tool
+    lifecycle traces, and fallback status notices.
+  - Validation: `ruff check src tests && ruff format --check src tests &&
+    python -m pytest -q` — pass; 125 tests passed.
 - Slice 13 implementation from `aed3b13`:
   - `src/dynamic_agent_runner/prompt_cache.py` defines provider-neutral
     `PromptCachePolicy` parsing and prompt-cache eligibility observation helpers.
@@ -395,6 +413,8 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `93ddb91 docs(spec): record trace vocabulary slice`
+  - `bcd76d4 feat(tracing): add tool lifecycle trace events`
   - `521c288 docs(spec): record tool result facets slice`
   - `815f55a feat(registry): add tool result facets`
   - `4996aaa docs(spec): record tool exposure policy slice`
@@ -436,8 +456,7 @@
 ## Next Steps
 
 - Await follow-up direction for the next deferred Codex/Cline follow-up slice.
-  E7 and E8 remain candidate next slices in
-  `specs/dynamic-agent-runner/tasks.md`.
+  E7 remains the next candidate slice in `specs/dynamic-agent-runner/tasks.md`.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped

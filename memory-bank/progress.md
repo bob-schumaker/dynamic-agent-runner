@@ -90,6 +90,10 @@
   `815f55a feat(registry): add tool result facets`.
 - Evaluation follow-up Slice D governing-docs commit exists:
   `521c288 docs(spec): record tool result facets slice`.
+- Evaluation follow-up Slice E implementation commit exists:
+  `bcd76d4 feat(tracing): add tool lifecycle trace events`.
+- Evaluation follow-up Slice E governing-docs commit exists:
+  `93ddb91 docs(spec): record trace vocabulary slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -169,18 +173,24 @@
   references use model-facing output when present; and `tool_result` trace events
   include raw/log/event facets with sensitive-field metadata. Full validation
   passed with 123 tests.
+- Evaluation follow-up Slice E is complete: tool execution now emits
+  `tool_started` before direct tool invocation and `tool_finished` after tool
+  results are recorded on both success and fail-closed error paths; existing
+  `tool_invocation` and `tool_result` events remain for compatibility; fallback
+  tool failures emit warning `status_notice` events. Full validation passed with
+  125 tests.
 
 ## In Flight
 
-- No source implementation work is currently in flight after commit `815f55a`.
-- Deferred Codex/Cline follow-ups E7 and E8 remain candidate next slices after
-  E1/Slice A, E3/Slice B, E4/E5/Slice C, and E6/Slice D.
+- No source implementation work is currently in flight after commit `bcd76d4`.
+- Deferred Codex/Cline follow-up E7 remains the next candidate slice after
+  E1/Slice A, E3/Slice B, E4/E5/Slice C, E6/Slice D, and E8/Slice E.
 
 ## Remaining
 
 - Await follow-up direction for the next scoped runtime slice, adapter-gated
   prompt-cache provider pass-through, deferred library-evaluation follow-up,
-  remaining Codex/Cline deferred follow-ups E7/E8, or interpreter middleware
+  remaining Codex/Cline deferred follow-up E7, or interpreter middleware
   prototype work.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, behavior-override, and all-pattern fixture foundation into the
@@ -240,7 +250,7 @@
 - Slice 13 intentionally stops short of provider-specific prompt-cache request
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
-- Codex/Cline follow-ups E1, E3, E4, E5, and E6 are implemented. Remaining
+- Codex/Cline follow-ups E1, E3, E4, E5, E6, and E8 are implemented. Remaining
   follow-ups are deferred backlog items, not implemented runtime behavior. They
   should be introduced through package-owned contracts before broad integrations
   such as MCP, plugins, shell hooks, app-server protocols, or multi-provider
