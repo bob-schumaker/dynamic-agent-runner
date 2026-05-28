@@ -527,10 +527,21 @@
       - Model-facing OpenAI tool parameters now omit top-level `$schema` metadata.
       - Validation: `ruff check src tests && ruff format --check src tests &&
         python -m pytest -q` — pass; 116 tests passed.
-- [ ] E4. Add explicit tool exposure states: `direct`, `deferred`,
+- [x] E4. Add explicit tool exposure states: `direct`, `deferred`,
       `direct_model_only`, and `hidden`.
-- [ ] E5. Clarify separation between tool catalog metadata, callable registry
+      - Implemented in commit `61f1548`: added `ToolExposure`, model-facing
+        exposure filtering, direct-tool callable checks, and fail-closed unknown
+        exposure validation.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 121 tests passed.
+- [x] E5. Clarify separation between tool catalog metadata, callable registry
       entries, node exposure, approval policy, and sandbox/side-effect policy.
+      - Implemented in commit `61f1548`: added `ToolPolicy` to preserve
+        side-effect, approval, sandbox, timeout, retry, and failure metadata
+        separately from callable registry entries and node exposure decisions.
+      - Validation: `python -m pytest tests/test_registry.py
+        tests/test_validation.py tests/test_import.py -q` — pass; 34 tests
+        passed.
 - [ ] E6. Refine `ToolResult` into model-facing output, raw output,
       trace/log preview, and hook/event payload facets.
 - [ ] E7. Define narrow in-process lifecycle hook protocols for model, tool,

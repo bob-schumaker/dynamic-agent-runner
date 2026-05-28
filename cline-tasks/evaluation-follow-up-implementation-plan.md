@@ -111,7 +111,7 @@ Completion evidence:
 - Validation: `ruff check src tests && ruff format --check src tests &&
   python -m pytest -q` — pass; 116 tests passed.
 
-## Slice C — E4 + E5: Tool Exposure States and Policy Separation
+## Slice C — E4 + E5: Tool Exposure States and Policy Separation — Complete
 
 **Goal:** Make tool availability dimensions explicit while preserving current
 behavior.
@@ -149,6 +149,20 @@ rather than a full sandbox engine.
 
 **Why third:** This changes how tools are selected and validated; it should
 happen after context and schema hardening.
+
+Completion evidence:
+
+- Implemented in commit `61f1548`.
+- Added `ToolExposure` with `direct`, `deferred`, `direct_model_only`, and
+  `hidden` states.
+- Added `ToolPolicy` for side-effect, approval, sandbox, timeout, retry, and
+  failure-behavior metadata without implementing a sandbox engine.
+- Filtered model-facing tools so only `direct` and `direct_model_only` are
+  model-exposable; `hidden` remains direct-callable but not model-exposed.
+- Rejected `direct_model_only` and `deferred` tools for direct `tool_use_step`
+  invocation/validation.
+- Validation: `ruff check src tests && ruff format --check src tests &&
+  python -m pytest -q` — pass; 121 tests passed.
 
 ## Slice D — E6: Richer `ToolResult` Facets
 

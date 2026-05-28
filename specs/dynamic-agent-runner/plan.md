@@ -40,6 +40,10 @@ or a clear error.
 - Evaluation follow-up Slice B is complete and committed: the registry now
   validates OpenAI-compatible tool input schemas before model exposure or
   invocation input validation.
+- Evaluation follow-up Slice C is complete and committed: the registry and
+  metadata models now expose explicit tool exposure states and preserve
+  lightweight tool policy metadata separately from callable registration and
+  per-node exposure decisions.
 
 ## Technical Approach
 
@@ -179,8 +183,12 @@ slice defines trust, packaging, precedence, and file-loading rules.
 
 Core concepts:
 
-- `ToolDefinition` — manifest/tool-index metadata, JSON schema, side-effect and
-  policy fields.
+- `ToolDefinition` — manifest/tool-index metadata, JSON schema, exposure state,
+  side-effect metadata, and lightweight policy fields.
+- `ToolExposure` — explicit model/direct-call visibility state with `direct`,
+  `deferred`, `direct_model_only`, and `hidden` values.
+- `ToolPolicy` — side-effect, approval, sandbox, timeout, retry, and failure
+  behavior metadata preserved separately from callable registration.
 - `RegisteredTool` — callable adapter plus definition.
 - `ToolRegistry` protocol — lookup by `tool_id`, list tools for an LLM step,
   convert registered tools to OpenAI tool schema, and invoke tools by ID.
@@ -201,7 +209,11 @@ Registry responsibilities:
 - combine callable registry adapters with manifest/tool-index metadata when
   useful, while treating the effective registry as authoritative for executable
   tool availability
-- convert tool definitions to OpenAI tool schema
+- convert model-exposable tool definitions to OpenAI tool schema
+- validate explicit tool exposure states and fail closed for unknown exposure
+  values
+- preserve tool policy metadata separately from callable registration and
+  per-node model exposure decisions
 - validate tool input schemas before model exposure or invocation validation,
   including object-shaped schemas, mapping-shaped `properties`, string-only
   `required` entries, no top-level `oneOf` / `anyOf` / `allOf`, and no `$schema`
@@ -218,6 +230,8 @@ Registry responsibilities:
   require or target nodes that are not existing `llm_step` nodes
 - fail closed when a `tool_use_step` references a tool id that appears only in
   manifest/tool-index metadata and has no callable registry entry
+- fail closed when a direct `tool_use_step` references a registered tool whose
+  exposure is model-only or deferred rather than directly callable
 - provide opt-in built-in tool packs without making their tools ambient; nodes
   must still reference built-in tool ids before the tools are exposed or invoked
 - constrain the initial `local_workspace` pack to read-only, workspace-rooted
@@ -368,6 +382,16 @@ and execution failures.
     - strip `$schema` metadata from model-facing OpenAI tool parameters
     - validate with focused registry tests and the full test suite
 
+11. **Evaluation follow-up Slice C: tool exposure states and policy separation**
+    - add `ToolExposure` states for `direct`, `deferred`,
+      `direct_model_only`, and `hidden` tools
+    - add `ToolPolicy` metadata for side effects, approval, sandbox, timeout,
+      retry, and failure behavior
+    - filter model-facing tools by exposure and reject non-callable exposures for
+      direct `tool_use_step` validation/invocation
+    - validate with focused registry/validation/import tests and the full test
+      suite
+
 ## Validation Strategy
 
 Use staged validation as implementation grows:
@@ -405,6 +429,13 @@ model behavior and fake registries for tool behavior.
 - Tool input schemas now fail closed for malformed OpenAI-compatible function
   parameter shapes; future support for top-level schema combinators should be an
   explicit compatibility expansion rather than pass-through behavior.
+- Tool exposure is now explicit: only `direct` and `direct_model_only` tools are
+  model-exposable, only `direct` and `hidden` tools are direct-callable,
+  `deferred` remains metadata-only for future lazy-loading behavior, and unknown
+  exposure values fail validation.
+- Tool policy metadata is now preserved in `ToolPolicy`, separate from callable
+  registry entries and node exposure decisions; this is not yet a sandbox or
+  approval engine.
 - Tool-index files are optional metadata catalogs, not execution prerequisites;
   a tool can function only when the effective registry provides a callable entry.
 - Built-in default tools should be opt-in registry packs, not implicit ambient

@@ -228,6 +228,16 @@ Acceptance criteria:
   use string-only `required` entries, avoid ambiguous top-level `oneOf` /
   `anyOf` / `allOf`, and omit `$schema` metadata from the model-facing OpenAI
   parameters payload.
+- Given a tool definition includes explicit `exposure` metadata, when registry
+  preparation, validation, model tool-schema conversion, or direct tool-step
+  validation runs, then the runtime supports only `direct`, `deferred`,
+  `direct_model_only`, and `hidden` exposure states and fails closed for
+  unknown exposure values.
+- Given tool policy metadata such as `side_effect`, `approval_required`,
+  `sandbox`, `timeout`, `retry_policy`, or `failure_behavior`, when tool
+  definitions are parsed, then the runtime preserves those values in a
+  lightweight policy object separate from callable registry entries and node
+  exposure decisions.
 - Given behavior overrides are supplied during workflow preparation, then
   validation verifies that target nodes exist, target nodes are `llm_step` nodes,
   referenced skills exist after override layering, prompt override operations are
@@ -749,7 +759,18 @@ Observed tool metadata entries in the example index:
 - `validate_runtime_manifest` using adapter `scripts.validate_agent_runtime`
 
 Supported side-effect and policy fields should include `side_effect`,
-`approval_required`, `timeout`, `retry_policy`, and `failure_behavior`.
+`approval_required`, `sandbox`, `timeout`, `retry_policy`, and
+`failure_behavior`. Tool definitions may also include explicit `exposure`
+metadata with these initial states:
+
+- `direct` — model-exposable and callable for direct `tool_use_step` execution
+  when registered.
+- `deferred` — metadata/registry candidate for future lazy-loading behavior;
+  not model-exposed or direct-callable in the initial implementation.
+- `direct_model_only` — model-exposable but not valid for direct
+  `tool_use_step` execution.
+- `hidden` — callable for internal/direct use when registered, but not exposed
+  to model tool schemas.
 
 Runtime tool overrides may layer on top of manifest metadata, optional external
 tool-index metadata, and the supplied registry. The initial override model should
@@ -838,8 +859,9 @@ The runtime should start with OpenAI package model and client interfaces:
   subset of OpenAI SDK behavior needed by the runtime executor.
 - Tool registry injection should target this repository's own registry protocol,
   including tool lookup by manifest `tool_id`, conversion to OpenAI tool schema,
-  invocation dispatch, side-effect metadata, approval metadata, timeout/retry
-  policy, and structured result or failure reporting.
+  invocation dispatch, explicit exposure states, side-effect metadata, approval
+  metadata, sandbox metadata, timeout/retry policy, and structured result or
+  failure reporting.
 - Registry preparation should accept runtime tool overrides that add, replace,
   disable, or restrict tools globally or for individual `llm_step` nodes while
   preserving the generated artifacts as the unmodified baseline.
@@ -1090,6 +1112,10 @@ Before implementation is considered complete, add validation covering:
 - Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
   validation in commit `44b0847`, including fail-closed malformed schema checks
   and `$schema` removal from model-facing tool parameters.
+- Evaluation follow-up Slice C completed explicit tool exposure states and
+  lightweight tool policy separation in commit `61f1548`, including model
+  visibility filtering, direct tool-step callable checks, metadata validation,
+  and public exports for `ToolExposure` and `ToolPolicy`.
 - The initial source package scaffold exists; deeper parser, registry, OpenAI
   adapter, executor, and CLI implementation details remain intentionally staged
   through follow-on slices.
