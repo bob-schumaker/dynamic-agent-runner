@@ -6,6 +6,7 @@ Prepare implementation work for the deferred Codex/Cline follow-ups that are mos
 relevant to `power-marimo` and near-term `dynamic-agent-runner` evolution:
 
 - E1 — introduce `WorkflowExecutionContext` / `RunContext`
+- E2 — add lightweight model capability metadata
 - E3 — strengthen tool input-schema validation
 - E4 — add explicit tool exposure states
 - E5 — clarify tool catalog / callable registry / exposure / approval / sandbox
@@ -30,7 +31,11 @@ The current implementation has these relevant characteristics:
   exposure, approval, and sandbox boundaries are not yet first-class.
 - Tracing has a generic event model and current event types, but no dedicated
   tool lifecycle or status vocabulary.
-- There are no lifecycle hooks yet.
+- Lifecycle hooks are now implemented through trusted in-process
+  `WorkflowLifecycleHooks` callbacks.
+- Model capability metadata for context window, structured-output support,
+  reasoning support, modalities, and parallel tool-call support is now preserved
+  through `ModelCapabilities`.
 
 ## Slice A — E1: `WorkflowExecutionContext` / `RunContext` — Complete
 
@@ -292,6 +297,38 @@ Completion evidence:
   out of scope.
 - Validation: `ruff check src tests && ruff format --check src tests &&
   python -m pytest -q` — pass; 129 tests passed.
+
+## Slice G — E2: Lightweight Model Capabilities — Complete
+
+**Goal:** Preserve model capability metadata without making it ambient provider
+configuration.
+
+Likely files:
+
+- `src/dynamic_agent_runner/models.py`
+- `src/dynamic_agent_runner/__init__.py`
+- `tests/test_model_capabilities.py`
+- `tests/test_import.py`
+
+Initial semantics:
+
+- Parse `execution_policy.model_capabilities` into a lightweight
+  `ModelCapabilities` model.
+- Preserve context-window, structured-output, reasoning, modality, and
+  parallel-tool-call support metadata.
+- Keep capability metadata observational for now: it must not leak into OpenAI
+  request parameters unless a later scoped slice maps capabilities to provider
+  behavior.
+
+Completion evidence:
+
+- Implemented in commit `13c6dac`.
+- Added `ModelCapabilities` and `RuntimeManifest.model_capabilities`.
+- Exported `ModelCapabilities` from the package root.
+- Added tests for field normalization, manifest preservation, public export, and
+  separation from OpenAI request kwargs.
+- Validation: `ruff check src tests && ruff format --check src tests &&
+  python -m pytest -q` — pass; 132 tests passed.
 
 ## Recommended First Slice
 

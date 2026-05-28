@@ -53,6 +53,9 @@ or a clear error.
 - Evaluation follow-up Slice F is complete and committed: the runtime now exposes
   trusted in-process lifecycle hooks for node, model, tool, permission-boundary,
   and workflow observations through the execution context and public API.
+- Evaluation follow-up Slice G is complete and committed: the runtime now preserves
+  lightweight `ModelCapabilities` metadata from runtime execution policy without
+  treating capability declarations as provider request parameters.
 
 ## Technical Approach
 
@@ -440,6 +443,16 @@ and execution failures.
       abort execution, while shell hooks, plugin loading, and untrusted hook
       sources remain out of scope
     - validate with focused hook/executor/tracing tests and the full test suite
+
+15. **Evaluation follow-up Slice G: lightweight model capabilities metadata**
+    - add `ModelCapabilities` metadata for context window, structured-output
+      support, reasoning support, modalities, and parallel tool-call support
+    - preserve capability metadata from runtime `execution_policy` without making
+      it ambient provider request configuration
+    - export `ModelCapabilities` for callers that need to inspect loaded workflow
+      metadata
+    - validate with focused model-capability/artifact/import/executor tests and
+      the full test suite
 
 ## Validation Strategy
 

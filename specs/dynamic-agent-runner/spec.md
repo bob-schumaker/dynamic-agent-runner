@@ -1044,6 +1044,8 @@ Before implementation is considered complete, add validation covering:
 - [ ] path, raw-string, and already-parsed-object input modes
 - [ ] prompt validation
 - [ ] default library-owned OpenAI package execution-path construction
+- [ ] lightweight model capability metadata for context window, structured-output
+      support, reasoning support, modalities, and parallel tool-call support
 - [ ] repository-owned tool registry integration
 - [ ] runtime tool overrides for adding, replacing, disabling, and per-node tool
       exposure changes
@@ -1126,6 +1128,10 @@ Before implementation is considered complete, add validation covering:
   narrow lifecycle hooks, trace vocabulary, MCP registry-source design,
   context-management seams, constrained file-backed prompt context, and
   primitive-node-preserving sub-agent delegation.
+- Evaluation follow-up Slice G completed lightweight `ModelCapabilities` metadata
+  in commit `13c6dac`, preserving context-window, structured-output, reasoning,
+  modality, and parallel-tool-call support metadata from runtime execution policy
+  without leaking capability metadata into OpenAI request parameters.
 - Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
   validation in commit `44b0847`, including fail-closed malformed schema checks
   and `$schema` removal from model-facing tool parameters.

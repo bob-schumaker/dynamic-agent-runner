@@ -514,9 +514,16 @@
         while rejecting ambiguous duplicate runtime arguments.
       - Validation: `ruff check src tests && ruff format --check src tests &&
         python -m pytest -q` — pass; 108 tests passed.
-- [ ] E2. Add a lightweight `ModelCapabilities` model for context window,
+- [x] E2. Add a lightweight `ModelCapabilities` model for context window,
       structured-output support, reasoning support, modalities, and parallel
       tool-call support.
+      - Implemented in commit `13c6dac`: added `ModelCapabilities`, parsed
+        runtime `execution_policy.model_capabilities` into `RuntimeManifest`, and
+        exported the metadata model publicly.
+      - Capability metadata is preserved for inspection without being passed
+        through as OpenAI request parameters.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 132 tests passed.
 - [x] E3. Strengthen tool input-schema validation for OpenAI-compatible
       object-shaped function schemas.
       - Implemented in commit `44b0847`: added a shared registry schema
