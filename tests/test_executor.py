@@ -6,6 +6,7 @@ import pytest
 
 from dynamic_agent_runner.api import run_agent_workflow
 from dynamic_agent_runner.artifacts import load_runtime_manifest
+from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
 from dynamic_agent_runner.executor import execute_workflow
 from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
@@ -149,6 +150,63 @@ def test_execute_workflow_runs_llm_tool_and_final_llm_steps() -> None:
     assert result.state.tool_results["lookup"].output == {"answer": "42"}
     first_call = adapter.client.responses.calls[0]
     assert first_call["tools"][0]["function"]["name"] == "search_repo"
+
+
+def test_execute_workflow_accepts_execution_context() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "context-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+    context = WorkflowExecutionContext(workflow=workflow, model_adapter=adapter)
+
+    result = execute_workflow(context, prompt="Hello")
+
+    assert result.final_result == "done"
+    assert adapter.client.responses.calls[0]["model"] == "gpt-test"
+
+
+def test_execute_workflow_rejects_context_with_runtime_kwargs() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "context-conflict-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    context = WorkflowExecutionContext(workflow=workflow)
+
+    with pytest.raises(WorkflowExecutionError, match="cannot be combined"):
+        execute_workflow(
+            context,
+            prompt="Hello",
+            model_adapter=make_adapter([{"id": "resp", "output_text": "done"}]),
+        )
 
 
 def test_execute_workflow_routes_llm_decision_branch() -> None:
@@ -735,6 +793,62 @@ def test_run_agent_workflow_returns_final_result() -> None:
     )
 
     assert final_result == "done"
+
+
+def test_run_agent_workflow_accepts_execution_context() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "api-context-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+    context = WorkflowExecutionContext(workflow=workflow, model_adapter=adapter)
+
+    final_result = run_agent_workflow(prompt="Hello", execution_context=context)
+
+    assert final_result == "done"
+
+
+def test_run_agent_workflow_rejects_context_with_artifact_kwargs() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "api-context-conflict-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    context = WorkflowExecutionContext(workflow=workflow)
+
+    with pytest.raises(TypeError, match="cannot be combined"):
+        run_agent_workflow(
+            prompt="Hello",
+            execution_context=context,
+            model_adapter=make_adapter([{"id": "resp", "output_text": "done"}]),
+        )
 
 
 def test_execute_workflow_fails_on_step_limit() -> None:

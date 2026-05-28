@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from dynamic_agent_runner.behavior import effective_node_behavior
+from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import (
     ModelExecutionError,
     ToolRegistryError,
@@ -75,7 +76,7 @@ class WorkflowResult:
 
 
 def execute_workflow(
-    workflow: LoadedAgentWorkflow,
+    workflow: LoadedAgentWorkflow | WorkflowExecutionContext,
     *,
     prompt: str,
     tool_registry: ToolRegistry | None = None,
@@ -88,16 +89,26 @@ def execute_workflow(
 
     if not prompt:
         raise WorkflowExecutionError("workflow execution requires a non-empty prompt")
-    manifest = workflow.runtime_manifest
+    context = _normalize_execution_context(
+        workflow,
+        tool_registry=tool_registry,
+        model_adapter=model_adapter,
+        max_steps=max_steps,
+        trace_sink=trace_sink,
+        prompt_cache=prompt_cache,
+    )
+    manifest = context.workflow.runtime_manifest
     nodes = _node_map(tuple(manifest.nodes))
     if not manifest.entrypoint or manifest.entrypoint not in nodes:
         raise WorkflowExecutionError("workflow entrypoint does not reference a node")
     edges_by_source = _edges_by_source(tuple(manifest.edges))
-    adapter = model_adapter or OpenAIClientAdapter()
+    adapter = context.model_adapter or OpenAIClientAdapter()
     state = WorkflowExecutionState(prompt=prompt)
-    tracer = WorkflowTracer(events=state.trace_events, sink=trace_sink)
+    tracer = WorkflowTracer(events=state.trace_events, sink=context.trace_sink)
     current_node_id: str | None = manifest.entrypoint
-    limit = max_steps or _max_steps(manifest.execution_policy) or (len(nodes) + 10)
+    limit = (
+        context.max_steps or _max_steps(manifest.execution_policy) or (len(nodes) + 10)
+    )
     tracer.emit(
         "workflow_started",
         payload={"entrypoint": manifest.entrypoint, "prompt": prompt},
@@ -121,7 +132,13 @@ def execute_workflow(
         )
         try:
             output = _execute_node(
-                node, workflow, state, tool_registry, adapter, tracer, prompt_cache
+                node,
+                context.workflow,
+                state,
+                context.tool_registry,
+                adapter,
+                tracer,
+                context.prompt_cache,
             )
         except Exception as exc:
             tracer.emit(
@@ -147,6 +164,40 @@ def execute_workflow(
     error = f"workflow exceeded maximum step count {limit}"
     tracer.emit("workflow_error", payload={"error": error})
     raise WorkflowExecutionError(error)
+
+
+def _normalize_execution_context(
+    workflow: LoadedAgentWorkflow | WorkflowExecutionContext,
+    *,
+    tool_registry: ToolRegistry | None,
+    model_adapter: OpenAIClientAdapter | None,
+    max_steps: int | None,
+    trace_sink: TraceSink | None,
+    prompt_cache: bool | None,
+) -> WorkflowExecutionContext:
+    if isinstance(workflow, WorkflowExecutionContext):
+        if any(
+            value is not None
+            for value in (
+                tool_registry,
+                model_adapter,
+                max_steps,
+                trace_sink,
+                prompt_cache,
+            )
+        ):
+            raise WorkflowExecutionError(
+                "execution context cannot be combined with runtime keyword arguments"
+            )
+        return workflow
+    return WorkflowExecutionContext(
+        workflow=workflow,
+        tool_registry=tool_registry,
+        model_adapter=model_adapter,
+        max_steps=max_steps,
+        trace_sink=trace_sink,
+        prompt_cache=prompt_cache,
+    )
 
 
 def _execute_node(

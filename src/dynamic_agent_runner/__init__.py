@@ -1,6 +1,7 @@
 """Runtime for generated dynamic agent workflow artifacts."""
 
 from dynamic_agent_runner.api import load_agent_workflow, run_agent_workflow
+from dynamic_agent_runner.context import RunContext, WorkflowExecutionContext
 from dynamic_agent_runner.executor import (
     NodeExecution,
     WorkflowExecutionState,
@@ -90,6 +91,7 @@ __all__ = [
     "RegisteredTool",
     "PromptCacheObservation",
     "PromptCachePolicy",
+    "RunContext",
     "RetryPolicy",
     "RuntimeBehaviorOverrides",
     "RetryRecord",
@@ -104,6 +106,7 @@ __all__ = [
     "prompt_cache_policy_from_value",
     "WorkflowExecutionError",
     "WorkflowResult",
+    "WorkflowExecutionContext",
     "WorkflowValidationError",
     "load_agent_workflow",
     "run_agent_workflow",

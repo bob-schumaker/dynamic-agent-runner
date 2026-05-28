@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from dynamic_agent_runner.artifacts import load_agent_workflow_artifacts
+from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.executor import execute_workflow
 from dynamic_agent_runner.models import LoadedAgentWorkflow
 from dynamic_agent_runner.validation import validate_agent_workflow
@@ -49,6 +50,7 @@ def load_agent_workflow(
 def run_agent_workflow(
     *,
     prompt: str,
+    execution_context: WorkflowExecutionContext | None = None,
     runtime_manifest: Any | None = None,
     definition_yaml: Any | None = None,
     mermaid_graph: str | None = None,
@@ -67,6 +69,31 @@ def run_agent_workflow(
     This API returns the final workflow result. Detailed execution state is
     available from `dynamic_agent_runner.executor.execute_workflow`.
     """
+
+    if execution_context is not None:
+        if any(
+            value is not None
+            for value in (
+                runtime_manifest,
+                definition_yaml,
+                mermaid_graph,
+                mermaid_diagram,
+                agent_design,
+                tool_index,
+                runtime_overrides,
+                tool_registry,
+                model_adapter,
+                max_steps,
+                trace_sink,
+                prompt_cache,
+            )
+        ):
+            raise TypeError(
+                "execution_context cannot be combined with artifact or runtime "
+                "keyword arguments"
+            )
+        result = execute_workflow(execution_context, prompt=prompt)
+        return result.final_result
 
     workflow = load_agent_workflow(
         runtime_manifest=runtime_manifest,
