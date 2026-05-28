@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-- Evaluation follow-up Slice E is complete: tool execution tracing now emits
-  `tool_started`, `tool_finished`, and fallback `status_notice` events while
-  preserving the older `tool_invocation` and `tool_result` compatibility events.
-  Implementation commit `bcd76d4` and governing-docs commit `93ddb91` recorded
-  the code, validation, spec, plan, task, and cline-task evidence.
+- Evaluation follow-up Slice F is complete: the runtime now exposes trusted
+  in-process lifecycle hooks for node, model, tool, permission-boundary, and
+  workflow observations. Implementation commit `bf18554` and governing-docs
+  commit `a82d10f` recorded the code, validation, spec, plan, task, and
+  cline-task evidence.
 
 ## Current Status
 
@@ -87,6 +87,11 @@
     existing tool trace compatibility events.
   - Updated governing spec/plan/task documents and the implementation plan for
     Slice E completion evidence in `93ddb91`.
+  - Completed evaluation follow-up Slice F in `bf18554`, adding trusted
+    in-process lifecycle hooks and stable hook context objects for node, model,
+    tool, permission-boundary, and workflow observations.
+  - Updated governing spec/plan/task documents and the implementation plan for
+    Slice F completion evidence in `a82d10f`.
 - In progress:
   - None currently; awaiting the next scoped follow-up direction after this
     memory-bank checkpoint.
@@ -95,9 +100,8 @@
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
-  - Deferred Codex/Cline follow-up E7 remains the next candidate implementation
-    slice after E1/Slice A, E3/Slice B, E4/E5/Slice C, E6/Slice D, and
-    E8/Slice E.
+  - Remaining deferred Codex/Cline follow-ups include E2 and E9 through E12;
+    no next candidate slice has been selected after completing E7/Slice F.
 
 ## Important Current Facts
 
@@ -118,7 +122,8 @@
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
   implementation. Slices 0 through 13 plus evaluation follow-up Slices A, B,
-  C, D, and E are complete; E7 remains a deferred follow-up candidate.
+  C, D, E, and F are complete; E2 and E9 through E12 remain deferred follow-up
+  candidates.
 - `cline-tasks/codex-cli-evaluation.md` and `cline-tasks/cline-evaluation.md`
   capture read-only external runtime-pattern evaluations. The synthesized
   proposal lives at `cline-tasks/codex-cline-combined-package-proposal.md`.
@@ -127,10 +132,11 @@
   implementation commit `38929f1`, E3 is complete and checked off with
   implementation commit `44b0847`, E4/E5 are complete and checked off with
   implementation commit `61f1548`, E6 is complete and checked off with
-  implementation commit `815f55a`, and E8 is complete and checked off with
+  implementation commit `815f55a`, E7 is complete and checked off with
+  implementation commit `bf18554`, and E8 is complete and checked off with
   implementation commit `bcd76d4`. `spec.md`, `plan.md`, `tasks.md`, and
   `cline-tasks/evaluation-follow-up-implementation-plan.md` were refreshed for
-  Slice E in `93ddb91`.
+  Slice F in `a82d10f`.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -413,6 +419,8 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `a82d10f docs(spec): record lifecycle hooks slice`
+  - `bf18554 feat(executor): add lifecycle hooks`
   - `93ddb91 docs(spec): record trace vocabulary slice`
   - `bcd76d4 feat(tracing): add tool lifecycle trace events`
   - `521c288 docs(spec): record tool result facets slice`
@@ -456,7 +464,8 @@
 ## Next Steps
 
 - Await follow-up direction for the next deferred Codex/Cline follow-up slice.
-  E7 remains the next candidate slice in `specs/dynamic-agent-runner/tasks.md`.
+  Remaining candidates in `specs/dynamic-agent-runner/tasks.md` include E2 and
+  E9 through E12.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
