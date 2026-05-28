@@ -538,46 +538,45 @@ stable.
 
 ### FR-11: Define concurrent invocation and thread-safety guarantees
 
-The runtime should support multiple client-created agents or workflow runs in the
-same process without library-owned run state crosstalk. A future scoped slice
-must define the precise thread-safety contract before the library claims strong
-concurrent-agent isolation.
+The runtime supports multiple client-created agents or workflow runs in the
+same process without library-owned run state crosstalk. The current thread-safety
+contract covers per-run execution state, run-correlated observability, and
+synchronized package-owned in-memory/shared helper surfaces, while caller-provided
+mutable callbacks and tool handlers remain caller-managed.
 
 Acceptance criteria:
 
 - Given two workflow executions run concurrently, when both executions use the
   same loaded workflow or reusable `WorkflowExecutionContext`, then
-  library-owned per-run state such as prompts, node inputs, node outputs, tool
-  results, retry records, token usage, trace events, errors, and final results
-  remains isolated per invocation.
-- Given callers share runtime collaborators such as a `trace_sink`,
-  `model_adapter`, `tool_registry`, tool handler, or lifecycle hook object, when
-  concurrent executions use those collaborators, then the library either documents
-  that the collaborator must be thread-safe or provides an explicit isolation or
-  synchronization boundary.
+  library-owned per-run state such as prompts, run ids, node inputs, node outputs,
+  tool results, retry records, token usage, trace events, errors, and final
+  results remains isolated per invocation.
+- Given callers share package-owned runtime collaborators such as
+  `InMemoryTraceSink`, `WorkflowTracer`, `OpenAIClientAdapter`, or
+  `InMemoryToolRegistry`, when concurrent executions use those collaborators,
+  then the library provides explicit synchronization for the supported shared
+  operations.
 - Given trace events or lifecycle hook contexts are emitted during concurrent
   executions, when callers inspect observability data, then each event or hook
-  context includes enough run correlation metadata, such as a `run_id` or
-  `agent_instance_id`, to distinguish interleaved runs.
+  context includes `run_id` metadata to distinguish interleaved runs.
 - Given `OpenAIClientAdapter` is shared across concurrent executions, when its
-  default client is lazily initialized, then initialization is thread-safe or the
-  adapter contract clearly states that callers must provide one adapter per
-  concurrent run.
-- Given `InMemoryToolRegistry` or future registry sources are shared across
-  concurrent executions, when tools are registered, overridden, disabled, listed,
-  or invoked, then mutation and read behavior is covered by a documented
-  concurrency policy and tests.
+  default client is lazily initialized, then initialization is synchronized so only
+  one default client is created for that adapter instance.
+- Given `InMemoryToolRegistry` is shared across concurrent executions, when tools
+  are registered, overridden, listed, looked up, or invoked, then package-owned
+  registry read and mutation paths are synchronized and covered by tests.
 - Given a built-in tool pack or caller-provided tool handler stores mutable state,
   when concurrent invocations call that tool, then the runtime contract identifies
-  whether the tool is responsible for synchronization or whether the registry
-  wrapper provides it.
+  that the tool handler is responsible for synchronizing its own mutable internal
+  state.
 - Given lifecycle hooks are shared between runs, when hooks store observations or
   abort execution, then hook context data is run-correlated and shared hook state
-  is either caller-managed or protected by the runtime contract.
-- Given no thread-safety contract has been implemented for a shared collaborator,
-  when documentation describes concurrency support, then it must limit the claim
-  to core per-run `WorkflowExecutionState` isolation and avoid claiming full
-  thread safety.
+  is caller-managed unless the hook implementation provides its own
+  synchronization.
+- Given future shared collaborators are added outside the package-owned
+  synchronized helpers, when documentation describes concurrency support, then it
+  must avoid claiming those collaborators are thread-safe until their contracts
+  and validation are defined.
 
 ### FR-12: Define async execution interfaces without splitting runtime semantics
 
@@ -656,10 +655,11 @@ than as a separate runtime path.
 - Multi-provider model routing is not part of the current runtime direction.
   Provider abstraction libraries such as LiteLLM should be deferred unless the
   spec explicitly changes to support non-OpenAI-compatible providers.
-- The runtime should preserve library-owned per-run execution-state isolation for
-  concurrent invocations. Strong thread-safety guarantees for shared
-  collaborators such as trace sinks, model adapters, registries, tool handlers,
-  and lifecycle hooks must be defined and validated before they are claimed.
+- The runtime preserves library-owned per-run execution-state isolation for
+  concurrent invocations. Current thread-safety guarantees cover run-correlated
+  trace and hook metadata plus synchronized package-owned helper surfaces;
+  caller-provided mutable tool handlers and lifecycle hooks remain caller-managed
+  for synchronization.
 - Async execution support should be designed as an additive public API and
   internal execution strategy. The current synchronous API must remain stable for
   simple callers unless a later breaking-change decision explicitly replaces it.
@@ -1237,12 +1237,14 @@ Before implementation is considered complete, add validation covering:
   in commit `13c6dac`, preserving context-window, structured-output, reasoning,
   modality, and parallel-tool-call support metadata from runtime execution policy
   without leaking capability metadata into OpenAI request parameters.
-- Follow-up concurrency review found that core `WorkflowExecutionState` is
-  per-run, but full thread-safety is not yet guaranteed for shared caller-provided
-  collaborators such as trace sinks, model adapters, registries, tool handlers,
-  or lifecycle hooks. A future scoped slice should add explicit run correlation,
-  collaborator thread-safety contracts, and validation before claiming full
-  concurrent-agent isolation.
+- Evaluation follow-up Slice H completed the E13 thread-safety and concurrent
+  invocation contract in commit `2e45888`, adding per-run `run_id` correlation for
+  execution state, trace events, and lifecycle hook contexts; synchronizing
+  `InMemoryTraceSink`, `WorkflowTracer`, `OpenAIClientAdapter` lazy default-client
+  initialization, and `InMemoryToolRegistry` read/mutation helpers; and validating
+  concurrent shared-context execution with fake clients and tools. Caller-provided
+  mutable tool handlers and lifecycle hook implementations remain responsible for
+  their own synchronization.
 - Follow-up async interface analysis concluded that async execution is a good
   future fit for model/tool I/O, MCP-style registry sources, cancellation,
   timeouts, and parallel graph edges. The package should eventually support both

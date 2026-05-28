@@ -56,10 +56,10 @@ or a clear error.
 - Evaluation follow-up Slice G is complete and committed: the runtime now preserves
   lightweight `ModelCapabilities` metadata from runtime execution policy without
   treating capability declarations as provider request parameters.
-- A follow-up concurrency review found that core `WorkflowExecutionState` is
-  per-run, but the package does not yet claim full thread safety for shared
-  collaborators such as trace sinks, model adapters, registries, tool handlers,
-  or lifecycle hooks.
+- Evaluation follow-up Slice H is complete and committed: the runtime now
+  assigns each execution a `run_id`, propagates that run correlation through
+  traces and lifecycle hooks, and synchronizes package-owned in-memory/shared
+  helper surfaces used by QThread-style callers.
 - Follow-up async interface analysis found that async execution is a good future
   fit for model/tool I/O, MCP-style registry sources, cancellation, timeouts, and
   parallel graph edges, while the synchronous API should remain as a convenience
@@ -314,10 +314,12 @@ management settings can attach to one stable object instead of expanding
 `execute_workflow(...)` keyword arguments indefinitely. The user prompt remains
 a per-run input and is not stored in the reusable context object.
 
-Future concurrency work should preserve this boundary: `WorkflowExecutionState`
-and prompt-specific data remain per invocation, while reusable execution-context
-collaborators need explicit thread-safety or isolation contracts before the
-runtime claims full concurrent-agent support.
+Concurrent invocation support preserves this boundary: `WorkflowExecutionState`
+and prompt-specific data remain per invocation, while package-owned shared
+helpers provide explicit synchronization for current in-memory trace sink, tracer,
+lazy OpenAI adapter initialization, and in-memory registry read/mutation paths.
+Caller-provided tool handlers and lifecycle hook implementations remain
+responsible for synchronizing their own mutable internal state.
 
 Future async work should avoid maintaining a separate runtime implementation.
 Once async execution is introduced, prefer an async-first internal executor with
@@ -473,20 +475,19 @@ and execution failures.
     - validate with focused model-capability/artifact/import/executor tests and
       the full test suite
 
-16. **Future thread-safety and concurrent invocation contract**
-    - define whether shared runtime collaborators are caller-managed,
-      runtime-synchronized, cloned per run, or explicitly unsupported for
-      concurrent use
-    - add run-correlation metadata such as `run_id` or `agent_instance_id` to
-      trace events and lifecycle hook contexts so interleaved executions remain
-      distinguishable
-    - make lazy default-client initialization in `OpenAIClientAdapter`
-      thread-safe or document one-adapter-per-concurrent-run requirements
-    - define read/mutation behavior for shared registries, registry overrides,
-      built-in tool packs, and mutable tool handlers
-    - add concurrent execution tests that prove library-owned per-run state does
-      not crosstalk and that shared-collaborator behavior matches the documented
-      contract
+16. **Evaluation follow-up Slice H: thread-safety and concurrent invocation contract**
+    - completed in commit `2e45888`
+    - added per-run `run_id` generation and optional caller-provided run IDs to
+      `execute_workflow(...)` and `run_agent_workflow(...)`
+    - added run-correlation metadata to trace events and lifecycle hook contexts
+      so interleaved executions remain distinguishable
+    - synchronized `InMemoryTraceSink`, `WorkflowTracer`, lazy default-client
+      initialization in `OpenAIClientAdapter`, and `InMemoryToolRegistry`
+      read/mutation paths
+    - documented the remaining boundary: caller-provided mutable tool handlers
+      and lifecycle hook implementations must synchronize their own shared state
+    - validated with concurrent fake-client/fake-tool execution tests, the full
+      test suite, compile checks, and targeted pre-commit
 
 17. **Future async execution interface design**
     - add async public APIs such as `execute_workflow_async(...)` and
@@ -538,10 +539,12 @@ model behavior and fake registries for tool behavior.
   `WorkflowExecutionContext` / `RunContext`; future runtime envelope additions
   should attach there when they are caller-provided execution collaborators or
   per-run policy controls rather than mutable workflow state.
-- Core execution state is currently per run, but shared collaborators do not yet
-  have a complete thread-safety contract. Future concurrency work should add
-  run-correlation metadata, document or enforce collaborator isolation, and test
-  concurrent executions before claiming full thread-safe client-created agents.
+- Core execution state remains per run, and E13 now adds run-correlation
+  metadata plus synchronization for package-owned shared helper surfaces.
+  `InMemoryTraceSink`, `WorkflowTracer`, `OpenAIClientAdapter` lazy default-client
+  initialization, and `InMemoryToolRegistry` read/mutation helpers are covered by
+  tests for concurrent use. Caller-provided mutable tool handlers and lifecycle
+  hooks remain caller-managed for synchronization.
 - Async execution should be an additive future direction, not an immediate
   retrofit. When introduced, async should become the internal execution strategy
   for I/O-bound model/tool work and future parallel graph semantics, while sync

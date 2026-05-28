@@ -2,9 +2,9 @@
 
 ## Status
 
-- State: Slice 13 complete; prompt-cache intent is parsed, validated,
-  traced, and covered by tests; future thread-safety and async interface work is
-  recorded but not implemented
+- State: E13 complete; concurrent invocation run correlation and
+  synchronized shared runtime helpers are implemented, validated, and committed;
+  future async interface work remains recorded but not implemented
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
@@ -589,20 +589,26 @@
 - [ ] E12. Keep multi-agent collaboration represented through primitive nodes and
       optional delegation tools; defer durable team runtime until requirements
       justify it.
-- [ ] E13. Define and validate the package's thread-safety and concurrent
+- [x] E13. Define and validate the package's thread-safety and concurrent
       invocation contract for multiple client-created agents.
-      - Preserve the current per-run `WorkflowExecutionState` isolation boundary
-        for prompts, node inputs, node outputs, tool results, retries, token
-        usage, trace events, errors, and final results.
-      - Decide whether shared collaborators such as trace sinks, model adapters,
-        registries, tool handlers, and lifecycle hooks are caller-managed,
-        runtime-synchronized, cloned per run, or unsupported for concurrent use.
-      - Add run-correlation metadata such as `run_id` or `agent_instance_id` to
-        trace events and lifecycle hook contexts before claiming observability is
-        safe for interleaved runs.
-      - Cover lazy OpenAI client initialization, registry mutation/read behavior,
-        mutable tool handlers, built-in tool packs, and shared hook state with
-        explicit documentation and tests.
+      - Implemented in commit `2e45888`: added per-run `run_id` generation and
+        caller-provided `run_id` support through `execute_workflow(...)` and
+        `run_agent_workflow(...)`.
+      - `TraceEvent` and lifecycle hook context objects now carry run-correlation
+        metadata so interleaved runs can be distinguished in shared observability
+        surfaces.
+      - `InMemoryTraceSink`, `WorkflowTracer`, `OpenAIClientAdapter` lazy default
+        client initialization, and `InMemoryToolRegistry` read/mutation helpers
+        now use synchronization for shared QThread-style callers. Tool handlers
+        and lifecycle hook implementations remain responsible for synchronizing
+        their own mutable internal state.
+      - Validation: `poetry run pytest -q && poetry run python -m compileall -q
+        src tests && pre-commit run --files src/dynamic_agent_runner/api.py
+        src/dynamic_agent_runner/executor.py src/dynamic_agent_runner/hooks.py
+        src/dynamic_agent_runner/openai_client.py
+        src/dynamic_agent_runner/registry.py src/dynamic_agent_runner/tracing.py
+        tests/test_concurrency.py tests/test_hooks.py` — pass; 136 tests
+        passed.
 - [ ] E14. Define async execution APIs and sync wrapper behavior without creating
       a separate runtime implementation.
       - Add async public API targets such as `execute_workflow_async(...)` and
@@ -631,10 +637,14 @@
 - [ ] V4. Run `pre-commit run --files <changed files>` before scoped commits.
 - [ ] V5. Track drift: update `spec.md`, `plan.md`, or this task list when
       implementation reveals changed requirements, architecture, or task order.
-- [ ] V6. Add concurrency validation before claiming full thread safety: run
+- [x] V6. Add concurrency validation before claiming full thread safety: run
       concurrent fake-client/fake-tool executions and verify there is no
       library-owned run-state crosstalk and that shared-collaborator behavior
       matches the documented contract.
+      - Completed in commit `2e45888` with `tests/test_concurrency.py` covering
+        shared-context concurrent runs, run-correlated traces/hooks, synchronized
+        in-memory registry registration/invocation, public API `run_id`
+        propagation, and thread-safe lazy default-client initialization.
 - [ ] V7. Add async-interface validation before claiming async support: cover
       async public APIs, sync wrapper event-loop misuse, cancellation/timeout
       propagation, mixed sync/async collaborators, and parity between sync and
