@@ -72,6 +72,12 @@
   `aed3b13 feat(prompt-cache): add prompt cache intent tracing`.
 - Codex/Cline evaluation follow-up commit exists:
   `88dad33 docs(evaluations): add Codex and Cline follow-ups`.
+- Evaluation follow-up implementation plan commit exists:
+  `8013dc1 docs(cline-tasks): add evaluation follow-up plan`.
+- Evaluation follow-up Slice A implementation commit exists:
+  `38929f1 feat(executor): add workflow execution context`.
+- Evaluation follow-up Slice A governing-docs commit exists:
+  `ae9fc73 docs(spec): record workflow context slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -128,19 +134,24 @@
   `cline-tasks/codex-cline-combined-package-proposal.md` synthesizes acceptable
   package additions. The consolidated deferred follow-up backlog now lives in
   `specs/dynamic-agent-runner/tasks.md` rather than the spec body.
+- Evaluation follow-up Slice A is complete: `WorkflowExecutionContext` /
+  `RunContext` now groups loaded workflows and runtime collaborators,
+  `execute_workflow(...)` and `run_agent_workflow(...)` accept context objects,
+  ambiguous duplicate runtime arguments are rejected, and public exports/tests are
+  updated. Full validation passed with 108 tests.
 
 ## In Flight
 
-- Memory-bank refresh is in flight after committing the Codex/Cline evaluation
-  proposal and deferred task-list follow-ups.
-- No source implementation work is currently in flight.
-- No next main-runner implementation slice is currently defined after Slice 13.
+- No source implementation work is currently in flight after commit `38929f1`.
+- Deferred Codex/Cline follow-ups E3, E4, E5, E6, E7, and E8 remain candidate
+  next slices after E1/Slice A.
 
 ## Remaining
 
 - Await follow-up direction for the next scoped runtime slice, adapter-gated
   prompt-cache provider pass-through, deferred library-evaluation follow-up,
-  Codex/Cline deferred follow-up, or interpreter middleware prototype work.
+  remaining Codex/Cline deferred follow-ups E3/E4/E5/E6/E7/E8, or interpreter
+  middleware prototype work.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, behavior-override, and all-pattern fixture foundation into the
   next scoped slice.
@@ -199,10 +210,10 @@
 - Slice 13 intentionally stops short of provider-specific prompt-cache request
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
-- Codex/Cline follow-ups are deferred backlog items, not implemented runtime
-  behavior. They should be introduced through package-owned contracts before
-  broad integrations such as MCP, plugins, shell hooks, app-server protocols, or
-  multi-provider routing.
+- Codex/Cline follow-up E1 is implemented. Remaining follow-ups are deferred
+  backlog items, not implemented runtime behavior. They should be introduced
+  through package-owned contracts before broad integrations such as MCP, plugins,
+  shell hooks, app-server protocols, or multi-provider routing.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.

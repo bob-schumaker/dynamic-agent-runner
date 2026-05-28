@@ -2,12 +2,11 @@
 
 ## Current Focus
 
-- Codex and Cline runtime-pattern evaluations have been saved and synthesized in
-  commit `88dad33`. The main runner backlog now tracks deferred follow-ups for
-  run context, model capabilities, stricter tool schema validation, explicit tool
-  exposure, policy separation, tool-result facets, lifecycle hooks, trace
-  vocabulary, MCP registry-source design, context-management seams, constrained
-  file-backed prompt context, and primitive-node-preserving sub-agent delegation.
+- Evaluation follow-up Slice A is complete: `WorkflowExecutionContext` /
+  `RunContext` now provides a stable execution envelope for loaded workflows and
+  runtime collaborators. Implementation commit `38929f1` and governing-docs
+  commit `ae9fc73` recorded the code, validation, spec, plan, task, and
+  cline-task evidence.
 
 ## Current Status
 
@@ -64,14 +63,22 @@
   - Completed Slice 13 prompt-cache intent and trace observation in `aed3b13`.
   - Added Codex and Cline evaluation artifacts plus a combined package proposal
     and deferred task-list follow-ups in `88dad33`.
+  - Added the evaluation follow-up implementation plan in `8013dc1`.
+  - Completed evaluation follow-up Slice A in `38929f1`, adding
+    `WorkflowExecutionContext` / `RunContext` and compatible context-aware
+    executor/API entry points.
+  - Updated governing spec/plan/task documents and the implementation plan for
+    Slice A completion evidence in `ae9fc73`.
 - In progress:
-  - Memory-bank refresh for the Codex/Cline evaluation proposal checkpoint.
+  - None currently; awaiting the next scoped follow-up direction after this
+    memory-bank checkpoint.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
-  - No next implementation slice is currently defined for the main runner.
+  - Deferred Codex/Cline follow-ups E3, E4, E5, E6, E7, and E8 remain
+    candidate next implementation slices after E1/Slice A.
 
 ## Important Current Facts
 
@@ -91,14 +98,16 @@
     optional interpreter middleware and custom interpreter registration
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0 through 13 are complete; no next implementation
-  slice is currently defined.
+  implementation. Slices 0 through 13 and evaluation follow-up Slice A are
+  complete; E3/E4/E5/E6/E7/E8 remain deferred follow-up candidates.
 - `cline-tasks/codex-cli-evaluation.md` and `cline-tasks/cline-evaluation.md`
   capture read-only external runtime-pattern evaluations. The synthesized
   proposal lives at `cline-tasks/codex-cline-combined-package-proposal.md`.
 - `specs/dynamic-agent-runner/tasks.md` now contains `Deferred Codex/Cline
-  evaluation follow-ups` E1 through E12. `spec.md` keeps only a consistency note
-  linking the evaluation artifacts and proposal.
+  evaluation follow-ups` E1 through E12. E1 is complete and checked off with
+  implementation commit `38929f1`; `spec.md`, `plan.md`, `tasks.md`, and
+  `cline-tasks/evaluation-follow-up-implementation-plan.md` were refreshed in
+  `ae9fc73`.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -272,6 +281,32 @@
     behavior, caller disable overrides, and provider cached-token telemetry.
   - Provider-specific prompt-cache request pass-through remains deferred until
     exact SDK/API support is verified.
+- Evaluation follow-up Slice A implementation from `38929f1`:
+  - `src/dynamic_agent_runner/context.py` defines `WorkflowExecutionContext` and
+    `RunContext` as a stable execution envelope for a loaded workflow, optional
+    tool registry, model adapter, max-step override, trace sink, and prompt-cache
+    override.
+  - `execute_workflow(...)` now accepts either a loaded workflow plus runtime
+    keywords or a context object, and rejects ambiguous calls that combine both.
+  - `run_agent_workflow(...)` accepts `execution_context=` for preloaded
+    workflows while preserving existing artifact-loading keyword behavior.
+  - `dynamic_agent_runner.__init__` exports `WorkflowExecutionContext` and
+    `RunContext`.
+  - `tests/test_executor.py` and `tests/test_import.py` cover context execution,
+    ambiguity rejection, API wiring, and public exports.
+  - Validation: `ruff check src tests && ruff format --check src tests &&
+    python -m pytest -q` — pass; 108 tests passed.
+- Governing-docs update from `ae9fc73`:
+  - `specs/dynamic-agent-runner/spec.md` records the execution context as an
+    accepted runtime input and adds acceptance criteria for context-aware
+    execution and ambiguity rejection.
+  - `specs/dynamic-agent-runner/plan.md` records the execution-envelope pattern
+    and notes future caller-provided runtime envelope additions should attach to
+    `WorkflowExecutionContext` / `RunContext` rather than mutable state.
+  - `specs/dynamic-agent-runner/tasks.md` marks E1 complete with commit and
+    validation evidence.
+  - `cline-tasks/evaluation-follow-up-implementation-plan.md` marks Slice A
+    complete and preserves the validation evidence.
 - Interpreter middleware future spec from `e305b55`:
   - `specs/llm-step-interpreter-middleware/spec.md` records an optional future
     capability for attaching interpreter backends to `llm_step` nodes.
@@ -294,6 +329,9 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `ae9fc73 docs(spec): record workflow context slice`
+  - `38929f1 feat(executor): add workflow execution context`
+  - `8013dc1 docs(cline-tasks): add evaluation follow-up plan`
   - `88dad33 docs(evaluations): add Codex and Cline follow-ups`
   - `aed3b13 feat(prompt-cache): add prompt cache intent tracing`
   - `7d950b7 feat(runtime): add behavior overrides`
@@ -325,11 +363,9 @@
 
 ## Next Steps
 
-- Commit this memory-bank refresh as a separate checkpoint after the evaluation
-  proposal commit.
-- Await follow-up direction; no next main-runner implementation slice is
-  currently defined in `specs/dynamic-agent-runner/tasks.md` after the deferred
-  Codex/Cline follow-up backlog was added.
+- Await follow-up direction for the next deferred Codex/Cline follow-up slice.
+  E3, E4, E5, E6, E7, and E8 remain candidate next slices in
+  `specs/dynamic-agent-runner/tasks.md`.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
