@@ -59,6 +59,9 @@ The library must accept, at minimum:
   modifying the generated agent-design artifacts
 - optional built-in default tool packs that can pre-register conservative local
   tools when explicitly enabled by the caller
+- an optional `WorkflowExecutionContext` / `RunContext` execution envelope that
+  groups a loaded workflow with runtime collaborators such as the tool registry,
+  model adapter, maximum step override, trace sink, and prompt-cache override
 - a required tool registry argument or approved registry source when the workflow
   is expected to use tools; initial registry support will use this repository's
   own registry abstraction instead of `ai-tools-core`
@@ -368,6 +371,13 @@ Acceptance criteria:
 
 - Given a valid workflow and prompt, when the caller invokes execution, then the
   workflow runs from that prompt.
+- Given a caller provides a `WorkflowExecutionContext` / `RunContext`, when the
+  caller invokes execution, then the runtime uses the context's loaded workflow
+  and runtime collaborators without requiring the caller to pass each collaborator
+  as a separate execution keyword argument.
+- Given a caller provides a `WorkflowExecutionContext` / `RunContext`, when the
+  caller also passes duplicate artifact or runtime collaborator keyword arguments,
+  then the runtime rejects the ambiguous invocation with a clear error.
 - Given an empty or invalid prompt, when the caller invokes execution, then the
   library rejects the request with a clear validation error.
 

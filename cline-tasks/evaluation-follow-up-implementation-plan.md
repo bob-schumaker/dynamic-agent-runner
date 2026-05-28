@@ -32,7 +32,7 @@ The current implementation has these relevant characteristics:
   tool lifecycle or status vocabulary.
 - There are no lifecycle hooks yet.
 
-## Slice A — E1: `WorkflowExecutionContext` / `RunContext`
+## Slice A — E1: `WorkflowExecutionContext` / `RunContext` — Complete
 
 **Goal:** Refactor execution parameters into a stable context object without
 changing behavior.
@@ -63,6 +63,19 @@ normalize to the context object.
 
 **Why first:** This reduces parameter sprawl before hooks and richer policy
 fields are introduced.
+
+Completion evidence:
+
+- Implemented in commit `38929f1`.
+- Added `src/dynamic_agent_runner/context.py` with
+  `WorkflowExecutionContext` and `RunContext`.
+- Preserved `execute_workflow(workflow, ...)` compatibility while allowing
+  `execute_workflow(context, ...)` and `run_agent_workflow(...,
+  execution_context=context)`.
+- Rejected ambiguous invocations that combine a context with duplicate runtime
+  or artifact keyword arguments.
+- Validation: `ruff check src tests && ruff format --check src tests &&
+  python -m pytest -q` — pass; 108 tests passed.
 
 ## Slice B — E3: Stronger Tool Schema Validation
 

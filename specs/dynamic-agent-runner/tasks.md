@@ -506,8 +506,14 @@
 
 ## Deferred Codex/Cline evaluation follow-ups
 
-- [ ] E1. Introduce a `WorkflowExecutionContext` / `RunContext` object separate
+- [x] E1. Introduce a `WorkflowExecutionContext` / `RunContext` object separate
       from mutable `WorkflowExecutionState`.
+      - Implemented in commit `38929f1`: added
+        `src/dynamic_agent_runner/context.py`, exported `RunContext`, and allowed
+        `execute_workflow(...)` / `run_agent_workflow(...)` to accept the context
+        while rejecting ambiguous duplicate runtime arguments.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 108 tests passed.
 - [ ] E2. Add a lightweight `ModelCapabilities` model for context window,
       structured-output support, reasoning support, modalities, and parallel
       tool-call support.

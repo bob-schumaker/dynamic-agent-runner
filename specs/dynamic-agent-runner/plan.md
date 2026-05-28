@@ -33,6 +33,10 @@ or a clear error.
 - A 3-round implementation-readiness debate concluded this plan is ready only
   for slice-by-slice implementation, not unrestricted runtime coding.
 - The next active implementation slice is Slice 2: artifact models and loaders.
+- Evaluation follow-up Slice A is complete and committed: the runtime now exposes
+  `WorkflowExecutionContext` / `RunContext` as a stable execution envelope that
+  groups a loaded workflow with runtime collaborators while preserving the
+  existing `execute_workflow(workflow, ...)` call shape.
 
 ## Technical Approach
 
@@ -259,6 +263,12 @@ Execution state should track:
 - final result
 - errors and failure behavior
 
+Execution-envelope inputs should be grouped in `WorkflowExecutionContext` /
+`RunContext` so future tool policy, tracing, hook, model-capability, and context
+management settings can attach to one stable object instead of expanding
+`execute_workflow(...)` keyword arguments indefinitely. The user prompt remains
+a per-run input and is not stored in the reusable context object.
+
 ### CLI
 
 Expose a CLI that can load artifacts and run the workflow:
@@ -334,6 +344,15 @@ and execution failures.
    - compute effective prompt/skill behavior without mutating generated artifacts
    - add API/CLI override inputs and fake-client tests
 
+9. **Evaluation follow-up Slice A: workflow execution context**
+   - add `src/dynamic_agent_runner/context.py` with
+     `WorkflowExecutionContext` and `RunContext`
+   - allow `execute_workflow(...)` and `run_agent_workflow(...)` to accept an
+     execution context while preserving existing keyword-based compatibility
+   - reject ambiguous calls that combine a context with duplicate runtime or
+     artifact keyword arguments
+   - validate with focused executor/API/import tests and the full test suite
+
 ## Validation Strategy
 
 Use staged validation as implementation grows:
@@ -364,6 +383,10 @@ model behavior and fake registries for tool behavior.
 - Runtime behavior overrides are the prompt/skill counterpart to tool overrides:
   they should compute effective `llm_step` behavior from overlay inputs while
   preserving generated artifacts as immutable baselines.
+- Runtime execution-context settings are now represented by
+  `WorkflowExecutionContext` / `RunContext`; future runtime envelope additions
+  should attach there when they are caller-provided execution collaborators or
+  per-run policy controls rather than mutable workflow state.
 - Tool-index files are optional metadata catalogs, not execution prerequisites;
   a tool can function only when the effective registry provides a callable entry.
 - Built-in default tools should be opt-in registry packs, not implicit ambient
