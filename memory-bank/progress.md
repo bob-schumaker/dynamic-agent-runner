@@ -102,6 +102,8 @@
   `13c6dac feat(models): add model capabilities metadata`.
 - Evaluation follow-up Slice G / E2 governing-docs commit exists:
   `97fe320 docs(spec): record model capabilities slice`.
+- Concurrency and async follow-up governing-docs commit exists:
+  `d9fa4ad docs(spec): record concurrency and async follow-ups`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -200,13 +202,20 @@
   `RuntimeManifest`. The model is exported publicly and remains metadata-only for
   now, so capability declarations do not alter OpenAI request parameters. Full
   validation passed with 132 tests.
+- Future concurrent invocation and async/sync interface work is now recorded in
+  governing spec artifacts. The runtime should preserve per-run
+  `WorkflowExecutionState` isolation, add explicit thread-safety contracts for
+  shared collaborators before claiming full concurrent-agent support, and later
+  prefer async-first internals with synchronous APIs retained as convenience
+  wrappers over the same semantics.
 
 ## In Flight
 
 - No source implementation work is currently in flight after implementation
-  commit `13c6dac` and governing-docs commit `97fe320`.
-- Remaining deferred Codex/Cline follow-ups include E9 through E12; no next
-  candidate slice has been selected after E2/Slice G.
+  commit `13c6dac` and governing-docs commit `d9fa4ad`.
+- Remaining deferred Codex/Cline follow-ups include E9 through E14; no next
+  candidate slice has been selected after recording concurrency and async
+  interface follow-ups.
 
 ## Remaining
 
@@ -273,10 +282,16 @@
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
 - Codex/Cline follow-ups E1, E2, E3, E4, E5, E6, E7, and E8 are implemented.
-  Remaining follow-ups are deferred backlog items, not implemented runtime
-  behavior. They should be introduced through package-owned contracts before broad
-  integrations such as MCP, plugins, shell hooks, app-server protocols, or
-  multi-provider routing.
+  Remaining follow-ups E9 through E14 are deferred backlog items, not implemented
+  runtime behavior. They should be introduced through package-owned contracts
+  before broad integrations such as MCP, plugins, shell hooks, app-server
+  protocols, or multi-provider routing.
+- E13 records future thread-safety / concurrent invocation work: run correlation,
+  shared collaborator contracts, lazy adapter initialization policy, registry
+  mutation/read behavior, mutable tool-handler behavior, and concurrent tests.
+- E14 records future async interface work: async public APIs, sync wrappers over
+  one semantic runtime path, event-loop misuse handling, mixed sync/async
+  collaborator policy, cancellation/timeout propagation, and parity validation.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.

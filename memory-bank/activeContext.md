@@ -2,11 +2,10 @@
 
 ## Current Focus
 
-- Evaluation follow-up Slice G / E2 is complete: the runtime now preserves
-  lightweight `ModelCapabilities` metadata for context window, structured-output
-  support, reasoning support, modalities, and parallel tool-call support.
-  Implementation commit `13c6dac` and governing-docs commit `97fe320` recorded
-  the code, validation, spec, plan, task, and cline-task evidence.
+- Follow-up design documentation for concurrent invocation and async/sync
+  interface support is recorded. Governing docs commit `d9fa4ad` adds future
+  thread-safety work for shared collaborators and future async execution APIs
+  while preserving synchronous APIs as wrappers over the same runtime semantics.
 
 ## Current Status
 
@@ -96,6 +95,8 @@
     lightweight `ModelCapabilities` metadata parsed from runtime execution policy.
   - Updated governing spec/plan/task documents and the implementation plan for
     Slice G / E2 completion evidence in `97fe320`.
+  - Updated governing spec/plan/task documents for future concurrent invocation
+    and async/sync interface work in `d9fa4ad`.
 - In progress:
   - None currently; awaiting the next scoped follow-up direction after this
     memory-bank checkpoint.
@@ -104,8 +105,9 @@
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
-  - Remaining deferred Codex/Cline follow-ups include E9 through E12; no next
-    candidate slice has been selected after completing E2/Slice G.
+  - Remaining deferred Codex/Cline follow-ups include E9 through E14; no next
+    candidate slice has been selected after recording concurrency and async
+    interface follow-ups.
 
 ## Important Current Facts
 
@@ -126,13 +128,13 @@
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
   implementation. Slices 0 through 13 plus evaluation follow-up Slices A, B,
-  C, D, E, F, and G are complete; E9 through E12 remain deferred follow-up
+  C, D, E, F, and G are complete; E9 through E14 remain deferred follow-up
   candidates.
 - `cline-tasks/codex-cli-evaluation.md` and `cline-tasks/cline-evaluation.md`
   capture read-only external runtime-pattern evaluations. The synthesized
   proposal lives at `cline-tasks/codex-cline-combined-package-proposal.md`.
 - `specs/dynamic-agent-runner/tasks.md` now contains `Deferred Codex/Cline
-  evaluation follow-ups` E1 through E12. E1 is complete and checked off with
+  evaluation follow-ups` E1 through E14. E1 is complete and checked off with
   implementation commit `38929f1`, E3 is complete and checked off with
   implementation commit `44b0847`, E4/E5 are complete and checked off with
   implementation commit `61f1548`, E6 is complete and checked off with
@@ -142,6 +144,8 @@
   implementation commit `13c6dac`. `spec.md`, `plan.md`, `tasks.md`, and
   `cline-tasks/evaluation-follow-up-implementation-plan.md` were refreshed for
   Slice G / E2 in `97fe320`.
+  Future E13 and E14 are recorded for thread-safety / concurrent invocation and
+  async/sync interface design, respectively, in `d9fa4ad`.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -424,6 +428,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `d9fa4ad docs(spec): record concurrency and async follow-ups`
   - `97fe320 docs(spec): record model capabilities slice`
   - `13c6dac feat(models): add model capabilities metadata`
   - `a82d10f docs(spec): record lifecycle hooks slice`
@@ -472,7 +477,7 @@
 
 - Await follow-up direction for the next deferred Codex/Cline follow-up slice.
   Remaining candidates in `specs/dynamic-agent-runner/tasks.md` include E9
-  through E12.
+  through E14.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped

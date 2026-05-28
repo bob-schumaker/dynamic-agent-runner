@@ -160,3 +160,9 @@ save this proposal to cline-tasks/ and add the backlog section to the spec
 ---
 
 move the deferred section to tasks.md
+
+---
+
+- do we currently support multiple concurrent agents created by the client or will we have low-level crosstalk
+- what are the pros and cons of making the package async
+- should we support both interface styles
