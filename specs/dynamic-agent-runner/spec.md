@@ -281,6 +281,11 @@ Acceptance criteria:
   `failure_behavior`, when the node executes, then the library resolves the tool
   through the library-owned tool registry pattern and records its output state or
   applies the configured failure behavior.
+- Given a tool invocation returns a structured `ToolResult` with `model_output`,
+  `raw_output`, `log_preview`, `event_payload`, or `sensitive_fields`, when the
+  executor records state and trace data, then prompt/state references use the
+  model-facing output while raw/log/event facets remain available for tracing and
+  future hooks.
 - Given a `decision_step` with an `llm_route` decision contract, when the node
   executes, then the library chooses one of the allowed paths and follows the
   matching outgoing edge.
@@ -860,8 +865,9 @@ The runtime should start with OpenAI package model and client interfaces:
 - Tool registry injection should target this repository's own registry protocol,
   including tool lookup by manifest `tool_id`, conversion to OpenAI tool schema,
   invocation dispatch, explicit exposure states, side-effect metadata, approval
-  metadata, sandbox metadata, timeout/retry policy, and structured result or
-  failure reporting.
+  metadata, sandbox metadata, timeout/retry policy, and structured result facets
+  for model-facing output, raw output, log preview, event payload, sensitive
+  fields, or failure reporting.
 - Registry preparation should accept runtime tool overrides that add, replace,
   disable, or restrict tools globally or for individual `llm_step` nodes while
   preserving the generated artifacts as the unmodified baseline.
@@ -1056,6 +1062,8 @@ Before implementation is considered complete, add validation covering:
 - [ ] token-budget preflight behavior without live model calls
 - [ ] structured trace/event hooks for node, model, tool, decision, retry, error,
       and final-result events
+- [ ] structured tool-result facets for model-facing output, raw output, log
+      preview, event payload, and sensitive trace fields
 - [ ] clear error behavior for missing artifacts
 - [ ] clear error behavior for inconsistent artifacts
 - [ ] clear error behavior for model/client failures
@@ -1116,6 +1124,10 @@ Before implementation is considered complete, add validation covering:
   lightweight tool policy separation in commit `61f1548`, including model
   visibility filtering, direct tool-step callable checks, metadata validation,
   and public exports for `ToolExposure` and `ToolPolicy`.
+- Evaluation follow-up Slice D completed richer `ToolResult` facets in commit
+  `815f55a`, including model-facing output fallback, raw output, log preview,
+  event payload, sensitive trace fields, registry preservation of structured tool
+  results, and executor use of model-facing output for prompt/state references.
 - The initial source package scaffold exists; deeper parser, registry, OpenAI
   adapter, executor, and CLI implementation details remain intentionally staged
   through follow-on slices.

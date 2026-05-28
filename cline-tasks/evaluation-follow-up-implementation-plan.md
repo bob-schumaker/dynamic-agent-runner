@@ -164,7 +164,7 @@ Completion evidence:
 - Validation: `ruff check src tests && ruff format --check src tests &&
   python -m pytest -q` — pass; 121 tests passed.
 
-## Slice D — E6: Richer `ToolResult` Facets
+## Slice D — E6: Richer `ToolResult` Facets — Complete
 
 **Goal:** Preserve backward compatibility while adding model-facing, raw, log,
 and event facets.
@@ -198,6 +198,19 @@ existing tests and callers do not break.
 
 **Why fourth:** This builds on clearer tool policy/exposure and prepares tracing
 and hooks.
+
+Completion evidence:
+
+- Implemented in commit `815f55a`.
+- Extended `ToolResult` with `model_output`, `raw_output`, `log_preview`,
+  `event_payload`, and `sensitive_fields`.
+- Preserved structured `ToolResult` objects returned by registered handlers.
+- Used `model_output` as the downstream prompt/state output when present while
+  retaining `output` as the backward-compatible fallback.
+- Included raw/log/event facets and sensitive-field metadata in tool-result trace
+  payloads.
+- Validation: `ruff check src tests && ruff format --check src tests &&
+  python -m pytest -q` — pass; 123 tests passed.
 
 ## Slice E — E8: Extended Trace Vocabulary
 

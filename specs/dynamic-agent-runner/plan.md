@@ -44,6 +44,9 @@ or a clear error.
   metadata models now expose explicit tool exposure states and preserve
   lightweight tool policy metadata separately from callable registration and
   per-node exposure decisions.
+- Evaluation follow-up Slice D is complete and committed: `ToolResult` now
+  preserves separate model-facing, raw, log-preview, event-payload, and sensitive
+  trace facets while retaining backward-compatible `output` fallback behavior.
 
 ## Technical Approach
 
@@ -185,6 +188,9 @@ Core concepts:
 
 - `ToolDefinition` — manifest/tool-index metadata, JSON schema, exposure state,
   side-effect metadata, and lightweight policy fields.
+- `ToolResult` — structured invocation result with backward-compatible `output`
+  plus optional `model_output`, `raw_output`, `log_preview`, `event_payload`, and
+  `sensitive_fields` facets.
 - `ToolExposure` — explicit model/direct-call visibility state with `direct`,
   `deferred`, `direct_model_only`, and `hidden` values.
 - `ToolPolicy` — side-effect, approval, sandbox, timeout, retry, and failure
@@ -220,7 +226,8 @@ Registry responsibilities:
   metadata in model-facing parameters
 - validate required tool inputs using the declared input schema where practical
 - record side-effect metadata, approval metadata, timeout/retry policy, and
-  structured success/failure results
+  structured success/failure results with separate model-facing, raw, log-preview,
+  event-payload, and sensitive-field facets
 - fail clearly for missing tools, malformed tool inputs, and unapproved
   side-effecting tools
 - apply runtime tool overrides so callers can add new tools, replace existing
@@ -392,6 +399,18 @@ and execution failures.
     - validate with focused registry/validation/import tests and the full test
       suite
 
+12. **Evaluation follow-up Slice D: richer tool result facets**
+    - extend `ToolResult` with `model_output`, `raw_output`, `log_preview`,
+      `event_payload`, and `sensitive_fields` while preserving `output` fallback
+    - preserve structured `ToolResult` objects returned by handlers instead of
+      wrapping them as ordinary output
+    - use model-facing output for downstream prompt rendering, state-key outputs,
+      and node-output unwrapping
+    - include raw/log/event facets and sensitive fields in tool-result trace
+      payloads
+    - validate with focused registry/executor/tracing/import tests and the full
+      test suite
+
 ## Validation Strategy
 
 Use staged validation as implementation grows:
@@ -436,6 +455,10 @@ model behavior and fake registries for tool behavior.
 - Tool policy metadata is now preserved in `ToolPolicy`, separate from callable
   registry entries and node exposure decisions; this is not yet a sandbox or
   approval engine.
+- Tool results now preserve richer facets: `model_output` drives downstream
+  prompt/state references when present, `output` remains the fallback for existing
+  callers, and raw/log/event facets are available for trace payloads and future
+  hooks.
 - Tool-index files are optional metadata catalogs, not execution prerequisites;
   a tool can function only when the effective registry provides a callable entry.
 - Built-in default tools should be opt-in registry packs, not implicit ambient

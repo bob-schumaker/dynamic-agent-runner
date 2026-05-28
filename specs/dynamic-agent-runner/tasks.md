@@ -542,8 +542,16 @@
       - Validation: `python -m pytest tests/test_registry.py
         tests/test_validation.py tests/test_import.py -q` — pass; 34 tests
         passed.
-- [ ] E6. Refine `ToolResult` into model-facing output, raw output,
+- [x] E6. Refine `ToolResult` into model-facing output, raw output,
       trace/log preview, and hook/event payload facets.
+      - Implemented in commit `815f55a`: extended `ToolResult` with
+        `model_output`, `raw_output`, `log_preview`, `event_payload`, and
+        `sensitive_fields` while preserving `output` fallback behavior.
+      - The registry now preserves structured `ToolResult` objects returned by
+        tool handlers, and the executor uses model-facing output for prompt/state
+        references while emitting raw/log/event facets in tool-result traces.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 123 tests passed.
 - [ ] E7. Define narrow in-process lifecycle hook protocols for model, tool,
       node, permission, and workflow boundaries.
 - [ ] E8. Extend trace vocabulary for tool lifecycle, usage updates, status
