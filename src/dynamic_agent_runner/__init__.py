@@ -26,6 +26,7 @@ from dynamic_agent_runner.openai_client import (
     normalize_openai_response,
 )
 from dynamic_agent_runner.models import (
+    ModelCapabilities,
     RuntimeBehaviorOverrides,
     ToolExposure,
     ToolPolicy,
@@ -79,6 +80,7 @@ __all__ = [
     "ModelResponse",
     "ModelToolCall",
     "ModelHookContext",
+    "ModelCapabilities",
     "NodeExecution",
     "NodeHookContext",
     "OpenAIClientAdapter",

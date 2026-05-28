@@ -74,6 +74,32 @@ class ToolPolicy:
 
 
 @dataclass(frozen=True)
+class ModelCapabilities:
+    """Lightweight model capability metadata preserved from execution policy."""
+
+    context_window: int | None = None
+    structured_output: bool | None = None
+    reasoning: bool | None = None
+    modalities: tuple[str, ...] = ()
+    parallel_tool_calls: bool | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> ModelCapabilities:
+        """Build model capability metadata from a manifest mapping."""
+
+        raw = dict(value)
+        return cls(
+            context_window=_optional_int(raw.get("context_window")),
+            structured_output=_optional_bool(raw.get("structured_output")),
+            reasoning=_optional_bool(raw.get("reasoning")),
+            modalities=tuple(str(item) for item in _copy_list(raw.get("modalities"))),
+            parallel_tool_calls=_optional_bool(raw.get("parallel_tool_calls")),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
 class ManifestObject:
     """Generic manifest object with a stable identifier and raw data."""
 
@@ -209,6 +235,7 @@ class RuntimeManifest:
     packaging: Mapping[str, Any] = field(default_factory=dict)
     patterns_present: tuple[str, ...] = ()
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
+    model_capabilities: ModelCapabilities | None = None
     state: Mapping[str, Any] = field(default_factory=dict)
     skills: tuple[ManifestObject, ...] = ()
     tools: tuple[ToolDefinition, ...] = ()
@@ -226,6 +253,7 @@ class RuntimeManifest:
         """Build a runtime manifest while preserving structural metadata."""
 
         raw = dict(value)
+        execution_policy = _copy_mapping(_as_mapping(raw.get("execution_policy")))
         return cls(
             raw=raw,
             format_version=raw.get("format_version"),
@@ -238,7 +266,8 @@ class RuntimeManifest:
             patterns_present=tuple(
                 str(pattern) for pattern in _copy_list(raw.get("patterns_present"))
             ),
-            execution_policy=_copy_mapping(_as_mapping(raw.get("execution_policy"))),
+            execution_policy=execution_policy,
+            model_capabilities=_model_capabilities_from_policy(execution_policy),
             state=_copy_mapping(_as_mapping(raw.get("state"))),
             skills=tuple(_manifest_objects(raw.get("skills"))),
             tools=tuple(_tool_definitions(raw.get("tools"))),
@@ -421,6 +450,30 @@ class LoadedAgentWorkflow:
 
 def _optional_str(value: object) -> str | None:
     return str(value) if value is not None else None
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    return None
+
+
+def _model_capabilities_from_policy(
+    execution_policy: Mapping[str, Any],
+) -> ModelCapabilities | None:
+    value = execution_policy.get("model_capabilities")
+    if not isinstance(value, Mapping):
+        return None
+    return ModelCapabilities.from_mapping(value)
 
 
 def _tool_exposure_from_value(value: object) -> ToolExposure | str:
