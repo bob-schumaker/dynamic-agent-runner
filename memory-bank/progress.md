@@ -78,6 +78,10 @@
   `38929f1 feat(executor): add workflow execution context`.
 - Evaluation follow-up Slice A governing-docs commit exists:
   `ae9fc73 docs(spec): record workflow context slice`.
+- Evaluation follow-up Slice B implementation commit exists:
+  `44b0847 fix(registry): validate OpenAI tool schemas`.
+- Evaluation follow-up Slice B governing-docs commit exists:
+  `b73553f docs(spec): record tool schema validation slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -139,18 +143,24 @@
   `execute_workflow(...)` and `run_agent_workflow(...)` accept context objects,
   ambiguous duplicate runtime arguments are rejected, and public exports/tests are
   updated. Full validation passed with 108 tests.
+- Evaluation follow-up Slice B is complete: registry tool `input_schema`
+  definitions are normalized through a shared validation path for OpenAI tool
+  exposure and invocation input validation. Malformed object schemas, invalid
+  `properties` / `required`, top-level schema combinators, and model-facing
+  `$schema` metadata are handled explicitly. Full validation passed with 116
+  tests.
 
 ## In Flight
 
-- No source implementation work is currently in flight after commit `38929f1`.
-- Deferred Codex/Cline follow-ups E3, E4, E5, E6, E7, and E8 remain candidate
-  next slices after E1/Slice A.
+- No source implementation work is currently in flight after commit `44b0847`.
+- Deferred Codex/Cline follow-ups E4, E5, E6, E7, and E8 remain candidate next
+  slices after E1/Slice A and E3/Slice B.
 
 ## Remaining
 
 - Await follow-up direction for the next scoped runtime slice, adapter-gated
   prompt-cache provider pass-through, deferred library-evaluation follow-up,
-  remaining Codex/Cline deferred follow-ups E3/E4/E5/E6/E7/E8, or interpreter
+  remaining Codex/Cline deferred follow-ups E4/E5/E6/E7/E8, or interpreter
   middleware prototype work.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, behavior-override, and all-pattern fixture foundation into the
@@ -210,8 +220,8 @@
 - Slice 13 intentionally stops short of provider-specific prompt-cache request
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
-- Codex/Cline follow-up E1 is implemented. Remaining follow-ups are deferred
-  backlog items, not implemented runtime behavior. They should be introduced
+- Codex/Cline follow-ups E1 and E3 are implemented. Remaining follow-ups are
+  deferred backlog items, not implemented runtime behavior. They should be introduced
   through package-owned contracts before broad integrations such as MCP, plugins,
   shell hooks, app-server protocols, or multi-provider routing.
 - Interpreter middleware is specified only as a future feature; custom

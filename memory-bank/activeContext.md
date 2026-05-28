@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-- Evaluation follow-up Slice A is complete: `WorkflowExecutionContext` /
-  `RunContext` now provides a stable execution envelope for loaded workflows and
-  runtime collaborators. Implementation commit `38929f1` and governing-docs
-  commit `ae9fc73` recorded the code, validation, spec, plan, task, and
-  cline-task evidence.
+- Evaluation follow-up Slice B is complete: the registry now validates
+  OpenAI-compatible tool input schemas before model exposure or invocation input
+  validation. Implementation commit `44b0847` and governing-docs commit
+  `b73553f` recorded the code, validation, spec, plan, task, and cline-task
+  evidence.
 
 ## Current Status
 
@@ -69,6 +69,10 @@
     executor/API entry points.
   - Updated governing spec/plan/task documents and the implementation plan for
     Slice A completion evidence in `ae9fc73`.
+  - Completed evaluation follow-up Slice B in `44b0847`, strengthening registry
+    validation for OpenAI-compatible tool input schemas.
+  - Updated governing spec/plan/task documents and the implementation plan for
+    Slice B completion evidence in `b73553f`.
 - In progress:
   - None currently; awaiting the next scoped follow-up direction after this
     memory-bank checkpoint.
@@ -77,8 +81,8 @@
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
-  - Deferred Codex/Cline follow-ups E3, E4, E5, E6, E7, and E8 remain
-    candidate next implementation slices after E1/Slice A.
+  - Deferred Codex/Cline follow-ups E4, E5, E6, E7, and E8 remain candidate
+    next implementation slices after E1/Slice A and E3/Slice B.
 
 ## Important Current Facts
 
@@ -98,16 +102,17 @@
     optional interpreter middleware and custom interpreter registration
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
-  implementation. Slices 0 through 13 and evaluation follow-up Slice A are
-  complete; E3/E4/E5/E6/E7/E8 remain deferred follow-up candidates.
+  implementation. Slices 0 through 13 plus evaluation follow-up Slices A and B
+  are complete; E4/E5/E6/E7/E8 remain deferred follow-up candidates.
 - `cline-tasks/codex-cli-evaluation.md` and `cline-tasks/cline-evaluation.md`
   capture read-only external runtime-pattern evaluations. The synthesized
   proposal lives at `cline-tasks/codex-cline-combined-package-proposal.md`.
 - `specs/dynamic-agent-runner/tasks.md` now contains `Deferred Codex/Cline
   evaluation follow-ups` E1 through E12. E1 is complete and checked off with
-  implementation commit `38929f1`; `spec.md`, `plan.md`, `tasks.md`, and
-  `cline-tasks/evaluation-follow-up-implementation-plan.md` were refreshed in
-  `ae9fc73`.
+  implementation commit `38929f1`, and E3 is complete and checked off with
+  implementation commit `44b0847`. `spec.md`, `plan.md`, `tasks.md`, and
+  `cline-tasks/evaluation-follow-up-implementation-plan.md` were refreshed for
+  Slice B in `b73553f`.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -296,6 +301,28 @@
     ambiguity rejection, API wiring, and public exports.
   - Validation: `ruff check src tests && ruff format --check src tests &&
     python -m pytest -q` — pass; 108 tests passed.
+- Evaluation follow-up Slice B implementation from `44b0847`:
+  - `src/dynamic_agent_runner/registry.py` now normalizes tool `input_schema`
+    definitions through one shared validation path for OpenAI tool exposure and
+    invocation input validation.
+  - The registry rejects non-mapping schemas, non-object schemas, non-mapping
+    `properties`, non-list or non-string `required` entries, and unsupported
+    top-level `oneOf` / `anyOf` / `allOf` combinators.
+  - Model-facing OpenAI tool parameters omit top-level `$schema` metadata.
+  - `tests/test_registry.py` covers malformed schema rejection and `$schema`
+    stripping.
+  - Validation: `ruff check src tests && ruff format --check src tests &&
+    python -m pytest -q` — pass; 116 tests passed.
+- Governing-docs update from `b73553f`:
+  - `specs/dynamic-agent-runner/spec.md` records stricter tool input-schema
+    acceptance criteria and Slice B consistency evidence.
+  - `specs/dynamic-agent-runner/plan.md` records the registry schema-validation
+    responsibility, Slice B implementation slice, and future combinator-expansion
+    caveat.
+  - `specs/dynamic-agent-runner/tasks.md` marks E3 complete with commit and
+    validation evidence.
+  - `cline-tasks/evaluation-follow-up-implementation-plan.md` marks Slice B
+    complete and preserves validation evidence.
 - Governing-docs update from `ae9fc73`:
   - `specs/dynamic-agent-runner/spec.md` records the execution context as an
     accepted runtime input and adds acceptance criteria for context-aware
@@ -329,6 +356,8 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `b73553f docs(spec): record tool schema validation slice`
+  - `44b0847 fix(registry): validate OpenAI tool schemas`
   - `ae9fc73 docs(spec): record workflow context slice`
   - `38929f1 feat(executor): add workflow execution context`
   - `8013dc1 docs(cline-tasks): add evaluation follow-up plan`
@@ -364,7 +393,7 @@
 ## Next Steps
 
 - Await follow-up direction for the next deferred Codex/Cline follow-up slice.
-  E3, E4, E5, E6, E7, and E8 remain candidate next slices in
+  E4, E5, E6, E7, and E8 remain candidate next slices in
   `specs/dynamic-agent-runner/tasks.md`.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
