@@ -1063,6 +1063,14 @@ Before implementation is considered complete, add validation covering:
   Tenacity-style retries, output-contract enforcement, tiktoken-based token
   budgeting, and package-owned tracing hooks while deferring LiteLLM, Watchfiles,
   Rich, and Diskcache unless later scoped requirements justify them.
+- Codex and Cline evaluations in `cline-tasks/codex-cli-evaluation.md` and
+  `cline-tasks/cline-evaluation.md` were synthesized in
+  `cline-tasks/codex-cline-combined-package-proposal.md`. The resulting deferred
+  follow-ups prioritize run context, model capabilities, stricter tool schema
+  validation, explicit tool exposure, policy separation, tool-result facets,
+  narrow lifecycle hooks, trace vocabulary, MCP registry-source design,
+  context-management seams, constrained file-backed prompt context, and
+  primitive-node-preserving sub-agent delegation.
 - The initial source package scaffold exists; deeper parser, registry, OpenAI
   adapter, executor, and CLI implementation details remain intentionally staged
   through follow-on slices.

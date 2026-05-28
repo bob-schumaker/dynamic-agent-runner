@@ -504,6 +504,36 @@
 - [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
       helper if prompt/artifact hot-reload workflows become valuable.
 
+## Deferred Codex/Cline evaluation follow-ups
+
+- [ ] E1. Introduce a `WorkflowExecutionContext` / `RunContext` object separate
+      from mutable `WorkflowExecutionState`.
+- [ ] E2. Add a lightweight `ModelCapabilities` model for context window,
+      structured-output support, reasoning support, modalities, and parallel
+      tool-call support.
+- [ ] E3. Strengthen tool input-schema validation for OpenAI-compatible
+      object-shaped function schemas.
+- [ ] E4. Add explicit tool exposure states: `direct`, `deferred`,
+      `direct_model_only`, and `hidden`.
+- [ ] E5. Clarify separation between tool catalog metadata, callable registry
+      entries, node exposure, approval policy, and sandbox/side-effect policy.
+- [ ] E6. Refine `ToolResult` into model-facing output, raw output,
+      trace/log preview, and hook/event payload facets.
+- [ ] E7. Define narrow in-process lifecycle hook protocols for model, tool,
+      node, permission, and workflow boundaries.
+- [ ] E8. Extend trace vocabulary for tool lifecycle, usage updates, status
+      notices, and future permission/context-management events.
+- [ ] E9. Draft MCP registry-source support with server provenance, visibility,
+      status, tool cache, disabled state, operation locking, and memory-pollution
+      metadata.
+- [ ] E10. Add a context-management prepare-stage design for future compaction
+      policies while preserving current fail-closed token-budget behavior.
+- [ ] E11. Consider hierarchical file-backed prompt context only with explicit
+      roots, source tracking, scan limits, and token/byte budgets.
+- [ ] E12. Keep multi-agent collaboration represented through primitive nodes and
+      optional delegation tools; defer durable team runtime until requirements
+      justify it.
+
 ## Cross-Cutting Validation Tasks
 
 - [ ] V1. Keep unit tests free of live OpenAI API calls.
