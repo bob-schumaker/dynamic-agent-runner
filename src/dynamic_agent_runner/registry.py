@@ -52,6 +52,34 @@ class ToolResult:
     success: bool
     output: Any = None
     error: str | None = None
+    model_output: Any | None = None
+    raw_output: Any | None = None
+    log_preview: str | None = None
+    event_payload: Mapping[str, Any] | None = None
+    sensitive_fields: tuple[str, ...] = ()
+
+    @property
+    def model_facing_output(self) -> Any:
+        """Return the output intended for prompts and state references."""
+
+        return self.output if self.model_output is None else self.model_output
+
+    def trace_payload(self) -> dict[str, Any]:
+        """Return the structured payload emitted for tool-result trace events."""
+
+        payload: dict[str, Any] = {
+            "tool_id": self.tool_id,
+            "success": self.success,
+            "error": self.error,
+            "output": self.model_facing_output,
+        }
+        if self.raw_output is not None:
+            payload["raw_output"] = self.raw_output
+        if self.log_preview is not None:
+            payload["log_preview"] = self.log_preview
+        if self.event_payload is not None:
+            payload["event_payload"] = dict(self.event_payload)
+        return payload
 
 
 @dataclass(frozen=True)
@@ -208,6 +236,8 @@ class InMemoryToolRegistry:
             output = tool.handler(args)
         except Exception as exc:  # noqa: BLE001 - convert all tool failures.
             return ToolResult(tool_id=tool_id, success=False, error=str(exc))
+        if isinstance(output, ToolResult):
+            return output
         return ToolResult(tool_id=tool_id, success=True, output=output)
 
 

@@ -11,7 +11,11 @@ from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionEr
 from dynamic_agent_runner.executor import execute_workflow
 from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
-from dynamic_agent_runner.registry import InMemoryToolRegistry, RegisteredTool
+from dynamic_agent_runner.registry import (
+    InMemoryToolRegistry,
+    RegisteredTool,
+    ToolResult,
+)
 
 
 class FakeResponses:
@@ -150,6 +154,86 @@ def test_execute_workflow_runs_llm_tool_and_final_llm_steps() -> None:
     assert result.state.tool_results["lookup"].output == {"answer": "42"}
     first_call = adapter.client.responses.calls[0]
     assert first_call["tools"][0]["function"]["name"] == "search_repo"
+
+
+def test_execute_workflow_uses_model_facing_tool_output_in_context_and_trace() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-facet-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                    "outputs": {"state_key": "search_summary"},
+                },
+                {
+                    "id": "final",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Use {lookup} and {search_summary}"},
+                },
+            ],
+            "edges": [
+                {"source": "lookup", "target": "final", "edge_kind": "sequential"}
+            ],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry(
+        [
+            make_tool(
+                "search_repo",
+                output=ToolResult(
+                    tool_id="search_repo",
+                    success=True,
+                    output={"raw": "full raw result"},
+                    model_output={"summary": "safe summary"},
+                    raw_output={"raw": "full raw result"},
+                    log_preview="safe summary",
+                    event_payload={"record_count": 1},
+                    sensitive_fields=("raw_output",),
+                ),
+            )
+        ]
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+
+    result = execute_workflow(
+        workflow,
+        prompt="Run",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "done"
+    assert result.state.node_outputs["lookup"].model_output == {
+        "summary": "safe summary"
+    }
+    assert result.state.node_outputs["search_summary"] == {"summary": "safe summary"}
+    assert adapter.client.responses.calls[0]["input"][-1]["content"] == (
+        "Use {'summary': 'safe summary'} and {'summary': 'safe summary'}"
+    )
+    tool_result_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "tool_result"
+    ]
+    assert tool_result_events[0].payload == {
+        "tool_id": "search_repo",
+        "success": True,
+        "error": None,
+        "output": {"summary": "safe summary"},
+        "raw_output": {"raw": "full raw result"},
+        "log_preview": "safe summary",
+        "event_payload": {"record_count": 1},
+    }
+    assert set(tool_result_events[0].sensitive_fields) == {"output", "raw_output"}
 
 
 def test_execute_workflow_accepts_execution_context() -> None:

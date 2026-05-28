@@ -12,6 +12,7 @@ from dynamic_agent_runner.models import RuntimeNode, ToolDefinition, ToolExposur
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
+    ToolResult,
     ToolExposureOverride,
     ToolRegistryOverrides,
     create_local_workspace_registry,
@@ -108,6 +109,41 @@ def test_registry_reports_missing_inputs_and_tool_failures() -> None:
     assert failure.error == "boom"
     with pytest.raises(ToolRegistryError, match="not registered"):
         registry.get_tool("missing")
+
+
+def test_registry_preserves_structured_tool_result_facets() -> None:
+    expected = ToolResult(
+        tool_id="facet_tool",
+        success=True,
+        output={"raw": "full"},
+        model_output={"summary": "safe"},
+        raw_output={"raw": "full"},
+        log_preview="safe preview",
+        event_payload={"record_count": 1},
+        sensitive_fields=("raw_output",),
+    )
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {
+                        "id": "facet_tool",
+                        "input_schema": {"type": "object", "properties": {}},
+                    }
+                ),
+                lambda _args: expected,
+            )
+        ]
+    )
+
+    result = registry.invoke_tool("facet_tool", {})
+
+    assert result == expected
+    assert result.model_output == {"summary": "safe"}
+    assert result.raw_output == {"raw": "full"}
+    assert result.log_preview == "safe preview"
+    assert result.event_payload == {"record_count": 1}
+    assert result.sensitive_fields == ("raw_output",)
 
 
 @pytest.mark.parametrize(

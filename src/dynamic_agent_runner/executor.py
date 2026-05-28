@@ -360,19 +360,14 @@ def _execute_tool_step(
     tracer.emit(
         "tool_result",
         node_id=str(node.id),
-        payload={
-            "tool_id": node.tool_id,
-            "success": result.success,
-            "error": result.error,
-            "output": result.output,
-        },
-        sensitive_fields=("output",),
+        payload=result.trace_payload(),
+        sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
     )
     if not result.success and _failure_behavior(node) == "error":
         error = result.error or f"tool {node.tool_id!r} failed"
         state.errors.append(error)
         raise WorkflowExecutionError(error)
-    _record_outputs(node, result.output, state)
+    _record_outputs(node, result, state)
     return result
 
 
@@ -558,7 +553,7 @@ def _record_outputs(
     if isinstance(outputs, Mapping):
         state_key = outputs.get("state_key") or outputs.get("key")
         if state_key:
-            state.node_outputs[str(state_key)] = output
+            state.node_outputs[str(state_key)] = _unwrap_output(output)
 
 
 def _enforce_token_budget(
@@ -728,7 +723,7 @@ def _format_context(state: WorkflowExecutionState) -> dict[str, Any]:
         if isinstance(value, ModelResponse):
             context[key] = value.content
         elif isinstance(value, ToolResult):
-            context[key] = value.output
+            context[key] = value.model_facing_output
         else:
             context[key] = value
     return context
@@ -777,7 +772,7 @@ def _unwrap_output(value: Any) -> Any:
     if isinstance(value, ModelResponse):
         return value.content
     if isinstance(value, ToolResult):
-        return value.output
+        return value.model_facing_output
     return value
 
 
