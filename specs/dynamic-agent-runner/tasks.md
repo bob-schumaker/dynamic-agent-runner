@@ -552,8 +552,16 @@
         references while emitting raw/log/event facets in tool-result traces.
       - Validation: `ruff check src tests && ruff format --check src tests &&
         python -m pytest -q` — pass; 123 tests passed.
-- [ ] E7. Define narrow in-process lifecycle hook protocols for model, tool,
+- [x] E7. Define narrow in-process lifecycle hook protocols for model, tool,
       node, permission, and workflow boundaries.
+      - Implemented in commit `bf18554`: added `WorkflowLifecycleHooks`, stable
+        hook context objects, execution-context/API wiring, and executor calls for
+        node, model, tool, and workflow lifecycle points.
+      - `PermissionHookContext` is exported as the reserved permission-boundary
+        context shape, while active controls remain limited to trusted Python
+        hooks that may raise project errors to abort execution.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 129 tests passed.
 - [x] E8. Extend trace vocabulary for tool lifecycle, usage updates, status
       notices, and future permission/context-management events.
       - Implemented in commit `bcd76d4`: added `tool_started` and

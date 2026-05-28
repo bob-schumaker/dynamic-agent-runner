@@ -1068,6 +1068,8 @@ Before implementation is considered complete, add validation covering:
 - [ ] token-budget preflight behavior without live model calls
 - [ ] structured trace/event hooks for node, model, tool, decision, retry, error,
       and final-result events
+- [ ] narrow in-process lifecycle hooks for node, model, tool, permission, and
+      workflow boundaries
 - [ ] extended trace vocabulary for tool lifecycle and status notice events
 - [ ] structured tool-result facets for model-facing output, raw output, log
       preview, event payload, and sensitive trace fields
@@ -1139,6 +1141,10 @@ Before implementation is considered complete, add validation covering:
   `bcd76d4`, including `tool_started`, `tool_finished`, and fallback
   `status_notice` events while preserving existing `tool_invocation` and
   `tool_result` compatibility events.
+- Evaluation follow-up Slice F completed narrow in-process lifecycle hooks in
+  commit `bf18554`, including trusted Python callback contexts for node, model,
+  tool, permission-boundary, and workflow observations while avoiding shell hooks,
+  plugin loading, or untrusted hook sources.
 - The initial source package scaffold exists; deeper parser, registry, OpenAI
   adapter, executor, and CLI implementation details remain intentionally staged
   through follow-on slices.

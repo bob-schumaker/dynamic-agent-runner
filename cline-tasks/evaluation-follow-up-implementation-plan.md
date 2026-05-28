@@ -246,7 +246,7 @@ Completion evidence:
 - Validation: `ruff check src tests && ruff format --check src tests &&
   python -m pytest -q` — pass; 125 tests passed.
 
-## Slice F — E7: Narrow In-Process Lifecycle Hooks
+## Slice F — E7: Narrow In-Process Lifecycle Hooks — Complete
 
 **Goal:** Add safe Python protocol hooks around stable lifecycle points.
 
@@ -275,6 +275,23 @@ untrusted hook sources.
 
 **Why last:** Hooks touch the most lifecycle boundaries and are safer after
 context, result facets, and trace vocabulary are stable.
+
+Completion evidence:
+
+- Implemented in commit `bf18554`.
+- Added `src/dynamic_agent_runner/hooks.py` with `WorkflowLifecycleHooks` and
+  stable hook context objects for node, model, tool, permission-boundary, and
+  workflow observations.
+- Passed lifecycle hooks through `WorkflowExecutionContext`,
+  `execute_workflow(...)`, and `run_agent_workflow(...)`.
+- Invoked `before_node`, `after_node`, `before_model`, `after_model`,
+  `before_tool`, `after_tool`, and `after_workflow` at stable executor lifecycle
+  points.
+- Kept controls minimal: trusted Python hooks may raise project errors to
+  abort execution; shell hooks, plugin loading, and untrusted hook sources remain
+  out of scope.
+- Validation: `ruff check src tests && ruff format --check src tests &&
+  python -m pytest -q` — pass; 129 tests passed.
 
 ## Recommended First Slice
 

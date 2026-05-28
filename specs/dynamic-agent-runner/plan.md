@@ -50,6 +50,9 @@ or a clear error.
 - Evaluation follow-up Slice E is complete and committed: tool execution tracing
   now emits `tool_started`, `tool_finished`, and fallback `status_notice` events
   while preserving the older `tool_invocation` and `tool_result` events.
+- Evaluation follow-up Slice F is complete and committed: the runtime now exposes
+  trusted in-process lifecycle hooks for node, model, tool, permission-boundary,
+  and workflow observations through the execution context and public API.
 
 ## Technical Approach
 
@@ -424,6 +427,20 @@ and execution failures.
     - emit `status_notice` warnings for non-fatal fallback tool failures
     - validate with focused tracing/executor tests and the full test suite
 
+14. **Evaluation follow-up Slice F: narrow in-process lifecycle hooks**
+    - add `WorkflowLifecycleHooks` and stable context objects for node, model,
+      tool, permission-boundary, and workflow observations
+    - pass hooks through `WorkflowExecutionContext`,
+      `execute_workflow(...)`, and `run_agent_workflow(...)`
+    - invoke observational `before_node`, `after_node`, `before_model`,
+      `after_model`, `before_tool`, `after_tool`, and `after_workflow` callbacks
+      at stable lifecycle points
+    - keep hook controls minimal: trusted Python hooks may raise project
+      errors to
+      abort execution, while shell hooks, plugin loading, and untrusted hook
+      sources remain out of scope
+    - validate with focused hook/executor/tracing tests and the full test suite
+
 ## Validation Strategy
 
 Use staged validation as implementation grows:
@@ -476,6 +493,10 @@ model behavior and fake registries for tool behavior.
   lifecycle events around the existing compatibility events, plus warning
   `status_notice` events for fallback tool failures; hooks can rely on this
   vocabulary as the starting tool lifecycle surface.
+- Lifecycle hooks are now trusted in-process Python callbacks attached through
+  `WorkflowLifecycleHooks` and `WorkflowExecutionContext`; they are observational
+  except that raising a project error aborts execution. Shell hooks, plugin
+  loading, and untrusted hook sources remain out of scope.
 - Tool-index files are optional metadata catalogs, not execution prerequisites;
   a tool can function only when the effective registry provides a callable entry.
 - Built-in default tools should be opt-in registry packs, not implicit ambient
