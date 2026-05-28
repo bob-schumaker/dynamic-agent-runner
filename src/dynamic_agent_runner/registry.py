@@ -201,17 +201,13 @@ def openai_tool_schema(definition: ToolDefinition) -> dict[str, Any]:
         raise ToolRegistryError("cannot convert tool without id to OpenAI schema")
     raw = dict(definition.raw)
     description = raw.get("description_for_llm") or definition.label or definition.id
-    parameters = raw.get("input_schema") or _EMPTY_PARAMETERS
-    if not isinstance(parameters, Mapping):
-        raise ToolRegistryError(
-            f"tool {definition.id!r} input_schema must be a mapping"
-        )
+    parameters = _normalized_input_schema(definition)
     return {
         "type": "function",
         "function": {
             "name": definition.id,
             "description": str(description),
-            "parameters": dict(parameters),
+            "parameters": parameters,
         },
     }
 
@@ -489,16 +485,49 @@ class _WorkspaceGuard:
 def _validate_input_schema(
     definition: ToolDefinition, arguments: Mapping[str, Any]
 ) -> None:
-    schema = definition.raw.get("input_schema")
+    schema = _normalized_input_schema(definition)
+    required = schema.get("required", [])
+    for field_name in required:
+        if field_name not in arguments:
+            raise ToolRegistryError(
+                f"tool {definition.id!r} missing required input {field_name!r}"
+            )
+
+
+def _normalized_input_schema(definition: ToolDefinition) -> dict[str, Any]:
+    schema = definition.raw.get("input_schema") or _EMPTY_PARAMETERS
     if not isinstance(schema, Mapping):
-        return
-    required = schema.get("required", ())
-    if isinstance(required, list):
-        for field_name in required:
-            if field_name not in arguments:
-                raise ToolRegistryError(
-                    f"tool {definition.id!r} missing required input {field_name!r}"
-                )
+        raise ToolRegistryError(
+            f"tool {definition.id!r} input_schema must be a mapping"
+        )
+    for combinator in ("oneOf", "anyOf", "allOf"):
+        if combinator in schema:
+            raise ToolRegistryError(
+                f"tool {definition.id!r} input_schema must not use top-level "
+                f"{combinator}"
+            )
+    schema_type = schema.get("type")
+    if schema_type is not None and schema_type != "object":
+        raise ToolRegistryError(
+            f"tool {definition.id!r} input_schema must be an object schema"
+        )
+    properties = schema.get("properties")
+    if properties is not None and not isinstance(properties, Mapping):
+        raise ToolRegistryError(
+            f"tool {definition.id!r} input_schema properties must be a mapping"
+        )
+    required = schema.get("required", [])
+    if not isinstance(required, list):
+        raise ToolRegistryError(
+            f"tool {definition.id!r} input_schema required must be a list"
+        )
+    if not all(isinstance(item, str) for item in required):
+        raise ToolRegistryError(
+            f"tool {definition.id!r} input_schema required entries must be strings"
+        )
+    normalized = {key: value for key, value in schema.items() if key != "$schema"}
+    normalized.setdefault("type", "object")
+    return dict(normalized)
 
 
 def _dedupe(values: Iterable[str]) -> tuple[str, ...]:

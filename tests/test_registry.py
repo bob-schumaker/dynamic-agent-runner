@@ -104,6 +104,60 @@ def test_registry_reports_missing_inputs_and_tool_failures() -> None:
         registry.get_tool("missing")
 
 
+@pytest.mark.parametrize(
+    ("input_schema", "message"),
+    [
+        ({"type": "string"}, "must be an object schema"),
+        ({"type": "object", "properties": []}, "properties must be a mapping"),
+        ({"type": "object", "required": "query"}, "required must be a list"),
+        (
+            {"type": "object", "required": ["query", 1]},
+            "required entries must be strings",
+        ),
+        ({"oneOf": [{"type": "object"}]}, "must not use top-level oneOf"),
+        ({"anyOf": [{"type": "object"}]}, "must not use top-level anyOf"),
+        ({"allOf": [{"type": "object"}]}, "must not use top-level allOf"),
+    ],
+)
+def test_openai_tool_schema_rejects_malformed_input_schemas(
+    input_schema: object,
+    message: str,
+) -> None:
+    definition = ToolDefinition.from_mapping(
+        {
+            "id": "bad_schema",
+            "description_for_llm": "Use bad_schema",
+            "input_schema": input_schema,
+        }
+    )
+
+    with pytest.raises(ToolRegistryError, match=message):
+        openai_tool_schema(definition)
+
+
+def test_openai_tool_schema_strips_schema_metadata_for_model_output() -> None:
+    definition = ToolDefinition.from_mapping(
+        {
+            "id": "search_repo",
+            "description_for_llm": "Search repository files.",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"],
+            },
+        }
+    )
+
+    schema = openai_tool_schema(definition)
+
+    assert schema["function"]["parameters"] == {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"],
+    }
+
+
 def test_registry_validates_callable_tool_references_not_metadata_only() -> None:
     manifest = manifest_with_tool("metadata_only")
     registry = InMemoryToolRegistry([])
