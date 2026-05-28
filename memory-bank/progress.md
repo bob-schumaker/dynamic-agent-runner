@@ -98,6 +98,10 @@
   `bf18554 feat(executor): add lifecycle hooks`.
 - Evaluation follow-up Slice F governing-docs commit exists:
   `a82d10f docs(spec): record lifecycle hooks slice`.
+- Evaluation follow-up Slice G / E2 implementation commit exists:
+  `13c6dac feat(models): add model capabilities metadata`.
+- Evaluation follow-up Slice G / E2 governing-docs commit exists:
+  `97fe320 docs(spec): record model capabilities slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -190,13 +194,19 @@
   `run_agent_workflow(...)`; trusted hooks may raise project errors to abort
   execution, while shell hooks, plugin loading, and untrusted hook sources remain
   out of scope. Full validation passed with 129 tests.
+- Evaluation follow-up Slice G / E2 is complete: `ModelCapabilities` now preserves
+  context-window, structured-output, reasoning, modality, and parallel-tool-call
+  support metadata from runtime `execution_policy.model_capabilities` on
+  `RuntimeManifest`. The model is exported publicly and remains metadata-only for
+  now, so capability declarations do not alter OpenAI request parameters. Full
+  validation passed with 132 tests.
 
 ## In Flight
 
-- No source implementation work is currently in flight after commit `bf18554`
-  and governing-docs commit `a82d10f`.
-- Remaining deferred Codex/Cline follow-ups include E2 and E9 through E12; no
-  next candidate slice has been selected after E7/Slice F.
+- No source implementation work is currently in flight after implementation
+  commit `13c6dac` and governing-docs commit `97fe320`.
+- Remaining deferred Codex/Cline follow-ups include E9 through E12; no next
+  candidate slice has been selected after E2/Slice G.
 
 ## Remaining
 
@@ -262,7 +272,7 @@
 - Slice 13 intentionally stops short of provider-specific prompt-cache request
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
-- Codex/Cline follow-ups E1, E3, E4, E5, E6, E7, and E8 are implemented.
+- Codex/Cline follow-ups E1, E2, E3, E4, E5, E6, E7, and E8 are implemented.
   Remaining follow-ups are deferred backlog items, not implemented runtime
   behavior. They should be introduced through package-owned contracts before broad
   integrations such as MCP, plugins, shell hooks, app-server protocols, or
