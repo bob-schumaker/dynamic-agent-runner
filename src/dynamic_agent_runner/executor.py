@@ -350,6 +350,12 @@ def _execute_tool_step(
     arguments = _tool_arguments(node, state)
     state.node_inputs[str(node.id)] = arguments
     tracer.emit(
+        "tool_started",
+        node_id=str(node.id),
+        payload={"tool_id": node.tool_id, "arguments": arguments},
+        sensitive_fields=("arguments",),
+    )
+    tracer.emit(
         "tool_invocation",
         node_id=str(node.id),
         payload={"tool_id": node.tool_id, "arguments": arguments},
@@ -366,9 +372,57 @@ def _execute_tool_step(
     if not result.success and _failure_behavior(node) == "error":
         error = result.error or f"tool {node.tool_id!r} failed"
         state.errors.append(error)
+        tracer.emit(
+            "tool_finished",
+            node_id=str(node.id),
+            payload={
+                "tool_id": node.tool_id,
+                "success": result.success,
+                "error": error,
+            },
+        )
         raise WorkflowExecutionError(error)
+    if not result.success:
+        _emit_status_notice(
+            tracer,
+            node,
+            severity="warning",
+            code="tool_failure_fallback",
+            message=(
+                f"tool {node.tool_id!r} failed; continuing due to "
+                f"{_failure_behavior(node)} behavior"
+            ),
+            payload={"tool_id": node.tool_id, "error": result.error},
+        )
+    tracer.emit(
+        "tool_finished",
+        node_id=str(node.id),
+        payload={
+            "tool_id": node.tool_id,
+            "success": result.success,
+            "error": result.error,
+        },
+    )
     _record_outputs(node, result, state)
     return result
+
+
+def _emit_status_notice(
+    tracer: WorkflowTracer,
+    node: RuntimeNode,
+    *,
+    severity: str,
+    code: str,
+    message: str,
+    payload: Mapping[str, Any] | None = None,
+) -> None:
+    notice_payload = {
+        "severity": severity,
+        "code": code,
+        "message": message,
+    }
+    notice_payload.update(dict(payload or {}))
+    tracer.emit("status_notice", node_id=str(node.id), payload=notice_payload)
 
 
 def _invoke_tool_with_retry(

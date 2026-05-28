@@ -147,16 +147,116 @@ def test_execute_workflow_traces_tool_failure() -> None:
     assert event_types == [
         "workflow_started",
         "node_started",
+        "tool_started",
         "tool_invocation",
         "retry_recorded",
         "tool_result",
+        "tool_finished",
         "node_error",
     ]
-    assert sink.events[-3].payload["operation"] == "tool"
-    assert sink.events[-3].payload["outcome"] == "success"
-    assert sink.events[-2].payload["success"] is False
-    assert sink.events[-2].payload["error"] == "tool exploded"
+    assert sink.events[-4].payload["operation"] == "tool"
+    assert sink.events[-4].payload["outcome"] == "success"
+    assert sink.events[-3].payload["success"] is False
+    assert sink.events[-3].payload["error"] == "tool exploded"
+    assert sink.events[-2].payload == {
+        "tool_id": "search_repo",
+        "success": False,
+        "error": "tool exploded",
+    }
     assert sink.events[-1].payload["error"] == "tool exploded"
+
+
+def test_execute_workflow_emits_tool_lifecycle_trace_events() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "trace-tool-lifecycle-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry([make_tool("search_repo", [{"answer": "42"}])])
+
+    result = execute_workflow(workflow, prompt="Run", tool_registry=registry)
+
+    event_types = [event.event_type for event in result.state.trace_events]
+    assert event_types == [
+        "workflow_started",
+        "node_started",
+        "tool_started",
+        "tool_invocation",
+        "retry_recorded",
+        "tool_result",
+        "tool_finished",
+        "node_completed",
+        "workflow_completed",
+    ]
+    tool_started = result.state.trace_events[2]
+    tool_finished = result.state.trace_events[6]
+    assert tool_started.payload == {
+        "tool_id": "search_repo",
+        "arguments": {"query": "agents"},
+    }
+    assert tool_started.sensitive_fields == ("arguments",)
+    assert tool_finished.payload == {
+        "tool_id": "search_repo",
+        "success": True,
+        "error": None,
+    }
+
+
+def test_execute_workflow_emits_status_notice_for_fallback_tool_failure() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "trace-tool-fallback-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                    "failure_behavior": "fallback",
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry(
+        [make_tool("search_repo", [RuntimeError("tool exploded")])]
+    )
+
+    result = execute_workflow(workflow, prompt="Run", tool_registry=registry)
+
+    status_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "status_notice"
+    ]
+    assert len(status_events) == 1
+    assert status_events[0].node_id == "lookup"
+    assert status_events[0].payload == {
+        "severity": "warning",
+        "code": "tool_failure_fallback",
+        "message": "tool 'search_repo' failed; continuing due to fallback behavior",
+        "tool_id": "search_repo",
+        "error": "tool exploded",
+    }
 
 
 def test_execute_workflow_traces_model_failure() -> None:
