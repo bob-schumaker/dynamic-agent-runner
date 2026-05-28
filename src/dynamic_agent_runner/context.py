@@ -8,6 +8,7 @@ from dynamic_agent_runner.models import LoadedAgentWorkflow
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
 from dynamic_agent_runner.registry import ToolRegistry
 from dynamic_agent_runner.tracing import TraceSink
+from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class WorkflowExecutionContext:
     max_steps: int | None = None
     trace_sink: TraceSink | None = None
     prompt_cache: bool | None = None
+    lifecycle_hooks: WorkflowLifecycleHooks | None = None
 
 
 RunContext = WorkflowExecutionContext

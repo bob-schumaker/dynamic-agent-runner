@@ -7,6 +7,7 @@ from typing import Any
 from dynamic_agent_runner.artifacts import load_agent_workflow_artifacts
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.executor import execute_workflow
+from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
 from dynamic_agent_runner.models import LoadedAgentWorkflow
 from dynamic_agent_runner.validation import validate_agent_workflow
 
@@ -63,6 +64,7 @@ def run_agent_workflow(
     max_steps: int | None = None,
     trace_sink: Any | None = None,
     prompt_cache: bool | None = None,
+    lifecycle_hooks: WorkflowLifecycleHooks | None = None,
 ) -> Any:
     """Run an agent workflow from generated artifacts and a user prompt.
 
@@ -86,6 +88,7 @@ def run_agent_workflow(
                 max_steps,
                 trace_sink,
                 prompt_cache,
+                lifecycle_hooks,
             )
         ):
             raise TypeError(
@@ -113,5 +116,6 @@ def run_agent_workflow(
         max_steps=max_steps,
         trace_sink=trace_sink,
         prompt_cache=prompt_cache,
+        lifecycle_hooks=lifecycle_hooks,
     )
     return result.final_result

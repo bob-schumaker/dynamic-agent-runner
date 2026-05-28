@@ -14,6 +14,13 @@ from dynamic_agent_runner.errors import (
     ToolRegistryError,
     WorkflowExecutionError,
 )
+from dynamic_agent_runner.hooks import (
+    ModelHookContext,
+    NodeHookContext,
+    ToolHookContext,
+    WorkflowHookContext,
+    WorkflowLifecycleHooks,
+)
 from dynamic_agent_runner.models import LoadedAgentWorkflow, RuntimeEdge, RuntimeNode
 from dynamic_agent_runner.openai_client import (
     ModelResponse,
@@ -84,6 +91,7 @@ def execute_workflow(
     max_steps: int | None = None,
     trace_sink: TraceSink | None = None,
     prompt_cache: bool | None = None,
+    lifecycle_hooks: WorkflowLifecycleHooks | None = None,
 ) -> WorkflowResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -96,6 +104,7 @@ def execute_workflow(
         max_steps=max_steps,
         trace_sink=trace_sink,
         prompt_cache=prompt_cache,
+        lifecycle_hooks=lifecycle_hooks,
     )
     manifest = context.workflow.runtime_manifest
     nodes = _node_map(tuple(manifest.nodes))
@@ -123,12 +132,22 @@ def execute_workflow(
                 payload={"final_result": state.final_result},
                 sensitive_fields=("final_result",),
             )
+            hooks = context.lifecycle_hooks
+            _call_hook(
+                hooks.after_workflow if hooks else None,
+                WorkflowHookContext(final_result=state.final_result),
+            )
             return WorkflowResult(final_result=state.final_result, state=state)
         node = nodes[current_node_id]
         tracer.emit(
             "node_started",
             node_id=str(node.id),
             payload={"kind": node.kind},
+        )
+        hooks = context.lifecycle_hooks
+        _call_hook(
+            hooks.before_node if hooks else None,
+            NodeHookContext(node_id=str(node.id), kind=str(node.kind)),
         )
         try:
             output = _execute_node(
@@ -139,6 +158,7 @@ def execute_workflow(
                 adapter,
                 tracer,
                 context.prompt_cache,
+                hooks,
             )
         except Exception as exc:
             tracer.emit(
@@ -157,13 +177,29 @@ def execute_workflow(
             payload={"kind": node.kind, "output": _unwrap_output(output)},
             sensitive_fields=("output",),
         )
+        _call_hook(
+            hooks.after_node if hooks else None,
+            NodeHookContext(
+                node_id=str(node.id), kind=str(node.kind), output=_unwrap_output(output)
+            ),
+        )
         current_node_id = _next_node_id(
             node, output, edges_by_source.get(current_node_id, ())
         )
 
     error = f"workflow exceeded maximum step count {limit}"
     tracer.emit("workflow_error", payload={"error": error})
+    hooks = context.lifecycle_hooks
+    _call_hook(
+        hooks.after_workflow if hooks else None,
+        WorkflowHookContext(error=error),
+    )
     raise WorkflowExecutionError(error)
+
+
+def _call_hook(callback: Any, context: Any) -> None:
+    if callback is not None:
+        callback(context)
 
 
 def _normalize_execution_context(
@@ -174,6 +210,7 @@ def _normalize_execution_context(
     max_steps: int | None,
     trace_sink: TraceSink | None,
     prompt_cache: bool | None,
+    lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> WorkflowExecutionContext:
     if isinstance(workflow, WorkflowExecutionContext):
         if any(
@@ -184,6 +221,7 @@ def _normalize_execution_context(
                 max_steps,
                 trace_sink,
                 prompt_cache,
+                lifecycle_hooks,
             )
         ):
             raise WorkflowExecutionError(
@@ -197,6 +235,7 @@ def _normalize_execution_context(
         max_steps=max_steps,
         trace_sink=trace_sink,
         prompt_cache=prompt_cache,
+        lifecycle_hooks=lifecycle_hooks,
     )
 
 
@@ -208,13 +247,21 @@ def _execute_node(
     adapter: OpenAIClientAdapter,
     tracer: WorkflowTracer,
     prompt_cache: bool | None,
+    lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> Any:
     if node.kind == "llm_step":
         return _execute_llm_step(
-            node, workflow, state, registry, adapter, tracer, prompt_cache
+            node,
+            workflow,
+            state,
+            registry,
+            adapter,
+            tracer,
+            prompt_cache,
+            lifecycle_hooks,
         )
     if node.kind == "tool_use_step":
-        return _execute_tool_step(node, state, registry, tracer)
+        return _execute_tool_step(node, state, registry, tracer, lifecycle_hooks)
     if node.kind == "decision_step":
         return _execute_decision_step(node, state, tracer)
     raise WorkflowExecutionError(f"unsupported node kind {node.kind!r}")
@@ -228,6 +275,7 @@ def _execute_llm_step(
     adapter: OpenAIClientAdapter,
     tracer: WorkflowTracer,
     prompt_cache: bool | None,
+    lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ModelResponse:
     behavior = effective_node_behavior(node, workflow)
     message_parts = _render_message_parts(behavior, state)
@@ -271,6 +319,12 @@ def _execute_llm_step(
         },
         sensitive_fields=("request",),
     )
+    _call_hook(
+        lifecycle_hooks.before_model if lifecycle_hooks else None,
+        ModelHookContext(
+            node_id=str(node.id), model=model, request=request.to_kwargs()
+        ),
+    )
     policy = _model_retry_policy(node, workflow)
     try:
         response, attempts = run_with_retry(
@@ -297,6 +351,15 @@ def _execute_llm_step(
         node_id=str(node.id),
         payload={"response_id": response.response_id, "content": response.content},
         sensitive_fields=("content",),
+    )
+    _call_hook(
+        lifecycle_hooks.after_model if lifecycle_hooks else None,
+        ModelHookContext(
+            node_id=str(node.id),
+            model=model,
+            request=request.to_kwargs(),
+            response=response,
+        ),
     )
     _record_prompt_cache_provider_telemetry(response, node, tracer)
     _validate_model_output_contract(node, workflow, response, behavior.prompt)
@@ -338,6 +401,7 @@ def _execute_tool_step(
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
     tracer: WorkflowTracer,
+    lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ToolResult:
     if registry is None:
         raise WorkflowExecutionError(
@@ -361,6 +425,12 @@ def _execute_tool_step(
         payload={"tool_id": node.tool_id, "arguments": arguments},
         sensitive_fields=("arguments",),
     )
+    _call_hook(
+        lifecycle_hooks.before_tool if lifecycle_hooks else None,
+        ToolHookContext(
+            node_id=str(node.id), tool_id=str(node.tool_id), arguments=arguments
+        ),
+    )
     result = _invoke_tool_with_retry(node, registry, arguments, state, tracer)
     state.tool_results[str(node.id)] = result
     tracer.emit(
@@ -380,6 +450,16 @@ def _execute_tool_step(
                 "success": result.success,
                 "error": error,
             },
+        )
+        _call_hook(
+            lifecycle_hooks.after_tool if lifecycle_hooks else None,
+            ToolHookContext(
+                node_id=str(node.id),
+                tool_id=str(node.tool_id),
+                arguments=arguments,
+                result=result,
+                error=error,
+            ),
         )
         raise WorkflowExecutionError(error)
     if not result.success:
@@ -402,6 +482,16 @@ def _execute_tool_step(
             "success": result.success,
             "error": result.error,
         },
+    )
+    _call_hook(
+        lifecycle_hooks.after_tool if lifecycle_hooks else None,
+        ToolHookContext(
+            node_id=str(node.id),
+            tool_id=str(node.tool_id),
+            arguments=arguments,
+            result=result,
+            error=result.error,
+        ),
     )
     _record_outputs(node, result, state)
     return result
