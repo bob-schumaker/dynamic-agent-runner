@@ -70,6 +70,8 @@
   `e305b55 docs(specs): add llm step interpreter middleware spec`.
 - Slice 13 prompt-cache intent tracing commit exists:
   `aed3b13 feat(prompt-cache): add prompt cache intent tracing`.
+- Codex/Cline evaluation follow-up commit exists:
+  `88dad33 docs(evaluations): add Codex and Cline follow-ups`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -122,19 +124,23 @@
   `execution_policy.prompt_cache` metadata is parsed and validated, eligibility
   evidence is emitted as trace data, `prompt_cache=False` can disable behavior per
   execution, and provider cached-token telemetry is recorded when present.
+- Codex and Cline read-only evaluations are preserved under `cline-tasks/`, and
+  `cline-tasks/codex-cline-combined-package-proposal.md` synthesizes acceptable
+  package additions. The consolidated deferred follow-up backlog now lives in
+  `specs/dynamic-agent-runner/tasks.md` rather than the spec body.
 
 ## In Flight
 
-- Memory-bank refresh is in flight after committing Slice 13 prompt-cache intent
-  tracing.
+- Memory-bank refresh is in flight after committing the Codex/Cline evaluation
+  proposal and deferred task-list follow-ups.
 - No source implementation work is currently in flight.
 - No next main-runner implementation slice is currently defined after Slice 13.
 
 ## Remaining
 
 - Await follow-up direction for the next scoped runtime slice, adapter-gated
-  prompt-cache provider pass-through, deferred library-evaluation follow-up, or
-  interpreter middleware prototype work.
+  prompt-cache provider pass-through, deferred library-evaluation follow-up,
+  Codex/Cline deferred follow-up, or interpreter middleware prototype work.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, behavior-override, and all-pattern fixture foundation into the
   next scoped slice.
@@ -193,6 +199,10 @@
 - Slice 13 intentionally stops short of provider-specific prompt-cache request
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
+- Codex/Cline follow-ups are deferred backlog items, not implemented runtime
+  behavior. They should be introduced through package-owned contracts before
+  broad integrations such as MCP, plugins, shell hooks, app-server protocols, or
+  multi-provider routing.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.

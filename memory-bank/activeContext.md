@@ -2,11 +2,12 @@
 
 ## Current Focus
 
-- Slice 13 prompt-cache intent and trace observation is complete and committed
-  in `aed3b13`. The runtime now parses optional
-  `execution_policy.prompt_cache` metadata, validates policy shape, emits
-  prompt-cache eligibility trace evidence, supports per-execution disable
-  overrides, and records provider cached-token telemetry when exposed.
+- Codex and Cline runtime-pattern evaluations have been saved and synthesized in
+  commit `88dad33`. The main runner backlog now tracks deferred follow-ups for
+  run context, model capabilities, stricter tool schema validation, explicit tool
+  exposure, policy separation, tool-result facets, lifecycle hooks, trace
+  vocabulary, MCP registry-source design, context-management seams, constrained
+  file-backed prompt context, and primitive-node-preserving sub-agent delegation.
 
 ## Current Status
 
@@ -61,8 +62,10 @@
     in `e305b55`, with packaged source reference
     `specs/llm-step-interpreter-middleware/references/give-your-agents-an-interpreter.md`.
   - Completed Slice 13 prompt-cache intent and trace observation in `aed3b13`.
+  - Added Codex and Cline evaluation artifacts plus a combined package proposal
+    and deferred task-list follow-ups in `88dad33`.
 - In progress:
-  - Memory-bank refresh for the Slice 13 prompt-cache checkpoint.
+  - Memory-bank refresh for the Codex/Cline evaluation proposal checkpoint.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
@@ -90,6 +93,12 @@
   ready only for slice-by-slice implementation, not unrestricted runtime
   implementation. Slices 0 through 13 are complete; no next implementation
   slice is currently defined.
+- `cline-tasks/codex-cli-evaluation.md` and `cline-tasks/cline-evaluation.md`
+  capture read-only external runtime-pattern evaluations. The synthesized
+  proposal lives at `cline-tasks/codex-cline-combined-package-proposal.md`.
+- `specs/dynamic-agent-runner/tasks.md` now contains `Deferred Codex/Cline
+  evaluation follow-ups` E1 through E12. `spec.md` keeps only a consistency note
+  linking the evaluation artifacts and proposal.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -285,6 +294,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `88dad33 docs(evaluations): add Codex and Cline follow-ups`
   - `aed3b13 feat(prompt-cache): add prompt cache intent tracing`
   - `7d950b7 feat(runtime): add behavior overrides`
   - `ecb8115 feat(executor): add workflow tracing hooks`
@@ -315,8 +325,11 @@
 
 ## Next Steps
 
+- Commit this memory-bank refresh as a separate checkpoint after the evaluation
+  proposal commit.
 - Await follow-up direction; no next main-runner implementation slice is
-  currently defined in `specs/dynamic-agent-runner/tasks.md` after Slice 13.
+  currently defined in `specs/dynamic-agent-runner/tasks.md` after the deferred
+  Codex/Cline follow-up backlog was added.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped

@@ -148,3 +148,15 @@ expand the future interpreter spec to have an interface so that the client can s
 ---
 
 move cline-tasks/give-your-agents-an-interpreter.md to specs/llm-step-interpreter-middleware/ as a reference using the appropriate spec structure
+
+---
+
+read cline-tasks/codex-cli-evaluation.md and cline-tasks/cline-evaluation.md and synthesize a combined proposal for acceptable additions to our package
+
+---
+
+save this proposal to cline-tasks/ and add the backlog section to the spec
+
+---
+
+move the deferred section to tasks.md
