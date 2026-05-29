@@ -11,8 +11,9 @@
   repo. The first-customer `../power-marimo` fit analysis and grouped-manifest
   spec/task update were committed in `0af68ab`. Runtime-package
   simplification Slice S1 completed in `695c0cc`, with plan/task evidence
-  recorded in `0f795ee`; the next active implementation slice is S2 —
-  ExecutionPlan and PreparedNode normalization.
+  recorded in `0f795ee`. Slice S2 completed in `b315c96`, with plan/task
+  evidence recorded in `1f91804`; the next active implementation slice is S3 —
+  PreparedModelInput and prepare_model_input seam.
 
 ## Current Status
 
@@ -170,12 +171,19 @@
   - Updated `specs/dynamic-agent-runner/tasks.md` and
     `cline-tasks/power-marimo-implementation-plan.md` for S1 completion evidence
     and next active S2 in `0f795ee`.
+  - Completed runtime-package simplification Slice S2 in `b315c96`, adding
+    internal `ExecutionPlan` / `PreparedNode` preparation models and routing
+    executor behavior through prepared nodes while preserving finite graph
+    behavior. Full validation passed with 165 tests.
+  - Updated `specs/dynamic-agent-runner/tasks.md` and
+    `cline-tasks/power-marimo-implementation-plan.md` for S2 completion evidence
+    and next active S3 in `1f91804`.
 - In progress:
   - No source implementation work is currently in flight after runtime-package
-    simplification Slice S1 implementation commit `695c0cc` and plan/task
-    evidence commit `0f795ee`.
-  - The next queued implementation direction is S2 — `ExecutionPlan` /
-    `PreparedNode` normalization — driven by the `power-marimo` fit analysis.
+    simplification Slice S2 implementation commit `b315c96` and plan/task
+    evidence commit `1f91804`.
+  - The next queued implementation direction is S3 — `PreparedModelInput` /
+    `prepare_model_input(...)` seam — driven by the `power-marimo` fit analysis.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
@@ -205,8 +213,9 @@
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
   implementation. Slices 0 through 13 plus evaluation follow-up Slices A, B,
-  C, D, E, F, G, H / E13, and E14 are complete; E9, E10, E11, and E12 remain
-  deferred follow-up candidates.
+  C, D, E, F, G, H / E13, E14, and runtime-package simplification
+  S1-S2 are complete; E9, E10, E11, and E12 remain deferred follow-up
+  candidates.
 - `cline-tasks/codex-cli-evaluation.md`, `cline-tasks/cline-evaluation.md`, and
   `cline-tasks/openai-agents-python-evaluation.md` capture read-only external
   runtime-pattern evaluations. The Codex/Cline synthesized proposal lives at

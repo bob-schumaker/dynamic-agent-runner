@@ -154,6 +154,10 @@
   `695c0cc feat(models): support grouped runtime manifests`.
 - Runtime-package simplification S1 plan/task evidence commit exists:
   `0f795ee docs(plan): record grouped manifest slice`.
+- Runtime-package simplification Slice S2 implementation commit exists:
+  `b315c96 feat(executor): add prepared execution plan`.
+- Runtime-package simplification S2 plan/task evidence commit exists:
+  `1f91804 docs(plan): record prepared execution slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -343,22 +347,30 @@
   indexes array-shaped `output_contracts`, validates extension envelopes,
   rejects legacy flat optional root fields, and migrates agent-pattern fixtures
   plus tests to the grouped shape. Full validation passed with 164 tests.
-- Plan/task evidence for S1 is recorded in `0f795ee`; the next active slice is
-  S2: `ExecutionPlan` / `PreparedNode` normalization.
+- Plan/task evidence for S1 is recorded in `0f795ee`.
+- Runtime-package simplification Slice S2 is complete in `b315c96`:
+  `ExecutionPlan` and `PreparedNode` now provide an internal prepared execution
+  view with node lookup, outgoing-edge indexes, max-step defaults, per-node
+  model/tool/decision fields, output-contract references, token/retry policy
+  values, and optional unsupported extension visibility. The executor routes
+  finite graph behavior through prepared nodes while preserving public behavior.
+  Full validation passed with 165 tests.
+- Plan/task evidence for S2 is recorded in `1f91804`; the next active slice is
+  S3: `PreparedModelInput` / `prepare_model_input(...)` seam.
 
 ## In Flight
 
-- No source implementation work is currently in flight after S1 implementation
-  commit `695c0cc` and plan/task evidence commit `0f795ee`.
-- The next active implementation direction is S2 — `ExecutionPlan` /
-  `PreparedNode` normalization. Remaining deferred Codex/Cline follow-ups E9-E12
+- No source implementation work is currently in flight after S2 implementation
+  commit `b315c96` and plan/task evidence commit `1f91804`.
+- The next active implementation direction is S3 — `PreparedModelInput` /
+  `prepare_model_input(...)` seam. Remaining deferred Codex/Cline follow-ups E9-E12
   and OpenAI Agents SDK Python follow-ups OA1-OA10 should wait behind the
   simplification sequence unless explicitly re-scoped.
 
 ## Remaining
 
-- Implement S2 `ExecutionPlan` / `PreparedNode` normalization as the next scoped
-  runtime slice.
+- Implement S3 `PreparedModelInput` / `prepare_model_input(...)` seam as the next
+  scoped runtime slice.
 - Extend from the completed grouped manifest, loader, validation, registry,
   OpenAI adapter, executor, CLI, behavior-override, and all-pattern fixture
   foundation into the next scoped slice.
@@ -426,11 +438,11 @@
   sandbox/workspace execution, and iterative agent-loop completion policy should
   each require a fresh scoped spec/update before implementation.
 - Runtime-package simplification is now the active next direction, driven by the
-  `power-marimo` first-customer analysis. S1 grouped manifest support is
-  complete; implement S2 `ExecutionPlan` / `PreparedNode` before E9/OA feature
-  work, then add `PreparedModelInput` / `prepare_model_input(...)` and
-  `ToolOrigin` / `ToolSource` before Marimo-session, MCP, or agent-as-tool
-  registry sources.
+  `power-marimo` first-customer analysis. S1 grouped manifest support and S2
+  `ExecutionPlan` / `PreparedNode` normalization are complete; implement S3
+  `PreparedModelInput` / `prepare_model_input(...)` before E9/OA feature work,
+  then add `ToolOrigin` / `ToolSource` before Marimo-session, MCP, or
+  agent-as-tool registry sources.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
