@@ -24,7 +24,13 @@ from dynamic_agent_runner.hooks import (
     WorkflowLifecycleHooks,
     invoke_lifecycle_hook_async,
 )
-from dynamic_agent_runner.models import LoadedAgentWorkflow, RuntimeEdge, RuntimeNode
+from dynamic_agent_runner.models import (
+    ExecutionPlan,
+    LoadedAgentWorkflow,
+    PreparedNode,
+    RuntimeEdge,
+    prepare_execution_plan,
+)
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     ModelResponse,
@@ -115,11 +121,10 @@ async def execute_workflow_async(
         prompt_cache=prompt_cache,
         lifecycle_hooks=lifecycle_hooks,
     )
-    manifest = context.workflow.runtime_manifest
-    nodes = _node_map(tuple(manifest.nodes))
-    if not manifest.entrypoint or manifest.entrypoint not in nodes:
+    plan = prepare_execution_plan(context.workflow)
+    nodes = plan.nodes_by_id
+    if not plan.entrypoint_id or plan.entrypoint_id not in nodes:
         raise WorkflowExecutionError("workflow entrypoint does not reference a node")
-    edges_by_source = _edges_by_source(tuple(manifest.edges))
     adapter = context.model_adapter or AsyncOpenAIClientAdapter()
     state = WorkflowExecutionState(prompt=prompt, run_id=run_id or _new_run_id())
     tracer = WorkflowTracer(
@@ -127,13 +132,11 @@ async def execute_workflow_async(
         sink=context.trace_sink,
         run_id=state.run_id,
     )
-    current_node_id: str | None = manifest.entrypoint
-    limit = (
-        context.max_steps or _max_steps(manifest.execution_policy) or (len(nodes) + 10)
-    )
+    current_node_id: str | None = plan.entrypoint_id
+    limit = context.max_steps or plan.max_steps or (len(nodes) + 10)
     tracer.emit(
         "workflow_started",
-        payload={"entrypoint": manifest.entrypoint, "prompt": prompt},
+        payload={"entrypoint": plan.entrypoint_id, "prompt": prompt},
         sensitive_fields=("prompt",),
     )
 
@@ -173,7 +176,7 @@ async def execute_workflow_async(
             try:
                 output = await _execute_node_async(
                     node,
-                    context.workflow,
+                    plan,
                     state,
                     context.tool_registry,
                     adapter,
@@ -210,7 +213,7 @@ async def execute_workflow_async(
                 ),
             )
             current_node_id = _next_node_id(
-                node, output, edges_by_source.get(current_node_id, ())
+                node, output, plan.edges_by_source.get(current_node_id, ())
             )
     except asyncio.CancelledError:
         tracer.emit(
@@ -314,8 +317,8 @@ def _normalize_execution_context(
 
 
 async def _execute_node_async(
-    node: RuntimeNode,
-    workflow: LoadedAgentWorkflow,
+    node: PreparedNode,
+    plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
     adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter,
@@ -326,7 +329,7 @@ async def _execute_node_async(
     if node.kind == "llm_step":
         return await _execute_llm_step_async(
             node,
-            workflow,
+            plan,
             state,
             registry,
             adapter,
@@ -348,8 +351,8 @@ def _new_run_id() -> str:
 
 
 async def _execute_llm_step_async(
-    node: RuntimeNode,
-    workflow: LoadedAgentWorkflow,
+    node: PreparedNode,
+    plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
     adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter,
@@ -357,7 +360,8 @@ async def _execute_llm_step_async(
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ModelResponse:
-    behavior = effective_node_behavior(node, workflow)
+    workflow = plan.workflow
+    behavior = effective_node_behavior(node.source_node, workflow)
     message_parts = _render_message_parts(behavior, state)
     messages = tuple(message for _part, message in message_parts)
     tools: list[dict[str, Any]] = []
@@ -367,9 +371,9 @@ async def _execute_llm_step_async(
                 f"llm_step node {node.id!r} exposes tools but no registry was provided"
             )
         tools = registry.to_openai_tools(
-            tool.id for tool in registry.list_tools_for_node(node)
+            tool.id for tool in registry.list_tools_for_node(node.source_node)
         )
-    model = _model_name(node, workflow)
+    model = _model_name(node)
     _check_prompt_cache(
         workflow,
         message_parts,
@@ -378,13 +382,13 @@ async def _execute_llm_step_async(
         node,
         prompt_cache=prompt_cache,
     )
-    _enforce_token_budget(node, workflow, messages, model, state, tracer)
+    _enforce_token_budget(node, plan, messages, model, state, tracer)
     request = build_openai_request(
         model=model,
         messages=messages,
         tools=tools,
-        tool_choice=node.raw.get("tool_choice"),
-        response_format=_mapping_or_none(node.raw.get("response_format")),
+        tool_choice=node.tool_choice,
+        response_format=node.response_format,
         **_model_parameters(node),
     )
     state.node_inputs[str(node.id)] = request.to_kwargs()
@@ -408,7 +412,7 @@ async def _execute_llm_step_async(
             run_id=state.run_id,
         ),
     )
-    policy = _model_retry_policy(node, workflow)
+    policy = _model_retry_policy(node, plan)
     try:
         response, attempts = await run_with_retry_async(
             lambda: _create_model_response_async(adapter, request),
@@ -446,7 +450,7 @@ async def _execute_llm_step_async(
         ),
     )
     _record_prompt_cache_provider_telemetry(response, node, tracer)
-    _validate_model_output_contract(node, workflow, response, behavior.prompt)
+    _validate_model_output_contract(node, plan, response, behavior.prompt)
     return response
 
 
@@ -461,7 +465,7 @@ async def _create_model_response_async(
 
 def _record_prompt_cache_provider_telemetry(
     response: ModelResponse,
-    node: RuntimeNode,
+    node: PreparedNode,
     tracer: WorkflowTracer,
 ) -> None:
     cached_tokens = _read_path(
@@ -490,7 +494,7 @@ def _read_path(value: Any, path: Sequence[str]) -> Any:
 
 
 async def _execute_tool_step_async(
-    node: RuntimeNode,
+    node: PreparedNode,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
     tracer: WorkflowTracer,
@@ -599,7 +603,7 @@ async def _execute_tool_step_async(
 
 def _emit_status_notice(
     tracer: WorkflowTracer,
-    node: RuntimeNode,
+    node: PreparedNode,
     *,
     severity: str,
     code: str,
@@ -616,7 +620,7 @@ def _emit_status_notice(
 
 
 async def _invoke_tool_with_retry_async(
-    node: RuntimeNode,
+    node: PreparedNode,
     registry: ToolRegistry,
     arguments: Mapping[str, Any],
     state: WorkflowExecutionState,
@@ -666,7 +670,7 @@ async def _invoke_tool_with_retry_async(
 
 
 def _execute_decision_step(
-    node: RuntimeNode,
+    node: PreparedNode,
     state: WorkflowExecutionState,
     tracer: WorkflowTracer,
 ) -> str:
@@ -675,7 +679,7 @@ def _execute_decision_step(
             f"decision_step node {node.id!r} has unsupported decision_subtype "
             f"{node.decision_subtype!r}"
         )
-    route = _resolve_value(node.raw.get("route_from") or "last", state)
+    route = _resolve_value(node.route_from, state)
     if isinstance(route, ModelResponse):
         route = route.content
     route_text = _route_from_value(route)
@@ -741,7 +745,7 @@ def _check_prompt_cache(
     message_parts: Sequence[tuple[str, OpenAIMessage]],
     model: str,
     tracer: WorkflowTracer,
-    node: RuntimeNode,
+    node: PreparedNode,
     *,
     prompt_cache: bool | None,
 ) -> None:
@@ -772,12 +776,11 @@ def _check_prompt_cache(
     )
 
 
-def _tool_arguments(node: RuntimeNode, state: WorkflowExecutionState) -> dict[str, Any]:
-    arguments: dict[str, Any] = {}
-    raw_inputs = node.raw.get("inputs")
-    if isinstance(raw_inputs, Mapping):
-        arguments.update(dict(raw_inputs))
-    inputs_from = node.raw.get("inputs_from")
+def _tool_arguments(
+    node: PreparedNode, state: WorkflowExecutionState
+) -> dict[str, Any]:
+    arguments: dict[str, Any] = dict(node.inputs)
+    inputs_from = node.inputs_from
     if isinstance(inputs_from, Mapping):
         for argument_name, source in inputs_from.items():
             arguments[str(argument_name)] = _resolve_value(source, state)
@@ -791,9 +794,9 @@ def _tool_arguments(node: RuntimeNode, state: WorkflowExecutionState) -> dict[st
 
 
 def _record_outputs(
-    node: RuntimeNode, output: Any, state: WorkflowExecutionState
+    node: PreparedNode, output: Any, state: WorkflowExecutionState
 ) -> None:
-    outputs = node.raw.get("outputs")
+    outputs = node.outputs
     if isinstance(outputs, Mapping):
         state_key = outputs.get("state_key") or outputs.get("key")
         if state_key:
@@ -801,14 +804,14 @@ def _record_outputs(
 
 
 def _enforce_token_budget(
-    node: RuntimeNode,
-    workflow: LoadedAgentWorkflow,
+    node: PreparedNode,
+    plan: ExecutionPlan,
     messages: Sequence[OpenAIMessage],
     model: str,
     state: WorkflowExecutionState,
     tracer: WorkflowTracer,
 ) -> None:
-    policy = _token_budget_policy(node, workflow)
+    policy = _token_budget_policy(node, plan)
     if not policy.enabled:
         return
     budget_model = policy.model or model
@@ -855,15 +858,15 @@ def _enforce_token_budget(
 
 
 def _validate_model_output_contract(
-    node: RuntimeNode,
-    workflow: LoadedAgentWorkflow,
+    node: PreparedNode,
+    plan: ExecutionPlan,
     response: ModelResponse,
     prompt: Mapping[str, Any] | None = None,
 ) -> None:
     contract_ref = _output_schema_ref(node, prompt)
     if not contract_ref:
         return
-    contract = workflow.runtime_manifest.output_contracts.get(contract_ref)
+    contract = plan.output_contracts.get(contract_ref)
     if not isinstance(contract, Mapping):
         raise WorkflowExecutionError(
             f"llm_step node {node.id!r} references unknown output contract "
@@ -892,7 +895,7 @@ def _validate_model_output_contract(
 
 
 def _next_node_id(
-    node: RuntimeNode,
+    node: PreparedNode,
     output: Any,
     edges: Sequence[RuntimeEdge],
 ) -> str | None:
@@ -922,35 +925,14 @@ def _next_node_id(
     )
 
 
-def _node_map(nodes: Sequence[RuntimeNode]) -> dict[str, RuntimeNode]:
-    return {str(node.id): node for node in nodes if node.id is not None}
-
-
-def _edges_by_source(
-    edges: Sequence[RuntimeEdge],
-) -> dict[str, tuple[RuntimeEdge, ...]]:
-    grouped: dict[str, list[RuntimeEdge]] = {}
-    for edge in edges:
-        if edge.source is None:
-            continue
-        grouped.setdefault(edge.source, []).append(edge)
-    return {source: tuple(values) for source, values in grouped.items()}
-
-
-def _model_name(node: RuntimeNode, workflow: LoadedAgentWorkflow) -> str:
-    value = node.raw.get("model") or workflow.runtime_manifest.execution_policy.get(
-        "model"
-    )
-    if value is None:
-        value = workflow.runtime_manifest.execution_policy.get("default_model")
-    if value is None:
+def _model_name(node: PreparedNode) -> str:
+    if node.model is None:
         raise WorkflowExecutionError(f"llm_step node {node.id!r} is missing model")
-    return str(value)
+    return node.model
 
 
-def _model_parameters(node: RuntimeNode) -> dict[str, Any]:
-    parameters = node.raw.get("model_parameters")
-    return dict(parameters) if isinstance(parameters, Mapping) else {}
+def _model_parameters(node: PreparedNode) -> dict[str, Any]:
+    return dict(node.model_parameters)
 
 
 def _mapping_or_none(value: Any) -> Mapping[str, Any] | None:
@@ -1041,16 +1023,12 @@ def _route_from_value(value: Any) -> str | None:
 
 
 def _output_schema_ref(
-    node: RuntimeNode,
+    node: PreparedNode,
     prompt: Mapping[str, Any] | None = None,
 ) -> str | None:
-    value = node.raw.get("output_schema_ref")
+    value = node.output_schema_ref
     if value is None and isinstance(prompt, Mapping):
         value = prompt.get("output_schema_ref")
-    if value is None:
-        prompt = node.raw.get("prompt")
-        if isinstance(prompt, Mapping):
-            value = prompt.get("output_schema_ref")
     return str(value) if value is not None else None
 
 
@@ -1086,8 +1064,8 @@ def _structured_model_output(response: ModelResponse) -> Mapping[str, Any] | Non
     return decoded if isinstance(decoded, Mapping) else None
 
 
-def _validate_decision_route(node: RuntimeNode, route: str) -> None:
-    allowed_routes = _allowed_routes(node)
+def _validate_decision_route(node: PreparedNode, route: str) -> None:
+    allowed_routes = node.allowed_routes
     if not allowed_routes:
         return
     if route not in allowed_routes:
@@ -1098,61 +1076,41 @@ def _validate_decision_route(node: RuntimeNode, route: str) -> None:
         )
 
 
-def _allowed_routes(node: RuntimeNode) -> set[str]:
-    contract = node.raw.get("decision_contract")
-    if not isinstance(contract, Mapping):
-        return set()
-    paths = contract.get("allowed_paths")
-    if isinstance(paths, Mapping):
-        return {str(key) for key in paths}
-    if isinstance(paths, Sequence) and not isinstance(paths, (bytes, bytearray, str)):
-        routes: set[str] = set()
-        for path in paths:
-            if isinstance(path, Mapping):
-                value = path.get("id") or path.get("route") or path.get("condition")
-            else:
-                value = path
-            if value is not None:
-                routes.add(str(value))
-        return routes
-    return set()
-
-
 def _edge_condition(edge: RuntimeEdge) -> str | None:
     condition = edge.condition or edge.raw.get("route") or edge.raw.get("when")
     return str(condition) if condition is not None else None
 
 
-def _failure_behavior(node: RuntimeNode) -> str:
-    return str(node.raw.get("failure_behavior") or "error")
+def _failure_behavior(node: PreparedNode) -> str:
+    return node.failure_behavior
 
 
 def _model_retry_policy(
-    node: RuntimeNode,
-    workflow: LoadedAgentWorkflow,
+    node: PreparedNode,
+    plan: ExecutionPlan,
 ) -> RetryPolicy:
-    value = node.raw.get("retry_policy")
+    value = node.retry_policy
     if value is None:
-        value = workflow.runtime_manifest.execution_policy.get("model_retry_policy")
+        value = plan.execution_policy.get("model_retry_policy")
     if value is None:
-        value = workflow.runtime_manifest.execution_policy.get("retry_policy")
+        value = plan.execution_policy.get("retry_policy")
     return retry_policy_from_value(value)
 
 
 def _token_budget_policy(
-    node: RuntimeNode,
-    workflow: LoadedAgentWorkflow,
+    node: PreparedNode,
+    plan: ExecutionPlan,
 ) -> TokenBudgetPolicy:
-    value = node.raw.get("token_budget") or node.raw.get("token_budget_policy")
+    value = node.token_budget_policy
     if value is None:
-        value = workflow.runtime_manifest.execution_policy.get("token_budget")
+        value = plan.execution_policy.get("token_budget")
     if value is None:
-        value = workflow.runtime_manifest.execution_policy.get("token_budget_policy")
+        value = plan.execution_policy.get("token_budget_policy")
     return token_budget_policy_from_value(value)
 
 
-def _tool_retry_policy(node: RuntimeNode, registry: ToolRegistry) -> RetryPolicy:
-    value = node.raw.get("retry_policy")
+def _tool_retry_policy(node: PreparedNode, registry: ToolRegistry) -> RetryPolicy:
+    value = node.retry_policy
     if value is None and node.tool_id:
         value = registry.get_tool(node.tool_id).definition.raw.get("retry_policy")
     return retry_policy_from_value(value)
@@ -1174,7 +1132,7 @@ def _retries_failures(policy: RetryPolicy) -> bool:
 
 def _record_retry(
     state: WorkflowExecutionState,
-    node: RuntimeNode,
+    node: PreparedNode,
     operation: str,
     *,
     attempts: int,

@@ -478,6 +478,167 @@ class LoadedAgentWorkflow:
     runtime_overrides: RuntimeBehaviorOverrides | None = None
 
 
+@dataclass(frozen=True)
+class PreparedNode:
+    """Execution-ready node data derived once from a runtime node."""
+
+    source_node: RuntimeNode
+    id: str
+    kind: str
+    label: str | None = None
+    tool_id: str | None = None
+    decision_subtype: str | None = None
+    available_tools: tuple[str, ...] = ()
+    skill_refs: tuple[str, ...] = ()
+    model: str | None = None
+    model_parameters: Mapping[str, Any] = field(default_factory=dict)
+    tool_choice: Any = None
+    response_format: Mapping[str, Any] | None = None
+    inputs: Mapping[str, Any] = field(default_factory=dict)
+    inputs_from: Any = None
+    outputs: Mapping[str, Any] = field(default_factory=dict)
+    route_from: Any = "last"
+    allowed_routes: frozenset[str] = frozenset()
+    output_schema_ref: str | None = None
+    failure_behavior: str = "error"
+    retry_policy: Any = None
+    token_budget_policy: Any = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ExecutionPlan:
+    """Prepared workflow control-flow and node lookup data."""
+
+    workflow: LoadedAgentWorkflow
+    entrypoint_id: str | None
+    nodes_by_id: Mapping[str, PreparedNode] = field(default_factory=dict)
+    edges_by_source: Mapping[str, tuple[RuntimeEdge, ...]] = field(default_factory=dict)
+    execution_policy: Mapping[str, Any] = field(default_factory=dict)
+    output_contracts: Mapping[str, Any] = field(default_factory=dict)
+    unsupported_extensions: tuple[str, ...] = ()
+    max_steps: int | None = None
+
+
+def prepare_execution_plan(workflow: LoadedAgentWorkflow) -> ExecutionPlan:
+    """Resolve execution indexes and node defaults once before a run."""
+
+    manifest = workflow.runtime_manifest
+    execution_policy = dict(manifest.execution_policy)
+    return ExecutionPlan(
+        workflow=workflow,
+        entrypoint_id=manifest.entrypoint,
+        nodes_by_id={
+            prepared_node.id: prepared_node
+            for prepared_node in (
+                _prepare_node(node, execution_policy) for node in manifest.nodes
+            )
+            if prepared_node.id
+        },
+        edges_by_source=_edges_by_source(manifest.edges),
+        execution_policy=execution_policy,
+        output_contracts=dict(manifest.output_contracts),
+        unsupported_extensions=tuple(
+            str(extension_id)
+            for extension_id, extension in manifest.extensions.items()
+            if isinstance(extension, Mapping)
+            and extension.get("required", False) is False
+        ),
+        max_steps=_max_steps(execution_policy),
+    )
+
+
+def _prepare_node(
+    node: RuntimeNode,
+    execution_policy: Mapping[str, Any],
+) -> PreparedNode:
+    raw = dict(node.raw)
+    prompt = _as_mapping(raw.get("prompt")) or {}
+    return PreparedNode(
+        source_node=node,
+        id=str(node.id or ""),
+        kind=str(node.kind or ""),
+        label=node.label,
+        tool_id=node.tool_id,
+        decision_subtype=node.decision_subtype,
+        available_tools=node.available_tools,
+        skill_refs=node.skill_refs,
+        model=_prepared_model(raw, execution_policy),
+        model_parameters=_copy_mapping(_as_mapping(raw.get("model_parameters"))),
+        tool_choice=raw.get("tool_choice"),
+        response_format=_as_mapping(raw.get("response_format")),
+        inputs=_copy_mapping(_as_mapping(raw.get("inputs"))),
+        inputs_from=raw.get("inputs_from"),
+        outputs=_copy_mapping(_as_mapping(raw.get("outputs"))),
+        route_from=raw.get("route_from") or "last",
+        allowed_routes=frozenset(_allowed_routes(raw)),
+        output_schema_ref=_prepared_output_schema_ref(raw, prompt),
+        failure_behavior=str(raw.get("failure_behavior") or "error"),
+        retry_policy=raw.get("retry_policy"),
+        token_budget_policy=raw.get("token_budget") or raw.get("token_budget_policy"),
+        raw=raw,
+    )
+
+
+def _prepared_model(
+    node_raw: Mapping[str, Any],
+    execution_policy: Mapping[str, Any],
+) -> str | None:
+    value = node_raw.get("model") or execution_policy.get("model")
+    if value is None:
+        value = execution_policy.get("default_model")
+    return str(value) if value is not None else None
+
+
+def _prepared_output_schema_ref(
+    node_raw: Mapping[str, Any],
+    prompt: Mapping[str, Any],
+) -> str | None:
+    value = node_raw.get("output_schema_ref") or prompt.get("output_schema_ref")
+    return str(value) if value is not None else None
+
+
+def _allowed_routes(node_raw: Mapping[str, Any]) -> set[str]:
+    contract = node_raw.get("decision_contract")
+    if not isinstance(contract, Mapping):
+        return set()
+    paths = contract.get("allowed_paths")
+    if isinstance(paths, Mapping):
+        return {str(key) for key in paths}
+    if isinstance(paths, list):
+        routes: set[str] = set()
+        for path in paths:
+            if isinstance(path, Mapping):
+                value = path.get("id") or path.get("route") or path.get("condition")
+            else:
+                value = path
+            if value is not None:
+                routes.add(str(value))
+        return routes
+    return set()
+
+
+def _edges_by_source(
+    edges: tuple[RuntimeEdge, ...],
+) -> dict[str, tuple[RuntimeEdge, ...]]:
+    grouped: dict[str, list[RuntimeEdge]] = {}
+    for edge in edges:
+        if edge.source is None:
+            continue
+        grouped.setdefault(edge.source, []).append(edge)
+    return {source: tuple(values) for source, values in grouped.items()}
+
+
+def _max_steps(execution_policy: Mapping[str, Any]) -> int | None:
+    value = execution_policy.get("max_steps") or execution_policy.get("maximum_steps")
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _optional_str(value: object) -> str | None:
     return str(value) if value is not None else None
 

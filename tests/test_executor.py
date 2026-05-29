@@ -12,7 +12,11 @@ from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
 from dynamic_agent_runner.executor import execute_workflow, execute_workflow_async
 from dynamic_agent_runner.hooks import NodeHookContext, WorkflowLifecycleHooks
-from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
+from dynamic_agent_runner.models import (
+    LoadedAgentWorkflow,
+    ToolDefinition,
+    prepare_execution_plan,
+)
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     OpenAIClientAdapter,
@@ -143,6 +147,92 @@ def make_async_tool(
 
 def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
     return LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
+
+
+def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "prepared-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-default",
+                    "max_steps": 8,
+                    "retry_policy": {"max_attempts": 2},
+                    "token_budget": {"max_prompt_tokens": 100},
+                }
+            },
+            "extensions": {"future_optional": {"required": False, "config": {}}},
+            "output_contracts": [
+                {"id": "answer_contract", "required_fields": ["message"]}
+            ],
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "model": "gpt-node",
+                    "model_parameters": {"temperature": 0},
+                    "tool_choice": "auto",
+                    "response_format": {"type": "json_object"},
+                    "prompt": {
+                        "user_template": "Answer {prompt}",
+                        "output_schema_ref": "answer_contract",
+                    },
+                    "available_tools": ["search_repo"],
+                    "retry_policy": {"max_attempts": 3},
+                    "token_budget_policy": {"max_prompt_tokens": 50},
+                },
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "static"},
+                    "inputs_from": {"extra": "answer"},
+                    "outputs": {"state_key": "lookup_summary"},
+                    "failure_behavior": "continue",
+                    "retry_policy": {"max_attempts": 4},
+                },
+                {
+                    "id": "route",
+                    "kind": "decision_step",
+                    "decision_subtype": "llm_route",
+                    "route_from": "answer",
+                    "decision_contract": {"allowed_paths": ["done"]},
+                },
+            ],
+            "edges": [
+                {"source": "answer", "target": "lookup", "edge_kind": "sequential"},
+                {"source": "lookup", "target": "route", "edge_kind": "sequential"},
+            ],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+
+    plan = prepare_execution_plan(workflow)
+
+    assert plan.entrypoint_id == "answer"
+    assert plan.max_steps == 8
+    assert set(plan.nodes_by_id) == {"answer", "lookup", "route"}
+    assert [edge.target for edge in plan.edges_by_source["answer"]] == ["lookup"]
+    assert plan.unsupported_extensions == ("future_optional",)
+    answer = plan.nodes_by_id["answer"]
+    assert answer.model == "gpt-node"
+    assert answer.model_parameters == {"temperature": 0}
+    assert answer.tool_choice == "auto"
+    assert answer.output_schema_ref == "answer_contract"
+    assert answer.retry_policy == {"max_attempts": 3}
+    assert answer.token_budget_policy == {"max_prompt_tokens": 50}
+    lookup = plan.nodes_by_id["lookup"]
+    assert lookup.inputs == {"query": "static"}
+    assert lookup.inputs_from == {"extra": "answer"}
+    assert lookup.outputs == {"state_key": "lookup_summary"}
+    assert lookup.failure_behavior == "continue"
+    route = plan.nodes_by_id["route"]
+    assert route.route_from == "answer"
+    assert route.allowed_routes == frozenset({"done"})
 
 
 def test_execute_workflow_async_runs_async_model_adapter() -> None:
