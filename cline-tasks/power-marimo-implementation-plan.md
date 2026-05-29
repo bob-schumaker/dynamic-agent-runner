@@ -17,7 +17,7 @@ runtime support.
   — spec-local supporting reference used by the current SDD artifacts.
 - `specs/dynamic-agent-runner/spec.md` — governing runtime requirements.
 - `specs/dynamic-agent-runner/tasks.md` — active task list; next active slice is
-  S1.
+  S3.
 - `../power-marimo/specs/project-roadmap/spec.md` — downstream roadmap context.
 - `../power-marimo/skills/marimo-pair/SKILL.md` — downstream notebook-operation
   and safety contract.
@@ -129,6 +129,8 @@ Completion evidence:
 
 ### Slice S2 — ExecutionPlan and PreparedNode normalization
 
+**Status:** Complete in commit `b315c96`.
+
 **Goal:** Stop spreading raw manifest dictionary interpretation across executor,
 validation, prompt-cache, and registry preparation code.
 
@@ -165,11 +167,28 @@ pre-commit run --files <changed files>
 
 Acceptance criteria:
 
-- Executor behavior remains unchanged for existing finite graph workflows.
-- Unsupported or ignored grouped manifest features are visible in preparation
+- [x] Executor behavior remains unchanged for existing finite graph workflows.
+- [x] Unsupported or ignored grouped manifest features are visible in preparation
   reports or traceable validation errors.
-- Future feature slices can attach behavior to `PreparedNode` without raw
+- [x] Future feature slices can attach behavior to `PreparedNode` without raw
   manifest surgery.
+
+Completion evidence:
+
+- Commit: `b315c96` (`feat(executor): add prepared execution plan`).
+- RED: `poetry run pytest
+  tests/test_executor.py::test_prepare_execution_plan_resolves_node_indexes_and_defaults
+  -q` — failed because `prepare_execution_plan` did not exist yet.
+- GREEN: same targeted test — pass; 1 test passed.
+- Targeted validation: `poetry run pytest tests/test_executor.py
+  tests/test_validation.py tests/test_registry.py -q` — pass; 78 tests passed.
+- Full validation: `poetry run pytest -q` — pass; 165 tests passed.
+- `pre-commit run --files src/dynamic_agent_runner/models.py
+  src/dynamic_agent_runner/executor.py tests/test_executor.py` — pass after Ruff
+  Format rewrote `src/dynamic_agent_runner/executor.py` once.
+- Note: planned validation referenced `tests/test_behavior.py`, but that file does
+  not exist in this repository; the S2 targeted suite used existing executor,
+  validation, and registry tests instead.
 
 ### Slice S3 — PreparedModelInput and prepare_model_input seam
 
@@ -309,7 +328,7 @@ Acceptance criteria:
 Use one commit per slice when the slice is implemented:
 
 1. [x] `feat(models): support grouped runtime manifests` — `695c0cc`
-2. `refactor(executor): add prepared execution plan`
+2. [x] `feat(executor): add prepared execution plan` — `b315c96`
 3. `refactor(executor): add prepared model input seam`
 4. `feat(registry): add tool provenance metadata`
 5. `test(fixtures): add power-marimo runtime package`
@@ -322,9 +341,10 @@ evidence and run targeted validation before committing.
 - Existing fixtures and tests assumed flat root metadata; S1 migrated them in
   commit `695c0cc`.
 - `output_contracts` migration from mapping to array must preserve current
-  output validation behavior.
-- `ExecutionPlan` should not become a second public manifest format; it is an
-  internal normalized view.
+  output validation behavior; S1 and S2 validations preserved existing contract
+  behavior.
+- `ExecutionPlan` is now implemented as an internal normalized execution view in
+  commit `b315c96`; it should not become a second public manifest format.
 - `PreparedModelInput` should preserve current prompt semantics before adding
   notebook-state or retrieval features.
 - `ToolOrigin` should remain diagnostic/provenance metadata until a later policy

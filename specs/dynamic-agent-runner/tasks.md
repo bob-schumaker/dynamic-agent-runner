@@ -13,7 +13,7 @@
 - Readiness verdict: ready for the runtime-package simplification follow-up; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work.
-- Next active slice: S2 — ExecutionPlan and PreparedNode normalization.
+- Next active slice: S3 — PreparedModelInput and prepare_model_input seam.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -515,9 +515,30 @@ preparation seams, and tool provenance before safe Marimo notebook automation.
         rejects legacy flat optional root fields.
       - Validation: `poetry run pytest -q` — pass; 164 tests passed.
       - Pre-commit: `pre-commit run --files <S1 changed files>` — pass.
-- [ ] S2. Add an internal `ExecutionPlan` / `PreparedNode` normalization layer so
+- [x] S2. Add an internal `ExecutionPlan` / `PreparedNode` normalization layer so
       the executor consumes normalized per-node configuration instead of raw
       manifest dictionaries.
+      - Completed in commit `b315c96`: added internal `ExecutionPlan` and
+        `PreparedNode` models plus `prepare_execution_plan(...)`, resolved node
+        lookup, outgoing-edge indexes, max-step defaults, per-node model/tool/
+        decision fields, output-contract references, token/retry policy values,
+        and optional unsupported extension visibility during preparation.
+      - The executor now routes finite graph execution through prepared nodes
+        while preserving public API behavior and existing workflow semantics.
+      - RED: `poetry run pytest
+        tests/test_executor.py::test_prepare_execution_plan_resolves_node_indexes_and_defaults
+        -q` — failed because `prepare_execution_plan` did not exist yet.
+      - GREEN: same targeted test — pass; 1 test passed.
+      - Targeted validation: `poetry run pytest tests/test_executor.py
+        tests/test_validation.py tests/test_registry.py -q` — pass; 78 tests
+        passed.
+      - Full validation: `poetry run pytest -q` — pass; 165 tests passed.
+      - Pre-commit: `pre-commit run --files src/dynamic_agent_runner/models.py
+        src/dynamic_agent_runner/executor.py tests/test_executor.py` — pass after
+        Ruff Format rewrote `src/dynamic_agent_runner/executor.py` once.
+      - Note: the planning note listed `tests/test_behavior.py`, but that file is
+        not present; S2 validation used existing executor, validation, and registry
+        tests instead.
 - [ ] S3. Add a pass-through `prepare_model_input(...)` / `PreparedModelInput`
       seam before expanding context-management, session pruning, hierarchical
       prompt injection, or Marimo notebook-state context injection.
