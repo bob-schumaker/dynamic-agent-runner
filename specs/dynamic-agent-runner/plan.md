@@ -32,8 +32,10 @@ or a clear error.
   repository-owned registry direction before deeper runtime implementation.
 - A 3-round implementation-readiness debate concluded this plan is ready only
   for slice-by-slice implementation, not unrestricted runtime coding.
-- The next active E14 implementation slice is Slice I.7: cancellation and
-  concurrent async validation.
+- E14 Slice I.7 is complete and committed: cancellation and concurrent async
+  validation now covers in-flight async workflow cancellation, workflow-level
+  cancellation observations, concurrent async shared-context run correlation, and
+  sync/async public entry-point parity.
 - Evaluation follow-up Slice A is complete and committed: the runtime now exposes
   `WorkflowExecutionContext` / `RunContext` as a stable execution envelope that
   groups a loaded workflow with runtime collaborators while preserving the
@@ -86,8 +88,7 @@ or a clear error.
   awaits lifecycle hooks, preserves existing helper semantics for rendering,
   token budgets, prompt-cache observations, output contracts, route handling,
   tracing, and state recording. The sync executor originally rejected async
-  model adapters until Slice I.6 converted sync public entry points. Continue E14
-  with Slice I.7, cancellation and concurrent async validation.
+  model adapters until Slice I.6 converted sync public entry points.
 
 ## Technical Approach
 
@@ -547,8 +548,8 @@ and execution failures.
     - Slice I.5 async executor core is complete in commit `72c28dd`
     - Slice I.6 public async API and sync wrappers is complete in commit
       `4f279ff`
-    - recommended next implementation slice: cancellation and concurrent async
-      validation
+    - Slice I.7 cancellation and concurrent async validation is complete in commit
+      `7990503`
     - true async public APIs `execute_workflow_async(...)` and
       `run_agent_workflow_async(...)` are now the first-class runtime path
     - existing sync public APIs for CLI, scripts, tests, cron jobs, and simple
@@ -652,6 +653,12 @@ model behavior and fake registries for tool behavior.
   now wrap their async counterparts through `_run_async_from_sync(...)`; sync
   wrappers call `asyncio.run(...)` only when no event loop is active and raise
   `WorkflowExecutionError` from an already-running event loop.
+- E14 Slice I.7 completed cancellation and concurrent async validation in commit
+  `7990503`: `tests/test_concurrency.py` now covers in-flight async workflow
+  cancellation propagation, workflow cancellation trace and `after_workflow` hook
+  observations, concurrent async runs reusing one execution context with distinct
+  run IDs, shared trace-sink and hook run correlation, and sync/async public API
+  parity for final results and trace event shapes.
 - Sync wrappers must reject already-running event loops with a clear project
   error rather than attempting nested event-loop execution.
 - The model-client contract should be async-canonical. OpenAI async support must

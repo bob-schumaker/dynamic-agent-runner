@@ -2,13 +2,14 @@
 
 ## Status
 
-- State: E14 Slices I.1 through I.6 are complete; future E14 implementation
-  should continue with Slice I.7 cancellation and concurrent async validation.
+- State: E14 Slices I.1 through I.7 are complete; the planned E14 async-first
+  implementation and validation slice sequence is complete.
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: E14 Slice I.7 — cancellation and concurrent async validation
+- Next active slice: none for E14; continue with a future deferred follow-up only
+  after selecting a new scope.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -608,7 +609,7 @@
         src/dynamic_agent_runner/registry.py src/dynamic_agent_runner/tracing.py
         tests/test_concurrency.py tests/test_hooks.py` — pass; 136 tests
         passed.
-- [ ] E14. Implement async-first execution APIs and sync wrapper behavior without
+- [x] E14. Implement async-first execution APIs and sync wrapper behavior without
       creating a separate runtime implementation.
       - Detailed implementation plan: `cline-tasks/evaluation-follow-up-implementation-plan.md`.
       - Slice I.1 async OpenAI client boundary completed in commit `acca9da`:
@@ -638,7 +639,9 @@
         converted sync public entry points into wrappers over the async semantic
         path, and made sync wrappers reject already-running event loops with
         `WorkflowExecutionError`.
-      - Recommended next slice: cancellation and concurrent async validation.
+      - Slice I.7 cancellation and concurrent async validation completed in commit
+        `7990503`: added cancellation, concurrent async run-correlation, and
+        sync/async public entry-point parity tests in `tests/test_concurrency.py`.
       - Slice I.1 validation: `poetry run pytest tests/test_import.py
         tests/test_openai_client.py -q` — pass; 11 tests passed.
       - Slice I.1 pre-commit: `pre-commit run --files
@@ -685,9 +688,17 @@
         concurrent async runs must preserve per-run state isolation, `run_id`
         metadata, trace correlation, hook correlation, and synchronized
         package-owned shared helpers.
-      - Acceptance evidence must cover async model calls, async tools, async
-        hooks, cancellation, sync wrapper compatibility, and concurrent async
-        runs.
+      - Acceptance evidence covers async model calls, async tools, async hooks,
+        cancellation, sync wrapper compatibility, and concurrent async runs.
+      - Slice I.7 validation: `poetry run pytest tests/test_concurrency.py
+        tests/test_executor.py -q` — pass; 43 tests passed.
+      - Slice I.7 broader validation: `poetry run pytest tests/test_executor.py
+        tests/test_tracing.py tests/test_prompt_cache.py tests/test_token_budget.py
+        tests/test_hooks.py tests/test_registry.py tests/test_openai_client.py
+        tests/test_import.py tests/test_cli.py tests/test_concurrency.py -q` —
+        pass; 129 tests passed.
+      - Slice I.7 pre-commit: `poetry run pre-commit run --files
+        tests/test_concurrency.py` — pass.
 
 ## Cross-Cutting Validation Tasks
 
@@ -705,7 +716,7 @@
         shared-context concurrent runs, run-correlated traces/hooks, synchronized
         in-memory registry registration/invocation, public API `run_id`
         propagation, and thread-safe lazy default-client initialization.
-- [ ] V7. Add async-interface validation before claiming async support: cover
+- [x] V7. Add async-interface validation before claiming async support: cover
       async model calls, async tool handlers, async lifecycle hooks, cancellation
       propagation, sync wrapper compatibility including already-running event-loop
       misuse, and concurrent async runs that preserve E13 run-correlation
@@ -716,5 +727,8 @@
       - Partially covered in commit `4f279ff`: public async API exports, high-level
         async API final-result behavior, sync wrapper conversion, ordinary sync
         wrapper execution, and already-running event-loop misuse are validated.
-        Cancellation-focused tests and concurrent async run validation remain
-        pending for Slice I.7.
+      - Completed in commit `7990503`: cancellation-focused tests validate
+        in-flight async workflow cancellation propagation plus trace/hook
+        observations, concurrent async run validation preserves E13 run
+        correlation, and sync/async public entry points preserve observable final
+        result and trace event shapes.

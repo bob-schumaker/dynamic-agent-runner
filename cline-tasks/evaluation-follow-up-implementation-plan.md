@@ -15,7 +15,7 @@ relevant to `power-marimo` and near-term `dynamic-agent-runner` evolution:
 - E7 — define narrow in-process lifecycle hook protocols
 - E8 — extend trace vocabulary
 - E14 — implement async-first execution APIs and sync wrappers (Slices I.1
-  through I.6 complete)
+  through I.7 complete)
 
 ## Current Implementation Shape
 
@@ -332,7 +332,7 @@ Completion evidence:
 - Validation: `ruff check src tests && ruff format --check src tests &&
   python -m pytest -q` — pass; 132 tests passed.
 
-## Slice I — E14: Async-First Execution APIs and Wrappers — In Progress
+## Slice I — E14: Async-First Execution APIs and Wrappers — Complete
 
 **Goal:** Convert workflow execution to a true async-first runtime while keeping
 existing synchronous public APIs as compatibility wrappers.
@@ -671,6 +671,8 @@ Acceptance evidence:
 
 ### Slice I.7 — cancellation and concurrent async validation
 
+Status: complete in commit `7990503`.
+
 Likely files:
 
 - `tests/test_concurrency.py`
@@ -706,6 +708,19 @@ Acceptance evidence:
 - Concurrent async runs preserve E13 run correlation.
 - Sync and async entry points do not drift in observable final result, trace, hook,
   or error behavior.
+- Slice I.7 was validation-hardening only: the new tests passed without production
+  code changes, confirming the existing async executor and public API behavior.
+- Validation: `poetry run pytest tests/test_concurrency.py tests/test_executor.py
+  -q` — pass; 43 tests passed.
+- Broader validation: `poetry run pytest tests/test_executor.py
+  tests/test_tracing.py tests/test_prompt_cache.py tests/test_token_budget.py
+  tests/test_hooks.py tests/test_registry.py tests/test_openai_client.py
+  tests/test_import.py tests/test_cli.py tests/test_concurrency.py -q` — pass;
+  129 tests passed.
+- Formatting/lint: `poetry run ruff check src tests && poetry run ruff format
+  --check src tests` — pass after formatting `tests/test_concurrency.py`.
+- Pre-commit: `poetry run pre-commit run --files tests/test_concurrency.py` —
+  pass.
 
 ### Recommended E14 implementation order
 
@@ -715,7 +730,8 @@ Acceptance evidence:
 4. Slice I.4 — async-capable lifecycle hook dispatch — complete in commit `2b9271b`.
 5. Slice I.5 — async executor core — complete in commit `72c28dd`.
 6. Slice I.6 — public async API and sync wrappers — complete in commit `4f279ff`.
-7. Slice I.7 — cancellation and concurrent async validation — next.
+7. Slice I.7 — cancellation and concurrent async validation — complete in
+   commit `7990503`.
 8. Documentation/memory-bank checkpoint after implementation validation.
 
 This order keeps the lowest-level awaitable boundaries stable before rewriting
@@ -723,7 +739,7 @@ executor control flow and public API behavior.
 
 ## Recommended Next Slice
 
-Continue E14 with **Slice I.7 — cancellation and concurrent async validation**.
+No further E14 implementation slice is currently queued after Slice I.7.
 
 Reasons:
 
@@ -737,8 +753,9 @@ Reasons:
   lifecycle hooks through the async runtime path.
 - Slice I.6 has exposed the public async API, exported it from the package root,
   and converted sync public entry points into wrappers over the async semantic path.
-- Slice I.7 should validate cancellation behavior and concurrent async run
-  correlation before claiming the async interface is complete.
+- Slice I.7 validated cancellation behavior and concurrent async run
+  correlation in commit `7990503`, so the E14 async interface validation path is
+  complete through the planned slice sequence.
 
 ## Validation Plan
 

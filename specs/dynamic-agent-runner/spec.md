@@ -1209,11 +1209,11 @@ Before implementation is considered complete, add validation covering:
 - [x] async tool handlers inspected at registration/setup time and awaited during
       execution
 - [x] async lifecycle hooks inspected at setup time and awaited during execution
-- [ ] workflow cancellation with best-effort propagation to model, tool, hook, and
+- [x] workflow cancellation with best-effort propagation to model, tool, hook, and
       child-task boundaries plus documented non-cancellable boundaries
 - [x] sync wrapper compatibility, including clear failure when called from an
       already-running event loop
-- [ ] concurrent async runs preserving E13 run IDs, per-run state isolation,
+- [x] concurrent async runs preserving E13 run IDs, per-run state isolation,
       trace correlation, hook correlation, and synchronized package-owned helpers
 - [ ] narrow in-process lifecycle hooks for node, model, tool, permission, and
       workflow boundaries
@@ -1297,8 +1297,8 @@ Before implementation is considered complete, add validation covering:
   concurrent async runs. E13's run-correlation contract must remain consistent
   with this async-first design. The detailed E14 implementation plan is recorded
   in `cline-tasks/evaluation-follow-up-implementation-plan.md`; after Slices I.1
-  through I.6, the next recommended slice is Slice I.7, cancellation and
-  concurrent async validation.
+  through I.7, the planned E14 async-first implementation and validation slice
+  sequence is complete.
 - E14 Slice I.1 completed the async OpenAI client boundary in commit `acca9da`,
   adding async OpenAI protocol types, `AsyncOpenAIClientAdapter`,
   `create_default_async_openai_client()`, package exports, and fake-client tests
@@ -1330,6 +1330,11 @@ Before implementation is considered complete, add validation covering:
   package root, converting `execute_workflow(...)` and `run_agent_workflow(...)`
   into wrappers over the async semantic path, and making sync wrappers fail with
   `WorkflowExecutionError` when called from an already-running event loop.
+- E14 Slice I.7 completed cancellation and concurrent async validation in commit
+  `7990503`, adding tests that cancel an in-flight async workflow, verify
+  workflow cancellation trace and hook observations, run concurrent async
+  executions through a shared `WorkflowExecutionContext`, and compare sync versus
+  async public entry-point observable results.
 - Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
   validation in commit `44b0847`, including fail-closed malformed schema checks
   and `$schema` removal from model-facing tool parameters.
