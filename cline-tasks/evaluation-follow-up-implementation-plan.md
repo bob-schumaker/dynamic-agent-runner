@@ -14,6 +14,7 @@ relevant to `power-marimo` and near-term `dynamic-agent-runner` evolution:
 - E6 — refine `ToolResult` into clearer output facets
 - E7 — define narrow in-process lifecycle hook protocols
 - E8 — extend trace vocabulary
+- E14 — implement async-first execution APIs and sync wrappers
 
 ## Current Implementation Shape
 
@@ -330,16 +331,333 @@ Completion evidence:
 - Validation: `ruff check src tests && ruff format --check src tests &&
   python -m pytest -q` — pass; 132 tests passed.
 
+## Slice I — E14: Async-First Execution APIs and Wrappers — Planned
+
+**Goal:** Convert workflow execution to a true async-first runtime while keeping
+existing synchronous public APIs as compatibility wrappers.
+
+E14 should deliver these public behavior changes:
+
+- `execute_workflow_async(...)` returns `WorkflowResult` and becomes the
+  canonical executor entry point.
+- `run_agent_workflow_async(...)` returns the final workflow result and becomes
+  the canonical high-level API entry point.
+- `execute_workflow(...)` and `run_agent_workflow(...)` remain available, but
+  delegate to the async APIs through a safe sync wrapper.
+- Sync wrappers raise a project error when called from an already-running event
+  loop in the same thread.
+- OpenAI model execution uses one async-canonical model-client protocol.
+- Tool handlers and lifecycle hooks can be sync or async, with callable shape
+  inspected at registration or setup time.
+- Cancellation is best-effort and propagates through async model calls, tool
+  calls, hook calls, and child tasks where the underlying boundary supports it.
+- E13 run-correlation semantics remain valid for concurrent async runs.
+
+### E14 source facts observed during planning
+
+- Current executor is fully synchronous in `src/dynamic_agent_runner/executor.py`:
+  `execute_workflow(...)` drives the loop, calls synchronous helper functions,
+  uses `_call_hook(...)`, invokes `adapter.create_response(...)`, and calls
+  `registry.invoke_tool(...)`.
+- Current public API in `src/dynamic_agent_runner/api.py` exposes only
+  `run_agent_workflow(...)`, which loads artifacts and calls
+  `execute_workflow(...)`.
+- Current OpenAI adapter in `src/dynamic_agent_runner/openai_client.py` defines
+  a synchronous `OpenAIClientProtocol`, synchronous `OpenAIClientAdapter`, and
+  `create_default_openai_client()` using `openai.OpenAI`.
+- Current registry in `src/dynamic_agent_runner/registry.py` stores bare tool
+  handlers and invokes them synchronously.
+- Current hooks in `src/dynamic_agent_runner/hooks.py` are typed as synchronous
+  callbacks.
+- Local OpenAI SDK source confirms async support exists:
+  - `/Users/roschuma/Repos/github/openai-python/src/openai/_client.py` defines
+    `AsyncOpenAI`.
+  - `/Users/roschuma/Repos/github/openai-python/src/openai/resources/responses/`
+  `responses.py`
+    defines `AsyncResponses.create(...)` as `async def create(...)`.
+  - `/Users/roschuma/Repos/github/openai-python/src/openai/_base_client.py`
+    defines `AsyncAPIClient` around `httpx.AsyncClient` and exposes
+    `async close()`, `async __aenter__`, and `async __aexit__`.
+
+### Slice I.1 — async OpenAI client boundary
+
+Likely files:
+
+- `src/dynamic_agent_runner/openai_client.py`
+- `src/dynamic_agent_runner/__init__.py`
+- `tests/test_openai_client.py`
+
+Implementation steps:
+
+1. Introduce async-canonical protocol types:
+   - `AsyncOpenAIResponsesResource` with `async create(...)`.
+   - `AsyncOpenAIClientProtocol` with `.responses`.
+2. Add `AsyncOpenAIClientAdapter` or convert `OpenAIClientAdapter` into an
+   async-canonical adapter with `async create_response(...)`.
+3. Add `create_default_async_openai_client()` using `openai.AsyncOpenAI`.
+4. Keep response normalization and request construction shared.
+5. Provide a compatibility adapter for sync-only clients only if needed for
+   existing fake/client tests; do not make a parallel sync executor protocol the
+   runtime contract.
+
+Validation:
+
+```bash
+poetry run pytest tests/test_openai_client.py -q
+```
+
+Acceptance evidence:
+
+- Fake async client is awaited.
+- Native async adapter path calls `.responses.create(...)` as an awaitable.
+- Sync-only compatibility, if retained, is explicitly adapted behind the async
+  protocol.
+- Model failures still become `ModelExecutionError`.
+
+### Slice I.2 — async retry helper
+
+Likely files:
+
+- `src/dynamic_agent_runner/retry.py`
+- `tests/test_executor.py` or `tests/test_retry.py`
+
+Implementation steps:
+
+1. Add `run_with_retry_async(...)` using Tenacity's async retry support or a
+   minimal explicit async retry loop.
+2. Preserve `RetryPolicy` and `RetryRecord` shape.
+3. Ensure `asyncio.CancelledError` is not swallowed or retried as an ordinary
+   model/tool error.
+4. Keep synchronous `run_with_retry(...)` only for compatibility helpers if still
+   needed by sync adapters.
+
+Validation:
+
+```bash
+poetry run pytest tests/test_executor.py -q
+```
+
+Acceptance evidence:
+
+- Async model failure retries preserve attempt counts.
+- Cancellation propagates and is not converted into a normal retry failure.
+
+### Slice I.3 — callable-shape metadata for tools
+
+Likely files:
+
+- `src/dynamic_agent_runner/registry.py`
+- `tests/test_registry.py`
+
+Implementation steps:
+
+1. Add sync/async callable-shape metadata to `RegisteredTool`, detected when the
+   tool is registered or constructed.
+2. Extend `ToolRegistry` with an async invocation path such as
+   `invoke_tool_async(...)`.
+3. For async handlers, await the handler directly.
+4. For sync handlers, run them through the documented sync-handler policy. Prefer
+   a small helper boundary such as `asyncio.to_thread(...)` if blocking work must
+   not block the event loop, and document that cancellation cannot safely kill an
+   already-running sync handler thread.
+5. Keep existing `invoke_tool(...)` as sync wrapper compatibility if needed by
+   callers or tests.
+
+Validation:
+
+```bash
+poetry run pytest tests/test_registry.py -q
+```
+
+Acceptance evidence:
+
+- Registration/setup records whether each handler is sync or async.
+- Async handlers are awaited and can return `ToolResult`.
+- Sync handlers still work through the async executor path.
+- Handler exceptions still become failed `ToolResult` values.
+
+### Slice I.4 — callable-shape metadata for lifecycle hooks
+
+Likely files:
+
+- `src/dynamic_agent_runner/hooks.py`
+- `src/dynamic_agent_runner/context.py`
+- `tests/test_hooks.py`
+
+Implementation steps:
+
+1. Add hook wrapper or hook metadata structures that record whether each callback
+   is sync or async during hook setup.
+2. Add an async hook invocation helper that awaits async hooks and invokes sync
+   hooks according to the chosen policy.
+3. Preserve existing hook context dataclasses and run IDs.
+4. Preserve trusted-hook abort behavior: raised project errors still abort
+   execution; cancellation should propagate.
+
+Validation:
+
+```bash
+poetry run pytest tests/test_hooks.py -q
+```
+
+Acceptance evidence:
+
+- Async before/after node hooks are awaited.
+- Async before/after model hooks are awaited.
+- Async before/after tool hooks are awaited.
+- Existing sync hooks still work.
+- Hook context run IDs remain correct.
+
+### Slice I.5 — async executor core
+
+Likely files:
+
+- `src/dynamic_agent_runner/executor.py`
+- `tests/test_executor.py`
+- `tests/test_tracing.py`
+- `tests/test_prompt_cache.py`
+- `tests/test_token_budget.py`
+
+Implementation steps:
+
+1. Add `execute_workflow_async(...)` as the canonical executor.
+2. Convert the execution loop and node helpers to async equivalents.
+3. Await model calls, tool invocations, and hook dispatch.
+4. Preserve synchronous helper behavior for prompt rendering, token-budget checks,
+   prompt-cache observation, output-contract validation, decision routing, trace
+   emission, and state recording.
+5. Preserve E13 `run_id` behavior and trace/hook correlation.
+6. Add cancellation handling around the workflow loop:
+   - emit a workflow cancellation/error trace when possible,
+   - call `after_workflow` with an error/cancellation context when safe,
+   - re-raise cancellation rather than converting it to a success result.
+
+Validation:
+
+```bash
+poetry run pytest \
+  tests/test_executor.py \
+  tests/test_tracing.py \
+  tests/test_prompt_cache.py \
+  tests/test_token_budget.py \
+  -q
+```
+
+Acceptance evidence:
+
+- Async model call path works.
+- Async direct tool path works.
+- Async hooks work at executor lifecycle points.
+- Existing retry, token-budget, prompt-cache, output-contract, tracing, and route
+  behavior still passes.
+
+### Slice I.6 — public async API and sync wrappers
+
+Likely files:
+
+- `src/dynamic_agent_runner/api.py`
+- `src/dynamic_agent_runner/executor.py`
+- `src/dynamic_agent_runner/__init__.py`
+- `src/dynamic_agent_runner/cli.py`
+- `tests/test_executor.py`
+- `tests/test_cli.py`
+- `tests/test_import.py`
+
+Implementation steps:
+
+1. Add `run_agent_workflow_async(...)` to load, validate, execute, and return the
+   final result through `execute_workflow_async(...)`.
+2. Export `execute_workflow_async(...)` and `run_agent_workflow_async(...)` from
+   the package root.
+3. Convert sync `execute_workflow(...)` and `run_agent_workflow(...)` into wrappers
+   over their async counterparts.
+4. Add a helper such as `_run_async_from_sync(...)` that:
+   - calls `asyncio.run(...)` when no loop is running in the current thread,
+   - raises `WorkflowExecutionError` with guidance when a loop is already running.
+5. Keep CLI behavior synchronous by calling the sync wrapper from non-event-loop
+   CLI execution.
+
+Validation:
+
+```bash
+poetry run pytest \
+  tests/test_executor.py \
+  tests/test_cli.py \
+  tests/test_import.py \
+  -q
+```
+
+Acceptance evidence:
+
+- Async public API returns the same final result shape as sync API.
+- Sync wrappers work from ordinary synchronous callers.
+- Sync wrappers raise a clear project error from an already-running event loop.
+- CLI tests continue to pass.
+- Public exports include the new async APIs.
+
+### Slice I.7 — cancellation and concurrent async validation
+
+Likely files:
+
+- `tests/test_concurrency.py`
+- `tests/test_executor.py`
+- `tests/test_hooks.py`
+- `tests/test_registry.py`
+- possibly `src/dynamic_agent_runner/executor.py`
+
+Implementation steps:
+
+1. Add cancellation-focused tests using async fake model/tool/hook collaborators
+   that block on `asyncio.Event`.
+2. Cancel an in-flight workflow task and assert cancellation propagates.
+3. Verify trace/hook cancellation observations that are feasible without
+   swallowing cancellation.
+4. Add concurrent async run tests using shared workflow/context objects.
+5. Assert E13 invariants under async concurrency:
+   - per-run state isolation,
+   - run IDs remain distinct,
+   - shared trace sink events are distinguishable by `run_id`,
+   - hook observations are run-correlated,
+   - package-owned shared helpers remain safe.
+
+Validation:
+
+```bash
+poetry run pytest tests/test_concurrency.py tests/test_executor.py -q
+```
+
+Acceptance evidence:
+
+- Cancellation test passes and does not produce a success result.
+- Concurrent async runs preserve E13 run correlation.
+- Sync and async entry points do not drift in observable final result, trace, hook,
+  or error behavior.
+
+### Recommended E14 implementation order
+
+1. Slice I.1 — async OpenAI client boundary.
+2. Slice I.2 — async retry helper.
+3. Slice I.3 — async-capable tool registry dispatch.
+4. Slice I.4 — async-capable lifecycle hook dispatch.
+5. Slice I.5 — async executor core.
+6. Slice I.6 — public async API and sync wrappers.
+7. Slice I.7 — cancellation and concurrent async validation.
+8. Documentation/memory-bank checkpoint after implementation validation.
+
+This order keeps the lowest-level awaitable boundaries stable before rewriting
+executor control flow and public API behavior.
+
 ## Recommended First Slice
 
-Start with **E1 only** as the first implementation slice.
+Start E14 with **Slice I.1 — async OpenAI client boundary**.
 
 Reasons:
 
-- It is mostly refactor/contract work.
-- It creates the clean place to attach model capabilities, tool policy, trace
-  sink, hooks, prompt-cache override, and future context-management settings.
-- It minimizes behavioral risk before changing tool semantics.
+- It verifies the local OpenAI SDK async surface before touching executor control
+  flow.
+- It gives the executor one async-canonical model protocol to target.
+- It can be tested with fake async clients without live OpenAI API calls.
+- It minimizes behavioral risk before changing tools, hooks, or public wrappers.
 
 ## Validation Plan
 
@@ -372,12 +690,21 @@ Files inspected before this plan was saved:
 - `src/dynamic_agent_runner/tracing.py`
 - `src/dynamic_agent_runner/validation.py`
 - `src/dynamic_agent_runner/__init__.py`
+- `src/dynamic_agent_runner/api.py`
+- `src/dynamic_agent_runner/context.py`
+- `src/dynamic_agent_runner/hooks.py`
+- `src/dynamic_agent_runner/openai_client.py`
+- `src/dynamic_agent_runner/retry.py`
 - `tests/test_registry.py`
 - `tests/test_executor.py`
 - `tests/test_tracing.py`
 - `tests/test_validation.py`
+- `/Users/roschuma/Repos/github/openai-python/src/openai/_client.py`
+- `/Users/roschuma/Repos/github/openai-python/src/openai/_base_client.py`
+- `/Users/roschuma/Repos/github/openai-python/src/openai/resources/responses/`
+  `responses.py`
 
 Repository state check:
 
-- `git status --short && git branch --show-current` — pass; branch `develop`,
-  no uncommitted changes were reported before saving this file.
+- `git status --short && git branch --show-current` — pass; branch `develop`;
+  only unrelated untracked `docs/` was reported before saving the E14 plan.
