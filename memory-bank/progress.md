@@ -124,6 +124,10 @@
   `f2296e9 feat(retry): add async retry helper`.
 - E14 Slice I.2 governing-docs commit exists:
   `bb96b54 docs(spec): record async retry helper slice`.
+- E14 Slice I.3 async tool dispatch implementation commit exists:
+  `ff144f5 feat(registry): add async tool dispatch`.
+- E14 Slice I.3 governing-docs commit exists:
+  `804e1af docs(spec): record async tool dispatch slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -242,8 +246,8 @@
   boundary, async retry helper, async-capable tool registry dispatch,
   async-capable lifecycle hook dispatch, async executor core, public async API and
   sync wrappers, then cancellation and concurrent async validation. Slices I.1
-  and I.2 are complete, and Slice I.3 callable-shape metadata for tools is the
-  next recommended slice.
+  through I.3 are complete, and Slice I.4 callable-shape metadata for lifecycle
+  hooks is the next recommended slice.
 - E14 Slice I.1 adds the async OpenAI client boundary: async protocol types,
   `AsyncOpenAIClientAdapter`, `create_default_async_openai_client()`, package
   exports, and fake-client tests while preserving shared request construction and
@@ -252,13 +256,18 @@
   support, preserves async retry attempt counts, exports the helper publicly, and
   verifies that `asyncio.CancelledError` propagates without retry. Focused
   validation passed with 32 tests.
+- E14 Slice I.3 adds async-capable tool dispatch: `RegisteredTool` records
+  handler callable shape, `ToolRegistry` exposes `invoke_tool_async(...)`, async
+  handlers are awaited directly, sync handlers run through `asyncio.to_thread(...)`,
+  and async handler exceptions still become failed `ToolResult` values. Focused
+  validation passed with 39 tests.
 
 ## In Flight
 
-- No source implementation work is currently in flight after E14 Slice I.2
-  implementation commit `f2296e9` and governing-docs commit `bb96b54`.
+- No source implementation work is currently in flight after E14 Slice I.3
+  implementation commit `ff144f5` and governing-docs commit `804e1af`.
 - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12. E14 is
-  in progress; Slice I.3 callable-shape metadata for tools is the next
+  in progress; Slice I.4 callable-shape metadata for lifecycle hooks is the next
   recommended E14 slice.
 
 ## Remaining
