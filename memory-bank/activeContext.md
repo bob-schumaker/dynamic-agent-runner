@@ -2,12 +2,11 @@
 
 ## Current Focus
 
-- E14 async-first execution is in progress after Slice I.3 completed async
-  tool dispatch in commit `ff144f5` and governing docs were refreshed in
-  `804e1af`. Continue E14 with Slice I.4, callable-shape metadata for
-  lifecycle hooks, while preserving the E13 run-correlation contract for
-  `../power-marimo/` and future async model/tool/hook/cancellation/concurrency
-  behavior.
+- E14 async-first execution is in progress after Slice I.4 completed async
+  lifecycle hook dispatch in commit `2b9271b` and governing docs were refreshed
+  in `a204898`. Continue E14 with Slice I.5, async executor core, while
+  preserving the E13 run-correlation contract for `../power-marimo/` and future
+  async model/tool/hook/cancellation/concurrency behavior.
 
 ## Current Status
 
@@ -127,18 +126,23 @@
     handlers, and `asyncio.to_thread(...)` dispatch for sync handlers.
   - Updated governing spec/plan/task documents and the E14 implementation plan for
     Slice I.3 completion evidence in `804e1af`.
+  - Completed E14 Slice I.4 callable-shape metadata for lifecycle hooks in
+    `2b9271b`, adding `RegisteredLifecycleHook`, recorded hook callable-shape
+    metadata, `invoke_lifecycle_hook_async(...)`, package exports, and executor
+    compatibility support that awaits async hooks when no event loop is running.
+  - Updated governing spec/plan/task documents and the E14 implementation plan for
+    Slice I.4 completion evidence in `a204898`.
 - In progress:
-  - Memory-bank checkpoint for E14 Slice I.3 implementation and governing-docs
-    commits.
+  - No source implementation work is currently in flight after E14 Slice I.4
+    implementation commit `2b9271b` and governing-docs commit `a204898`.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
   - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12.
-    E14 is in progress: Slices I.1 through I.3 are complete, and Slice I.4
-    callable-shape metadata for lifecycle hooks is the next recommended
-    implementation slice.
+    E14 is in progress: Slices I.1 through I.4 are complete, and Slice I.5
+    async executor core is the next recommended implementation slice.
 
 ## Important Current Facts
 
@@ -186,9 +190,8 @@
   local OpenAI Python SDK checkout at `/Users/roschuma/Repos/github/openai-python/`
   was inspected for the async adapter boundary. The detailed E14 implementation
   plan is in `cline-tasks/evaluation-follow-up-implementation-plan.md`; Slices
-  I.1 through I.3 are complete in `acca9da`, `f2296e9`, and `ff144f5`, and the
-  next recommended slice is Slice I.4, callable-shape metadata for lifecycle
-  hooks.
+  I.1 through I.4 are complete in `acca9da`, `f2296e9`, `ff144f5`, and
+  `2b9271b`, and the next recommended slice is Slice I.5, async executor core.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -591,9 +594,10 @@
 
 ## Next Steps
 
-- If continuing E14, start with Slice I.2 — async retry helper — from
-  `cline-tasks/evaluation-follow-up-implementation-plan.md`, using the Slice I.1
-  async OpenAI client boundary committed in `acca9da` as the model-call target.
+- If continuing E14, start with Slice I.5 — async executor core — from
+  `cline-tasks/evaluation-follow-up-implementation-plan.md`, using the completed
+  async OpenAI client, retry, tool-dispatch, and lifecycle-hook boundaries as the
+  awaitable collaborator targets.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
