@@ -132,6 +132,10 @@
   `2b9271b feat(hooks): add async lifecycle hook dispatch`.
 - E14 Slice I.4 governing-docs commit exists:
   `a204898 docs(spec): record async lifecycle hook slice`.
+- E14 Slice I.5 async executor core implementation commit exists:
+  `72c28dd feat(executor): add async workflow core`.
+- E14 Slice I.5 governing-docs commit exists:
+  `09a2900 docs(spec): record async executor core slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -250,8 +254,8 @@
   boundary, async retry helper, async-capable tool registry dispatch,
   async-capable lifecycle hook dispatch, async executor core, public async API and
   sync wrappers, then cancellation and concurrent async validation. Slices I.1
-  through I.4 are complete, and Slice I.5 async executor core is the next
-  recommended slice.
+  through I.5 are complete, and Slice I.6 public async API and sync wrappers is
+  the next recommended slice.
 - E14 Slice I.1 adds the async OpenAI client boundary: async protocol types,
   `AsyncOpenAIClientAdapter`, `create_default_async_openai_client()`, package
   exports, and fake-client tests while preserving shared request construction and
@@ -271,13 +275,22 @@
   sync hooks or awaits async hooks, and the current sync executor compatibility
   path awaits async hooks when no event loop is already running. Focused
   validation passed with 39 tests.
+- E14 Slice I.5 adds the async executor core: `execute_workflow_async(...)` now
+  drives an async workflow loop and async node helper paths, awaits async model
+  calls through `AsyncOpenAIClientAdapter`, awaits direct tool dispatch through
+  `ToolRegistry.invoke_tool_async(...)`, awaits lifecycle hooks through
+  `invoke_lifecycle_hook_async(...)`, preserves existing retry, token-budget,
+  prompt-cache, output-contract, tracing, route, and state behavior, and rejects
+  async model adapters from the current synchronous executor path. Targeted
+  validation passed with 101 tests.
 
 ## In Flight
 
-- No source implementation work is currently in flight after E14 Slice I.4
-  implementation commit `2b9271b` and governing-docs commit `a204898`.
+- No source implementation work is currently in flight after E14 Slice I.5
+  implementation commit `72c28dd` and governing-docs commit `09a2900`.
 - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12. E14 is
-  in progress; Slice I.5 async executor core is the next recommended E14 slice.
+  in progress; Slice I.6 public async API and sync wrappers is the next
+  recommended E14 slice.
 
 ## Remaining
 
@@ -344,7 +357,7 @@
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
 - Codex/Cline follow-ups E1, E2, E3, E4, E5, E6, E7, E8, and E13 are
-  implemented. E14 is in progress with Slices I.1 through I.4 complete; remaining
+  implemented. E14 is in progress with Slices I.1 through I.5 complete; remaining
   E14 slices plus E9, E10, E11, and E12 should be introduced through
   package-owned contracts before broad integrations such as MCP, plugins, shell
   hooks, app-server protocols, or multi-provider routing.
@@ -358,9 +371,9 @@
   protocol, registration/setup-time callable-shape inspection for tools and hooks,
   best-effort cancellation propagation, and acceptance coverage for async model
   calls, async tools, async hooks, cancellation, sync wrapper compatibility, and
-  concurrent async runs. Slices I.1 through I.4 completed the async OpenAI
-  adapter, retry, tool-dispatch, and lifecycle-hook boundaries; Slice I.5 should
-  add the async executor core next.
+  concurrent async runs. Slices I.1 through I.5 completed the async OpenAI
+  adapter, retry, tool-dispatch, lifecycle-hook, and async executor-core
+  boundaries; Slice I.6 should add public async API and sync wrapper wiring next.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.

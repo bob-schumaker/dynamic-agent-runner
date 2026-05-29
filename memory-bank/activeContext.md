@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-- E14 async-first execution is in progress after Slice I.4 completed async
-  lifecycle hook dispatch in commit `2b9271b` and governing docs were refreshed
-  in `a204898`. Continue E14 with Slice I.5, async executor core, while
-  preserving the E13 run-correlation contract for `../power-marimo/` and future
-  async model/tool/hook/cancellation/concurrency behavior.
+- E14 async-first execution is in progress after Slice I.5 completed the async
+  executor core in commit `72c28dd` and governing docs were refreshed in
+  `09a2900`. Continue E14 with Slice I.6, public async API and sync wrappers,
+  while preserving the E13 run-correlation contract for `../power-marimo/` and
+  future async model/tool/hook/cancellation/concurrency behavior.
 
 ## Current Status
 
@@ -132,17 +132,24 @@
     compatibility support that awaits async hooks when no event loop is running.
   - Updated governing spec/plan/task documents and the E14 implementation plan for
     Slice I.4 completion evidence in `a204898`.
+  - Completed E14 Slice I.5 async executor core in `72c28dd`, adding
+    `execute_workflow_async(...)`, async workflow/node helper paths, awaited async
+    model calls, awaited direct tool dispatch, awaited lifecycle hook dispatch,
+    and a sync-path guard for async model adapters.
+  - Updated governing spec/plan/task documents and the E14 implementation plan for
+    Slice I.5 completion evidence in `09a2900`.
 - In progress:
-  - No source implementation work is currently in flight after E14 Slice I.4
-    implementation commit `2b9271b` and governing-docs commit `a204898`.
+  - No source implementation work is currently in flight after E14 Slice I.5
+    implementation commit `72c28dd` and governing-docs commit `09a2900`.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
   - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12.
-    E14 is in progress: Slices I.1 through I.4 are complete, and Slice I.5
-    async executor core is the next recommended implementation slice.
+    E14 is in progress: Slices I.1 through I.5 are complete, and Slice I.6
+    public async API and sync wrappers is the next recommended implementation
+    slice.
 
 ## Important Current Facts
 
@@ -190,8 +197,9 @@
   local OpenAI Python SDK checkout at `/Users/roschuma/Repos/github/openai-python/`
   was inspected for the async adapter boundary. The detailed E14 implementation
   plan is in `cline-tasks/evaluation-follow-up-implementation-plan.md`; Slices
-  I.1 through I.4 are complete in `acca9da`, `f2296e9`, `ff144f5`, and
-  `2b9271b`, and the next recommended slice is Slice I.5, async executor core.
+  I.1 through I.5 are complete in `acca9da`, `f2296e9`, `ff144f5`, `2b9271b`,
+  and `72c28dd`, and the next recommended slice is Slice I.6, public async API
+  and sync wrappers.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -594,10 +602,10 @@
 
 ## Next Steps
 
-- If continuing E14, start with Slice I.5 — async executor core — from
-  `cline-tasks/evaluation-follow-up-implementation-plan.md`, using the completed
-  async OpenAI client, retry, tool-dispatch, and lifecycle-hook boundaries as the
-  awaitable collaborator targets.
+- If continuing E14, start with Slice I.6 — public async API and sync wrappers —
+  from `cline-tasks/evaluation-follow-up-implementation-plan.md`, using the
+  completed async OpenAI client, retry, tool-dispatch, lifecycle-hook, and async
+  executor-core boundaries as the awaitable runtime path.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
