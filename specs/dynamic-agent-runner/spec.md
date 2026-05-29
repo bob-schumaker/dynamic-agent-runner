@@ -18,6 +18,8 @@
     `references/examples/agent-pattern-examples.md`
   - observed example artifacts from the agent-development skill's
     `references/examples/` directory
+  - `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
+    as first-customer downstream fit analysis
 
 ## Objective
 
@@ -156,7 +158,9 @@ Acceptance criteria:
 ### FR-1a: Parse runtime manifest sections
 
 The library must parse the required and recommended sections of the generated
-runtime YAML manifest for `format_version: 1`.
+runtime YAML manifest for `format_version: 1`. The current supported manifest
+contract uses a small executable root plus grouped `runtime`, `metadata`, and
+`extensions` maps for optional complexity.
 
 Acceptance criteria:
 
@@ -168,23 +172,39 @@ Acceptance criteria:
   dynamic_agent_design`, when the manifest is loaded, then the library accepts
   the supported package format or rejects unsupported versions and unsupported
   enum values with a clear error.
-- Given manifest metadata such as `package_id`, `name`, `entrypoint`,
-  `packaging`, `patterns_present`, and `execution_policy`, when parsing
-  succeeds, then that metadata is available to workflow preparation.
-- Given `patterns_present` metadata, when parsing succeeds, then the library
+- Given root manifest metadata such as `package_id`, `name`, `description`,
+  `entrypoint`, `mermaid_diagram`, and `packaging`, when parsing succeeds, then
+  that metadata is available to workflow preparation.
+- Given optional root execution collections for `tools`, `skills`,
+  `output_contracts`, and `validation`, when parsing succeeds, then the library
+  preserves the relationships needed for validation and execution. The
+  `output_contracts` section is an array of contract objects.
+- Given grouped `runtime`, `metadata`, and `extensions` maps, when parsing
+  succeeds, then the library preserves those maps and classifies their contents
+  according to the upstream runtime-package contract.
+- Given `runtime.execution_policy` and `runtime.state`, when parsing succeeds,
+  then runtime policy and state metadata are available to validation and workflow
+  preparation without treating older flat root fields as canonical.
+- Given `metadata.patterns_present`, when parsing succeeds, then the library
   preserves documented pattern identifiers even when the current executor does
   not yet implement pattern-specific adapters.
-- Given manifest sections for `state`, `skills`, `tools`, `modes`, `phases`,
-  `roles`, `nodes`, `edges`, `output_contracts`, and `validation`, when parsing
-  succeeds, then the library preserves the relationships needed for validation
-  and execution.
+- Given `metadata.participant_groups`, `metadata.modes`, `metadata.phases`, and
+  `metadata.roles`, when parsing succeeds, then the library preserves the
+  metadata needed to represent multi-agent, debate, council-like,
+  workflow-orchestration, observer, simulation, memory, speech, computer-use,
+  and other documented patterns without inventing new primitive node kinds.
+- Given `extensions` entries, when parsing succeeds, then unsupported extensions
+  with `required: true` fail closed, unsupported extensions with
+  `required: false` are preserved and reported when a report channel exists,
+  supported extensions with invalid `config` shape fail closed, and malformed
+  extension envelopes fail validation.
+- Given legacy pre-customer draft fields such as `execution_policy`, `state`,
+  `patterns_present`, `participant_groups`, `modes`, `phases`, `roles`,
+  `runtime_surface`, `workspace_boundary`, or `completion_contract` at the
+  manifest root, when parsing or validation runs, then the runtime rejects or
+  clearly reports those fields rather than treating them as a compatibility path.
 - Given optional `skill_refs` on `llm_step` nodes, when parsing succeeds, then
   the library preserves which top-level skills are intended to affect each node.
-- Given manifest sections for `participant_groups`, `modes`, `phases`, and
-  `roles`, when parsing succeeds, then the library preserves the metadata needed
-  to represent multi-agent, debate, council-like, workflow-orchestration,
-  observer, simulation, memory, speech, computer-use, and other documented
-  patterns without inventing new primitive node kinds.
 - Given the repository's hello-world pattern fixture packages under
   `tests/fixtures/agent-patterns/`, when fixture validation runs, then every
   documented supported agent-pattern ID has a loadable `agent-design.md`,
@@ -642,6 +662,34 @@ Implementation note: E14 should convert the executor to an async-first internal
 implementation and keep synchronous functions as wrappers over that async core.
 Do not maintain separate sync and async behavior forks.
 
+## First-customer downstream fit: power-marimo
+
+The first identified downstream consumer is `../power-marimo`, an early-stage
+Python project for AI-assisted power engineering workflows with Marimo. The
+analysis in
+`specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
+indicates that `power-marimo` needs a supervised, bounded
+workflow-orchestration agent rather than a free-form autonomous notebook agent.
+
+The first useful `power-marimo` runtime package will likely need:
+
+- Marimo-session tools for server discovery, scratchpad execution, notebook
+  inspection, and cell creation/editing through `marimo._code_mode`
+- domain adapters for room selection, SLD loading, real-time room data retrieval,
+  TETRIS/power analysis, `RoomPowerResultsTable` production, and total-power
+  plotting
+- runtime policy that forbids direct edits to a running notebook `.py` file,
+  treats cell deletion and package installation as approval-sensitive, and keeps
+  tokens out of process listings
+- prepared model input assembled from the user goal, notebook state, SLD
+  summaries, domain tool results, and Marimo-specific gotchas
+- tool provenance that distinguishes built-in tools, Marimo-session tools,
+  domain SDK adapters, runtime overrides, and future MCP or agent-as-tool sources
+
+This downstream fit makes the grouped-manifest simplification work the next
+active implementation direction before MCP, durable session, approval-resume, or
+PyQt-widget automation work.
+
 ## Non-Functional Requirements
 
 - The library must be testable without requiring live model calls in unit tests.
@@ -714,22 +762,28 @@ fields are:
 - `nodes`
 - `edges`
 
-Optional but recommended top-level fields include:
+Optional root execution collections are:
 
-- `name`
-- `description`
-- `mermaid_diagram`
-- `patterns_present`
-- `execution_policy`
-- `state`
-- `skills`
 - `tools`
-- `participant_groups`
-- `modes`
-- `phases`
-- `roles`
+- `skills`
 - `output_contracts`
 - `validation`
+
+Optional grouped maps are:
+
+- `runtime` — executable policy and runtime-owned state a consumer may validate
+  or enforce
+- `metadata` — design and planning metadata a consumer should preserve and expose
+  but not enforce by default
+- `extensions` — optional capability declarations using a common extension
+  envelope
+
+The current `format_version: 1` contract does not require compatibility with
+older pre-customer draft manifests that placed optional runtime policy, design
+metadata, or capability declarations at the manifest root. The runtime should
+reject or clearly report legacy flat fields such as `execution_policy`, `state`,
+`patterns_present`, `participant_groups`, `modes`, `phases`, `roles`,
+`runtime_surface`, `workspace_boundary`, and `completion_contract` at the root.
 
 The example runtime YAML has this high-level shape:
 
@@ -738,22 +792,26 @@ format_version: 1
 package_type: dynamic_agent_design
 package_id: simple-tool-agent
 name: Simple Tool Agent
+description: ...
 entrypoint: analyze_request
 mermaid_diagram: simple-tool-agent-graph.mmd
 packaging: ...
-patterns_present: ...
-execution_policy: ...
-state: ...
-skills: ...
-tools: ...
-participant_groups: []
-modes: ...
-phases: ...
-roles: ...
 nodes: ...
 edges: ...
-output_contracts: ...
+tools: ...
+skills: ...
+output_contracts: []
 validation: ...
+runtime:
+  execution_policy: ...
+  state: ...
+metadata:
+  patterns_present: ...
+  participant_groups: []
+  modes: ...
+  phases: ...
+  roles: ...
+extensions: {}
 ```
 
 Observed node kinds in the example are:
@@ -807,9 +865,9 @@ primitive execution node kinds:
 - `multi-agent-collaboration`
 
 Initial loader and model work must preserve these pattern IDs when they appear
-in `patterns_present`. Initial execution compatibility may remain narrower than
-the full pattern catalog, but parsing must not discard pattern metadata merely
-because concrete adapters for a pattern are not implemented yet.
+in `metadata.patterns_present`. Initial execution compatibility may remain
+narrower than the full pattern catalog, but parsing must not discard pattern
+metadata merely because concrete adapters for a pattern are not implemented yet.
 
 The repository also maintains a hello-world fixture surface for these pattern
 IDs under `tests/fixtures/agent-patterns/`. Each pattern directory is expected to
@@ -831,18 +889,19 @@ the small primitive execution taxonomy:
 - `tool_use_step`
 - `decision_step`
 
-Pattern-specific structure should be represented with metadata and graph fields
-such as `participant_groups`, `roles`, `modes`, `phases`, `state`,
-`execution_policy`, `available_tools`, and control-flow edge kinds including
-`loopback`, `parallel_fanout`, `parallel_join`, `event`, and `capability`.
-Examples:
+Pattern-specific structure should be represented with grouped metadata and graph
+fields such as `metadata.participant_groups`, `metadata.roles`,
+`metadata.modes`, `metadata.phases`, `runtime.state`,
+`runtime.execution_policy`, `available_tools`, and control-flow edge kinds
+including `loopback`, `parallel_fanout`, `parallel_join`, `event`, and
+`capability`. Examples:
 
 - Multi-agent collaboration should use participant groups, role nodes, parallel
   or batched LLM steps, join or synthesis nodes, and decision gates rather than
   a `multi_agent_step` node kind.
-- Memory-augmented agents should use retrieval or memory tools, state metadata,
-  confidence decisions, and synthesis LLM steps rather than a `memory_step` node
-  kind.
+- Memory-augmented agents should use retrieval or memory tools, runtime state
+  metadata, confidence decisions, and synthesis LLM steps rather than a
+  `memory_step` node kind.
 - Computer-use, speech or voice, observer, simulation, and tool-server patterns
   should expose their capabilities through declared tools, policy metadata,
   phases, events, and ordinary primitive nodes until a later format version

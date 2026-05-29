@@ -6,10 +6,14 @@
   implementation and validation slice sequence is complete.
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
-- Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
-  for unrestricted runtime implementation
-- Next active slice: none for E14; continue with a future deferred follow-up only
-  after selecting a new scope.
+- Downstream driver:
+  `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
+  identifies `../power-marimo` as the first-customer fit for the next runtime
+  capabilities.
+- Readiness verdict: ready for the runtime-package simplification follow-up; not
+  ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
+  automation work.
+- Next active slice: S1 — grouped runtime manifest model and validation.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -493,6 +497,30 @@
   missing token-estimator behavior, and provider cached-token telemetry.
 - Validation run: `ruff check src tests && ruff format --check src tests &&
   python -m pytest -q` — pass; 104 tests passed.
+
+## Runtime-package simplification follow-up
+
+Driver reference:
+`specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
+shows that the first downstream candidate needs grouped manifest support,
+preparation seams, and tool provenance before safe Marimo notebook automation.
+
+- [ ] S1. Update manifest models and validation to prefer grouped `runtime`,
+      `metadata`, and `extensions` maps, parse `output_contracts` as an array of
+      contract objects, and reject or clearly report legacy flat optional root
+      fields.
+- [ ] S2. Add an internal `ExecutionPlan` / `PreparedNode` normalization layer so
+      the executor consumes normalized per-node configuration instead of raw
+      manifest dictionaries.
+- [ ] S3. Add a pass-through `prepare_model_input(...)` / `PreparedModelInput`
+      seam before expanding context-management, session pruning, hierarchical
+      prompt injection, or Marimo notebook-state context injection.
+- [ ] S4. Add `ToolOrigin` / `ToolSource` provenance metadata before MCP,
+      Marimo-session, domain-SDK, or agent-as-tool registry sources are
+      implemented.
+- [ ] S5. Draft a narrow `power-marimo` runtime-package fixture or example as a
+      supervised, bounded workflow-orchestration agent using primitive nodes and
+      placeholder Marimo/domain tool definitions.
 
 ## Deferred library-evaluation follow-ups
 
