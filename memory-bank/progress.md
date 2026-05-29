@@ -110,6 +110,8 @@
   `a4fe7e9 docs(spec): record concurrent invocation support`.
 - E14 decision-docs commit exists:
   `56ddb9b docs(spec): record async execution decisions`.
+- E14 OpenAI source-checkout docs commit exists:
+  `4b17a4f docs(spec): record openai async source checkout`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -220,13 +222,15 @@
   reject already-running event loops, use one async-canonical model-client
   protocol, inspect sync/async tool handlers and lifecycle hooks during
   registration/setup, attempt best-effort cancellation propagation, and preserve
-  E13 run correlation for concurrent async runs.
+  E13 run correlation for concurrent async runs. The local OpenAI Python SDK
+  checkout at `/Users/roschuma/Repos/github/openai-python/` is available for E14
+  async adapter and cancellation-behavior inspection.
 
 ## In Flight
 
 - No source implementation work is currently in flight after E13 implementation
-  commit `2e45888`, E13 governing-docs commit `a4fe7e9`, and E14 decision-docs
-  commit `56ddb9b`.
+  commit `2e45888`, E13 governing-docs commit `a4fe7e9`, E14 decision-docs
+  commit `56ddb9b`, and E14 OpenAI source-checkout docs commit `4b17a4f`.
 - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, E12, and E14;
   no next implementation slice has been selected after the E14 documentation
   checkpoint.
@@ -310,7 +314,9 @@
   async-canonical model-client protocol, registration/setup-time callable-shape
   inspection for tools and hooks, best-effort cancellation propagation, and
   acceptance coverage for async model calls, async tools, async hooks,
-  cancellation, sync wrapper compatibility, and concurrent async runs.
+  cancellation, sync wrapper compatibility, and concurrent async runs. E14 should
+  inspect `/Users/roschuma/Repos/github/openai-python/` before finalizing the
+  async OpenAI adapter and cancellation guarantees.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.

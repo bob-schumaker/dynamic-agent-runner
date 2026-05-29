@@ -106,6 +106,8 @@
     `a4fe7e9`.
   - Updated governing spec/plan/task documents for E14 async-first execution
     decisions in `56ddb9b`.
+  - Updated governing spec/plan documents with the local OpenAI Python SDK source
+    checkout for E14 async feasibility inspection in `4b17a4f`.
 - In progress:
   - Memory-bank checkpoint for E14 decisions and governing-docs commit.
 - Not started:
@@ -160,7 +162,10 @@
   true async execution is the first-class runtime path, sync APIs are wrappers
   that reject already-running event loops, model clients are async-canonical,
   tools and hooks are inspected during registration/setup, cancellation is
-  best-effort, and concurrent async runs must preserve E13 run correlation.
+  best-effort, and concurrent async runs must preserve E13 run correlation. The
+  local OpenAI Python SDK checkout at `/Users/roschuma/Repos/github/openai-python/`
+  should be inspected before finalizing the async adapter and cancellation
+  contract.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -379,6 +384,11 @@
   - Cancellation is best-effort and acceptance evidence must cover async model
     calls, async tools, async hooks, cancellation, sync wrapper compatibility, and
     concurrent async runs that preserve E13 run correlation.
+- Governing-docs update from `4b17a4f`:
+  - `specs/dynamic-agent-runner/spec.md` and `plan.md` now record
+    `/Users/roschuma/Repos/github/openai-python/` as the local OpenAI Python SDK
+    checkout to inspect before finalizing E14 async client and cancellation
+    behavior.
 - Evaluation follow-up Slice A implementation from `38929f1`:
   - `src/dynamic_agent_runner/context.py` defines `WorkflowExecutionContext` and
     `RunContext` as a stable execution envelope for a loaded workflow, optional
@@ -476,6 +486,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `4b17a4f docs(spec): record openai async source checkout`
   - `56ddb9b docs(spec): record async execution decisions`
   - `a4fe7e9 docs(spec): record concurrent invocation support`
   - `2e45888 feat(executor): add concurrent run correlation`
@@ -529,7 +540,8 @@
 - Await follow-up direction for the next deferred Codex/Cline follow-up slice.
   Remaining candidates in `specs/dynamic-agent-runner/tasks.md` include E9,
   E10, E11, E12, and E14. If E14 is selected, start from the async-first
-  decisions recorded in `56ddb9b`.
+  decisions recorded in `56ddb9b` and inspect the local OpenAI SDK checkout
+  recorded in `4b17a4f`.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped

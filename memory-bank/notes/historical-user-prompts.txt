@@ -187,3 +187,6 @@ the repo ../power-marimo/ will be a PySide6 (through qtpy) application and our f
 - we will have to find documentation or inspect the openai code to see what's feasible, read `/Users/roschuma/.vaults/Personal/AI/How make async calls to OpenAI’s API in Python  Medium.md` for possible guidance until then
 - use __one async-canonical client protocol__.
 - E14 acceptance should be async model call, async tool, async hook, cancellation, sync wrapper compatibility, and concurrent async run
+---
+
+the repo for the openai python package is locally at /Users/roschuma/Repos/github/openai-python/
