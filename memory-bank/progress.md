@@ -136,6 +136,10 @@
   `72c28dd feat(executor): add async workflow core`.
 - E14 Slice I.5 governing-docs commit exists:
   `09a2900 docs(spec): record async executor core slice`.
+- E14 Slice I.6 public async API implementation commit exists:
+  `4f279ff feat(api): add public async workflow wrappers`.
+- E14 Slice I.6 governing-docs commit exists:
+  `b698de9 docs(spec): record async public api slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -254,8 +258,8 @@
   boundary, async retry helper, async-capable tool registry dispatch,
   async-capable lifecycle hook dispatch, async executor core, public async API and
   sync wrappers, then cancellation and concurrent async validation. Slices I.1
-  through I.5 are complete, and Slice I.6 public async API and sync wrappers is
-  the next recommended slice.
+  through I.6 are complete, and Slice I.7 cancellation and concurrent async
+  validation is the next recommended slice.
 - E14 Slice I.1 adds the async OpenAI client boundary: async protocol types,
   `AsyncOpenAIClientAdapter`, `create_default_async_openai_client()`, package
   exports, and fake-client tests while preserving shared request construction and
@@ -280,16 +284,25 @@
   calls through `AsyncOpenAIClientAdapter`, awaits direct tool dispatch through
   `ToolRegistry.invoke_tool_async(...)`, awaits lifecycle hooks through
   `invoke_lifecycle_hook_async(...)`, preserves existing retry, token-budget,
-  prompt-cache, output-contract, tracing, route, and state behavior, and rejects
-  async model adapters from the current synchronous executor path. Targeted
+  prompt-cache, output-contract, tracing, route, and state behavior, and originally
+  rejected async model adapters from the synchronous executor path. Targeted
   validation passed with 101 tests.
+- E14 Slice I.6 adds public async API and sync wrapper wiring:
+  `run_agent_workflow_async(...)` loads, validates, executes through
+  `execute_workflow_async(...)`, and returns the final result; package root exports
+  `execute_workflow_async(...)` and `run_agent_workflow_async(...)`; sync
+  `execute_workflow(...)` and `run_agent_workflow(...)` wrap the async semantic
+  path through `_run_async_from_sync(...)`; sync wrappers call `asyncio.run(...)`
+  only when no event loop is active and raise `WorkflowExecutionError` from an
+  already-running event loop. Targeted validation passed with 55 tests; broader
+  async-adjacent validation passed with 122 tests.
 
 ## In Flight
 
-- No source implementation work is currently in flight after E14 Slice I.5
-  implementation commit `72c28dd` and governing-docs commit `09a2900`.
+- No source implementation work is currently in flight after E14 Slice I.6
+  implementation commit `4f279ff` and governing-docs commit `b698de9`.
 - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12. E14 is
-  in progress; Slice I.6 public async API and sync wrappers is the next
+  in progress; Slice I.7 cancellation and concurrent async validation is the next
   recommended E14 slice.
 
 ## Remaining
@@ -357,8 +370,8 @@
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
 - Codex/Cline follow-ups E1, E2, E3, E4, E5, E6, E7, E8, and E13 are
-  implemented. E14 is in progress with Slices I.1 through I.5 complete; remaining
-  E14 slices plus E9, E10, E11, and E12 should be introduced through
+  implemented. E14 is in progress with Slices I.1 through I.6 complete; remaining
+  E14 validation plus E9, E10, E11, and E12 should be introduced through
   package-owned contracts before broad integrations such as MCP, plugins, shell
   hooks, app-server protocols, or multi-provider routing.
 - E13 is complete for the current package-owned contract: run correlation,
@@ -371,9 +384,10 @@
   protocol, registration/setup-time callable-shape inspection for tools and hooks,
   best-effort cancellation propagation, and acceptance coverage for async model
   calls, async tools, async hooks, cancellation, sync wrapper compatibility, and
-  concurrent async runs. Slices I.1 through I.5 completed the async OpenAI
-  adapter, retry, tool-dispatch, lifecycle-hook, and async executor-core
-  boundaries; Slice I.6 should add public async API and sync wrapper wiring next.
+  concurrent async runs. Slices I.1 through I.6 completed the async OpenAI
+  adapter, retry, tool-dispatch, lifecycle-hook, async executor-core, and public
+  API/sync-wrapper boundaries; Slice I.7 should validate cancellation and
+  concurrent async run correlation next.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.
