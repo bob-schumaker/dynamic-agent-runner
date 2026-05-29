@@ -23,6 +23,19 @@ class OpenAIClientProtocol(Protocol):
     responses: OpenAIResponsesResource
 
 
+class AsyncOpenAIResponsesResource(Protocol):
+    """Minimal async OpenAI Responses API subset used by the runtime."""
+
+    async def create(self, **kwargs: Any) -> Any:
+        """Create a model response asynchronously."""
+
+
+class AsyncOpenAIClientProtocol(Protocol):
+    """Protocol-compatible async OpenAI client for default and fake clients."""
+
+    responses: AsyncOpenAIResponsesResource
+
+
 @dataclass(frozen=True)
 class OpenAIMessage:
     """Rendered message sent to the model adapter."""
@@ -109,6 +122,32 @@ class OpenAIClientAdapter:
         return normalize_openai_response(raw_response)
 
 
+class AsyncOpenAIClientAdapter:
+    """Async adapter around the official OpenAI Python client."""
+
+    def __init__(self, client: AsyncOpenAIClientProtocol | None = None) -> None:
+        self._client = client
+        self._client_lock = RLock()
+
+    @property
+    def client(self) -> AsyncOpenAIClientProtocol:
+        """Return the injected or lazily constructed async OpenAI client."""
+
+        with self._client_lock:
+            if self._client is None:
+                self._client = create_default_async_openai_client()
+            return self._client
+
+    async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        """Send a request asynchronously and normalize the model response."""
+
+        try:
+            raw_response = await self.client.responses.create(**request.to_kwargs())
+        except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
+            raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+        return normalize_openai_response(raw_response)
+
+
 def create_default_openai_client() -> OpenAIClientProtocol:
     """Construct the official OpenAI client from environment/default config."""
 
@@ -117,6 +156,16 @@ def create_default_openai_client() -> OpenAIClientProtocol:
     except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
         raise ModelExecutionError("official openai package is not available") from exc
     return OpenAI()
+
+
+def create_default_async_openai_client() -> AsyncOpenAIClientProtocol:
+    """Construct the official async OpenAI client from environment/default config."""
+
+    try:
+        from openai import AsyncOpenAI
+    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+        raise ModelExecutionError("official openai package is not available") from exc
+    return AsyncOpenAI()
 
 
 def build_openai_request(

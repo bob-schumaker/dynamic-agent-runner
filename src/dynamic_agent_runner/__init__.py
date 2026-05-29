@@ -15,6 +15,9 @@ from dynamic_agent_runner.prompt_cache import (
     prompt_cache_policy_from_value,
 )
 from dynamic_agent_runner.openai_client import (
+    AsyncOpenAIClientAdapter,
+    AsyncOpenAIClientProtocol,
+    AsyncOpenAIResponsesResource,
     ModelResponse,
     ModelToolCall,
     OpenAIClientAdapter,
@@ -22,6 +25,7 @@ from dynamic_agent_runner.openai_client import (
     OpenAIMessage,
     OpenAIModelRequest,
     build_openai_request,
+    create_default_async_openai_client,
     create_default_openai_client,
     normalize_openai_response,
 )
@@ -75,6 +79,9 @@ from dynamic_agent_runner.errors import (
 
 __all__ = [
     "ArtifactLoadError",
+    "AsyncOpenAIClientAdapter",
+    "AsyncOpenAIClientProtocol",
+    "AsyncOpenAIResponsesResource",
     "DynamicAgentRunnerError",
     "ModelExecutionError",
     "ModelResponse",
@@ -96,6 +103,7 @@ __all__ = [
     "WorkflowTracer",
     "build_openai_request",
     "build_prompt_cache_observation",
+    "create_default_async_openai_client",
     "create_default_openai_client",
     "execute_workflow",
     "normalize_openai_response",

@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner.openai_client import (
+    AsyncOpenAIClientAdapter,
     OpenAIClientAdapter,
     OpenAIMessage,
     build_openai_request,
+    create_default_async_openai_client,
     normalize_openai_response,
 )
 from dynamic_agent_runner.registry import openai_tool_schema
@@ -30,6 +36,24 @@ class FakeResponses:
 
 class FakeClient:
     def __init__(self, responses: FakeResponses):
+        self.responses = responses
+
+
+class FakeAsyncResponses:
+    def __init__(self, response: object | None = None, error: Exception | None = None):
+        self.response = response or {"id": "resp_async", "output_text": "hello async"}
+        self.error = error
+        self.calls: list[dict[str, object]] = []
+
+    async def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        if self.error is not None:
+            raise self.error
+        return self.response
+
+
+class FakeAsyncClient:
+    def __init__(self, responses: FakeAsyncResponses):
         self.responses = responses
 
 
@@ -88,6 +112,26 @@ def test_adapter_uses_injected_client_and_normalizes_response() -> None:
     assert result.tool_calls == ()
 
 
+def test_async_adapter_awaits_injected_client_and_normalizes_response() -> None:
+    responses = FakeAsyncResponses(
+        {"id": "resp_async_123", "output_text": "async final"}
+    )
+    adapter = AsyncOpenAIClientAdapter(FakeAsyncClient(responses))
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello async")],
+    )
+
+    result = asyncio.run(adapter.create_response(request))
+
+    assert responses.calls == [
+        {"model": "gpt-test", "input": [{"role": "user", "content": "Hello async"}]}
+    ]
+    assert result.response_id == "resp_async_123"
+    assert result.content == "async final"
+    assert result.tool_calls == ()
+
+
 def test_normalize_openai_response_extracts_message_text_and_tool_calls() -> None:
     raw_response = {
         "id": "resp_tools",
@@ -127,6 +171,38 @@ def test_adapter_wraps_model_failures() -> None:
 
     with pytest.raises(ModelExecutionError, match="OpenAI model request failed"):
         adapter.create_response(request)
+
+
+def test_async_adapter_wraps_model_failures() -> None:
+    responses = FakeAsyncResponses(error=RuntimeError("network unavailable"))
+    adapter = AsyncOpenAIClientAdapter(FakeAsyncClient(responses))
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    with pytest.raises(ModelExecutionError, match="OpenAI model request failed"):
+        asyncio.run(adapter.create_response(request))
+
+
+def test_create_default_async_openai_client_uses_official_async_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created: list[object] = []
+
+    class FakeOfficialAsyncOpenAI:
+        def __init__(self) -> None:
+            created.append(self)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "openai",
+        SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
+    )
+
+    client = create_default_async_openai_client()
+
+    assert client is created[0]
 
 
 @pytest.mark.parametrize(
