@@ -65,12 +65,14 @@ def test_execute_workflow_emits_success_trace_events_in_order() -> None:
             "package_id": "trace-success-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {
-                "model": "gpt-test",
-                "token_budget": {
-                    "model": "gpt-4o-mini",
-                    "max_prompt_tokens": 1000,
-                },
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "token_budget": {
+                        "model": "gpt-4o-mini",
+                        "max_prompt_tokens": 1000,
+                    },
+                }
             },
             "nodes": [
                 {
@@ -267,7 +269,7 @@ def test_execute_workflow_traces_model_failure() -> None:
             "package_id": "trace-model-failure-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -309,12 +311,14 @@ def test_execute_workflow_traces_retry_attempt_count() -> None:
             "package_id": "trace-retry-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {
-                "model": "gpt-test",
-                "model_retry_policy": {
-                    "max_attempts": 3,
-                    "retry_on": ["model_error"],
-                },
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "model_retry_policy": {
+                        "max_attempts": 3,
+                        "retry_on": ["model_error"],
+                    },
+                }
             },
             "nodes": [
                 {

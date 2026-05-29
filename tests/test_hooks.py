@@ -74,7 +74,7 @@ def test_execute_workflow_invokes_lifecycle_hooks_in_order() -> None:
             "package_id": "hook-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -209,7 +209,7 @@ def test_run_agent_workflow_accepts_lifecycle_hooks() -> None:
             "package_id": "api-hook-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -243,7 +243,7 @@ def test_lifecycle_hook_failures_abort_execution() -> None:
             "package_id": "hook-failure-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -362,7 +362,7 @@ def test_execute_workflow_awaits_async_lifecycle_hooks() -> None:
             "package_id": "async-hook-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",

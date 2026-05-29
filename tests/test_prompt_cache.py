@@ -47,23 +47,25 @@ def cache_manifest(**prompt_cache: object) -> dict[str, object]:
         "package_id": "cache-agent",
         "entrypoint": "answer",
         "packaging": {"mode": "hybrid_bundle"},
-        "execution_policy": {
-            "model": "gpt-test",
-            "prompt_cache": {
-                "enabled": True,
-                "strategy": "stable_prefix",
-                "min_prefix_tokens": 1,
-                "prefix_parts": [
-                    "system",
-                    "developer",
-                    "skill_instructions",
-                    "x-custom",
-                ],
-                "variable_parts": ["user_prompt", "run_state"],
-                "cache_key_hint": "package_id",
-                "provider_hints": {"openai": {"retention": "auto"}},
-                **prompt_cache,
-            },
+        "runtime": {
+            "execution_policy": {
+                "model": "gpt-test",
+                "prompt_cache": {
+                    "enabled": True,
+                    "strategy": "stable_prefix",
+                    "min_prefix_tokens": 1,
+                    "prefix_parts": [
+                        "system",
+                        "developer",
+                        "skill_instructions",
+                        "x-custom",
+                    ],
+                    "variable_parts": ["user_prompt", "run_state"],
+                    "cache_key_hint": "package_id",
+                    "provider_hints": {"openai": {"retention": "auto"}},
+                    **prompt_cache,
+                },
+            }
         },
         "skills": [
             {

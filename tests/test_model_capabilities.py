@@ -55,15 +55,17 @@ def test_runtime_manifest_preserves_model_capabilities_metadata() -> None:
             "package_id": "capabilities-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {
-                "model": "gpt-test",
-                "model_capabilities": {
-                    "context_window": 128000,
-                    "structured_output": True,
-                    "reasoning": True,
-                    "modalities": ["text"],
-                    "parallel_tool_calls": False,
-                },
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "model_capabilities": {
+                        "context_window": 128000,
+                        "structured_output": True,
+                        "reasoning": True,
+                        "modalities": ["text"],
+                        "parallel_tool_calls": False,
+                    },
+                }
             },
             "nodes": [
                 {
@@ -103,15 +105,17 @@ def test_model_capabilities_do_not_leak_into_openai_request() -> None:
                 "package_id": "capability-request-agent",
                 "entrypoint": "answer",
                 "packaging": {"mode": "hybrid_bundle"},
-                "execution_policy": {
-                    "model": "gpt-test",
-                    "model_capabilities": {
-                        "context_window": 128000,
-                        "structured_output": True,
-                        "reasoning": True,
-                        "modalities": ["text"],
-                        "parallel_tool_calls": False,
-                    },
+                "runtime": {
+                    "execution_policy": {
+                        "model": "gpt-test",
+                        "model_capabilities": {
+                            "context_window": 128000,
+                            "structured_output": True,
+                            "reasoning": True,
+                            "modalities": ["text"],
+                            "parallel_tool_calls": False,
+                        },
+                    }
                 },
                 "nodes": [
                     {

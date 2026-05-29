@@ -22,6 +22,19 @@ SUPPORTED_AGENT_PATTERNS = (
 
 PRIMITIVE_NODE_KINDS = ("llm_step", "tool_use_step", "decision_step")
 
+LEGACY_RUNTIME_ROOT_FIELDS = (
+    "execution_policy",
+    "state",
+    "patterns_present",
+    "participant_groups",
+    "modes",
+    "phases",
+    "roles",
+    "runtime_surface",
+    "workspace_boundary",
+    "completion_contract",
+)
+
 
 def _copy_mapping(value: Mapping[str, Any] | None) -> dict[str, Any]:
     """Return a shallow dict copy for optional mapping fields."""
@@ -233,6 +246,10 @@ class RuntimeManifest:
     entrypoint: str | None = None
     mermaid_diagram: str | None = None
     packaging: Mapping[str, Any] = field(default_factory=dict)
+    runtime: Mapping[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+    extensions: Mapping[str, Any] = field(default_factory=dict)
+    legacy_root_fields: tuple[str, ...] = ()
     patterns_present: tuple[str, ...] = ()
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
     model_capabilities: ModelCapabilities | None = None
@@ -253,7 +270,10 @@ class RuntimeManifest:
         """Build a runtime manifest while preserving structural metadata."""
 
         raw = dict(value)
-        execution_policy = _copy_mapping(_as_mapping(raw.get("execution_policy")))
+        runtime = _copy_mapping(_as_mapping(raw.get("runtime")))
+        metadata = _copy_mapping(_as_mapping(raw.get("metadata")))
+        extensions = _copy_mapping(_as_mapping(raw.get("extensions")))
+        execution_policy = _copy_mapping(_as_mapping(runtime.get("execution_policy")))
         return cls(
             raw=raw,
             format_version=raw.get("format_version"),
@@ -263,21 +283,31 @@ class RuntimeManifest:
             entrypoint=_optional_str(raw.get("entrypoint")),
             mermaid_diagram=_optional_str(raw.get("mermaid_diagram")),
             packaging=_copy_mapping(_as_mapping(raw.get("packaging"))),
+            runtime=runtime,
+            metadata=metadata,
+            extensions=extensions,
+            legacy_root_fields=tuple(
+                field_name
+                for field_name in LEGACY_RUNTIME_ROOT_FIELDS
+                if field_name in raw
+            ),
             patterns_present=tuple(
-                str(pattern) for pattern in _copy_list(raw.get("patterns_present"))
+                str(pattern) for pattern in _copy_list(metadata.get("patterns_present"))
             ),
             execution_policy=execution_policy,
             model_capabilities=_model_capabilities_from_policy(execution_policy),
-            state=_copy_mapping(_as_mapping(raw.get("state"))),
+            state=_copy_mapping(_as_mapping(runtime.get("state"))),
             skills=tuple(_manifest_objects(raw.get("skills"))),
             tools=tuple(_tool_definitions(raw.get("tools"))),
-            participant_groups=tuple(_manifest_objects(raw.get("participant_groups"))),
-            modes=tuple(_manifest_objects(raw.get("modes"))),
-            phases=tuple(_manifest_objects(raw.get("phases"))),
-            roles=tuple(_manifest_objects(raw.get("roles"))),
+            participant_groups=tuple(
+                _manifest_objects(metadata.get("participant_groups"))
+            ),
+            modes=tuple(_manifest_objects(metadata.get("modes"))),
+            phases=tuple(_manifest_objects(metadata.get("phases"))),
+            roles=tuple(_manifest_objects(metadata.get("roles"))),
             nodes=tuple(_runtime_nodes(raw.get("nodes"))),
             edges=tuple(_runtime_edges(raw.get("edges"))),
-            output_contracts=_copy_mapping(_as_mapping(raw.get("output_contracts"))),
+            output_contracts=_output_contracts(raw.get("output_contracts")),
             validation=_copy_mapping(_as_mapping(raw.get("validation"))),
         )
 
@@ -509,3 +539,12 @@ def _runtime_edges(value: object) -> list[RuntimeEdge]:
 
 def _tool_definitions(value: object) -> list[ToolDefinition]:
     return [ToolDefinition.from_mapping(item) for item in _mapping_items(value)]
+
+
+def _output_contracts(value: object) -> dict[str, Any]:
+    contracts: dict[str, Any] = {}
+    for item in _mapping_items(value):
+        contract_id = item.get("id") or item.get("name")
+        if contract_id is not None:
+            contracts[str(contract_id)] = dict(item)
+    return contracts

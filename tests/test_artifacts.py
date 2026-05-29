@@ -25,14 +25,32 @@ entrypoint: analyze_request
 mermaid_diagram: agent-graph.mmd
 packaging:
   mode: hybrid_bundle
-patterns_present:
-  - multi-agent-collaboration
-  - memory-augmented-agent
-execution_policy:
-  autonomy_level: assistive
-state:
-  artifacts:
-    - id: evidence_bundle
+runtime:
+  execution_policy:
+    autonomy_level: assistive
+  state:
+    artifacts:
+      - id: evidence_bundle
+metadata:
+  patterns_present:
+    - multi-agent-collaboration
+    - memory-augmented-agent
+  participant_groups:
+    - id: review_panel
+      name: Review panel
+  modes:
+    - id: quick_review
+  phases:
+    - id: fanout
+      phase_kind: parallel_fanout
+  roles:
+    - id: architect
+      label: Architect
+extensions:
+  optional_demo:
+    required: false
+    config:
+      note: preserved
 skills:
   - id: agent-development
     source_type: repo_skill
@@ -42,17 +60,6 @@ tools:
     adapter: runtime.retrieve_memory
     side_effect: read
     approval_required: no
-participant_groups:
-  - id: review_panel
-    name: Review panel
-modes:
-  - id: quick_review
-phases:
-  - id: fanout
-    phase_kind: parallel_fanout
-roles:
-  - id: architect
-    label: Architect
 nodes:
   - id: analyze_request
     kind: llm_step
@@ -75,7 +82,7 @@ edges:
     target: route_result
     edge_kind: sequential
 output_contracts:
-  final_answer:
+  - id: final_answer
     type: object
 validation:
   required_checks:
@@ -139,6 +146,16 @@ def test_load_runtime_manifest_from_raw_yaml_preserves_pattern_metadata() -> Non
     assert manifest.nodes[1].tool_id == "retrieve_memory"
     assert manifest.nodes[2].decision_subtype == "llm_route"
     assert manifest.edges[0].edge_kind == "sequential"
+    assert manifest.runtime["execution_policy"] == {"autonomy_level": "assistive"}
+    assert manifest.metadata["patterns_present"] == [
+        "multi-agent-collaboration",
+        "memory-augmented-agent",
+    ]
+    assert manifest.extensions["optional_demo"]["config"] == {"note": "preserved"}
+    assert manifest.output_contracts["final_answer"] == {
+        "id": "final_answer",
+        "type": "object",
+    }
 
 
 def test_load_runtime_manifest_preserves_node_skill_refs() -> None:
@@ -215,7 +232,7 @@ def test_load_runtime_manifest_from_parsed_object() -> None:
             "package_id": "parsed-agent",
             "entrypoint": "start",
             "packaging": {"mode": "hybrid_bundle"},
-            "patterns_present": ["basic-reasoning-agent"],
+            "metadata": {"patterns_present": ["basic-reasoning-agent"]},
             "nodes": [{"id": "start", "kind": "llm_step"}],
             "edges": [],
         }
@@ -224,6 +241,25 @@ def test_load_runtime_manifest_from_parsed_object() -> None:
     assert manifest.package_id == "parsed-agent"
     assert manifest.patterns_present == ("basic-reasoning-agent",)
     assert manifest.nodes[0].id == "start"
+
+
+def test_load_runtime_manifest_rejects_root_legacy_optional_fields() -> None:
+    """Pre-customer flat optional root fields are no longer compatibility paths."""
+
+    manifest = load_runtime_manifest(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "legacy-agent",
+            "entrypoint": "start",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [{"id": "start", "kind": "llm_step"}],
+            "edges": [],
+        }
+    )
+
+    assert manifest.legacy_root_fields == ("execution_policy",)
 
 
 def test_load_agent_workflow_resolves_mermaid_reference(tmp_path: Path) -> None:

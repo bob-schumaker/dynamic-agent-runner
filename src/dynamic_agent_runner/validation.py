@@ -119,6 +119,8 @@ def validate_runtime_manifest(
     errors: list[str] = []
     _extend(errors, _missing_runtime_fields(manifest))
     _extend(errors, _unsupported_runtime_enums(manifest))
+    _extend(errors, _legacy_root_field_errors(manifest))
+    _extend(errors, _extension_errors(manifest))
     _extend(errors, _node_id_errors(manifest.nodes))
     _extend(errors, _edge_reference_errors(manifest))
     _extend(errors, _tool_definition_errors(manifest.tools, "runtime manifest tool"))
@@ -305,6 +307,37 @@ def _unsupported_runtime_enums(manifest: RuntimeManifest) -> list[str]:
                 f"edge {edge.source!r}->{edge.target!r} has unsupported "
                 f"edge_kind {edge.edge_kind!r}"
             )
+    return errors
+
+
+def _legacy_root_field_errors(manifest: RuntimeManifest) -> list[str]:
+    return [
+        f"legacy root field {field_name!r} must move into grouped runtime "
+        "or metadata sections"
+        for field_name in manifest.legacy_root_fields
+    ]
+
+
+def _extension_errors(manifest: RuntimeManifest) -> list[str]:
+    errors: list[str] = []
+    for extension_id, extension in manifest.extensions.items():
+        if not isinstance(extension, Mapping):
+            errors.append(f"malformed extension {extension_id!r}: expected mapping")
+            continue
+        required = extension.get("required", False)
+        if not isinstance(required, bool):
+            errors.append(
+                f"malformed extension {extension_id!r}: required must be boolean"
+            )
+            continue
+        config = extension.get("config", {})
+        if not isinstance(config, Mapping):
+            errors.append(
+                f"malformed extension {extension_id!r}: config must be mapping"
+            )
+            continue
+        if required:
+            errors.append(f"required unsupported extension {extension_id!r}")
     return errors
 
 

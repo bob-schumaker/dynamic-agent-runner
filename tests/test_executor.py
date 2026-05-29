@@ -153,7 +153,7 @@ def test_execute_workflow_async_runs_async_model_adapter() -> None:
             "package_id": "async-model-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -214,7 +214,7 @@ def test_execute_workflow_async_awaits_async_lifecycle_hooks() -> None:
             "package_id": "async-hook-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -260,7 +260,7 @@ def test_execute_workflow_runs_llm_tool_and_final_llm_steps() -> None:
             "package_id": "executor-agent",
             "entrypoint": "analyze",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "analyze",
@@ -324,7 +324,7 @@ def test_execute_workflow_uses_model_facing_tool_output_in_context_and_trace() -
             "package_id": "tool-facet-agent",
             "entrypoint": "lookup",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "lookup",
@@ -404,7 +404,7 @@ def test_execute_workflow_accepts_execution_context() -> None:
             "package_id": "context-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -432,7 +432,7 @@ def test_execute_workflow_rejects_context_with_runtime_kwargs() -> None:
             "package_id": "context-conflict-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -461,7 +461,7 @@ def test_execute_workflow_routes_llm_decision_branch() -> None:
             "package_id": "branch-agent",
             "entrypoint": "choose",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "choose",
@@ -523,7 +523,7 @@ def test_execute_workflow_rejects_malformed_route_output() -> None:
             "package_id": "route-malformed-agent",
             "entrypoint": "choose",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "choose",
@@ -559,7 +559,7 @@ def test_execute_workflow_rejects_route_outside_allowed_paths() -> None:
             "package_id": "route-unknown-agent",
             "entrypoint": "choose",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "choose",
@@ -593,7 +593,7 @@ def test_execute_workflow_validates_llm_output_contract_fields() -> None:
             "package_id": "contract-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -605,9 +605,12 @@ def test_execute_workflow_validates_llm_output_contract_fields() -> None:
                 }
             ],
             "edges": [],
-            "output_contracts": {
-                "answer_contract": {"required_fields": ["message", "confidence"]}
-            },
+            "output_contracts": [
+                {
+                    "id": "answer_contract",
+                    "required_fields": ["message", "confidence"],
+                }
+            ],
         }
     )
     adapter = make_adapter(
@@ -632,7 +635,7 @@ def test_execute_workflow_rejects_missing_output_contract_fields() -> None:
             "package_id": "contract-missing-field-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -642,9 +645,12 @@ def test_execute_workflow_rejects_missing_output_contract_fields() -> None:
                 }
             ],
             "edges": [],
-            "output_contracts": {
-                "answer_contract": {"required_fields": ["message", "confidence"]}
-            },
+            "output_contracts": [
+                {
+                    "id": "answer_contract",
+                    "required_fields": ["message", "confidence"],
+                }
+            ],
         }
     )
     adapter = make_adapter([{"id": "resp", "output_text": '{"message":"done"}'}])
@@ -661,7 +667,7 @@ def test_execute_workflow_rejects_unstructured_contract_output() -> None:
             "package_id": "contract-unstructured-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -671,9 +677,12 @@ def test_execute_workflow_rejects_unstructured_contract_output() -> None:
                 }
             ],
             "edges": [],
-            "output_contracts": {
-                "answer_contract": {"required_fields": ["message", "confidence"]}
-            },
+            "output_contracts": [
+                {
+                    "id": "answer_contract",
+                    "required_fields": ["message", "confidence"],
+                }
+            ],
         }
     )
     adapter = make_adapter([{"id": "resp", "output_text": "plain answer"}])
@@ -690,7 +699,7 @@ def test_execute_workflow_rejects_unknown_output_contract_ref() -> None:
             "package_id": "contract-unknown-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -700,7 +709,7 @@ def test_execute_workflow_rejects_unknown_output_contract_ref() -> None:
                 }
             ],
             "edges": [],
-            "output_contracts": {},
+            "output_contracts": [],
         }
     )
     adapter = make_adapter([{"id": "resp", "output_text": "plain answer"}])
@@ -717,12 +726,14 @@ def test_execute_workflow_records_token_usage_when_budget_enabled() -> None:
             "package_id": "token-budget-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {
-                "model": "gpt-test",
-                "token_budget": {
-                    "model": "gpt-4o-mini",
-                    "max_prompt_tokens": 1000,
-                },
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "token_budget": {
+                        "model": "gpt-4o-mini",
+                        "max_prompt_tokens": 1000,
+                    },
+                }
             },
             "nodes": [
                 {
@@ -757,7 +768,7 @@ def test_execute_workflow_applies_prompt_and_skill_overrides() -> None:
         "package_id": "behavior-override-agent",
         "entrypoint": "draft",
         "packaging": {"mode": "hybrid_bundle"},
-        "execution_policy": {"model": "gpt-test"},
+        "runtime": {"execution_policy": {"model": "gpt-test"}},
         "nodes": [
             {
                 "id": "draft",
@@ -832,7 +843,7 @@ def test_execute_workflow_applies_skill_only_remove_and_node_isolation() -> None
         "package_id": "skill-scope-agent",
         "entrypoint": "first",
         "packaging": {"mode": "hybrid_bundle"},
-        "execution_policy": {"model": "gpt-test"},
+        "runtime": {"execution_policy": {"model": "gpt-test"}},
         "nodes": [
             {
                 "id": "first",
@@ -895,7 +906,7 @@ def test_execute_workflow_uses_overridden_output_schema_ref() -> None:
         "package_id": "schema-override-agent",
         "entrypoint": "answer",
         "packaging": {"mode": "hybrid_bundle"},
-        "execution_policy": {"model": "gpt-test"},
+        "runtime": {"execution_policy": {"model": "gpt-test"}},
         "nodes": [
             {
                 "id": "answer",
@@ -904,9 +915,9 @@ def test_execute_workflow_uses_overridden_output_schema_ref() -> None:
             }
         ],
         "edges": [],
-        "output_contracts": {
-            "strict_answer": {"required_fields": ["message", "confidence"]}
-        },
+        "output_contracts": [
+            {"id": "strict_answer", "required_fields": ["message", "confidence"]}
+        ],
     }
     overrides = {
         "format_version": 1,
@@ -934,7 +945,7 @@ def test_execute_workflow_fails_when_prompt_exceeds_token_budget() -> None:
             "package_id": "token-budget-failure-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -965,7 +976,7 @@ def test_execute_workflow_skips_token_usage_when_budget_disabled() -> None:
             "package_id": "token-budget-disabled-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -1019,7 +1030,7 @@ def test_run_agent_workflow_returns_final_result() -> None:
         "package_id": "api-agent",
         "entrypoint": "answer",
         "packaging": {"mode": "hybrid_bundle"},
-        "execution_policy": {"model": "gpt-test"},
+        "runtime": {"execution_policy": {"model": "gpt-test"}},
         "nodes": [
             {
                 "id": "answer",
@@ -1046,7 +1057,7 @@ def test_run_agent_workflow_async_returns_final_result() -> None:
         "package_id": "async-api-agent",
         "entrypoint": "answer",
         "packaging": {"mode": "hybrid_bundle"},
-        "execution_policy": {"model": "gpt-test"},
+        "runtime": {"execution_policy": {"model": "gpt-test"}},
         "nodes": [
             {
                 "id": "answer",
@@ -1078,7 +1089,7 @@ def test_execute_workflow_sync_wrapper_accepts_async_model_adapter() -> None:
             "package_id": "sync-wrapper-async-adapter-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -1107,7 +1118,7 @@ def test_execute_workflow_sync_wrapper_rejects_running_event_loop() -> None:
             "package_id": "sync-wrapper-loop-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -1137,7 +1148,7 @@ def test_run_agent_workflow_sync_wrapper_rejects_running_event_loop() -> None:
         "package_id": "api-sync-wrapper-loop-agent",
         "entrypoint": "answer",
         "packaging": {"mode": "hybrid_bundle"},
-        "execution_policy": {"model": "gpt-test"},
+        "runtime": {"execution_policy": {"model": "gpt-test"}},
         "nodes": [
             {
                 "id": "answer",
@@ -1167,7 +1178,7 @@ def test_run_agent_workflow_accepts_execution_context() -> None:
             "package_id": "api-context-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -1194,7 +1205,7 @@ def test_run_agent_workflow_rejects_context_with_artifact_kwargs() -> None:
             "package_id": "api-context-conflict-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -1223,7 +1234,7 @@ def test_execute_workflow_fails_on_step_limit() -> None:
             "package_id": "loop-agent",
             "entrypoint": "one",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {"id": "one", "kind": "llm_step", "prompt": {"user_template": "Loop"}}
             ],
@@ -1246,12 +1257,14 @@ def test_execute_workflow_retries_retryable_model_failures() -> None:
             "package_id": "model-retry-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {
-                "model": "gpt-test",
-                "model_retry_policy": {
-                    "max_attempts": 3,
-                    "retry_on": ["model_error"],
-                },
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "model_retry_policy": {
+                        "max_attempts": 3,
+                        "retry_on": ["model_error"],
+                    },
+                }
             },
             "nodes": [
                 {
@@ -1283,7 +1296,7 @@ def test_execute_workflow_does_not_retry_model_by_default() -> None:
             "package_id": "model-no-retry-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -1312,9 +1325,11 @@ def test_execute_workflow_does_not_retry_non_retryable_model_failures() -> None:
             "package_id": "model-non-retry-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {
-                "model": "gpt-test",
-                "retry_policy": {"max_attempts": 3, "retry_on": ["tool_failure"]},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "retry_policy": {"max_attempts": 3, "retry_on": ["tool_failure"]},
+                }
             },
             "nodes": [
                 {
@@ -1344,9 +1359,11 @@ def test_execute_workflow_records_model_retry_exhaustion() -> None:
             "package_id": "model-retry-exhaustion-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {
-                "model": "gpt-test",
-                "retry_policy": {"max_attempts": 2, "retry_on": ["exception"]},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "retry_policy": {"max_attempts": 2, "retry_on": ["exception"]},
+                }
             },
             "nodes": [
                 {

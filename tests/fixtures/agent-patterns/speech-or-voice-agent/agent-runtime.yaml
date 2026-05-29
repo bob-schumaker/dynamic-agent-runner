@@ -5,80 +5,43 @@ name: Hello World Speech Or Voice Agent
 description: Hello-world test resource for the Speech Or Voice Agent pattern.
 entrypoint: transcribe_hello
 mermaid_diagram: agent-graph.mmd
-
 packaging:
   mode: hybrid_bundle
   skill_bundle_dir: skill-bundle
-
-patterns_present:
-  - speech-or-voice-agent
-
-execution_policy:
-  autonomy_level: assistive
-  allowed_execution_modes:
+runtime:
+  execution_policy:
+    autonomy_level: assistive
+    allowed_execution_modes:
     - sequential_fallback
-  external_backend_allowed: no
-  max_iterations: 3
-  timeout: runtime_default
-  approval_required_for:
+    external_backend_allowed: false
+    max_iterations: 3
+    timeout: runtime_default
+    approval_required_for:
     - live write or mutation
-  forbidden_actions:
+    forbidden_actions:
     - store secrets in prompts or logs
-  model: gpt-test
-
-state:
-  artifacts:
+    model: gpt-test
+  state:
+    artifacts:
     - id: user_request
       description: Original hello-world request.
       source: user
     - id: hello_message
       description: Final hello-world response.
       source: llm
-  mutable_fields:
+    mutable_fields:
     - hello_message
-
-skills:
-  - id: agent-development
-    label: Agent development skill
-    source_type: repo_skill
-    source_path: skills/agent-development-skill/SKILL.md
-    packaging_mode: referenced_only
-    notes: Provides agent pattern vocabulary for this fixture.
-
-tools:
-  - id: speech_to_text_hello
-    label: Speech To Text Hello
-    description_for_llm: |
-      Hello-world fixture tool for the speech_to_text_hello capability.
-    adapter: fixtures.speech_to_text_hello
-    input_schema:
-      type: object
-      properties:
-        query:
-          type: string
-      required:
-        - query
-    output_schema:
-      type: object
-      properties:
-        message:
-          type: string
-    side_effect: read
-    approval_required: no
-    timeout: runtime_default
-    retry_policy: none
-    failure_behavior: fallback
-
-participant_groups: []
-
-modes:
+metadata:
+  patterns_present:
+  - speech-or-voice-agent
+  participant_groups: []
+  modes:
   - id: default
     description: Hello-world fixture mode for Speech Or Voice Agent.
     enabled_phases:
-      - hello
+    - hello
     batching_allowed: false
-
-phases:
+  phases:
   - id: hello
     label: Hello phase
     phase_kind: preparation
@@ -86,47 +49,76 @@ phases:
     participant_group: null
     peer_visibility: none
     enabled_when: always
-
-roles:
+  roles:
   - id: hello_designer
     label: Hello designer
+extensions: {}
+skills:
+- id: agent-development
+  label: Agent development skill
+  source_type: repo_skill
+  source_path: skills/agent-development-skill/SKILL.md
+  packaging_mode: referenced_only
+  notes: Provides agent pattern vocabulary for this fixture.
+tools:
+- id: speech_to_text_hello
+  label: Speech To Text Hello
+  description_for_llm: 'Hello-world fixture tool for the speech_to_text_hello capability.
 
+    '
+  adapter: fixtures.speech_to_text_hello
+  input_schema:
+    type: object
+    properties:
+      query:
+        type: string
+    required:
+    - query
+  output_schema:
+    type: object
+    properties:
+      message:
+        type: string
+  side_effect: read
+  approval_required: false
+  timeout: runtime_default
+  retry_policy: none
+  failure_behavior: fallback
 nodes:
-  - id: transcribe_hello
-    kind: tool_use_step
-    label: Transcribe hello
-    tool_id: speech_to_text_hello
-    inputs:
-      query: hello audio
-    failure_behavior: fallback
-    outputs:
-      state_key: transcribe_hello_result
-  - id: summarize_transcript
-    kind: llm_step
-    label: Summarize transcript
-    model: gpt-test
-    prompt:
-      system: |
-        You summarize speech transcripts.
-      user_template: |
-        Say hello from transcript: {transcribe_hello}
-      input_vars:
-        - prompt
-      output_schema_ref: hello_message
+- id: transcribe_hello
+  kind: tool_use_step
+  label: Transcribe hello
+  tool_id: speech_to_text_hello
+  inputs:
+    query: hello audio
+  failure_behavior: fallback
+  outputs:
+    state_key: transcribe_hello_result
+- id: summarize_transcript
+  kind: llm_step
+  label: Summarize transcript
+  model: gpt-test
+  prompt:
+    system: 'You summarize speech transcripts.
 
+      '
+    user_template: 'Say hello from transcript: {transcribe_hello}
+
+      '
+    input_vars:
+    - prompt
+    output_schema_ref: hello_message
 edges:
-  - source: transcribe_hello
-    target: summarize_transcript
-    edge_kind: sequential
-
+- source: transcribe_hello
+  target: summarize_transcript
+  edge_kind: sequential
 output_contracts:
-  hello_message:
-    required_fields:
-      - message
-    validation: fixture_load_check
-
+- id: hello_message
+  required_fields:
+  - message
+  validation: fixture_load_check
 validation:
   package_checks:
-    - Every node id is unique.
-    - Every edge endpoint references an existing node.
-    - Every llm_step has a prompt or a prompt_source.
+  - Every node id is unique.
+  - Every edge endpoint references an existing node.
+  - Every llm_step has a prompt or a prompt_source.

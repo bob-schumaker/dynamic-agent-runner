@@ -5,80 +5,43 @@ name: Hello World Memory Augmented Agent
 description: Hello-world test resource for the Memory Augmented Agent pattern.
 entrypoint: retrieve_memory
 mermaid_diagram: agent-graph.mmd
-
 packaging:
   mode: hybrid_bundle
   skill_bundle_dir: skill-bundle
-
-patterns_present:
-  - memory-augmented-agent
-
-execution_policy:
-  autonomy_level: assistive
-  allowed_execution_modes:
+runtime:
+  execution_policy:
+    autonomy_level: assistive
+    allowed_execution_modes:
     - sequential_fallback
-  external_backend_allowed: no
-  max_iterations: 3
-  timeout: runtime_default
-  approval_required_for:
+    external_backend_allowed: false
+    max_iterations: 3
+    timeout: runtime_default
+    approval_required_for:
     - live write or mutation
-  forbidden_actions:
+    forbidden_actions:
     - store secrets in prompts or logs
-  model: gpt-test
-
-state:
-  artifacts:
+    model: gpt-test
+  state:
+    artifacts:
     - id: user_request
       description: Original hello-world request.
       source: user
     - id: hello_message
       description: Final hello-world response.
       source: llm
-  mutable_fields:
+    mutable_fields:
     - hello_message
-
-skills:
-  - id: agent-development
-    label: Agent development skill
-    source_type: repo_skill
-    source_path: skills/agent-development-skill/SKILL.md
-    packaging_mode: referenced_only
-    notes: Provides agent pattern vocabulary for this fixture.
-
-tools:
-  - id: retrieve_hello_memory
-    label: Retrieve Hello Memory
-    description_for_llm: |
-      Hello-world fixture tool for the retrieve_hello_memory capability.
-    adapter: fixtures.retrieve_hello_memory
-    input_schema:
-      type: object
-      properties:
-        query:
-          type: string
-      required:
-        - query
-    output_schema:
-      type: object
-      properties:
-        message:
-          type: string
-    side_effect: read
-    approval_required: no
-    timeout: runtime_default
-    retry_policy: none
-    failure_behavior: fallback
-
-participant_groups: []
-
-modes:
+metadata:
+  patterns_present:
+  - memory-augmented-agent
+  participant_groups: []
+  modes:
   - id: default
     description: Hello-world fixture mode for Memory Augmented Agent.
     enabled_phases:
-      - hello
+    - hello
     batching_allowed: false
-
-phases:
+  phases:
   - id: hello
     label: Hello phase
     phase_kind: preparation
@@ -86,47 +49,76 @@ phases:
     participant_group: null
     peer_visibility: none
     enabled_when: always
-
-roles:
+  roles:
   - id: hello_designer
     label: Hello designer
+extensions: {}
+skills:
+- id: agent-development
+  label: Agent development skill
+  source_type: repo_skill
+  source_path: skills/agent-development-skill/SKILL.md
+  packaging_mode: referenced_only
+  notes: Provides agent pattern vocabulary for this fixture.
+tools:
+- id: retrieve_hello_memory
+  label: Retrieve Hello Memory
+  description_for_llm: 'Hello-world fixture tool for the retrieve_hello_memory capability.
 
+    '
+  adapter: fixtures.retrieve_hello_memory
+  input_schema:
+    type: object
+    properties:
+      query:
+        type: string
+    required:
+    - query
+  output_schema:
+    type: object
+    properties:
+      message:
+        type: string
+  side_effect: read
+  approval_required: false
+  timeout: runtime_default
+  retry_policy: none
+  failure_behavior: fallback
 nodes:
-  - id: retrieve_memory
-    kind: tool_use_step
-    label: Retrieve memory
-    tool_id: retrieve_hello_memory
-    inputs:
-      query: hello memory
-    failure_behavior: fallback
-    outputs:
-      state_key: retrieve_memory_result
-  - id: synthesize_memory
-    kind: llm_step
-    label: Synthesize memory
-    model: gpt-test
-    prompt:
-      system: |
-        You reconcile memory with current prompt.
-      user_template: |
-        Say hello using memory: {retrieve_memory}
-      input_vars:
-        - prompt
-      output_schema_ref: hello_message
+- id: retrieve_memory
+  kind: tool_use_step
+  label: Retrieve memory
+  tool_id: retrieve_hello_memory
+  inputs:
+    query: hello memory
+  failure_behavior: fallback
+  outputs:
+    state_key: retrieve_memory_result
+- id: synthesize_memory
+  kind: llm_step
+  label: Synthesize memory
+  model: gpt-test
+  prompt:
+    system: 'You reconcile memory with current prompt.
 
+      '
+    user_template: 'Say hello using memory: {retrieve_memory}
+
+      '
+    input_vars:
+    - prompt
+    output_schema_ref: hello_message
 edges:
-  - source: retrieve_memory
-    target: synthesize_memory
-    edge_kind: sequential
-
+- source: retrieve_memory
+  target: synthesize_memory
+  edge_kind: sequential
 output_contracts:
-  hello_message:
-    required_fields:
-      - message
-    validation: fixture_load_check
-
+- id: hello_message
+  required_fields:
+  - message
+  validation: fixture_load_check
 validation:
   package_checks:
-    - Every node id is unique.
-    - Every edge endpoint references an existing node.
-    - Every llm_step has a prompt or a prompt_source.
+  - Every node id is unique.
+  - Every edge endpoint references an existing node.
+  - Every llm_step has a prompt or a prompt_source.

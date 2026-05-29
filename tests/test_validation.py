@@ -48,6 +48,7 @@ def valid_manifest_data() -> dict[str, object]:
         "package_id": "valid-agent",
         "entrypoint": "analyze_request",
         "packaging": {"mode": "hybrid_bundle"},
+        "runtime": {"execution_policy": {"model": "gpt-test"}},
         "nodes": [
             {
                 "id": "analyze_request",
@@ -239,6 +240,41 @@ def test_tool_metadata_rejects_unknown_exposure() -> None:
 
     with pytest.raises(WorkflowValidationError, match="unsupported exposure"):
         validate_tool_index(tool_index)
+
+
+def test_legacy_root_runtime_fields_fail_validation() -> None:
+    """Legacy flat optional root fields fail instead of acting as compatibility."""
+
+    data = valid_manifest_data()
+    data["execution_policy"] = {"model": "gpt-test"}
+    data["patterns_present"] = ["basic-reasoning-agent"]
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "legacy root field 'execution_policy'" in message
+    assert "legacy root field 'patterns_present'" in message
+
+
+def test_required_extension_fails_closed() -> None:
+    """Unsupported required extension envelopes fail validation."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {"future_feature": {"required": True, "config": {}}}
+
+    with pytest.raises(WorkflowValidationError, match="required unsupported extension"):
+        validate_mapping(data)
+
+
+def test_malformed_extension_envelope_fails_validation() -> None:
+    """Extension envelopes need a mapping with a boolean required flag."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {"bad_extension": {"required": "yes"}}
+
+    with pytest.raises(WorkflowValidationError, match="malformed extension"):
+        validate_mapping(data)
 
 
 def test_llm_step_requires_prompt_or_prompt_source() -> None:

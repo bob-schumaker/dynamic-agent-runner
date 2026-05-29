@@ -89,7 +89,7 @@ def single_llm_workflow(
             "package_id": package_id,
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -207,7 +207,7 @@ def test_sync_and_async_public_entry_points_preserve_observable_results() -> Non
         "package_id": "sync-async-parity-agent",
         "entrypoint": "answer",
         "packaging": {"mode": "hybrid_bundle"},
-        "execution_policy": {"model": "gpt-test"},
+        "runtime": {"execution_policy": {"model": "gpt-test"}},
         "nodes": [
             {
                 "id": "answer",
@@ -255,7 +255,7 @@ def test_concurrent_runs_reusing_context_keep_run_state_and_trace_ids_isolated()
             "package_id": "concurrent-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -344,7 +344,7 @@ def test_run_agent_workflow_forwards_run_id_to_trace_events() -> None:
         "package_id": "api-run-id-agent",
         "entrypoint": "answer",
         "packaging": {"mode": "hybrid_bundle"},
-        "execution_policy": {"model": "gpt-test"},
+        "runtime": {"execution_policy": {"model": "gpt-test"}},
         "nodes": [
             {
                 "id": "answer",
