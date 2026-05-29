@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-- E14 async-first execution is in progress after Slice I.1 completed the async
-  OpenAI client boundary in commit `acca9da` and governing docs were refreshed in
-  `e750f3b`. Continue E14 with Slice I.2, the async retry helper, while preserving
-  the E13 run-correlation contract for `../power-marimo/` and future async
-  model/tool/hook/cancellation/concurrency behavior.
+- E14 async-first execution is in progress after Slice I.2 completed the async
+  retry helper in commit `f2296e9` and governing docs were refreshed in
+  `bb96b54`. Continue E14 with Slice I.3, callable-shape metadata for tools,
+  while preserving the E13 run-correlation contract for `../power-marimo/` and
+  future async model/tool/hook/cancellation/concurrency behavior.
 
 ## Current Status
 
@@ -116,8 +116,13 @@
     `create_default_async_openai_client()`, package exports, and fake-client tests.
   - Updated governing spec/plan/task documents and the E14 implementation plan for
     Slice I.1 completion evidence in `e750f3b`.
+  - Completed E14 Slice I.2 async retry helper in `f2296e9`, adding
+    `run_with_retry_async(...)`, public exports, attempt-count tests, and
+    cancellation propagation coverage.
+  - Updated governing spec/plan/task documents and the E14 implementation plan for
+    Slice I.2 completion evidence in `bb96b54`.
 - In progress:
-  - Memory-bank checkpoint for E14 Slice I.1 implementation and governing-docs
+  - Memory-bank checkpoint for E14 Slice I.2 implementation and governing-docs
     commits.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
@@ -125,8 +130,9 @@
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
   - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12.
-    E14 is in progress: Slice I.1 is complete, and Slice I.2 async retry helper
-    is the next recommended implementation slice.
+    E14 is in progress: Slices I.1 and I.2 are complete, and Slice I.3
+    callable-shape metadata for tools is the next recommended implementation
+    slice.
 
 ## Important Current Facts
 
@@ -173,9 +179,9 @@
   best-effort, and concurrent async runs must preserve E13 run correlation. The
   local OpenAI Python SDK checkout at `/Users/roschuma/Repos/github/openai-python/`
   was inspected for the async adapter boundary. The detailed E14 implementation
-  plan is in `cline-tasks/evaluation-follow-up-implementation-plan.md`; Slice I.1
-  is complete in `acca9da`, and the next recommended slice is Slice I.2, the async
-  retry helper.
+  plan is in `cline-tasks/evaluation-follow-up-implementation-plan.md`; Slices
+  I.1 and I.2 are complete in `acca9da` and `f2296e9`, and the next recommended
+  slice is Slice I.3, callable-shape metadata for tools.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and

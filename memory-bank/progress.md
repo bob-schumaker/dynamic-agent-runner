@@ -120,6 +120,10 @@
   `acca9da feat(openai-client): add async adapter boundary`.
 - E14 Slice I.1 governing-docs commit exists:
   `e750f3b docs(spec): record async client boundary slice`.
+- E14 Slice I.2 async retry helper implementation commit exists:
+  `f2296e9 feat(retry): add async retry helper`.
+- E14 Slice I.2 governing-docs commit exists:
+  `bb96b54 docs(spec): record async retry helper slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -237,19 +241,25 @@
   `cline-tasks/evaluation-follow-up-implementation-plan.md`: async OpenAI client
   boundary, async retry helper, async-capable tool registry dispatch,
   async-capable lifecycle hook dispatch, async executor core, public async API and
-  sync wrappers, then cancellation and concurrent async validation. Slice I.1 is
-  complete, and Slice I.2 async retry helper is the next recommended slice.
+  sync wrappers, then cancellation and concurrent async validation. Slices I.1
+  and I.2 are complete, and Slice I.3 callable-shape metadata for tools is the
+  next recommended slice.
 - E14 Slice I.1 adds the async OpenAI client boundary: async protocol types,
   `AsyncOpenAIClientAdapter`, `create_default_async_openai_client()`, package
   exports, and fake-client tests while preserving shared request construction and
   response normalization. Focused validation passed with 11 tests.
+- E14 Slice I.2 adds `run_with_retry_async(...)` using Tenacity async retry
+  support, preserves async retry attempt counts, exports the helper publicly, and
+  verifies that `asyncio.CancelledError` propagates without retry. Focused
+  validation passed with 32 tests.
 
 ## In Flight
 
-- No source implementation work is currently in flight after E14 Slice I.1
-  implementation commit `acca9da` and governing-docs commit `e750f3b`.
+- No source implementation work is currently in flight after E14 Slice I.2
+  implementation commit `f2296e9` and governing-docs commit `bb96b54`.
 - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12. E14 is
-  in progress; Slice I.2 async retry helper is the next recommended E14 slice.
+  in progress; Slice I.3 callable-shape metadata for tools is the next
+  recommended E14 slice.
 
 ## Remaining
 
