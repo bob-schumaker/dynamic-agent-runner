@@ -150,6 +150,10 @@
   `c710490 docs(agent-runtime): analyze package simplification`.
 - First-customer runtime-support prioritization commit exists:
   `0af68ab docs(spec): prioritize power-marimo runtime support`.
+- Runtime-package simplification Slice S1 implementation commit exists:
+  `695c0cc feat(models): support grouped runtime manifests`.
+- Runtime-package simplification S1 plan/task evidence commit exists:
+  `0f795ee docs(plan): record grouped manifest slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -332,29 +336,32 @@
 - First-customer prioritization from `0af68ab` adds
   `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
   and updates `spec.md` / `tasks.md` to make runtime-package simplification the
-  next active sequence. The next active slice is S1: grouped `runtime`,
-  `metadata`, and `extensions` manifest support, `output_contracts` as an array,
-  and rejection/reporting of legacy flat optional root fields.
+  next active sequence.
+- Runtime-package simplification Slice S1 is complete in `695c0cc`:
+  `RuntimeManifest` now preserves grouped `runtime`, `metadata`, and
+  `extensions` maps, derives convenience accessors from grouped sections,
+  indexes array-shaped `output_contracts`, validates extension envelopes,
+  rejects legacy flat optional root fields, and migrates agent-pattern fixtures
+  plus tests to the grouped shape. Full validation passed with 164 tests.
+- Plan/task evidence for S1 is recorded in `0f795ee`; the next active slice is
+  S2: `ExecutionPlan` / `PreparedNode` normalization.
 
 ## In Flight
 
-- No source implementation work is currently in flight after E14 Slice I.7
-  validation commit `7990503`, governing-docs commit `27f409b`, OpenAI Agents SDK
-  Python evaluation/spec follow-up commit `322ce13`, runtime-package
-  simplification analysis commit `c710490`, and first-customer prioritization
-  commit `0af68ab`.
-- The next active implementation direction is S1 — grouped runtime manifest model
-  and validation. Remaining deferred Codex/Cline follow-ups E9-E12 and OpenAI
-  Agents SDK Python follow-ups OA1-OA10 should wait behind the simplification
-  sequence unless explicitly re-scoped.
+- No source implementation work is currently in flight after S1 implementation
+  commit `695c0cc` and plan/task evidence commit `0f795ee`.
+- The next active implementation direction is S2 — `ExecutionPlan` /
+  `PreparedNode` normalization. Remaining deferred Codex/Cline follow-ups E9-E12
+  and OpenAI Agents SDK Python follow-ups OA1-OA10 should wait behind the
+  simplification sequence unless explicitly re-scoped.
 
 ## Remaining
 
-- Implement S1 grouped runtime manifest model and validation as the next scoped
+- Implement S2 `ExecutionPlan` / `PreparedNode` normalization as the next scoped
   runtime slice.
-- Extend from the completed loader, validation, registry, OpenAI adapter,
-  executor, CLI, behavior-override, and all-pattern fixture foundation into the
-  next scoped slice.
+- Extend from the completed grouped manifest, loader, validation, registry,
+  OpenAI adapter, executor, CLI, behavior-override, and all-pattern fixture
+  foundation into the next scoped slice.
 - Use the all-pattern hello-world fixtures as the broad pattern test surface for
   future compatibility coverage, including expected-failure coverage for pattern
   features that are represented in artifacts but not yet implemented.
@@ -419,10 +426,11 @@
   sandbox/workspace execution, and iterative agent-loop completion policy should
   each require a fresh scoped spec/update before implementation.
 - Runtime-package simplification is now the active next direction, driven by the
-  `power-marimo` first-customer analysis. Implement S1 grouped manifest support
-  before E9/OA feature work, then add `ExecutionPlan` / `PreparedNode`,
-  `PreparedModelInput` / `prepare_model_input(...)`, and `ToolOrigin` /
-  `ToolSource` before Marimo-session, MCP, or agent-as-tool registry sources.
+  `power-marimo` first-customer analysis. S1 grouped manifest support is
+  complete; implement S2 `ExecutionPlan` / `PreparedNode` before E9/OA feature
+  work, then add `PreparedModelInput` / `prepare_model_input(...)` and
+  `ToolOrigin` / `ToolSource` before Marimo-session, MCP, or agent-as-tool
+  registry sources.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.

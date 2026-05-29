@@ -9,8 +9,10 @@
   follow-ups. Runtime-package simplification analysis was added in `c710490`,
   including an upstream feature-request handoff for the agent-development skill
   repo. The first-customer `../power-marimo` fit analysis and grouped-manifest
-  spec/task update were committed in `0af68ab`; the next active implementation
-  slice is S1 — grouped runtime manifest model and validation.
+  spec/task update were committed in `0af68ab`. Runtime-package
+  simplification Slice S1 completed in `695c0cc`, with plan/task evidence
+  recorded in `0f795ee`; the next active implementation slice is S2 —
+  ExecutionPlan and PreparedNode normalization.
 
 ## Current Status
 
@@ -160,14 +162,20 @@
     agent-development skill feature-request handoff in `c710490`.
   - Added first-customer `power-marimo` agent-support analysis and prioritized
     runtime-package simplification follow-up S1-S5 in `0af68ab`.
+  - Completed runtime-package simplification Slice S1 in `695c0cc`, adding
+    grouped `runtime`, `metadata`, and `extensions` manifest parsing,
+    array-shaped `output_contracts`, extension-envelope validation, legacy
+    flat-root rejection, and grouped agent-pattern fixtures. Full validation
+    passed with 164 tests.
+  - Updated `specs/dynamic-agent-runner/tasks.md` and
+    `cline-tasks/power-marimo-implementation-plan.md` for S1 completion evidence
+    and next active S2 in `0f795ee`.
 - In progress:
-  - No source implementation work is currently in flight after E14 Slice I.7
-    validation commit `7990503`, governing-docs commit `27f409b`, OpenAI Agents
-    SDK Python evaluation/spec follow-up commit `322ce13`, runtime-package
-    simplification analysis commit `c710490`, and first-customer prioritization
-    commit `0af68ab`.
-  - The next queued implementation direction is S1 — grouped runtime manifest
-    model and validation — driven by the `power-marimo` fit analysis.
+  - No source implementation work is currently in flight after runtime-package
+    simplification Slice S1 implementation commit `695c0cc` and plan/task
+    evidence commit `0f795ee`.
+  - The next queued implementation direction is S2 — `ExecutionPlan` /
+    `PreparedNode` normalization — driven by the `power-marimo` fit analysis.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
@@ -642,12 +650,13 @@
 
 ## Next Steps
 
-- Start S1 — grouped runtime manifest model and validation — before broader E9,
-  OA, MCP, durable session, approval-resume, or PyQt-widget automation work.
-- After S1, continue the runtime-package simplification sequence: S2
-  `ExecutionPlan` / `PreparedNode`, S3 `PreparedModelInput` /
-  `prepare_model_input(...)`, S4 `ToolOrigin` / `ToolSource`, and S5 a narrow
-  `power-marimo` runtime-package fixture/example.
+- Start S2 — `ExecutionPlan` / `PreparedNode` normalization — before broader
+  E9, OA, MCP, durable session, approval-resume, or PyQt-widget automation
+  work.
+- After S2, continue the runtime-package simplification sequence: S3
+  `PreparedModelInput` / `prepare_model_input(...)`, S4 `ToolOrigin` /
+  `ToolSource`, and S5 a narrow `power-marimo` runtime-package
+  fixture/example.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
