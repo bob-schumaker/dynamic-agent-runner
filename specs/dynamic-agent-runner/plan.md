@@ -32,8 +32,7 @@ or a clear error.
   repository-owned registry direction before deeper runtime implementation.
 - A 3-round implementation-readiness debate concluded this plan is ready only
   for slice-by-slice implementation, not unrestricted runtime coding.
-- The next active E14 implementation slice is Slice I.4: callable-shape
-  metadata for lifecycle hooks.
+- The next active E14 implementation slice is Slice I.5: async executor core.
 - Evaluation follow-up Slice A is complete and committed: the runtime now exposes
   `WorkflowExecutionContext` / `RunContext` as a stable execution envelope that
   groups a loaded workflow with runtime collaborators while preserving the
@@ -75,8 +74,11 @@ or a clear error.
   without retry.
 - E14 Slice I.3 is complete and committed: registered tools now record handler
   callable shape and the registry exposes async invocation with awaited async
-  handlers and thread-dispatched sync handlers. Continue E14 with Slice I.4,
-  callable-shape metadata for lifecycle hooks.
+  handlers and thread-dispatched sync handlers.
+- E14 Slice I.4 is complete and committed: lifecycle hooks now record callback
+  callable shape, expose async hook dispatch helpers, and await async hooks from
+  the current sync executor compatibility path when no event loop is already
+  running. Continue E14 with Slice I.5, async executor core.
 
 ## Technical Approach
 
@@ -531,8 +533,9 @@ and execution failures.
     - Slice I.1 async OpenAI client boundary is complete in commit `acca9da`
     - Slice I.2 async retry helper is complete in commit `f2296e9`
     - Slice I.3 callable-shape metadata for tools is complete in commit `ff144f5`
-    - recommended next implementation slice: callable-shape metadata for
-      lifecycle hooks
+    - Slice I.4 callable-shape metadata for lifecycle hooks is complete in
+      commit `2b9271b`
+    - recommended next implementation slice: async executor core
     - implement true async public APIs `execute_workflow_async(...)` and
       `run_agent_workflow_async(...)` as the first-class runtime path
     - convert existing sync public APIs for CLI, scripts, tests, cron jobs, and
@@ -614,8 +617,13 @@ model behavior and fake registries for tool behavior.
 - E14 Slice I.3 completed callable-shape metadata for tools in commit `ff144f5`:
   `RegisteredTool` records sync/async handler shape, `ToolRegistry` exposes
   `invoke_tool_async(...)`, async handlers are awaited directly, and sync handlers
-  use `asyncio.to_thread(...)` on the async registry path. Slice I.4 should add
-  callable-shape metadata for lifecycle hooks next.
+  use `asyncio.to_thread(...)` on the async registry path.
+- E14 Slice I.4 completed callable-shape metadata for lifecycle hooks in commit
+  `2b9271b`: `WorkflowLifecycleHooks` records configured callback shape in
+  `RegisteredLifecycleHook` metadata, `invoke_lifecycle_hook_async(...)` invokes
+  sync hooks or awaits async hooks, and the current sync executor compatibility
+  path awaits async hooks when no event loop is already running. Slice I.5 should
+  add the async executor core next.
 - Sync wrappers must reject already-running event loops with a clear project
   error rather than attempting nested event-loop execution.
 - The model-client contract should be async-canonical. OpenAI async support must

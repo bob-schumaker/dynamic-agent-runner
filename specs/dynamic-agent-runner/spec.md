@@ -1208,7 +1208,7 @@ Before implementation is considered complete, add validation covering:
 - [ ] async model calls through the async executor path
 - [ ] async tool handlers inspected at registration/setup time and awaited during
       execution
-- [ ] async lifecycle hooks inspected at setup time and awaited during execution
+- [x] async lifecycle hooks inspected at setup time and awaited during execution
 - [ ] workflow cancellation with best-effort propagation to model, tool, hook, and
       child-task boundaries plus documented non-cancellable boundaries
 - [ ] sync wrapper compatibility, including clear failure when called from an
@@ -1296,9 +1296,8 @@ Before implementation is considered complete, add validation covering:
   async tools, async hooks, cancellation, sync wrapper compatibility, and
   concurrent async runs. E13's run-correlation contract must remain consistent
   with this async-first design. The detailed E14 implementation plan is recorded
-  in `cline-tasks/evaluation-follow-up-implementation-plan.md` and recommends
-  continuing with Slice I.4, callable-shape metadata for lifecycle hooks,
-  after Slices I.1 through I.3.
+  in `cline-tasks/evaluation-follow-up-implementation-plan.md`; after Slices I.1
+  through I.4, the next recommended slice is Slice I.5, async executor core.
 - E14 Slice I.1 completed the async OpenAI client boundary in commit `acca9da`,
   adding async OpenAI protocol types, `AsyncOpenAIClientAdapter`,
   `create_default_async_openai_client()`, package exports, and fake-client tests
@@ -1312,6 +1311,13 @@ Before implementation is considered complete, add validation covering:
   adding `RegisteredTool.handler_is_async`, `ToolRegistry.invoke_tool_async(...)`,
   awaited async handlers, and `asyncio.to_thread(...)` dispatch for sync handlers
   on the async registry path.
+- E14 Slice I.4 completed callable-shape metadata for lifecycle hooks in commit
+  `2b9271b`, adding `RegisteredLifecycleHook` metadata,
+  `WorkflowLifecycleHooks.registered_hook(...)`, async hook dispatch through
+  `invoke_lifecycle_hook_async(...)`, package exports, and executor compatibility
+  support that awaits async hooks from the current synchronous execution path
+  when no event loop is already running. Full async executor model and tool calls
+  remain pending for Slice I.5.
 - Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
   validation in commit `44b0847`, including fail-closed malformed schema checks
   and `$schema` removal from model-facing tool parameters.

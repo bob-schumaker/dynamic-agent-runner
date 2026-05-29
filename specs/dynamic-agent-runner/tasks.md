@@ -2,8 +2,8 @@
 
 ## Status
 
-- State: E14 Slices I.1 through I.3 are complete; future E14 implementation
-  should continue with Slice I.4 callable-shape metadata for lifecycle hooks.
+- State: E14 Slices I.1 through I.4 are complete; future E14 implementation
+  should continue with Slice I.5 async executor core.
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
@@ -622,7 +622,13 @@
         `ff144f5`: added `RegisteredTool.handler_is_async`,
         `invoke_tool_async(...)`, awaited async handlers, and `asyncio.to_thread(...)`
         dispatch for sync handlers in the async registry path.
-      - Recommended next slice: callable-shape metadata for lifecycle hooks.
+      - Slice I.4 callable-shape metadata for lifecycle hooks completed in commit
+        `2b9271b`: added `RegisteredLifecycleHook`, recorded configured hook
+        callable shape in `WorkflowLifecycleHooks`, added
+        `invoke_lifecycle_hook_async(...)`, exported hook metadata/dispatch helpers,
+        and awaited async hooks from the current synchronous executor
+        compatibility path when no event loop is already running.
+      - Recommended next slice: async executor core.
       - Slice I.1 validation: `poetry run pytest tests/test_import.py
         tests/test_openai_client.py -q` — pass; 11 tests passed.
       - Slice I.1 pre-commit: `pre-commit run --files
@@ -637,6 +643,12 @@
         tests/test_validation.py tests/test_import.py -q` — pass; 39 tests passed.
       - Slice I.3 pre-commit: `pre-commit run --files
         src/dynamic_agent_runner/registry.py tests/test_registry.py` — pass.
+      - Slice I.4 validation: `poetry run pytest tests/test_hooks.py
+        tests/test_executor.py tests/test_import.py -q` — pass; 39 tests passed.
+      - Slice I.4 pre-commit: `pre-commit run --files
+        src/dynamic_agent_runner/hooks.py src/dynamic_agent_runner/executor.py
+        src/dynamic_agent_runner/__init__.py tests/test_hooks.py
+        tests/test_import.py` — pass.
       - Add first-class async public APIs `execute_workflow_async(...)` and
         `run_agent_workflow_async(...)` for event-loop callers.
       - Convert synchronous APIs for CLI, scripts, tests, cron jobs, and simple

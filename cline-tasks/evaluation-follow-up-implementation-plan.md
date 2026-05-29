@@ -15,7 +15,7 @@ relevant to `power-marimo` and near-term `dynamic-agent-runner` evolution:
 - E7 — define narrow in-process lifecycle hook protocols
 - E8 — extend trace vocabulary
 - E14 — implement async-first execution APIs and sync wrappers (Slices I.1
-  through I.3 complete)
+  through I.4 complete)
 
 ## Current Implementation Shape
 
@@ -504,6 +504,8 @@ Acceptance evidence:
 
 ### Slice I.4 — callable-shape metadata for lifecycle hooks
 
+Status: complete in commit `2b9271b`.
+
 Likely files:
 
 - `src/dynamic_agent_runner/hooks.py`
@@ -533,6 +535,15 @@ Acceptance evidence:
 - Async before/after tool hooks are awaited.
 - Existing sync hooks still work.
 - Hook context run IDs remain correct.
+- `WorkflowLifecycleHooks` records each configured callback's callable shape in
+  `RegisteredLifecycleHook` metadata during hook setup.
+- The package exports `RegisteredLifecycleHook` and
+  `invoke_lifecycle_hook_async(...)` for future async executor wiring.
+- Validation: `poetry run pytest tests/test_hooks.py tests/test_executor.py
+  tests/test_import.py -q` — pass; 39 tests passed.
+- Pre-commit: `pre-commit run --files src/dynamic_agent_runner/hooks.py
+  src/dynamic_agent_runner/executor.py src/dynamic_agent_runner/__init__.py
+  tests/test_hooks.py tests/test_import.py` — pass.
 
 ### Slice I.5 — async executor core
 
@@ -664,8 +675,8 @@ Acceptance evidence:
 1. Slice I.1 — async OpenAI client boundary — complete in commit `acca9da`.
 2. Slice I.2 — async retry helper — complete in commit `f2296e9`.
 3. Slice I.3 — async-capable tool registry dispatch — complete in commit `ff144f5`.
-4. Slice I.4 — async-capable lifecycle hook dispatch — next.
-5. Slice I.5 — async executor core.
+4. Slice I.4 — async-capable lifecycle hook dispatch — complete in commit `2b9271b`.
+5. Slice I.5 — async executor core — next.
 6. Slice I.6 — public async API and sync wrappers.
 7. Slice I.7 — cancellation and concurrent async validation.
 8. Documentation/memory-bank checkpoint after implementation validation.
@@ -675,7 +686,7 @@ executor control flow and public API behavior.
 
 ## Recommended Next Slice
 
-Continue E14 with **Slice I.4 — callable-shape metadata for lifecycle hooks**.
+Continue E14 with **Slice I.5 — async executor core**.
 
 Reasons:
 
@@ -684,8 +695,9 @@ Reasons:
 - Slice I.2 has introduced the awaitable retry helper and cancellation-safe retry
   boundary.
 - Slice I.3 has introduced async-capable tool-handler metadata and dispatch.
-- Slice I.4 should introduce async-capable lifecycle hook metadata and dispatch
-  before executor conversion work.
+- Slice I.4 has introduced async-capable lifecycle hook metadata and dispatch.
+- Slice I.5 should convert the executor core to await model calls, tools, and
+  lifecycle hooks through the async runtime path.
 
 ## Validation Plan
 
