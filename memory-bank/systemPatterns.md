@@ -19,7 +19,7 @@
   - `src/dynamic_agent_runner/executor.py` composes loaded workflows, registry
     tools, retry policy, output validation, route validation, token-budget
     preflight, tracing hooks, and the OpenAI adapter into executable workflow
-    runs
+    runs through the async-first executor core
   - `src/dynamic_agent_runner/tracing.py` owns package trace event, trace sink,
     redaction, and in-memory tracing primitives
   - `src/dynamic_agent_runner/token_budget.py` owns `tiktoken`-backed prompt
@@ -55,8 +55,10 @@
 - Ruff, flake8, isort, and pre-commit are configured.
 - `load_agent_workflow(...)` loads generated workflow artifacts without
   executing them, then validates the loaded bundle before returning it.
-- `run_agent_workflow(...)` now loads, validates, executes, and returns the final
-  workflow result; `execute_workflow(...)` exposes detailed execution state.
+- `run_agent_workflow_async(...)` now loads, validates, executes through
+  `execute_workflow_async(...)`, and returns the final workflow result.
+  `run_agent_workflow(...)` and `execute_workflow(...)` remain synchronous
+  compatibility wrappers over the async semantic path.
 - Error taxonomy starts with a base `DynamicAgentRunnerError` and specific
   loading, validation, registry, model, and workflow execution errors.
 - Runtime artifact design preserves documented supported agent-pattern IDs as
@@ -109,10 +111,15 @@
 - Runtime hardening proceeded through package-owned interfaces rather than broad
   framework adoption. Slice 8 completed retry/resilience, Slice 9 completed
   output-contract and route validation, Slice 10 completed token budgeting, Slice
-  11 completed trace hooks, and Slice 12 completed runtime behavior overrides.
+  11 completed trace hooks, Slice 12 completed runtime behavior overrides, and
+  E14 completed async-first execution APIs plus cancellation/concurrent async
+  validation.
 - Trace events are emitted to `WorkflowExecutionState.trace_events` and an
   optional `TraceSink`; sensitive payload keys can be shallow-redacted before
-  external emission.
+  external emission. Run IDs distinguish concurrent sync and async executions.
+- Async execution supports async model adapters, async tool handlers, async
+  lifecycle hooks, cancellation propagation, and concurrent shared-context runs
+  while preserving per-run execution state isolation.
 
 ## Boundaries and Unknowns
 
@@ -130,6 +137,8 @@
 - Execution tracing and observability hooks: implemented for Slice 11 scope.
 - Runtime behavior overrides for prompts and skills: implemented for Slice 12
   scope.
+- Async-first execution APIs and sync wrappers: implemented for E14 scope through
+  Slice I.7 validation.
 
 ## Guidance for Future Work
 

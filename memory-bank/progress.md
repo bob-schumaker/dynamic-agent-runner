@@ -140,6 +140,10 @@
   `4f279ff feat(api): add public async workflow wrappers`.
 - E14 Slice I.6 governing-docs commit exists:
   `b698de9 docs(spec): record async public api slice`.
+- E14 Slice I.7 async validation implementation/test commit exists:
+  `7990503 test(concurrency): validate async cancellation correlation`.
+- E14 Slice I.7 governing-docs commit exists:
+  `27f409b docs(spec): record async validation completion`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -258,8 +262,8 @@
   boundary, async retry helper, async-capable tool registry dispatch,
   async-capable lifecycle hook dispatch, async executor core, public async API and
   sync wrappers, then cancellation and concurrent async validation. Slices I.1
-  through I.6 are complete, and Slice I.7 cancellation and concurrent async
-  validation is the next recommended slice.
+  through I.7 are complete; the planned E14 async-first implementation and
+  validation sequence is complete.
 - E14 Slice I.1 adds the async OpenAI client boundary: async protocol types,
   `AsyncOpenAIClientAdapter`, `create_default_async_openai_client()`, package
   exports, and fake-client tests while preserving shared request construction and
@@ -296,14 +300,20 @@
   only when no event loop is active and raise `WorkflowExecutionError` from an
   already-running event loop. Targeted validation passed with 55 tests; broader
   async-adjacent validation passed with 122 tests.
+- E14 Slice I.7 completes cancellation and concurrent async validation:
+  `tests/test_concurrency.py` now covers in-flight async workflow cancellation
+  propagation, workflow cancellation trace and `after_workflow` hook observations,
+  concurrent async runs reusing one execution context with distinct run IDs,
+  shared trace-sink and hook run correlation, and sync/async public API parity for
+  final results and trace event shapes. Focused validation passed with 43 tests;
+  broader async-adjacent validation passed with 129 tests.
 
 ## In Flight
 
-- No source implementation work is currently in flight after E14 Slice I.6
-  implementation commit `4f279ff` and governing-docs commit `b698de9`.
+- No source implementation work is currently in flight after E14 Slice I.7
+  validation commit `7990503` and governing-docs commit `27f409b`.
 - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12. E14 is
-  in progress; Slice I.7 cancellation and concurrent async validation is the next
-  recommended E14 slice.
+  complete through Slice I.7; no E14 implementation slice is currently queued.
 
 ## Remaining
 
@@ -369,25 +379,24 @@
 - Slice 13 intentionally stops short of provider-specific prompt-cache request
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
-- Codex/Cline follow-ups E1, E2, E3, E4, E5, E6, E7, E8, and E13 are
-  implemented. E14 is in progress with Slices I.1 through I.6 complete; remaining
-  E14 validation plus E9, E10, E11, and E12 should be introduced through
-  package-owned contracts before broad integrations such as MCP, plugins, shell
-  hooks, app-server protocols, or multi-provider routing.
+- Codex/Cline follow-ups E1, E2, E3, E4, E5, E6, E7, E8, E13, and E14 are
+  implemented. Remaining follow-ups E9, E10, E11, and E12 should be introduced
+  through package-owned contracts before broad integrations such as MCP, plugins,
+  shell hooks, app-server protocols, or multi-provider routing.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
   Caller-provided mutable tool handlers and lifecycle hooks remain
   caller-managed for synchronization.
-- E14 is async-first implementation work: true async public APIs, sync wrappers
-  that reject already-running event loops, one async-canonical model-client
-  protocol, registration/setup-time callable-shape inspection for tools and hooks,
-  best-effort cancellation propagation, and acceptance coverage for async model
-  calls, async tools, async hooks, cancellation, sync wrapper compatibility, and
-  concurrent async runs. Slices I.1 through I.6 completed the async OpenAI
-  adapter, retry, tool-dispatch, lifecycle-hook, async executor-core, and public
-  API/sync-wrapper boundaries; Slice I.7 should validate cancellation and
-  concurrent async run correlation next.
+- E14 async-first implementation work is complete through the planned slice
+  sequence: true async public APIs, sync wrappers that reject already-running event
+  loops, one async-canonical model-client protocol, registration/setup-time
+  callable-shape inspection for tools and hooks, best-effort cancellation
+  propagation, and acceptance coverage for async model calls, async tools, async
+  hooks, cancellation, sync wrapper compatibility, and concurrent async runs.
+  Slices I.1 through I.7 completed the async OpenAI adapter, retry, tool-dispatch,
+  lifecycle-hook, async executor-core, public API/sync-wrapper, cancellation, and
+  concurrent async validation boundaries.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.

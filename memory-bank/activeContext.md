@@ -2,12 +2,12 @@
 
 ## Current Focus
 
-- E14 async-first execution is in progress after Slice I.6 completed public
-  async API and sync wrappers in commit `4f279ff` and governing docs were
-  refreshed in `b698de9`. Continue E14 with Slice I.7, cancellation and
-  concurrent async validation, while preserving the E13 run-correlation contract
-  for `../power-marimo/` and future async model/tool/hook/cancellation/concurrency
-  behavior.
+- E14 async-first execution is complete through the planned Slice I.7
+  validation sequence. Slice I.7 completed cancellation and concurrent async
+  validation in commit `7990503`; governing docs were refreshed in `27f409b`. No
+  E14 implementation slice is currently queued; future work should select a new
+  scoped follow-up such as E9, E10, E11, E12, prompt-cache provider pass-through,
+  interpreter middleware, or broader edge semantics.
 
 ## Current Status
 
@@ -145,18 +145,23 @@
     already-running event loops from sync wrappers.
   - Updated governing spec/plan/task documents and the E14 implementation plan for
     Slice I.6 completion evidence in `b698de9`.
+  - Completed E14 Slice I.7 cancellation and concurrent async validation in
+    `7990503`, adding tests for in-flight async workflow cancellation propagation,
+    workflow cancellation trace/hook observations, concurrent async shared-context
+    run correlation, and sync/async public entry-point parity.
+  - Updated governing spec/plan/task documents and the E14 implementation plan for
+    Slice I.7 completion evidence in `27f409b`.
 - In progress:
-  - No source implementation work is currently in flight after E14 Slice I.6
-    implementation commit `4f279ff` and governing-docs commit `b698de9`.
+  - No source implementation work is currently in flight after E14 Slice I.7
+    validation commit `7990503` and governing-docs commit `27f409b`.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
   - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12.
-    E14 is in progress: Slices I.1 through I.6 are complete, and Slice I.7
-    cancellation and concurrent async validation is the next recommended
-    implementation slice.
+    E14 Slices I.1 through I.7 are complete; no E14 implementation slice is
+    currently queued.
 
 ## Important Current Facts
 
@@ -177,7 +182,7 @@
 - A Council review and a 3-round debate both concluded the artifact set was
   ready only for slice-by-slice implementation, not unrestricted runtime
   implementation. Slices 0 through 13 plus evaluation follow-up Slices A, B,
-  C, D, E, F, G, and H / E13 are complete; E9, E10, E11, E12, and E14 remain
+  C, D, E, F, G, H / E13, and E14 are complete; E9, E10, E11, and E12 remain
   deferred follow-up candidates.
 - `cline-tasks/codex-cli-evaluation.md` and `cline-tasks/cline-evaluation.md`
   capture read-only external runtime-pattern evaluations. The synthesized
@@ -204,9 +209,9 @@
   local OpenAI Python SDK checkout at `/Users/roschuma/Repos/github/openai-python/`
   was inspected for the async adapter boundary. The detailed E14 implementation
   plan is in `cline-tasks/evaluation-follow-up-implementation-plan.md`; Slices
-  I.1 through I.6 are complete in `acca9da`, `f2296e9`, `ff144f5`, `2b9271b`,
-  `72c28dd`, and `4f279ff`, and the next recommended slice is Slice I.7,
-  cancellation and concurrent async validation.
+  I.1 through I.7 are complete in `acca9da`, `f2296e9`, `ff144f5`, `2b9271b`,
+  `72c28dd`, `4f279ff`, and `7990503`; the planned E14 async-first
+  implementation and validation sequence is complete.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -609,10 +614,9 @@
 
 ## Next Steps
 
-- If continuing E14, start with Slice I.7 — cancellation and concurrent async
-  validation — from `cline-tasks/evaluation-follow-up-implementation-plan.md`,
-  using the completed async OpenAI client, retry, tool-dispatch, lifecycle-hook,
-  async executor-core, and public async API/sync-wrapper boundaries.
+- Select the next scoped follow-up before implementing more runtime behavior;
+  E14 is complete through Slice I.7, and remaining deferred Codex/Cline follow-ups
+  include E9, E10, E11, and E12.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
