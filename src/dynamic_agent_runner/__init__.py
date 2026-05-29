@@ -54,7 +54,12 @@ from dynamic_agent_runner.registry import (
     openai_tool_schema,
     validate_registry_tool_references,
 )
-from dynamic_agent_runner.retry import RetryPolicy, RetryRecord, retry_policy_from_value
+from dynamic_agent_runner.retry import (
+    RetryPolicy,
+    RetryRecord,
+    retry_policy_from_value,
+    run_with_retry_async,
+)
 from dynamic_agent_runner.token_budget import (
     TokenBudgetPolicy,
     TokenEstimate,
@@ -131,6 +136,7 @@ __all__ = [
     "InMemoryTraceSink",
     "estimate_messages_tokens",
     "retry_policy_from_value",
+    "run_with_retry_async",
     "token_budget_policy_from_value",
     "prompt_cache_policy_from_value",
     "WorkflowExecutionError",

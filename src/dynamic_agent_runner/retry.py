@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+import asyncio
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_fixed
+from tenacity import (
+    AsyncRetrying,
+    Retrying,
+    retry_if_exception,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_fixed,
+)
 
 from dynamic_agent_runner.errors import WorkflowExecutionError
 
@@ -85,6 +93,38 @@ def run_with_retry(
         with attempt:
             return operation(), attempts
     raise AssertionError("retry loop exited without returning or raising")
+
+
+async def run_with_retry_async(
+    operation: Callable[[], Awaitable[T]],
+    *,
+    policy: RetryPolicy,
+    retry_exceptions: tuple[type[BaseException], ...],
+) -> tuple[T, int]:
+    """Run an async ``operation`` under a bounded retry policy.
+
+    ``asyncio.CancelledError`` always propagates without retry so workflow
+    cancellation is not converted into an ordinary model or tool failure.
+    """
+
+    if not policy.enabled:
+        return await operation(), 1
+    attempts = 0
+    async for attempt in AsyncRetrying(
+        stop=stop_after_attempt(policy.max_attempts),
+        wait=wait_fixed(policy.wait_seconds),
+        retry=retry_if_exception(
+            lambda exc: (
+                isinstance(exc, retry_exceptions)
+                and not isinstance(exc, asyncio.CancelledError)
+            )
+        ),
+        reraise=True,
+    ):
+        attempts = attempt.retry_state.attempt_number
+        with attempt:
+            return await operation(), attempts
+    raise AssertionError("async retry loop exited without returning or raising")
 
 
 def _retry_on(value: Any, *, default: tuple[str, ...]) -> tuple[str, ...]:
