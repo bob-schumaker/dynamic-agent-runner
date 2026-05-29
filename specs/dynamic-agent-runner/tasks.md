@@ -700,6 +700,30 @@
       - Slice I.7 pre-commit: `poetry run pre-commit run --files
         tests/test_concurrency.py` — pass.
 
+## Deferred OpenAI Agents SDK Python evaluation follow-ups
+
+- [ ] OA1. Add guardrail metadata for input, output, tool-input, and
+      tool-output phases, including abort and reject-content behavior.
+- [ ] OA2. Extend tool provenance metadata to distinguish registered,
+      built-in, override, MCP, and future agent-as-tool origins.
+- [ ] OA3. Design a prepare-model-input stage for context compaction, session
+      pruning, and hierarchical prompt injection before model adapter calls.
+- [ ] OA4. Fold MCP lifecycle diagnostics into E9: active/failed server lists,
+      error maps, strict/degraded startup, reconnect, and cleanup timeouts.
+- [ ] OA5. Draft tool-use completion policy for future iterative agent-loop
+      support, including run-again, stop-on-tool, and custom final-output
+      decisions.
+- [ ] OA6. Preserve handoff vs agent-as-tool as distinct manifest metadata
+      patterns for multi-agent workflows.
+- [ ] OA7. Design workflow interruption and resumable run state for
+      approval-required tools before implementing live approval pauses.
+- [ ] OA8. Consider a small async session protocol only after multi-turn memory
+      requirements are explicit.
+- [ ] OA9. Consider an optional `tool_from_function(...)` helper that generates
+      explicit registry metadata while preserving side-effect and approval policy.
+- [ ] OA10. Keep sandbox/workspace runtime support separate from default local
+      tool packs and defer it until write/command tool requirements are approved.
+
 ## Cross-Cutting Validation Tasks
 
 - [ ] V1. Keep unit tests free of live OpenAI API calls.

@@ -1004,6 +1004,52 @@ The runtime should start with OpenAI package model and client interfaces:
   pre-register default tools, while preserving explicit node references as the
   only way those tools become available to a workflow step.
 
+## Deferred OpenAI Agents SDK Python Concepts
+
+The OpenAI Agents SDK Python evaluation in
+`cline-tasks/openai-agents-python-evaluation.md` adds several deferred design
+concepts that fit this package only when a later scope selects them. These
+concepts are not active implementation requirements for the current finite graph
+executor, but they should shape future specs when relevant.
+
+Future guardrail support should distinguish input, output, tool-input, and
+tool-output phases. Tool guardrails should also distinguish aborting execution
+from rejecting a specific tool call or tool output with a model-visible message.
+
+Future tool provenance should identify where a callable tool came from, such as
+a caller-registered tool, built-in tool pack, runtime override, MCP registry
+source, or agent-as-tool delegation. Provenance should remain separate from tool
+exposure, approval, sandbox, and side-effect policy.
+
+Future context-management work should use a prepare-model-input stage before the
+model adapter call. That stage is the right seam for session pruning, context
+compaction, hierarchical prompt-context injection, and related budgeted prompt
+rewrites.
+
+Future multi-agent metadata should preserve the difference between handoffs and
+agents-as-tools:
+
+- A handoff transfers the active agent/profile and may alter which conversation
+  history is visible to the next step.
+- An agent-as-tool delegates a bounded subtask and returns a result to the
+  current flow without transferring final-output ownership.
+
+Future approval support should be designed as a durable interruption/resume flow,
+not only as an inline blocking callback. A paused run should expose stable
+interruption records, per-call approval identifiers, optional rejection messages,
+and a schema-versioned run-state serialization boundary before live approval
+pauses are implemented.
+
+Future session support should start with a small async protocol for retrieving,
+adding, popping, and clearing conversation items. It should also define how stored
+history merges with new turn input and how local sessions interact with
+provider-managed continuation mechanisms.
+
+Future sandbox or workspace runtime support should remain separate from default
+local tool packs. Write, shell, apply-patch, mounted-workspace, and resumable
+workspace state should require explicit workspace manifests, path grants,
+resource limits, backend/client selection, and approval-aware command policies.
+
 ## In Scope
 
 - Defining the Python library behavior for loading, validating, and executing
@@ -1037,6 +1083,10 @@ The runtime should start with OpenAI package model and client interfaces:
 - Adding package-owned execution tracing and observability hooks.
 - Starting with OpenAI package model/client integration and an in-repo tool-call
   registry pattern.
+- Capturing deferred OpenAI Agents SDK Python concepts for guardrails, tool
+  provenance, prepare-model-input seams, handoff versus agent-as-tool metadata,
+  workflow interruptions, sessions, and sandbox separation without making them
+  current implementation scope.
 - Leaving unresolved schema/API details explicitly marked for clarification.
 
 ## Out of Scope
@@ -1058,6 +1108,10 @@ The runtime should start with OpenAI package model and client interfaces:
 - Implicitly reading arbitrary `SKILL.md` source files as executable prompt
   material before a later requirement defines skill-source loading, trust,
   packaging, and precedence semantics.
+- Implementing live guardrail execution, approval interruption/resume APIs,
+  session backends, sandbox/workspace runtimes, or agent-loop completion policies
+  solely from the OpenAI Agents SDK Python evaluation before a later scope selects
+  and specifies those features.
 
 ## Assumptions
 
@@ -1097,6 +1151,9 @@ The runtime should start with OpenAI package model and client interfaces:
 - Rich CLI formatting and Diskcache-backed caching are optional later additions;
   they should remain out of the core dependency set until concrete requirements
   need them.
+- OpenAI Agents SDK Python is a useful reference for future managed-agent-loop
+  features, but this package remains a generated-artifact finite graph executor
+  unless a later spec explicitly adds iterative agent-loop semantics.
 
 ## Open Questions
 
@@ -1125,6 +1182,18 @@ The runtime should start with OpenAI package model and client interfaces:
 - NEEDS CLARIFICATION: What trust, packaging, and precedence rules should govern
   full `SKILL.md` source resolution if runtime behavior overrides later need to
   load skill bodies from files instead of inline instructions?
+- NEEDS CLARIFICATION: What guardrail phases and behaviors should a future
+  manifest support, and which guardrails should abort execution versus return
+  model-visible rejection content?
+- NEEDS CLARIFICATION: What stable tool-origin metadata should be exposed for
+  registered, built-in, override, MCP, and agent-as-tool sources?
+- NEEDS CLARIFICATION: What serialized state is required to resume approval
+  interruptions safely, and what schema-version policy should govern that state?
+- NEEDS CLARIFICATION: What session-memory contract, if any, should the runtime
+  support beyond current per-run execution state and provider response chaining?
+- NEEDS CLARIFICATION: What workspace manifest, path grants, resource limits,
+  and approval policy are required before write, shell, apply-patch, or sandbox
+  execution tools can be added?
 
 ## Suggested Public API Shape
 
@@ -1220,6 +1289,16 @@ Before implementation is considered complete, add validation covering:
 - [ ] extended trace vocabulary for tool lifecycle and status notice events
 - [ ] structured tool-result facets for model-facing output, raw output, log
       preview, event payload, and sensitive trace fields
+- [ ] deferred guardrail metadata coverage for input, output, tool-input, and
+      tool-output phases when those features are scoped
+- [ ] deferred tool-origin/provenance metadata coverage for registered, built-in,
+      override, MCP, and agent-as-tool sources when those sources are scoped
+- [ ] deferred prepare-model-input stage coverage for context compaction, session
+      pruning, and hierarchical prompt injection when those features are scoped
+- [ ] deferred workflow interruption and resumable run-state coverage before
+      approval-required tools can pause and resume live runs
+- [ ] deferred session protocol and sandbox/workspace runtime validation when
+      those features are selected by a later spec
 - [ ] clear error behavior for missing artifacts
 - [ ] clear error behavior for inconsistent artifacts
 - [ ] clear error behavior for model/client failures
@@ -1273,6 +1352,13 @@ Before implementation is considered complete, add validation covering:
   narrow lifecycle hooks, trace vocabulary, MCP registry-source design,
   context-management seams, constrained file-backed prompt context, and
   primitive-node-preserving sub-agent delegation.
+- OpenAI Agents SDK Python evaluation in
+  `cline-tasks/openai-agents-python-evaluation.md` adds deferred follow-ups for
+  guardrail metadata, tool provenance, prepare-model-input seams, MCP lifecycle
+  diagnostics, tool-use completion policy, handoff versus agent-as-tool metadata,
+  approval interruption/resume state, small session protocols, optional
+  callable-to-tool helpers, and sandbox/workspace runtime separation. These are
+  reference-backed future design inputs, not current implementation scope.
 - Evaluation follow-up Slice G completed lightweight `ModelCapabilities` metadata
   in commit `13c6dac`, preserving context-window, structured-output, reasoning,
   modality, and parallel-tool-call support metadata from runtime execution policy
