@@ -32,7 +32,7 @@ or a clear error.
   repository-owned registry direction before deeper runtime implementation.
 - A 3-round implementation-readiness debate concluded this plan is ready only
   for slice-by-slice implementation, not unrestricted runtime coding.
-- The next active implementation slice is Slice 2: artifact models and loaders.
+- The next active E14 implementation slice is Slice I.2: async retry helper.
 - Evaluation follow-up Slice A is complete and committed: the runtime now exposes
   `WorkflowExecutionContext` / `RunContext` as a stable execution envelope that
   groups a loaded workflow with runtime collaborators while preserving the
@@ -66,6 +66,10 @@ or a clear error.
   APIs and the existing sync APIs as wrappers that reject calls from an
   already-running event loop. The detailed slice plan lives in
   `cline-tasks/evaluation-follow-up-implementation-plan.md`.
+- E14 Slice I.1 is complete and committed: the OpenAI client boundary now has
+  async protocol types, `AsyncOpenAIClientAdapter`, a default `openai.AsyncOpenAI`
+  factory, public exports, and fake-client tests. Continue E14 with Slice I.2,
+  the async retry helper.
 
 ## Technical Approach
 
@@ -517,7 +521,8 @@ and execution failures.
 17. **Evaluation follow-up Slice I / E14: async-first execution APIs and wrappers**
     - detailed implementation sequencing is recorded in
       `cline-tasks/evaluation-follow-up-implementation-plan.md`
-    - recommended first implementation slice: async OpenAI client boundary
+    - Slice I.1 async OpenAI client boundary is complete in commit `acca9da`
+    - recommended next implementation slice: async retry helper
     - implement true async public APIs `execute_workflow_async(...)` and
       `run_agent_workflow_async(...)` as the first-class runtime path
     - convert existing sync public APIs for CLI, scripts, tests, cron jobs, and
@@ -525,8 +530,9 @@ and execution failures.
     - make sync wrappers raise a clear project error when called from an
       already-running event loop, directing callers to the async APIs
     - use one async-canonical model-client protocol, with native async OpenAI
-      adapter support after inspecting the local OpenAI Python SDK checkout and
-      verifying official SDK behavior/source-code details
+      adapter support now established by Slice I.1 after inspecting the local
+      OpenAI Python SDK checkout and verifying official SDK behavior/source-code
+      details
     - adapt sync-only model clients behind the async protocol when needed without
       making a separate sync executor contract
     - inspect and record sync/async tool-handler callable shape at
@@ -587,6 +593,11 @@ model behavior and fake registries for tool behavior.
   design spike: async public APIs become first-class, while sync APIs become
   wrappers over the async path for simple callers and the CLI. The detailed E14
   implementation plan is in `cline-tasks/evaluation-follow-up-implementation-plan.md`.
+- E14 Slice I.1 completed the async OpenAI client boundary in commit `acca9da`:
+  `AsyncOpenAIClientAdapter` awaits injected async clients, the default async
+  factory uses `openai.AsyncOpenAI`, and request construction/response
+  normalization remain shared with the existing sync adapter. Slice I.2 should
+  add the async retry helper next.
 - Sync wrappers must reject already-running event loops with a clear project
   error rather than attempting nested event-loop execution.
 - The model-client contract should be async-canonical. OpenAI async support must

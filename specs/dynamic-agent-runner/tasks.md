@@ -2,9 +2,8 @@
 
 ## Status
 
-- State: E14 implementation plan recorded; E13 concurrent invocation support is
-  complete, and future E14 implementation should start with the async OpenAI
-  client boundary while preserving E13 run-correlation guarantees
+- State: E14 Slice I.1 async OpenAI client boundary is complete; future E14
+  implementation should continue with Slice I.2 async retry helper.
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
@@ -612,7 +611,16 @@
 - [ ] E14. Implement async-first execution APIs and sync wrapper behavior without
       creating a separate runtime implementation.
       - Detailed implementation plan: `cline-tasks/evaluation-follow-up-implementation-plan.md`.
-      - Recommended first slice: async OpenAI client boundary.
+      - Slice I.1 async OpenAI client boundary completed in commit `acca9da`:
+        added async OpenAI protocol types, `AsyncOpenAIClientAdapter`,
+        `create_default_async_openai_client()`, package exports, and fake-client
+        tests while keeping request construction and response normalization shared.
+      - Recommended next slice: async retry helper.
+      - Slice I.1 validation: `poetry run pytest tests/test_import.py
+        tests/test_openai_client.py -q` — pass; 11 tests passed.
+      - Slice I.1 pre-commit: `pre-commit run --files
+        src/dynamic_agent_runner/openai_client.py src/dynamic_agent_runner/__init__.py
+        tests/test_openai_client.py` — pass.
       - Add first-class async public APIs `execute_workflow_async(...)` and
         `run_agent_workflow_async(...)` for event-loop callers.
       - Convert synchronous APIs for CLI, scripts, tests, cron jobs, and simple

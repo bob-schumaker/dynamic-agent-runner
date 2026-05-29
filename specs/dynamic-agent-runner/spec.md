@@ -1204,8 +1204,8 @@ Before implementation is considered complete, add validation covering:
       and final-result events
 - [ ] concurrent invocation isolation for library-owned per-run state and explicit
       thread-safety behavior for shared collaborators
-- [ ] async model calls through an async-canonical model-client protocol and
-      native async OpenAI adapter
+- [x] native async OpenAI adapter boundary with async-canonical protocol types
+- [ ] async model calls through the async executor path
 - [ ] async tool handlers inspected at registration/setup time and awaited during
       execution
 - [ ] async lifecycle hooks inspected at setup time and awaited during execution
@@ -1297,7 +1297,13 @@ Before implementation is considered complete, add validation covering:
   concurrent async runs. E13's run-correlation contract must remain consistent
   with this async-first design. The detailed E14 implementation plan is recorded
   in `cline-tasks/evaluation-follow-up-implementation-plan.md` and recommends
-  starting with the async OpenAI client boundary.
+  continuing with Slice I.2, the async retry helper, after Slice I.1.
+- E14 Slice I.1 completed the async OpenAI client boundary in commit `acca9da`,
+  adding async OpenAI protocol types, `AsyncOpenAIClientAdapter`,
+  `create_default_async_openai_client()`, package exports, and fake-client tests
+  while preserving shared request construction and response normalization. This
+  establishes the native async model-client boundary, but full async executor
+  model calls remain pending.
 - Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
   validation in commit `44b0847`, including fail-closed malformed schema checks
   and `$schema` removal from model-facing tool parameters.

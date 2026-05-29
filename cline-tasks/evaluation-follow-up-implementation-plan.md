@@ -14,7 +14,8 @@ relevant to `power-marimo` and near-term `dynamic-agent-runner` evolution:
 - E6 — refine `ToolResult` into clearer output facets
 - E7 — define narrow in-process lifecycle hook protocols
 - E8 — extend trace vocabulary
-- E14 — implement async-first execution APIs and sync wrappers
+- E14 — implement async-first execution APIs and sync wrappers (Slice I.1
+  complete)
 
 ## Current Implementation Shape
 
@@ -331,7 +332,7 @@ Completion evidence:
 - Validation: `ruff check src tests && ruff format --check src tests &&
   python -m pytest -q` — pass; 132 tests passed.
 
-## Slice I — E14: Async-First Execution APIs and Wrappers — Planned
+## Slice I — E14: Async-First Execution APIs and Wrappers — In Progress
 
 **Goal:** Convert workflow execution to a true async-first runtime while keeping
 existing synchronous public APIs as compatibility wrappers.
@@ -381,6 +382,8 @@ E14 should deliver these public behavior changes:
 
 ### Slice I.1 — async OpenAI client boundary
 
+Status: complete in commit `acca9da`.
+
 Likely files:
 
 - `src/dynamic_agent_runner/openai_client.py`
@@ -408,11 +411,15 @@ poetry run pytest tests/test_openai_client.py -q
 
 Acceptance evidence:
 
-- Fake async client is awaited.
-- Native async adapter path calls `.responses.create(...)` as an awaitable.
-- Sync-only compatibility, if retained, is explicitly adapted behind the async
-  protocol.
+- Fake async client is awaited by `AsyncOpenAIClientAdapter`.
+- Native async default-client factory uses `openai.AsyncOpenAI`.
+- Request construction and response normalization remain shared with the existing
+  synchronous adapter boundary.
 - Model failures still become `ModelExecutionError`.
+- Validation: `poetry run pytest tests/test_import.py tests/test_openai_client.py
+  -q` — pass; 11 tests passed.
+- Pre-commit: `pre-commit run --files src/dynamic_agent_runner/openai_client.py
+  src/dynamic_agent_runner/__init__.py tests/test_openai_client.py` — pass.
 
 ### Slice I.2 — async retry helper
 
@@ -635,8 +642,8 @@ Acceptance evidence:
 
 ### Recommended E14 implementation order
 
-1. Slice I.1 — async OpenAI client boundary.
-2. Slice I.2 — async retry helper.
+1. Slice I.1 — async OpenAI client boundary — complete in commit `acca9da`.
+2. Slice I.2 — async retry helper — next.
 3. Slice I.3 — async-capable tool registry dispatch.
 4. Slice I.4 — async-capable lifecycle hook dispatch.
 5. Slice I.5 — async executor core.
@@ -647,17 +654,18 @@ Acceptance evidence:
 This order keeps the lowest-level awaitable boundaries stable before rewriting
 executor control flow and public API behavior.
 
-## Recommended First Slice
+## Recommended Next Slice
 
-Start E14 with **Slice I.1 — async OpenAI client boundary**.
+Continue E14 with **Slice I.2 — async retry helper**.
 
 Reasons:
 
-- It verifies the local OpenAI SDK async surface before touching executor control
-  flow.
-- It gives the executor one async-canonical model protocol to target.
-- It can be tested with fake async clients without live OpenAI API calls.
-- It minimizes behavioral risk before changing tools, hooks, or public wrappers.
+- Slice I.1 has verified the local OpenAI SDK async surface and established the
+  async model-client boundary.
+- The executor will need an awaitable retry helper before async model, tool, and
+  hook calls are wired into the workflow loop.
+- This keeps cancellation and retry semantics explicit before larger executor
+  control-flow changes.
 
 ## Validation Plan
 
