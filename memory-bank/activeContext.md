@@ -6,12 +6,11 @@
   validation sequence. Slice I.7 completed cancellation and concurrent async
   validation in commit `7990503`; governing docs were refreshed in `27f409b`.
   OpenAI Agents SDK Python was evaluated in `322ce13`, adding deferred OA1-OA10
-  follow-ups for guardrails, tool provenance, prepare-model-input seams, MCP
-  lifecycle diagnostics, handoff versus agent-as-tool metadata, approval
-  interruption/resume state, sessions, callable-to-tool helpers, and
-  sandbox/workspace separation. No implementation slice is currently queued;
-  future work should select a scoped follow-up such as E9, E10, E11, E12, an OA
-  follow-up, prompt-cache provider pass-through, interpreter middleware, or
+  follow-ups. Runtime-package simplification analysis was added in `c710490`,
+  including an upstream feature-request handoff for the agent-development skill
+  repo. No implementation slice is currently queued; future work should select a
+  scoped follow-up such as the simplification prerequisite, E9, E10, E11, E12,
+  an OA follow-up, prompt-cache provider pass-through, interpreter middleware, or
   broader edge semantics.
 
 ## Current Status
@@ -158,10 +157,13 @@
     Slice I.7 completion evidence in `27f409b`.
   - Added OpenAI Agents SDK Python evaluation and deferred OA1-OA10 spec/task
     follow-ups in `322ce13`.
+  - Added runtime-package simplification analysis and an upstream
+    agent-development skill feature-request handoff in `c710490`.
 - In progress:
   - No source implementation work is currently in flight after E14 Slice I.7
-    validation commit `7990503`, governing-docs commit `27f409b`, and OpenAI
-    Agents SDK Python evaluation/spec follow-up commit `322ce13`.
+    validation commit `7990503`, governing-docs commit `27f409b`, OpenAI Agents
+    SDK Python evaluation/spec follow-up commit `322ce13`, and runtime-package
+    simplification analysis commit `c710490`.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
@@ -197,6 +199,13 @@
   `cline-tasks/openai-agents-python-evaluation.md` capture read-only external
   runtime-pattern evaluations. The Codex/Cline synthesized proposal lives at
   `cline-tasks/codex-cline-combined-package-proposal.md`.
+- `cline-tasks/agent-runtime-package-simplification-analysis.md` captures the
+  analysis that runtime-package complexity should be organized into core
+  executable fields, runtime policy, design metadata, and extension capability
+  declarations.
+- `cline-tasks/agent-development-skill-runtime-package-feature-request.md`
+  packages that analysis as an upstream feature-request handoff for the
+  `clinerules-roschuma` agent-development skill repository.
 - `specs/dynamic-agent-runner/tasks.md` now contains `Deferred Codex/Cline
   evaluation follow-ups` E1 through E14 and `Deferred OpenAI Agents SDK Python
   evaluation follow-ups` OA1 through OA10. E1 is complete and checked off with
@@ -628,7 +637,11 @@
 - Select the next scoped follow-up before implementing more runtime behavior;
   E14 is complete through Slice I.7, remaining deferred Codex/Cline follow-ups
   include E9, E10, E11, and E12, and OpenAI Agents SDK Python follow-ups OA1-OA10
-  are now available as future design inputs.
+  are available as future design inputs.
+- If simplifying the runtime-package concept next, start with the `c710490`
+  analysis recommendation: add an internal `ExecutionPlan` / `PreparedNode`
+  normalization layer and a pass-through `prepare_model_input(...)` seam before
+  implementing more optional feature modules.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped

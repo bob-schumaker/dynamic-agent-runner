@@ -204,5 +204,9 @@ add the suggested next spec/task additions and update the spec documents as appr
 ---
 
 now that we have implemented the original agent workflow description concept and compared it to other agent runner packages, do
-an analysis of where the current concept could be improved to simplify implementing the current and planned features. the
+an analysis of where the current worflow YAML/mermaid/tool input could be improved to simplify implementing the current and planned features. the
 current agent development design is at /Users/roschuma/Repos/roschuma/clinerules-roschuma/skills/agent-development-skill/references/agent-runtime-package.md
+
+---
+
+write a separate feature request handoff note for the agent development skill repo that captures the upstream changes we would like to have

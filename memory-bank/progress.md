@@ -146,6 +146,8 @@
   `27f409b docs(spec): record async validation completion`.
 - OpenAI Agents SDK Python evaluation/spec follow-up commit exists:
   `322ce13 docs(agent-patterns): add OpenAI Agents SDK evaluation`.
+- Runtime-package simplification analysis commit exists:
+  `c710490 docs(agent-runtime): analyze package simplification`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -317,12 +319,21 @@
   policy, handoff versus agent-as-tool metadata, approval interruption/resume
   state, session protocols, optional callable-to-tool helpers, and
   sandbox/workspace runtime separation.
+- Runtime-package simplification analysis from `c710490` adds
+  `cline-tasks/agent-runtime-package-simplification-analysis.md` and
+  `cline-tasks/agent-development-skill-runtime-package-feature-request.md`.
+  The analysis recommends keeping the primitive graph executor, grouping manifest
+  complexity into `runtime`, `metadata`, and `extensions`, adding internal
+  `ExecutionPlan` / `PreparedNode` and `PreparedModelInput` seams, and deferring
+  sessions, approvals, sandbox/workspace runtime, and iterative agent-loop
+  semantics until explicitly scoped.
 
 ## In Flight
 
 - No source implementation work is currently in flight after E14 Slice I.7
-  validation commit `7990503`, governing-docs commit `27f409b`, and OpenAI Agents
-  SDK Python evaluation/spec follow-up commit `322ce13`.
+  validation commit `7990503`, governing-docs commit `27f409b`, OpenAI Agents SDK
+  Python evaluation/spec follow-up commit `322ce13`, and runtime-package
+  simplification analysis commit `c710490`.
 - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12.
   Deferred OpenAI Agents SDK Python follow-ups OA1-OA10 are also available for
   future scoped selection. E14 is complete through Slice I.7; no E14
@@ -330,8 +341,8 @@
 
 ## Remaining
 
-- Await follow-up direction for the next scoped runtime slice, adapter-gated
-  prompt-cache provider pass-through, deferred library-evaluation follow-up,
+- Await follow-up direction for the next scoped runtime slice, runtime-package
+  simplification prerequisite, adapter-gated prompt-cache provider pass-through,
   remaining Codex/Cline deferred follow-ups, OpenAI Agents SDK Python OA
   follow-ups, or interpreter middleware prototype work.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
@@ -400,6 +411,11 @@
   current implementation scope. Guardrails, approval pause/resume state, sessions,
   sandbox/workspace execution, and iterative agent-loop completion policy should
   each require a fresh scoped spec/update before implementation.
+- Runtime-package simplification analysis recommends organizing future manifest
+  complexity before implementing more optional modules: use grouped `runtime`,
+  `metadata`, and `extensions` concepts upstream, and consider a local
+  `ExecutionPlan` / `PreparedNode` normalization layer plus `prepare_model_input(...)`
+  seam before E9/OA feature work.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
