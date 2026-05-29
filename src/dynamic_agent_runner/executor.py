@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeVar
 from uuid import uuid4
 
 from dynamic_agent_runner.behavior import effective_node_behavior
@@ -19,7 +19,6 @@ from dynamic_agent_runner.errors import (
 from dynamic_agent_runner.hooks import (
     ModelHookContext,
     NodeHookContext,
-    RegisteredLifecycleHook,
     ToolHookContext,
     WorkflowHookContext,
     WorkflowLifecycleHooks,
@@ -42,7 +41,6 @@ from dynamic_agent_runner.retry import (
     RetryPolicy,
     RetryRecord,
     retry_policy_from_value,
-    run_with_retry,
     run_with_retry_async,
 )
 from dynamic_agent_runner.token_budget import (
@@ -52,6 +50,9 @@ from dynamic_agent_runner.token_budget import (
     token_budget_policy_from_value,
 )
 from dynamic_agent_runner.tracing import TraceEvent, TraceSink, WorkflowTracer
+
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -247,141 +248,32 @@ def execute_workflow(
 ) -> WorkflowResult:
     """Execute a validated workflow from a user prompt."""
 
-    if not prompt:
-        raise WorkflowExecutionError("workflow execution requires a non-empty prompt")
-    context = _normalize_execution_context(
-        workflow,
-        tool_registry=tool_registry,
-        model_adapter=model_adapter,
-        max_steps=max_steps,
-        trace_sink=trace_sink,
-        prompt_cache=prompt_cache,
-        lifecycle_hooks=lifecycle_hooks,
-    )
-    manifest = context.workflow.runtime_manifest
-    nodes = _node_map(tuple(manifest.nodes))
-    if not manifest.entrypoint or manifest.entrypoint not in nodes:
-        raise WorkflowExecutionError("workflow entrypoint does not reference a node")
-    edges_by_source = _edges_by_source(tuple(manifest.edges))
-    adapter = context.model_adapter or OpenAIClientAdapter()
-    if isinstance(adapter, AsyncOpenAIClientAdapter):
-        raise WorkflowExecutionError(
-            "cannot use async model adapter from synchronous executor path; "
-            "use execute_workflow_async(...) instead"
+    return _run_async_from_sync(
+        lambda: execute_workflow_async(
+            workflow,
+            prompt=prompt,
+            tool_registry=tool_registry,
+            model_adapter=model_adapter,
+            max_steps=max_steps,
+            trace_sink=trace_sink,
+            prompt_cache=prompt_cache,
+            lifecycle_hooks=lifecycle_hooks,
+            run_id=run_id,
         )
-    state = WorkflowExecutionState(prompt=prompt, run_id=run_id or _new_run_id())
-    tracer = WorkflowTracer(
-        events=state.trace_events,
-        sink=context.trace_sink,
-        run_id=state.run_id,
-    )
-    current_node_id: str | None = manifest.entrypoint
-    limit = (
-        context.max_steps or _max_steps(manifest.execution_policy) or (len(nodes) + 10)
-    )
-    tracer.emit(
-        "workflow_started",
-        payload={"entrypoint": manifest.entrypoint, "prompt": prompt},
-        sensitive_fields=("prompt",),
     )
 
-    for _step_index in range(limit):
-        if current_node_id is None:
-            state.final_result = _last_output(state)
-            tracer.emit(
-                "workflow_completed",
-                payload={"final_result": state.final_result},
-                sensitive_fields=("final_result",),
-            )
-            hooks = context.lifecycle_hooks
-            _call_hook(
-                hooks.registered_hook("after_workflow") if hooks else None,
-                WorkflowHookContext(
-                    run_id=state.run_id,
-                    final_result=state.final_result,
-                ),
-            )
-            return WorkflowResult(final_result=state.final_result, state=state)
-        node = nodes[current_node_id]
-        tracer.emit(
-            "node_started",
-            node_id=str(node.id),
-            payload={"kind": node.kind},
-        )
-        hooks = context.lifecycle_hooks
-        _call_hook(
-            hooks.registered_hook("before_node") if hooks else None,
-            NodeHookContext(
-                node_id=str(node.id),
-                kind=str(node.kind),
-                run_id=state.run_id,
-            ),
-        )
-        try:
-            output = _execute_node(
-                node,
-                context.workflow,
-                state,
-                context.tool_registry,
-                adapter,
-                tracer,
-                context.prompt_cache,
-                hooks,
-            )
-        except Exception as exc:
-            tracer.emit(
-                "node_error",
-                node_id=str(node.id),
-                payload={"kind": node.kind, "error": str(exc)},
-            )
-            raise
-        state.node_outputs[current_node_id] = output
-        state.executions.append(
-            NodeExecution(node_id=current_node_id, kind=str(node.kind), output=output)
-        )
-        tracer.emit(
-            "node_completed",
-            node_id=str(node.id),
-            payload={"kind": node.kind, "output": _unwrap_output(output)},
-            sensitive_fields=("output",),
-        )
-        _call_hook(
-            hooks.registered_hook("after_node") if hooks else None,
-            NodeHookContext(
-                node_id=str(node.id),
-                kind=str(node.kind),
-                output=_unwrap_output(output),
-                run_id=state.run_id,
-            ),
-        )
-        current_node_id = _next_node_id(
-            node, output, edges_by_source.get(current_node_id, ())
-        )
 
-    error = f"workflow exceeded maximum step count {limit}"
-    tracer.emit("workflow_error", payload={"error": error})
-    hooks = context.lifecycle_hooks
-    _call_hook(
-        hooks.registered_hook("after_workflow") if hooks else None,
-        WorkflowHookContext(run_id=state.run_id, error=error),
+def _run_async_from_sync(operation: Callable[[], Awaitable[T]]) -> T:
+    """Run an async operation for synchronous callers when no loop is active."""
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(operation())
+    raise WorkflowExecutionError(
+        "cannot use synchronous workflow wrapper while an event loop is running; "
+        "use the async API instead"
     )
-    raise WorkflowExecutionError(error)
-
-
-def _call_hook(hook: RegisteredLifecycleHook | None, context: Any) -> None:
-    if hook is None:
-        return
-    if hook.callback_is_async:
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            asyncio.run(invoke_lifecycle_hook_async(hook, context))
-            return
-        raise WorkflowExecutionError(
-            "cannot invoke async lifecycle hook from synchronous executor path while "
-            "an event loop is running"
-        )
-    hook.callback(context)
 
 
 def _normalize_execution_context(
@@ -421,34 +313,6 @@ def _normalize_execution_context(
     )
 
 
-def _execute_node(
-    node: RuntimeNode,
-    workflow: LoadedAgentWorkflow,
-    state: WorkflowExecutionState,
-    registry: ToolRegistry | None,
-    adapter: OpenAIClientAdapter,
-    tracer: WorkflowTracer,
-    prompt_cache: bool | None,
-    lifecycle_hooks: WorkflowLifecycleHooks | None,
-) -> Any:
-    if node.kind == "llm_step":
-        return _execute_llm_step(
-            node,
-            workflow,
-            state,
-            registry,
-            adapter,
-            tracer,
-            prompt_cache,
-            lifecycle_hooks,
-        )
-    if node.kind == "tool_use_step":
-        return _execute_tool_step(node, state, registry, tracer, lifecycle_hooks)
-    if node.kind == "decision_step":
-        return _execute_decision_step(node, state, tracer)
-    raise WorkflowExecutionError(f"unsupported node kind {node.kind!r}")
-
-
 async def _execute_node_async(
     node: RuntimeNode,
     workflow: LoadedAgentWorkflow,
@@ -481,109 +345,6 @@ async def _execute_node_async(
 
 def _new_run_id() -> str:
     return str(uuid4())
-
-
-def _execute_llm_step(
-    node: RuntimeNode,
-    workflow: LoadedAgentWorkflow,
-    state: WorkflowExecutionState,
-    registry: ToolRegistry | None,
-    adapter: OpenAIClientAdapter,
-    tracer: WorkflowTracer,
-    prompt_cache: bool | None,
-    lifecycle_hooks: WorkflowLifecycleHooks | None,
-) -> ModelResponse:
-    behavior = effective_node_behavior(node, workflow)
-    message_parts = _render_message_parts(behavior, state)
-    messages = tuple(message for _part, message in message_parts)
-    tools: list[dict[str, Any]] = []
-    if node.available_tools:
-        if registry is None:
-            raise WorkflowExecutionError(
-                f"llm_step node {node.id!r} exposes tools but no registry was provided"
-            )
-        tools = registry.to_openai_tools(
-            tool.id for tool in registry.list_tools_for_node(node)
-        )
-    model = _model_name(node, workflow)
-    _check_prompt_cache(
-        workflow,
-        message_parts,
-        model,
-        tracer,
-        node,
-        prompt_cache=prompt_cache,
-    )
-    _enforce_token_budget(node, workflow, messages, model, state, tracer)
-    request = build_openai_request(
-        model=model,
-        messages=messages,
-        tools=tools,
-        tool_choice=node.raw.get("tool_choice"),
-        response_format=_mapping_or_none(node.raw.get("response_format")),
-        **_model_parameters(node),
-    )
-    state.node_inputs[str(node.id)] = request.to_kwargs()
-    tracer.emit(
-        "model_request",
-        node_id=str(node.id),
-        payload={
-            "model": model,
-            "message_count": len(messages),
-            "tool_count": len(tools),
-            "request": request.to_kwargs(),
-        },
-        sensitive_fields=("request",),
-    )
-    _call_hook(
-        lifecycle_hooks.registered_hook("before_model") if lifecycle_hooks else None,
-        ModelHookContext(
-            node_id=str(node.id),
-            model=model,
-            request=request.to_kwargs(),
-            run_id=state.run_id,
-        ),
-    )
-    policy = _model_retry_policy(node, workflow)
-    try:
-        response, attempts = run_with_retry(
-            lambda: adapter.create_response(request),
-            policy=_exception_retry_policy(policy, "model_error"),
-            retry_exceptions=(ModelExecutionError,),
-        )
-    except ModelExecutionError as exc:
-        _record_retry(
-            state,
-            node,
-            "model",
-            attempts=policy.max_attempts if _retries_exceptions(policy) else 1,
-            outcome="failure",
-            final_error=str(exc),
-            tracer=tracer,
-        )
-        raise
-    _record_retry(
-        state, node, "model", attempts=attempts, outcome="success", tracer=tracer
-    )
-    tracer.emit(
-        "model_response",
-        node_id=str(node.id),
-        payload={"response_id": response.response_id, "content": response.content},
-        sensitive_fields=("content",),
-    )
-    _call_hook(
-        lifecycle_hooks.registered_hook("after_model") if lifecycle_hooks else None,
-        ModelHookContext(
-            node_id=str(node.id),
-            model=model,
-            request=request.to_kwargs(),
-            response=response,
-            run_id=state.run_id,
-        ),
-    )
-    _record_prompt_cache_provider_telemetry(response, node, tracer)
-    _validate_model_output_contract(node, workflow, response, behavior.prompt)
-    return response
 
 
 async def _execute_llm_step_async(
@@ -728,112 +489,6 @@ def _read_path(value: Any, path: Sequence[str]) -> Any:
     return current
 
 
-def _execute_tool_step(
-    node: RuntimeNode,
-    state: WorkflowExecutionState,
-    registry: ToolRegistry | None,
-    tracer: WorkflowTracer,
-    lifecycle_hooks: WorkflowLifecycleHooks | None,
-) -> ToolResult:
-    if registry is None:
-        raise WorkflowExecutionError(
-            f"tool_use_step node {node.id!r} requires a tool registry"
-        )
-    if not node.tool_id:
-        raise WorkflowExecutionError(
-            f"tool_use_step node {node.id!r} is missing tool_id"
-        )
-    arguments = _tool_arguments(node, state)
-    state.node_inputs[str(node.id)] = arguments
-    tracer.emit(
-        "tool_started",
-        node_id=str(node.id),
-        payload={"tool_id": node.tool_id, "arguments": arguments},
-        sensitive_fields=("arguments",),
-    )
-    tracer.emit(
-        "tool_invocation",
-        node_id=str(node.id),
-        payload={"tool_id": node.tool_id, "arguments": arguments},
-        sensitive_fields=("arguments",),
-    )
-    _call_hook(
-        lifecycle_hooks.registered_hook("before_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=str(node.tool_id),
-            arguments=arguments,
-            run_id=state.run_id,
-        ),
-    )
-    result = _invoke_tool_with_retry(node, registry, arguments, state, tracer)
-    state.tool_results[str(node.id)] = result
-    tracer.emit(
-        "tool_result",
-        node_id=str(node.id),
-        payload=result.trace_payload(),
-        sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
-    )
-    if not result.success and _failure_behavior(node) == "error":
-        error = result.error or f"tool {node.tool_id!r} failed"
-        state.errors.append(error)
-        tracer.emit(
-            "tool_finished",
-            node_id=str(node.id),
-            payload={
-                "tool_id": node.tool_id,
-                "success": result.success,
-                "error": error,
-            },
-        )
-        _call_hook(
-            lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
-            ToolHookContext(
-                node_id=str(node.id),
-                tool_id=str(node.tool_id),
-                arguments=arguments,
-                result=result,
-                error=error,
-                run_id=state.run_id,
-            ),
-        )
-        raise WorkflowExecutionError(error)
-    if not result.success:
-        _emit_status_notice(
-            tracer,
-            node,
-            severity="warning",
-            code="tool_failure_fallback",
-            message=(
-                f"tool {node.tool_id!r} failed; continuing due to "
-                f"{_failure_behavior(node)} behavior"
-            ),
-            payload={"tool_id": node.tool_id, "error": result.error},
-        )
-    tracer.emit(
-        "tool_finished",
-        node_id=str(node.id),
-        payload={
-            "tool_id": node.tool_id,
-            "success": result.success,
-            "error": result.error,
-        },
-    )
-    _call_hook(
-        lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=str(node.tool_id),
-            arguments=arguments,
-            result=result,
-            error=result.error,
-            run_id=state.run_id,
-        ),
-    )
-    _record_outputs(node, result, state)
-    return result
-
-
 async def _execute_tool_step_async(
     node: RuntimeNode,
     state: WorkflowExecutionState,
@@ -958,56 +613,6 @@ def _emit_status_notice(
     }
     notice_payload.update(dict(payload or {}))
     tracer.emit("status_notice", node_id=str(node.id), payload=notice_payload)
-
-
-def _invoke_tool_with_retry(
-    node: RuntimeNode,
-    registry: ToolRegistry,
-    arguments: Mapping[str, Any],
-    state: WorkflowExecutionState,
-    tracer: WorkflowTracer,
-) -> ToolResult:
-    policy = _tool_retry_policy(node, registry)
-    retry_failures = _retries_failures(policy)
-    max_attempts = policy.max_attempts if retry_failures else 1
-    last_result: ToolResult | None = None
-    for attempt in range(1, max_attempts + 1):
-        try:
-            result = registry.invoke_tool(str(node.tool_id), arguments)
-        except ToolRegistryError as exc:
-            _record_retry(
-                state,
-                node,
-                "tool",
-                attempts=attempt,
-                outcome="failure",
-                final_error=str(exc),
-                tracer=tracer,
-            )
-            raise
-        last_result = result
-        if result.success or not retry_failures:
-            _record_retry(
-                state,
-                node,
-                "tool",
-                attempts=attempt,
-                outcome="success",
-                tracer=tracer,
-            )
-            return result
-    if last_result is None:
-        raise WorkflowExecutionError(f"tool_use_step node {node.id!r} did not run")
-    _record_retry(
-        state,
-        node,
-        "tool",
-        attempts=max_attempts,
-        outcome="failure",
-        final_error=last_result.error,
-        tracer=tracer,
-    )
-    return last_result
 
 
 async def _invoke_tool_with_retry_async(

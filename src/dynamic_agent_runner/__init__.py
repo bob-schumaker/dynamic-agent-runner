@@ -1,12 +1,17 @@
 """Runtime for generated dynamic agent workflow artifacts."""
 
-from dynamic_agent_runner.api import load_agent_workflow, run_agent_workflow
+from dynamic_agent_runner.api import (
+    load_agent_workflow,
+    run_agent_workflow,
+    run_agent_workflow_async,
+)
 from dynamic_agent_runner.context import RunContext, WorkflowExecutionContext
 from dynamic_agent_runner.executor import (
     NodeExecution,
     WorkflowExecutionState,
     WorkflowResult,
     execute_workflow,
+    execute_workflow_async,
 )
 from dynamic_agent_runner.prompt_cache import (
     PromptCacheObservation,
@@ -113,6 +118,7 @@ __all__ = [
     "create_default_async_openai_client",
     "create_default_openai_client",
     "execute_workflow",
+    "execute_workflow_async",
     "normalize_openai_response",
     "validate_registry_tool_references",
     "openai_tool_schema",
@@ -150,4 +156,5 @@ __all__ = [
     "WorkflowValidationError",
     "load_agent_workflow",
     "run_agent_workflow",
+    "run_agent_workflow_async",
 ]

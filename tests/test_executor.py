@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from dynamic_agent_runner.api import run_agent_workflow
+from dynamic_agent_runner.api import run_agent_workflow, run_agent_workflow_async
 from dynamic_agent_runner.artifacts import load_runtime_manifest
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
@@ -172,34 +172,6 @@ def test_execute_workflow_async_runs_async_model_adapter() -> None:
 
     assert result.final_result == "async done"
     assert adapter.client.responses.calls[0]["model"] == "gpt-test"
-
-
-def test_execute_workflow_rejects_async_model_adapter_on_sync_path() -> None:
-    workflow = workflow_from(
-        {
-            "format_version": 1,
-            "package_type": "dynamic_agent_design",
-            "package_id": "sync-path-async-adapter-agent",
-            "entrypoint": "answer",
-            "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
-            "nodes": [
-                {
-                    "id": "answer",
-                    "kind": "llm_step",
-                    "prompt": {"user_template": "Answer {prompt}"},
-                }
-            ],
-            "edges": [],
-        }
-    )
-
-    with pytest.raises(WorkflowExecutionError, match="async model adapter"):
-        execute_workflow(
-            workflow,
-            prompt="Hello",
-            model_adapter=make_async_adapter([{"id": "resp", "output_text": "done"}]),
-        )
 
 
 def test_execute_workflow_async_awaits_async_direct_tool() -> None:
@@ -1065,6 +1037,126 @@ def test_run_agent_workflow_returns_final_result() -> None:
     )
 
     assert final_result == "done"
+
+
+def test_run_agent_workflow_async_returns_final_result() -> None:
+    manifest = {
+        "format_version": 1,
+        "package_type": "dynamic_agent_design",
+        "package_id": "async-api-agent",
+        "entrypoint": "answer",
+        "packaging": {"mode": "hybrid_bundle"},
+        "execution_policy": {"model": "gpt-test"},
+        "nodes": [
+            {
+                "id": "answer",
+                "kind": "llm_step",
+                "prompt": {"user_template": "{prompt}"},
+            }
+        ],
+        "edges": [],
+    }
+
+    final_result = asyncio.run(
+        run_agent_workflow_async(
+            runtime_manifest=manifest,
+            prompt="Hello",
+            model_adapter=make_async_adapter(
+                [{"id": "resp", "output_text": "async done"}]
+            ),
+        )
+    )
+
+    assert final_result == "async done"
+
+
+def test_execute_workflow_sync_wrapper_accepts_async_model_adapter() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "sync-wrapper-async-adapter-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Hello",
+        model_adapter=make_async_adapter([{"id": "resp", "output_text": "done"}]),
+    )
+
+    assert result.final_result == "done"
+
+
+def test_execute_workflow_sync_wrapper_rejects_running_event_loop() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "sync-wrapper-loop-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    async def call_sync_wrapper() -> None:
+        execute_workflow(
+            workflow,
+            prompt="Hello",
+            model_adapter=make_adapter([{"id": "resp", "output_text": "done"}]),
+        )
+
+    with pytest.raises(WorkflowExecutionError, match="event loop"):
+        asyncio.run(call_sync_wrapper())
+
+
+def test_run_agent_workflow_sync_wrapper_rejects_running_event_loop() -> None:
+    manifest = {
+        "format_version": 1,
+        "package_type": "dynamic_agent_design",
+        "package_id": "api-sync-wrapper-loop-agent",
+        "entrypoint": "answer",
+        "packaging": {"mode": "hybrid_bundle"},
+        "execution_policy": {"model": "gpt-test"},
+        "nodes": [
+            {
+                "id": "answer",
+                "kind": "llm_step",
+                "prompt": {"user_template": "{prompt}"},
+            }
+        ],
+        "edges": [],
+    }
+
+    async def call_sync_wrapper() -> None:
+        run_agent_workflow(
+            runtime_manifest=manifest,
+            prompt="Hello",
+            model_adapter=make_adapter([{"id": "resp", "output_text": "done"}]),
+        )
+
+    with pytest.raises(WorkflowExecutionError, match="event loop"):
+        asyncio.run(call_sync_wrapper())
 
 
 def test_run_agent_workflow_accepts_execution_context() -> None:
