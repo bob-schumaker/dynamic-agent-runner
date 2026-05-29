@@ -60,11 +60,12 @@ or a clear error.
   assigns each execution a `run_id`, propagates that run correlation through
   traces and lifecycle hooks, and synchronizes package-owned in-memory/shared
   helper surfaces used by QThread-style callers.
-- E14 decisions are recorded for future implementation: async execution should
-  become the first-class runtime implementation, with
+- E14 decisions and implementation sequencing are recorded for future work:
+  async execution should become the first-class runtime implementation, with
   `execute_workflow_async(...)` and `run_agent_workflow_async(...)` as public
-  APIs and the existing sync APIs as
-  wrappers that reject calls from an already-running event loop.
+  APIs and the existing sync APIs as wrappers that reject calls from an
+  already-running event loop. The detailed slice plan lives in
+  `cline-tasks/evaluation-follow-up-implementation-plan.md`.
 
 ## Technical Approach
 
@@ -514,6 +515,9 @@ and execution failures.
       test suite, compile checks, and targeted pre-commit
 
 17. **Evaluation follow-up Slice I / E14: async-first execution APIs and wrappers**
+    - detailed implementation sequencing is recorded in
+      `cline-tasks/evaluation-follow-up-implementation-plan.md`
+    - recommended first implementation slice: async OpenAI client boundary
     - implement true async public APIs `execute_workflow_async(...)` and
       `run_agent_workflow_async(...)` as the first-class runtime path
     - convert existing sync public APIs for CLI, scripts, tests, cron jobs, and
@@ -581,7 +585,8 @@ model behavior and fake registries for tool behavior.
   hooks remain caller-managed for synchronization.
 - E14 is now defined as a true async-first implementation direction, not only a
   design spike: async public APIs become first-class, while sync APIs become
-  wrappers over the async path for simple callers and the CLI.
+  wrappers over the async path for simple callers and the CLI. The detailed E14
+  implementation plan is in `cline-tasks/evaluation-follow-up-implementation-plan.md`.
 - Sync wrappers must reject already-running event loops with a clear project
   error rather than attempting nested event-loop execution.
 - The model-client contract should be async-canonical. OpenAI async support must

@@ -2,9 +2,9 @@
 
 ## Status
 
-- State: E14 decisions recorded; E13 concurrent invocation support is complete,
-  and future E14 implementation should make async execution the first-class
-  runtime path while preserving E13 run-correlation guarantees
+- State: E14 implementation plan recorded; E13 concurrent invocation support is
+  complete, and future E14 implementation should start with the async OpenAI
+  client boundary while preserving E13 run-correlation guarantees
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
@@ -611,6 +611,8 @@
         passed.
 - [ ] E14. Implement async-first execution APIs and sync wrapper behavior without
       creating a separate runtime implementation.
+      - Detailed implementation plan: `cline-tasks/evaluation-follow-up-implementation-plan.md`.
+      - Recommended first slice: async OpenAI client boundary.
       - Add first-class async public APIs `execute_workflow_async(...)` and
         `run_agent_workflow_async(...)` for event-loop callers.
       - Convert synchronous APIs for CLI, scripts, tests, cron jobs, and simple

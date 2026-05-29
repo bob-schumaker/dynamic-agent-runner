@@ -1295,7 +1295,9 @@ Before implementation is considered complete, add validation covering:
   attempt best-effort cancellation propagation, and validate async model calls,
   async tools, async hooks, cancellation, sync wrapper compatibility, and
   concurrent async runs. E13's run-correlation contract must remain consistent
-  with this async-first design.
+  with this async-first design. The detailed E14 implementation plan is recorded
+  in `cline-tasks/evaluation-follow-up-implementation-plan.md` and recommends
+  starting with the async OpenAI client boundary.
 - Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
   validation in commit `44b0847`, including fail-closed malformed schema checks
   and `$schema` removal from model-facing tool parameters.
