@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from pathlib import Path
 
 import pytest
@@ -86,6 +88,110 @@ def test_registry_lookup_schema_conversion_and_invocation() -> None:
 
     assert result.success is True
     assert result.output == {"query": "agents"}
+
+
+def test_registered_tool_records_callable_shape() -> None:
+    async def async_handler(_args: object) -> object:
+        return {"ok": True}
+
+    sync_tool = make_tool("sync_tool")
+    async_tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {"id": "async_tool", "input_schema": {"type": "object"}}
+        ),
+        async_handler,
+    )
+
+    assert sync_tool.handler_is_async is False
+    assert async_tool.handler_is_async is True
+
+
+def test_registry_awaits_async_tool_handlers() -> None:
+    async def handler(args: object) -> ToolResult:
+        return ToolResult(
+            tool_id="async_lookup",
+            success=True,
+            output={"raw": args},
+            model_output={"summary": "awaited"},
+        )
+
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {
+                        "id": "async_lookup",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                            "required": ["query"],
+                        },
+                    }
+                ),
+                handler,
+            )
+        ]
+    )
+
+    result = asyncio.run(registry.invoke_tool_async("async_lookup", {"query": "x"}))
+
+    assert result.success is True
+    assert result.model_facing_output == {"summary": "awaited"}
+
+
+def test_registry_runs_sync_tool_handlers_through_async_boundary() -> None:
+    event_loop_thread_id = threading.get_ident()
+    handler_thread_ids: list[int] = []
+
+    def handler(args: object) -> object:
+        handler_thread_ids.append(threading.get_ident())
+        return {"query": args["query"]}
+
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {
+                        "id": "sync_lookup",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                            "required": ["query"],
+                        },
+                    }
+                ),
+                handler,
+            )
+        ]
+    )
+
+    result = asyncio.run(registry.invoke_tool_async("sync_lookup", {"query": "x"}))
+
+    assert result.success is True
+    assert result.output == {"query": "x"}
+    assert handler_thread_ids
+    assert handler_thread_ids[0] != event_loop_thread_id
+
+
+def test_registry_async_invocation_converts_handler_exceptions() -> None:
+    async def handler(_args: object) -> object:
+        raise RuntimeError("async boom")
+
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {"id": "async_failure", "input_schema": {"type": "object"}}
+                ),
+                handler,
+            )
+        ]
+    )
+
+    result = asyncio.run(registry.invoke_tool_async("async_failure", {}))
+
+    assert result.success is False
+    assert result.error == "async boom"
 
 
 def test_registry_reports_missing_inputs_and_tool_failures() -> None:

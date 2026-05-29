@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -43,6 +45,13 @@ class ToolRegistry(Protocol):
         arguments: Mapping[str, Any] | None = None,
     ) -> ToolResult:
         """Invoke a registered tool and return a structured result."""
+
+    async def invoke_tool_async(
+        self,
+        tool_id: str,
+        arguments: Mapping[str, Any] | None = None,
+    ) -> ToolResult:
+        """Invoke a registered tool through the async dispatch path."""
 
 
 @dataclass(frozen=True)
@@ -89,6 +98,16 @@ class RegisteredTool:
 
     definition: ToolDefinition
     handler: ToolHandler
+    handler_is_async: bool = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Record handler callable shape at construction time."""
+
+        object.__setattr__(
+            self,
+            "handler_is_async",
+            inspect.iscoroutinefunction(self.handler),
+        )
 
     @property
     def id(self) -> str:
@@ -237,17 +256,63 @@ class InMemoryToolRegistry:
     ) -> ToolResult:
         """Invoke a registered tool with simple input validation."""
 
-        args = dict(arguments or {})
-        tool = self.get_tool(tool_id)
         try:
-            _require_direct_callable(tool.definition)
-            _validate_input_schema(tool.definition, args)
-            output = tool.handler(args)
+            tool, args = self._prepare_tool_invocation(tool_id, arguments)
+            if tool.handler_is_async:
+                output = _run_async_tool_handler_from_sync(tool.handler, args)
+            else:
+                output = tool.handler(args)
         except Exception as exc:  # noqa: BLE001 - convert all tool failures.
             return ToolResult(tool_id=tool_id, success=False, error=str(exc))
-        if isinstance(output, ToolResult):
-            return output
-        return ToolResult(tool_id=tool_id, success=True, output=output)
+        return _tool_result_from_output(tool_id, output)
+
+    async def invoke_tool_async(
+        self,
+        tool_id: str,
+        arguments: Mapping[str, Any] | None = None,
+    ) -> ToolResult:
+        """Invoke a registered tool without blocking the event loop."""
+
+        try:
+            tool, args = self._prepare_tool_invocation(tool_id, arguments)
+            if tool.handler_is_async:
+                output = await tool.handler(args)
+            else:
+                output = await asyncio.to_thread(tool.handler, args)
+        except Exception as exc:  # noqa: BLE001 - convert all tool failures.
+            return ToolResult(tool_id=tool_id, success=False, error=str(exc))
+        return _tool_result_from_output(tool_id, output)
+
+    def _prepare_tool_invocation(
+        self,
+        tool_id: str,
+        arguments: Mapping[str, Any] | None,
+    ) -> tuple[RegisteredTool, dict[str, Any]]:
+        args = dict(arguments or {})
+        tool = self.get_tool(tool_id)
+        _require_direct_callable(tool.definition)
+        _validate_input_schema(tool.definition, args)
+        return tool, args
+
+
+def _run_async_tool_handler_from_sync(
+    handler: ToolHandler,
+    args: Mapping[str, Any],
+) -> Any:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(handler(args))
+    raise ToolRegistryError(
+        "cannot invoke async tool handler from synchronous registry path while an "
+        "event loop is running; use invoke_tool_async(...) instead"
+    )
+
+
+def _tool_result_from_output(tool_id: str, output: Any) -> ToolResult:
+    if isinstance(output, ToolResult):
+        return output
+    return ToolResult(tool_id=tool_id, success=True, output=output)
 
 
 def openai_tool_schema(definition: ToolDefinition) -> dict[str, Any]:
