@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+import inspect
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass, field
 from typing import Any
+
+
+HookCallback = Callable[[Any], None | Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,15 @@ class WorkflowHookContext:
 
 
 @dataclass(frozen=True)
+class RegisteredLifecycleHook:
+    """Lifecycle hook callback plus its recorded callable shape."""
+
+    name: str
+    callback: HookCallback
+    callback_is_async: bool
+
+
+@dataclass(frozen=True)
 class WorkflowLifecycleHooks:
     """Optional in-process callbacks for stable workflow lifecycle points.
 
@@ -71,20 +84,69 @@ class WorkflowLifecycleHooks:
     commands, plugin loading, or untrusted extension behavior.
     """
 
-    before_node: Callable[[NodeHookContext], None] | None = None
-    after_node: Callable[[NodeHookContext], None] | None = None
-    before_model: Callable[[ModelHookContext], None] | None = None
-    after_model: Callable[[ModelHookContext], None] | None = None
-    before_tool: Callable[[ToolHookContext], None] | None = None
-    after_tool: Callable[[ToolHookContext], None] | None = None
-    after_workflow: Callable[[WorkflowHookContext], None] | None = None
+    before_node: HookCallback | None = None
+    after_node: HookCallback | None = None
+    before_model: HookCallback | None = None
+    after_model: HookCallback | None = None
+    before_tool: HookCallback | None = None
+    after_tool: HookCallback | None = None
+    after_workflow: HookCallback | None = None
+    _registered_hooks: Mapping[str, RegisteredLifecycleHook] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        """Record configured hook callable shapes once at setup time."""
+
+        registered: dict[str, RegisteredLifecycleHook] = {}
+        for name in (
+            "before_node",
+            "after_node",
+            "before_model",
+            "after_model",
+            "before_tool",
+            "after_tool",
+            "after_workflow",
+        ):
+            callback = getattr(self, name)
+            if callback is None:
+                continue
+            registered[name] = RegisteredLifecycleHook(
+                name=name,
+                callback=callback,
+                callback_is_async=inspect.iscoroutinefunction(callback),
+            )
+        object.__setattr__(self, "_registered_hooks", registered)
+
+    def registered_hook(self, name: str) -> RegisteredLifecycleHook | None:
+        """Return configured hook metadata by lifecycle hook name."""
+
+        return self._registered_hooks.get(name)
+
+
+async def invoke_lifecycle_hook_async(
+    hook: RegisteredLifecycleHook | None,
+    context: Any,
+) -> None:
+    """Invoke a lifecycle hook through the async dispatch boundary."""
+
+    if hook is None:
+        return
+    if hook.callback_is_async:
+        await hook.callback(context)
+        return
+    hook.callback(context)
 
 
 __all__ = [
     "ModelHookContext",
     "NodeHookContext",
     "PermissionHookContext",
+    "RegisteredLifecycleHook",
     "ToolHookContext",
     "WorkflowHookContext",
     "WorkflowLifecycleHooks",
+    "invoke_lifecycle_hook_async",
 ]

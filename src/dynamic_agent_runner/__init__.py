@@ -39,9 +39,11 @@ from dynamic_agent_runner.hooks import (
     ModelHookContext,
     NodeHookContext,
     PermissionHookContext,
+    RegisteredLifecycleHook,
     ToolHookContext,
     WorkflowHookContext,
     WorkflowLifecycleHooks,
+    invoke_lifecycle_hook_async,
 )
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
@@ -125,6 +127,7 @@ __all__ = [
     "PromptCacheObservation",
     "PromptCachePolicy",
     "PermissionHookContext",
+    "RegisteredLifecycleHook",
     "RunContext",
     "RetryPolicy",
     "RuntimeBehaviorOverrides",
@@ -135,6 +138,7 @@ __all__ = [
     "InMemoryToolRegistry",
     "InMemoryTraceSink",
     "estimate_messages_tokens",
+    "invoke_lifecycle_hook_async",
     "retry_policy_from_value",
     "run_with_retry_async",
     "token_budget_policy_from_value",

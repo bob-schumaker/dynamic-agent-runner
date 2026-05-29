@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from dynamic_agent_runner.api import run_agent_workflow
@@ -8,11 +10,13 @@ from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import WorkflowExecutionError
 from dynamic_agent_runner.executor import execute_workflow
 from dynamic_agent_runner.hooks import (
+    RegisteredLifecycleHook,
     ModelHookContext,
     NodeHookContext,
     ToolHookContext,
     WorkflowHookContext,
     WorkflowLifecycleHooks,
+    invoke_lifecycle_hook_async,
 )
 from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
@@ -264,3 +268,173 @@ def test_lifecycle_hook_failures_abort_execution() -> None:
         )
 
     assert adapter.client.responses.calls == []
+
+
+def test_lifecycle_hooks_record_callable_shape_metadata() -> None:
+    async def before_node(_context: NodeHookContext) -> None:
+        return None
+
+    def after_node(_context: NodeHookContext) -> None:
+        return None
+
+    hooks = WorkflowLifecycleHooks(
+        before_node=before_node,
+        after_node=after_node,
+    )
+
+    before_hook = hooks.registered_hook("before_node")
+    after_hook = hooks.registered_hook("after_node")
+
+    assert before_hook == RegisteredLifecycleHook(
+        name="before_node",
+        callback=before_node,
+        callback_is_async=True,
+    )
+    assert after_hook == RegisteredLifecycleHook(
+        name="after_node",
+        callback=after_node,
+        callback_is_async=False,
+    )
+    assert hooks.registered_hook("before_tool") is None
+
+
+def test_async_lifecycle_hook_invocation_awaits_async_hook() -> None:
+    calls: list[tuple[str, str | None]] = []
+
+    async def before_node(context: NodeHookContext) -> None:
+        await asyncio.sleep(0)
+        calls.append(("before_node", context.run_id))
+
+    hooks = WorkflowLifecycleHooks(before_node=before_node)
+
+    asyncio.run(
+        invoke_lifecycle_hook_async(
+            hooks.registered_hook("before_node"),
+            NodeHookContext(node_id="answer", kind="llm_step", run_id="run-123"),
+        )
+    )
+
+    assert calls == [("before_node", "run-123")]
+
+
+def test_async_lifecycle_hook_invocation_preserves_sync_hook_support() -> None:
+    calls: list[tuple[str, str | None]] = []
+
+    def after_tool(context: ToolHookContext) -> None:
+        calls.append(("after_tool", context.run_id))
+
+    hooks = WorkflowLifecycleHooks(after_tool=after_tool)
+
+    asyncio.run(
+        invoke_lifecycle_hook_async(
+            hooks.registered_hook("after_tool"),
+            ToolHookContext(
+                node_id="lookup",
+                tool_id="search_repo",
+                run_id="run-456",
+            ),
+        )
+    )
+
+    assert calls == [("after_tool", "run-456")]
+
+
+def test_async_lifecycle_hook_invocation_propagates_hook_errors() -> None:
+    async def after_model(_context: ModelHookContext) -> None:
+        raise WorkflowExecutionError("async hook blocked model")
+
+    hooks = WorkflowLifecycleHooks(after_model=after_model)
+
+    with pytest.raises(WorkflowExecutionError, match="async hook blocked model"):
+        asyncio.run(
+            invoke_lifecycle_hook_async(
+                hooks.registered_hook("after_model"),
+                ModelHookContext(node_id="answer", model="gpt-test"),
+            )
+        )
+
+
+def test_execute_workflow_awaits_async_lifecycle_hooks() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "async-hook-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                },
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                },
+            ],
+            "edges": [
+                {"source": "answer", "target": "lookup", "edge_kind": "sequential"}
+            ],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry([make_tool("search_repo", {"answer": "42"})])
+    adapter = make_adapter([{"id": "resp", "output_text": "model answer"}])
+    calls: list[tuple[str, str | None]] = []
+
+    async def before_node(context: NodeHookContext) -> None:
+        await asyncio.sleep(0)
+        calls.append(("before_node", context.node_id))
+
+    async def after_node(context: NodeHookContext) -> None:
+        await asyncio.sleep(0)
+        calls.append(("after_node", context.node_id))
+
+    async def before_model(context: ModelHookContext) -> None:
+        await asyncio.sleep(0)
+        calls.append(("before_model", context.node_id))
+
+    async def after_model(context: ModelHookContext) -> None:
+        await asyncio.sleep(0)
+        calls.append(("after_model", context.node_id))
+
+    async def before_tool(context: ToolHookContext) -> None:
+        await asyncio.sleep(0)
+        calls.append(("before_tool", context.node_id))
+
+    async def after_tool(context: ToolHookContext) -> None:
+        await asyncio.sleep(0)
+        calls.append(("after_tool", context.node_id))
+
+    hooks = WorkflowLifecycleHooks(
+        before_node=before_node,
+        after_node=after_node,
+        before_model=before_model,
+        after_model=after_model,
+        before_tool=before_tool,
+        after_tool=after_tool,
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Run",
+        tool_registry=registry,
+        model_adapter=adapter,
+        lifecycle_hooks=hooks,
+    )
+
+    assert result.final_result == {"answer": "42"}
+    assert calls == [
+        ("before_node", "answer"),
+        ("before_model", "answer"),
+        ("after_model", "answer"),
+        ("after_node", "answer"),
+        ("before_node", "lookup"),
+        ("before_tool", "lookup"),
+        ("after_tool", "lookup"),
+        ("after_node", "lookup"),
+    ]

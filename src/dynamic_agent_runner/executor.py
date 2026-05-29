@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -18,9 +19,11 @@ from dynamic_agent_runner.errors import (
 from dynamic_agent_runner.hooks import (
     ModelHookContext,
     NodeHookContext,
+    RegisteredLifecycleHook,
     ToolHookContext,
     WorkflowHookContext,
     WorkflowLifecycleHooks,
+    invoke_lifecycle_hook_async,
 )
 from dynamic_agent_runner.models import LoadedAgentWorkflow, RuntimeEdge, RuntimeNode
 from dynamic_agent_runner.openai_client import (
@@ -141,7 +144,7 @@ def execute_workflow(
             )
             hooks = context.lifecycle_hooks
             _call_hook(
-                hooks.after_workflow if hooks else None,
+                hooks.registered_hook("after_workflow") if hooks else None,
                 WorkflowHookContext(
                     run_id=state.run_id,
                     final_result=state.final_result,
@@ -156,7 +159,7 @@ def execute_workflow(
         )
         hooks = context.lifecycle_hooks
         _call_hook(
-            hooks.before_node if hooks else None,
+            hooks.registered_hook("before_node") if hooks else None,
             NodeHookContext(
                 node_id=str(node.id),
                 kind=str(node.kind),
@@ -192,7 +195,7 @@ def execute_workflow(
             sensitive_fields=("output",),
         )
         _call_hook(
-            hooks.after_node if hooks else None,
+            hooks.registered_hook("after_node") if hooks else None,
             NodeHookContext(
                 node_id=str(node.id),
                 kind=str(node.kind),
@@ -208,15 +211,26 @@ def execute_workflow(
     tracer.emit("workflow_error", payload={"error": error})
     hooks = context.lifecycle_hooks
     _call_hook(
-        hooks.after_workflow if hooks else None,
+        hooks.registered_hook("after_workflow") if hooks else None,
         WorkflowHookContext(run_id=state.run_id, error=error),
     )
     raise WorkflowExecutionError(error)
 
 
-def _call_hook(callback: Any, context: Any) -> None:
-    if callback is not None:
-        callback(context)
+def _call_hook(hook: RegisteredLifecycleHook | None, context: Any) -> None:
+    if hook is None:
+        return
+    if hook.callback_is_async:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(invoke_lifecycle_hook_async(hook, context))
+            return
+        raise WorkflowExecutionError(
+            "cannot invoke async lifecycle hook from synchronous executor path while "
+            "an event loop is running"
+        )
+    hook.callback(context)
 
 
 def _normalize_execution_context(
@@ -341,7 +355,7 @@ def _execute_llm_step(
         sensitive_fields=("request",),
     )
     _call_hook(
-        lifecycle_hooks.before_model if lifecycle_hooks else None,
+        lifecycle_hooks.registered_hook("before_model") if lifecycle_hooks else None,
         ModelHookContext(
             node_id=str(node.id),
             model=model,
@@ -377,7 +391,7 @@ def _execute_llm_step(
         sensitive_fields=("content",),
     )
     _call_hook(
-        lifecycle_hooks.after_model if lifecycle_hooks else None,
+        lifecycle_hooks.registered_hook("after_model") if lifecycle_hooks else None,
         ModelHookContext(
             node_id=str(node.id),
             model=model,
@@ -451,7 +465,7 @@ def _execute_tool_step(
         sensitive_fields=("arguments",),
     )
     _call_hook(
-        lifecycle_hooks.before_tool if lifecycle_hooks else None,
+        lifecycle_hooks.registered_hook("before_tool") if lifecycle_hooks else None,
         ToolHookContext(
             node_id=str(node.id),
             tool_id=str(node.tool_id),
@@ -480,7 +494,7 @@ def _execute_tool_step(
             },
         )
         _call_hook(
-            lifecycle_hooks.after_tool if lifecycle_hooks else None,
+            lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
             ToolHookContext(
                 node_id=str(node.id),
                 tool_id=str(node.tool_id),
@@ -513,7 +527,7 @@ def _execute_tool_step(
         },
     )
     _call_hook(
-        lifecycle_hooks.after_tool if lifecycle_hooks else None,
+        lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
         ToolHookContext(
             node_id=str(node.id),
             tool_id=str(node.tool_id),
