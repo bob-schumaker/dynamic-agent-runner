@@ -521,7 +521,8 @@ and execution failures.
     - make sync wrappers raise a clear project error when called from an
       already-running event loop, directing callers to the async APIs
     - use one async-canonical model-client protocol, with native async OpenAI
-      adapter support after verifying official SDK behavior/source-code details
+      adapter support after inspecting the local OpenAI Python SDK checkout and
+      verifying official SDK behavior/source-code details
     - adapt sync-only model clients behind the async protocol when needed without
       making a separate sync executor contract
     - inspect and record sync/async tool-handler callable shape at
@@ -584,8 +585,9 @@ model behavior and fake registries for tool behavior.
 - Sync wrappers must reject already-running event loops with a clear project
   error rather than attempting nested event-loop execution.
 - The model-client contract should be async-canonical. OpenAI async support must
-  be verified against official SDK behavior or source before implementation; the
-  local Medium note is only supporting guidance.
+  be verified against official SDK behavior or source before implementation; use
+  `/Users/roschuma/Repos/github/openai-python/` as the local source checkout for
+  that inspection. The local Medium note is only supporting guidance.
 - Supporting both sync and async collaborator styles increases API and test-matrix
   complexity, so tool-handler and lifecycle-hook callable shape must be inspected
   at registration/setup time and stored for deterministic dispatch.

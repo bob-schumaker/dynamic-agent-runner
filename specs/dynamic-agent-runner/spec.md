@@ -1103,6 +1103,8 @@ The runtime should start with OpenAI package model and client interfaces:
 - NEEDS CLARIFICATION: What precise subset of the official OpenAI Python SDK
   async client behavior should the async-canonical model client implement, and
   what cancellation guarantees are actually supported by OpenAI's async calls?
+  Inspect `/Users/roschuma/Repos/github/openai-python/` before finalizing this
+  boundary.
 - NEEDS CLARIFICATION: Which safety, authentication, logging, and redaction
   requirements belong in code configuration versus workflow specification?
 - NEEDS CLARIFICATION: What retry policy vocabulary should runtime manifests use
@@ -1287,7 +1289,9 @@ Before implementation is considered complete, add validation covering:
   runtime implementation: add `execute_workflow_async(...)` and
   `run_agent_workflow_async(...)`, keep sync APIs as wrappers that error from an
   already-running event loop, use one async-canonical model-client protocol,
-  inspect sync/async tool handlers and lifecycle hooks during registration/setup,
+  use `/Users/roschuma/Repos/github/openai-python/` as the local source checkout
+  for OpenAI async behavior inspection, inspect sync/async tool handlers and
+  lifecycle hooks during registration/setup,
   attempt best-effort cancellation propagation, and validate async model calls,
   async tools, async hooks, cancellation, sync wrapper compatibility, and
   concurrent async runs. E13's run-correlation contract must remain consistent
