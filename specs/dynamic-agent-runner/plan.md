@@ -32,8 +32,8 @@ or a clear error.
   repository-owned registry direction before deeper runtime implementation.
 - A 3-round implementation-readiness debate concluded this plan is ready only
   for slice-by-slice implementation, not unrestricted runtime coding.
-- The next active E14 implementation slice is Slice I.3: callable-shape metadata
-  for tools.
+- The next active E14 implementation slice is Slice I.4: callable-shape
+  metadata for lifecycle hooks.
 - Evaluation follow-up Slice A is complete and committed: the runtime now exposes
   `WorkflowExecutionContext` / `RunContext` as a stable execution envelope that
   groups a loaded workflow with runtime collaborators while preserving the
@@ -72,7 +72,11 @@ or a clear error.
   factory, public exports, and fake-client tests.
 - E14 Slice I.2 is complete and committed: `run_with_retry_async(...)` now
   preserves async retry attempt counts and propagates `asyncio.CancelledError`
-  without retry. Continue E14 with Slice I.3, callable-shape metadata for tools.
+  without retry.
+- E14 Slice I.3 is complete and committed: registered tools now record handler
+  callable shape and the registry exposes async invocation with awaited async
+  handlers and thread-dispatched sync handlers. Continue E14 with Slice I.4,
+  callable-shape metadata for lifecycle hooks.
 
 ## Technical Approach
 
@@ -526,7 +530,9 @@ and execution failures.
       `cline-tasks/evaluation-follow-up-implementation-plan.md`
     - Slice I.1 async OpenAI client boundary is complete in commit `acca9da`
     - Slice I.2 async retry helper is complete in commit `f2296e9`
-    - recommended next implementation slice: callable-shape metadata for tools
+    - Slice I.3 callable-shape metadata for tools is complete in commit `ff144f5`
+    - recommended next implementation slice: callable-shape metadata for
+      lifecycle hooks
     - implement true async public APIs `execute_workflow_async(...)` and
       `run_agent_workflow_async(...)` as the first-class runtime path
     - convert existing sync public APIs for CLI, scripts, tests, cron jobs, and
@@ -604,7 +610,12 @@ model behavior and fake registries for tool behavior.
 - E14 Slice I.2 completed the async retry helper in commit `f2296e9`:
   `run_with_retry_async(...)` uses Tenacity's async retry support, preserves
   attempt-count return behavior, and propagates `asyncio.CancelledError` without
-  retry. Slice I.3 should add callable-shape metadata for tools next.
+  retry.
+- E14 Slice I.3 completed callable-shape metadata for tools in commit `ff144f5`:
+  `RegisteredTool` records sync/async handler shape, `ToolRegistry` exposes
+  `invoke_tool_async(...)`, async handlers are awaited directly, and sync handlers
+  use `asyncio.to_thread(...)` on the async registry path. Slice I.4 should add
+  callable-shape metadata for lifecycle hooks next.
 - Sync wrappers must reject already-running event loops with a clear project
   error rather than attempting nested event-loop execution.
 - The model-client contract should be async-canonical. OpenAI async support must

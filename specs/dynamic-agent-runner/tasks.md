@@ -2,8 +2,8 @@
 
 ## Status
 
-- State: E14 Slices I.1 and I.2 are complete; future E14 implementation
-  should continue with Slice I.3 callable-shape metadata for tools.
+- State: E14 Slices I.1 through I.3 are complete; future E14 implementation
+  should continue with Slice I.4 callable-shape metadata for lifecycle hooks.
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
@@ -618,7 +618,11 @@
       - Slice I.2 async retry helper completed in commit `f2296e9`: added
         `run_with_retry_async(...)`, exported it publicly, preserved retry attempt
         counts, and ensured `asyncio.CancelledError` propagates without retry.
-      - Recommended next slice: callable-shape metadata for tools.
+      - Slice I.3 callable-shape metadata for tools completed in commit
+        `ff144f5`: added `RegisteredTool.handler_is_async`,
+        `invoke_tool_async(...)`, awaited async handlers, and `asyncio.to_thread(...)`
+        dispatch for sync handlers in the async registry path.
+      - Recommended next slice: callable-shape metadata for lifecycle hooks.
       - Slice I.1 validation: `poetry run pytest tests/test_import.py
         tests/test_openai_client.py -q` — pass; 11 tests passed.
       - Slice I.1 pre-commit: `pre-commit run --files
@@ -629,6 +633,10 @@
       - Slice I.2 pre-commit: `pre-commit run --files
         src/dynamic_agent_runner/retry.py src/dynamic_agent_runner/__init__.py
         tests/test_retry.py` — pass.
+      - Slice I.3 validation: `poetry run pytest tests/test_registry.py
+        tests/test_validation.py tests/test_import.py -q` — pass; 39 tests passed.
+      - Slice I.3 pre-commit: `pre-commit run --files
+        src/dynamic_agent_runner/registry.py tests/test_registry.py` — pass.
       - Add first-class async public APIs `execute_workflow_async(...)` and
         `run_agent_workflow_async(...)` for event-loop callers.
       - Convert synchronous APIs for CLI, scripts, tests, cron jobs, and simple
