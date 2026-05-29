@@ -60,10 +60,11 @@ or a clear error.
   assigns each execution a `run_id`, propagates that run correlation through
   traces and lifecycle hooks, and synchronizes package-owned in-memory/shared
   helper surfaces used by QThread-style callers.
-- Follow-up async interface analysis found that async execution is a good future
-  fit for model/tool I/O, MCP-style registry sources, cancellation, timeouts, and
-  parallel graph edges, while the synchronous API should remain as a convenience
-  interface for simple callers and the CLI.
+- E14 decisions are recorded for future implementation: async execution should
+  become the first-class runtime implementation, with
+  `execute_workflow_async(...)` and `run_agent_workflow_async(...)` as public
+  APIs and the existing sync APIs as
+  wrappers that reject calls from an already-running event loop.
 
 ## Technical Approach
 
@@ -321,11 +322,34 @@ lazy OpenAI adapter initialization, and in-memory registry read/mutation paths.
 Caller-provided tool handlers and lifecycle hook implementations remain
 responsible for synchronizing their own mutable internal state.
 
-Future async work should avoid maintaining a separate runtime implementation.
-Once async execution is introduced, prefer an async-first internal executor with
-sync public entry points implemented as convenience wrappers over the same
-semantic path. The wrapper policy must handle already-running event loops
-explicitly instead of silently nesting event loops.
+E14 async work should implement a true async-first internal executor. The public
+async APIs, `execute_workflow_async(...)` and `run_agent_workflow_async(...)`, are
+the primary runtime entry points. Existing synchronous public APIs remain for
+scripts, tests, cron jobs, the CLI, and simple automation as wrappers over that
+async path, but they must raise a clear project error if called from an
+already-running event loop.
+
+Model execution should use one async-canonical model-client protocol. Native
+OpenAI async support must be verified against official SDK behavior or source
+code before implementation; the local note
+the local Obsidian note titled
+  `How make async calls to OpenAI’s API in Python  Medium.md`
+is supporting guidance for the expected `openai.AsyncOpenAI` / awaited-call shape,
+not an authoritative API contract. Sync-only model clients may be adapted behind
+the async protocol, but a separate sync runtime protocol should not become the
+executor contract.
+
+Tool handlers and lifecycle hooks may be synchronous or asynchronous. Their
+callable shape should be inspected and recorded during registration or setup so
+async execution can invoke or await them correctly without guessing at first
+use. Cancellation should use best-effort propagation to active model calls, tool
+calls, hook calls, and child tasks where supported, while documenting non-
+cancellable sync or external boundaries honestly.
+
+E13 remains part of the E14 contract: concurrent async runs must preserve
+per-run state isolation, run IDs, trace correlation, hook-context correlation,
+and synchronization for package-owned shared helpers that remain shared across
+threads or async tasks.
 
 ### CLI
 
@@ -489,21 +513,30 @@ and execution failures.
     - validated with concurrent fake-client/fake-tool execution tests, the full
       test suite, compile checks, and targeted pre-commit
 
-17. **Future async execution interface design**
-    - add async public APIs such as `execute_workflow_async(...)` and
-      `run_agent_workflow_async(...)` for event-loop callers
-    - retain sync public APIs for CLI, scripts, tests, cron jobs, and simple
-      automation as wrappers over the async semantic path
-    - define sync-wrapper behavior for already-running event loops, including a
-      clear error or a documented safe bridge
-    - define compatibility policy for sync and async model adapters, tool
-      registries, tool handlers, trace sinks, and lifecycle hooks
-    - define cancellation and timeout propagation across workflow, node, model,
-      tool, hook, and registry boundaries
-    - align async orchestration with future `parallel_fanout` and `parallel_join`
-      edge support while preserving deterministic joins and run-correlated traces
-    - validate that sync and async entry points share runtime semantics and do not
-      drift in validation, tracing, hooks, or error behavior
+17. **Evaluation follow-up Slice I / E14: async-first execution APIs and wrappers**
+    - implement true async public APIs `execute_workflow_async(...)` and
+      `run_agent_workflow_async(...)` as the first-class runtime path
+    - convert existing sync public APIs for CLI, scripts, tests, cron jobs, and
+      simple automation into wrappers over the async semantic path
+    - make sync wrappers raise a clear project error when called from an
+      already-running event loop, directing callers to the async APIs
+    - use one async-canonical model-client protocol, with native async OpenAI
+      adapter support after verifying official SDK behavior/source-code details
+    - adapt sync-only model clients behind the async protocol when needed without
+      making a separate sync executor contract
+    - inspect and record sync/async tool-handler callable shape at
+      registration or setup time and dispatch each handler correctly during async
+      execution
+    - inspect and record sync/async lifecycle hook callable shape at setup time
+      and invoke or await each hook correctly during async execution
+    - implement best-effort cancellation propagation across workflow, node, model,
+      tool, hook, and child-task boundaries; document non-cancellable sync or
+      external boundaries honestly
+    - keep E13 run-correlation guarantees consistent for concurrent async runs:
+      per-run state isolation, run IDs, trace correlation, hook-context
+      correlation, and synchronized package-owned shared helpers
+    - validate async model calls, async tool handlers, async lifecycle hooks,
+      cancellation, sync wrapper compatibility, and concurrent async runs
 
 ## Validation Strategy
 
@@ -545,13 +578,19 @@ model behavior and fake registries for tool behavior.
   initialization, and `InMemoryToolRegistry` read/mutation helpers are covered by
   tests for concurrent use. Caller-provided mutable tool handlers and lifecycle
   hooks remain caller-managed for synchronization.
-- Async execution should be an additive future direction, not an immediate
-  retrofit. When introduced, async should become the internal execution strategy
-  for I/O-bound model/tool work and future parallel graph semantics, while sync
-  APIs remain wrappers for simple callers and the CLI.
-- Supporting both sync and async interface styles increases API and test-matrix
-  complexity, so the package should avoid separate behavior forks and require
-  explicit compatibility policy for mixed sync/async collaborators.
+- E14 is now defined as a true async-first implementation direction, not only a
+  design spike: async public APIs become first-class, while sync APIs become
+  wrappers over the async path for simple callers and the CLI.
+- Sync wrappers must reject already-running event loops with a clear project
+  error rather than attempting nested event-loop execution.
+- The model-client contract should be async-canonical. OpenAI async support must
+  be verified against official SDK behavior or source before implementation; the
+  local Medium note is only supporting guidance.
+- Supporting both sync and async collaborator styles increases API and test-matrix
+  complexity, so tool-handler and lifecycle-hook callable shape must be inspected
+  at registration/setup time and stored for deterministic dispatch.
+- Async cancellation guarantees are best-effort and must be scoped to what model,
+  tool, hook, and external boundaries actually support.
 - Tool input schemas now fail closed for malformed OpenAI-compatible function
   parameter shapes; future support for top-level schema combinators should be an
   explicit compatibility expansion rather than pass-through behavior.

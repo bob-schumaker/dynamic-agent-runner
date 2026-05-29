@@ -2,9 +2,9 @@
 
 ## Status
 
-- State: E13 complete; concurrent invocation run correlation and
-  synchronized shared runtime helpers are implemented, validated, and committed;
-  future async interface work remains recorded but not implemented
+- State: E14 decisions recorded; E13 concurrent invocation support is complete,
+  and future E14 implementation should make async execution the first-class
+  runtime path while preserving E13 run-correlation guarantees
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
@@ -609,25 +609,37 @@
         src/dynamic_agent_runner/registry.py src/dynamic_agent_runner/tracing.py
         tests/test_concurrency.py tests/test_hooks.py` — pass; 136 tests
         passed.
-- [ ] E14. Define async execution APIs and sync wrapper behavior without creating
-      a separate runtime implementation.
-      - Add async public API targets such as `execute_workflow_async(...)` and
+- [ ] E14. Implement async-first execution APIs and sync wrapper behavior without
+      creating a separate runtime implementation.
+      - Add first-class async public APIs `execute_workflow_async(...)` and
         `run_agent_workflow_async(...)` for event-loop callers.
-      - Keep synchronous APIs available for CLI, scripts, tests, cron jobs, and
-        simple automation as wrappers over the same runtime semantics.
-      - Define behavior when sync wrappers are called from an already-running
-        event loop, preferring a clear error with guidance to use async APIs
-        unless a safe bridge is explicitly implemented.
-      - Define compatibility rules for synchronous and asynchronous model
-        adapters, tool registries, tool handlers, trace sinks, and lifecycle
-        hooks.
-      - Define cancellation and timeout propagation across workflow, node, model,
-        tool, hook, and registry boundaries.
-      - Align async orchestration with future `parallel_fanout` and
-        `parallel_join` edge semantics while preserving deterministic joins and
-        run-correlated traces.
-      - Verify sync and async entry points do not drift in validation, tracing,
-        hook, or error behavior.
+      - Convert synchronous APIs for CLI, scripts, tests, cron jobs, and simple
+        automation into wrappers over the async semantic path.
+      - Make sync wrappers raise a clear project error when called from an
+        already-running event loop, directing callers to the async APIs.
+      - Use one async-canonical model-client protocol and verify native OpenAI
+        async behavior from official SDK documentation/source before
+        implementation; use
+        the local Obsidian note titled
+  `How make async calls to OpenAI’s API in Python  Medium.md`
+        only as supporting guidance for the expected `openai.AsyncOpenAI` /
+        awaited-call shape.
+      - Adapt sync-only model clients behind the async protocol when needed rather
+        than adding a separate sync executor protocol.
+      - Inspect sync/async tool-handler callable shape at registration or setup
+        time and dispatch each handler correctly during async execution.
+      - Inspect sync/async lifecycle hook callable shape at setup time and invoke
+        or await each hook correctly during async execution.
+      - Implement best-effort cancellation propagation across workflow, node,
+        model, tool, hook, registry, and child-task boundaries; document
+        non-cancellable sync or external boundaries honestly.
+      - Update the E13 concurrent invocation contract for async consistency:
+        concurrent async runs must preserve per-run state isolation, `run_id`
+        metadata, trace correlation, hook correlation, and synchronized
+        package-owned shared helpers.
+      - Acceptance evidence must cover async model calls, async tools, async
+        hooks, cancellation, sync wrapper compatibility, and concurrent async
+        runs.
 
 ## Cross-Cutting Validation Tasks
 
@@ -646,6 +658,7 @@
         in-memory registry registration/invocation, public API `run_id`
         propagation, and thread-safe lazy default-client initialization.
 - [ ] V7. Add async-interface validation before claiming async support: cover
-      async public APIs, sync wrapper event-loop misuse, cancellation/timeout
-      propagation, mixed sync/async collaborators, and parity between sync and
-      async runtime semantics.
+      async model calls, async tool handlers, async lifecycle hooks, cancellation
+      propagation, sync wrapper compatibility including already-running event-loop
+      misuse, and concurrent async runs that preserve E13 run-correlation
+      semantics.
