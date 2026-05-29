@@ -170,3 +170,20 @@ move the deferred section to tasks.md
 
 the repo ../power-marimo/ will be a PySide6 (through qtpy) application and our first customer. should we do E13 since they will be running mulltiple QThreads with agents, and since we have no customers does implementing E14 make sense now as well?
 
+---
+
+1. implement a true async implementation
+2. add `execute_workflow_async(...)` and `run_agent_workflow_async(...)` as first-class public APIs
+3. sync APIs will be wrappers around the async first class APIs
+4 openai supports async, `/Users/roschuma/.vaults/Personal/AI/How make async calls to OpenAI’s API in Python  Medium.md`
+5/6. we should inspect the tools and hooks during setup and call them correctly
+7. if an agent workflow is cancelled, we should attempt to cancel all existing calls with propagation if possible
+8. update E13 for be consistent with E14
+
+---
+
+- sync wrappers should throw an error if they are called from an existing loop
+- async inspection should happen at registration time
+- we will have to find documentation or inspect the openai code to see what's feasible, read `/Users/roschuma/.vaults/Personal/AI/How make async calls to OpenAI’s API in Python  Medium.md` for possible guidance until then
+- use __one async-canonical client protocol__.
+- E14 acceptance should be async model call, async tool, async hook, cancellation, sync wrapper compatibility, and concurrent async run

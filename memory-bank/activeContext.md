@@ -2,12 +2,12 @@
 
 ## Current Focus
 
-- E13 concurrent invocation support is implemented and recorded for the first
-  planned customer, `../power-marimo/`, a PySide6/qtpy application expected to
-  run multiple QThreads with agents. Implementation commit `2e45888` adds
-  run-correlated execution, traces, hooks, and synchronized package-owned shared
-  helpers; governing docs commit `a4fe7e9` records the completed thread-safety
-  contract. E14 async interface work remains deferred.
+- E14 async-first execution decisions are recorded in governing docs commit
+  `56ddb9b` after E13 concurrent invocation support for `../power-marimo/`, a
+  PySide6/qtpy application expected to run multiple QThreads with agents.
+  E14 should implement true async APIs as the primary runtime path, keep sync APIs
+  as event-loop-safe wrappers, preserve E13 run correlation, and validate async
+  model/tool/hook/cancellation/concurrency behavior before claiming support.
 
 ## Current Status
 
@@ -104,16 +104,19 @@
     callers.
   - Updated governing spec/plan/task documents for completed E13 support in
     `a4fe7e9`.
+  - Updated governing spec/plan/task documents for E14 async-first execution
+    decisions in `56ddb9b`.
 - In progress:
-  - Memory-bank checkpoint for E13 implementation and governing-docs commits.
+  - Memory-bank checkpoint for E14 decisions and governing-docs commit.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
   - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, E12, and
-    E14; E13 is implemented and documented. No next candidate slice has been
-    selected after the E13 checkpoint.
+    E14; E13 is implemented and documented, and E14 implementation decisions are
+    recorded. No next implementation slice has been selected after the E14
+    documentation checkpoint.
 
 ## Important Current Facts
 
@@ -153,8 +156,11 @@
   E13 is complete in `2e45888` and documented in `a4fe7e9`: execution state now
   carries per-run `run_id`, trace events and lifecycle hook contexts are
   run-correlated, and package-owned in-memory/shared helpers are synchronized for
-  concurrent QThread-style callers. E14 remains recorded for future async/sync
-  interface design in `d9fa4ad`.
+  concurrent QThread-style callers. E14 decisions are now recorded in `56ddb9b`:
+  true async execution is the first-class runtime path, sync APIs are wrappers
+  that reject already-running event loops, model clients are async-canonical,
+  tools and hooks are inspected during registration/setup, cancellation is
+  best-effort, and concurrent async runs must preserve E13 run correlation.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -360,6 +366,19 @@
   - `specs/dynamic-agent-runner/spec.md`, `plan.md`, and `tasks.md` mark E13
     complete, record the current thread-safety contract, and leave E14 async
     interface work deferred.
+- Governing-docs update from `56ddb9b`:
+  - `specs/dynamic-agent-runner/spec.md`, `plan.md`, and `tasks.md` record E14 as
+    a future async-first implementation slice with first-class
+    `execute_workflow_async(...)` and `run_agent_workflow_async(...)` APIs.
+  - Existing sync APIs should become wrappers that raise a clear project error
+    when called from an already-running event loop.
+  - The model-client contract should be async-canonical, with native OpenAI async
+    behavior verified from official SDK behavior or source before implementation.
+  - Tool handlers and lifecycle hooks should be inspected during registration or
+    setup so dispatch can invoke or await each callable correctly.
+  - Cancellation is best-effort and acceptance evidence must cover async model
+    calls, async tools, async hooks, cancellation, sync wrapper compatibility, and
+    concurrent async runs that preserve E13 run correlation.
 - Evaluation follow-up Slice A implementation from `38929f1`:
   - `src/dynamic_agent_runner/context.py` defines `WorkflowExecutionContext` and
     `RunContext` as a stable execution envelope for a loaded workflow, optional
@@ -457,6 +476,7 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `56ddb9b docs(spec): record async execution decisions`
   - `a4fe7e9 docs(spec): record concurrent invocation support`
   - `2e45888 feat(executor): add concurrent run correlation`
   - `d9fa4ad docs(spec): record concurrency and async follow-ups`
@@ -508,7 +528,8 @@
 
 - Await follow-up direction for the next deferred Codex/Cline follow-up slice.
   Remaining candidates in `specs/dynamic-agent-runner/tasks.md` include E9,
-  E10, E11, E12, and E14.
+  E10, E11, E12, and E14. If E14 is selected, start from the async-first
+  decisions recorded in `56ddb9b`.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped

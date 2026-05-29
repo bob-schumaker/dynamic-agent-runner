@@ -108,6 +108,8 @@
   `2e45888 feat(executor): add concurrent run correlation`.
 - E13 governing-docs commit exists:
   `a4fe7e9 docs(spec): record concurrent invocation support`.
+- E14 decision-docs commit exists:
+  `56ddb9b docs(spec): record async execution decisions`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -211,15 +213,23 @@
   run multiple QThreads with agents. The runtime now preserves per-run
   `WorkflowExecutionState` isolation, adds `run_id` correlation to execution
   state, trace events, and lifecycle hook contexts, and synchronizes current
-  package-owned in-memory/shared helper surfaces. E14 async/sync interface work
-  remains deferred.
+  package-owned in-memory/shared helper surfaces.
+- E14 async-first execution decisions are recorded in `56ddb9b`: future
+  implementation should add first-class `execute_workflow_async(...)` and
+  `run_agent_workflow_async(...)` APIs, make existing sync APIs wrappers that
+  reject already-running event loops, use one async-canonical model-client
+  protocol, inspect sync/async tool handlers and lifecycle hooks during
+  registration/setup, attempt best-effort cancellation propagation, and preserve
+  E13 run correlation for concurrent async runs.
 
 ## In Flight
 
 - No source implementation work is currently in flight after E13 implementation
-  commit `2e45888` and governing-docs commit `a4fe7e9`.
+  commit `2e45888`, E13 governing-docs commit `a4fe7e9`, and E14 decision-docs
+  commit `56ddb9b`.
 - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, E12, and E14;
-  no next candidate slice has been selected after the E13 checkpoint.
+  no next implementation slice has been selected after the E14 documentation
+  checkpoint.
 
 ## Remaining
 
@@ -295,9 +305,12 @@
   protection, registry mutation/read behavior, and concurrent tests.
   Caller-provided mutable tool handlers and lifecycle hooks remain
   caller-managed for synchronization.
-- E14 records future async interface work: async public APIs, sync wrappers over
-  one semantic runtime path, event-loop misuse handling, mixed sync/async
-  collaborator policy, cancellation/timeout propagation, and parity validation.
+- E14 is now specified as future async-first implementation work: true async
+  public APIs, sync wrappers that reject already-running event loops, one
+  async-canonical model-client protocol, registration/setup-time callable-shape
+  inspection for tools and hooks, best-effort cancellation propagation, and
+  acceptance coverage for async model calls, async tools, async hooks,
+  cancellation, sync wrapper compatibility, and concurrent async runs.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.
