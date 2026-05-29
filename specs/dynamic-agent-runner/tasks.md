@@ -2,13 +2,13 @@
 
 ## Status
 
-- State: E14 Slices I.1 through I.4 are complete; future E14 implementation
-  should continue with Slice I.5 async executor core.
+- State: E14 Slices I.1 through I.5 are complete; future E14 implementation
+  should continue with Slice I.6 public async API and sync wrappers.
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: none currently defined
+- Next active slice: E14 Slice I.6 — public async API and sync wrappers
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -628,7 +628,11 @@
         `invoke_lifecycle_hook_async(...)`, exported hook metadata/dispatch helpers,
         and awaited async hooks from the current synchronous executor
         compatibility path when no event loop is already running.
-      - Recommended next slice: async executor core.
+      - Slice I.5 async executor core completed in commit `72c28dd`: added
+        `execute_workflow_async(...)`, async workflow/node helpers, awaited async
+        model calls, awaited async direct tool dispatch, awaited lifecycle hook
+        dispatch, and a sync-path guard for async model adapters.
+      - Recommended next slice: public async API and sync wrappers.
       - Slice I.1 validation: `poetry run pytest tests/test_import.py
         tests/test_openai_client.py -q` — pass; 11 tests passed.
       - Slice I.1 pre-commit: `pre-commit run --files
@@ -700,3 +704,8 @@
       propagation, sync wrapper compatibility including already-running event-loop
       misuse, and concurrent async runs that preserve E13 run-correlation
       semantics.
+      - Partially covered in commit `72c28dd`: async executor core validation now
+        covers async model calls, async direct tool handlers, async lifecycle
+        hooks, and sync-path rejection of async model adapters. Public async API
+        exports, sync wrapper conversion, cancellation-focused tests, and
+        concurrent async run validation remain pending for Slices I.6 and I.7.

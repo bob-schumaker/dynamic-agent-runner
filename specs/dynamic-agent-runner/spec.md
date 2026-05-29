@@ -1205,8 +1205,8 @@ Before implementation is considered complete, add validation covering:
 - [ ] concurrent invocation isolation for library-owned per-run state and explicit
       thread-safety behavior for shared collaborators
 - [x] native async OpenAI adapter boundary with async-canonical protocol types
-- [ ] async model calls through the async executor path
-- [ ] async tool handlers inspected at registration/setup time and awaited during
+- [x] async model calls through the async executor path
+- [x] async tool handlers inspected at registration/setup time and awaited during
       execution
 - [x] async lifecycle hooks inspected at setup time and awaited during execution
 - [ ] workflow cancellation with best-effort propagation to model, tool, hook, and
@@ -1297,13 +1297,14 @@ Before implementation is considered complete, add validation covering:
   concurrent async runs. E13's run-correlation contract must remain consistent
   with this async-first design. The detailed E14 implementation plan is recorded
   in `cline-tasks/evaluation-follow-up-implementation-plan.md`; after Slices I.1
-  through I.4, the next recommended slice is Slice I.5, async executor core.
+  through I.5, the next recommended slice is Slice I.6, public async API and sync
+  wrappers.
 - E14 Slice I.1 completed the async OpenAI client boundary in commit `acca9da`,
   adding async OpenAI protocol types, `AsyncOpenAIClientAdapter`,
   `create_default_async_openai_client()`, package exports, and fake-client tests
   while preserving shared request construction and response normalization. This
-  establishes the native async model-client boundary, but full async executor
-  model calls remain pending.
+  establishes the native async model-client boundary used by the async executor
+  core.
 - E14 Slice I.2 completed the async retry helper in commit `f2296e9`, adding
   `run_with_retry_async(...)`, preserving `RetryPolicy` attempt-count semantics,
   and ensuring `asyncio.CancelledError` propagates without retry.
@@ -1316,8 +1317,15 @@ Before implementation is considered complete, add validation covering:
   `WorkflowLifecycleHooks.registered_hook(...)`, async hook dispatch through
   `invoke_lifecycle_hook_async(...)`, package exports, and executor compatibility
   support that awaits async hooks from the current synchronous execution path
-  when no event loop is already running. Full async executor model and tool calls
-  remain pending for Slice I.5.
+  when no event loop is already running.
+- E14 Slice I.5 completed the async executor core in commit `72c28dd`, adding
+  `execute_workflow_async(...)`, async workflow and node helper paths, awaited
+  async model calls through `AsyncOpenAIClientAdapter`, awaited async direct tool
+  dispatch through `ToolRegistry.invoke_tool_async(...)`, awaited lifecycle hook
+  dispatch through `invoke_lifecycle_hook_async(...)`, and a sync-path guard that
+  rejects `AsyncOpenAIClientAdapter` with guidance to use the async executor.
+  Public async API exports and sync wrapper conversion remain pending for Slice
+  I.6.
 - Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
   validation in commit `44b0847`, including fail-closed malformed schema checks
   and `$schema` removal from model-facing tool parameters.

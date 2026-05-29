@@ -15,7 +15,7 @@ relevant to `power-marimo` and near-term `dynamic-agent-runner` evolution:
 - E7 — define narrow in-process lifecycle hook protocols
 - E8 — extend trace vocabulary
 - E14 — implement async-first execution APIs and sync wrappers (Slices I.1
-  through I.4 complete)
+  through I.5 complete)
 
 ## Current Implementation Shape
 
@@ -547,6 +547,8 @@ Acceptance evidence:
 
 ### Slice I.5 — async executor core
 
+Status: Complete in commit `72c28dd`.
+
 Likely files:
 
 - `src/dynamic_agent_runner/executor.py`
@@ -587,6 +589,21 @@ Acceptance evidence:
 - Async hooks work at executor lifecycle points.
 - Existing retry, token-budget, prompt-cache, output-contract, tracing, and route
   behavior still passes.
+- `execute_workflow_async(...)` now owns an async workflow loop and async node
+  helpers that await model calls, direct tool invocation, and lifecycle hooks.
+- The async executor preserves synchronous helper behavior for prompt rendering,
+  token-budget checks, prompt-cache observation, output-contract validation,
+  decision routing, trace emission, and state recording.
+- The synchronous executor rejects `AsyncOpenAIClientAdapter` on the sync path with
+  guidance to use `execute_workflow_async(...)`, avoiding accidental coroutine
+  misuse before public sync wrappers are converted in Slice I.6.
+- Validation: `poetry run pytest tests/test_executor.py tests/test_tracing.py
+  tests/test_prompt_cache.py tests/test_token_budget.py tests/test_hooks.py
+  tests/test_registry.py tests/test_openai_client.py tests/test_import.py -q` —
+  pass; 101 tests passed.
+- Pre-commit: `poetry run pre-commit run --files
+  src/dynamic_agent_runner/context.py src/dynamic_agent_runner/executor.py
+  tests/test_executor.py` — pass.
 
 ### Slice I.6 — public async API and sync wrappers
 
@@ -676,8 +693,8 @@ Acceptance evidence:
 2. Slice I.2 — async retry helper — complete in commit `f2296e9`.
 3. Slice I.3 — async-capable tool registry dispatch — complete in commit `ff144f5`.
 4. Slice I.4 — async-capable lifecycle hook dispatch — complete in commit `2b9271b`.
-5. Slice I.5 — async executor core — next.
-6. Slice I.6 — public async API and sync wrappers.
+5. Slice I.5 — async executor core — complete in commit `72c28dd`.
+6. Slice I.6 — public async API and sync wrappers — next.
 7. Slice I.7 — cancellation and concurrent async validation.
 8. Documentation/memory-bank checkpoint after implementation validation.
 
@@ -686,7 +703,7 @@ executor control flow and public API behavior.
 
 ## Recommended Next Slice
 
-Continue E14 with **Slice I.5 — async executor core**.
+Continue E14 with **Slice I.6 — public async API and sync wrappers**.
 
 Reasons:
 
@@ -696,8 +713,10 @@ Reasons:
   boundary.
 - Slice I.3 has introduced async-capable tool-handler metadata and dispatch.
 - Slice I.4 has introduced async-capable lifecycle hook metadata and dispatch.
-- Slice I.5 should convert the executor core to await model calls, tools, and
+- Slice I.5 has converted the executor core to await model calls, tools, and
   lifecycle hooks through the async runtime path.
+- Slice I.6 should expose the public async API, export it from the package root,
+  and convert sync public entry points into wrappers over the async semantic path.
 
 ## Validation Plan
 
