@@ -116,6 +116,10 @@
   `c22c239 docs(cline-tasks): plan async execution implementation`.
 - E14 spec-plan reference commit exists:
   `781f451 docs(spec): reference async implementation plan`.
+- E14 Slice I.1 async OpenAI client boundary implementation commit exists:
+  `acca9da feat(openai-client): add async adapter boundary`.
+- E14 Slice I.1 governing-docs commit exists:
+  `e750f3b docs(spec): record async client boundary slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -229,23 +233,23 @@
   E13 run correlation for concurrent async runs. The local OpenAI Python SDK
   checkout at `/Users/roschuma/Repos/github/openai-python/` is available for E14
   async adapter and cancellation-behavior inspection.
-- E14 implementation sequencing is now recorded in
+- E14 implementation sequencing is recorded in
   `cline-tasks/evaluation-follow-up-implementation-plan.md`: async OpenAI client
   boundary, async retry helper, async-capable tool registry dispatch,
   async-capable lifecycle hook dispatch, async executor core, public async API and
-  sync wrappers, then cancellation and concurrent async validation. The
-  recommended first slice is async OpenAI client boundary.
+  sync wrappers, then cancellation and concurrent async validation. Slice I.1 is
+  complete, and Slice I.2 async retry helper is the next recommended slice.
+- E14 Slice I.1 adds the async OpenAI client boundary: async protocol types,
+  `AsyncOpenAIClientAdapter`, `create_default_async_openai_client()`, package
+  exports, and fake-client tests while preserving shared request construction and
+  response normalization. Focused validation passed with 11 tests.
 
 ## In Flight
 
-- No source implementation work is currently in flight after E13 implementation
-  commit `2e45888`, E13 governing-docs commit `a4fe7e9`, E14 decision-docs
-  commit `56ddb9b`, E14 OpenAI source-checkout docs commit `4b17a4f`, E14
-  implementation-plan commit `c22c239`, and E14 spec-plan reference commit
-  `781f451`.
-- Remaining deferred Codex/Cline follow-ups include E9, E10, E11, E12, and E14;
-  no next implementation slice has been selected after the E14 documentation
-  checkpoint.
+- No source implementation work is currently in flight after E14 Slice I.1
+  implementation commit `acca9da` and governing-docs commit `e750f3b`.
+- Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12. E14 is
+  in progress; Slice I.2 async retry helper is the next recommended E14 slice.
 
 ## Remaining
 
@@ -312,24 +316,22 @@
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
 - Codex/Cline follow-ups E1, E2, E3, E4, E5, E6, E7, E8, and E13 are
-  implemented. Remaining follow-ups E9, E10, E11, E12, and E14 are deferred
-  backlog items, not implemented runtime behavior. They should be introduced
-  through package-owned contracts before broad integrations such as MCP, plugins,
-  shell hooks, app-server protocols, or multi-provider routing.
+  implemented. E14 is in progress with Slice I.1 complete; remaining E14 slices
+  plus E9, E10, E11, and E12 should be introduced through package-owned contracts
+  before broad integrations such as MCP, plugins, shell hooks, app-server
+  protocols, or multi-provider routing.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
   Caller-provided mutable tool handlers and lifecycle hooks remain
   caller-managed for synchronization.
-- E14 is now specified as future async-first implementation work: true async
-  public APIs, sync wrappers that reject already-running event loops, one
-  async-canonical model-client protocol, registration/setup-time callable-shape
-  inspection for tools and hooks, best-effort cancellation propagation, and
-  acceptance coverage for async model calls, async tools, async hooks,
-  cancellation, sync wrapper compatibility, and concurrent async runs. E14 should
-  inspect `/Users/roschuma/Repos/github/openai-python/` before finalizing the
-  async OpenAI adapter and cancellation guarantees. The next recommended E14
-  implementation step is Slice I.1, the async OpenAI client boundary.
+- E14 is async-first implementation work: true async public APIs, sync wrappers
+  that reject already-running event loops, one async-canonical model-client
+  protocol, registration/setup-time callable-shape inspection for tools and hooks,
+  best-effort cancellation propagation, and acceptance coverage for async model
+  calls, async tools, async hooks, cancellation, sync wrapper compatibility, and
+  concurrent async runs. Slice I.1 completed the async OpenAI adapter boundary;
+  Slice I.2 should add an async retry helper next.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.

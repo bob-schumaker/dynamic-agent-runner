@@ -2,12 +2,11 @@
 
 ## Current Focus
 
-- E14 async-first execution decisions are recorded in governing docs commit
-  `56ddb9b` after E13 concurrent invocation support for `../power-marimo/`, a
-  PySide6/qtpy application expected to run multiple QThreads with agents.
-  E14 should implement true async APIs as the primary runtime path, keep sync APIs
-  as event-loop-safe wrappers, preserve E13 run correlation, and validate async
-  model/tool/hook/cancellation/concurrency behavior before claiming support.
+- E14 async-first execution is in progress after Slice I.1 completed the async
+  OpenAI client boundary in commit `acca9da` and governing docs were refreshed in
+  `e750f3b`. Continue E14 with Slice I.2, the async retry helper, while preserving
+  the E13 run-correlation contract for `../power-marimo/` and future async
+  model/tool/hook/cancellation/concurrency behavior.
 
 ## Current Status
 
@@ -112,17 +111,22 @@
     `cline-tasks/evaluation-follow-up-implementation-plan.md` in `c22c239`.
   - Updated governing spec/plan/task documents to reference the E14 plan and
     recommended first slice in `781f451`.
+  - Completed E14 Slice I.1 async OpenAI client boundary in `acca9da`, adding
+    async OpenAI protocol types, `AsyncOpenAIClientAdapter`,
+    `create_default_async_openai_client()`, package exports, and fake-client tests.
+  - Updated governing spec/plan/task documents and the E14 implementation plan for
+    Slice I.1 completion evidence in `e750f3b`.
 - In progress:
-  - Memory-bank checkpoint for E14 implementation-plan commits.
+  - Memory-bank checkpoint for E14 Slice I.1 implementation and governing-docs
+    commits.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
-  - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, E12, and
-    E14; E13 is implemented and documented, and E14 implementation decisions are
-    recorded. No next implementation slice has been selected after the E14
-    documentation checkpoint.
+  - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12.
+    E14 is in progress: Slice I.1 is complete, and Slice I.2 async retry helper
+    is the next recommended implementation slice.
 
 ## Important Current Facts
 
@@ -168,10 +172,10 @@
   tools and hooks are inspected during registration/setup, cancellation is
   best-effort, and concurrent async runs must preserve E13 run correlation. The
   local OpenAI Python SDK checkout at `/Users/roschuma/Repos/github/openai-python/`
-  should be inspected before finalizing the async adapter and cancellation
-  contract. The detailed E14 implementation plan is now in
-  `cline-tasks/evaluation-follow-up-implementation-plan.md`, with recommended
-  first slice: async OpenAI client boundary.
+  was inspected for the async adapter boundary. The detailed E14 implementation
+  plan is in `cline-tasks/evaluation-follow-up-implementation-plan.md`; Slice I.1
+  is complete in `acca9da`, and the next recommended slice is Slice I.2, the async
+  retry helper.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -396,16 +400,34 @@
     checkout to inspect before finalizing E14 async client and cancellation
     behavior.
 - E14 implementation plan from `c22c239`:
-  - `cline-tasks/evaluation-follow-up-implementation-plan.md` now adds planned
-    Slice I for E14 async-first execution APIs and wrappers.
+  - `cline-tasks/evaluation-follow-up-implementation-plan.md` adds Slice I for
+    E14 async-first execution APIs and wrappers.
   - Planned sequence: async OpenAI client boundary, async retry helper,
     async-capable tool registry dispatch, async-capable lifecycle hook dispatch,
     async executor core, public async API and sync wrappers, then cancellation and
     concurrent async validation.
-  - Recommended first slice is async OpenAI client boundary.
 - Governing-docs update from `781f451`:
-  - `specs/dynamic-agent-runner/spec.md`, `plan.md`, and `tasks.md` now point to
-    the E14 implementation plan and recommended first slice.
+  - `specs/dynamic-agent-runner/spec.md`, `plan.md`, and `tasks.md` point to the
+    E14 implementation plan and original recommended first slice.
+- E14 Slice I.1 implementation from `acca9da`:
+  - `src/dynamic_agent_runner/openai_client.py` defines
+    `AsyncOpenAIResponsesResource`, `AsyncOpenAIClientProtocol`,
+    `AsyncOpenAIClientAdapter`, and `create_default_async_openai_client()`.
+  - `AsyncOpenAIClientAdapter.create_response(...)` awaits
+    `client.responses.create(...)` and preserves shared response normalization and
+    `ModelExecutionError` wrapping.
+  - `src/dynamic_agent_runner/__init__.py` exports the async adapter/protocol
+    boundary.
+  - `tests/test_openai_client.py` covers fake async client awaiting, async model
+    failure wrapping, and the default `openai.AsyncOpenAI` factory path without
+    live API calls.
+  - Validation: `poetry run pytest tests/test_import.py tests/test_openai_client.py
+    -q` — pass; 11 tests passed. Targeted pre-commit passed for the changed
+    source/test files.
+- Governing-docs update from `e750f3b`:
+  - `specs/dynamic-agent-runner/spec.md`, `plan.md`, `tasks.md`, and
+    `cline-tasks/evaluation-follow-up-implementation-plan.md` record Slice I.1
+    completion and identify Slice I.2 async retry helper as the next E14 slice.
 - Evaluation follow-up Slice A implementation from `38929f1`:
   - `src/dynamic_agent_runner/context.py` defines `WorkflowExecutionContext` and
     `RunContext` as a stable execution envelope for a loaded workflow, optional
@@ -556,12 +578,9 @@
 
 ## Next Steps
 
-- Await follow-up direction for the next deferred Codex/Cline follow-up slice.
-  Remaining candidates in `specs/dynamic-agent-runner/tasks.md` include E9,
-  E10, E11, E12, and E14. If E14 is selected, start from the async-first
-  decisions recorded in `56ddb9b`, inspect the local OpenAI SDK checkout
-  recorded in `4b17a4f`, and use the E14 implementation plan committed in
-  `c22c239` / referenced in `781f451`.
+- If continuing E14, start with Slice I.2 — async retry helper — from
+  `cline-tasks/evaluation-follow-up-implementation-plan.md`, using the Slice I.1
+  async OpenAI client boundary committed in `acca9da` as the model-call target.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
