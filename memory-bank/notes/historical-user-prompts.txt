@@ -210,3 +210,10 @@ current agent development design is at /Users/roschuma/Repos/roschuma/clinerules
 ---
 
 write a separate feature request handoff note for the agent development skill repo that captures the upstream changes we would like to have
+---
+
+examine the repo at ../power-marimo and infer the agent support it will need and how well we can implement that at this time
+
+---
+
+save this analysis to spec references and then update the spec doc to make the necessary work the next set of actions

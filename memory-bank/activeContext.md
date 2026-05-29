@@ -8,10 +8,9 @@
   OpenAI Agents SDK Python was evaluated in `322ce13`, adding deferred OA1-OA10
   follow-ups. Runtime-package simplification analysis was added in `c710490`,
   including an upstream feature-request handoff for the agent-development skill
-  repo. No implementation slice is currently queued; future work should select a
-  scoped follow-up such as the simplification prerequisite, E9, E10, E11, E12,
-  an OA follow-up, prompt-cache provider pass-through, interpreter middleware, or
-  broader edge semantics.
+  repo. The first-customer `../power-marimo` fit analysis and grouped-manifest
+  spec/task update were committed in `0af68ab`; the next active implementation
+  slice is S1 — grouped runtime manifest model and validation.
 
 ## Current Status
 
@@ -159,11 +158,16 @@
     follow-ups in `322ce13`.
   - Added runtime-package simplification analysis and an upstream
     agent-development skill feature-request handoff in `c710490`.
+  - Added first-customer `power-marimo` agent-support analysis and prioritized
+    runtime-package simplification follow-up S1-S5 in `0af68ab`.
 - In progress:
   - No source implementation work is currently in flight after E14 Slice I.7
     validation commit `7990503`, governing-docs commit `27f409b`, OpenAI Agents
-    SDK Python evaluation/spec follow-up commit `322ce13`, and runtime-package
-    simplification analysis commit `c710490`.
+    SDK Python evaluation/spec follow-up commit `322ce13`, runtime-package
+    simplification analysis commit `c710490`, and first-customer prioritization
+    commit `0af68ab`.
+  - The next queued implementation direction is S1 — grouped runtime manifest
+    model and validation — driven by the `power-marimo` fit analysis.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
@@ -206,6 +210,10 @@
 - `cline-tasks/agent-development-skill-runtime-package-feature-request.md`
   packages that analysis as an upstream feature-request handoff for the
   `clinerules-roschuma` agent-development skill repository.
+- `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
+  records `../power-marimo` as the first downstream consumer fit: a supervised,
+  bounded workflow-orchestration agent for AI-assisted Marimo notebook power
+  experiments, not a free-form autonomous notebook agent.
 - `specs/dynamic-agent-runner/tasks.md` now contains `Deferred Codex/Cline
   evaluation follow-ups` E1 through E14 and `Deferred OpenAI Agents SDK Python
   evaluation follow-ups` OA1 through OA10. E1 is complete and checked off with
@@ -634,14 +642,12 @@
 
 ## Next Steps
 
-- Select the next scoped follow-up before implementing more runtime behavior;
-  E14 is complete through Slice I.7, remaining deferred Codex/Cline follow-ups
-  include E9, E10, E11, and E12, and OpenAI Agents SDK Python follow-ups OA1-OA10
-  are available as future design inputs.
-- If simplifying the runtime-package concept next, start with the `c710490`
-  analysis recommendation: add an internal `ExecutionPlan` / `PreparedNode`
-  normalization layer and a pass-through `prepare_model_input(...)` seam before
-  implementing more optional feature modules.
+- Start S1 — grouped runtime manifest model and validation — before broader E9,
+  OA, MCP, durable session, approval-resume, or PyQt-widget automation work.
+- After S1, continue the runtime-package simplification sequence: S2
+  `ExecutionPlan` / `PreparedNode`, S3 `PreparedModelInput` /
+  `prepare_model_input(...)`, S4 `ToolOrigin` / `ToolSource`, and S5 a narrow
+  `power-marimo` runtime-package fixture/example.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped

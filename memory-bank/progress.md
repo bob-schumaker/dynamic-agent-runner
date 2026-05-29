@@ -148,6 +148,8 @@
   `322ce13 docs(agent-patterns): add OpenAI Agents SDK evaluation`.
 - Runtime-package simplification analysis commit exists:
   `c710490 docs(agent-runtime): analyze package simplification`.
+- First-customer runtime-support prioritization commit exists:
+  `0af68ab docs(spec): prioritize power-marimo runtime support`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -327,24 +329,29 @@
   `ExecutionPlan` / `PreparedNode` and `PreparedModelInput` seams, and deferring
   sessions, approvals, sandbox/workspace runtime, and iterative agent-loop
   semantics until explicitly scoped.
+- First-customer prioritization from `0af68ab` adds
+  `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
+  and updates `spec.md` / `tasks.md` to make runtime-package simplification the
+  next active sequence. The next active slice is S1: grouped `runtime`,
+  `metadata`, and `extensions` manifest support, `output_contracts` as an array,
+  and rejection/reporting of legacy flat optional root fields.
 
 ## In Flight
 
 - No source implementation work is currently in flight after E14 Slice I.7
   validation commit `7990503`, governing-docs commit `27f409b`, OpenAI Agents SDK
-  Python evaluation/spec follow-up commit `322ce13`, and runtime-package
-  simplification analysis commit `c710490`.
-- Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12.
-  Deferred OpenAI Agents SDK Python follow-ups OA1-OA10 are also available for
-  future scoped selection. E14 is complete through Slice I.7; no E14
-  implementation slice is currently queued.
+  Python evaluation/spec follow-up commit `322ce13`, runtime-package
+  simplification analysis commit `c710490`, and first-customer prioritization
+  commit `0af68ab`.
+- The next active implementation direction is S1 — grouped runtime manifest model
+  and validation. Remaining deferred Codex/Cline follow-ups E9-E12 and OpenAI
+  Agents SDK Python follow-ups OA1-OA10 should wait behind the simplification
+  sequence unless explicitly re-scoped.
 
 ## Remaining
 
-- Await follow-up direction for the next scoped runtime slice, runtime-package
-  simplification prerequisite, adapter-gated prompt-cache provider pass-through,
-  remaining Codex/Cline deferred follow-ups, OpenAI Agents SDK Python OA
-  follow-ups, or interpreter middleware prototype work.
+- Implement S1 grouped runtime manifest model and validation as the next scoped
+  runtime slice.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, behavior-override, and all-pattern fixture foundation into the
   next scoped slice.
@@ -411,11 +418,11 @@
   current implementation scope. Guardrails, approval pause/resume state, sessions,
   sandbox/workspace execution, and iterative agent-loop completion policy should
   each require a fresh scoped spec/update before implementation.
-- Runtime-package simplification analysis recommends organizing future manifest
-  complexity before implementing more optional modules: use grouped `runtime`,
-  `metadata`, and `extensions` concepts upstream, and consider a local
-  `ExecutionPlan` / `PreparedNode` normalization layer plus `prepare_model_input(...)`
-  seam before E9/OA feature work.
+- Runtime-package simplification is now the active next direction, driven by the
+  `power-marimo` first-customer analysis. Implement S1 grouped manifest support
+  before E9/OA feature work, then add `ExecutionPlan` / `PreparedNode`,
+  `PreparedModelInput` / `prepare_model_input(...)`, and `ToolOrigin` /
+  `ToolSource` before Marimo-session, MCP, or agent-as-tool registry sources.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
