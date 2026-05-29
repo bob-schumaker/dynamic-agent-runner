@@ -13,7 +13,7 @@
 - Readiness verdict: ready for the runtime-package simplification follow-up; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work.
-- Next active slice: S1 — grouped runtime manifest model and validation.
+- Next active slice: S2 — ExecutionPlan and PreparedNode normalization.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -505,10 +505,16 @@ Driver reference:
 shows that the first downstream candidate needs grouped manifest support,
 preparation seams, and tool provenance before safe Marimo notebook automation.
 
-- [ ] S1. Update manifest models and validation to prefer grouped `runtime`,
+- [x] S1. Update manifest models and validation to prefer grouped `runtime`,
       `metadata`, and `extensions` maps, parse `output_contracts` as an array of
       contract objects, and reject or clearly report legacy flat optional root
       fields.
+      - Completed in commit `695c0cc`: `RuntimeManifest` now preserves grouped
+        maps, derives convenience accessors from grouped sections, indexes
+        array-shaped `output_contracts`, validates extension envelopes, and
+        rejects legacy flat optional root fields.
+      - Validation: `poetry run pytest -q` — pass; 164 tests passed.
+      - Pre-commit: `pre-commit run --files <S1 changed files>` — pass.
 - [ ] S2. Add an internal `ExecutionPlan` / `PreparedNode` normalization layer so
       the executor consumes normalized per-node configuration instead of raw
       manifest dictionaries.

@@ -60,6 +60,8 @@ explicitly re-scopes the work:
 
 ### Slice S1 — Grouped runtime manifest model and validation
 
+**Status:** Complete in commit `695c0cc`.
+
 **Goal:** Make `dynamic-agent-runner` consume the current upstream
 `format_version: 1` runtime-package schema.
 
@@ -114,10 +116,16 @@ pre-commit run --files <changed files>
 
 Acceptance criteria:
 
-- Current grouped runtime manifests load and validate.
-- Legacy flat optional root fields fail or report clearly.
-- `output_contracts` array entries still support existing output validation.
-- All existing fixture packages are migrated and continue to load.
+- [x] Current grouped runtime manifests load and validate.
+- [x] Legacy flat optional root fields fail or report clearly.
+- [x] `output_contracts` array entries still support existing output validation.
+- [x] All existing fixture packages are migrated and continue to load.
+
+Completion evidence:
+
+- Commit: `695c0cc` (`feat(models): support grouped runtime manifests`).
+- `poetry run pytest -q` — pass; 164 tests passed.
+- `pre-commit run --files <S1 changed files>` — pass.
 
 ### Slice S2 — ExecutionPlan and PreparedNode normalization
 
@@ -300,7 +308,7 @@ Acceptance criteria:
 
 Use one commit per slice when the slice is implemented:
 
-1. `feat(models): support grouped runtime manifests`
+1. [x] `feat(models): support grouped runtime manifests` — `695c0cc`
 2. `refactor(executor): add prepared execution plan`
 3. `refactor(executor): add prepared model input seam`
 4. `feat(registry): add tool provenance metadata`
@@ -311,8 +319,8 @@ evidence and run targeted validation before committing.
 
 ## Risks and Open Questions
 
-- Existing fixtures and tests may assume flat root metadata; migrating them is
-  part of S1 and may touch many files.
+- Existing fixtures and tests assumed flat root metadata; S1 migrated them in
+  commit `695c0cc`.
 - `output_contracts` migration from mapping to array must preserve current
   output validation behavior.
 - `ExecutionPlan` should not become a second public manifest format; it is an
