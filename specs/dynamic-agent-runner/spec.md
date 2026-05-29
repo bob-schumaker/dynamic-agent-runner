@@ -1211,7 +1211,7 @@ Before implementation is considered complete, add validation covering:
 - [x] async lifecycle hooks inspected at setup time and awaited during execution
 - [ ] workflow cancellation with best-effort propagation to model, tool, hook, and
       child-task boundaries plus documented non-cancellable boundaries
-- [ ] sync wrapper compatibility, including clear failure when called from an
+- [x] sync wrapper compatibility, including clear failure when called from an
       already-running event loop
 - [ ] concurrent async runs preserving E13 run IDs, per-run state isolation,
       trace correlation, hook correlation, and synchronized package-owned helpers
@@ -1297,8 +1297,8 @@ Before implementation is considered complete, add validation covering:
   concurrent async runs. E13's run-correlation contract must remain consistent
   with this async-first design. The detailed E14 implementation plan is recorded
   in `cline-tasks/evaluation-follow-up-implementation-plan.md`; after Slices I.1
-  through I.5, the next recommended slice is Slice I.6, public async API and sync
-  wrappers.
+  through I.6, the next recommended slice is Slice I.7, cancellation and
+  concurrent async validation.
 - E14 Slice I.1 completed the async OpenAI client boundary in commit `acca9da`,
   adding async OpenAI protocol types, `AsyncOpenAIClientAdapter`,
   `create_default_async_openai_client()`, package exports, and fake-client tests
@@ -1323,9 +1323,13 @@ Before implementation is considered complete, add validation covering:
   async model calls through `AsyncOpenAIClientAdapter`, awaited async direct tool
   dispatch through `ToolRegistry.invoke_tool_async(...)`, awaited lifecycle hook
   dispatch through `invoke_lifecycle_hook_async(...)`, and a sync-path guard that
-  rejects `AsyncOpenAIClientAdapter` with guidance to use the async executor.
-  Public async API exports and sync wrapper conversion remain pending for Slice
-  I.6.
+  rejected `AsyncOpenAIClientAdapter` until public sync wrappers were converted.
+- E14 Slice I.6 completed public async API and sync wrapper wiring in commit
+  `4f279ff`, adding `run_agent_workflow_async(...)`, exporting
+  `execute_workflow_async(...)` and `run_agent_workflow_async(...)` from the
+  package root, converting `execute_workflow(...)` and `run_agent_workflow(...)`
+  into wrappers over the async semantic path, and making sync wrappers fail with
+  `WorkflowExecutionError` when called from an already-running event loop.
 - Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
   validation in commit `44b0847`, including fail-closed malformed schema checks
   and `$schema` removal from model-facing tool parameters.

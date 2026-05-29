@@ -2,13 +2,13 @@
 
 ## Status
 
-- State: E14 Slices I.1 through I.5 are complete; future E14 implementation
-  should continue with Slice I.6 public async API and sync wrappers.
+- State: E14 Slices I.1 through I.6 are complete; future E14 implementation
+  should continue with Slice I.7 cancellation and concurrent async validation.
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
   for unrestricted runtime implementation
-- Next active slice: E14 Slice I.6 — public async API and sync wrappers
+- Next active slice: E14 Slice I.7 — cancellation and concurrent async validation
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -632,7 +632,13 @@
         `execute_workflow_async(...)`, async workflow/node helpers, awaited async
         model calls, awaited async direct tool dispatch, awaited lifecycle hook
         dispatch, and a sync-path guard for async model adapters.
-      - Recommended next slice: public async API and sync wrappers.
+      - Slice I.6 public async API and sync wrappers completed in commit
+        `4f279ff`: added `run_agent_workflow_async(...)`, exported
+        `execute_workflow_async(...)` and `run_agent_workflow_async(...)`,
+        converted sync public entry points into wrappers over the async semantic
+        path, and made sync wrappers reject already-running event loops with
+        `WorkflowExecutionError`.
+      - Recommended next slice: cancellation and concurrent async validation.
       - Slice I.1 validation: `poetry run pytest tests/test_import.py
         tests/test_openai_client.py -q` — pass; 11 tests passed.
       - Slice I.1 pre-commit: `pre-commit run --files
@@ -653,11 +659,11 @@
         src/dynamic_agent_runner/hooks.py src/dynamic_agent_runner/executor.py
         src/dynamic_agent_runner/__init__.py tests/test_hooks.py
         tests/test_import.py` — pass.
-      - Add first-class async public APIs `execute_workflow_async(...)` and
-        `run_agent_workflow_async(...)` for event-loop callers.
-      - Convert synchronous APIs for CLI, scripts, tests, cron jobs, and simple
-        automation into wrappers over the async semantic path.
-      - Make sync wrappers raise a clear project error when called from an
+      - First-class async public APIs `execute_workflow_async(...)` and
+        `run_agent_workflow_async(...)` are available for event-loop callers.
+      - Synchronous APIs for CLI, scripts, tests, cron jobs, and simple automation
+        now wrap the async semantic path.
+      - Sync wrappers raise a clear project error when called from an
         already-running event loop, directing callers to the async APIs.
       - Use one async-canonical model-client protocol and verify native OpenAI
         async behavior from official SDK documentation/source before
@@ -706,6 +712,9 @@
       semantics.
       - Partially covered in commit `72c28dd`: async executor core validation now
         covers async model calls, async direct tool handlers, async lifecycle
-        hooks, and sync-path rejection of async model adapters. Public async API
-        exports, sync wrapper conversion, cancellation-focused tests, and
-        concurrent async run validation remain pending for Slices I.6 and I.7.
+        hooks, and sync-path rejection of async model adapters.
+      - Partially covered in commit `4f279ff`: public async API exports, high-level
+        async API final-result behavior, sync wrapper conversion, ordinary sync
+        wrapper execution, and already-running event-loop misuse are validated.
+        Cancellation-focused tests and concurrent async run validation remain
+        pending for Slice I.7.

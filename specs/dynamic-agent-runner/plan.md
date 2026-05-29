@@ -32,8 +32,8 @@ or a clear error.
   repository-owned registry direction before deeper runtime implementation.
 - A 3-round implementation-readiness debate concluded this plan is ready only
   for slice-by-slice implementation, not unrestricted runtime coding.
-- The next active E14 implementation slice is Slice I.6: public async API and
-  sync wrappers.
+- The next active E14 implementation slice is Slice I.7: cancellation and
+  concurrent async validation.
 - Evaluation follow-up Slice A is complete and committed: the runtime now exposes
   `WorkflowExecutionContext` / `RunContext` as a stable execution envelope that
   groups a loaded workflow with runtime collaborators while preserving the
@@ -85,9 +85,9 @@ or a clear error.
   adapter boundary, awaits direct tool dispatch through `invoke_tool_async(...)`,
   awaits lifecycle hooks, preserves existing helper semantics for rendering,
   token budgets, prompt-cache observations, output contracts, route handling,
-  tracing, and state recording, and rejects async model adapters on the current
-  sync executor path. Continue E14 with Slice I.6, public async API and sync
-  wrappers.
+  tracing, and state recording. The sync executor originally rejected async
+  model adapters until Slice I.6 converted sync public entry points. Continue E14
+  with Slice I.7, cancellation and concurrent async validation.
 
 ## Technical Approach
 
@@ -545,12 +545,15 @@ and execution failures.
     - Slice I.4 callable-shape metadata for lifecycle hooks is complete in
       commit `2b9271b`
     - Slice I.5 async executor core is complete in commit `72c28dd`
-    - recommended next implementation slice: public async API and sync wrappers
-    - implement true async public APIs `execute_workflow_async(...)` and
-      `run_agent_workflow_async(...)` as the first-class runtime path
-    - convert existing sync public APIs for CLI, scripts, tests, cron jobs, and
-      simple automation into wrappers over the async semantic path
-    - make sync wrappers raise a clear project error when called from an
+    - Slice I.6 public async API and sync wrappers is complete in commit
+      `4f279ff`
+    - recommended next implementation slice: cancellation and concurrent async
+      validation
+    - true async public APIs `execute_workflow_async(...)` and
+      `run_agent_workflow_async(...)` are now the first-class runtime path
+    - existing sync public APIs for CLI, scripts, tests, cron jobs, and simple
+      automation now wrap the async semantic path
+    - sync wrappers raise a clear project error when called from an
       already-running event loop, directing callers to the async APIs
     - use one async-canonical model-client protocol, with native async OpenAI
       adapter support now established by Slice I.1 after inspecting the local
@@ -639,8 +642,16 @@ model behavior and fake registries for tool behavior.
   direct tool dispatch through `ToolRegistry.invoke_tool_async(...)`, awaits
   lifecycle hooks through `invoke_lifecycle_hook_async(...)`, preserves existing
   retry, token-budget, prompt-cache, output-contract, tracing, and route behavior,
-  and rejects async model adapters from the current synchronous executor path.
-  Slice I.6 should add public async API wiring and sync wrappers next.
+  and originally rejected async model adapters from the synchronous executor path
+  until public wrappers were converted.
+- E14 Slice I.6 completed public async API and sync wrappers in commit
+  `4f279ff`: `run_agent_workflow_async(...)` now loads, validates, executes
+  through `execute_workflow_async(...)`, and returns the final result;
+  `execute_workflow_async(...)` and `run_agent_workflow_async(...)` are exported
+  from the package root; `execute_workflow(...)` and `run_agent_workflow(...)`
+  now wrap their async counterparts through `_run_async_from_sync(...)`; sync
+  wrappers call `asyncio.run(...)` only when no event loop is active and raise
+  `WorkflowExecutionError` from an already-running event loop.
 - Sync wrappers must reject already-running event loops with a clear project
   error rather than attempting nested event-loop execution.
 - The model-client contract should be async-canonical. OpenAI async support must
