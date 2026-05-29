@@ -4,10 +4,15 @@
 
 - E14 async-first execution is complete through the planned Slice I.7
   validation sequence. Slice I.7 completed cancellation and concurrent async
-  validation in commit `7990503`; governing docs were refreshed in `27f409b`. No
-  E14 implementation slice is currently queued; future work should select a new
-  scoped follow-up such as E9, E10, E11, E12, prompt-cache provider pass-through,
-  interpreter middleware, or broader edge semantics.
+  validation in commit `7990503`; governing docs were refreshed in `27f409b`.
+  OpenAI Agents SDK Python was evaluated in `322ce13`, adding deferred OA1-OA10
+  follow-ups for guardrails, tool provenance, prepare-model-input seams, MCP
+  lifecycle diagnostics, handoff versus agent-as-tool metadata, approval
+  interruption/resume state, sessions, callable-to-tool helpers, and
+  sandbox/workspace separation. No implementation slice is currently queued;
+  future work should select a scoped follow-up such as E9, E10, E11, E12, an OA
+  follow-up, prompt-cache provider pass-through, interpreter middleware, or
+  broader edge semantics.
 
 ## Current Status
 
@@ -151,17 +156,21 @@
     run correlation, and sync/async public entry-point parity.
   - Updated governing spec/plan/task documents and the E14 implementation plan for
     Slice I.7 completion evidence in `27f409b`.
+  - Added OpenAI Agents SDK Python evaluation and deferred OA1-OA10 spec/task
+    follow-ups in `322ce13`.
 - In progress:
   - No source implementation work is currently in flight after E14 Slice I.7
-    validation commit `7990503` and governing-docs commit `27f409b`.
+    validation commit `7990503`, governing-docs commit `27f409b`, and OpenAI
+    Agents SDK Python evaluation/spec follow-up commit `322ce13`.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
   - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12.
-    E14 Slices I.1 through I.7 are complete; no E14 implementation slice is
-    currently queued.
+    Deferred OpenAI Agents SDK Python follow-ups OA1-OA10 are also available for
+    later scoped selection. E14 Slices I.1 through I.7 are complete; no E14
+    implementation slice is currently queued.
 
 ## Important Current Facts
 
@@ -184,11 +193,13 @@
   implementation. Slices 0 through 13 plus evaluation follow-up Slices A, B,
   C, D, E, F, G, H / E13, and E14 are complete; E9, E10, E11, and E12 remain
   deferred follow-up candidates.
-- `cline-tasks/codex-cli-evaluation.md` and `cline-tasks/cline-evaluation.md`
-  capture read-only external runtime-pattern evaluations. The synthesized
-  proposal lives at `cline-tasks/codex-cline-combined-package-proposal.md`.
+- `cline-tasks/codex-cli-evaluation.md`, `cline-tasks/cline-evaluation.md`, and
+  `cline-tasks/openai-agents-python-evaluation.md` capture read-only external
+  runtime-pattern evaluations. The Codex/Cline synthesized proposal lives at
+  `cline-tasks/codex-cline-combined-package-proposal.md`.
 - `specs/dynamic-agent-runner/tasks.md` now contains `Deferred Codex/Cline
-  evaluation follow-ups` E1 through E14. E1 is complete and checked off with
+  evaluation follow-ups` E1 through E14 and `Deferred OpenAI Agents SDK Python
+  evaluation follow-ups` OA1 through OA10. E1 is complete and checked off with
   implementation commit `38929f1`, E3 is complete and checked off with
   implementation commit `44b0847`, E4/E5 are complete and checked off with
   implementation commit `61f1548`, E6 is complete and checked off with
@@ -615,8 +626,9 @@
 ## Next Steps
 
 - Select the next scoped follow-up before implementing more runtime behavior;
-  E14 is complete through Slice I.7, and remaining deferred Codex/Cline follow-ups
-  include E9, E10, E11, and E12.
+  E14 is complete through Slice I.7, remaining deferred Codex/Cline follow-ups
+  include E9, E10, E11, and E12, and OpenAI Agents SDK Python follow-ups OA1-OA10
+  are now available as future design inputs.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped

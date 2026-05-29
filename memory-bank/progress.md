@@ -144,6 +144,8 @@
   `7990503 test(concurrency): validate async cancellation correlation`.
 - E14 Slice I.7 governing-docs commit exists:
   `27f409b docs(spec): record async validation completion`.
+- OpenAI Agents SDK Python evaluation/spec follow-up commit exists:
+  `322ce13 docs(agent-patterns): add OpenAI Agents SDK evaluation`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -307,20 +309,31 @@
   shared trace-sink and hook run correlation, and sync/async public API parity for
   final results and trace event shapes. Focused validation passed with 43 tests;
   broader async-adjacent validation passed with 129 tests.
+- OpenAI Agents SDK Python evaluation from `322ce13` adds
+  `cline-tasks/openai-agents-python-evaluation.md` and records deferred OA1-OA10
+  follow-ups in `specs/dynamic-agent-runner/spec.md` and `tasks.md`.
+  The new deferred concepts cover guardrail metadata, tool provenance,
+  prepare-model-input seams, MCP lifecycle diagnostics, tool-use completion
+  policy, handoff versus agent-as-tool metadata, approval interruption/resume
+  state, session protocols, optional callable-to-tool helpers, and
+  sandbox/workspace runtime separation.
 
 ## In Flight
 
 - No source implementation work is currently in flight after E14 Slice I.7
-  validation commit `7990503` and governing-docs commit `27f409b`.
-- Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12. E14 is
-  complete through Slice I.7; no E14 implementation slice is currently queued.
+  validation commit `7990503`, governing-docs commit `27f409b`, and OpenAI Agents
+  SDK Python evaluation/spec follow-up commit `322ce13`.
+- Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12.
+  Deferred OpenAI Agents SDK Python follow-ups OA1-OA10 are also available for
+  future scoped selection. E14 is complete through Slice I.7; no E14
+  implementation slice is currently queued.
 
 ## Remaining
 
 - Await follow-up direction for the next scoped runtime slice, adapter-gated
   prompt-cache provider pass-through, deferred library-evaluation follow-up,
-  remaining Codex/Cline deferred follow-ups, or interpreter middleware prototype
-  work.
+  remaining Codex/Cline deferred follow-ups, OpenAI Agents SDK Python OA
+  follow-ups, or interpreter middleware prototype work.
 - Extend from the completed loader, validation, registry, OpenAI adapter,
   executor, CLI, behavior-override, and all-pattern fixture foundation into the
   next scoped slice.
@@ -383,6 +396,10 @@
   implemented. Remaining follow-ups E9, E10, E11, and E12 should be introduced
   through package-owned contracts before broad integrations such as MCP, plugins,
   shell hooks, app-server protocols, or multi-provider routing.
+- OpenAI Agents SDK Python follow-ups OA1-OA10 are deferred design inputs, not
+  current implementation scope. Guardrails, approval pause/resume state, sessions,
+  sandbox/workspace execution, and iterative agent-loop completion policy should
+  each require a fresh scoped spec/update before implementation.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
