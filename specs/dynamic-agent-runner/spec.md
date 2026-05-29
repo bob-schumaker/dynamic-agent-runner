@@ -1297,13 +1297,17 @@ Before implementation is considered complete, add validation covering:
   concurrent async runs. E13's run-correlation contract must remain consistent
   with this async-first design. The detailed E14 implementation plan is recorded
   in `cline-tasks/evaluation-follow-up-implementation-plan.md` and recommends
-  continuing with Slice I.2, the async retry helper, after Slice I.1.
+  continuing with Slice I.3, callable-shape metadata for tools, after Slices I.1
+  and I.2.
 - E14 Slice I.1 completed the async OpenAI client boundary in commit `acca9da`,
   adding async OpenAI protocol types, `AsyncOpenAIClientAdapter`,
   `create_default_async_openai_client()`, package exports, and fake-client tests
   while preserving shared request construction and response normalization. This
   establishes the native async model-client boundary, but full async executor
   model calls remain pending.
+- E14 Slice I.2 completed the async retry helper in commit `f2296e9`, adding
+  `run_with_retry_async(...)`, preserving `RetryPolicy` attempt-count semantics,
+  and ensuring `asyncio.CancelledError` propagates without retry.
 - Evaluation follow-up Slice B completed stricter OpenAI-compatible tool schema
   validation in commit `44b0847`, including fail-closed malformed schema checks
   and `$schema` removal from model-facing tool parameters.

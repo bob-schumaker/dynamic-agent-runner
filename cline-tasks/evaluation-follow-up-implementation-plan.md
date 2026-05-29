@@ -14,8 +14,8 @@ relevant to `power-marimo` and near-term `dynamic-agent-runner` evolution:
 - E6 — refine `ToolResult` into clearer output facets
 - E7 — define narrow in-process lifecycle hook protocols
 - E8 — extend trace vocabulary
-- E14 — implement async-first execution APIs and sync wrappers (Slice I.1
-  complete)
+- E14 — implement async-first execution APIs and sync wrappers (Slices I.1
+  and I.2 complete)
 
 ## Current Implementation Shape
 
@@ -423,6 +423,8 @@ Acceptance evidence:
 
 ### Slice I.2 — async retry helper
 
+Status: complete in commit `f2296e9`.
+
 Likely files:
 
 - `src/dynamic_agent_runner/retry.py`
@@ -446,8 +448,15 @@ poetry run pytest tests/test_executor.py -q
 
 Acceptance evidence:
 
-- Async model failure retries preserve attempt counts.
-- Cancellation propagates and is not converted into a normal retry failure.
+- `run_with_retry_async(...)` uses Tenacity async retry support while preserving
+  `RetryPolicy` and attempt-count return behavior.
+- Async retryable failures preserve attempt counts.
+- `asyncio.CancelledError` propagates without retry, even when `BaseException` is
+  supplied as retryable input.
+- Validation: `poetry run pytest tests/test_retry.py tests/test_executor.py
+  tests/test_import.py -q` — pass; 32 tests passed.
+- Pre-commit: `pre-commit run --files src/dynamic_agent_runner/retry.py
+  src/dynamic_agent_runner/__init__.py tests/test_retry.py` — pass.
 
 ### Slice I.3 — callable-shape metadata for tools
 
@@ -643,8 +652,8 @@ Acceptance evidence:
 ### Recommended E14 implementation order
 
 1. Slice I.1 — async OpenAI client boundary — complete in commit `acca9da`.
-2. Slice I.2 — async retry helper — next.
-3. Slice I.3 — async-capable tool registry dispatch.
+2. Slice I.2 — async retry helper — complete in commit `f2296e9`.
+3. Slice I.3 — async-capable tool registry dispatch — next.
 4. Slice I.4 — async-capable lifecycle hook dispatch.
 5. Slice I.5 — async executor core.
 6. Slice I.6 — public async API and sync wrappers.
@@ -656,16 +665,16 @@ executor control flow and public API behavior.
 
 ## Recommended Next Slice
 
-Continue E14 with **Slice I.2 — async retry helper**.
+Continue E14 with **Slice I.3 — callable-shape metadata for tools**.
 
 Reasons:
 
 - Slice I.1 has verified the local OpenAI SDK async surface and established the
   async model-client boundary.
-- The executor will need an awaitable retry helper before async model, tool, and
-  hook calls are wired into the workflow loop.
-- This keeps cancellation and retry semantics explicit before larger executor
-  control-flow changes.
+- Slice I.2 has introduced the awaitable retry helper and cancellation-safe retry
+  boundary.
+- Slice I.3 should introduce async-capable tool-handler metadata and dispatch
+  before hook and executor conversion work.
 
 ## Validation Plan
 

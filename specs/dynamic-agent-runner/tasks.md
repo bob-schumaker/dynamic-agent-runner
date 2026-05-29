@@ -2,8 +2,8 @@
 
 ## Status
 
-- State: E14 Slice I.1 async OpenAI client boundary is complete; future E14
-  implementation should continue with Slice I.2 async retry helper.
+- State: E14 Slices I.1 and I.2 are complete; future E14 implementation
+  should continue with Slice I.3 callable-shape metadata for tools.
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
@@ -615,12 +615,20 @@
         added async OpenAI protocol types, `AsyncOpenAIClientAdapter`,
         `create_default_async_openai_client()`, package exports, and fake-client
         tests while keeping request construction and response normalization shared.
-      - Recommended next slice: async retry helper.
+      - Slice I.2 async retry helper completed in commit `f2296e9`: added
+        `run_with_retry_async(...)`, exported it publicly, preserved retry attempt
+        counts, and ensured `asyncio.CancelledError` propagates without retry.
+      - Recommended next slice: callable-shape metadata for tools.
       - Slice I.1 validation: `poetry run pytest tests/test_import.py
         tests/test_openai_client.py -q` — pass; 11 tests passed.
       - Slice I.1 pre-commit: `pre-commit run --files
         src/dynamic_agent_runner/openai_client.py src/dynamic_agent_runner/__init__.py
         tests/test_openai_client.py` — pass.
+      - Slice I.2 validation: `poetry run pytest tests/test_retry.py
+        tests/test_executor.py tests/test_import.py -q` — pass; 32 tests passed.
+      - Slice I.2 pre-commit: `pre-commit run --files
+        src/dynamic_agent_runner/retry.py src/dynamic_agent_runner/__init__.py
+        tests/test_retry.py` — pass.
       - Add first-class async public APIs `execute_workflow_async(...)` and
         `run_agent_workflow_async(...)` for event-loop callers.
       - Convert synchronous APIs for CLI, scripts, tests, cron jobs, and simple
