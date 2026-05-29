@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from dynamic_agent_runner.api import run_agent_workflow
 from dynamic_agent_runner.artifacts import load_runtime_manifest
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
-from dynamic_agent_runner.executor import execute_workflow
+from dynamic_agent_runner.executor import execute_workflow, execute_workflow_async
+from dynamic_agent_runner.hooks import NodeHookContext, WorkflowLifecycleHooks
 from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
-from dynamic_agent_runner.openai_client import OpenAIClientAdapter
+from dynamic_agent_runner.openai_client import (
+    AsyncOpenAIClientAdapter,
+    OpenAIClientAdapter,
+)
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
@@ -36,8 +42,31 @@ class FakeClient:
         self.responses = FakeResponses(responses)
 
 
+class AsyncFakeResponses:
+    def __init__(self, responses: list[object]):
+        self.responses = list(responses)
+        self.calls: list[dict[str, object]] = []
+
+    async def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        await asyncio.sleep(0)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+class AsyncFakeClient:
+    def __init__(self, responses: list[object]):
+        self.responses = AsyncFakeResponses(responses)
+
+
 def make_adapter(responses: list[object]) -> OpenAIClientAdapter:
     return OpenAIClientAdapter(FakeClient(responses))
+
+
+def make_async_adapter(responses: list[object]) -> AsyncOpenAIClientAdapter:
+    return AsyncOpenAIClientAdapter(AsyncFakeClient(responses))
 
 
 def make_tool(
@@ -88,8 +117,167 @@ def make_flaky_tool(
     return RegisteredTool(ToolDefinition.from_mapping(tool_raw), handler)
 
 
+def make_async_tool(
+    tool_id: str,
+    output: object | None = None,
+    *,
+    raw: dict[str, object] | None = None,
+) -> RegisteredTool:
+    tool_raw: dict[str, object] = {
+        "id": tool_id,
+        "description_for_llm": f"Use {tool_id}",
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    }
+    tool_raw.update(raw or {})
+
+    async def handler(args: object) -> object:
+        await asyncio.sleep(0)
+        return output if output is not None else {"result": args["query"]}
+
+    return RegisteredTool(ToolDefinition.from_mapping(tool_raw), handler)
+
+
 def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
     return LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
+
+
+def test_execute_workflow_async_runs_async_model_adapter() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "async-model-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_async_adapter([{"id": "resp", "output_text": "async done"}])
+
+    result = asyncio.run(
+        execute_workflow_async(workflow, prompt="Hello", model_adapter=adapter)
+    )
+
+    assert result.final_result == "async done"
+    assert adapter.client.responses.calls[0]["model"] == "gpt-test"
+
+
+def test_execute_workflow_rejects_async_model_adapter_on_sync_path() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "sync-path-async-adapter-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="async model adapter"):
+        execute_workflow(
+            workflow,
+            prompt="Hello",
+            model_adapter=make_async_adapter([{"id": "resp", "output_text": "done"}]),
+        )
+
+
+def test_execute_workflow_async_awaits_async_direct_tool() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "async-tool-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry(
+        [make_async_tool("search_repo", output={"answer": "async 42"})]
+    )
+
+    result = asyncio.run(
+        execute_workflow_async(workflow, prompt="Run", tool_registry=registry)
+    )
+
+    assert result.final_result == {"answer": "async 42"}
+    assert result.state.tool_results["lookup"].output == {"answer": "async 42"}
+
+
+def test_execute_workflow_async_awaits_async_lifecycle_hooks() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "async-hook-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "execution_policy": {"model": "gpt-test"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    observed: list[str] = []
+
+    async def before_node(context: NodeHookContext) -> None:
+        await asyncio.sleep(0)
+        observed.append(f"before:{context.node_id}:{context.run_id}")
+
+    async def after_node(context: NodeHookContext) -> None:
+        await asyncio.sleep(0)
+        observed.append(f"after:{context.node_id}:{context.output}:{context.run_id}")
+
+    result = asyncio.run(
+        execute_workflow_async(
+            workflow,
+            prompt="Hello",
+            model_adapter=make_async_adapter([{"id": "resp", "output_text": "done"}]),
+            lifecycle_hooks=WorkflowLifecycleHooks(
+                before_node=before_node,
+                after_node=after_node,
+            ),
+            run_id="async-run-1",
+        )
+    )
+
+    assert result.final_result == "done"
+    assert observed == ["before:answer:async-run-1", "after:answer:done:async-run-1"]
 
 
 def test_execute_workflow_runs_llm_tool_and_final_llm_steps() -> None:
