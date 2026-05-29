@@ -112,6 +112,10 @@
   `56ddb9b docs(spec): record async execution decisions`.
 - E14 OpenAI source-checkout docs commit exists:
   `4b17a4f docs(spec): record openai async source checkout`.
+- E14 implementation-plan commit exists:
+  `c22c239 docs(cline-tasks): plan async execution implementation`.
+- E14 spec-plan reference commit exists:
+  `781f451 docs(spec): reference async implementation plan`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -225,12 +229,20 @@
   E13 run correlation for concurrent async runs. The local OpenAI Python SDK
   checkout at `/Users/roschuma/Repos/github/openai-python/` is available for E14
   async adapter and cancellation-behavior inspection.
+- E14 implementation sequencing is now recorded in
+  `cline-tasks/evaluation-follow-up-implementation-plan.md`: async OpenAI client
+  boundary, async retry helper, async-capable tool registry dispatch,
+  async-capable lifecycle hook dispatch, async executor core, public async API and
+  sync wrappers, then cancellation and concurrent async validation. The
+  recommended first slice is async OpenAI client boundary.
 
 ## In Flight
 
 - No source implementation work is currently in flight after E13 implementation
   commit `2e45888`, E13 governing-docs commit `a4fe7e9`, E14 decision-docs
-  commit `56ddb9b`, and E14 OpenAI source-checkout docs commit `4b17a4f`.
+  commit `56ddb9b`, E14 OpenAI source-checkout docs commit `4b17a4f`, E14
+  implementation-plan commit `c22c239`, and E14 spec-plan reference commit
+  `781f451`.
 - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, E12, and E14;
   no next implementation slice has been selected after the E14 documentation
   checkpoint.
@@ -316,7 +328,8 @@
   acceptance coverage for async model calls, async tools, async hooks,
   cancellation, sync wrapper compatibility, and concurrent async runs. E14 should
   inspect `/Users/roschuma/Repos/github/openai-python/` before finalizing the
-  async OpenAI adapter and cancellation guarantees.
+  async OpenAI adapter and cancellation guarantees. The next recommended E14
+  implementation step is Slice I.1, the async OpenAI client boundary.
 - Interpreter middleware is specified only as a future feature; custom
   interpreter interface details, dependency availability, safety gates,
   benchmark fixtures, and backend selection remain unresolved.

@@ -108,8 +108,12 @@
     decisions in `56ddb9b`.
   - Updated governing spec/plan documents with the local OpenAI Python SDK source
     checkout for E14 async feasibility inspection in `4b17a4f`.
+  - Added detailed E14 implementation sequencing to
+    `cline-tasks/evaluation-follow-up-implementation-plan.md` in `c22c239`.
+  - Updated governing spec/plan/task documents to reference the E14 plan and
+    recommended first slice in `781f451`.
 - In progress:
-  - Memory-bank checkpoint for E14 decisions and governing-docs commit.
+  - Memory-bank checkpoint for E14 implementation-plan commits.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
@@ -165,7 +169,9 @@
   best-effort, and concurrent async runs must preserve E13 run correlation. The
   local OpenAI Python SDK checkout at `/Users/roschuma/Repos/github/openai-python/`
   should be inspected before finalizing the async adapter and cancellation
-  contract.
+  contract. The detailed E14 implementation plan is now in
+  `cline-tasks/evaluation-follow-up-implementation-plan.md`, with recommended
+  first slice: async OpenAI client boundary.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
@@ -389,6 +395,17 @@
     `/Users/roschuma/Repos/github/openai-python/` as the local OpenAI Python SDK
     checkout to inspect before finalizing E14 async client and cancellation
     behavior.
+- E14 implementation plan from `c22c239`:
+  - `cline-tasks/evaluation-follow-up-implementation-plan.md` now adds planned
+    Slice I for E14 async-first execution APIs and wrappers.
+  - Planned sequence: async OpenAI client boundary, async retry helper,
+    async-capable tool registry dispatch, async-capable lifecycle hook dispatch,
+    async executor core, public async API and sync wrappers, then cancellation and
+    concurrent async validation.
+  - Recommended first slice is async OpenAI client boundary.
+- Governing-docs update from `781f451`:
+  - `specs/dynamic-agent-runner/spec.md`, `plan.md`, and `tasks.md` now point to
+    the E14 implementation plan and recommended first slice.
 - Evaluation follow-up Slice A implementation from `38929f1`:
   - `src/dynamic_agent_runner/context.py` defines `WorkflowExecutionContext` and
     `RunContext` as a stable execution envelope for a loaded workflow, optional
@@ -486,6 +503,8 @@
     initial pack should be read-only `local_workspace` tools such as `read_file`,
     `list_files`, `search_files`, and `inspect_path`.
 - Latest observed branch history includes:
+  - `781f451 docs(spec): reference async implementation plan`
+  - `c22c239 docs(cline-tasks): plan async execution implementation`
   - `4b17a4f docs(spec): record openai async source checkout`
   - `56ddb9b docs(spec): record async execution decisions`
   - `a4fe7e9 docs(spec): record concurrent invocation support`
@@ -540,8 +559,9 @@
 - Await follow-up direction for the next deferred Codex/Cline follow-up slice.
   Remaining candidates in `specs/dynamic-agent-runner/tasks.md` include E9,
   E10, E11, E12, and E14. If E14 is selected, start from the async-first
-  decisions recorded in `56ddb9b` and inspect the local OpenAI SDK checkout
-  recorded in `4b17a4f`.
+  decisions recorded in `56ddb9b`, inspect the local OpenAI SDK checkout
+  recorded in `4b17a4f`, and use the E14 implementation plan committed in
+  `c22c239` / referenced in `781f451`.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped
