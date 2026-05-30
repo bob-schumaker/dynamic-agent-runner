@@ -168,6 +168,10 @@
   `2d30581 docs(plan): record tool source provenance slice`.
 - Runtime-package simplification S5 design-decision commit exists:
   `a084f2d docs(plan): record marimo-pair agent-as-tool decision`.
+- Runtime-package simplification Slice S5 implementation commit exists:
+  `84dfd31 test(power-marimo): add runtime package fixture`.
+- Runtime-package simplification S5 plan/task evidence commit exists:
+  `387b574 docs(plan): record power-marimo fixture slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -384,26 +388,30 @@
   tools, runtime overrides, and caller-registered tools. Model-request traces
   include `tool_sources` metadata for model-exposed tools without changing
   callable dispatch or exposure semantics. Full validation passed with 168 tests.
-- Plan/task evidence for S4 is recorded in `2d30581`; the next active slice is
-  S5: a placeholder-safe `power-marimo` runtime-package fixture/example.
-- S5 planning now records that `marimo-pair` should be modeled as an
-  agent-as-tool invocation backed by `../power-marimo/skills/marimo-pair/SKILL.md`,
-  not as a new primitive runtime node kind or durable handoff-style multi-agent
-  pattern.
+- Plan/task evidence for S4 is recorded in `2d30581`.
+- S5 planning records that `marimo-pair` should be modeled as an agent-as-tool
+  invocation backed by `../power-marimo/skills/marimo-pair/SKILL.md`, not as a new
+  primitive runtime node kind or durable handoff-style multi-agent pattern.
+- Runtime-package simplification Slice S5 is complete in `84dfd31`: a
+  placeholder-safe Power-Marimo runtime package fixture now represents a
+  supervised bounded workflow-orchestration agent, records `marimo-pair` as a
+  SKILL-backed agent-as-tool `tool_use_step`, defines placeholder Marimo/domain
+  tools, and exercises the bounded happy path with fake tools and fake model
+  responses. Targeted validation passed with 4 tests.
+- Plan/task evidence for S5 is recorded in `387b574`; runtime-package
+  simplification S1-S5 is complete.
 
 ## In Flight
 
-- No source implementation work is currently in flight after S4 implementation
-  commit `a46bb5a`, plan/task evidence commit `2d30581`, and S5
-  design-decision commit `a084f2d`.
-- The next active implementation direction is S5 — a placeholder-safe
-  `power-marimo` runtime-package fixture/example. Remaining deferred
-  Codex/Cline follow-ups E9-E12 and OpenAI Agents SDK Python follow-ups OA1-OA10
-  should wait behind the simplification sequence unless explicitly re-scoped.
+- No source implementation work is currently in flight after S5 implementation
+  commit `84dfd31` and plan/task evidence commit `387b574`.
+- Remaining deferred Codex/Cline follow-ups E9-E12 and OpenAI Agents SDK Python
+  follow-ups OA1-OA10 should wait for explicit scoped selection.
 
 ## Remaining
 
-- Implement S5 as the next scoped runtime-package simplification slice.
+- Choose the next scoped follow-up before broader E9, OA, MCP, durable session,
+  approval-resume, or PyQt-widget automation work.
 - Preserve the S5 `marimo-pair` shape as an agent-as-tool/SKILL-backed bounded
   Marimo operation while keeping primitive node kinds unchanged.
 - Extend from the completed grouped manifest, prepared execution plan,
@@ -473,15 +481,13 @@
   current implementation scope. Guardrails, approval pause/resume state, sessions,
   sandbox/workspace execution, and iterative agent-loop completion policy should
   each require a fresh scoped spec/update before implementation.
-- Runtime-package simplification is now the active next direction, driven by the
-  `power-marimo` first-customer analysis. S1 grouped manifest support, S2
-  `ExecutionPlan` / `PreparedNode` normalization, S3 `PreparedModelInput` /
-  `prepare_model_input(...)`, and S4 `ToolSource` provenance are complete;
-  implement S5 as a placeholder-safe `power-marimo` fixture before live
-  Marimo-session, MCP, or broader agent-as-tool registry sources. The S5
-  `marimo-pair` node should be represented as an agent-as-tool invocation backed
-  by `../power-marimo/skills/marimo-pair/SKILL.md`, not as a primitive node kind
-  or durable handoff.
+- Runtime-package simplification S1-S5 is complete, driven by the `power-marimo`
+  first-customer analysis. S1 grouped manifest support, S2 `ExecutionPlan` /
+  `PreparedNode` normalization, S3 `PreparedModelInput` /
+  `prepare_model_input(...)`, S4 `ToolSource` provenance, and S5 placeholder-safe
+  Power-Marimo fixture coverage are complete. Live Marimo-session, MCP, broader
+  agent-as-tool registry sources, and durable handoff/resume behavior remain out
+  of scope until a new scoped follow-up selects them.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
