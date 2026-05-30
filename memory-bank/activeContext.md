@@ -17,8 +17,9 @@
   plan/task evidence recorded in `2d30581`. The S5 design decision that
   `marimo-pair` is an agent-as-tool invocation backed by
   `../power-marimo/skills/marimo-pair/SKILL.md` was recorded in `a084f2d`. Slice
-  S5 completed in `84dfd31`, with plan/task evidence recorded in `387b574`; the
-  runtime-package simplification S1-S5 sequence is now complete.
+  S5 completed in `84dfd31`, with plan/task evidence recorded in `387b574` and
+  governing spec documents refreshed in `89926d8`; the runtime-package
+  simplification S1-S5 sequence is now complete.
 
 ## Current Status
 
@@ -209,10 +210,13 @@
   - Updated `specs/dynamic-agent-runner/tasks.md` and
     `cline-tasks/power-marimo-implementation-plan.md` for S5 completion evidence
     and runtime-package simplification completion in `387b574`.
+  - Updated governing spec documents in `89926d8` to record S5 completion, the
+    placeholder-safe Power-Marimo fixture, and that no next active slice is
+    selected after S5.
 - In progress:
   - No source implementation work is currently in flight after runtime-package
-    simplification Slice S5 implementation commit `84dfd31` and plan/task
-    evidence commit `387b574`.
+    simplification Slice S5 implementation commit `84dfd31`, plan/task evidence
+    commit `387b574`, and governing spec-document commit `89926d8`.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
@@ -693,9 +697,10 @@
 
 ## Next Steps
 
-- Runtime-package simplification S1-S5 is complete. Choose a new scoped follow-up
-  before starting broader E9, OA, MCP, durable session, approval-resume, or
-  PyQt-widget automation work.
+- Runtime-package simplification S1-S5 is complete and recorded in governing
+  spec documents through `89926d8`. Choose a new scoped follow-up before starting
+  broader E9, OA, MCP, durable session, approval-resume, or PyQt-widget
+  automation work.
 - Preserve the S5 Power-Marimo fixture as placeholder-safe coverage: no live
   Marimo server calls, real SLD data, or live `power-tetris-sdk` calls.
 - Keep representing `marimo-pair` as an agent-as-tool/SKILL-backed bounded

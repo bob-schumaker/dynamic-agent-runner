@@ -172,6 +172,8 @@
   `84dfd31 test(power-marimo): add runtime package fixture`.
 - Runtime-package simplification S5 plan/task evidence commit exists:
   `387b574 docs(plan): record power-marimo fixture slice`.
+- Runtime-package simplification S5 governing spec commit exists:
+  `89926d8 docs(spec): record power-marimo fixture completion`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -398,13 +400,15 @@
   SKILL-backed agent-as-tool `tool_use_step`, defines placeholder Marimo/domain
   tools, and exercises the bounded happy path with fake tools and fake model
   responses. Targeted validation passed with 4 tests.
-- Plan/task evidence for S5 is recorded in `387b574`; runtime-package
-  simplification S1-S5 is complete.
+- Plan/task evidence for S5 is recorded in `387b574`; governing spec documents
+  were refreshed for S5 completion in `89926d8`; runtime-package simplification
+  S1-S5 is complete.
 
 ## In Flight
 
 - No source implementation work is currently in flight after S5 implementation
-  commit `84dfd31` and plan/task evidence commit `387b574`.
+  commit `84dfd31`, plan/task evidence commit `387b574`, and governing
+  spec-document commit `89926d8`.
 - Remaining deferred Codex/Cline follow-ups E9-E12 and OpenAI Agents SDK Python
   follow-ups OA1-OA10 should wait for explicit scoped selection.
 
@@ -482,12 +486,13 @@
   sandbox/workspace execution, and iterative agent-loop completion policy should
   each require a fresh scoped spec/update before implementation.
 - Runtime-package simplification S1-S5 is complete, driven by the `power-marimo`
-  first-customer analysis. S1 grouped manifest support, S2 `ExecutionPlan` /
-  `PreparedNode` normalization, S3 `PreparedModelInput` /
-  `prepare_model_input(...)`, S4 `ToolSource` provenance, and S5 placeholder-safe
-  Power-Marimo fixture coverage are complete. Live Marimo-session, MCP, broader
-  agent-as-tool registry sources, and durable handoff/resume behavior remain out
-  of scope until a new scoped follow-up selects them.
+  first-customer analysis and reflected in governing spec documents through
+  `89926d8`. S1 grouped manifest support, S2 `ExecutionPlan` / `PreparedNode`
+  normalization, S3 `PreparedModelInput` / `prepare_model_input(...)`, S4
+  `ToolSource` provenance, and S5 placeholder-safe Power-Marimo fixture coverage
+  are complete. Live Marimo-session, MCP, broader agent-as-tool registry sources,
+  and durable handoff/resume behavior remain out of scope until a new scoped
+  follow-up selects them.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
