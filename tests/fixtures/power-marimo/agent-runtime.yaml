@@ -1,0 +1,318 @@
+format_version: 1
+package_type: dynamic_agent_design
+package_id: power-marimo-runtime-package-fixture
+name: Power-Marimo Runtime Package Fixture
+description: Placeholder-safe runtime package for a supervised Marimo notebook power experiment agent.
+entrypoint: analyze_experiment_request
+mermaid_diagram: agent-graph.mmd
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+runtime:
+  execution_policy:
+    autonomy_level: supervised agent
+    allowed_execution_modes:
+    - sequential_fallback
+    external_backend_allowed: false
+    max_steps: 10
+    timeout: runtime_default
+    approval_required_for:
+    - live Marimo notebook mutation
+    - real SLD or power-tetris-sdk access
+    forbidden_actions:
+    - connect to a live Marimo server from this fixture
+    - read real SLD data
+    - call live power-tetris-sdk operations
+    - store secrets in prompts or logs
+    model: gpt-test
+    model_capabilities:
+      structured_output: true
+      reasoning: true
+      modalities:
+      - text
+  state:
+    artifacts:
+    - id: user_request
+      description: Original placeholder power experiment request.
+      source: user
+    - id: notebook_state
+      description: Placeholder Marimo notebook/session state.
+      source: fake_tool
+    - id: room_power_analysis
+      description: Synthetic room-power analysis result.
+      source: fake_tool
+    - id: notebook_cell_plan
+      description: Model-drafted notebook cell plan for the placeholder task.
+      source: llm
+    mutable_fields:
+    - notebook_state
+    - notebook_cell_plan
+metadata:
+  patterns_present:
+  - workflow-orchestration-agent
+  participant_groups: []
+  modes:
+  - id: supervised_placeholder
+    description: Placeholder-safe supervised mode for Power-Marimo fixture validation.
+    enabled_phases:
+    - request_analysis
+    - marimo_agent_as_tool
+    - notebook_validation
+    - domain_analysis
+    - summarization
+    batching_allowed: false
+  phases:
+  - id: request_analysis
+    label: Analyze request
+    phase_kind: preparation
+    repeatable: false
+    participant_group: null
+    peer_visibility: none
+    enabled_when: always
+  - id: marimo_agent_as_tool
+    label: Invoke Marimo pair agent-as-tool
+    phase_kind: tool_execution
+    repeatable: false
+    participant_group: null
+    peer_visibility: none
+    enabled_when: after_request_analysis
+  - id: notebook_validation
+    label: Inspect placeholder notebook state
+    phase_kind: validation
+    repeatable: false
+    participant_group: null
+    peer_visibility: none
+    enabled_when: after_marimo_pair
+  - id: domain_analysis
+    label: Run placeholder power analysis
+    phase_kind: tool_execution
+    repeatable: false
+    participant_group: null
+    peer_visibility: none
+    enabled_when: after_notebook_validation
+  - id: summarization
+    label: Summarize placeholder result
+    phase_kind: synthesis
+    repeatable: false
+    participant_group: null
+    peer_visibility: none
+    enabled_when: after_domain_analysis
+  roles:
+  - id: notebook_supervisor
+    label: Notebook supervisor
+  - id: marimo_pair_operator
+    label: Marimo pair agent-as-tool operator
+extensions:
+  marimo_session:
+    required: false
+    config:
+      live_execution: false
+skills:
+- id: marimo-pair
+  label: Marimo Pair Skill
+  source_type: repo_skill
+  source_path: ../power-marimo/skills/marimo-pair/SKILL.md
+  packaging_mode: referenced_only
+  notes: Invoked as an agent-as-tool for one bounded placeholder notebook operation.
+tools:
+- id: discover_marimo_servers
+  label: Discover Marimo Servers
+  description_for_llm: Locate placeholder Marimo session metadata without opening a live connection.
+  adapter: fixtures.power_marimo.discover_marimo_servers
+  input_schema:
+    type: object
+    properties:
+      mode:
+        type: string
+  output_schema:
+    type: object
+    properties:
+      server_id:
+        type: string
+      live_execution:
+        type: boolean
+  side_effect: read
+  approval_required: false
+  timeout: runtime_default
+  retry_policy: none
+  failure_behavior: error
+- id: marimo_pair_agent
+  label: Marimo Pair Agent-as-Tool
+  description_for_llm: Invoke the SKILL-backed marimo-pair agent for a bounded placeholder notebook operation.
+  adapter: fixtures.power_marimo.marimo_pair_agent
+  input_schema:
+    type: object
+    properties:
+      task:
+        type: string
+      server:
+        type: object
+  output_schema:
+    type: object
+    properties:
+      skill_id:
+        type: string
+      skill_path:
+        type: string
+      notebook_operation:
+        type: string
+      live_execution:
+        type: boolean
+  side_effect: controlled_notebook_draft
+  approval_required: 'true'
+  sandbox: placeholder_only
+  timeout: runtime_default
+  retry_policy: none
+  failure_behavior: error
+- id: inspect_notebook_state
+  label: Inspect Notebook State
+  description_for_llm: Inspect placeholder notebook state after the agent-as-tool operation.
+  adapter: fixtures.power_marimo.inspect_notebook_state
+  input_schema:
+    type: object
+    properties:
+      operation:
+        type: object
+  output_schema:
+    type: object
+    properties:
+      notebook_state:
+        type: string
+      unsafe_live_access:
+        type: boolean
+  side_effect: read
+  approval_required: false
+  timeout: runtime_default
+  retry_policy: none
+  failure_behavior: error
+- id: run_room_power_analysis
+  label: Run Room Power Analysis
+  description_for_llm: Run a synthetic placeholder room-power analysis without real SLD or SDK access.
+  adapter: fixtures.power_marimo.run_room_power_analysis
+  input_schema:
+    type: object
+    properties:
+      notebook_state:
+        type: object
+  output_schema:
+    type: object
+    properties:
+      analysis_id:
+        type: string
+      data_source:
+        type: string
+      result:
+        type: string
+  side_effect: read
+  approval_required: false
+  timeout: runtime_default
+  retry_policy: none
+  failure_behavior: error
+nodes:
+- id: analyze_experiment_request
+  kind: llm_step
+  label: Analyze experiment request
+  model: gpt-test
+  prompt:
+    system: You are a supervised notebook experiment planner. Do not request live Marimo, SLD, or SDK access.
+    user_template: 'Analyze this placeholder Power-Marimo request: {prompt}'
+    input_vars:
+    - prompt
+    output_schema_ref: experiment_analysis
+- id: discover_placeholder_marimo_server
+  kind: tool_use_step
+  label: Discover placeholder Marimo server
+  tool_id: discover_marimo_servers
+  inputs:
+    mode: placeholder_only
+  failure_behavior: error
+  outputs:
+    state_key: marimo_server
+- id: invoke_marimo_pair
+  kind: tool_use_step
+  label: Invoke Marimo pair agent-as-tool
+  tool_id: marimo_pair_agent
+  inputs:
+    task: perform a bounded placeholder notebook operation
+  inputs_from:
+    server: marimo_server
+  agent_as_tool:
+    skill_id: marimo-pair
+    skill_path: ../power-marimo/skills/marimo-pair/SKILL.md
+    task_boundary: perform a bounded Marimo notebook operation
+  skill_refs:
+  - marimo-pair
+  failure_behavior: error
+  outputs:
+    state_key: marimo_pair_operation
+- id: inspect_notebook_state
+  kind: tool_use_step
+  label: Inspect notebook state
+  tool_id: inspect_notebook_state
+  inputs_from:
+    operation: marimo_pair_operation
+  failure_behavior: error
+  outputs:
+    state_key: notebook_state
+- id: run_placeholder_power_analysis
+  kind: tool_use_step
+  label: Run placeholder power analysis
+  tool_id: run_room_power_analysis
+  inputs_from:
+    notebook_state: notebook_state
+  failure_behavior: error
+  outputs:
+    state_key: room_power_analysis
+- id: prepare_notebook_cell_plan
+  kind: llm_step
+  label: Prepare notebook cell plan
+  model: gpt-test
+  prompt:
+    user_template: 'Prepare placeholder Marimo cell plan from analysis {room_power_analysis}'
+    input_vars:
+    - room_power_analysis
+    output_schema_ref: notebook_cell_plan
+- id: summarize_power_experiment
+  kind: llm_step
+  label: Summarize power experiment
+  model: gpt-test
+  prompt:
+    user_template: 'Summarize placeholder Power-Marimo result using {prepare_notebook_cell_plan}'
+    input_vars:
+    - prepare_notebook_cell_plan
+    output_schema_ref: power_marimo_summary
+edges:
+- source: analyze_experiment_request
+  target: discover_placeholder_marimo_server
+  edge_kind: sequential
+- source: discover_placeholder_marimo_server
+  target: invoke_marimo_pair
+  edge_kind: sequential
+- source: invoke_marimo_pair
+  target: inspect_notebook_state
+  edge_kind: sequential
+- source: inspect_notebook_state
+  target: run_placeholder_power_analysis
+  edge_kind: sequential
+- source: run_placeholder_power_analysis
+  target: prepare_notebook_cell_plan
+  edge_kind: sequential
+- source: prepare_notebook_cell_plan
+  target: summarize_power_experiment
+  edge_kind: sequential
+output_contracts:
+- id: experiment_analysis
+  required_fields:
+  - experiment_goal
+- id: notebook_cell_plan
+  required_fields:
+  - cell_plan
+- id: power_marimo_summary
+  required_fields:
+  - message
+validation:
+  package_checks:
+  - Every node id is unique.
+  - Every edge endpoint references an existing node.
+  - Every llm_step has a prompt or a prompt_source.
+  - Fixture remains placeholder-safe and does not perform live Marimo, SLD, or SDK access.
