@@ -17,7 +17,7 @@ runtime support.
   — spec-local supporting reference used by the current SDD artifacts.
 - `specs/dynamic-agent-runner/spec.md` — governing runtime requirements.
 - `specs/dynamic-agent-runner/tasks.md` — active task list; next active slice is
-  S4.
+  S5.
 - `../power-marimo/specs/project-roadmap/spec.md` — downstream roadmap context.
 - `../power-marimo/skills/marimo-pair/SKILL.md` — downstream notebook-operation
   and safety contract.
@@ -257,6 +257,8 @@ Completion evidence:
 
 ### Slice S4 — ToolOrigin and ToolSource provenance
 
+**Status:** Complete in commit `a46bb5a`.
+
 **Goal:** Prepare the registry model for mixed tool origins before Marimo-session,
 MCP, domain-SDK, or agent-as-tool sources are added.
 
@@ -290,9 +292,34 @@ pre-commit run --files <changed files>
 
 Acceptance criteria:
 
-- Existing tool invocation behavior remains unchanged.
-- Tool provenance is available for diagnostics and future source-specific policy.
-- Runtime overrides preserve clear provenance when they add or replace tools.
+- [x] Existing tool invocation behavior remains unchanged.
+- [x] Tool provenance is available for diagnostics and future source-specific
+  policy.
+- [x] Runtime overrides preserve clear provenance when they add or replace tools.
+
+Completion evidence:
+
+- Commit: `a46bb5a` (`feat(registry): add tool source provenance`).
+- RED: `poetry run pytest
+  tests/test_registry.py::test_tool_definition_records_manifest_and_index_source_metadata
+  tests/test_registry.py::test_runtime_overrides_add_replace_disable_and_restrict_per_node
+  tests/test_registry.py::test_local_workspace_tool_pack_is_opt_in_and_path_restricted
+  -q` — failed because `ToolSource` did not exist yet.
+- RED: `poetry run pytest
+  tests/test_tracing.py::test_model_request_trace_includes_model_exposed_tool_sources
+  -q` — failed because model-request traces did not include `tool_sources`.
+- GREEN: `poetry run pytest
+  tests/test_tracing.py::test_model_request_trace_includes_model_exposed_tool_sources
+  tests/test_registry.py::test_tool_definition_records_manifest_and_index_source_metadata
+  tests/test_registry.py::test_runtime_overrides_add_replace_disable_and_restrict_per_node
+  tests/test_registry.py::test_local_workspace_tool_pack_is_opt_in_and_path_restricted
+  -q` — pass; 4 tests passed.
+- Targeted validation: `poetry run pytest tests/test_registry.py
+  tests/test_tracing.py tests/test_validation.py -q` — pass; 49 tests passed.
+- Full validation: `poetry run pytest -q` — pass; 168 tests passed.
+- `pre-commit run --files src/dynamic_agent_runner/models.py
+  src/dynamic_agent_runner/registry.py src/dynamic_agent_runner/executor.py
+  tests/test_registry.py tests/test_tracing.py` — pass.
 
 ### Slice S5 — Power-Marimo runtime-package fixture or example
 
@@ -352,7 +379,7 @@ Use one commit per slice when the slice is implemented:
 1. [x] `feat(models): support grouped runtime manifests` — `695c0cc`
 2. [x] `feat(executor): add prepared execution plan` — `b315c96`
 3. [x] `feat(executor): add prepared model input seam` — `33096b5`
-4. `feat(registry): add tool provenance metadata`
+4. [x] `feat(registry): add tool source provenance` — `a46bb5a`
 5. `test(fixtures): add power-marimo runtime package`
 
 For each slice, update `specs/dynamic-agent-runner/tasks.md` with completion
@@ -370,8 +397,9 @@ evidence and run targeted validation before committing.
 - `PreparedModelInput` now preserves current prompt semantics in commit
   `33096b5`; notebook-state and retrieval features remain future extension
   points.
-- `ToolOrigin` should remain diagnostic/provenance metadata until a later policy
-  slice defines source-specific enforcement.
+- `ToolSource` now records diagnostic/provenance metadata in commit `a46bb5a`;
+  it should remain non-enforcing until a later policy slice defines
+  source-specific enforcement.
 - `power-marimo` still lacks first-party source, tests, and safe domain fixtures,
   so live notebook automation should stay out of scope for this plan.
 

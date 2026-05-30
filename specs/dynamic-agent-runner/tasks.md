@@ -13,7 +13,7 @@
 - Readiness verdict: ready for the runtime-package simplification follow-up; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work.
-- Next active slice: S4 — ToolOrigin and ToolSource provenance.
+- Next active slice: S5 — Power-Marimo runtime-package fixture or example.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -563,12 +563,41 @@ preparation seams, and tool provenance before safe Marimo notebook automation.
       - Pre-commit: `pre-commit run --files
         src/dynamic_agent_runner/executor.py tests/test_executor.py` — pass after
         replacing an unnecessary dict comprehension flagged by Ruff.
-- [ ] S4. Add `ToolOrigin` / `ToolSource` provenance metadata before MCP,
-      Marimo-session, domain-SDK, or agent-as-tool registry sources are
-      implemented.
+- [x] S4. Add `ToolSource` provenance metadata before MCP, Marimo-session,
+      domain-SDK, or agent-as-tool registry sources are implemented.
+      - Completed in commit `a46bb5a` (`feat(registry): add tool source
+        provenance`).
+      - Added `ToolSource` / `ToolSourceKind` metadata for manifest declarations,
+        external tool-index entries, built-in local workspace tools, runtime
+        overrides, and caller-registered tools.
+      - Model-request traces now include diagnostic `tool_sources` metadata for
+        model-exposed tools without changing callable dispatch or exposure rules.
+      - RED: `poetry run pytest
+        tests/test_registry.py::test_tool_definition_records_manifest_and_index_source_metadata
+        tests/test_registry.py::test_runtime_overrides_add_replace_disable_and_restrict_per_node
+        tests/test_registry.py::test_local_workspace_tool_pack_is_opt_in_and_path_restricted
+        -q` — failed because `ToolSource` did not exist yet.
+      - RED: `poetry run pytest
+        tests/test_tracing.py::test_model_request_trace_includes_model_exposed_tool_sources
+        -q` — failed because model-request traces did not include
+        `tool_sources`.
+      - GREEN: `poetry run pytest
+        tests/test_tracing.py::test_model_request_trace_includes_model_exposed_tool_sources
+        tests/test_registry.py::test_tool_definition_records_manifest_and_index_source_metadata
+        tests/test_registry.py::test_runtime_overrides_add_replace_disable_and_restrict_per_node
+        tests/test_registry.py::test_local_workspace_tool_pack_is_opt_in_and_path_restricted
+        -q` — pass; 4 tests passed.
+      - Targeted validation: `poetry run pytest tests/test_registry.py
+        tests/test_tracing.py tests/test_validation.py -q` — pass; 49 tests
+        passed.
+      - Full validation: `poetry run pytest -q` — pass; 168 tests passed.
+      - Pre-commit: `pre-commit run --files src/dynamic_agent_runner/models.py
+        src/dynamic_agent_runner/registry.py src/dynamic_agent_runner/executor.py
+        tests/test_registry.py tests/test_tracing.py` — pass.
 - [ ] S5. Draft a narrow `power-marimo` runtime-package fixture or example as a
       supervised, bounded workflow-orchestration agent using primitive nodes and
       placeholder Marimo/domain tool definitions.
+      - Next active slice.
 
 ## Deferred library-evaluation follow-ups
 
