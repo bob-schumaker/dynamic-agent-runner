@@ -47,6 +47,16 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+docs/source/artifact-package.rst
+docs/source/cli.rst
+docs/source/index.rst
+docs/source/power-marimo-fixture.rst
+docs/source/python-api.rst
+docs/source/quickstart.rst
+docs/source/runtime-policies.rst
+docs/source/tool-registry.rst
+docs/source/tracing-and-observability.rst
+docs/source/validation-and-testing.rst
 
 # VS Code
 .vscode/
