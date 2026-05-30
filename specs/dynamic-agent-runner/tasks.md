@@ -594,12 +594,26 @@ preparation seams, and tool provenance before safe Marimo notebook automation.
       - Pre-commit: `pre-commit run --files src/dynamic_agent_runner/models.py
         src/dynamic_agent_runner/registry.py src/dynamic_agent_runner/executor.py
         tests/test_registry.py tests/test_tracing.py` — pass.
-- [ ] S5. Draft a narrow `power-marimo` runtime-package fixture or example as a
+- [x] S5. Draft a narrow `power-marimo` runtime-package fixture or example as a
       supervised, bounded workflow-orchestration agent using primitive nodes,
       an agent-as-tool `marimo-pair` invocation backed by
       `../power-marimo/skills/marimo-pair/SKILL.md`, and placeholder
       Marimo/domain tool definitions.
-      - Next active slice.
+      - Implemented in commit `84dfd31`: added
+        `tests/fixtures/power-marimo/agent-runtime.yaml`,
+        `tests/fixtures/power-marimo/agent-graph.mmd`,
+        `tests/fixtures/power-marimo/agent-design.md`, and
+        `tests/test_power_marimo_fixture.py`.
+      - RED: `poetry run pytest tests/test_power_marimo_fixture.py -q` — failed
+        because the Power-Marimo runtime fixture did not exist yet.
+      - GREEN: `poetry run pytest tests/test_power_marimo_fixture.py -q` — pass;
+        2 tests passed.
+      - Targeted validation: `poetry run pytest tests/test_power_marimo_fixture.py
+        tests/test_agent_pattern_fixtures.py -q` — pass; 4 tests passed.
+      - Pre-commit: `pre-commit run --files tests/test_power_marimo_fixture.py
+        tests/fixtures/power-marimo/agent-runtime.yaml
+        tests/fixtures/power-marimo/agent-graph.mmd
+        tests/fixtures/power-marimo/agent-design.md` — pass.
 
 ## Deferred library-evaluation follow-ups
 

@@ -379,6 +379,21 @@ Acceptance criteria:
 - The fixture demonstrates a supervised, bounded agent rather than free-form
   autonomous notebook mutation.
 
+Completion evidence:
+
+- Commit: `84dfd31` (`test(power-marimo): add runtime package fixture`).
+- RED: `poetry run pytest tests/test_power_marimo_fixture.py -q` — failed
+  because `tests/fixtures/power-marimo/agent-runtime.yaml` did not exist yet.
+- GREEN: `poetry run pytest tests/test_power_marimo_fixture.py -q` — pass; 2
+  tests passed after adding the placeholder fixture and correcting the final
+  prompt input to use the produced node output.
+- Targeted validation: `poetry run pytest tests/test_power_marimo_fixture.py
+  tests/test_agent_pattern_fixtures.py -q` — pass; 4 tests passed.
+- Pre-commit: `pre-commit run --files tests/test_power_marimo_fixture.py
+  tests/fixtures/power-marimo/agent-runtime.yaml
+  tests/fixtures/power-marimo/agent-graph.mmd
+  tests/fixtures/power-marimo/agent-design.md` — pass.
+
 ## Recommended Commit Boundaries
 
 Use one commit per slice when the slice is implemented:
@@ -387,7 +402,7 @@ Use one commit per slice when the slice is implemented:
 2. [x] `feat(executor): add prepared execution plan` — `b315c96`
 3. [x] `feat(executor): add prepared model input seam` — `33096b5`
 4. [x] `feat(registry): add tool source provenance` — `a46bb5a`
-5. `test(fixtures): add power-marimo runtime package`
+5. [x] `test(power-marimo): add runtime package fixture` — `84dfd31`
 
 For each slice, update `specs/dynamic-agent-runner/tasks.md` with completion
 evidence and run targeted validation before committing.
@@ -409,9 +424,11 @@ evidence and run targeted validation before committing.
   source-specific enforcement.
 - The downstream `marimo-pair` capability should be represented in S5 as an
   agent-as-tool invocation backed by `SKILL.md`, not as a new primitive node kind
-  or a durable handoff pattern.
-- `power-marimo` still lacks first-party source, tests, and safe domain fixtures,
-  so live notebook automation should stay out of scope for this plan.
+  or a durable handoff pattern; S5 implemented that as placeholder fixture
+  metadata in commit `84dfd31`.
+- `power-marimo` live notebook automation remains out of scope for this plan;
+  S5 intentionally uses fake tools, synthetic domain output, and placeholder
+  Marimo metadata only.
 
 ## Completion Standard
 
