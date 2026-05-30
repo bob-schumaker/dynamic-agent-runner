@@ -17,7 +17,7 @@ runtime support.
   — spec-local supporting reference used by the current SDD artifacts.
 - `specs/dynamic-agent-runner/spec.md` — governing runtime requirements.
 - `specs/dynamic-agent-runner/tasks.md` — active task list; next active slice is
-  S3.
+  S4.
 - `../power-marimo/specs/project-roadmap/spec.md` — downstream roadmap context.
 - `../power-marimo/skills/marimo-pair/SKILL.md` — downstream notebook-operation
   and safety contract.
@@ -192,6 +192,8 @@ Completion evidence:
 
 ### Slice S3 — PreparedModelInput and prepare_model_input seam
 
+**Status:** Complete in commit `33096b5`.
+
 **Goal:** Add the seam needed for Marimo notebook-state context construction
 without implementing full context-management automation yet.
 
@@ -228,10 +230,30 @@ pre-commit run --files <changed files>
 
 Acceptance criteria:
 
-- Existing `llm_step` execution output remains stable.
-- Token-budget and prompt-cache trace evidence still appears as before.
-- Named prepared input parts can later include notebook state, SLD summaries, and
-  domain tool results.
+- [x] Existing `llm_step` execution output remains stable.
+- [x] Token-budget and prompt-cache trace evidence still appears as before.
+- [x] Named prepared input parts can later include notebook state, SLD summaries,
+  and domain tool results.
+
+Completion evidence:
+
+- Commit: `33096b5` (`feat(executor): add prepared model input seam`).
+- RED: `poetry run pytest
+  tests/test_executor.py::test_prepare_model_input_renders_messages_and_named_parts
+  -q` — failed because `prepare_model_input` did not exist yet.
+- GREEN: same targeted test — pass; 1 test passed.
+- Focused seam checks: `poetry run pytest
+  tests/test_executor.py::test_prepare_model_input_renders_messages_and_named_parts
+  tests/test_executor.py::test_execute_workflow_records_token_usage_when_budget_enabled
+  tests/test_prompt_cache.py::test_prompt_cache_trace_records_eligibility_and_prefix_evidence
+  -q` — pass; 3 tests passed.
+- Targeted validation: `poetry run pytest tests/test_executor.py
+  tests/test_prompt_cache.py tests/test_token_budget.py tests/test_tracing.py
+  -q` — pass; 62 tests passed.
+- Full validation: `poetry run pytest -q` — pass; 166 tests passed.
+- `pre-commit run --files src/dynamic_agent_runner/executor.py
+  tests/test_executor.py` — pass after replacing an unnecessary dict
+  comprehension flagged by Ruff.
 
 ### Slice S4 — ToolOrigin and ToolSource provenance
 
@@ -329,7 +351,7 @@ Use one commit per slice when the slice is implemented:
 
 1. [x] `feat(models): support grouped runtime manifests` — `695c0cc`
 2. [x] `feat(executor): add prepared execution plan` — `b315c96`
-3. `refactor(executor): add prepared model input seam`
+3. [x] `feat(executor): add prepared model input seam` — `33096b5`
 4. `feat(registry): add tool provenance metadata`
 5. `test(fixtures): add power-marimo runtime package`
 
@@ -345,8 +367,9 @@ evidence and run targeted validation before committing.
   behavior.
 - `ExecutionPlan` is now implemented as an internal normalized execution view in
   commit `b315c96`; it should not become a second public manifest format.
-- `PreparedModelInput` should preserve current prompt semantics before adding
-  notebook-state or retrieval features.
+- `PreparedModelInput` now preserves current prompt semantics in commit
+  `33096b5`; notebook-state and retrieval features remain future extension
+  points.
 - `ToolOrigin` should remain diagnostic/provenance metadata until a later policy
   slice defines source-specific enforcement.
 - `power-marimo` still lacks first-party source, tests, and safe domain fixtures,

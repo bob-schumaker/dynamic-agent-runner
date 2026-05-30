@@ -13,7 +13,7 @@
 - Readiness verdict: ready for the runtime-package simplification follow-up; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work.
-- Next active slice: S3 — PreparedModelInput and prepare_model_input seam.
+- Next active slice: S4 — ToolOrigin and ToolSource provenance.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -539,9 +539,30 @@ preparation seams, and tool provenance before safe Marimo notebook automation.
       - Note: the planning note listed `tests/test_behavior.py`, but that file is
         not present; S2 validation used existing executor, validation, and registry
         tests instead.
-- [ ] S3. Add a pass-through `prepare_model_input(...)` / `PreparedModelInput`
+- [x] S3. Add a pass-through `prepare_model_input(...)` / `PreparedModelInput`
       seam before expanding context-management, session pruning, hierarchical
       prompt injection, or Marimo notebook-state context injection.
+      - Completed in commit `33096b5`: `PreparedModelInput` captures rendered
+        messages and named prompt parts, and `prepare_model_input(...)`
+        centralizes prompt rendering, prompt-cache observation, token-budget
+        preflight, and behavior override integration for `llm_step` execution
+        while preserving current prompt semantics.
+      - RED: `poetry run pytest
+        tests/test_executor.py::test_prepare_model_input_renders_messages_and_named_parts
+        -q` — failed because `prepare_model_input` did not exist yet.
+      - GREEN: same targeted test — pass; 1 test passed.
+      - Focused validation: `poetry run pytest
+        tests/test_executor.py::test_prepare_model_input_renders_messages_and_named_parts
+        tests/test_executor.py::test_execute_workflow_records_token_usage_when_budget_enabled
+        tests/test_prompt_cache.py::test_prompt_cache_trace_records_eligibility_and_prefix_evidence
+        -q` — pass; 3 tests passed.
+      - Targeted validation: `poetry run pytest tests/test_executor.py
+        tests/test_prompt_cache.py tests/test_token_budget.py tests/test_tracing.py
+        -q` — pass; 62 tests passed.
+      - Full validation: `poetry run pytest -q` — pass; 166 tests passed.
+      - Pre-commit: `pre-commit run --files
+        src/dynamic_agent_runner/executor.py tests/test_executor.py` — pass after
+        replacing an unnecessary dict comprehension flagged by Ruff.
 - [ ] S4. Add `ToolOrigin` / `ToolSource` provenance metadata before MCP,
       Marimo-session, domain-SDK, or agent-as-tool registry sources are
       implemented.
