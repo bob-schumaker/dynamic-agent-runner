@@ -162,6 +162,10 @@
   `33096b5 feat(executor): add prepared model input seam`.
 - Runtime-package simplification S3 plan/task evidence commit exists:
   `b730592 docs(plan): record prepared model input slice`.
+- Runtime-package simplification Slice S4 implementation commit exists:
+  `a46bb5a feat(registry): add tool source provenance`.
+- Runtime-package simplification S4 plan/task evidence commit exists:
+  `2d30581 docs(plan): record tool source provenance slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -214,6 +218,12 @@
   `execution_policy.prompt_cache` metadata is parsed and validated, eligibility
   evidence is emitted as trace data, `prompt_cache=False` can disable behavior per
   execution, and provider cached-token telemetry is recorded when present.
+- Runtime-package simplification Slice S4 adds `ToolSource` provenance metadata:
+  manifest declarations, external tool-index entries, built-in local workspace
+  tools, runtime overrides, and caller-registered tools now carry diagnostic
+  source information. Model-request traces include `tool_sources` metadata for
+  model-exposed tools without changing callable dispatch or exposure semantics.
+  Full validation passed with 168 tests.
 - Codex and Cline read-only evaluations are preserved under `cline-tasks/`, and
   `cline-tasks/codex-cline-combined-package-proposal.md` synthesizes acceptable
   package additions. The consolidated deferred follow-up backlog now lives in
@@ -365,26 +375,32 @@
   `prepare_model_input(...)` centralizes prompt rendering, prompt-cache
   observation, token-budget preflight, and behavior override integration for
   `llm_step` execution. Full validation passed with 166 tests.
-- Plan/task evidence for S3 is recorded in `b730592`; the next active slice is
-  S4: `ToolOrigin` / `ToolSource` provenance metadata.
+- Plan/task evidence for S3 is recorded in `b730592`.
+- Runtime-package simplification Slice S4 is complete in `a46bb5a`:
+  `ToolSource` / `ToolSourceKind` now preserve diagnostic provenance for
+  manifest declarations, external tool-index entries, built-in local workspace
+  tools, runtime overrides, and caller-registered tools. Model-request traces
+  include `tool_sources` metadata for model-exposed tools without changing
+  callable dispatch or exposure semantics. Full validation passed with 168 tests.
+- Plan/task evidence for S4 is recorded in `2d30581`; the next active slice is
+  S5: a placeholder-safe `power-marimo` runtime-package fixture/example.
 
 ## In Flight
 
-- No source implementation work is currently in flight after S3 implementation
-  commit `33096b5` and plan/task evidence commit `b730592`.
-- The next active implementation direction is S4 — `ToolOrigin` / `ToolSource`
-  provenance metadata. Remaining deferred Codex/Cline follow-ups E9-E12 and
-  OpenAI Agents SDK Python follow-ups OA1-OA10 should wait behind the
-  simplification sequence unless explicitly re-scoped.
+- No source implementation work is currently in flight after S4 implementation
+  commit `a46bb5a` and plan/task evidence commit `2d30581`.
+- The next active implementation direction is S5 — a placeholder-safe
+  `power-marimo` runtime-package fixture/example. Remaining deferred
+  Codex/Cline follow-ups E9-E12 and OpenAI Agents SDK Python follow-ups OA1-OA10
+  should wait behind the simplification sequence unless explicitly re-scoped.
 
 ## Remaining
 
-- Implement S4 `ToolOrigin` / `ToolSource` provenance as the next scoped
-  runtime slice.
+- Implement S5 as the next scoped runtime-package simplification slice.
 - Extend from the completed grouped manifest, prepared execution plan,
-  prepared model input, loader, validation, registry, OpenAI adapter, executor,
-  CLI, behavior-override, and all-pattern fixture foundation into the next
-  scoped slice.
+  prepared model input, tool provenance, loader, validation, registry, OpenAI
+  adapter, executor, CLI, behavior-override, and all-pattern fixture foundation
+  into the next scoped slice.
 - Use the all-pattern hello-world fixtures as the broad pattern test surface for
   future compatibility coverage, including expected-failure coverage for pattern
   features that are represented in artifacts but not yet implemented.
@@ -450,9 +466,10 @@
   each require a fresh scoped spec/update before implementation.
 - Runtime-package simplification is now the active next direction, driven by the
   `power-marimo` first-customer analysis. S1 grouped manifest support, S2
-  `ExecutionPlan` / `PreparedNode` normalization, and S3 `PreparedModelInput` /
-  `prepare_model_input(...)` are complete; implement S4 `ToolOrigin` /
-  `ToolSource` before Marimo-session, MCP, or agent-as-tool registry sources.
+  `ExecutionPlan` / `PreparedNode` normalization, S3 `PreparedModelInput` /
+  `prepare_model_input(...)`, and S4 `ToolSource` provenance are complete;
+  implement S5 as a placeholder-safe `power-marimo` fixture before live
+  Marimo-session, MCP, or agent-as-tool registry sources.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
