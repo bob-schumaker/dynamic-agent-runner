@@ -12,8 +12,9 @@
   spec/task update were committed in `0af68ab`. Runtime-package
   simplification Slice S1 completed in `695c0cc`, with plan/task evidence
   recorded in `0f795ee`. Slice S2 completed in `b315c96`, with plan/task
-  evidence recorded in `1f91804`; the next active implementation slice is S3 —
-  PreparedModelInput and prepare_model_input seam.
+  evidence recorded in `1f91804`. Slice S3 completed in `33096b5`, with
+  plan/task evidence recorded in `b730592`; the next active implementation
+  slice is S4 — ToolOrigin and ToolSource provenance.
 
 ## Current Status
 
@@ -178,12 +179,20 @@
   - Updated `specs/dynamic-agent-runner/tasks.md` and
     `cline-tasks/power-marimo-implementation-plan.md` for S2 completion evidence
     and next active S3 in `1f91804`.
+  - Completed runtime-package simplification Slice S3 in `33096b5`, adding
+    `PreparedModelInput` and `prepare_model_input(...)` as the model-input
+    preparation seam for `llm_step` execution while preserving prompt rendering,
+    prompt-cache observation, token-budget preflight, and behavior override
+    semantics. Full validation passed with 166 tests.
+  - Updated `specs/dynamic-agent-runner/tasks.md` and
+    `cline-tasks/power-marimo-implementation-plan.md` for S3 completion evidence
+    and next active S4 in `b730592`.
 - In progress:
   - No source implementation work is currently in flight after runtime-package
-    simplification Slice S2 implementation commit `b315c96` and plan/task
-    evidence commit `1f91804`.
-  - The next queued implementation direction is S3 — `PreparedModelInput` /
-    `prepare_model_input(...)` seam — driven by the `power-marimo` fit analysis.
+    simplification Slice S3 implementation commit `33096b5` and plan/task
+    evidence commit `b730592`.
+  - The next queued implementation direction is S4 — `ToolOrigin` /
+    `ToolSource` provenance — driven by the `power-marimo` fit analysis.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
@@ -214,7 +223,7 @@
   ready only for slice-by-slice implementation, not unrestricted runtime
   implementation. Slices 0 through 13 plus evaluation follow-up Slices A, B,
   C, D, E, F, G, H / E13, E14, and runtime-package simplification
-  S1-S2 are complete; E9, E10, E11, and E12 remain deferred follow-up
+  S1-S3 are complete; E9, E10, E11, and E12 remain deferred follow-up
   candidates.
 - `cline-tasks/codex-cli-evaluation.md`, `cline-tasks/cline-evaluation.md`, and
   `cline-tasks/openai-agents-python-evaluation.md` capture read-only external
@@ -659,13 +668,10 @@
 
 ## Next Steps
 
-- Start S2 — `ExecutionPlan` / `PreparedNode` normalization — before broader
-  E9, OA, MCP, durable session, approval-resume, or PyQt-widget automation
-  work.
-- After S2, continue the runtime-package simplification sequence: S3
-  `PreparedModelInput` / `prepare_model_input(...)`, S4 `ToolOrigin` /
-  `ToolSource`, and S5 a narrow `power-marimo` runtime-package
-  fixture/example.
+- Start S4 — `ToolOrigin` / `ToolSource` provenance — before broader E9, OA,
+  MCP, durable session, approval-resume, or PyQt-widget automation work.
+- After S4, continue the runtime-package simplification sequence with S5: a
+  narrow `power-marimo` runtime-package fixture/example.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
   before any interpreter middleware implementation or dependency selection.
 - Keep runtime hardening additions behind package-owned interfaces and scoped

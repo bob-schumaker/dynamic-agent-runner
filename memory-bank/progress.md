@@ -158,6 +158,10 @@
   `b315c96 feat(executor): add prepared execution plan`.
 - Runtime-package simplification S2 plan/task evidence commit exists:
   `1f91804 docs(plan): record prepared execution slice`.
+- Runtime-package simplification Slice S3 implementation commit exists:
+  `33096b5 feat(executor): add prepared model input seam`.
+- Runtime-package simplification S3 plan/task evidence commit exists:
+  `b730592 docs(plan): record prepared model input slice`.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -355,25 +359,32 @@
   values, and optional unsupported extension visibility. The executor routes
   finite graph behavior through prepared nodes while preserving public behavior.
   Full validation passed with 165 tests.
-- Plan/task evidence for S2 is recorded in `1f91804`; the next active slice is
-  S3: `PreparedModelInput` / `prepare_model_input(...)` seam.
+- Plan/task evidence for S2 is recorded in `1f91804`.
+- Runtime-package simplification Slice S3 is complete in `33096b5`:
+  `PreparedModelInput` captures rendered messages plus named prompt parts, and
+  `prepare_model_input(...)` centralizes prompt rendering, prompt-cache
+  observation, token-budget preflight, and behavior override integration for
+  `llm_step` execution. Full validation passed with 166 tests.
+- Plan/task evidence for S3 is recorded in `b730592`; the next active slice is
+  S4: `ToolOrigin` / `ToolSource` provenance metadata.
 
 ## In Flight
 
-- No source implementation work is currently in flight after S2 implementation
-  commit `b315c96` and plan/task evidence commit `1f91804`.
-- The next active implementation direction is S3 — `PreparedModelInput` /
-  `prepare_model_input(...)` seam. Remaining deferred Codex/Cline follow-ups E9-E12
-  and OpenAI Agents SDK Python follow-ups OA1-OA10 should wait behind the
+- No source implementation work is currently in flight after S3 implementation
+  commit `33096b5` and plan/task evidence commit `b730592`.
+- The next active implementation direction is S4 — `ToolOrigin` / `ToolSource`
+  provenance metadata. Remaining deferred Codex/Cline follow-ups E9-E12 and
+  OpenAI Agents SDK Python follow-ups OA1-OA10 should wait behind the
   simplification sequence unless explicitly re-scoped.
 
 ## Remaining
 
-- Implement S3 `PreparedModelInput` / `prepare_model_input(...)` seam as the next
-  scoped runtime slice.
-- Extend from the completed grouped manifest, loader, validation, registry,
-  OpenAI adapter, executor, CLI, behavior-override, and all-pattern fixture
-  foundation into the next scoped slice.
+- Implement S4 `ToolOrigin` / `ToolSource` provenance as the next scoped
+  runtime slice.
+- Extend from the completed grouped manifest, prepared execution plan,
+  prepared model input, loader, validation, registry, OpenAI adapter, executor,
+  CLI, behavior-override, and all-pattern fixture foundation into the next
+  scoped slice.
 - Use the all-pattern hello-world fixtures as the broad pattern test surface for
   future compatibility coverage, including expected-failure coverage for pattern
   features that are represented in artifacts but not yet implemented.
@@ -438,11 +449,10 @@
   sandbox/workspace execution, and iterative agent-loop completion policy should
   each require a fresh scoped spec/update before implementation.
 - Runtime-package simplification is now the active next direction, driven by the
-  `power-marimo` first-customer analysis. S1 grouped manifest support and S2
-  `ExecutionPlan` / `PreparedNode` normalization are complete; implement S3
-  `PreparedModelInput` / `prepare_model_input(...)` before E9/OA feature work,
-  then add `ToolOrigin` / `ToolSource` before Marimo-session, MCP, or
-  agent-as-tool registry sources.
+  `power-marimo` first-customer analysis. S1 grouped manifest support, S2
+  `ExecutionPlan` / `PreparedNode` normalization, and S3 `PreparedModelInput` /
+  `prepare_model_input(...)` are complete; implement S4 `ToolOrigin` /
+  `ToolSource` before Marimo-session, MCP, or agent-as-tool registry sources.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
