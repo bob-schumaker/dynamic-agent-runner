@@ -10,7 +10,12 @@ from dynamic_agent_runner.api import run_agent_workflow, run_agent_workflow_asyn
 from dynamic_agent_runner.artifacts import load_runtime_manifest
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
-from dynamic_agent_runner.executor import execute_workflow, execute_workflow_async
+from dynamic_agent_runner.executor import (
+    execute_workflow,
+    execute_workflow_async,
+    WorkflowExecutionState,
+    prepare_model_input,
+)
 from dynamic_agent_runner.hooks import NodeHookContext, WorkflowLifecycleHooks
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
@@ -233,6 +238,55 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
     route = plan.nodes_by_id["route"]
     assert route.route_from == "answer"
     assert route.allowed_routes == frozenset({"done"})
+
+
+def test_prepare_model_input_renders_messages_and_named_parts() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "prepared-input-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "skills": [
+                {
+                    "id": "style-guide",
+                    "prompt_role": "developer",
+                    "instructions": "Use concise style for {prompt}.",
+                }
+            ],
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "skill_refs": ["style-guide"],
+                    "prompt": {
+                        "system": "System {prompt}.",
+                        "user_template": "Answer {prompt}.",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="question")
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert prepared_input.model == "gpt-test"
+    assert prepared_input.part_names == (
+        "system",
+        "skill_instructions",
+        "user_prompt",
+    )
+    assert [message.content for message in prepared_input.messages] == [
+        "System question.",
+        "Use concise style for question.",
+        "Answer question.",
+    ]
+    assert prepared_input.named_parts["user_prompt"].content == "Answer question."
 
 
 def test_execute_workflow_async_runs_async_model_adapter() -> None:

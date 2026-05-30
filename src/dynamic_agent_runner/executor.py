@@ -96,6 +96,27 @@ class WorkflowResult:
     state: WorkflowExecutionState
 
 
+@dataclass(frozen=True)
+class PreparedModelInput:
+    """Rendered model input and named prompt parts for one LLM step."""
+
+    node_id: str
+    model: str
+    messages: tuple[OpenAIMessage, ...]
+    message_parts: tuple[tuple[str, OpenAIMessage], ...]
+    named_parts: Mapping[str, OpenAIMessage]
+    prompt: Mapping[str, Any]
+    model_parameters: Mapping[str, Any] = field(default_factory=dict)
+    tool_choice: Any = None
+    response_format: Mapping[str, Any] | None = None
+
+    @property
+    def part_names(self) -> tuple[str, ...]:
+        """Return prompt part names in rendered model-message order."""
+
+        return tuple(part for part, _message in self.message_parts)
+
+
 async def execute_workflow_async(
     workflow: LoadedAgentWorkflow | WorkflowExecutionContext,
     *,
@@ -266,6 +287,44 @@ def execute_workflow(
     )
 
 
+def prepare_model_input(
+    node: PreparedNode,
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+    *,
+    tracer: WorkflowTracer | None = None,
+    prompt_cache: bool | None = None,
+) -> PreparedModelInput:
+    """Prepare rendered model input for an ``llm_step`` node."""
+
+    workflow = plan.workflow
+    behavior = effective_node_behavior(node.source_node, workflow)
+    message_parts = _render_message_parts(behavior, state)
+    messages = tuple(message for _part, message in message_parts)
+    model = _model_name(node)
+    if tracer is not None:
+        _check_prompt_cache(
+            workflow,
+            message_parts,
+            model,
+            tracer,
+            node,
+            prompt_cache=prompt_cache,
+        )
+        _enforce_token_budget(node, plan, messages, model, state, tracer)
+    return PreparedModelInput(
+        node_id=str(node.id),
+        model=model,
+        messages=messages,
+        message_parts=message_parts,
+        named_parts=dict(message_parts),
+        prompt=behavior.prompt,
+        model_parameters=_model_parameters(node),
+        tool_choice=node.tool_choice,
+        response_format=node.response_format,
+    )
+
+
 def _run_async_from_sync(operation: Callable[[], Awaitable[T]]) -> T:
     """Run an async operation for synchronous callers when no loop is active."""
 
@@ -360,10 +419,13 @@ async def _execute_llm_step_async(
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ModelResponse:
-    workflow = plan.workflow
-    behavior = effective_node_behavior(node.source_node, workflow)
-    message_parts = _render_message_parts(behavior, state)
-    messages = tuple(message for _part, message in message_parts)
+    prepared_input = prepare_model_input(
+        node,
+        plan,
+        state,
+        tracer=tracer,
+        prompt_cache=prompt_cache,
+    )
     tools: list[dict[str, Any]] = []
     if node.available_tools:
         if registry is None:
@@ -373,31 +435,21 @@ async def _execute_llm_step_async(
         tools = registry.to_openai_tools(
             tool.id for tool in registry.list_tools_for_node(node.source_node)
         )
-    model = _model_name(node)
-    _check_prompt_cache(
-        workflow,
-        message_parts,
-        model,
-        tracer,
-        node,
-        prompt_cache=prompt_cache,
-    )
-    _enforce_token_budget(node, plan, messages, model, state, tracer)
     request = build_openai_request(
-        model=model,
-        messages=messages,
+        model=prepared_input.model,
+        messages=prepared_input.messages,
         tools=tools,
-        tool_choice=node.tool_choice,
-        response_format=node.response_format,
-        **_model_parameters(node),
+        tool_choice=prepared_input.tool_choice,
+        response_format=prepared_input.response_format,
+        **prepared_input.model_parameters,
     )
     state.node_inputs[str(node.id)] = request.to_kwargs()
     tracer.emit(
         "model_request",
         node_id=str(node.id),
         payload={
-            "model": model,
-            "message_count": len(messages),
+            "model": prepared_input.model,
+            "message_count": len(prepared_input.messages),
             "tool_count": len(tools),
             "request": request.to_kwargs(),
         },
@@ -407,7 +459,7 @@ async def _execute_llm_step_async(
         lifecycle_hooks.registered_hook("before_model") if lifecycle_hooks else None,
         ModelHookContext(
             node_id=str(node.id),
-            model=model,
+            model=prepared_input.model,
             request=request.to_kwargs(),
             run_id=state.run_id,
         ),
@@ -443,14 +495,14 @@ async def _execute_llm_step_async(
         lifecycle_hooks.registered_hook("after_model") if lifecycle_hooks else None,
         ModelHookContext(
             node_id=str(node.id),
-            model=model,
+            model=prepared_input.model,
             request=request.to_kwargs(),
             response=response,
             run_id=state.run_id,
         ),
     )
     _record_prompt_cache_provider_telemetry(response, node, tracer)
-    _validate_model_output_contract(node, plan, response, behavior.prompt)
+    _validate_model_output_contract(node, plan, response, prepared_input.prompt)
     return response
 
 
