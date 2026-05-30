@@ -332,8 +332,13 @@ Deliverables:
   experiment agent.
 - Keep it placeholder-safe: no live Marimo server, no real SLD data, no live
   `power-tetris-sdk` calls.
+- Model the downstream `marimo-pair` capability as an agent-as-tool node: it is
+  backed by `../power-marimo/skills/marimo-pair/SKILL.md` and invoked to perform
+  a specific bounded Marimo task rather than treated as a primitive runtime node
+  or durable handoff.
 - Model the workflow with primitive nodes:
   - analyze user experiment request
+  - invoke the `marimo-pair` agent-as-tool for the bounded notebook operation
   - inspect or validate notebook/session state
   - run placeholder domain experiment tool
   - prepare notebook cell plan
@@ -367,6 +372,8 @@ Acceptance criteria:
 
 - The fixture uses grouped `runtime`, `metadata`, and `extensions` maps.
 - The fixture validates against current runtime semantics.
+- The fixture records `marimo-pair` as an agent-as-tool/SKILL-backed invocation,
+  distinct from primitive node kinds and from handoff-style multi-agent metadata.
 - Fake tools can exercise the bounded happy path, or the unsupported live path
   fails with a clear error.
 - The fixture demonstrates a supervised, bounded agent rather than free-form
@@ -400,6 +407,9 @@ evidence and run targeted validation before committing.
 - `ToolSource` now records diagnostic/provenance metadata in commit `a46bb5a`;
   it should remain non-enforcing until a later policy slice defines
   source-specific enforcement.
+- The downstream `marimo-pair` capability should be represented in S5 as an
+  agent-as-tool invocation backed by `SKILL.md`, not as a new primitive node kind
+  or a durable handoff pattern.
 - `power-marimo` still lacks first-party source, tests, and safe domain fixtures,
   so live notebook automation should stay out of scope for this plan.
 
@@ -414,3 +424,5 @@ This implementation track is complete when:
 - tool provenance exists before new registry source types are added
 - a bounded `power-marimo` fixture proves the first-customer shape without live
   external dependencies
+- the `marimo-pair` fixture path is represented as an agent-as-tool/SKILL-backed
+  operation rather than a new runtime primitive

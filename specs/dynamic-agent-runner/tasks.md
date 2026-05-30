@@ -595,8 +595,10 @@ preparation seams, and tool provenance before safe Marimo notebook automation.
         src/dynamic_agent_runner/registry.py src/dynamic_agent_runner/executor.py
         tests/test_registry.py tests/test_tracing.py` — pass.
 - [ ] S5. Draft a narrow `power-marimo` runtime-package fixture or example as a
-      supervised, bounded workflow-orchestration agent using primitive nodes and
-      placeholder Marimo/domain tool definitions.
+      supervised, bounded workflow-orchestration agent using primitive nodes,
+      an agent-as-tool `marimo-pair` invocation backed by
+      `../power-marimo/skills/marimo-pair/SKILL.md`, and placeholder
+      Marimo/domain tool definitions.
       - Next active slice.
 
 ## Deferred library-evaluation follow-ups
