@@ -671,7 +671,7 @@ analysis in
 indicates that `power-marimo` needs a supervised, bounded
 workflow-orchestration agent rather than a free-form autonomous notebook agent.
 
-The first useful `power-marimo` runtime package will likely need:
+The first useful `power-marimo` runtime package needs:
 
 - Marimo-session tools for server discovery, scratchpad execution, notebook
   inspection, and cell creation/editing through `marimo._code_mode`
@@ -685,10 +685,19 @@ The first useful `power-marimo` runtime package will likely need:
   summaries, domain tool results, and Marimo-specific gotchas
 - tool provenance that distinguishes built-in tools, Marimo-session tools,
   domain SDK adapters, runtime overrides, and future MCP or agent-as-tool sources
+- agent-as-tool metadata for the downstream `marimo-pair` capability, backed by
+  `../power-marimo/skills/marimo-pair/SKILL.md`, while preserving primitive node
+  kinds such as `llm_step`, `tool_use_step`, and `decision_step`
 
-This downstream fit makes the grouped-manifest simplification work the next
-active implementation direction before MCP, durable session, approval-resume, or
-PyQt-widget automation work.
+The runtime-package simplification sequence for this downstream fit is complete:
+S1 added grouped manifest support, S2 added prepared execution planning, S3 added
+prepared model input, S4 added tool provenance, and S5 added the placeholder-safe
+Power-Marimo fixture under `tests/fixtures/power-marimo/` with fake-tool execution
+coverage in `tests/test_power_marimo_fixture.py`.
+
+Live Marimo-session automation, MCP integration, durable session state,
+approval-resume behavior, PyQt-widget automation, and broader agent-as-tool
+registry sources remain out of scope until a new scoped follow-up selects them.
 
 ## Non-Functional Requirements
 

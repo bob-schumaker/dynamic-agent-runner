@@ -3,17 +3,19 @@
 ## Status
 
 - State: E14 Slices I.1 through I.7 are complete; the planned E14 async-first
-  implementation and validation slice sequence is complete.
+  implementation and validation slice sequence is complete. Runtime-package
+  simplification S1-S5 is also complete, including the placeholder-safe
+  Power-Marimo fixture.
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
 - Downstream driver:
   `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
   identifies `../power-marimo` as the first-customer fit for the next runtime
   capabilities.
-- Readiness verdict: ready for the runtime-package simplification follow-up; not
+- Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
-  automation work.
-- Next active slice: S5 — Power-Marimo runtime-package fixture or example.
+  automation work without a new scoped follow-up.
+- Next active slice: none selected after S5 completion.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 

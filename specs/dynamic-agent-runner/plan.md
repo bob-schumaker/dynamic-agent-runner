@@ -89,6 +89,14 @@ or a clear error.
   token budgets, prompt-cache observations, output contracts, route handling,
   tracing, and state recording. The sync executor originally rejected async
   model adapters until Slice I.6 converted sync public entry points.
+- Runtime-package simplification S1-S5 is complete and committed: grouped
+  manifests, prepared execution planning, prepared model input, tool provenance,
+  and a placeholder-safe Power-Marimo fixture now cover the first downstream
+  package shape without live Marimo, SLD, or `power-tetris-sdk` access.
+- The S5 Power-Marimo fixture records `marimo-pair` as a SKILL-backed
+  agent-as-tool `tool_use_step` using
+  `../power-marimo/skills/marimo-pair/SKILL.md`; it does not introduce a new
+  primitive runtime node kind or durable handoff-style multi-agent metadata.
 
 ## Technical Approach
 
