@@ -42,7 +42,7 @@ from dynamic_agent_runner.prompt_cache import (
     build_prompt_cache_observation,
     prompt_cache_policy_from_value,
 )
-from dynamic_agent_runner.registry import ToolRegistry, ToolResult
+from dynamic_agent_runner.registry import RegisteredTool, ToolRegistry, ToolResult
 from dynamic_agent_runner.retry import (
     RetryPolicy,
     RetryRecord,
@@ -427,14 +427,14 @@ async def _execute_llm_step_async(
         prompt_cache=prompt_cache,
     )
     tools: list[dict[str, Any]] = []
+    exposed_tools: tuple[RegisteredTool, ...] = ()
     if node.available_tools:
         if registry is None:
             raise WorkflowExecutionError(
                 f"llm_step node {node.id!r} exposes tools but no registry was provided"
             )
-        tools = registry.to_openai_tools(
-            tool.id for tool in registry.list_tools_for_node(node.source_node)
-        )
+        exposed_tools = registry.list_tools_for_node(node.source_node)
+        tools = registry.to_openai_tools(tool.id for tool in exposed_tools)
     request = build_openai_request(
         model=prepared_input.model,
         messages=prepared_input.messages,
@@ -451,6 +451,7 @@ async def _execute_llm_step_async(
             "model": prepared_input.model,
             "message_count": len(prepared_input.messages),
             "tool_count": len(tools),
+            "tool_sources": _tool_sources_payload(exposed_tools),
             "request": request.to_kwargs(),
         },
         sensitive_fields=("request",),
@@ -504,6 +505,16 @@ async def _execute_llm_step_async(
     _record_prompt_cache_provider_telemetry(response, node, tracer)
     _validate_model_output_contract(node, plan, response, prepared_input.prompt)
     return response
+
+
+def _tool_sources_payload(tools: Sequence[RegisteredTool]) -> dict[str, Any]:
+    """Return trace-safe source metadata for model-exposed tools."""
+
+    return {
+        tool.id: tool.definition.source.to_mapping()
+        for tool in tools
+        if tool.definition.source is not None
+    }
 
 
 async def _create_model_response_async(

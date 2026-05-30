@@ -6,7 +6,7 @@ import asyncio
 import inspect
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from threading import RLock
 from typing import Any, Protocol
@@ -17,6 +17,8 @@ from dynamic_agent_runner.models import (
     RuntimeNode,
     ToolDefinition,
     ToolExposure,
+    ToolSource,
+    ToolSourceKind,
 )
 
 ToolHandler = Callable[[Mapping[str, Any]], Any]
@@ -161,7 +163,7 @@ class InMemoryToolRegistry:
         with self._lock:
             if tool_id in self._tools and not replace:
                 raise ToolRegistryError(f"tool {tool_id!r} is already registered")
-            self._tools[tool_id] = tool
+            self._tools[tool_id] = _tool_with_default_source(tool)
 
     def with_overrides(
         self,
@@ -177,13 +179,27 @@ class InMemoryToolRegistry:
             for tool in overrides.added_tools:
                 if tool.id in tools:
                     raise ToolRegistryError(f"added tool {tool.id!r} already exists")
-                tools[tool.id] = tool
+                tools[tool.id] = _tool_with_source(
+                    tool,
+                    ToolSource(
+                        kind=ToolSourceKind.RUNTIME_OVERRIDE,
+                        source_id="added",
+                        detail="tool_registry_overrides",
+                    ),
+                )
             for tool in overrides.replacement_tools:
                 if tool.id not in tools:
                     raise ToolRegistryError(
                         f"replacement tool {tool.id!r} does not exist"
                     )
-                tools[tool.id] = tool
+                tools[tool.id] = _tool_with_source(
+                    tool,
+                    ToolSource(
+                        kind=ToolSourceKind.RUNTIME_OVERRIDE,
+                        source_id="replacement",
+                        detail="tool_registry_overrides",
+                    ),
+                )
             disabled = self._disabled_tools | set(overrides.disabled_tools)
             node_overrides = {**self._node_overrides, **overrides.node_overrides}
         return InMemoryToolRegistry(
@@ -313,6 +329,21 @@ def _tool_result_from_output(tool_id: str, output: Any) -> ToolResult:
     if isinstance(output, ToolResult):
         return output
     return ToolResult(tool_id=tool_id, success=True, output=output)
+
+
+def _tool_with_source(tool: RegisteredTool, source: ToolSource) -> RegisteredTool:
+    if tool.definition.source == source:
+        return tool
+    return RegisteredTool(replace(tool.definition, source=source), tool.handler)
+
+
+def _tool_with_default_source(tool: RegisteredTool) -> RegisteredTool:
+    if tool.definition.source is not None:
+        return tool
+    return _tool_with_source(
+        tool,
+        ToolSource(kind=ToolSourceKind.CALLER_REGISTERED),
+    )
 
 
 def openai_tool_schema(definition: ToolDefinition) -> dict[str, Any]:
@@ -536,7 +567,15 @@ def _builtin_tool(
         "retry_policy": "none",
         "failure_behavior": "error",
     }
-    return RegisteredTool(ToolDefinition.from_mapping(raw), handler)
+    definition = replace(
+        ToolDefinition.from_mapping(raw),
+        source=ToolSource(
+            kind=ToolSourceKind.BUILT_IN,
+            source_id="local_workspace",
+            detail=tool_id,
+        ),
+    )
+    return RegisteredTool(definition, handler)
 
 
 class _WorkspaceGuard:

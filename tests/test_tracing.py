@@ -7,7 +7,12 @@ import pytest
 from dynamic_agent_runner.artifacts import load_runtime_manifest
 from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
 from dynamic_agent_runner.executor import execute_workflow
-from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
+from dynamic_agent_runner.models import (
+    LoadedAgentWorkflow,
+    ToolDefinition,
+    ToolSource,
+    ToolSourceKind,
+)
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
 from dynamic_agent_runner.registry import InMemoryToolRegistry, RegisteredTool
 from dynamic_agent_runner.tracing import InMemoryTraceSink
@@ -110,6 +115,63 @@ def test_execute_workflow_emits_success_trace_events_in_order() -> None:
     assert (
         result.state.trace_events[-1].redacted_payload()["final_result"] == "[REDACTED]"
     )
+
+
+def test_model_request_trace_includes_model_exposed_tool_sources() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "trace-tool-source-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "available_tools": ["search_repo"],
+                }
+            ],
+            "edges": [],
+        }
+    )
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "search_repo",
+                "description_for_llm": "Search repository files.",
+                "input_schema": {"type": "object", "properties": {}},
+                "source": {
+                    "kind": "caller_registered",
+                    "source_id": "test-suite",
+                    "detail": "fixture",
+                },
+            }
+        ),
+        lambda _args: {"ok": True},
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Run",
+        tool_registry=InMemoryToolRegistry([tool]),
+        model_adapter=make_adapter([{"id": "resp", "output_text": "done"}]),
+    )
+
+    model_request = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "model_request"
+    )
+    assert model_request.payload["tool_sources"] == {
+        "search_repo": ToolSource(
+            kind=ToolSourceKind.CALLER_REGISTERED,
+            source_id="test-suite",
+            detail="fixture",
+        ).to_mapping()
+    }
 
 
 def test_execute_workflow_traces_tool_failure() -> None:

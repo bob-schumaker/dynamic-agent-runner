@@ -8,9 +8,15 @@ from pathlib import Path
 
 import pytest
 
-from dynamic_agent_runner.artifacts import load_runtime_manifest
+from dynamic_agent_runner.artifacts import load_runtime_manifest, load_tool_index
 from dynamic_agent_runner.errors import ToolRegistryError
-from dynamic_agent_runner.models import RuntimeNode, ToolDefinition, ToolExposure
+from dynamic_agent_runner.models import (
+    RuntimeNode,
+    ToolDefinition,
+    ToolExposure,
+    ToolSource,
+    ToolSourceKind,
+)
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
@@ -80,6 +86,9 @@ def test_registry_lookup_schema_conversion_and_invocation() -> None:
     registry = InMemoryToolRegistry([make_tool("search_repo")])
 
     assert registry.get_tool("search_repo").id == "search_repo"
+    assert registry.get_tool("search_repo").definition.source == ToolSource(
+        kind=ToolSourceKind.CALLER_REGISTERED
+    )
     schema = registry.to_openai_tools(["search_repo"])
     assert schema == [openai_tool_schema(registry.get_tool("search_repo").definition)]
     assert schema[0]["function"]["name"] == "search_repo"
@@ -332,6 +341,30 @@ def test_tool_definition_separates_exposure_and_policy_metadata() -> None:
     assert definition.policy.failure_behavior == "error"
 
 
+def test_tool_definition_records_manifest_and_index_source_metadata() -> None:
+    manifest = manifest_with_tool("manifest_tool")
+    index = load_tool_index(
+        {
+            "format_version": 1,
+            "index_type": "tool_index",
+            "index_id": "shared-tools",
+            "tools": [{"id": "indexed_tool", "adapter": "runtime.indexed_tool"}],
+        }
+    )
+
+    assert manifest.tools[0].source == ToolSource(
+        kind=ToolSourceKind.MANIFEST,
+        source_id="registry-agent",
+        detail="tools",
+    )
+    assert index is not None
+    assert index.tools[0].source == ToolSource(
+        kind=ToolSourceKind.TOOL_INDEX,
+        source_id="shared-tools",
+        detail="tools",
+    )
+
+
 def test_registry_validates_callable_tool_references_not_metadata_only() -> None:
     manifest = manifest_with_tool("metadata_only")
     registry = InMemoryToolRegistry([])
@@ -372,6 +405,16 @@ def test_runtime_overrides_add_replace_disable_and_restrict_per_node() -> None:
         "read_file",
     ]
     assert registry.invoke_tool("search_repo", {"query": "x"}).output == "new"
+    assert registry.get_tool("read_file").definition.source == ToolSource(
+        kind=ToolSourceKind.RUNTIME_OVERRIDE,
+        source_id="added",
+        detail="tool_registry_overrides",
+    )
+    assert registry.get_tool("search_repo").definition.source == ToolSource(
+        kind=ToolSourceKind.RUNTIME_OVERRIDE,
+        source_id="replacement",
+        detail="tool_registry_overrides",
+    )
 
     disabled = ToolRegistryOverrides(disabled_tools=("search_repo",))
     with pytest.raises(ToolRegistryError, match="required tool_use_step tool"):
@@ -490,6 +533,12 @@ def test_local_workspace_tool_pack_is_opt_in_and_path_restricted(
     workspace_file = tmp_path / "notes.txt"
     workspace_file.write_text("alpha\nbeta\n", encoding="utf-8")
     registry = create_local_workspace_registry([tmp_path])
+
+    assert registry.get_tool("read_file").definition.source == ToolSource(
+        kind=ToolSourceKind.BUILT_IN,
+        source_id="local_workspace",
+        detail="read_file",
+    )
 
     assert [tool["function"]["name"] for tool in registry.to_openai_tools()] == [
         "read_file",

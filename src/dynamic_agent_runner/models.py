@@ -61,6 +61,50 @@ class ToolExposure(str, Enum):
     HIDDEN = "hidden"
 
 
+class ToolSourceKind(str, Enum):
+    """Where a tool definition originated before runtime dispatch."""
+
+    MANIFEST = "manifest"
+    TOOL_INDEX = "tool_index"
+    BUILT_IN = "built_in"
+    RUNTIME_OVERRIDE = "runtime_override"
+    CALLER_REGISTERED = "caller_registered"
+
+
+@dataclass(frozen=True)
+class ToolSource:
+    """Diagnostic provenance for a tool definition."""
+
+    kind: ToolSourceKind
+    source_id: str | None = None
+    detail: str | None = None
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> ToolSource:
+        """Build tool provenance metadata from a mapping."""
+
+        raw_kind = value.get("kind") or value.get("source_kind")
+        try:
+            kind = ToolSourceKind(str(raw_kind))
+        except ValueError:
+            kind = ToolSourceKind.CALLER_REGISTERED
+        return cls(
+            kind=kind,
+            source_id=_optional_str(value.get("source_id")),
+            detail=_optional_str(value.get("detail")),
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        """Return JSON-serializable provenance metadata."""
+
+        payload: dict[str, Any] = {"kind": self.kind.value}
+        if self.source_id is not None:
+            payload["source_id"] = self.source_id
+        if self.detail is not None:
+            payload["detail"] = self.detail
+        return payload
+
+
 @dataclass(frozen=True)
 class ToolPolicy:
     """Lightweight tool policy metadata separated from callable registration."""
@@ -215,6 +259,7 @@ class ToolDefinition:
     approval_required: str | None = None
     exposure: ToolExposure | str = ToolExposure.DIRECT
     policy: ToolPolicy = field(default_factory=ToolPolicy)
+    source: ToolSource | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> ToolDefinition:
@@ -222,6 +267,7 @@ class ToolDefinition:
 
         raw = dict(value)
         policy = ToolPolicy.from_mapping(raw)
+        source = _tool_source_from_raw(raw)
         return cls(
             id=str(raw["id"]) if raw.get("id") is not None else None,
             label=str(raw["label"]) if raw.get("label") is not None else None,
@@ -230,6 +276,7 @@ class ToolDefinition:
             approval_required=policy.approval_required,
             exposure=_tool_exposure_from_value(raw.get("exposure")),
             policy=policy,
+            source=source,
             raw=raw,
         )
 
@@ -298,7 +345,16 @@ class RuntimeManifest:
             model_capabilities=_model_capabilities_from_policy(execution_policy),
             state=_copy_mapping(_as_mapping(runtime.get("state"))),
             skills=tuple(_manifest_objects(raw.get("skills"))),
-            tools=tuple(_tool_definitions(raw.get("tools"))),
+            tools=tuple(
+                _tool_definitions(
+                    raw.get("tools"),
+                    source=ToolSource(
+                        kind=ToolSourceKind.MANIFEST,
+                        source_id=_optional_str(raw.get("package_id")),
+                        detail="tools",
+                    ),
+                )
+            ),
             participant_groups=tuple(
                 _manifest_objects(metadata.get("participant_groups"))
             ),
@@ -442,7 +498,16 @@ class ToolIndex:
             index_id=_optional_str(raw.get("index_id")),
             name=_optional_str(raw.get("name")),
             usage=_copy_mapping(_as_mapping(raw.get("usage"))),
-            tools=tuple(_tool_definitions(raw.get("tools"))),
+            tools=tuple(
+                _tool_definitions(
+                    raw.get("tools"),
+                    source=ToolSource(
+                        kind=ToolSourceKind.TOOL_INDEX,
+                        source_id=_optional_str(raw.get("index_id")),
+                        detail="tools",
+                    ),
+                )
+            ),
             skills=tuple(_manifest_objects(raw.get("skills"))),
         )
 
@@ -698,8 +763,50 @@ def _runtime_edges(value: object) -> list[RuntimeEdge]:
     return [RuntimeEdge.from_mapping(item) for item in _mapping_items(value)]
 
 
-def _tool_definitions(value: object) -> list[ToolDefinition]:
-    return [ToolDefinition.from_mapping(item) for item in _mapping_items(value)]
+def _tool_definitions(
+    value: object,
+    *,
+    source: ToolSource | None = None,
+) -> list[ToolDefinition]:
+    return [
+        _tool_definition_with_source(ToolDefinition.from_mapping(item), source)
+        for item in _mapping_items(value)
+    ]
+
+
+def _tool_definition_with_source(
+    definition: ToolDefinition,
+    source: ToolSource | None,
+) -> ToolDefinition:
+    if source is None or definition.source is not None:
+        return definition
+    return ToolDefinition(
+        id=definition.id,
+        raw=definition.raw,
+        label=definition.label,
+        adapter=definition.adapter,
+        side_effect=definition.side_effect,
+        approval_required=definition.approval_required,
+        exposure=definition.exposure,
+        policy=definition.policy,
+        source=source,
+    )
+
+
+def _tool_source_from_raw(raw: Mapping[str, Any]) -> ToolSource | None:
+    value = raw.get("source") or raw.get("origin")
+    if isinstance(value, Mapping):
+        return ToolSource.from_mapping(value)
+    raw_kind = raw.get("source_kind") or raw.get("origin_kind")
+    if raw_kind is None:
+        return None
+    return ToolSource.from_mapping(
+        {
+            "kind": raw_kind,
+            "source_id": raw.get("source_id") or raw.get("origin_id"),
+            "detail": raw.get("source_detail") or raw.get("origin_detail"),
+        }
+    )
 
 
 def _output_contracts(value: object) -> dict[str, Any]:
