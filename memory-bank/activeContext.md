@@ -14,9 +14,11 @@
   recorded in `0f795ee`. Slice S2 completed in `b315c96`, with plan/task
   evidence recorded in `1f91804`. Slice S3 completed in `33096b5`, with
   plan/task evidence recorded in `b730592`. Slice S4 completed in `a46bb5a`,
-  with plan/task evidence recorded in `2d30581`; the next active
-  implementation slice is S5 — Power-Marimo runtime-package fixture or
-  example.
+  plan/task evidence recorded in `2d30581`. The S5 design decision that
+  `marimo-pair` is an agent-as-tool invocation backed by
+  `../power-marimo/skills/marimo-pair/SKILL.md` was recorded in `a084f2d`; the
+  next active implementation slice remains S5 — Power-Marimo runtime-package
+  fixture or example.
 
 ## Current Status
 
@@ -197,10 +199,14 @@
   - Updated `specs/dynamic-agent-runner/tasks.md` and
     `cline-tasks/power-marimo-implementation-plan.md` for S4 completion evidence
     and next active S5 in `2d30581`.
+  - Recorded the S5 `marimo-pair` design decision in `a084f2d`: the fixture should
+    model `marimo-pair` as an agent-as-tool invocation backed by
+    `../power-marimo/skills/marimo-pair/SKILL.md`, distinct from primitive node
+    kinds and handoff-style multi-agent metadata.
 - In progress:
   - No source implementation work is currently in flight after runtime-package
-    simplification Slice S4 implementation commit `a46bb5a` and plan/task
-    evidence commit `2d30581`.
+    simplification Slice S4 implementation commit `a46bb5a`, plan/task evidence
+    commit `2d30581`, and S5 design-decision commit `a084f2d`.
   - The next queued implementation direction is S5 — a placeholder-safe
     Power-Marimo runtime-package fixture or example — driven by the
     `power-marimo` fit analysis.
@@ -251,6 +257,10 @@
   records `../power-marimo` as the first downstream consumer fit: a supervised,
   bounded workflow-orchestration agent for AI-assisted Marimo notebook power
   experiments, not a free-form autonomous notebook agent.
+- S5 should model the downstream `marimo-pair` capability as an agent-as-tool
+  invocation backed by `../power-marimo/skills/marimo-pair/SKILL.md`. It should
+  not be represented as a new primitive runtime node kind or as a durable
+  handoff-style multi-agent pattern.
 - `specs/dynamic-agent-runner/tasks.md` now contains `Deferred Codex/Cline
   evaluation follow-ups` E1 through E14 and `Deferred OpenAI Agents SDK Python
   evaluation follow-ups` OA1 through OA10. E1 is complete and checked off with
@@ -682,6 +692,8 @@
 - Start S5: a narrow, placeholder-safe `power-marimo` runtime-package
   fixture/example before broader E9, OA, MCP, durable session, approval-resume,
   or PyQt-widget automation work.
+- In S5, represent `marimo-pair` as an agent-as-tool/SKILL-backed bounded Marimo
+  operation, distinct from primitive node kinds and handoff metadata.
 - Keep S5 free of live Marimo server calls, real SLD data, and live
   `power-tetris-sdk` calls.
 - Use `specs/llm-step-interpreter-middleware/spec.md` as the durable reference
