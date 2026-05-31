@@ -11,7 +11,7 @@ POETRY_VIRTUALENVS_IN_PROJECT = true
 venv = ".venv"
 
 [tasks."project-update"]
-run = "bash -c 'set -e; project_update_args=(poetry update --with dev); poetry_install_args=(poetry install); poetry_install_has_extras=\"\"; skip_poetry_update_extras=\"\"; for arg in \"$@\"; do if [ \"${arg}\" = \"--sync\" ]; then skip_poetry_update_extras=1; break; fi; done; project_update_args+=(\"$@\"); \"${project_update_args[@]}\"; if [ -z \"${skip_poetry_update_extras}\" ] && [ -n \"${POETRY_UPDATE_EXTRAS:-}\" ]; then for extra in ${POETRY_UPDATE_EXTRAS//,/ }; do if [ -n \"${extra}\" ]; then poetry_install_has_extras=1; poetry_install_args+=(-E \"${extra}\"); fi; done; if [ -n \"${poetry_install_has_extras}\" ]; then \"${poetry_install_args[@]}\"; fi; fi' project-update \"$@\""
+run = "bash -c 'set -e; project_update_args=(poetry update --with dev --with docs --with test); poetry_install_args=(poetry install); poetry_install_has_extras=\"\"; skip_poetry_update_extras=\"\"; for arg in \"$@\"; do if [ \"${arg}\" = \"--sync\" ]; then skip_poetry_update_extras=1; break; fi; done; project_update_args+=(\"$@\"); \"${project_update_args[@]}\"; if [ -z \"${skip_poetry_update_extras}\" ] && [ -n \"${POETRY_UPDATE_EXTRAS:-}\" ]; then for extra in ${POETRY_UPDATE_EXTRAS//,/ }; do if [ -n \"${extra}\" ]; then poetry_install_has_extras=1; poetry_install_args+=(-E \"${extra}\"); fi; done; if [ -n \"${poetry_install_has_extras}\" ]; then \"${poetry_install_args[@]}\"; fi; fi' project-update \"$@\""
 
 # dot-mise-poetry:start
 [hooks.enter]

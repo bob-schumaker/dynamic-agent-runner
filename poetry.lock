@@ -1693,6 +1693,35 @@ url = "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simpl
 reference = "global-release-pypi"
 
 [[package]]
+name = "openai-model-registry"
+version = "1.0.5"
+description = "Registry for OpenAI models with capability and parameter validation"
+optional = false
+python-versions = ">=3.10,<4.0"
+groups = ["main"]
+files = [
+    {file = "openai_model_registry-1.0.5-py3-none-any.whl", hash = "sha256:9fbaef80aeb351736d151f4f96fc460a37811155bfc854348496367182febf4a"},
+    {file = "openai_model_registry-1.0.5.tar.gz", hash = "sha256:ce2f182476e35848dacdb3e1c34356b4b7c15aff5438e878d09ee8d5021fc7eb"},
+]
+
+[package.dependencies]
+beautifulsoup4 = ">=4.12.2"
+packaging = ">=24.0"
+platformdirs = ">=4.3.6"
+PyYAML = ">=6.0.1"
+requests = ">=2.31.0"
+semver = ">=3.0.0"
+typing-extensions = ">=4.9.0"
+
+[package.extras]
+cli = ["click (>=8.1.0,<9.0)", "rich (>=13.7.0)", "rich-click (>=1.7.0)"]
+
+[package.source]
+type = "legacy"
+url = "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple"
+reference = "global-release-pypi"
+
+[[package]]
 name = "openpyxl"
 version = "3.1.5"
 description = "A Python library to read/write Excel 2010 xlsx/xlsm files"
@@ -1874,7 +1903,7 @@ version = "4.10.0"
 description = "A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`."
 optional = false
 python-versions = ">=3.10"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "platformdirs-4.10.0-py3-none-any.whl", hash = "sha256:fb516cdb12eb0d857d0cd85a7c57cea4d060bee4578d6cf5a14dfdf8cbf8784a"},
     {file = "platformdirs-4.10.0.tar.gz", hash = "sha256:31e761a6a0ca04faf7353ea759bdba55652be214725111e5aac52dfa29d4bef7"},
@@ -2738,6 +2767,23 @@ url = "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simpl
 reference = "global-release-pypi"
 
 [[package]]
+name = "semver"
+version = "3.0.4"
+description = "Python helper for Semantic Versioning (https://semver.org)"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "semver-3.0.4-py3-none-any.whl", hash = "sha256:9c824d87ba7f7ab4a1890799cec8596f15c1241cb473404ea1cb0c55e4b04746"},
+    {file = "semver-3.0.4.tar.gz", hash = "sha256:afc7d8c584a5ed0a11033af086e8af226a9c0b206f313e0301f8dd7b6b589602"},
+]
+
+[package.source]
+type = "legacy"
+url = "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple"
+reference = "global-release-pypi"
+
+[[package]]
 name = "six"
 version = "1.17.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -2873,6 +2919,31 @@ sphinxcontrib-htmlhelp = ">=2.0.6"
 sphinxcontrib-jsmath = ">=1.0.1"
 sphinxcontrib-qthelp = ">=1.0.6"
 sphinxcontrib-serializinghtml = ">=1.1.9"
+
+[package.source]
+type = "legacy"
+url = "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple"
+reference = "global-release-pypi"
+
+[[package]]
+name = "sphinx-markdown-builder"
+version = "0.6.10"
+description = "A Sphinx extension to add markdown generation support."
+optional = false
+python-versions = ">=3.7"
+groups = ["docs"]
+files = [
+    {file = "sphinx_markdown_builder-0.6.10-py3-none-any.whl", hash = "sha256:16d86738b9ac69fcbc86e373c31c6402c30af1fa8d98d0f62cc5f38bfe5fc26e"},
+    {file = "sphinx_markdown_builder-0.6.10.tar.gz", hash = "sha256:cd5acf88d52ea0146a712fd557404f10326dff3428a78ba928e59b1727fd4a86"},
+]
+
+[package.dependencies]
+docutils = "*"
+sphinx = ">=5.1.0"
+tabulate = "*"
+
+[package.extras]
+dev = ["black", "bumpver", "coveralls", "flake8", "isort", "pip-tools", "pylint", "pytest", "pytest-cov", "sphinx (>=9.0.4)", "sphinxcontrib-plantuml", "sphinxcontrib.httpdomain"]
 
 [package.source]
 type = "legacy"
@@ -3061,6 +3132,26 @@ pyqt5 = ["pyqt5 (>=5.15.10)", "pyqt5-qt5 (==5.15.2) ; sys_platform == \"win32\""
 pyqt6 = ["pyqt6 (>=6.4.0,!=6.6)", "pyqt6 (>=6.7.0) ; python_version >= \"3.12\""]
 pyside6 = ["pyside6 (>=6.4.0,!=6.5.0,!=6.5.1,!=6.6.2)", "pyside6 (>=6.7.0) ; python_version >= \"3.12\""]
 quantity = ["pint (>=0.21)"]
+
+[package.source]
+type = "legacy"
+url = "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple"
+reference = "global-release-pypi"
+
+[[package]]
+name = "tabulate"
+version = "0.10.0"
+description = "Pretty-print tabular data"
+optional = false
+python-versions = ">=3.10"
+groups = ["docs"]
+files = [
+    {file = "tabulate-0.10.0-py3-none-any.whl", hash = "sha256:f0b0622e567335c8fabaaa659f1b33bcb6ddfe2e496071b743aa113f8774f2d3"},
+    {file = "tabulate-0.10.0.tar.gz", hash = "sha256:e2cfde8f79420f6deeffdeda9aaec3b6bc5abce947655d17ac662b126e48a60d"},
+]
+
+[package.extras]
+widechars = ["wcwidth"]
 
 [package.source]
 type = "legacy"
@@ -3375,4 +3466,4 @@ reference = "global-release-pypi"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "687a88c1a5477f4754a64a82e81dd07a1ab399df1b021283e073c2ade57feb1b"
+content-hash = "b1583a2270b0fdbf5d2e18e387eebf6585863e58022b9a234613e61b96850afd"
