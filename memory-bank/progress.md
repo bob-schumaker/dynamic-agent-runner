@@ -179,6 +179,13 @@
   and `tasks.md` now consistently describe compilation/preparation as producing
   a derived final workflow from the immutable base package and caller-owned
   runtime inputs.
+- Model-routing/fallback alignment is implemented locally and pending commit:
+  `api.py` and `context.py` no longer expose a premature caller-visible
+  `model_map` override surface, `executor.py` keeps manifest-driven
+  `runtime.execution_policy.model_map` matching plus multi-adapter selection, and
+  capability mismatches now fail closed rather than synthesizing implicit local
+  fallback adapters. `tests/test_executor.py` now validates the fail-closed
+  behavior.
 - RAG/embedding manifest support is implemented locally and pending commit:
   runtime manifests now preserve `metadata.rag_pipeline`, `llm_step` nodes carry
   provider-neutral `model_requirements`, model capabilities include an

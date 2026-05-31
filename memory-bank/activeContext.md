@@ -30,6 +30,11 @@
   caller-owned overrides compiled into a derived final workflow. This wording
   checkpoint is intended for a scoped docs+memory-bank commit, separate from the
   still-uncommitted runtime code and dependency changes in the working tree.
+- Current runtime implementation work narrows the new model-routing changes to
+  better fit the spec: multiple adapters and manifest-driven
+  `runtime.execution_policy.model_map` selection remain, but premature public
+  `model_map` override exposure was removed and capability mismatches now fail
+  closed instead of inventing implicit local fallback adapters.
 
 ## Current Status
 
