@@ -5,30 +5,22 @@ The console script is ``dynamic-agent-runner``.
 
 .. header2:: Basic command
 
-Run a workflow package from local artifact paths:
+Run a workflow package from its directory:
 
 .. code-block:: bash
 
    dynamic-agent-runner \
-     --runtime-manifest path/to/agent-runtime.yaml \
-     --agent-design path/to/agent-design.md \
-     --mermaid-graph path/to/agent-graph.mmd \
-     --tool-index path/to/tool-index.yaml \
-     --prompt "Run the workflow for this user request."
+      --package path/to/agent-package \
+      --prompt "Run the workflow for this user request."
 
 Required option:
 
-- ``--runtime-manifest`` — path to ``agent-runtime.yaml``
+- ``--package`` — path to a canonical package directory containing
+  ``agent-runtime.yaml``, ``agent-design.md``, and ``agent-graph.mmd``
 
 Optional artifact options:
 
-- ``--agent-design`` — path to ``agent-design.md``
-- ``--mermaid-graph`` or ``--mermaid-diagram`` — path to ``agent-graph.mmd``
-- ``--tool-index`` — path to reusable ``tool-index.yaml`` metadata
 - ``--runtime-overrides`` — path to runtime prompt and skill override YAML
-
-If ``--mermaid-graph`` is omitted, the loader resolves ``mermaid_diagram`` from
-the runtime manifest relative to the manifest path.
 
 .. header2:: Prompt input
 
@@ -36,15 +28,15 @@ The prompt can come from an argument, a file, or standard input:
 
 .. code-block:: bash
 
-   dynamic-agent-runner --runtime-manifest agent-runtime.yaml --prompt "Say hello."
+   dynamic-agent-runner --package path/to/agent-package --prompt "Say hello."
 
 .. code-block:: bash
 
-   dynamic-agent-runner --runtime-manifest agent-runtime.yaml --prompt-file prompt.txt
+   dynamic-agent-runner --package path/to/agent-package --prompt-file prompt.txt
 
 .. code-block:: bash
 
-   printf 'Say hello.\n' | dynamic-agent-runner --runtime-manifest agent-runtime.yaml
+   printf 'Say hello.\n' | dynamic-agent-runner --package path/to/agent-package
 
 ``--prompt`` and ``--prompt-file`` are mutually exclusive. If neither is supplied,
 the CLI reads standard input. Empty prompt input fails clearly.
@@ -56,9 +48,9 @@ Use ``--max-steps`` to cap node execution count:
 .. code-block:: bash
 
    dynamic-agent-runner \
-     --runtime-manifest agent-runtime.yaml \
-     --prompt "Run with a step cap." \
-     --max-steps 20
+      --package path/to/agent-package \
+      --prompt "Run with a step cap." \
+      --max-steps 20
 
 This guards against workflows that cannot reach a terminal state within the
 expected number of node executions.
@@ -71,9 +63,9 @@ The only CLI-supported registry pack today is the opt-in read-only
 .. code-block:: bash
 
    dynamic-agent-runner \
-     --runtime-manifest agent-runtime.yaml \
-     --prompt "Inspect this workspace." \
-     --workspace-root .
+      --package path/to/agent-package \
+      --prompt "Inspect this workspace." \
+      --workspace-root .
 
 The pack is read-only and constrained to approved roots. Write and shell-command
 tools are not part of the default enabled set.

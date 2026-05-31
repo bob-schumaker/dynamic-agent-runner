@@ -65,7 +65,7 @@ def fixture_path(pattern_id: str) -> Path:
     return FIXTURE_ROOT / pattern_id
 
 
-def test_cli_runs_workflow_from_artifact_paths_and_prompt() -> None:
+def test_cli_runs_workflow_from_package_and_prompt() -> None:
     fixture = basic_reasoning_fixture()
     stdout = StringIO()
     stderr = StringIO()
@@ -73,10 +73,8 @@ def test_cli_runs_workflow_from_artifact_paths_and_prompt() -> None:
 
     exit_code = main(
         [
-            "--runtime-manifest",
-            str(fixture / "agent-runtime.yaml"),
-            "--agent-design",
-            str(fixture / "agent-design.md"),
+            "--package",
+            str(fixture),
             "--prompt",
             "Say hello.",
             "--workspace-root",
@@ -102,8 +100,8 @@ def test_cli_reads_prompt_from_file(tmp_path: Path) -> None:
     prompt_file.write_text("Prompt from file", encoding="utf-8")
     exit_code = main(
         [
-            "--runtime-manifest",
-            str(fixture / "agent-runtime.yaml"),
+            "--package",
+            str(fixture),
             "--prompt-file",
             str(prompt_file),
         ],
@@ -139,8 +137,8 @@ def test_cli_accepts_runtime_overrides_path(tmp_path: Path) -> None:
 
     exit_code = main(
         [
-            "--runtime-manifest",
-            str(fixture / "agent-runtime.yaml"),
+            "--package",
+            str(fixture),
             "--runtime-overrides",
             str(overrides_path),
             "--prompt",
@@ -164,7 +162,7 @@ def test_cli_reads_prompt_from_stdin() -> None:
     adapter = make_adapter([{"id": "resp", "output_text": "stdin result"}])
 
     exit_code = main(
-        ["--runtime-manifest", str(fixture / "agent-runtime.yaml")],
+        ["--package", str(fixture)],
         model_adapter=adapter,
         stdin=StringIO("Prompt from stdin"),
         stdout=stdout,
@@ -179,7 +177,7 @@ def test_cli_returns_error_for_missing_prompt() -> None:
     stderr = StringIO()
 
     exit_code = main(
-        ["--runtime-manifest", str(fixture / "agent-runtime.yaml")],
+        ["--package", str(fixture)],
         model_adapter=make_adapter([]),
         stdin=StringIO(""),
         stderr=stderr,
@@ -195,8 +193,8 @@ def test_cli_returns_error_for_execution_failure() -> None:
 
     exit_code = main(
         [
-            "--runtime-manifest",
-            str(fixture / "agent-runtime.yaml"),
+            "--package",
+            str(fixture),
             "--prompt",
             "Hello",
         ],
@@ -232,10 +230,8 @@ def test_cli_runs_all_currently_executable_pattern_fixtures(pattern_id: str) -> 
 
     exit_code = main(
         [
-            "--runtime-manifest",
-            str(fixture / "agent-runtime.yaml"),
-            "--agent-design",
-            str(fixture / "agent-design.md"),
+            "--package",
+            str(fixture),
             "--prompt",
             f"Run hello-world fixture for {pattern_id}.",
         ],
@@ -260,10 +256,8 @@ def test_cli_fails_clearly_for_unsupported_pattern_fixture_features(
 
     exit_code = main(
         [
-            "--runtime-manifest",
-            str(fixture / "agent-runtime.yaml"),
-            "--agent-design",
-            str(fixture / "agent-design.md"),
+            "--package",
+            str(fixture),
             "--prompt",
             f"Run hello-world fixture for {pattern_id}.",
         ],
@@ -291,8 +285,8 @@ def test_cli_fails_clearly_for_tool_fixture_without_registry() -> None:
 
     exit_code = main(
         [
-            "--runtime-manifest",
-            str(fixture / "agent-runtime.yaml"),
+            "--package",
+            str(fixture),
             "--prompt",
             "Run without a callable registry.",
         ],

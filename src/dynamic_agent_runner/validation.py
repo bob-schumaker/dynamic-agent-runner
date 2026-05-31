@@ -154,7 +154,14 @@ def validate_loaded_package_structure(workflow: LoadedAgentWorkflow) -> None:
     skill_bundle_root = (
         Path(workflow.skill_bundle_root) if workflow.skill_bundle_root else None
     )
-    if skill_bundle_root is not None and not skill_bundle_root.is_dir():
+    requires_skill_bundle_root = any(
+        _skill_requires_bundle_root(skill) for skill in workflow.runtime_manifest.skills
+    )
+    if (
+        requires_skill_bundle_root
+        and skill_bundle_root is not None
+        and not skill_bundle_root.is_dir()
+    ):
         errors.append(
             f"package skill-bundle directory does not exist: {skill_bundle_root}"
         )
@@ -409,6 +416,15 @@ def _bundled_skill_path_errors(skill: Any, skill_bundle_root: Path | None) -> li
             ),
         )
     return errors
+
+
+def _skill_requires_bundle_root(skill: Any) -> bool:
+    if _bundled_path_value(skill.raw) is not None:
+        return True
+    return any(
+        _bundled_path_value(support_file) is not None
+        for support_file in _support_file_items(skill.raw)
+    )
 
 
 def _support_file_items(raw_skill: Mapping[str, Any]) -> list[Mapping[str, Any]]:

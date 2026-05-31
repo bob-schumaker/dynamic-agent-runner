@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 import pytest
 
@@ -73,6 +74,10 @@ class AsyncFakeResponses:
 class AsyncFakeClient:
     def __init__(self, responses: list[object]):
         self.responses = AsyncFakeResponses(responses)
+
+
+def package_fixture_path(pattern_id: str = "basic-reasoning-agent") -> Path:
+    return Path(__file__).parent / "fixtures" / "agent-patterns" / pattern_id
 
 
 def make_adapter(responses: list[object]) -> OpenAIClientAdapter:
@@ -290,6 +295,38 @@ edges: []
     assert compiled.package_root == str(package_dir)
     assert compiled.runtime_overrides is not None
     assert compiled.runtime_overrides.added_skills[0].id == "added-skill"
+
+
+def test_run_agent_workflow_accepts_package_directory() -> None:
+    fixture = package_fixture_path()
+
+    result = run_agent_workflow(
+        package_directory=str(fixture),
+        prompt="Say hello from package API.",
+        model_adapter=make_adapter([{"id": "resp_pkg", "output_text": "package ok"}]),
+    )
+
+    assert result == "package ok"
+
+
+async def _run_agent_workflow_async_keeps_compatibility_artifact_inputs() -> None:
+    fixture = package_fixture_path()
+
+    result = await run_agent_workflow_async(
+        runtime_manifest=str(fixture / "agent-runtime.yaml"),
+        agent_design=str(fixture / "agent-design.md"),
+        mermaid_graph=str(fixture / "agent-graph.mmd"),
+        prompt="Say hello from compatibility inputs.",
+        model_adapter=make_async_adapter(
+            [{"id": "resp_compat", "output_text": "compat ok"}]
+        ),
+    )
+
+    assert result == "compat ok"
+
+
+def test_run_agent_workflow_async_keeps_compatibility_artifact_inputs() -> None:
+    asyncio.run(_run_agent_workflow_async_keeps_compatibility_artifact_inputs())
 
 
 def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:

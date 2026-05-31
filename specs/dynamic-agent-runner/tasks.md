@@ -724,17 +724,37 @@ explicitly instead of leaving them as undocumented future behavior.
 
 ### Slice P4 — Package-directory-first public API and CLI
 
-- [ ] P4.1 Change the main public API to accept a package directory as the
+- [x] P4.1 Change the main public API to accept a package directory as the
       canonical input.
-- [ ] P4.2 Keep caller-owned override input as a separate API/CLI layer over the
+- [x] P4.2 Keep caller-owned override input as a separate API/CLI layer over the
       immutable base package.
-- [ ] P4.3 Keep any file-by-file base-package entry points internal-only or
+- [x] P4.3 Keep any file-by-file base-package entry points internal-only or
       remove them if no longer needed.
-- [ ] P4.4 Simplify CLI invocation around a `--package` style input contract.
-- [ ] P4.5 Remove legacy CLI flags for separate base runtime/design/graph files
+- [x] P4.4 Simplify CLI invocation around a `--package` style input contract.
+- [x] P4.5 Remove legacy CLI flags for separate base runtime/design/graph files
       if they are no longer part of the supported public contract.
-- [ ] P4.6 Update README and docs to describe the immutable-base + caller-
+- [x] P4.6 Update README and docs to describe the immutable-base + caller-
       override + compiled-workflow contract.
+
+### Slice P4 Completion Evidence
+
+- `src/dynamic_agent_runner/api.py` now treats `package_directory` as the
+  canonical public input for `load_agent_workflow(...)`,
+  `run_agent_workflow(...)`, and `run_agent_workflow_async(...)` while keeping
+  file-by-file artifact arguments available as compatibility seams.
+- `src/dynamic_agent_runner/cli.py` now uses a package-directory-first `--package`
+  contract and keeps `--runtime-overrides` as the caller-owned overlay input.
+- `src/dynamic_agent_runner/validation.py` now requires a package skill-bundle
+  directory only when bundled skill or support-file paths are actually declared,
+  so package-directory execution matches the existing fixture contract.
+- `tests/test_cli.py` now covers the `--package` CLI surface, and
+  `tests/test_executor.py` now covers direct package-directory API execution plus
+  compatibility execution from file-by-file artifact inputs.
+- `README.md`, `docs/files/cli.rst`, and `docs/files/python-api.rst` now describe
+  the immutable-base package + caller override + compiled workflow public
+  contract.
+- Targeted validation: `poetry run pytest tests/test_cli.py tests/test_executor.py
+  tests/test_import.py -q` — pass; 64 tests passed.
 
 ### Slice P5 — Manifest/runtime alignment cleanup for upstream taxonomy
 

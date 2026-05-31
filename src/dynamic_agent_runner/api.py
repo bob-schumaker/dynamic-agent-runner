@@ -8,7 +8,9 @@ from typing import Any
 from dynamic_agent_runner.artifacts import (
     compile_agent_package,
     compile_loaded_workflow,
+    load_agent_package,
     load_agent_workflow_artifacts,
+    load_runtime_behavior_overrides,
 )
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.executor import (
@@ -33,6 +35,7 @@ ModelAdapterValue = (
 
 def load_agent_workflow(
     *,
+    package_directory: str | None = None,
     runtime_manifest: Any | None = None,
     definition_yaml: Any | None = None,
     mermaid_graph: str | None = None,
@@ -42,18 +45,51 @@ def load_agent_workflow(
     runtime_overrides: Any | None = None,
     tool_registry: Any | None = None,
 ) -> LoadedAgentWorkflow:
-    """Load generated workflow artifacts without executing the workflow.
+    """Load a workflow definition without executing the workflow.
 
-    `runtime_manifest` is the preferred name for the generated
-    `agent-runtime.yaml` input. `definition_yaml` is accepted as a compatibility
-    alias for the earlier README sketch.
+    `package_directory` is the canonical public input and expects a directory
+    containing the standard `agent-runtime.yaml`, `agent-design.md`, and
+    `agent-graph.mmd` sibling artifacts. The file-by-file artifact inputs remain
+    available as a lower-level compatibility seam.
     """
+
+    if package_directory is not None:
+        if any(
+            value is not None
+            for value in (
+                runtime_manifest,
+                definition_yaml,
+                mermaid_graph,
+                mermaid_diagram,
+                agent_design,
+                tool_index,
+            )
+        ):
+            raise TypeError(
+                "package_directory cannot be combined with individual artifact inputs"
+            )
+
+        workflow = load_agent_package(package_directory)
+        if runtime_overrides is not None:
+            workflow = LoadedAgentWorkflow(
+                runtime_manifest=workflow.runtime_manifest,
+                package_root=workflow.package_root,
+                skill_bundle_root=workflow.skill_bundle_root,
+                mermaid_graph=workflow.mermaid_graph,
+                agent_design=workflow.agent_design,
+                tool_index=workflow.tool_index,
+                runtime_overrides=load_runtime_behavior_overrides(runtime_overrides),
+            )
+        validate_agent_workflow(workflow, tool_registry=tool_registry)
+        return workflow
 
     runtime_input = (
         runtime_manifest if runtime_manifest is not None else definition_yaml
     )
     if runtime_input is None:
-        raise TypeError("load_agent_workflow requires runtime_manifest")
+        raise TypeError(
+            "load_agent_workflow requires package_directory or runtime_manifest"
+        )
 
     graph_input = mermaid_graph if mermaid_graph is not None else mermaid_diagram
     workflow = load_agent_workflow_artifacts(
@@ -103,6 +139,7 @@ def run_agent_workflow(
     *,
     prompt: str,
     execution_context: WorkflowExecutionContext | None = None,
+    package_directory: str | None = None,
     runtime_manifest: Any | None = None,
     definition_yaml: Any | None = None,
     mermaid_graph: str | None = None,
@@ -128,6 +165,7 @@ def run_agent_workflow(
         lambda: run_agent_workflow_async(
             prompt=prompt,
             execution_context=execution_context,
+            package_directory=package_directory,
             runtime_manifest=runtime_manifest,
             definition_yaml=definition_yaml,
             mermaid_graph=mermaid_graph,
@@ -150,6 +188,7 @@ async def run_agent_workflow_async(
     *,
     prompt: str,
     execution_context: WorkflowExecutionContext | None = None,
+    package_directory: str | None = None,
     runtime_manifest: Any | None = None,
     definition_yaml: Any | None = None,
     mermaid_graph: str | None = None,
@@ -172,6 +211,7 @@ async def run_agent_workflow_async(
             value is not None
             for value in (
                 runtime_manifest,
+                package_directory,
                 definition_yaml,
                 mermaid_graph,
                 mermaid_diagram,
@@ -195,16 +235,26 @@ async def run_agent_workflow_async(
         )
         return result.final_result
 
-    workflow = load_agent_workflow(
-        runtime_manifest=runtime_manifest,
-        definition_yaml=definition_yaml,
-        mermaid_graph=mermaid_graph,
-        mermaid_diagram=mermaid_diagram,
-        agent_design=agent_design,
-        tool_index=tool_index,
-        runtime_overrides=runtime_overrides,
-        tool_registry=tool_registry,
-    )
+    if package_directory is not None:
+        workflow = load_agent_package_workflow(
+            package_directory,
+            runtime_overrides=runtime_overrides,
+            tool_registry=tool_registry,
+        )
+    else:
+        workflow = compile_agent_workflow(
+            load_agent_workflow(
+                runtime_manifest=runtime_manifest,
+                definition_yaml=definition_yaml,
+                mermaid_graph=mermaid_graph,
+                mermaid_diagram=mermaid_diagram,
+                agent_design=agent_design,
+                tool_index=tool_index,
+                tool_registry=tool_registry,
+            ),
+            runtime_overrides=runtime_overrides,
+            tool_registry=tool_registry,
+        )
     result = await execute_workflow_async(
         workflow,
         prompt=prompt,

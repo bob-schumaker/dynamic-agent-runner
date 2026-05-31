@@ -93,25 +93,24 @@ source env_setup
 
 ## Python API Usage
 
-Use `run_agent_workflow(...)` to load generated artifacts, validate them, execute
-the supported workflow graph, and return the final result:
+Use `run_agent_workflow(...)` to load a canonical package directory, validate
+it, execute the supported workflow graph, and return the final result:
 
 ```python
 from dynamic_agent_runner import run_agent_workflow
 
 result = run_agent_workflow(
-    agent_design="path/to/agent-design.md",
-    runtime_manifest="path/to/agent-runtime.yaml",
-    mermaid_diagram="path/to/agent-graph.mmd",
-    tool_index="path/to/tool-index.yaml",
+    package_directory="path/to/agent-package",
     prompt="Run the workflow for this user request.",
+    runtime_overrides="path/to/runtime-overrides.yaml",
     tool_registry=None,
     model_adapter=None,
 )
 ```
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
-artifact relationship without executing model or tool calls.
+package relationship without executing model or tool calls. Lower-level
+file-by-file artifact inputs remain available only as a compatibility seam.
 
 ## Retry Policy
 
@@ -193,28 +192,25 @@ intentionally deferred until this package-owned interface is stable.
 
 ## CLI Usage
 
-After installation, run a workflow package from artifact paths:
+After installation, run a workflow package from its directory:
 
 ```bash
 dynamic-agent-runner \
-  --runtime-manifest path/to/agent-runtime.yaml \
-  --agent-design path/to/agent-design.md \
-  --mermaid-graph path/to/agent-graph.mmd \
-  --tool-index path/to/tool-index.yaml \
+  --package path/to/agent-package \
   --prompt "Say hello from this workflow."
 ```
 
-If `--mermaid-graph` is omitted, the loader resolves the manifest's
-`mermaid_diagram` reference relative to the runtime manifest path. The prompt may
-also be supplied with `--prompt-file`; when neither prompt option is used, the
-CLI reads the prompt from standard input.
+The prompt may also be supplied with `--prompt-file`; when neither prompt
+option is used, the CLI reads the prompt from standard input. Use
+`--runtime-overrides` when the caller needs prompt or skill overrides layered on
+top of the immutable base package.
 
 Tool-using workflows need an explicit registry source. The first CLI-supported
 registry configuration is the opt-in read-only `local_workspace` tool pack:
 
 ```bash
 dynamic-agent-runner \
-  --runtime-manifest path/to/agent-runtime.yaml \
+  --package path/to/agent-package \
   --prompt "Inspect this workspace." \
   --workspace-root .
 ```
@@ -242,5 +238,5 @@ Current tests cover:
 - dispatching registered tools without live model calls in unit tests
 - running supported workflows from a user prompt with fake clients/tools
 - loading hello-world fixture packages for all 11 supported agent-pattern IDs
-- running the CLI with artifact paths, prompt input, fake model clients, and
-  clear error reporting
+- running the CLI with package-directory input, prompt input, fake model
+  clients, and clear error reporting

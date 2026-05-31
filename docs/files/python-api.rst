@@ -6,25 +6,22 @@ and lower-level execution-state inspection.
 
 .. header2:: Loading without execution
 
-Use ``load_agent_workflow(...)`` to parse and validate a package without model or
-tool calls:
+Use ``load_agent_workflow(...)`` to parse and validate a canonical package
+directory without model or tool calls:
 
 .. code-block:: python
 
    from dynamic_agent_runner import load_agent_workflow
 
    workflow = load_agent_workflow(
-       runtime_manifest="path/to/agent-runtime.yaml",
-       agent_design="path/to/agent-design.md",
-       mermaid_graph="path/to/agent-graph.mmd",
-       tool_index="path/to/tool-index.yaml",
+       package_directory="path/to/agent-package",
        runtime_overrides="path/to/runtime-overrides.yaml",
        tool_registry=my_tool_registry,
    )
 
-``runtime_manifest`` is the preferred argument name. ``definition_yaml`` remains a
-compatibility alias. ``mermaid_diagram`` is accepted as an alias for
-``mermaid_graph``.
+``package_directory`` is the canonical public input. Lower-level
+``runtime_manifest``/``definition_yaml`` and related artifact arguments remain
+available as compatibility seams when callers need file-by-file loading.
 
 .. header2:: Synchronous execution
 
@@ -36,8 +33,8 @@ Use ``run_agent_workflow(...)`` for a direct final result:
 
    result = run_agent_workflow(
        prompt="Run this workflow.",
-       runtime_manifest="path/to/agent-runtime.yaml",
-       agent_design="path/to/agent-design.md",
+       package_directory="path/to/agent-package",
+       runtime_overrides="path/to/runtime-overrides.yaml",
        tool_registry=my_tool_registry,
        model_adapter=my_model_adapter,
        max_steps=20,
@@ -58,8 +55,8 @@ Use ``run_agent_workflow_async(...)`` in async applications:
 
    result = await run_agent_workflow_async(
        prompt="Run this workflow.",
-       runtime_manifest="path/to/agent-runtime.yaml",
-       agent_design="path/to/agent-design.md",
+       package_directory="path/to/agent-package",
+       runtime_overrides="path/to/runtime-overrides.yaml",
        tool_registry=my_tool_registry,
        model_adapter=my_async_model_adapter,
    )
@@ -78,11 +75,7 @@ share a loaded workflow and runtime collaborators:
    from dynamic_agent_runner import WorkflowExecutionContext, load_agent_workflow
    from dynamic_agent_runner import run_agent_workflow
 
-   workflow = load_agent_workflow(
-       runtime_manifest="path/to/agent-runtime.yaml",
-       agent_design="path/to/agent-design.md",
-       tool_registry=my_tool_registry,
-   )
+   workflow = load_agent_workflow(package_directory="path/to/agent-package")
    context = WorkflowExecutionContext(
        workflow=workflow,
        tool_registry=my_tool_registry,
