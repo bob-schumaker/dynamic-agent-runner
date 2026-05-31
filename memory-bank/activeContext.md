@@ -19,7 +19,11 @@
   `../power-marimo/skills/marimo-pair/SKILL.md` was recorded in `a084f2d`. Slice
   S5 completed in `84dfd31`, with plan/task evidence recorded in `387b574` and
   governing spec documents refreshed in `89926d8`; the runtime-package
-  simplification S1-S5 sequence is now complete.
+  simplification S1-S5 sequence is now complete. Current uncommitted work adds
+  support for the agent-development skill's newer RAG and embedding manifest
+  output: `llm_step.model_requirements`, `metadata.rag_pipeline`, and
+  `ModelCapabilities.embeddings` are now preserved and validated as
+  provider-neutral manifest guidance.
 
 ## Current Status
 
@@ -213,10 +217,16 @@
   - Updated governing spec documents in `89926d8` to record S5 completion, the
     placeholder-safe Power-Marimo fixture, and that no next active slice is
     selected after S5.
+  - Added uncommitted RAG/embedding manifest support for generated runtime
+    packages: model metadata preserves an `embeddings` capability,
+    `RuntimeManifest` preserves `metadata.rag_pipeline`, `RuntimeNode` /
+    `PreparedNode` preserve `llm_step.model_requirements`, validation checks RAG
+    pipeline and model-requirement consistency, and docs/tests cover the new
+    manifest shape.
 - In progress:
-  - No source implementation work is currently in flight after runtime-package
-    simplification Slice S5 implementation commit `84dfd31`, plan/task evidence
-    commit `387b574`, and governing spec-document commit `89926d8`.
+  - RAG/embedding manifest support is implemented and validated locally; the next
+    step is to commit the task-related implementation/docs/tests plus this
+    memory-bank refresh while leaving unrelated local changes unstaged.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
@@ -299,6 +309,15 @@
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and
   `roles` metadata during loading.
+- RAG, embedding-backed retrieval, graph retrieval, and GraphRAG from the
+  agent-development skill remain represented with existing primitive node kinds.
+  The runner now supports their generated metadata shape by preserving
+  `metadata.rag_pipeline` and validating RAG pattern consistency instead of adding
+  new primitive runtime node kinds.
+- `llm_step.model_requirements` is provider-neutral selection guidance. It may
+  require capabilities such as `embeddings`, structured output, long context,
+  tool calling, or citation generation, but it must not be passed through as a
+  provider API request parameter.
 - `tests/fixtures/agent-patterns/` now contains a hello-world runtime package for
   every `SUPPORTED_AGENT_PATTERNS` entry. Each package contains
   `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`.
@@ -701,6 +720,10 @@
   spec documents through `89926d8`. Choose a new scoped follow-up before starting
   broader E9, OA, MCP, durable session, approval-resume, or PyQt-widget
   automation work.
+- After committing the current RAG/embedding manifest support, record the commit
+  hash in the memory bank and continue treating RAG/GraphRAG as metadata plus
+  existing-node workflow shapes unless a future scoped slice explicitly adds
+  executable retrieval/index integrations.
 - Preserve the S5 Power-Marimo fixture as placeholder-safe coverage: no live
   Marimo server calls, real SLD data, or live `power-tetris-sdk` calls.
 - Keep representing `marimo-pair` as an agent-as-tool/SKILL-backed bounded

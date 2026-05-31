@@ -174,6 +174,12 @@
   `387b574 docs(plan): record power-marimo fixture slice`.
 - Runtime-package simplification S5 governing spec commit exists:
   `89926d8 docs(spec): record power-marimo fixture completion`.
+- RAG/embedding manifest support is implemented locally and pending commit:
+  runtime manifests now preserve `metadata.rag_pipeline`, `llm_step` nodes carry
+  provider-neutral `model_requirements`, model capabilities include an
+  `embeddings` flag, validation checks RAG/GraphRAG pattern consistency, and docs
+  describe RAG as existing-node workflow metadata rather than a new primitive
+  node kind.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing
@@ -493,6 +499,10 @@
   are complete. Live Marimo-session, MCP, broader agent-as-tool registry sources,
   and durable handoff/resume behavior remain out of scope until a new scoped
   follow-up selects them.
+- Generated RAG, embedding-backed retrieval, graph retrieval, and GraphRAG
+  package shapes are now supported at the metadata/validation layer. This does
+  not add executable vector-store, graph-store, retrieval, reranking, or indexing
+  integrations; those remain future scoped implementation work.
 - E13 is complete for the current package-owned contract: run correlation,
   synchronized current in-memory/shared helpers, lazy adapter initialization
   protection, registry mutation/read behavior, and concurrent tests.
