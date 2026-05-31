@@ -161,6 +161,10 @@
   context-pruning attachment as an internal compile-time graph-mutation layer,
   ideally starting with input transformation on `llm_step` nodes before any
   true node/edge graph surgery.
+- Repository-local reference packaging is now being used for external guidance
+  that should remain available inside this repo. The OpenAI Model Registry notes
+  under `cline-tasks/references/openai-model-registry/` are supporting
+  references, not executable runtime code or canonical spec artifacts.
 - Use `tests/fixtures/agent-patterns/` as a reusable coverage source for future
   loader, executor, and CLI compatibility tests.
 - Update this file as concrete modules, entry points, and architectural

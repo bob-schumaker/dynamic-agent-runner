@@ -176,6 +176,8 @@
   `89926d8 docs(spec): record power-marimo fixture completion`.
 - Llama.cpp / graph-mutation feature-spec commit exists:
   `1346458 docs(spec): capture llama.cpp and graph mutation feature`.
+- OpenAI Model Registry reference-notes commit exists:
+  `7a7a54e docs(references): add openai model registry notes`.
 - Package-alignment wording cleanup for the immutable-base plus caller-owned
   override contract is complete locally and pending commit: `spec.md`, `plan.md`,
   and `tasks.md` now consistently describe compilation/preparation as producing
@@ -198,6 +200,10 @@
   internal graph-mutation/context-pruning layer, but the prototype code was
   intentionally reverted after spec capture. Current repository state preserves
   the design artifacts without active llama.cpp runtime code.
+- Packaged local supporting references for OpenAI Model Registry capabilities,
+  parameter validation, and advanced usage now exist under
+  `cline-tasks/references/openai-model-registry/`. They were normalized to match
+  repository markdown expectations before commit.
 - Artifact loading now works for runtime YAML, optional Mermaid graph, optional
   `agent-design.md`, and optional `tool-index.yaml` inputs.
 - `load_agent_workflow(...)` now loads generated artifacts without executing

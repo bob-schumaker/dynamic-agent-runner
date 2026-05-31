@@ -42,10 +42,16 @@
   prior OpenAI-first state while preserving:
   - `specs/llama-cpp-graph-mutation/spec.md`
   - `specs/dynamic-agent-runner/references/graph-mutation-interface-design.md`
+- Packaged OpenAI Model Registry reference notes are now committed in `7a7a54e`
+  under `cline-tasks/references/openai-model-registry/`. Those imported notes
+  required repository-local markdown normalization to satisfy pre-commit before
+  commit, and now serve as local supporting reference material for future model
+  capability, parameter-validation, and advanced-usage work.
 
 ## Current Status
 
 - Done:
+  - Committed packaged OpenAI Model Registry reference notes in `7a7a54e`.
   - Committed the feature-spec/design checkpoint for llama.cpp local-model
     support and graph mutation in `1346458`.
   - Inspected repository top-level files.
