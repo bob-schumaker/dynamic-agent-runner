@@ -20,8 +20,9 @@
   S5 completed in `84dfd31`, with plan/task evidence recorded in `387b574` and
   governing spec documents refreshed in `89926d8`; the runtime-package
 - Package-alignment Slice P1 is complete in commit `63403d3`, Slice P2 is
-  complete in commit `a1880e7`, Slice P3 is complete in commit `a46cd13`, and
-  Slice P4 is now complete in commit `3e622d2`. P2 adds strict canonical
+  complete in commit `a1880e7`, Slice P3 is complete in commit `a46cd13`, Slice
+  P4 is complete in commit `3e622d2`, and Slice P5 is now complete in commit
+  `7e9a33e`. P2 adds strict canonical
   package validation:
   package-loaded workflows now preserve optional `skill_bundle_root`,
   `load_agent_package(...)` fails closed for missing canonical sibling artifacts
@@ -44,10 +45,22 @@
   when bundled skill or support-file paths are actually declared, matching the
   existing canonical fixture contract for packages that set
   `packaging.skill_bundle_dir` but use referenced-only skills.
-- Current uncommitted work still adds support for the agent-development skill's
-  newer RAG and embedding manifest output: `llm_step.model_requirements`,
-  `metadata.rag_pipeline`, and `ModelCapabilities.embeddings` are now preserved
-  and validated as provider-neutral manifest guidance.
+- P5 aligns the public contract with the newer upstream runtime-package
+  taxonomy: docs and validation now explicitly cover
+  `execution_policy.model_capabilities`, `execution_policy.model_map`,
+  provider-neutral `llm_step.model_requirements`, ReAct-style `react_loop`
+  manifests, package-declared RAG/GraphRAG classifications, and
+  `evidence_loop` metadata.
+- `src/dynamic_agent_runner/validation.py` now validates `react_loop` manifests
+  as primitive-node workflows with positive
+  `runtime.execution_policy.max_iterations`, at least one `loopback` edge,
+  `runtime.state` observation metadata, and both `llm_step` and `tool_use_step`
+  nodes.
+- `tests/test_executor.py` now documents the default model-adapter contract:
+  when callers do not provide explicit adapters and a node does not require
+  capability-based routing, the executor constructs the default async OpenAI
+  adapter for the requested model name. Capability-aware or local-only routing
+  requires explicit manifest-driven metadata.
 - Package-alignment backlog review against the latest upstream
   `agent-development-skill` runtime-package reference is now committed in
   `8308cd6`. `specs/dynamic-agent-runner/tasks.md` now records that package-
@@ -55,11 +68,8 @@
   `skill-bundle/` handling, but also provider-neutral `model_requirements`,
   ReAct-style `react_loop` manifests, RAG/GraphRAG metadata, and the upstream
   `evidence_loop` pattern.
-- The next active implementation slice after P4 is P5: align manifest/runtime
-  taxonomy with the latest upstream runtime-package contract, including
-  capability vocabulary, manifest-driven model-selection metadata,
-  `model_requirements`, ReAct-style loop expectations, RAG/GraphRAG metadata,
-  and `evidence_loop` preservation.
+- The next active implementation slice after P5 is the next not-yet-selected
+  package-alignment follow-up or another backlog item the user chooses.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public

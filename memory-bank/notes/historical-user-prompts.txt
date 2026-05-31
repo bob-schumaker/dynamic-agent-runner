@@ -13,7 +13,7 @@ product direction. It intentionally omits routine operational prompts such as
 slice-execution commands unless the wording introduced durable requirements.
 
 Recent routine execution requests were intentionally omitted from durable prompt
-history, including repeated commands to execute slices P1-P4 and update the
+history, including repeated commands to execute slices P1-P5 and update the
 memory bank separately, because they changed task progress but did not add new
 product requirements beyond the existing slice plan.
 

@@ -220,24 +220,28 @@
   src/dynamic_agent_runner/__init__.py tests/test_cli.py tests/test_executor.py
   tests/test_import.py README.md docs/files/cli.rst docs/files/python-api.rst
   specs/dynamic-agent-runner/tasks.md`.
-- The next active runtime-package alignment slice is P5, which will align
-  manifest/runtime taxonomy with the upstream runtime-package contract,
-  especially capability vocabulary, manifest-driven model-selection metadata,
-  provider-neutral `model_requirements`, ReAct-style loop metadata, RAG /
-  GraphRAG metadata, and `evidence_loop` preservation.
-- Model-routing/fallback alignment is implemented locally and pending commit:
-  `api.py` and `context.py` no longer expose a premature caller-visible
-  `model_map` override surface, `executor.py` keeps manifest-driven
-  `runtime.execution_policy.model_map` matching plus multi-adapter selection, and
-  capability mismatches now fail closed rather than synthesizing implicit local
-  fallback adapters. `tests/test_executor.py` now validates the fail-closed
-  behavior.
-- RAG/embedding manifest support is implemented locally and pending commit:
-  runtime manifests now preserve `metadata.rag_pipeline`, `llm_step` nodes carry
-  provider-neutral `model_requirements`, model capabilities include an
-  `embeddings` flag, validation checks RAG/GraphRAG pattern consistency, and docs
-  describe RAG as existing-node workflow metadata rather than a new primitive
-  node kind.
+- Package-alignment Slice P5 implementation commit exists:
+  `7e9a33e feat(runtime): align manifest taxonomy metadata`.
+- Slice P5 is complete: the runtime now documents and validates
+  `execution_policy.model_capabilities`, `execution_policy.model_map`,
+  provider-neutral `llm_step.model_requirements`, ReAct-style `react_loop`
+  manifests, package-declared RAG/GraphRAG classifications, and
+  `evidence_loop` metadata using the existing primitive node taxonomy.
+- `src/dynamic_agent_runner/validation.py` now enforces a minimal `react_loop`
+  contract with positive `runtime.execution_policy.max_iterations`, loopback
+  control flow, `runtime.state` observation metadata, and both `llm_step` and
+  `tool_use_step` nodes.
+- `tests/test_validation.py` covers failing and passing `react_loop` shapes, and
+  `tests/test_executor.py` now covers the default async OpenAI adapter contract
+  when no explicit adapters are provided for capability routing.
+- Focused P5 validation passed with `poetry run pytest tests/test_validation.py
+  tests/test_executor.py tests/test_model_capabilities.py tests/test_artifacts.py
+  -q` (90 passed) and `poetry run pre-commit run --files
+  src/dynamic_agent_runner/validation.py tests/test_validation.py
+  tests/test_executor.py docs/files/artifact-package.rst
+  docs/files/runtime-policies.rst README.md specs/dynamic-agent-runner/tasks.md`.
+- The next active work item is no longer P5; the next slice should be chosen
+  explicitly from the remaining backlog.
 - A separate feature-spec track now exists for local llama.cpp support plus an
   internal graph-mutation/context-pruning layer, but the prototype code was
   intentionally reverted after spec capture. Current repository state preserves
