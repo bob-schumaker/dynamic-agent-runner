@@ -201,9 +201,16 @@
   `skills[*].support_files[*].bundled_path` against the configured
   `skill-bundle/` directory while failing clearly for missing or escaping
   bundled files.
-- The next active runtime-package alignment slice is P3, which will add an
-  explicit compile/preparation step that combines the immutable base package
-  with caller-owned overrides while preserving immutable-base guarantees.
+- Package-alignment Slice P3 is complete in `a46cd13`: the runtime now exposes
+  `CompiledAgentWorkflow`, package and loaded-workflow compile helpers, and
+  compiled-workflow acceptance through the public API, execution context, and
+  executor while preserving immutable loaded base workflows. Focused validation
+  passed with `poetry run pytest tests/test_artifacts.py tests/test_executor.py
+  tests/test_validation.py -q` (82 passed).
+- The next active runtime-package alignment slice is P4, which will make the
+  package directory the canonical public API / CLI input while keeping
+  caller-owned override input as a separate layer over the immutable base
+  package and compiled final workflow.
 - Model-routing/fallback alignment is implemented locally and pending commit:
   `api.py` and `context.py` no longer expose a premature caller-visible
   `model_map` override surface, `executor.py` keeps manifest-driven
