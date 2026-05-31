@@ -35,10 +35,19 @@
   `runtime.execution_policy.model_map` selection remain, but premature public
   `model_map` override exposure was removed and capability mismatches now fail
   closed instead of inventing implicit local fallback adapters.
+- A new feature-spec checkpoint is now committed in `1346458` for
+  llama.cpp-backed local-model support and an internal graph-mutation layer for
+  context pruning. The implementation prototype itself was intentionally
+  reverted after the spec/design capture, leaving the repository code in its
+  prior OpenAI-first state while preserving:
+  - `specs/llama-cpp-graph-mutation/spec.md`
+  - `specs/dynamic-agent-runner/references/graph-mutation-interface-design.md`
 
 ## Current Status
 
 - Done:
+  - Committed the feature-spec/design checkpoint for llama.cpp local-model
+    support and graph mutation in `1346458`.
   - Inspected repository top-level files.
   - Reviewed `pyproject.toml`, `.pre-commit-config.yaml`, `.mise.toml`,
     `.flake8`, `.isort.cfg`, `.gitignore`, and `env_setup`.

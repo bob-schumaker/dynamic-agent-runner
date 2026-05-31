@@ -155,6 +155,12 @@
   a later scoped slice implements them.
 - Defer LiteLLM, Watchfiles, Rich, and Diskcache until a future scoped requirement
   justifies them; the current OpenAI-first adapter boundary remains in force.
+- If local-model support returns, prefer fitting llama.cpp into the existing
+  `model_adapter` contract rather than introducing a parallel runtime model
+  interface. The committed feature spec also recommends treating future
+  context-pruning attachment as an internal compile-time graph-mutation layer,
+  ideally starting with input transformation on `llm_step` nodes before any
+  true node/edge graph surgery.
 - Use `tests/fixtures/agent-patterns/` as a reusable coverage source for future
   loader, executor, and CLI compatibility tests.
 - Update this file as concrete modules, entry points, and architectural
