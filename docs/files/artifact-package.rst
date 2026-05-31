@@ -62,6 +62,67 @@ Supported control-flow edges include ``sequential`` and branch traversal from
 future work, but unsupported runtime edge configurations fail clearly during
 execution.
 
+``llm_step`` nodes may also carry provider-neutral ``model_requirements``
+metadata. This describes selection requirements such as structured output,
+tool-calling, long context, citation generation, and ``embeddings`` support.
+These fields are manifest guidance for runtime/model selection and validation;
+they are not passed through to the provider request as API parameters.
+
+.. code-block:: yaml
+
+   - id: synthesize_answer
+     kind: llm_step
+     prompt:
+       user_template: "Answer from retrieved context: {retrieved_context}"
+       output_schema_ref: answer
+     model_requirements:
+       required_capabilities:
+       - structured_output
+       - embeddings
+       context_requirements:
+         needs_retrieved_context: true
+       output_requirements:
+         format: schema_ref
+         schema_ref: answer
+         evidence_citations: preferred
+
+.. header2:: RAG and embedding-backed retrieval metadata
+
+RAG workflows use the existing primitive node kinds rather than adding a new
+node type. Use ``tool_use_step`` nodes for retrieval, index lookup, graph lookup,
+reranking, or context assembly; use ``llm_step`` nodes for query planning and
+answer synthesis; and use ``decision_step`` nodes for sufficiency, freshness, and
+fallback routing.
+
+Declare RAG intent in ``metadata.patterns_present`` and describe retrieval policy
+under ``metadata.rag_pipeline``:
+
+.. code-block:: yaml
+
+   metadata:
+     patterns_present:
+     - rag
+     - embedding_retrieval
+     rag_pipeline:
+       retrieval_mode: embedding_semantic
+       embedding_capability: required
+       graph_capability: not_applicable
+       index_owner: runtime
+       graph_store_owner: unknown
+       corpus_boundary: runtime fixture documents
+       chunking_policy: runtime default
+       metadata_filters:
+       - tenant
+       reranking: vector_score
+       freshness_policy: manual
+       provenance_required: true
+
+The loader preserves ``metadata.rag_pipeline`` as manifest metadata. Validation
+checks the supported enum values and the basic consistency of RAG pattern flags:
+``embedding_retrieval`` requires ``retrieval_mode: embedding_semantic`` or
+``hybrid`` plus ``embedding_capability: required``; graph retrieval patterns
+require ``graph_capability: required``.
+
 .. header2:: Output contracts
 
 ``output_contracts`` is an array of contract objects. ``llm_step`` nodes can

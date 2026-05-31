@@ -32,6 +32,76 @@ SUPPORTED_EDGE_KINDS = (
 )
 SUPPORTED_TOOL_INDEX_TYPE = "agent_runtime_tool_index"
 SUPPORTED_OVERRIDE_TYPE = "dynamic_agent_runtime_overrides"
+RAG_PATTERN_IDS = {"rag", "embedding_retrieval", "graph_retrieval", "graphrag"}
+SUPPORTED_RAG_RETRIEVAL_MODES = {
+    "keyword",
+    "structured",
+    "embedding_semantic",
+    "graph",
+    "hybrid",
+    "unknown",
+}
+SUPPORTED_RAG_CAPABILITY_VALUES = {
+    "required",
+    "optional",
+    "not_applicable",
+    "unknown",
+}
+SUPPORTED_RAG_OWNER_VALUES = {"runtime", "host", "external_service", "unknown"}
+SUPPORTED_RAG_RERANKING_VALUES = {
+    "none",
+    "model",
+    "vector_score",
+    "graph_score",
+    "hybrid",
+    "unknown",
+}
+SUPPORTED_RAG_FRESHNESS_VALUES = {"on_write", "scheduled", "manual", "unknown"}
+SUPPORTED_MODEL_REQUIRED_CAPABILITIES = {
+    "structured_output",
+    "tool_calling",
+    "embeddings",
+    "long_context",
+    "multimodal_input",
+    "json_mode",
+    "citation_generation",
+    "code_reasoning",
+    "math_reasoning",
+}
+SUPPORTED_REASONING_LEVELS = {"minimal", "low", "medium", "high", "extended"}
+SUPPORTED_REASONING_TASK_TYPES = {
+    "classification",
+    "extraction",
+    "generation",
+    "planning",
+    "synthesis",
+    "critique",
+    "tool_selection",
+    "route_selection",
+    "code_reasoning",
+    "math_reasoning",
+}
+SUPPORTED_UNCERTAINTY_HANDLING = {
+    "answer_with_caveats",
+    "ask_clarification",
+    "escalate",
+}
+SUPPORTED_EXPECTED_INPUT_SIZES = {"small", "medium", "large", "very_large", "unknown"}
+SUPPORTED_OUTPUT_FORMATS = {"free_text", "structured_json", "schema_ref", "tool_call"}
+SUPPORTED_EVIDENCE_CITATIONS = {"required", "preferred", "not_needed"}
+SUPPORTED_SENSITIVITY_VALUES = {"low", "medium", "high"}
+SUPPORTED_DETERMINISM_VALUES = {"preferred", "balanced", "creative"}
+SUPPORTED_DATA_BOUNDARIES = {
+    "local_only",
+    "private_runtime",
+    "provider_allowed",
+    "unknown",
+}
+SUPPORTED_FALLBACK_ACTIONS = {
+    "use_lower_capability",
+    "use_higher_capability",
+    "escalate",
+}
 PROMPT_REPLACE_FIELDS = {
     "system",
     "developer",
@@ -126,6 +196,8 @@ def validate_runtime_manifest(
     _extend(errors, _tool_definition_errors(manifest.tools, "runtime manifest tool"))
     _extend(errors, _tool_reference_errors(manifest, tool_index, tool_registry))
     _extend(errors, _llm_prompt_errors(manifest.nodes))
+    _extend(errors, _model_requirements_errors(manifest))
+    _extend(errors, _rag_pipeline_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
     if errors:
         raise WorkflowValidationError(_format_errors("runtime manifest", errors))
@@ -429,6 +501,405 @@ def _llm_prompt_errors(nodes: Iterable[RuntimeNode]) -> list[str]:
                 f"llm_step node {node.id!r} must define prompt or prompt_source"
             )
     return errors
+
+
+def _model_requirements_errors(manifest: RuntimeManifest) -> list[str]:
+    errors: list[str] = []
+    for node in manifest.nodes:
+        if not node.model_requirements:
+            continue
+        if node.kind != "llm_step":
+            errors.append(
+                f"non-llm_step node {node.id!r} must not define model_requirements"
+            )
+            continue
+        requirements = node.model_requirements
+        _extend(errors, _model_required_capability_errors(node, requirements))
+        _validate_reasoning_profile(node, requirements, errors)
+        _validate_context_requirements(node, requirements, errors)
+        _validate_output_requirements(node, requirements, manifest, errors)
+        _validate_operational_preferences(node, requirements, errors)
+        _validate_fallback_policy(node, requirements, errors)
+    return errors
+
+
+def _model_required_capability_errors(
+    node: RuntimeNode,
+    requirements: Mapping[str, Any],
+) -> list[str]:
+    required_capabilities = requirements.get("required_capabilities")
+    if required_capabilities is None:
+        return []
+    if not _is_string_list(required_capabilities):
+        return [
+            f"llm_step node {node.id!r} model_requirements.required_capabilities "
+            "must be a list of strings"
+        ]
+    unsupported = sorted(
+        set(required_capabilities) - SUPPORTED_MODEL_REQUIRED_CAPABILITIES
+    )
+    if unsupported:
+        return [
+            f"llm_step node {node.id!r} model_requirements.required_capabilities "
+            f"contains unsupported values {unsupported!r}"
+        ]
+    return []
+
+
+def _validate_reasoning_profile(
+    node: RuntimeNode,
+    requirements: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    reasoning_profile = _optional_mapping(
+        requirements,
+        "reasoning_profile",
+        f"llm_step node {node.id!r} model_requirements",
+        errors,
+    )
+    if not reasoning_profile:
+        return
+    label = f"llm_step node {node.id!r} model_requirements.reasoning_profile"
+    _validate_optional_enum(
+        reasoning_profile, "level", SUPPORTED_REASONING_LEVELS, label, errors
+    )
+    for field_name in ("task_type", "task_subtype"):
+        _validate_optional_enum(
+            reasoning_profile, field_name, SUPPORTED_REASONING_TASK_TYPES, label, errors
+        )
+    _validate_optional_enum(
+        reasoning_profile,
+        "uncertainty_handling",
+        SUPPORTED_UNCERTAINTY_HANDLING,
+        label,
+        errors,
+    )
+
+
+def _validate_context_requirements(
+    node: RuntimeNode,
+    requirements: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    context_requirements = _optional_mapping(
+        requirements,
+        "context_requirements",
+        f"llm_step node {node.id!r} model_requirements",
+        errors,
+    )
+    if not context_requirements:
+        return
+    label = f"llm_step node {node.id!r} model_requirements.context_requirements"
+    _validate_optional_enum(
+        context_requirements,
+        "expected_input_size",
+        SUPPORTED_EXPECTED_INPUT_SIZES,
+        label,
+        errors,
+    )
+    _validate_optional_bool_or_value(
+        context_requirements, "needs_retrieved_context", {"conditional"}, label, errors
+    )
+    _validate_optional_positive_int_or_unknown(
+        context_requirements, "minimum_context_window", label, errors
+    )
+
+
+def _validate_output_requirements(
+    node: RuntimeNode,
+    requirements: Mapping[str, Any],
+    manifest: RuntimeManifest,
+    errors: list[str],
+) -> None:
+    output_requirements = _optional_mapping(
+        requirements,
+        "output_requirements",
+        f"llm_step node {node.id!r} model_requirements",
+        errors,
+    )
+    if not output_requirements:
+        return
+    label = f"llm_step node {node.id!r} model_requirements.output_requirements"
+    _validate_optional_enum(
+        output_requirements, "format", SUPPORTED_OUTPUT_FORMATS, label, errors
+    )
+    _validate_optional_enum(
+        output_requirements,
+        "evidence_citations",
+        SUPPORTED_EVIDENCE_CITATIONS,
+        label,
+        errors,
+    )
+    _validate_model_requirement_schema_ref(node, output_requirements, manifest, errors)
+
+
+def _validate_model_requirement_schema_ref(
+    node: RuntimeNode,
+    output_requirements: Mapping[str, Any],
+    manifest: RuntimeManifest,
+    errors: list[str],
+) -> None:
+    schema_ref = output_requirements.get("schema_ref")
+    if schema_ref not in (None, "null") and manifest.output_contracts:
+        schema_ref_text = str(schema_ref)
+        if schema_ref_text not in manifest.output_contracts:
+            errors.append(
+                f"llm_step node {node.id!r} model_requirements.output_requirements "
+                f"references missing output contract {schema_ref_text!r}"
+            )
+    prompt_schema_ref = _prompt_output_schema_ref(node)
+    if (
+        prompt_schema_ref is not None
+        and schema_ref not in (None, "null")
+        and str(schema_ref) != prompt_schema_ref
+    ):
+        errors.append(
+            f"llm_step node {node.id!r} prompt output_schema_ref {prompt_schema_ref!r} "
+            "must match model_requirements.output_requirements.schema_ref "
+            f"{str(schema_ref)!r}"
+        )
+
+
+def _validate_operational_preferences(
+    node: RuntimeNode,
+    requirements: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    operational_preferences = _optional_mapping(
+        requirements,
+        "operational_preferences",
+        f"llm_step node {node.id!r} model_requirements",
+        errors,
+    )
+    if not operational_preferences:
+        return
+    label = f"llm_step node {node.id!r} model_requirements.operational_preferences"
+    for field_name in ("latency_sensitivity", "cost_sensitivity"):
+        _validate_optional_enum(
+            operational_preferences,
+            field_name,
+            SUPPORTED_SENSITIVITY_VALUES,
+            label,
+            errors,
+        )
+    _validate_optional_enum(
+        operational_preferences,
+        "determinism",
+        SUPPORTED_DETERMINISM_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        operational_preferences,
+        "data_boundary",
+        SUPPORTED_DATA_BOUNDARIES,
+        label,
+        errors,
+    )
+
+
+def _validate_fallback_policy(
+    node: RuntimeNode,
+    requirements: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    fallback_policy = _optional_mapping(
+        requirements,
+        "fallback_policy",
+        f"llm_step node {node.id!r} model_requirements",
+        errors,
+    )
+    if not fallback_policy:
+        return
+    label = f"llm_step node {node.id!r} model_requirements.fallback_policy"
+    _validate_optional_enum(
+        fallback_policy, "if_unavailable", SUPPORTED_FALLBACK_ACTIONS, label, errors
+    )
+    _validate_optional_enum(
+        fallback_policy,
+        "minimum_acceptable_level",
+        SUPPORTED_REASONING_LEVELS,
+        label,
+        errors,
+    )
+
+
+def _rag_pipeline_errors(manifest: RuntimeManifest) -> list[str]:
+    errors: list[str] = []
+    patterns = set(manifest.patterns_present)
+    rag_patterns = patterns & RAG_PATTERN_IDS
+    if not manifest.rag_pipeline:
+        if rag_patterns:
+            errors.append(
+                "metadata.rag_pipeline is required when metadata.patterns_present "
+                f"includes RAG patterns {sorted(rag_patterns)!r}"
+            )
+        return errors
+    pipeline = manifest.rag_pipeline
+    if not rag_patterns:
+        errors.append(
+            "metadata.rag_pipeline requires metadata.patterns_present to include "
+            "'rag' or a retrieval-specific RAG pattern"
+        )
+    _validate_rag_pipeline_fields(pipeline, errors)
+    _validate_rag_pattern_requirements(patterns, pipeline, errors)
+    return errors
+
+
+def _validate_rag_pipeline_fields(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    _validate_optional_enum(
+        pipeline,
+        "retrieval_mode",
+        SUPPORTED_RAG_RETRIEVAL_MODES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    for field_name in ("embedding_capability", "graph_capability"):
+        _validate_optional_enum(
+            pipeline,
+            field_name,
+            SUPPORTED_RAG_CAPABILITY_VALUES,
+            "metadata.rag_pipeline",
+            errors,
+        )
+    for field_name in ("index_owner", "graph_store_owner"):
+        _validate_optional_enum(
+            pipeline,
+            field_name,
+            SUPPORTED_RAG_OWNER_VALUES,
+            "metadata.rag_pipeline",
+            errors,
+        )
+    _validate_optional_enum(
+        pipeline,
+        "reranking",
+        SUPPORTED_RAG_RERANKING_VALUES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    _validate_optional_enum(
+        pipeline,
+        "freshness_policy",
+        SUPPORTED_RAG_FRESHNESS_VALUES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    _validate_optional_bool(
+        pipeline, "provenance_required", "metadata.rag_pipeline", errors
+    )
+    metadata_filters = pipeline.get("metadata_filters")
+    if metadata_filters is not None and not _is_string_list(metadata_filters):
+        errors.append(
+            "metadata.rag_pipeline.metadata_filters must be a list of strings"
+        )
+
+
+def _validate_rag_pattern_requirements(
+    patterns: set[str],
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    if "embedding_retrieval" in patterns:
+        if pipeline.get("retrieval_mode") not in {"embedding_semantic", "hybrid"}:
+            errors.append(
+                "embedding_retrieval requires metadata.rag_pipeline.retrieval_mode "
+                "embedding_semantic or hybrid"
+            )
+        if pipeline.get("embedding_capability") != "required":
+            errors.append(
+                "embedding_retrieval requires metadata.rag_pipeline.embedding_capability "
+                "required"
+            )
+    if "graph_retrieval" in patterns or "graphrag" in patterns:
+        if pipeline.get("graph_capability") != "required":
+            errors.append(
+                "graph retrieval patterns require metadata.rag_pipeline.graph_capability "
+                "required"
+            )
+
+
+def _prompt_output_schema_ref(node: RuntimeNode) -> str | None:
+    prompt = node.raw.get("prompt")
+    if not isinstance(prompt, Mapping):
+        return None
+    value = prompt.get("output_schema_ref")
+    return str(value) if value is not None else None
+
+
+def _optional_mapping(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    label: str,
+    errors: list[str],
+) -> Mapping[str, Any] | None:
+    value = mapping.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        errors.append(f"{label}.{field_name} must be a mapping")
+        return None
+    return value
+
+
+def _validate_optional_enum(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    supported: set[str],
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None:
+        return
+    if value not in supported:
+        errors.append(f"{label}.{field_name} has unsupported value {value!r}")
+
+
+def _validate_optional_bool(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is not None and not isinstance(value, bool):
+        errors.append(f"{label}.{field_name} must be boolean")
+
+
+def _validate_optional_bool_or_value(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    supported_values: set[str],
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None or isinstance(value, bool):
+        return
+    if value not in supported_values:
+        errors.append(
+            f"{label}.{field_name} must be boolean or one of {sorted(supported_values)!r}"
+        )
+
+
+def _validate_optional_positive_int_or_unknown(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None or value == "unknown":
+        return
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        errors.append(f"{label}.{field_name} must be a positive integer or 'unknown'")
+
+
+def _is_string_list(value: object) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
 
 
 def _prompt_cache_policy_errors(manifest: RuntimeManifest) -> list[str]:

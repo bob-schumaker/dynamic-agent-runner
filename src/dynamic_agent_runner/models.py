@@ -137,6 +137,7 @@ class ModelCapabilities:
     context_window: int | None = None
     structured_output: bool | None = None
     reasoning: bool | None = None
+    embeddings: bool | None = None
     modalities: tuple[str, ...] = ()
     parallel_tool_calls: bool | None = None
     raw: Mapping[str, Any] = field(default_factory=dict)
@@ -150,6 +151,7 @@ class ModelCapabilities:
             context_window=_optional_int(raw.get("context_window")),
             structured_output=_optional_bool(raw.get("structured_output")),
             reasoning=_optional_bool(raw.get("reasoning")),
+            embeddings=_optional_bool(raw.get("embeddings")),
             modalities=tuple(str(item) for item in _copy_list(raw.get("modalities"))),
             parallel_tool_calls=_optional_bool(raw.get("parallel_tool_calls")),
             raw=raw,
@@ -190,6 +192,7 @@ class RuntimeNode:
     decision_subtype: str | None = None
     available_tools: tuple[str, ...] = ()
     skill_refs: tuple[str, ...] = ()
+    model_requirements: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> RuntimeNode:
@@ -212,6 +215,9 @@ class RuntimeNode:
             ),
             available_tools=available_tools,
             skill_refs=skill_refs,
+            model_requirements=_copy_mapping(
+                _as_mapping(raw.get("model_requirements"))
+            ),
             raw=raw,
         )
 
@@ -296,6 +302,7 @@ class RuntimeManifest:
     runtime: Mapping[str, Any] = field(default_factory=dict)
     metadata: Mapping[str, Any] = field(default_factory=dict)
     extensions: Mapping[str, Any] = field(default_factory=dict)
+    rag_pipeline: Mapping[str, Any] = field(default_factory=dict)
     legacy_root_fields: tuple[str, ...] = ()
     patterns_present: tuple[str, ...] = ()
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
@@ -333,6 +340,7 @@ class RuntimeManifest:
             runtime=runtime,
             metadata=metadata,
             extensions=extensions,
+            rag_pipeline=_copy_mapping(_as_mapping(metadata.get("rag_pipeline"))),
             legacy_root_fields=tuple(
                 field_name
                 for field_name in LEGACY_RUNTIME_ROOT_FIELDS
@@ -557,6 +565,7 @@ class PreparedNode:
     skill_refs: tuple[str, ...] = ()
     model: str | None = None
     model_parameters: Mapping[str, Any] = field(default_factory=dict)
+    model_requirements: Mapping[str, Any] = field(default_factory=dict)
     tool_choice: Any = None
     response_format: Mapping[str, Any] | None = None
     inputs: Mapping[str, Any] = field(default_factory=dict)
@@ -630,6 +639,7 @@ def _prepare_node(
         skill_refs=node.skill_refs,
         model=_prepared_model(raw, execution_policy),
         model_parameters=_copy_mapping(_as_mapping(raw.get("model_parameters"))),
+        model_requirements=_copy_mapping(_as_mapping(raw.get("model_requirements"))),
         tool_choice=raw.get("tool_choice"),
         response_format=_as_mapping(raw.get("response_format")),
         inputs=_copy_mapping(_as_mapping(raw.get("inputs"))),

@@ -31,6 +31,7 @@ def test_model_capabilities_normalizes_supported_fields() -> None:
             "context_window": "128000",
             "structured_output": True,
             "reasoning": False,
+            "embeddings": True,
             "modalities": ["text", "image"],
             "parallel_tool_calls": True,
             "provider": "openai-compatible",
@@ -40,6 +41,7 @@ def test_model_capabilities_normalizes_supported_fields() -> None:
     assert capabilities.context_window == 128000
     assert capabilities.structured_output is True
     assert capabilities.reasoning is False
+    assert capabilities.embeddings is True
     assert capabilities.modalities == ("text", "image")
     assert capabilities.parallel_tool_calls is True
     assert capabilities.raw["provider"] == "openai-compatible"
@@ -62,6 +64,7 @@ def test_runtime_manifest_preserves_model_capabilities_metadata() -> None:
                         "context_window": 128000,
                         "structured_output": True,
                         "reasoning": True,
+                        "embeddings": True,
                         "modalities": ["text"],
                         "parallel_tool_calls": False,
                     },
@@ -82,12 +85,14 @@ def test_runtime_manifest_preserves_model_capabilities_metadata() -> None:
         context_window=128000,
         structured_output=True,
         reasoning=True,
+        embeddings=True,
         modalities=("text",),
         parallel_tool_calls=False,
         raw={
             "context_window": 128000,
             "structured_output": True,
             "reasoning": True,
+            "embeddings": True,
             "modalities": ["text"],
             "parallel_tool_calls": False,
         },
@@ -112,6 +117,7 @@ def test_model_capabilities_do_not_leak_into_openai_request() -> None:
                             "context_window": 128000,
                             "structured_output": True,
                             "reasoning": True,
+                            "embeddings": True,
                             "modalities": ["text"],
                             "parallel_tool_calls": False,
                         },

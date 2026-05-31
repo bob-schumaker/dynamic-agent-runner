@@ -290,6 +290,155 @@ def test_llm_step_requires_prompt_or_prompt_source() -> None:
         validate_mapping(data)
 
 
+def test_rag_manifest_preserves_and_validates_pipeline_and_model_requirements() -> None:
+    """RAG metadata and LLM embedding requirements are accepted as manifest guidance."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "patterns_present": ["memory-augmented-agent", "rag", "embedding_retrieval"],
+        "rag_pipeline": {
+            "retrieval_mode": "embedding_semantic",
+            "embedding_capability": "required",
+            "graph_capability": "not_applicable",
+            "index_owner": "runtime",
+            "graph_store_owner": "unknown",
+            "corpus_boundary": "runtime fixture documents",
+            "chunking_policy": "runtime default",
+            "metadata_filters": ["tenant", "document_type"],
+            "reranking": "vector_score",
+            "freshness_policy": "manual",
+            "provenance_required": True,
+        },
+    }
+    data["nodes"] = [
+        {
+            "id": "analyze_request",
+            "kind": "llm_step",
+            "prompt": {
+                "user_template": "Plan retrieval for {prompt}",
+                "output_schema_ref": "retrieval_plan",
+            },
+            "model_requirements": {
+                "required_capabilities": ["structured_output", "embeddings"],
+                "reasoning_profile": {
+                    "level": "medium",
+                    "task_type": "planning",
+                    "task_subtype": "synthesis",
+                    "uncertainty_handling": "ask_clarification",
+                },
+                "context_requirements": {
+                    "expected_input_size": "medium",
+                    "minimum_context_window": 16000,
+                    "needs_retrieved_context": "conditional",
+                },
+                "output_requirements": {
+                    "format": "schema_ref",
+                    "schema_ref": "retrieval_plan",
+                    "evidence_citations": "preferred",
+                },
+                "operational_preferences": {
+                    "latency_sensitivity": "medium",
+                    "cost_sensitivity": "medium",
+                    "determinism": "balanced",
+                    "data_boundary": "private_runtime",
+                },
+                "fallback_policy": {
+                    "if_unavailable": "escalate",
+                    "minimum_acceptable_level": "low",
+                },
+            },
+        }
+    ]
+    data["edges"] = []
+    data["tools"] = []
+    data["output_contracts"] = [{"id": "retrieval_plan", "required_fields": ["query"]}]
+
+    manifest = load_runtime_manifest(data)
+
+    validate_runtime_manifest(manifest)
+    assert manifest.rag_pipeline["retrieval_mode"] == "embedding_semantic"
+    assert manifest.nodes[0].model_requirements["required_capabilities"] == [
+        "structured_output",
+        "embeddings",
+    ]
+
+
+def test_invalid_rag_pipeline_and_model_requirements_fail_validation() -> None:
+    """RAG and model-requirement metadata fail clearly when generated malformed."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "patterns_present": ["embedding_retrieval", "graphrag"],
+        "rag_pipeline": {
+            "retrieval_mode": "keyword",
+            "embedding_capability": "optional",
+            "graph_capability": "optional",
+            "metadata_filters": ["tenant", 3],
+            "provenance_required": "yes",
+        },
+    }
+    data["nodes"] = [
+        {
+            "id": "analyze_request",
+            "kind": "llm_step",
+            "prompt": {
+                "user_template": "Plan retrieval for {prompt}",
+                "output_schema_ref": "retrieval_plan",
+            },
+            "model_requirements": {
+                "required_capabilities": ["embeddings", "telepathy"],
+                "reasoning_profile": {"level": "heroic"},
+                "context_requirements": {
+                    "expected_input_size": "huge",
+                    "minimum_context_window": 0,
+                    "needs_retrieved_context": "sometimes",
+                },
+                "output_requirements": {
+                    "format": "spreadsheet",
+                    "schema_ref": "other_contract",
+                    "evidence_citations": "always",
+                },
+                "operational_preferences": {"data_boundary": "public_internet"},
+                "fallback_policy": {"if_unavailable": "guess"},
+            },
+        },
+        {
+            "id": "lookup_context",
+            "kind": "tool_use_step",
+            "tool_id": "search_repo",
+            "model_requirements": {"required_capabilities": ["embeddings"]},
+        },
+    ]
+    data["edges"] = [
+        {
+            "source": "analyze_request",
+            "target": "lookup_context",
+            "edge_kind": "sequential",
+        }
+    ]
+    data["output_contracts"] = [{"id": "retrieval_plan", "required_fields": ["query"]}]
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "required_capabilities contains unsupported values" in message
+    assert "reasoning_profile.level has unsupported value 'heroic'" in message
+    assert "minimum_context_window must be a positive integer or 'unknown'" in message
+    assert "prompt output_schema_ref 'retrieval_plan' must match" in message
+    assert (
+        "non-llm_step node 'lookup_context' must not define model_requirements"
+        in message
+    )
+    assert (
+        "embedding_retrieval requires metadata.rag_pipeline.retrieval_mode" in message
+    )
+    assert (
+        "graph retrieval patterns require metadata.rag_pipeline.graph_capability"
+        in message
+    )
+
+
 def test_runtime_behavior_overrides_pass_validation() -> None:
     """Valid prompt and skill overrides pass before execution."""
 
