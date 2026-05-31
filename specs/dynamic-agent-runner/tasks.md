@@ -15,7 +15,7 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: P3 — compile final workflow from immutable base plus overrides.
+- Next active slice: P4 — package-directory-first public API and CLI.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -692,16 +692,35 @@ explicitly instead of leaving them as undocumented future behavior.
 
 ### Slice P3 — Compile final workflow from immutable base plus overrides
 
-- [ ] P3.1 Add an explicit compile/preparation step that combines the immutable
+- [x] P3.1 Add an explicit compile/preparation step that combines the immutable
       base package with caller-owned overrides.
-- [ ] P3.2 Validate prompt, skill, tool-exposure, and other allowed override
+- [x] P3.2 Validate prompt, skill, tool-exposure, and other allowed override
       targets against the immutable base package before compilation succeeds.
-- [ ] P3.3 Produce a derived final workflow/prepared workflow model that becomes
+- [x] P3.3 Produce a derived final workflow/prepared workflow model that becomes
       the execution source of truth.
-- [ ] P3.4 Keep the loaded base package immutable after compilation and
+- [x] P3.4 Keep the loaded base package immutable after compilation and
       execution.
-- [ ] P3.5 Add tests for valid override compilation, invalid override rejection,
+- [x] P3.5 Add tests for valid override compilation, invalid override rejection,
       and immutable-base guarantees.
+
+### Slice P3 Completion Evidence
+
+- `src/dynamic_agent_runner/models.py` now defines `CompiledAgentWorkflow` as the
+  execution-ready workflow view layered over an immutable `LoadedAgentWorkflow`
+  base while preserving package-root and override metadata.
+- `src/dynamic_agent_runner/artifacts.py` now provides
+  `compile_loaded_workflow(...)` and `compile_agent_package(...)` so callers can
+  compile a canonical package plus caller-owned runtime overrides into a final
+  workflow before execution.
+- `src/dynamic_agent_runner/api.py`, `src/dynamic_agent_runner/context.py`, and
+  `src/dynamic_agent_runner/executor.py` now accept the compiled workflow form in
+  the public API, execution context, and execution path while keeping the loaded
+  base workflow available as a lower-level seam.
+- `tests/test_artifacts.py` covers loaded-workflow compilation and package
+  compilation, and `tests/test_executor.py` covers execution from a compiled
+  workflow plus package-loading API return shape.
+- Targeted validation: `poetry run pytest tests/test_artifacts.py
+  tests/test_executor.py tests/test_validation.py -q` — pass; 82 tests passed.
 
 ### Slice P4 — Package-directory-first public API and CLI
 

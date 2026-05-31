@@ -6,7 +6,8 @@ from collections.abc import Sequence
 from typing import Any
 
 from dynamic_agent_runner.artifacts import (
-    load_agent_package,
+    compile_agent_package,
+    compile_loaded_workflow,
     load_agent_workflow_artifacts,
 )
 from dynamic_agent_runner.context import WorkflowExecutionContext
@@ -15,7 +16,7 @@ from dynamic_agent_runner.executor import (
     execute_workflow_async,
 )
 from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
-from dynamic_agent_runner.models import LoadedAgentWorkflow
+from dynamic_agent_runner.models import CompiledAgentWorkflow, LoadedAgentWorkflow
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     OpenAIClientAdapter,
@@ -66,16 +67,36 @@ def load_agent_workflow(
     return workflow
 
 
+def compile_agent_workflow(
+    workflow: LoadedAgentWorkflow,
+    *,
+    runtime_overrides: Any | None = None,
+    tool_registry: Any | None = None,
+) -> CompiledAgentWorkflow:
+    """Compile a loaded workflow into a final execution-ready workflow."""
+
+    compiled = compile_loaded_workflow(
+        workflow,
+        runtime_overrides=runtime_overrides,
+    )
+    validate_agent_workflow(compiled, tool_registry=tool_registry)
+    return compiled
+
+
 def load_agent_package_workflow(
     package_directory: str,
     *,
+    runtime_overrides: Any | None = None,
     tool_registry: Any | None = None,
-) -> LoadedAgentWorkflow:
-    """Load a package-directory-first workflow bundle without executing it."""
+) -> CompiledAgentWorkflow:
+    """Load and compile a package-directory-first workflow bundle."""
 
-    workflow = load_agent_package(package_directory)
-    validate_agent_workflow(workflow, tool_registry=tool_registry)
-    return workflow
+    compiled = compile_agent_package(
+        package_directory,
+        runtime_overrides=runtime_overrides,
+    )
+    validate_agent_workflow(compiled, tool_registry=tool_registry)
+    return compiled
 
 
 def run_agent_workflow(

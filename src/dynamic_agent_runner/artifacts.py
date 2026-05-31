@@ -11,6 +11,7 @@ import yaml
 from dynamic_agent_runner.errors import ArtifactLoadError
 from dynamic_agent_runner.models import (
     AgentDesign,
+    CompiledAgentWorkflow,
     LoadedAgentWorkflow,
     RuntimeBehaviorOverrides,
     RuntimeManifest,
@@ -124,6 +125,43 @@ def load_agent_package(package_directory: TextInput) -> LoadedAgentWorkflow:
         else None,
         mermaid_graph=load_mermaid_graph(mermaid_graph_path),
         agent_design=load_agent_design(agent_design_path),
+    )
+
+
+def compile_loaded_workflow(
+    workflow: LoadedAgentWorkflow,
+    *,
+    runtime_overrides: ArtifactInput | None = None,
+) -> CompiledAgentWorkflow:
+    """Compile a loaded workflow into an execution-ready immutable view."""
+
+    compiled_overrides = (
+        load_runtime_behavior_overrides(runtime_overrides)
+        if runtime_overrides is not None
+        else workflow.runtime_overrides
+    )
+    return CompiledAgentWorkflow(
+        base_workflow=workflow,
+        runtime_manifest=workflow.runtime_manifest,
+        package_root=workflow.package_root,
+        skill_bundle_root=workflow.skill_bundle_root,
+        mermaid_graph=workflow.mermaid_graph,
+        agent_design=workflow.agent_design,
+        tool_index=workflow.tool_index,
+        runtime_overrides=compiled_overrides,
+    )
+
+
+def compile_agent_package(
+    package_directory: TextInput,
+    *,
+    runtime_overrides: ArtifactInput | None = None,
+) -> CompiledAgentWorkflow:
+    """Load and compile a canonical agent package with optional caller overrides."""
+
+    return compile_loaded_workflow(
+        load_agent_package(package_directory),
+        runtime_overrides=runtime_overrides,
     )
 
 

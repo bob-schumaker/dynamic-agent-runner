@@ -554,6 +554,20 @@ class LoadedAgentWorkflow:
 
 
 @dataclass(frozen=True)
+class CompiledAgentWorkflow:
+    """Execution-ready workflow view compiled from a base bundle plus overrides."""
+
+    base_workflow: LoadedAgentWorkflow
+    runtime_manifest: RuntimeManifest
+    package_root: str | None = None
+    skill_bundle_root: str | None = None
+    mermaid_graph: str | None = None
+    agent_design: AgentDesign | None = None
+    tool_index: ToolIndex | None = None
+    runtime_overrides: RuntimeBehaviorOverrides | None = None
+
+
+@dataclass(frozen=True)
 class PreparedNode:
     """Execution-ready node data derived once from a runtime node."""
 
@@ -586,7 +600,7 @@ class PreparedNode:
 class ExecutionPlan:
     """Prepared workflow control-flow and node lookup data."""
 
-    workflow: LoadedAgentWorkflow
+    workflow: LoadedAgentWorkflow | CompiledAgentWorkflow
     entrypoint_id: str | None
     nodes_by_id: Mapping[str, PreparedNode] = field(default_factory=dict)
     edges_by_source: Mapping[str, tuple[RuntimeEdge, ...]] = field(default_factory=dict)
@@ -596,7 +610,9 @@ class ExecutionPlan:
     max_steps: int | None = None
 
 
-def prepare_execution_plan(workflow: LoadedAgentWorkflow) -> ExecutionPlan:
+def prepare_execution_plan(
+    workflow: LoadedAgentWorkflow | CompiledAgentWorkflow,
+) -> ExecutionPlan:
     """Resolve execution indexes and node defaults once before a run."""
 
     manifest = workflow.runtime_manifest

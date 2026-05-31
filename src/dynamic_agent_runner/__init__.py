@@ -1,6 +1,7 @@
 """Runtime for generated dynamic agent workflow artifacts."""
 
 from dynamic_agent_runner.api import (
+    compile_agent_workflow,
     load_agent_package_workflow,
     load_agent_workflow,
     run_agent_workflow,
@@ -36,6 +37,7 @@ from dynamic_agent_runner.openai_client import (
     normalize_openai_response,
 )
 from dynamic_agent_runner.models import (
+    CompiledAgentWorkflow,
     ModelCapabilities,
     RuntimeBehaviorOverrides,
     ToolExposure,
@@ -95,6 +97,8 @@ __all__ = [
     "AsyncOpenAIClientAdapter",
     "AsyncOpenAIClientProtocol",
     "AsyncOpenAIResponsesResource",
+    "CompiledAgentWorkflow",
+    "compile_agent_workflow",
     "DynamicAgentRunnerError",
     "ModelExecutionError",
     "ModelResponse",

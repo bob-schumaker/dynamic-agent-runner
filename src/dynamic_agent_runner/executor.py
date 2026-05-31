@@ -28,6 +28,7 @@ from dynamic_agent_runner.hooks import (
     invoke_lifecycle_hook_async,
 )
 from dynamic_agent_runner.models import (
+    CompiledAgentWorkflow,
     ExecutionPlan,
     LoadedAgentWorkflow,
     PreparedNode,
@@ -123,7 +124,7 @@ class PreparedModelInput:
 
 
 async def execute_workflow_async(
-    workflow: LoadedAgentWorkflow | WorkflowExecutionContext,
+    workflow: LoadedAgentWorkflow | CompiledAgentWorkflow | WorkflowExecutionContext,
     *,
     prompt: str,
     tool_registry: ToolRegistry | None = None,
@@ -264,7 +265,7 @@ async def execute_workflow_async(
 
 
 def execute_workflow(
-    workflow: LoadedAgentWorkflow | WorkflowExecutionContext,
+    workflow: LoadedAgentWorkflow | CompiledAgentWorkflow | WorkflowExecutionContext,
     *,
     prompt: str,
     tool_registry: ToolRegistry | None = None,
@@ -350,7 +351,7 @@ def _run_async_from_sync(operation: Callable[[], Awaitable[T]]) -> T:
 
 
 def _normalize_execution_context(
-    workflow: LoadedAgentWorkflow | WorkflowExecutionContext,
+    workflow: LoadedAgentWorkflow | CompiledAgentWorkflow | WorkflowExecutionContext,
     *,
     tool_registry: ToolRegistry | None,
     model_adapter: ModelAdapter | Sequence[ModelAdapter] | None,

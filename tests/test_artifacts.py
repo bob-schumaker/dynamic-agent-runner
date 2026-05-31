@@ -8,6 +8,8 @@ import pytest
 
 from dynamic_agent_runner import load_agent_workflow
 from dynamic_agent_runner.artifacts import (
+    compile_agent_package,
+    compile_loaded_workflow,
     load_agent_package,
     load_runtime_behavior_overrides,
     load_runtime_manifest,
@@ -297,6 +299,121 @@ def test_load_agent_package_loads_canonical_sibling_artifacts(
     assert workflow.agent_design is not None
     assert workflow.agent_design.references_runtime_manifest is True
     assert workflow.agent_design.references_mermaid_graph is True
+
+
+def test_compile_loaded_workflow_layers_overrides_without_mutating_base() -> None:
+    """Compilation keeps the loaded base immutable while adding final overrides."""
+
+    base_workflow = load_agent_workflow(
+        runtime_manifest={
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "compile-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "skills": [{"id": "base-skill", "instructions": "Base skill."}],
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Base {prompt}"},
+                    "skill_refs": ["base-skill"],
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    compiled = compile_loaded_workflow(
+        base_workflow,
+        runtime_overrides={
+            "format_version": 1,
+            "override_type": "dynamic_agent_runtime_overrides",
+            "skills": {
+                "added": [
+                    {
+                        "id": "added-skill",
+                        "prompt_role": "developer",
+                        "instructions": "Added skill.",
+                    }
+                ]
+            },
+            "nodes": {
+                "answer": {
+                    "prompt": {
+                        "replace": {"user_template": "Compiled {prompt}"},
+                    },
+                    "skill_refs": {"add": ["added-skill"]},
+                }
+            },
+        },
+    )
+
+    assert compiled.base_workflow is base_workflow
+    assert compiled.runtime_manifest is base_workflow.runtime_manifest
+    assert base_workflow.runtime_overrides is None
+    assert compiled.runtime_overrides is not None
+    assert compiled.runtime_overrides.node_overrides["answer"].prompt is not None
+    assert compiled.runtime_overrides.node_overrides["answer"].prompt.replace == {
+        "user_template": "Compiled {prompt}"
+    }
+    assert compiled.runtime_overrides.added_skills[0].id == "added-skill"
+
+
+def test_compile_agent_package_preserves_base_package_and_adds_overrides(
+    tmp_path: Path,
+) -> None:
+    """Package compilation returns compiled workflow metadata plus caller overrides."""
+
+    package_dir = tmp_path / "compiled-package"
+    package_dir.mkdir()
+    (package_dir / "agent-runtime.yaml").write_text(
+        """
+format_version: 1
+package_type: dynamic_agent_design
+package_id: compiled-package
+entrypoint: answer
+packaging:
+  mode: hybrid_bundle
+skills:
+  - id: base-skill
+    instructions: Base skill.
+nodes:
+  - id: answer
+    kind: llm_step
+    prompt:
+      user_template: Base {prompt}
+    skill_refs:
+      - base-skill
+edges: []
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (package_dir / "agent-graph.mmd").write_text(MERMAID_GRAPH, encoding="utf-8")
+    (package_dir / "agent-design.md").write_text(AGENT_DESIGN, encoding="utf-8")
+
+    compiled = compile_agent_package(
+        package_dir,
+        runtime_overrides={
+            "format_version": 1,
+            "override_type": "dynamic_agent_runtime_overrides",
+            "skills": {
+                "added": [
+                    {
+                        "id": "added-skill",
+                        "prompt_role": "developer",
+                        "instructions": "Added skill.",
+                    }
+                ]
+            },
+        },
+    )
+
+    assert compiled.package_root == str(package_dir)
+    assert compiled.base_workflow.package_root == str(package_dir)
+    assert compiled.runtime_overrides is not None
+    assert compiled.runtime_overrides.added_skills[0].id == "added-skill"
 
 
 def test_load_agent_package_requires_runtime_manifest(tmp_path: Path) -> None:

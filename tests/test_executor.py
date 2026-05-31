@@ -6,7 +6,12 @@ import asyncio
 
 import pytest
 
-from dynamic_agent_runner.api import run_agent_workflow, run_agent_workflow_async
+from dynamic_agent_runner.api import (
+    compile_agent_workflow,
+    load_agent_package_workflow,
+    run_agent_workflow,
+    run_agent_workflow_async,
+)
 from dynamic_agent_runner.artifacts import load_runtime_manifest
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
@@ -161,6 +166,130 @@ def make_async_tool(
 
 def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
     return LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
+
+
+def test_compile_agent_workflow_preserves_base_workflow_and_executes_from_compiled() -> (
+    None
+):
+    """Execution accepts compiled workflows while leaving the base workflow unchanged."""
+
+    base_workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "compiled-execution-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "skills": [{"id": "base-skill", "instructions": "Base skill."}],
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Base {prompt}"},
+                    "skill_refs": ["base-skill"],
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    compiled = compile_agent_workflow(
+        base_workflow,
+        runtime_overrides={
+            "format_version": 1,
+            "override_type": "dynamic_agent_runtime_overrides",
+            "skills": {
+                "added": [
+                    {
+                        "id": "added-skill",
+                        "prompt_role": "developer",
+                        "instructions": "Extra instructions.",
+                    }
+                ]
+            },
+            "nodes": {
+                "answer": {
+                    "prompt": {
+                        "replace": {"user_template": "Compiled {prompt}"},
+                    },
+                    "skill_refs": {"add": ["added-skill"]},
+                }
+            },
+        },
+    )
+
+    result = execute_workflow(
+        compiled,
+        prompt="request",
+        model_adapter=make_adapter([{"id": "resp_1", "output_text": "done"}]),
+    )
+
+    assert result.final_result == "done"
+    assert base_workflow.runtime_overrides is None
+    request = result.state.node_inputs["answer"]
+    message_texts = [message["content"] for message in request["input"]]
+    assert "Extra instructions." in message_texts
+    assert "Compiled request" in message_texts
+
+
+def test_load_agent_package_workflow_returns_compiled_workflow(
+    tmp_path,
+) -> None:
+    """Package-loading API returns compiled workflow form with optional overrides."""
+
+    package_dir = tmp_path / "compiled-package"
+    package_dir.mkdir()
+    (package_dir / "agent-runtime.yaml").write_text(
+        """
+format_version: 1
+package_type: dynamic_agent_design
+package_id: compiled-package
+entrypoint: answer
+packaging:
+  mode: hybrid_bundle
+skills:
+  - id: base-skill
+    instructions: Base skill.
+nodes:
+  - id: answer
+    kind: llm_step
+    prompt:
+      user_template: Base {prompt}
+    skill_refs:
+      - base-skill
+edges: []
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (package_dir / "agent-graph.mmd").write_text("flowchart TD\n", encoding="utf-8")
+    (package_dir / "agent-design.md").write_text(
+        "Runtime manifest: `agent-runtime.yaml`\nMermaid graph: `agent-graph.mmd`\n",
+        encoding="utf-8",
+    )
+
+    compiled = load_agent_package_workflow(
+        str(package_dir),
+        runtime_overrides={
+            "format_version": 1,
+            "override_type": "dynamic_agent_runtime_overrides",
+            "skills": {
+                "added": [
+                    {
+                        "id": "added-skill",
+                        "prompt_role": "developer",
+                        "instructions": "Extra instructions.",
+                    }
+                ]
+            },
+        },
+    )
+
+    assert compiled.base_workflow.package_root == str(package_dir)
+    assert compiled.package_root == str(package_dir)
+    assert compiled.runtime_overrides is not None
+    assert compiled.runtime_overrides.added_skills[0].id == "added-skill"
 
 
 def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:

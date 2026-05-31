@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from dynamic_agent_runner.models import LoadedAgentWorkflow
+from dynamic_agent_runner.models import CompiledAgentWorkflow, LoadedAgentWorkflow
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     OpenAIClientAdapter,
@@ -24,7 +24,7 @@ class WorkflowExecutionContext:
     are per-run inputs while the context can be reused across runs.
     """
 
-    workflow: LoadedAgentWorkflow
+    workflow: LoadedAgentWorkflow | CompiledAgentWorkflow
     tool_registry: ToolRegistry | None = None
     model_adapter: (
         OpenAIClientAdapter
