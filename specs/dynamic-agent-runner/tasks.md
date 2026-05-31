@@ -635,15 +635,29 @@ explicitly instead of leaving them as undocumented future behavior.
 
 ### Slice P1 — Canonical package-directory loader
 
-- [ ] P1.1 Add one package-directory-first loader entry point rooted at a design
+- [x] P1.1 Add one package-directory-first loader entry point rooted at a design
       bundle path.
-- [ ] P1.2 Require `agent-runtime.yaml` in the package root as the authoritative
+- [x] P1.2 Require `agent-runtime.yaml` in the package root as the authoritative
       executable artifact.
-- [ ] P1.3 Resolve `agent-design.md` and `agent-graph.mmd` as fixed sibling
+- [x] P1.3 Resolve `agent-design.md` and `agent-graph.mmd` as fixed sibling
       artifacts relative to the package root.
-- [ ] P1.4 Preserve any lower-level artifact helper functions only as internal
+- [x] P1.4 Preserve any lower-level artifact helper functions only as internal
       seams for tests or implementation support, not as the primary public
       contract.
+
+### Slice P1 Completion Evidence
+
+- Added package-directory-first loading via `load_agent_package(...)` in
+  `src/dynamic_agent_runner/artifacts.py` and validated public package loading
+  via `load_agent_package_workflow(...)` in `src/dynamic_agent_runner/api.py`.
+- `load_agent_package(...)` requires `agent-runtime.yaml` at the package root,
+  records `package_root` on `LoadedAgentWorkflow`, and resolves fixed sibling
+  `agent-design.md` / `agent-graph.mmd` artifacts when present.
+- Lower-level artifact helpers remain available for tests and internal support;
+  the new package-directory loader is additive rather than replacing those seams
+  during P1.
+- Targeted validation: `poetry run pytest tests/test_artifacts.py
+  tests/test_import.py -q` — pass; 14 tests passed.
 
 ### Slice P2 — Strict package and `skill-bundle/` validation
 

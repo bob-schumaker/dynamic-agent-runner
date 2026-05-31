@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from dynamic_agent_runner.artifacts import load_agent_workflow_artifacts
+from dynamic_agent_runner.artifacts import (
+    load_agent_package,
+    load_agent_workflow_artifacts,
+)
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.executor import (
     _run_async_from_sync,
@@ -59,6 +62,18 @@ def load_agent_workflow(
         tool_index=tool_index,
         runtime_overrides=runtime_overrides,
     )
+    validate_agent_workflow(workflow, tool_registry=tool_registry)
+    return workflow
+
+
+def load_agent_package_workflow(
+    package_directory: str,
+    *,
+    tool_registry: Any | None = None,
+) -> LoadedAgentWorkflow:
+    """Load a package-directory-first workflow bundle without executing it."""
+
+    workflow = load_agent_package(package_directory)
     validate_agent_workflow(workflow, tool_registry=tool_registry)
     return workflow
 

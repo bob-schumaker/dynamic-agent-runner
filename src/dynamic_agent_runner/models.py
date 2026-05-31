@@ -545,6 +545,7 @@ class LoadedAgentWorkflow:
     """Artifact bundle loaded for later validation or execution slices."""
 
     runtime_manifest: RuntimeManifest
+    package_root: str | None = None
     mermaid_graph: str | None = None
     agent_design: AgentDesign | None = None
     tool_index: ToolIndex | None = None

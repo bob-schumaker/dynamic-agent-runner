@@ -1,6 +1,7 @@
 """Runtime for generated dynamic agent workflow artifacts."""
 
 from dynamic_agent_runner.api import (
+    load_agent_package_workflow,
     load_agent_workflow,
     run_agent_workflow,
     run_agent_workflow_async,
@@ -155,6 +156,7 @@ __all__ = [
     "WorkflowLifecycleHooks",
     "WorkflowValidationError",
     "load_agent_workflow",
+    "load_agent_package_workflow",
     "run_agent_workflow",
     "run_agent_workflow_async",
 ]

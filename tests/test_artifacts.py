@@ -8,6 +8,7 @@ import pytest
 
 from dynamic_agent_runner import load_agent_workflow
 from dynamic_agent_runner.artifacts import (
+    load_agent_package,
     load_runtime_behavior_overrides,
     load_runtime_manifest,
     load_tool_index,
@@ -274,6 +275,37 @@ def test_load_agent_workflow_resolves_mermaid_reference(tmp_path: Path) -> None:
 
     assert workflow.runtime_manifest.package_id == "metadata-rich-agent"
     assert workflow.mermaid_graph == MERMAID_GRAPH
+
+
+def test_load_agent_package_loads_canonical_sibling_artifacts(
+    tmp_path: Path,
+) -> None:
+    """Package-directory loading uses fixed sibling artifact names."""
+
+    package_dir = tmp_path / "metadata-rich-agent"
+    package_dir.mkdir()
+    (package_dir / "agent-runtime.yaml").write_text(RUNTIME_YAML, encoding="utf-8")
+    (package_dir / "agent-graph.mmd").write_text(MERMAID_GRAPH, encoding="utf-8")
+    (package_dir / "agent-design.md").write_text(AGENT_DESIGN, encoding="utf-8")
+
+    workflow = load_agent_package(package_dir)
+
+    assert workflow.package_root == str(package_dir)
+    assert workflow.runtime_manifest.package_id == "metadata-rich-agent"
+    assert workflow.mermaid_graph == MERMAID_GRAPH
+    assert workflow.agent_design is not None
+    assert workflow.agent_design.references_runtime_manifest is True
+    assert workflow.agent_design.references_mermaid_graph is True
+
+
+def test_load_agent_package_requires_runtime_manifest(tmp_path: Path) -> None:
+    """Package-directory loading fails closed when agent-runtime.yaml is missing."""
+
+    package_dir = tmp_path / "missing-runtime"
+    package_dir.mkdir()
+
+    with pytest.raises(ArtifactLoadError, match="missing required agent-runtime.yaml"):
+        load_agent_package(package_dir)
 
 
 def test_load_agent_workflow_accepts_all_artifact_inputs() -> None:

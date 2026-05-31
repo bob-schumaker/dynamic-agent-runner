@@ -21,6 +21,10 @@ ParsedInput = Mapping[str, Any]
 TextInput = str | Path
 ArtifactInput = TextInput | ParsedInput
 
+PACKAGE_RUNTIME_MANIFEST = "agent-runtime.yaml"
+PACKAGE_AGENT_DESIGN = "agent-design.md"
+PACKAGE_MERMAID_GRAPH = "agent-graph.mmd"
+
 
 def load_runtime_manifest(value: ArtifactInput) -> RuntimeManifest:
     """Load an `agent-runtime.yaml` artifact from a path, raw YAML, or mapping."""
@@ -90,6 +94,33 @@ def load_agent_workflow_artifacts(
     )
 
 
+def load_agent_package(package_directory: TextInput) -> LoadedAgentWorkflow:
+    """Load a canonical agent package directory rooted at a design bundle path."""
+
+    package_root = _require_directory(package_directory, artifact_name="agent package")
+    runtime_path = package_root / PACKAGE_RUNTIME_MANIFEST
+    if not runtime_path.exists():
+        raise ArtifactLoadError(
+            f"Agent package is missing required {PACKAGE_RUNTIME_MANIFEST}: {runtime_path}"
+        )
+
+    agent_design_path = package_root / PACKAGE_AGENT_DESIGN
+    mermaid_graph_path = package_root / PACKAGE_MERMAID_GRAPH
+
+    return LoadedAgentWorkflow(
+        runtime_manifest=load_runtime_manifest(runtime_path),
+        package_root=str(package_root),
+        mermaid_graph=(
+            load_mermaid_graph(mermaid_graph_path)
+            if mermaid_graph_path.exists()
+            else None
+        ),
+        agent_design=(
+            load_agent_design(agent_design_path) if agent_design_path.exists() else None
+        ),
+    )
+
+
 def _load_manifest_graph_reference(
     *,
     runtime_manifest_input: ArtifactInput,
@@ -155,3 +186,12 @@ def _existing_path(value: object) -> Path | None:
         return path if path.exists() else None
     except OSError:
         return None
+
+
+def _require_directory(value: TextInput, *, artifact_name: str) -> Path:
+    path = Path(value)
+    if not path.exists():
+        raise ArtifactLoadError(f"Could not find {artifact_name} at {path}")
+    if not path.is_dir():
+        raise ArtifactLoadError(f"Expected {artifact_name} to be a directory: {path}")
+    return path
