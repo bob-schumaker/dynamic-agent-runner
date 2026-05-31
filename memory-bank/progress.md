@@ -176,6 +176,8 @@
   `89926d8 docs(spec): record power-marimo fixture completion`.
 - Package-alignment backlog refresh commit exists:
   `8308cd6 docs(specs): update package-alignment backlog`.
+- Package-alignment Slice P1 implementation commit exists:
+  `63403d3 feat(loader): add package-directory workflow loader`.
 - Llama.cpp / graph-mutation feature-spec commit exists:
   `1346458 docs(spec): capture llama.cpp and graph mutation feature`.
 - OpenAI Model Registry reference-notes commit exists:
@@ -185,6 +187,14 @@
   validation, provider-neutral `model_requirements`, ReAct-style `react_loop`
   manifests, RAG / GraphRAG metadata, and `evidence_loop` alignment with the
   latest upstream `agent-development-skill` runtime-package reference.
+- Package-alignment Slice P1 is complete in `63403d3`: the runtime now supports
+  canonical package-directory loading through `load_agent_package(...)` and
+  `load_agent_package_workflow(...)`, requires `agent-runtime.yaml` at the
+  package root, records `package_root` on `LoadedAgentWorkflow`, and resolves
+  fixed sibling `agent-design.md` / `agent-graph.mmd` artifacts when present.
+- The next active runtime-package alignment slice is P2, which will add strict
+  package and `skill-bundle/` validation for bundled skill/support-file paths
+  and fail-closed handling for missing declared package assets.
 - Model-routing/fallback alignment is implemented locally and pending commit:
   `api.py` and `context.py` no longer expose a premature caller-visible
   `model_map` override surface, `executor.py` keeps manifest-driven

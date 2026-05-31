@@ -19,11 +19,17 @@
   `../power-marimo/skills/marimo-pair/SKILL.md` was recorded in `a084f2d`. Slice
   S5 completed in `84dfd31`, with plan/task evidence recorded in `387b574` and
   governing spec documents refreshed in `89926d8`; the runtime-package
-  simplification S1-S5 sequence is now complete. Current uncommitted work adds
-  support for the agent-development skill's newer RAG and embedding manifest
-  output: `llm_step.model_requirements`, `metadata.rag_pipeline`, and
-  `ModelCapabilities.embeddings` are now preserved and validated as
-  provider-neutral manifest guidance.
+- Package-alignment Slice P1 is now complete in commit `63403d3`, adding a
+  package-directory-first loader path that treats a design bundle directory as
+  the canonical base-package input. The runtime now exposes
+  `load_agent_package(...)` / `load_agent_package_workflow(...)`, requires
+  `agent-runtime.yaml` at the package root, records `package_root` on loaded
+  workflows, and resolves fixed sibling `agent-design.md` and
+  `agent-graph.mmd` artifacts when present.
+- Current uncommitted work still adds support for the agent-development skill's
+  newer RAG and embedding manifest output: `llm_step.model_requirements`,
+  `metadata.rag_pipeline`, and `ModelCapabilities.embeddings` are now preserved
+  and validated as provider-neutral manifest guidance.
 - Package-alignment backlog review against the latest upstream
   `agent-development-skill` runtime-package reference is now committed in
   `8308cd6`. `specs/dynamic-agent-runner/tasks.md` now records that package-
@@ -31,6 +37,9 @@
   `skill-bundle/` handling, but also provider-neutral `model_requirements`,
   ReAct-style `react_loop` manifests, RAG/GraphRAG metadata, and the upstream
   `evidence_loop` pattern.
+- The next active implementation slice after P1 is P2: strict package and
+  `skill-bundle/` validation, including bundled skill/support-file path checks
+  and fail-closed handling for missing package-declared assets.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public
