@@ -546,6 +546,7 @@ class LoadedAgentWorkflow:
 
     runtime_manifest: RuntimeManifest
     package_root: str | None = None
+    skill_bundle_root: str | None = None
     mermaid_graph: str | None = None
     agent_design: AgentDesign | None = None
     tool_index: ToolIndex | None = None

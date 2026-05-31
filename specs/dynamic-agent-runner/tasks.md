@@ -15,7 +15,7 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: P1 — canonical package-directory loader.
+- Next active slice: P3 — compile final workflow from immutable base plus overrides.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -661,16 +661,34 @@ explicitly instead of leaving them as undocumented future behavior.
 
 ### Slice P2 — Strict package and `skill-bundle/` validation
 
-- [ ] P2.1 Add explicit `skill-bundle/` awareness to loaded workflow/package
+- [x] P2.1 Add explicit `skill-bundle/` awareness to loaded workflow/package
       models.
-- [ ] P2.2 Validate top-level `skills[*].bundled_path` references against the
+- [x] P2.2 Validate top-level `skills[*].bundled_path` references against the
       package `skill-bundle/` directory.
-- [ ] P2.3 Validate `skills[*].support_files[*].bundled_path` references against
+- [x] P2.3 Validate `skills[*].support_files[*].bundled_path` references against
       the package `skill-bundle/` directory.
-- [ ] P2.4 Fail clearly for missing sibling artifacts or missing bundled support
+- [x] P2.4 Fail clearly for missing sibling artifacts or missing bundled support
       files instead of silently degrading.
-- [ ] P2.5 Add tests for valid packages, missing sibling files, and missing
+- [x] P2.5 Add tests for valid packages, missing sibling files, and missing
       bundled skill/support files.
+
+### Slice P2 Completion Evidence
+
+- `LoadedAgentWorkflow` now preserves canonical package-directory metadata for
+  both `package_root` and optional `skill_bundle_root` so package validation can
+  reason about bundled skill assets.
+- `load_agent_package(...)` now fails closed for missing canonical sibling
+  artifacts (`agent-design.md` and `agent-graph.mmd`) and records the configured
+  `packaging.skill_bundle_dir` as package-local `skill_bundle_root` when present.
+- `validate_agent_workflow(...)` now validates package-local
+  `skills[*].bundled_path` and `skills[*].support_files[*].bundled_path`
+  references against the canonical `skill-bundle/` directory and fails clearly
+  for missing bundled files or escaping paths.
+- `tests/test_artifacts.py` covers missing canonical sibling files, and
+  `tests/test_validation.py` covers valid bundled-skill packages plus missing
+  bundled skill and support-file failures.
+- Targeted validation: `poetry run pytest tests/test_artifacts.py
+  tests/test_validation.py -q` — pass; 37 tests passed.
 
 ### Slice P3 — Compile final workflow from immutable base plus overrides
 

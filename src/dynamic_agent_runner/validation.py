@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import Any
 
 from dynamic_agent_runner.errors import WorkflowValidationError
@@ -139,6 +140,33 @@ def validate_agent_workflow(
         validate_runtime_behavior_overrides(workflow)
     else:
         validate_manifest_skill_references(workflow)
+    validate_loaded_package_structure(workflow)
+
+
+def validate_loaded_package_structure(workflow: LoadedAgentWorkflow) -> None:
+    """Validate canonical package-directory structure and bundled skill paths."""
+
+    package_root = workflow.package_root
+    if package_root is None:
+        return
+
+    errors: list[str] = []
+    skill_bundle_root = (
+        Path(workflow.skill_bundle_root) if workflow.skill_bundle_root else None
+    )
+    if skill_bundle_root is not None and not skill_bundle_root.is_dir():
+        errors.append(
+            f"package skill-bundle directory does not exist: {skill_bundle_root}"
+        )
+
+    for skill in workflow.runtime_manifest.skills:
+        _extend(
+            errors,
+            _bundled_skill_path_errors(skill, skill_bundle_root),
+        )
+
+    if errors:
+        raise WorkflowValidationError(_format_errors("agent package", errors))
 
 
 def validate_runtime_behavior_overrides(workflow: LoadedAgentWorkflow) -> None:
@@ -338,6 +366,90 @@ def _effective_prompt_errors(workflow: LoadedAgentWorkflow) -> list[str]:
                 f"llm_step node {node.id!r} effective prompt must define "
                 "user_template or user"
             )
+    return errors
+
+
+def _bundled_skill_path_errors(skill: Any, skill_bundle_root: Path | None) -> list[str]:
+    errors: list[str] = []
+    skill_id = skill.id or "<unknown>"
+    bundled_path = _bundled_path_value(skill.raw)
+    if bundled_path is not None:
+        if skill_bundle_root is None:
+            errors.append(
+                f"skill {skill_id!r} declares bundled_path but packaging.skill_bundle_dir is missing"
+            )
+        else:
+            _extend(
+                errors,
+                _bundled_path_target_errors(
+                    bundled_path,
+                    skill_bundle_root,
+                    label=f"skill {skill_id!r}",
+                ),
+            )
+
+    for index, support_file in enumerate(_support_file_items(skill.raw)):
+        support_bundled_path = _bundled_path_value(support_file)
+        if support_bundled_path is None:
+            continue
+        if skill_bundle_root is None:
+            errors.append(
+                "skill "
+                f"{skill_id!r} support file at position {index} declares bundled_path "
+                "but packaging.skill_bundle_dir is missing"
+            )
+            continue
+        support_label = support_file.get("id") or support_file.get("name") or str(index)
+        _extend(
+            errors,
+            _bundled_path_target_errors(
+                support_bundled_path,
+                skill_bundle_root,
+                label=f"skill {skill_id!r} support file {support_label!r}",
+            ),
+        )
+    return errors
+
+
+def _support_file_items(raw_skill: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    value = raw_skill.get("support_files")
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, Mapping)]
+
+
+def _bundled_path_value(raw_value: Mapping[str, Any]) -> str | None:
+    value = raw_value.get("bundled_path")
+    if value is None:
+        return None
+    return str(value)
+
+
+def _bundled_path_target_errors(
+    bundled_path: str,
+    skill_bundle_root: Path,
+    *,
+    label: str,
+) -> list[str]:
+    errors: list[str] = []
+    relative_path = Path(bundled_path)
+    if relative_path.is_absolute():
+        errors.append(f"{label} bundled_path must be relative: {bundled_path!r}")
+        return errors
+
+    candidate = skill_bundle_root / relative_path
+    try:
+        candidate.relative_to(skill_bundle_root)
+    except ValueError:
+        errors.append(
+            f"{label} bundled_path escapes package skill-bundle directory: {bundled_path!r}"
+        )
+        return errors
+
+    if not candidate.is_file():
+        errors.append(
+            f"{label} bundled_path not found in package skill-bundle: {candidate}"
+        )
     return errors
 
 

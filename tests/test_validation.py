@@ -7,6 +7,7 @@ from copy import deepcopy
 import pytest
 
 from dynamic_agent_runner.artifacts import (
+    load_agent_package,
     load_runtime_behavior_overrides,
     load_runtime_manifest,
     load_tool_index,
@@ -117,6 +118,147 @@ def test_valid_workflow_with_external_tool_index_passes() -> None:
     )
 
     validate_agent_workflow(workflow)
+
+
+def test_package_workflow_with_bundled_skill_and_support_files_passes(
+    tmp_path,
+) -> None:
+    """Package validation accepts bundled skill and support files under skill-bundle/."""
+
+    package_dir = tmp_path / "bundled-skill-package"
+    package_dir.mkdir()
+    skill_bundle_dir = package_dir / "skill-bundle"
+    (skill_bundle_dir / "skills" / "demo-skill").mkdir(parents=True)
+    (skill_bundle_dir / "assets").mkdir(parents=True)
+    (skill_bundle_dir / "skills" / "demo-skill" / "SKILL.md").write_text(
+        "# Demo Skill\n",
+        encoding="utf-8",
+    )
+    (skill_bundle_dir / "assets" / "guide.md").write_text(
+        "guide\n",
+        encoding="utf-8",
+    )
+    (package_dir / "agent-design.md").write_text(
+        "Runtime manifest: `agent-runtime.yaml`\nMermaid graph: `agent-graph.mmd`\n",
+        encoding="utf-8",
+    )
+    (package_dir / "agent-graph.mmd").write_text("flowchart TD\n", encoding="utf-8")
+    (package_dir / "agent-runtime.yaml").write_text(
+        """
+format_version: 1
+package_type: dynamic_agent_design
+package_id: bundled-skill-package
+entrypoint: analyze_request
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+skills:
+  - id: demo-skill
+    bundled_path: skills/demo-skill/SKILL.md
+    support_files:
+      - id: guide
+        bundled_path: assets/guide.md
+nodes:
+  - id: analyze_request
+    kind: llm_step
+    prompt:
+      user_template: Analyze {prompt}
+edges: []
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    workflow = load_agent_package(package_dir)
+
+    validate_agent_workflow(workflow)
+
+
+def test_package_workflow_fails_for_missing_bundled_skill_file(tmp_path) -> None:
+    """Package validation fails clearly when a bundled skill file is missing."""
+
+    package_dir = tmp_path / "missing-bundled-skill"
+    package_dir.mkdir()
+    (package_dir / "skill-bundle").mkdir()
+    (package_dir / "agent-design.md").write_text(
+        "Runtime manifest: `agent-runtime.yaml`\nMermaid graph: `agent-graph.mmd`\n",
+        encoding="utf-8",
+    )
+    (package_dir / "agent-graph.mmd").write_text("flowchart TD\n", encoding="utf-8")
+    (package_dir / "agent-runtime.yaml").write_text(
+        """
+format_version: 1
+package_type: dynamic_agent_design
+package_id: missing-bundled-skill
+entrypoint: analyze_request
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+skills:
+  - id: demo-skill
+    bundled_path: skills/demo-skill/SKILL.md
+nodes:
+  - id: analyze_request
+    kind: llm_step
+    prompt:
+      user_template: Analyze {prompt}
+edges: []
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    workflow = load_agent_package(package_dir)
+
+    with pytest.raises(WorkflowValidationError, match="bundled_path not found"):
+        validate_agent_workflow(workflow)
+
+
+def test_package_workflow_fails_for_missing_bundled_support_file(tmp_path) -> None:
+    """Package validation fails clearly when a bundled support file is missing."""
+
+    package_dir = tmp_path / "missing-bundled-support"
+    package_dir.mkdir()
+    skill_dir = package_dir / "skill-bundle" / "skills" / "demo-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Demo Skill\n", encoding="utf-8")
+    (package_dir / "agent-design.md").write_text(
+        "Runtime manifest: `agent-runtime.yaml`\nMermaid graph: `agent-graph.mmd`\n",
+        encoding="utf-8",
+    )
+    (package_dir / "agent-graph.mmd").write_text("flowchart TD\n", encoding="utf-8")
+    (package_dir / "agent-runtime.yaml").write_text(
+        """
+format_version: 1
+package_type: dynamic_agent_design
+package_id: missing-bundled-support
+entrypoint: analyze_request
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+skills:
+  - id: demo-skill
+    bundled_path: skills/demo-skill/SKILL.md
+    support_files:
+      - id: guide
+        bundled_path: assets/guide.md
+nodes:
+  - id: analyze_request
+    kind: llm_step
+    prompt:
+      user_template: Analyze {prompt}
+edges: []
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    workflow = load_agent_package(package_dir)
+
+    with pytest.raises(
+        WorkflowValidationError, match="support file 'guide'.*bundled_path not found"
+    ):
+        validate_agent_workflow(workflow)
 
 
 def test_missing_required_runtime_field_fails() -> None:

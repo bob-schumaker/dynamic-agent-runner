@@ -24,6 +24,7 @@ ArtifactInput = TextInput | ParsedInput
 PACKAGE_RUNTIME_MANIFEST = "agent-runtime.yaml"
 PACKAGE_AGENT_DESIGN = "agent-design.md"
 PACKAGE_MERMAID_GRAPH = "agent-graph.mmd"
+DEFAULT_SKILL_BUNDLE_DIR = "skill-bundle"
 
 
 def load_runtime_manifest(value: ArtifactInput) -> RuntimeManifest:
@@ -104,20 +105,25 @@ def load_agent_package(package_directory: TextInput) -> LoadedAgentWorkflow:
             f"Agent package is missing required {PACKAGE_RUNTIME_MANIFEST}: {runtime_path}"
         )
 
-    agent_design_path = package_root / PACKAGE_AGENT_DESIGN
-    mermaid_graph_path = package_root / PACKAGE_MERMAID_GRAPH
+    loaded_runtime = load_runtime_manifest(runtime_path)
+    agent_design_path = _require_package_file(
+        package_root / PACKAGE_AGENT_DESIGN,
+        artifact_name=PACKAGE_AGENT_DESIGN,
+    )
+    mermaid_graph_path = _require_package_file(
+        package_root / PACKAGE_MERMAID_GRAPH,
+        artifact_name=PACKAGE_MERMAID_GRAPH,
+    )
+    skill_bundle_root = _skill_bundle_root(package_root, loaded_runtime)
 
     return LoadedAgentWorkflow(
-        runtime_manifest=load_runtime_manifest(runtime_path),
+        runtime_manifest=loaded_runtime,
         package_root=str(package_root),
-        mermaid_graph=(
-            load_mermaid_graph(mermaid_graph_path)
-            if mermaid_graph_path.exists()
-            else None
-        ),
-        agent_design=(
-            load_agent_design(agent_design_path) if agent_design_path.exists() else None
-        ),
+        skill_bundle_root=str(skill_bundle_root)
+        if skill_bundle_root is not None
+        else None,
+        mermaid_graph=load_mermaid_graph(mermaid_graph_path),
+        agent_design=load_agent_design(agent_design_path),
     )
 
 
@@ -195,3 +201,25 @@ def _require_directory(value: TextInput, *, artifact_name: str) -> Path:
     if not path.is_dir():
         raise ArtifactLoadError(f"Expected {artifact_name} to be a directory: {path}")
     return path
+
+
+def _require_package_file(path: Path, *, artifact_name: str) -> Path:
+    if not path.exists():
+        raise ArtifactLoadError(
+            f"Agent package is missing required {artifact_name}: {path}"
+        )
+    if not path.is_file():
+        raise ArtifactLoadError(
+            f"Expected package artifact {artifact_name} to be a file: {path}"
+        )
+    return path
+
+
+def _skill_bundle_root(
+    package_root: Path, runtime_manifest: RuntimeManifest
+) -> Path | None:
+    raw_dir = runtime_manifest.packaging.get("skill_bundle_dir")
+    if raw_dir is None:
+        return None
+    skill_bundle_dir = str(raw_dir).strip() or DEFAULT_SKILL_BUNDLE_DIR
+    return package_root / skill_bundle_dir

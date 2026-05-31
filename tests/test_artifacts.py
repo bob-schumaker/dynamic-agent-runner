@@ -291,6 +291,7 @@ def test_load_agent_package_loads_canonical_sibling_artifacts(
     workflow = load_agent_package(package_dir)
 
     assert workflow.package_root == str(package_dir)
+    assert workflow.skill_bundle_root is None
     assert workflow.runtime_manifest.package_id == "metadata-rich-agent"
     assert workflow.mermaid_graph == MERMAID_GRAPH
     assert workflow.agent_design is not None
@@ -305,6 +306,32 @@ def test_load_agent_package_requires_runtime_manifest(tmp_path: Path) -> None:
     package_dir.mkdir()
 
     with pytest.raises(ArtifactLoadError, match="missing required agent-runtime.yaml"):
+        load_agent_package(package_dir)
+
+
+@pytest.mark.parametrize(
+    ("missing_name", "expected_message"),
+    [
+        ("agent-design.md", "missing required agent-design.md"),
+        ("agent-graph.mmd", "missing required agent-graph.mmd"),
+    ],
+)
+def test_load_agent_package_requires_canonical_sibling_artifacts(
+    tmp_path: Path,
+    missing_name: str,
+    expected_message: str,
+) -> None:
+    """Package-directory loading fails closed when canonical sibling files are missing."""
+
+    package_dir = tmp_path / "missing-sibling"
+    package_dir.mkdir()
+    (package_dir / "agent-runtime.yaml").write_text(RUNTIME_YAML, encoding="utf-8")
+    if missing_name != "agent-design.md":
+        (package_dir / "agent-design.md").write_text(AGENT_DESIGN, encoding="utf-8")
+    if missing_name != "agent-graph.mmd":
+        (package_dir / "agent-graph.mmd").write_text(MERMAID_GRAPH, encoding="utf-8")
+
+    with pytest.raises(ArtifactLoadError, match=expected_message):
         load_agent_package(package_dir)
 
 
