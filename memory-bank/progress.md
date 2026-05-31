@@ -178,6 +178,8 @@
   `8308cd6 docs(specs): update package-alignment backlog`.
 - Package-alignment Slice P1 implementation commit exists:
   `63403d3 feat(loader): add package-directory workflow loader`.
+- Package-alignment Slice P2 implementation commit exists:
+  `a1880e7 feat(loader): validate bundled package assets`.
 - Llama.cpp / graph-mutation feature-spec commit exists:
   `1346458 docs(spec): capture llama.cpp and graph mutation feature`.
 - OpenAI Model Registry reference-notes commit exists:
@@ -192,9 +194,16 @@
   `load_agent_package_workflow(...)`, requires `agent-runtime.yaml` at the
   package root, records `package_root` on `LoadedAgentWorkflow`, and resolves
   fixed sibling `agent-design.md` / `agent-graph.mmd` artifacts when present.
-- The next active runtime-package alignment slice is P2, which will add strict
-  package and `skill-bundle/` validation for bundled skill/support-file paths
-  and fail-closed handling for missing declared package assets.
+- Package-alignment Slice P2 is complete in `a1880e7`: package-loaded workflows
+  now preserve optional `skill_bundle_root`, canonical package loading fails
+  closed for missing `agent-design.md` / `agent-graph.mmd`, and package
+  validation now checks `skills[*].bundled_path` and
+  `skills[*].support_files[*].bundled_path` against the configured
+  `skill-bundle/` directory while failing clearly for missing or escaping
+  bundled files.
+- The next active runtime-package alignment slice is P3, which will add an
+  explicit compile/preparation step that combines the immutable base package
+  with caller-owned overrides while preserving immutable-base guarantees.
 - Model-routing/fallback alignment is implemented locally and pending commit:
   `api.py` and `context.py` no longer expose a premature caller-visible
   `model_map` override surface, `executor.py` keeps manifest-driven

@@ -19,13 +19,14 @@
   `../power-marimo/skills/marimo-pair/SKILL.md` was recorded in `a084f2d`. Slice
   S5 completed in `84dfd31`, with plan/task evidence recorded in `387b574` and
   governing spec documents refreshed in `89926d8`; the runtime-package
-- Package-alignment Slice P1 is now complete in commit `63403d3`, adding a
-  package-directory-first loader path that treats a design bundle directory as
-  the canonical base-package input. The runtime now exposes
-  `load_agent_package(...)` / `load_agent_package_workflow(...)`, requires
-  `agent-runtime.yaml` at the package root, records `package_root` on loaded
-  workflows, and resolves fixed sibling `agent-design.md` and
-  `agent-graph.mmd` artifacts when present.
+- Package-alignment Slice P1 is complete in commit `63403d3`, and Slice P2 is
+  now complete in commit `a1880e7`. P2 adds strict canonical package validation:
+  package-loaded workflows now preserve optional `skill_bundle_root`,
+  `load_agent_package(...)` fails closed for missing canonical sibling artifacts
+  (`agent-design.md`, `agent-graph.mmd`), and workflow validation now checks
+  package-local `skills[*].bundled_path` plus
+  `skills[*].support_files[*].bundled_path` entries against the configured
+  package `skill-bundle/` directory.
 - Current uncommitted work still adds support for the agent-development skill's
   newer RAG and embedding manifest output: `llm_step.model_requirements`,
   `metadata.rag_pipeline`, and `ModelCapabilities.embeddings` are now preserved
@@ -37,9 +38,10 @@
   `skill-bundle/` handling, but also provider-neutral `model_requirements`,
   ReAct-style `react_loop` manifests, RAG/GraphRAG metadata, and the upstream
   `evidence_loop` pattern.
-- The next active implementation slice after P1 is P2: strict package and
-  `skill-bundle/` validation, including bundled skill/support-file path checks
-  and fail-closed handling for missing package-declared assets.
+- The next active implementation slice after P2 is P3: compile a derived final
+  workflow from an immutable base package plus caller-owned overrides, validate
+  override targets against the immutable base package, and preserve base-package
+  immutability after compilation and execution.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public
