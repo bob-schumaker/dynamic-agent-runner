@@ -15,7 +15,7 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: none selected after S5 completion.
+- Next active slice: P1 — canonical package-directory loader.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -617,6 +617,80 @@ preparation seams, and tool provenance before safe Marimo notebook automation.
         tests/fixtures/power-marimo/agent-graph.mmd
         tests/fixtures/power-marimo/agent-design.md` — pass.
 
+## Package-alignment follow-up: map directly to agent-development skill output
+
+Driver summary:
+Review against the agent-development skill's current
+`references/agent-runtime-package.md` concluded that this repository should no
+longer treat skill output as a loose set of optional individual artifacts. The
+canonical contract should be one immutable base package directory with fixed
+sibling files and first-class `skill-bundle/` handling. Caller-owned overrides
+remain supported as separate runtime inputs that compile into a derived final
+workflow. Backward compatibility is not required for the old
+artifact-by-artifact base-package loading flow.
+
+### Slice P1 — Canonical package-directory loader
+
+- [ ] P1.1 Add one package-directory-first loader entry point rooted at a design
+      bundle path.
+- [ ] P1.2 Require `agent-runtime.yaml` in the package root as the authoritative
+      executable artifact.
+- [ ] P1.3 Resolve `agent-design.md` and `agent-graph.mmd` as fixed sibling
+      artifacts relative to the package root.
+- [ ] P1.4 Preserve any lower-level artifact helper functions only as internal
+      seams for tests or implementation support, not as the primary public
+      contract.
+
+### Slice P2 — Strict package and `skill-bundle/` validation
+
+- [ ] P2.1 Add explicit `skill-bundle/` awareness to loaded workflow/package
+      models.
+- [ ] P2.2 Validate top-level `skills[*].bundled_path` references against the
+      package `skill-bundle/` directory.
+- [ ] P2.3 Validate `skills[*].support_files[*].bundled_path` references against
+      the package `skill-bundle/` directory.
+- [ ] P2.4 Fail clearly for missing sibling artifacts or missing bundled support
+      files instead of silently degrading.
+- [ ] P2.5 Add tests for valid packages, missing sibling files, and missing
+      bundled skill/support files.
+
+### Slice P3 — Compile final workflow from immutable base plus overrides
+
+- [ ] P3.1 Add an explicit compile/preparation step that combines the immutable
+      base package with caller-owned overrides.
+- [ ] P3.2 Validate prompt, skill, tool-exposure, and other allowed override
+      targets against the immutable base package before compilation succeeds.
+- [ ] P3.3 Produce a derived final workflow/prepared workflow model that becomes
+      the execution source of truth.
+- [ ] P3.4 Keep the loaded base package immutable after compilation and
+      execution.
+- [ ] P3.5 Add tests for valid override compilation, invalid override rejection,
+      and immutable-base guarantees.
+
+### Slice P4 — Package-directory-first public API and CLI
+
+- [ ] P4.1 Change the main public API to accept a package directory as the
+      canonical input.
+- [ ] P4.2 Keep caller-owned override input as a separate API/CLI layer over the
+      immutable base package.
+- [ ] P4.3 Keep any file-by-file base-package entry points internal-only or
+      remove them if no longer needed.
+- [ ] P4.4 Simplify CLI invocation around a `--package` style input contract.
+- [ ] P4.5 Remove legacy CLI flags for separate base runtime/design/graph files
+      if they are no longer part of the supported public contract.
+- [ ] P4.6 Update README and docs to describe the immutable-base + caller-
+      override + compiled-workflow contract.
+
+### Slice P5 — Manifest/runtime alignment cleanup for model routing work
+
+- [ ] P5.1 Align manifest capability vocabulary with the current
+      `agent-runtime-package.md` guidance so runtime feature routing does not
+      drift from the skill contract.
+- [ ] P5.2 Document support for manifest-driven `runtime.execution_policy`
+      model-selection metadata in the spec and user-facing docs.
+- [ ] P5.3 Decide and document whether automatic local model-adapter fallback is
+      part of the supported runtime contract or an internal convenience.
+
 ## Deferred library-evaluation follow-ups
 
 - [ ] D1. Revisit Rich only when CLI UX/debug output needs structured tables,
@@ -855,6 +929,8 @@ preparation seams, and tool provenance before safe Marimo notebook automation.
 - [ ] V4. Run `pre-commit run --files <changed files>` before scoped commits.
 - [ ] V5. Track drift: update `spec.md`, `plan.md`, or this task list when
       implementation reveals changed requirements, architecture, or task order.
+- [ ] V8. Validate package-directory-first loading with focused tests before
+      changing the public API and CLI contracts.
 - [x] V6. Add concurrency validation before claiming full thread safety: run
       concurrent fake-client/fake-tool executions and verify there is no
       library-owned run-state crosstalk and that shared-collaborator behavior

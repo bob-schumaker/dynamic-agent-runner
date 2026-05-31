@@ -12,7 +12,8 @@ or a clear error.
 ## Source Artifacts
 
 - `specs/dynamic-agent-runner/spec.md` — feature source of truth, now including
-  runtime behavior overrides for per-node prompts and skill bindings.
+  caller-owned runtime behavior overrides for per-node prompts and skill
+  bindings over an immutable base package.
 - `README.md` — repository overview; aligned with the official `openai`
   package and repository-owned tool registry direction.
 - `pyproject.toml` — package/dependency configuration; currently includes the
@@ -93,6 +94,13 @@ or a clear error.
   manifests, prepared execution planning, prepared model input, tool provenance,
   and a placeholder-safe Power-Marimo fixture now cover the first downstream
   package shape without live Marimo, SLD, or `power-tetris-sdk` access.
+- A package-alignment review against the agent-development skill's current
+  `references/agent-runtime-package.md` concluded that this repository should
+  treat agent skill output as an immutable base package directory with fixed
+  sibling artifacts (`agent-design.md`, `agent-runtime.yaml`,
+  `agent-graph.mmd`, and `skill-bundle/`). Caller-initiated overrides remain a
+  separate runtime input layered over that immutable base and compiled into a
+  final workflow before execution.
 - The S5 Power-Marimo fixture records `marimo-pair` as a SKILL-backed
   agent-as-tool `tool_use_step` using
   `../power-marimo/skills/marimo-pair/SKILL.md`; it does not introduce a new
@@ -145,19 +153,19 @@ implemented or renamed.
 
 ### Artifact loading
 
-Support input forms from the spec:
-
-- filesystem paths
-- raw strings
-- already-parsed objects
+The next package-alignment work should replace the current loose artifact
+utility contract with a package-directory-first contract.
 
 Initial parser responsibilities:
 
-- runtime YAML for `format_version: 1`
-- Mermaid graph text loading and reference resolution
-- optional `tool-index.yaml` metadata
+- package-directory loading rooted at one design bundle path
+- `agent-runtime.yaml` loading as the sole authoritative executable artifact
+- sibling `agent-design.md` and `agent-graph.mmd` loading relative to the package
+  root
+- `skill-bundle/` reference resolution and existence checks for top-level skill
+  bundle paths and support files
 - lightweight `agent-design.md` reference checks for runtime manifest and Mermaid
-  graph mentions
+  graph mentions within the package boundary
 - preservation of documented supported agent-pattern metadata from
   `patterns_present`
 - preservation of structural metadata used by broader pattern shapes, including
@@ -166,6 +174,20 @@ Initial parser responsibilities:
 Use strongly typed internal dataclasses or Pydantic models only if they reduce
 complexity. Prefer standard-library dataclasses for the first slice unless schema
 validation becomes too large.
+
+Package-alignment review decisions:
+
+- Drop backward-compatible public reliance on separate `runtime_manifest`,
+  `mermaid_graph`, `agent_design`, `tool_index`, and `runtime_overrides`
+  arguments as the main skill-output contract.
+- Keep runtime/workflow overrides as a caller-owned runtime layer, but not as
+  part of the canonical agent-development-skill output package.
+- Add first-class `skill-bundle/` handling and validate bundled skill/support
+  references explicitly.
+- Add an explicit compile/preparation phase that combines the immutable base
+  package plus caller overrides into the final execution-ready workflow.
+- Preserve lower-level helper seams only when useful for tests or internal
+  implementation, not as the primary public API contract.
 
 Supported agent patterns from the agent-development skill's
 `references/examples/agent-pattern-examples.md` should be treated as manifest
@@ -209,10 +231,11 @@ Implement a repository-owned registry instead of depending on `ai-tools-core`.
 
 ### Runtime behavior override pattern
 
-Implement runtime behavior overrides as a sibling overlay to runtime tool
-overrides. The generated runtime manifest remains the baseline source of truth,
-while caller-provided override artifacts compute effective node behavior at
-preparation or execution time.
+Implement runtime behavior overrides as a caller-owned overlay parallel to
+runtime tool overrides. The generated package remains the immutable base
+definition, while caller-provided override artifacts are validated during
+compilation/preparation and produce effective node behavior for the derived
+final workflow.
 
 Core concepts:
 
@@ -389,10 +412,7 @@ Expose a CLI that can load artifacts and run the workflow:
 
 ```bash
 dynamic-agent-runner run \
-  --agent-design path/to/agent-design.md \
-  --runtime path/to/agent-runtime.yaml \
-  --graph path/to/agent-graph.mmd \
-  --tool-index path/to/tool-index.yaml \
+  --package path/to/design-dir \
   --registry path/to/registry-config.yaml \
   --prompt "..."
 ```
@@ -400,6 +420,29 @@ dynamic-agent-runner run \
 Exact command shape may use `docopt-ng` or another existing dependency pattern,
 but must support clear non-zero exits for loading, validation, model, registry,
 and execution failures.
+
+## New package-alignment slices
+
+18. **Package-alignment Slice P1: canonical package-directory loader**
+    - add a package-directory-first loading path rooted at one design bundle
+    - require `agent-runtime.yaml` and fixed sibling artifact discovery
+    - preserve lower-level helpers only as internal seams where still useful
+
+19. **Package-alignment Slice P2: strict sibling artifact and bundle validation**
+    - validate `agent-design.md`, `agent-graph.mmd`, and `skill-bundle/`
+      references as one package boundary
+    - fail clearly for missing bundle files or broken manifest bundle references
+
+20. **Package-alignment Slice P3: explicit compile/final-workflow phase**
+    - validate caller-owned overrides against the immutable base package
+    - compile base package plus overrides into a final execution-ready workflow
+
+21. **Package-alignment Slice P4: package-directory-first public API and CLI**
+    - simplify public API to accept a package directory as the primary contract
+    - keep caller-owned override input as a separate runtime argument over the
+      immutable base package
+    - simplify CLI to a `--package` style contract and keep override inputs
+      clearly separate from the canonical base package
 
 ## Implementation Slices
 
