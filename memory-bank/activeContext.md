@@ -20,8 +20,9 @@
   S5 completed in `84dfd31`, with plan/task evidence recorded in `387b574` and
   governing spec documents refreshed in `89926d8`; the runtime-package
 - Package-alignment Slice P1 is complete in commit `63403d3`, Slice P2 is
-  complete in commit `a1880e7`, and Slice P3 is now complete in commit
-  `a46cd13`. P2 adds strict canonical package validation:
+  complete in commit `a1880e7`, Slice P3 is complete in commit `a46cd13`, and
+  Slice P4 is now complete in commit `3e622d2`. P2 adds strict canonical
+  package validation:
   package-loaded workflows now preserve optional `skill_bundle_root`,
   `load_agent_package(...)` fails closed for missing canonical sibling artifacts
   (`agent-design.md`, `agent-graph.mmd`), and workflow validation now checks
@@ -33,6 +34,16 @@
   compile helpers layer caller-owned runtime overrides into the final
   execution-ready workflow. Public API, execution context, and executor entry
   points now accept the compiled workflow form without mutating the base package.
+- P4 makes the package directory the canonical public API and CLI contract:
+  `load_agent_workflow(...)`, `run_agent_workflow(...)`, and
+  `run_agent_workflow_async(...)` now accept `package_directory` as the main
+  public input, the CLI now uses `--package`, and docs describe the immutable
+  base package + caller override + compiled workflow model. Compatibility
+  file-by-file artifact inputs remain available as lower-level seams.
+- Package validation now requires the package `skill-bundle/` directory only
+  when bundled skill or support-file paths are actually declared, matching the
+  existing canonical fixture contract for packages that set
+  `packaging.skill_bundle_dir` but use referenced-only skills.
 - Current uncommitted work still adds support for the agent-development skill's
   newer RAG and embedding manifest output: `llm_step.model_requirements`,
   `metadata.rag_pipeline`, and `ModelCapabilities.embeddings` are now preserved
@@ -44,10 +55,11 @@
   `skill-bundle/` handling, but also provider-neutral `model_requirements`,
   ReAct-style `react_loop` manifests, RAG/GraphRAG metadata, and the upstream
   `evidence_loop` pattern.
-- The next active implementation slice after P3 is P4: make the package
-  directory the canonical public API and CLI input while keeping caller-owned
-  override input as a separate layer over the immutable base package and the
-  compiled final workflow.
+- The next active implementation slice after P4 is P5: align manifest/runtime
+  taxonomy with the latest upstream runtime-package contract, including
+  capability vocabulary, manifest-driven model-selection metadata,
+  `model_requirements`, ReAct-style loop expectations, RAG/GraphRAG metadata,
+  and `evidence_loop` preservation.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public

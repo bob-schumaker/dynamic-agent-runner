@@ -207,10 +207,24 @@
   executor while preserving immutable loaded base workflows. Focused validation
   passed with `poetry run pytest tests/test_artifacts.py tests/test_executor.py
   tests/test_validation.py -q` (82 passed).
-- The next active runtime-package alignment slice is P4, which will make the
-  package directory the canonical public API / CLI input while keeping
-  caller-owned override input as a separate layer over the immutable base
-  package and compiled final workflow.
+- Package-alignment Slice P4 is complete in `3e622d2`: the public API now
+  treats `package_directory` as the canonical input, the CLI now uses a
+  package-directory-first `--package` contract, compatibility file-by-file base
+  artifact inputs remain available as lower-level seams, and package validation
+  now requires a package `skill-bundle/` directory only when bundled skill or
+  support-file paths are actually declared.
+- Focused P4 validation passed with `poetry run pytest tests/test_cli.py
+  tests/test_executor.py tests/test_import.py -q` (64 passed) and `poetry run
+  pre-commit run --files src/dynamic_agent_runner/api.py
+  src/dynamic_agent_runner/cli.py src/dynamic_agent_runner/validation.py
+  src/dynamic_agent_runner/__init__.py tests/test_cli.py tests/test_executor.py
+  tests/test_import.py README.md docs/files/cli.rst docs/files/python-api.rst
+  specs/dynamic-agent-runner/tasks.md`.
+- The next active runtime-package alignment slice is P5, which will align
+  manifest/runtime taxonomy with the upstream runtime-package contract,
+  especially capability vocabulary, manifest-driven model-selection metadata,
+  provider-neutral `model_requirements`, ReAct-style loop metadata, RAG /
+  GraphRAG metadata, and `evidence_loop` preservation.
 - Model-routing/fallback alignment is implemented locally and pending commit:
   `api.py` and `context.py` no longer expose a premature caller-visible
   `model_map` override surface, `executor.py` keeps manifest-driven
