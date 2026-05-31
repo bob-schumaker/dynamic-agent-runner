@@ -24,6 +24,12 @@
   output: `llm_step.model_requirements`, `metadata.rag_pipeline`, and
   `ModelCapabilities.embeddings` are now preserved and validated as
   provider-neutral manifest guidance.
+- Current doc-only work tightened the package-alignment language across
+  `specs/dynamic-agent-runner/spec.md`, `plan.md`, and `tasks.md` so they now
+  consistently describe the contract as an immutable base package plus
+  caller-owned overrides compiled into a derived final workflow. This wording
+  checkpoint is intended for a scoped docs+memory-bank commit, separate from the
+  still-uncommitted runtime code and dependency changes in the working tree.
 
 ## Current Status
 

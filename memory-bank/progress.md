@@ -174,6 +174,11 @@
   `387b574 docs(plan): record power-marimo fixture slice`.
 - Runtime-package simplification S5 governing spec commit exists:
   `89926d8 docs(spec): record power-marimo fixture completion`.
+- Package-alignment wording cleanup for the immutable-base plus caller-owned
+  override contract is complete locally and pending commit: `spec.md`, `plan.md`,
+  and `tasks.md` now consistently describe compilation/preparation as producing
+  a derived final workflow from the immutable base package and caller-owned
+  runtime inputs.
 - RAG/embedding manifest support is implemented locally and pending commit:
   runtime manifests now preserve `metadata.rag_pipeline`, `llm_step` nodes carry
   provider-neutral `model_requirements`, model capabilities include an

@@ -217,3 +217,19 @@ examine the repo at ../power-marimo and infer the agent support it will need and
 ---
 
 save this analysis to spec references and then update the spec doc to make the necessary work the next set of actions
+
+---
+
+add new capability to allow mixing remote and local models
+
+- an optional model map that maps model names to features
+- the model_adapter variable should be a list of adapters
+- if llm_node features are specified llm mappings can be made from the model map to the model lists from the adapter(s)
+- if no models in the model adapter list support the necessary features, create an additional local openai model
+
+---
+
+for the native openai models, use the openai-model-registry package
+
+- local repo is at /Users/roschuma/Repos/github/openai-model-registry/
+- partial local documentation is at cline-tasks/references/openai-model-registry
