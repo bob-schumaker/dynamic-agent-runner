@@ -1306,6 +1306,44 @@ def test_prepare_model_input_uses_openai_model_registry_for_native_features(
     assert prepared_input.adapter is local
 
 
+def test_prepare_model_input_uses_default_openai_adapter_without_capability_routing() -> (
+    None
+):
+    """Without provided adapters or model-map requirements, the default OpenAI adapter is used."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "default-openai-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-4o-mini"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="Hi")
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(),
+    )
+
+    assert prepared_input.model == "gpt-4o-mini"
+    assert isinstance(prepared_input.adapter, AsyncOpenAIClientAdapter)
+    assert prepared_input.adapter.models == ("gpt-4o-mini",)
+
+
 def test_execute_workflow_applies_skill_only_remove_and_node_isolation() -> None:
     """Per-node skill binding overrides stay scoped to their target node."""
 

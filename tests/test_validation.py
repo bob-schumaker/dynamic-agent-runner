@@ -581,6 +581,85 @@ def test_invalid_rag_pipeline_and_model_requirements_fail_validation() -> None:
     )
 
 
+def test_react_loop_manifest_requires_loopback_iterations_state_and_tool_step() -> None:
+    """ReAct-style manifests fail clearly when loop metadata is incomplete."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {"patterns_present": ["react_loop"]}
+    data["runtime"] = {"execution_policy": {"model": "gpt-test", "max_iterations": 0}}
+    data["nodes"] = [
+        {
+            "id": "reason",
+            "kind": "llm_step",
+            "prompt": {"user_template": "Reason about {prompt}"},
+        }
+    ]
+    data["edges"] = []
+    data["tools"] = []
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "react_loop requires runtime.execution_policy.max_iterations" in message
+    assert "react_loop requires at least one loopback edge" in message
+    assert "react_loop requires runtime.state metadata" in message
+    assert (
+        "react_loop requires at least one llm_step and one tool_use_step node"
+        in message
+    )
+
+
+def test_react_loop_manifest_passes_with_loopback_iterations_state_and_tool_step() -> (
+    None
+):
+    """ReAct-style manifests pass when the minimal loop contract is present."""
+
+    data = valid_manifest_data()
+    data["entrypoint"] = "reason"
+    data["metadata"] = {"patterns_present": ["react_loop", "evidence_loop"]}
+    data["runtime"] = {
+        "execution_policy": {"model": "gpt-test", "max_iterations": 3},
+        "state": {
+            "artifacts": [
+                {"id": "observation_log", "description": "Model-safe observations"}
+            ],
+            "mutable_fields": ["observation_log"],
+        },
+    }
+    data["nodes"] = [
+        {
+            "id": "reason",
+            "kind": "llm_step",
+            "prompt": {"user_template": "Reason about {prompt}"},
+            "model_requirements": {
+                "reasoning_profile": {
+                    "level": "medium",
+                    "task_type": "planning",
+                    "uncertainty_handling": "ask_clarification",
+                },
+                "output_requirements": {
+                    "format": "free_text",
+                    "evidence_citations": "preferred",
+                },
+            },
+        },
+        {"id": "act", "kind": "tool_use_step", "tool_id": "search_repo"},
+        {
+            "id": "assess",
+            "kind": "decision_step",
+            "decision_subtype": "simple_check",
+        },
+    ]
+    data["edges"] = [
+        {"source": "reason", "target": "act", "edge_kind": "sequential"},
+        {"source": "act", "target": "assess", "edge_kind": "sequential"},
+        {"source": "assess", "target": "reason", "edge_kind": "loopback"},
+    ]
+
+    validate_mapping(data)
+
+
 def test_runtime_behavior_overrides_pass_validation() -> None:
     """Valid prompt and skill overrides pass before execution."""
 

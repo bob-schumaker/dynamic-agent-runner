@@ -103,6 +103,7 @@ SUPPORTED_FALLBACK_ACTIONS = {
     "use_higher_capability",
     "escalate",
 }
+REACT_LOOP_PATTERN_ID = "react_loop"
 PROMPT_REPLACE_FIELDS = {
     "system",
     "developer",
@@ -233,6 +234,7 @@ def validate_runtime_manifest(
     _extend(errors, _llm_prompt_errors(manifest.nodes))
     _extend(errors, _model_requirements_errors(manifest))
     _extend(errors, _rag_pipeline_errors(manifest))
+    _extend(errors, _react_loop_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
     if errors:
         raise WorkflowValidationError(_format_errors("runtime manifest", errors))
@@ -871,6 +873,40 @@ def _rag_pipeline_errors(manifest: RuntimeManifest) -> list[str]:
         )
     _validate_rag_pipeline_fields(pipeline, errors)
     _validate_rag_pattern_requirements(patterns, pipeline, errors)
+    return errors
+
+
+def _react_loop_errors(manifest: RuntimeManifest) -> list[str]:
+    patterns = set(manifest.patterns_present)
+    if REACT_LOOP_PATTERN_ID not in patterns:
+        return []
+
+    errors: list[str] = []
+    max_iterations = manifest.execution_policy.get("max_iterations")
+    if (
+        not isinstance(max_iterations, int)
+        or isinstance(max_iterations, bool)
+        or max_iterations <= 0
+    ):
+        errors.append(
+            "react_loop requires runtime.execution_policy.max_iterations to be a "
+            "positive integer"
+        )
+
+    if not any(edge.edge_kind == "loopback" for edge in manifest.edges):
+        errors.append("react_loop requires at least one loopback edge")
+
+    if not manifest.state:
+        errors.append(
+            "react_loop requires runtime.state metadata for observation-state tracking"
+        )
+
+    node_kinds = {node.kind for node in manifest.nodes}
+    if "llm_step" not in node_kinds or "tool_use_step" not in node_kinds:
+        errors.append(
+            "react_loop requires at least one llm_step and one tool_use_step node"
+        )
+
     return errors
 
 

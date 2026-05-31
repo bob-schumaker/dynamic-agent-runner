@@ -29,6 +29,35 @@ The runtime currently uses the configured model name and maximum step values.
 Other fields are preserved as policy metadata and should be documented honestly
 until a scoped implementation enforces them.
 
+The current runtime also preserves ``execution_policy.model_capabilities`` as
+provider-neutral capability metadata on the loaded manifest. This metadata is
+available for inspection and documentation, but it is not forwarded as provider
+request parameters.
+
+When callers do not provide explicit model adapters and a node does not require
+capability-based routing, the executor constructs the default async OpenAI
+adapter for the requested model name. Capability-aware routing is only applied
+when the manifest supplies ``llm_step.model_requirements`` and/or
+``execution_policy.model_map`` metadata. Local-only selection is therefore part
+of the explicit manifest-driven routing contract, not an implicit background
+fallback.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       default_model: gpt-4o-mini
+       model_capabilities:
+         context_window: 128000
+         structured_output: true
+         reasoning: true
+       model_map:
+         remote-basic:
+         - tool_calling
+         local-structured:
+         - tool_calling
+         - structured_output
+
 .. header2:: Retry policy
 
 By default, model and tool calls are attempted once. Workflows can opt into

@@ -64,9 +64,10 @@ execution.
 
 ``llm_step`` nodes may also carry provider-neutral ``model_requirements``
 metadata. This describes selection requirements such as structured output,
-tool-calling, long context, citation generation, and ``embeddings`` support.
-These fields are manifest guidance for runtime/model selection and validation;
-they are not passed through to the provider request as API parameters.
+tool-calling, long context, citation generation, and ``embeddings`` support,
+plus reasoning, context, output, operational, and fallback preferences. These
+fields are manifest guidance for runtime/model selection and validation; they
+are not passed through to the provider request as API parameters.
 
 .. code-block:: yaml
 
@@ -79,12 +80,81 @@ they are not passed through to the provider request as API parameters.
        required_capabilities:
        - structured_output
        - embeddings
+       reasoning_profile:
+         level: medium
+         task_type: planning
+         uncertainty_handling: ask_clarification
        context_requirements:
-         needs_retrieved_context: true
+         needs_retrieved_context: conditional
+         expected_input_size: medium
+         minimum_context_window: 16000
        output_requirements:
          format: schema_ref
          schema_ref: answer
          evidence_citations: preferred
+       operational_preferences:
+         data_boundary: private_runtime
+         determinism: balanced
+       fallback_policy:
+         if_unavailable: escalate
+         minimum_acceptable_level: low
+
+Validation currently checks supported enum values, schema-ref consistency with
+``output_contracts``, and that only ``llm_step`` nodes declare
+``model_requirements``.
+
+.. header2:: ReAct-style loop manifests
+
+ReAct-style loops stay within the primitive taxonomy. Represent the loop as an
+``llm_step`` for reasoning, a ``tool_use_step`` for acting, and a
+``decision_step`` plus at least one ``loopback`` edge for iterative control
+flow. Declare the pattern in ``metadata.patterns_present`` and keep the loop
+budget in ``runtime.execution_policy.max_iterations``.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       model: gpt-test
+       max_iterations: 3
+     state:
+       artifacts:
+       - id: observation_log
+         description: Model-safe observations from prior tool calls.
+       mutable_fields:
+       - observation_log
+   metadata:
+     patterns_present:
+     - react_loop
+     - evidence_loop
+   nodes:
+   - id: reason
+     kind: llm_step
+     prompt:
+       user_template: "Reason about {prompt} using {observation_log}"
+   - id: act
+     kind: tool_use_step
+     tool_id: search_repo
+   - id: assess
+     kind: decision_step
+     decision_subtype: simple_check
+   edges:
+   - source: reason
+     target: act
+     edge_kind: sequential
+   - source: act
+     target: assess
+     edge_kind: sequential
+   - source: assess
+     target: reason
+     edge_kind: loopback
+
+Current validation requires ``react_loop`` manifests to include a positive
+``runtime.execution_policy.max_iterations`` value, at least one ``loopback``
+edge, ``runtime.state`` observation metadata, and both ``llm_step`` and
+``tool_use_step`` nodes. ``evidence_loop`` remains pattern metadata layered on
+top of those primitive nodes and is preserved for retrieval-sufficiency and
+missing-information flows.
 
 .. header2:: RAG and embedding-backed retrieval metadata
 
@@ -121,7 +191,9 @@ The loader preserves ``metadata.rag_pipeline`` as manifest metadata. Validation
 checks the supported enum values and the basic consistency of RAG pattern flags:
 ``embedding_retrieval`` requires ``retrieval_mode: embedding_semantic`` or
 ``hybrid`` plus ``embedding_capability: required``; graph retrieval patterns
-require ``graph_capability: required``.
+require ``graph_capability: required``. These RAG and GraphRAG classifications
+remain metadata on top of the primitive runtime graph rather than separate node
+types.
 
 .. header2:: Output contracts
 

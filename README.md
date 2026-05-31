@@ -112,6 +112,22 @@ Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls. Lower-level
 file-by-file artifact inputs remain available only as a compatibility seam.
 
+Runtime manifests may also declare provider-neutral metadata for:
+
+- `runtime.execution_policy.model_capabilities`
+- `runtime.execution_policy.model_map`
+- `llm_step.model_requirements`
+- `metadata.patterns_present`
+- `metadata.rag_pipeline`
+
+These fields are preserved and validated as runtime selection or package-shape
+metadata. They are not passed through directly as OpenAI API parameters.
+
+For ReAct-style or retrieval loops, keep the runtime graph expressed in the
+primitive node taxonomy (`llm_step`, `tool_use_step`, `decision_step`) with
+pattern metadata such as `react_loop`, `evidence_loop`, `rag`,
+`embedding_retrieval`, `graph_retrieval`, or `graphrag` layered on top.
+
 ## Retry Policy
 
 By default, model and tool calls are attempted once and fail closed. Workflows can

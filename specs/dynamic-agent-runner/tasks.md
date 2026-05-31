@@ -758,27 +758,48 @@ explicitly instead of leaving them as undocumented future behavior.
 
 ### Slice P5 — Manifest/runtime alignment cleanup for upstream taxonomy
 
-- [ ] P5.1 Align manifest capability vocabulary with the current
+- [x] P5.1 Align manifest capability vocabulary with the current
       `agent-runtime-package.md` guidance so runtime feature routing does not
       drift from the skill contract.
-- [ ] P5.2 Document support for manifest-driven `runtime.execution_policy`
+- [x] P5.2 Document support for manifest-driven `runtime.execution_policy`
       model-selection metadata in the spec and user-facing docs.
-- [ ] P5.3 Decide and document whether automatic local model-adapter fallback is
+- [x] P5.3 Decide and document whether automatic local model-adapter fallback is
       part of the supported runtime contract or an internal convenience.
-- [ ] P5.4 Add and validate provider-neutral `model_requirements` support on
+- [x] P5.4 Add and validate provider-neutral `model_requirements` support on
       `llm_step` nodes, including capability, reasoning, context, output, and
       fallback metadata preservation.
-- [ ] P5.5 Add package-validation and documentation rules for ReAct-style
+- [x] P5.5 Add package-validation and documentation rules for ReAct-style
       `react_loop` manifests, including `metadata.patterns_present`,
       `runtime.execution_policy.max_iterations`, `loopback` edges, and
       model-safe observation-state expectations.
-- [ ] P5.6 Add metadata preservation and validation for package-declared `rag`,
+- [x] P5.6 Add metadata preservation and validation for package-declared `rag`,
       `embedding_retrieval`, `graph_retrieval`, and `graphrag` pattern
       classifications plus `metadata.rag_pipeline` shape.
-- [ ] P5.7 Preserve and document `evidence_loop` pattern metadata so retrieval
+- [x] P5.7 Preserve and document `evidence_loop` pattern metadata so retrieval
       sufficiency gates, evaluator-driven missing-information flow, and
       layered model-visible versus runtime-only evidence remain aligned with the
       upstream skill contract.
+
+### Slice P5 Completion Evidence
+
+- `src/dynamic_agent_runner/validation.py` now validates `react_loop` manifests
+  as primitive-node workflows with a positive
+  `runtime.execution_policy.max_iterations` value, at least one `loopback`
+  edge, package-preserved `runtime.state` observation metadata, and both
+  `llm_step` and `tool_use_step` nodes.
+- `tests/test_validation.py` now covers both failing and passing ReAct-style
+  manifest shapes, alongside the existing `model_requirements` and
+  `metadata.rag_pipeline` preservation/validation coverage.
+- `tests/test_executor.py` now documents the default executor contract when no
+  explicit adapters are provided for capability routing: a default async OpenAI
+  adapter is constructed for the requested model name, while capability-aware
+  or local-only selection requires explicit manifest-driven routing metadata.
+- `docs/files/artifact-package.rst`, `docs/files/runtime-policies.rst`, and
+  `README.md` now describe the supported taxonomy for
+  `execution_policy.model_capabilities`, `execution_policy.model_map`,
+  provider-neutral `llm_step.model_requirements`, ReAct-style `react_loop`
+  manifests, `evidence_loop` metadata, and package-declared
+  `rag`/`embedding_retrieval`/`graph_retrieval`/`graphrag` classifications.
 
 ## Deferred library-evaluation follow-ups
 
