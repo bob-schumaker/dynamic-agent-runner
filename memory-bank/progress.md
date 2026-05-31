@@ -174,15 +174,17 @@
   `387b574 docs(plan): record power-marimo fixture slice`.
 - Runtime-package simplification S5 governing spec commit exists:
   `89926d8 docs(spec): record power-marimo fixture completion`.
+- Package-alignment backlog refresh commit exists:
+  `8308cd6 docs(specs): update package-alignment backlog`.
 - Llama.cpp / graph-mutation feature-spec commit exists:
   `1346458 docs(spec): capture llama.cpp and graph mutation feature`.
 - OpenAI Model Registry reference-notes commit exists:
   `7a7a54e docs(references): add openai model registry notes`.
-- Package-alignment wording cleanup for the immutable-base plus caller-owned
-  override contract is complete locally and pending commit: `spec.md`, `plan.md`,
-  and `tasks.md` now consistently describe compilation/preparation as producing
-  a derived final workflow from the immutable base package and caller-owned
-  runtime inputs.
+- Package-alignment backlog is refreshed and committed in `8308cd6`: the local
+  task list now tracks immutable base package directories, `skill-bundle/`
+  validation, provider-neutral `model_requirements`, ReAct-style `react_loop`
+  manifests, RAG / GraphRAG metadata, and `evidence_loop` alignment with the
+  latest upstream `agent-development-skill` runtime-package reference.
 - Model-routing/fallback alignment is implemented locally and pending commit:
   `api.py` and `context.py` no longer expose a premature caller-visible
   `model_map` override surface, `executor.py` keeps manifest-driven
@@ -439,6 +441,8 @@
 - No source implementation work is currently in flight after S5 implementation
   commit `84dfd31`, plan/task evidence commit `387b574`, and governing
   spec-document commit `89926d8`.
+- Memory-bank refresh is in flight to record the committed package-alignment
+  backlog checkpoint from `8308cd6` as a separate docs(memory-bank) commit.
 - Remaining deferred Codex/Cline follow-ups E9-E12 and OpenAI Agents SDK Python
   follow-ups OA1-OA10 should wait for explicit scoped selection.
 
@@ -446,6 +450,9 @@
 
 - Choose the next scoped follow-up before broader E9, OA, MCP, durable session,
   approval-resume, or PyQt-widget automation work.
+- Use `8308cd6` as the current planning checkpoint for package-alignment work
+  against the upstream runtime-package contract before selecting the next
+  implementation slice.
 - Preserve the S5 `marimo-pair` shape as an agent-as-tool/SKILL-backed bounded
   Marimo operation while keeping primitive node kinds unchanged.
 - Extend from the completed grouped manifest, prepared execution plan,
@@ -523,6 +530,13 @@
   are complete. Live Marimo-session, MCP, broader agent-as-tool registry sources,
   and durable handoff/resume behavior remain out of scope until a new scoped
   follow-up selects them.
+- The latest upstream `agent-development-skill` runtime-package reference now
+  materially extends local package-alignment scope beyond package-directory
+  loading: future alignment work should preserve provider-neutral
+  `model_requirements`, ReAct `react_loop` structure, `metadata.rag_pipeline`
+  for RAG / GraphRAG shapes, and `evidence_loop` metadata without adding new
+  primitive node kinds unless a later scoped runtime slice explicitly requires
+  them.
 - Generated RAG, embedding-backed retrieval, graph retrieval, and GraphRAG
   package shapes are now supported at the metadata/validation layer. This does
   not add executable vector-store, graph-store, retrieval, reranking, or indexing

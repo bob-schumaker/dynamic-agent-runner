@@ -24,12 +24,13 @@
   output: `llm_step.model_requirements`, `metadata.rag_pipeline`, and
   `ModelCapabilities.embeddings` are now preserved and validated as
   provider-neutral manifest guidance.
-- Current doc-only work tightened the package-alignment language across
-  `specs/dynamic-agent-runner/spec.md`, `plan.md`, and `tasks.md` so they now
-  consistently describe the contract as an immutable base package plus
-  caller-owned overrides compiled into a derived final workflow. This wording
-  checkpoint is intended for a scoped docs+memory-bank commit, separate from the
-  still-uncommitted runtime code and dependency changes in the working tree.
+- Package-alignment backlog review against the latest upstream
+  `agent-development-skill` runtime-package reference is now committed in
+  `8308cd6`. `specs/dynamic-agent-runner/tasks.md` now records that package-
+  alignment must cover not only immutable base package directories and
+  `skill-bundle/` handling, but also provider-neutral `model_requirements`,
+  ReAct-style `react_loop` manifests, RAG/GraphRAG metadata, and the upstream
+  `evidence_loop` pattern.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public
@@ -47,6 +48,13 @@
   required repository-local markdown normalization to satisfy pre-commit before
   commit, and now serve as local supporting reference material for future model
   capability, parameter-validation, and advanced-usage work.
+- The upstream runtime-package reference at
+  `../clinerules-roschuma/skills/agent-development-skill/references/agent-runtime-package.md`
+  now explicitly defines grouped manifest taxonomy, provider-neutral
+  `model_requirements`, ReAct loop conventions, RAG/GraphRAG metadata guidance,
+  and `evidence_loop` packaging guidance. Local package-alignment planning should
+  stay synchronized to that upstream contract before selecting the next runtime
+  slice.
 
 ## Current Status
 
@@ -250,9 +258,9 @@
     pipeline and model-requirement consistency, and docs/tests cover the new
     manifest shape.
 - In progress:
-  - RAG/embedding manifest support is implemented and validated locally; the next
-    step is to commit the task-related implementation/docs/tests plus this
-    memory-bank refresh while leaving unrelated local changes unstaged.
+  - Memory-bank refresh is being prepared to record the package-alignment backlog
+    checkpoint from commit `8308cd6` and the latest upstream runtime-package
+    contract details.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
@@ -296,6 +304,11 @@
 - `cline-tasks/agent-development-skill-runtime-package-feature-request.md`
   packages that analysis as an upstream feature-request handoff for the
   `clinerules-roschuma` agent-development skill repository.
+- `specs/dynamic-agent-runner/tasks.md` commit `8308cd6` updates the local
+  package-alignment backlog to track upstream runtime-package guidance for
+  immutable package directories, `skill-bundle/` validation, provider-neutral
+  `model_requirements`, ReAct-style `react_loop` manifests, RAG / GraphRAG
+  metadata, and `evidence_loop` pattern handling.
 - `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
   records `../power-marimo` as the first downstream consumer fit: a supervised,
   bounded workflow-orchestration agent for AI-assisted Marimo notebook power
@@ -750,6 +763,8 @@
   hash in the memory bank and continue treating RAG/GraphRAG as metadata plus
   existing-node workflow shapes unless a future scoped slice explicitly adds
   executable retrieval/index integrations.
+- Use the refreshed package-alignment backlog in `8308cd6` as the planning
+  checkpoint before choosing the next post-S5 runtime slice.
 - Preserve the S5 Power-Marimo fixture as placeholder-safe coverage: no live
   Marimo server calls, real SLD data, or live `power-tetris-sdk` calls.
 - Keep representing `marimo-pair` as an agent-as-tool/SKILL-backed bounded
