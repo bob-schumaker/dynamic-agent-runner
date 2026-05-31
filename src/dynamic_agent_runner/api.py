@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from dynamic_agent_runner.artifacts import load_agent_workflow_artifacts
@@ -12,7 +13,18 @@ from dynamic_agent_runner.executor import (
 )
 from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
 from dynamic_agent_runner.models import LoadedAgentWorkflow
+from dynamic_agent_runner.openai_client import (
+    AsyncOpenAIClientAdapter,
+    OpenAIClientAdapter,
+)
 from dynamic_agent_runner.validation import validate_agent_workflow
+
+
+ModelAdapterValue = (
+    OpenAIClientAdapter
+    | AsyncOpenAIClientAdapter
+    | Sequence[OpenAIClientAdapter | AsyncOpenAIClientAdapter]
+)
 
 
 def load_agent_workflow(
@@ -63,7 +75,7 @@ def run_agent_workflow(
     tool_index: Any | None = None,
     runtime_overrides: Any | None = None,
     tool_registry: Any | None = None,
-    model_adapter: Any | None = None,
+    model_adapter: ModelAdapterValue | None = None,
     max_steps: int | None = None,
     trace_sink: Any | None = None,
     prompt_cache: bool | None = None,
@@ -110,7 +122,7 @@ async def run_agent_workflow_async(
     tool_index: Any | None = None,
     runtime_overrides: Any | None = None,
     tool_registry: Any | None = None,
-    model_adapter: Any | None = None,
+    model_adapter: ModelAdapterValue | None = None,
     max_steps: int | None = None,
     trace_sink: Any | None = None,
     prompt_cache: bool | None = None,

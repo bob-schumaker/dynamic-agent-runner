@@ -99,9 +99,17 @@ class ModelResponse:
 class OpenAIClientAdapter:
     """Small adapter around the official OpenAI Python client."""
 
-    def __init__(self, client: OpenAIClientProtocol | None = None) -> None:
+    def __init__(
+        self,
+        client: OpenAIClientProtocol | None = None,
+        *,
+        models: Sequence[str] | None = None,
+        is_local: bool = False,
+    ) -> None:
         self._client = client
         self._client_lock = RLock()
+        self._models = tuple(str(model) for model in models or ())
+        self._is_local = is_local
 
     @property
     def client(self) -> OpenAIClientProtocol:
@@ -121,13 +129,33 @@ class OpenAIClientAdapter:
             raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
         return normalize_openai_response(raw_response)
 
+    @property
+    def models(self) -> tuple[str, ...]:
+        """Return advertised model names for capability-aware selection."""
+
+        return self._models
+
+    @property
+    def is_local(self) -> bool:
+        """Return whether this adapter should be treated as local-only."""
+
+        return self._is_local
+
 
 class AsyncOpenAIClientAdapter:
     """Async adapter around the official OpenAI Python client."""
 
-    def __init__(self, client: AsyncOpenAIClientProtocol | None = None) -> None:
+    def __init__(
+        self,
+        client: AsyncOpenAIClientProtocol | None = None,
+        *,
+        models: Sequence[str] | None = None,
+        is_local: bool = False,
+    ) -> None:
         self._client = client
         self._client_lock = RLock()
+        self._models = tuple(str(model) for model in models or ())
+        self._is_local = is_local
 
     @property
     def client(self) -> AsyncOpenAIClientProtocol:
@@ -146,6 +174,18 @@ class AsyncOpenAIClientAdapter:
         except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
             raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
         return normalize_openai_response(raw_response)
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        """Return advertised model names for capability-aware selection."""
+
+        return self._models
+
+    @property
+    def is_local(self) -> bool:
+        """Return whether this adapter should be treated as local-only."""
+
+        return self._is_local
 
 
 def create_default_openai_client() -> OpenAIClientProtocol:

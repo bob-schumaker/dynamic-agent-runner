@@ -78,6 +78,15 @@ def make_async_adapter(responses: list[object]) -> AsyncOpenAIClientAdapter:
     return AsyncOpenAIClientAdapter(AsyncFakeClient(responses))
 
 
+def make_named_adapter(
+    responses: list[object],
+    *,
+    models: list[str],
+    is_local: bool = False,
+) -> OpenAIClientAdapter:
+    return OpenAIClientAdapter(FakeClient(responses), models=models, is_local=is_local)
+
+
 def make_tool(
     tool_id: str,
     output: object | None = None,
@@ -976,6 +985,159 @@ def test_execute_workflow_applies_prompt_and_skill_overrides() -> None:
         {"role": "user", "content": "Override Hello"},
     ]
     assert manifest["nodes"][0]["prompt"]["user_template"] == "Base {prompt}"
+
+
+def test_prepare_model_input_routes_to_adapter_model_by_required_features() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "feature-routing-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "default_model": "remote-basic",
+                    "model_map": {
+                        "remote-basic": ["tool_calling"],
+                        "local-structured": ["tool_calling", "structured_output"],
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "model_requirements": {
+                        "required_capabilities": ["structured_output"]
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="Hi")
+    remote = make_named_adapter(
+        [{"id": "unused", "output_text": "remote"}], models=["remote-basic"]
+    )
+    local = make_named_adapter(
+        [{"id": "unused-2", "output_text": "local"}],
+        models=["local-structured"],
+        is_local=True,
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=[remote, local],
+    )
+
+    assert prepared_input.model == "local-structured"
+    assert prepared_input.adapter is local
+
+
+def test_execute_workflow_fails_when_no_adapter_matches_required_features() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "fallback-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "default_model": "local-structured",
+                    "model_map": {
+                        "remote-basic": ["tool_calling"],
+                        "local-structured": ["structured_output"],
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "model_requirements": {
+                        "required_capabilities": ["structured_output"]
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    remote = make_named_adapter(
+        [{"id": "remote", "output_text": "remote-result"}],
+        models=["remote-basic"],
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="requires capabilities"):
+        execute_workflow(workflow, prompt="Hello", model_adapter=[remote])
+
+    assert remote.client.responses.calls == []
+
+
+def test_prepare_model_input_uses_openai_model_registry_for_native_features(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "registry-routing-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-4o-mini"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "model_requirements": {
+                        "required_capabilities": ["structured_output"]
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="Hi")
+    remote = make_named_adapter(
+        [{"id": "unused", "output_text": "remote"}],
+        models=["custom-remote"],
+    )
+    local = make_named_adapter(
+        [{"id": "unused-2", "output_text": "local"}],
+        models=["gpt-4o-mini"],
+        is_local=True,
+    )
+
+    class FakeCapabilities:
+        supports_structured = True
+        supports_functions = True
+        supports_vision = False
+        supports_web_search = False
+        context_window = 128000
+        input_modalities = ["text"]
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.executor._get_openai_model_capabilities",
+        lambda model_name: FakeCapabilities() if model_name == "gpt-4o-mini" else None,
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=[remote, local],
+    )
+
+    assert prepared_input.model == "gpt-4o-mini"
+    assert prepared_input.adapter is local
 
 
 def test_execute_workflow_applies_skill_only_remove_and_node_isolation() -> None:

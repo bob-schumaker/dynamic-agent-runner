@@ -9,6 +9,9 @@ from dataclasses import dataclass, field
 from typing import Any, TypeVar
 from uuid import uuid4
 
+from openai_model_registry import ModelRegistry
+from openai_model_registry.errors import ModelNotSupportedError
+
 from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import (
@@ -59,6 +62,7 @@ from dynamic_agent_runner.tracing import TraceEvent, TraceSink, WorkflowTracer
 
 
 T = TypeVar("T")
+ModelAdapter = OpenAIClientAdapter | AsyncOpenAIClientAdapter
 
 
 @dataclass(frozen=True)
@@ -102,6 +106,7 @@ class PreparedModelInput:
 
     node_id: str
     model: str
+    adapter: ModelAdapter
     messages: tuple[OpenAIMessage, ...]
     message_parts: tuple[tuple[str, OpenAIMessage], ...]
     named_parts: Mapping[str, OpenAIMessage]
@@ -122,7 +127,7 @@ async def execute_workflow_async(
     *,
     prompt: str,
     tool_registry: ToolRegistry | None = None,
-    model_adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter | None = None,
+    model_adapter: ModelAdapter | Sequence[ModelAdapter] | None = None,
     max_steps: int | None = None,
     trace_sink: TraceSink | None = None,
     prompt_cache: bool | None = None,
@@ -146,7 +151,7 @@ async def execute_workflow_async(
     nodes = plan.nodes_by_id
     if not plan.entrypoint_id or plan.entrypoint_id not in nodes:
         raise WorkflowExecutionError("workflow entrypoint does not reference a node")
-    adapter = context.model_adapter or AsyncOpenAIClientAdapter()
+    adapters = _normalize_model_adapters(context.model_adapter)
     state = WorkflowExecutionState(prompt=prompt, run_id=run_id or _new_run_id())
     tracer = WorkflowTracer(
         events=state.trace_events,
@@ -200,7 +205,7 @@ async def execute_workflow_async(
                     plan,
                     state,
                     context.tool_registry,
-                    adapter,
+                    adapters,
                     tracer,
                     context.prompt_cache,
                     hooks,
@@ -263,7 +268,7 @@ def execute_workflow(
     *,
     prompt: str,
     tool_registry: ToolRegistry | None = None,
-    model_adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter | None = None,
+    model_adapter: ModelAdapter | Sequence[ModelAdapter] | None = None,
     max_steps: int | None = None,
     trace_sink: TraceSink | None = None,
     prompt_cache: bool | None = None,
@@ -292,6 +297,7 @@ def prepare_model_input(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     *,
+    model_adapters: Sequence[ModelAdapter] | None = None,
     tracer: WorkflowTracer | None = None,
     prompt_cache: bool | None = None,
 ) -> PreparedModelInput:
@@ -301,7 +307,11 @@ def prepare_model_input(
     behavior = effective_node_behavior(node.source_node, workflow)
     message_parts = _render_message_parts(behavior, state)
     messages = tuple(message for _part, message in message_parts)
-    model = _model_name(node)
+    model, adapter = _select_model_and_adapter(
+        node,
+        model_adapters or (),
+        _execution_policy_model_map(plan.execution_policy),
+    )
     if tracer is not None:
         _check_prompt_cache(
             workflow,
@@ -315,6 +325,7 @@ def prepare_model_input(
     return PreparedModelInput(
         node_id=str(node.id),
         model=model,
+        adapter=adapter,
         messages=messages,
         message_parts=message_parts,
         named_parts=dict(message_parts),
@@ -342,7 +353,7 @@ def _normalize_execution_context(
     workflow: LoadedAgentWorkflow | WorkflowExecutionContext,
     *,
     tool_registry: ToolRegistry | None,
-    model_adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter | None,
+    model_adapter: ModelAdapter | Sequence[ModelAdapter] | None,
     max_steps: int | None,
     trace_sink: TraceSink | None,
     prompt_cache: bool | None,
@@ -380,7 +391,7 @@ async def _execute_node_async(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
-    adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter,
+    model_adapters: Sequence[ModelAdapter],
     tracer: WorkflowTracer,
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
@@ -391,7 +402,7 @@ async def _execute_node_async(
             plan,
             state,
             registry,
-            adapter,
+            model_adapters,
             tracer,
             prompt_cache,
             lifecycle_hooks,
@@ -414,7 +425,7 @@ async def _execute_llm_step_async(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
-    adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter,
+    model_adapters: Sequence[ModelAdapter],
     tracer: WorkflowTracer,
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
@@ -423,6 +434,7 @@ async def _execute_llm_step_async(
         node,
         plan,
         state,
+        model_adapters=model_adapters,
         tracer=tracer,
         prompt_cache=prompt_cache,
     )
@@ -468,7 +480,7 @@ async def _execute_llm_step_async(
     policy = _model_retry_policy(node, plan)
     try:
         response, attempts = await run_with_retry_async(
-            lambda: _create_model_response_async(adapter, request),
+            lambda: _create_model_response_async(prepared_input.adapter, request),
             policy=_exception_retry_policy(policy, "model_error"),
             retry_exceptions=(ModelExecutionError,),
         )
@@ -992,6 +1004,193 @@ def _model_name(node: PreparedNode) -> str:
     if node.model is None:
         raise WorkflowExecutionError(f"llm_step node {node.id!r} is missing model")
     return node.model
+
+
+def _normalize_model_adapters(
+    value: ModelAdapter | Sequence[ModelAdapter] | None,
+) -> tuple[ModelAdapter, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (OpenAIClientAdapter, AsyncOpenAIClientAdapter)):
+        return (value,)
+    return tuple(value)
+
+
+def _execution_policy_model_map(
+    execution_policy: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    value = execution_policy.get("model_map")
+    return value if isinstance(value, Mapping) else {}
+
+
+def _select_model_and_adapter(
+    node: PreparedNode,
+    adapters: Sequence[ModelAdapter],
+    model_map: Mapping[str, Any],
+) -> tuple[str, ModelAdapter]:
+    requested_model = _model_name(node)
+    normalized_adapters = tuple(adapters)
+    required_features = _required_model_features(node)
+    requires_local_only = _requires_local_only(node)
+
+    if not normalized_adapters and (not required_features or not model_map):
+        return requested_model, AsyncOpenAIClientAdapter(models=(requested_model,))
+
+    matches, preferred_matches = _matching_model_adapters(
+        normalized_adapters,
+        requested_model=requested_model,
+        required_features=required_features,
+        requires_local_only=requires_local_only,
+        model_map=model_map,
+    )
+
+    if preferred_matches:
+        return preferred_matches[0]
+    if matches:
+        return matches[0]
+    if normalized_adapters and not required_features and not requires_local_only:
+        return requested_model, normalized_adapters[0]
+
+    fallback_model = _fallback_model_name(requested_model, required_features, model_map)
+    if fallback_model != requested_model:
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} requires capabilities {sorted(required_features)!r} "
+            f"but no provided model adapter advertises support for fallback model "
+            f"{fallback_model!r}"
+        )
+    raise WorkflowExecutionError(
+        f"llm_step node {node.id!r} requires capabilities {sorted(required_features)!r} "
+        f"but no provided model adapter advertises support for requested model "
+        f"{requested_model!r}"
+    )
+
+
+def _matching_model_adapters(
+    adapters: Sequence[ModelAdapter],
+    *,
+    requested_model: str,
+    required_features: frozenset[str],
+    requires_local_only: bool,
+    model_map: Mapping[str, Any],
+) -> tuple[list[tuple[str, ModelAdapter]], list[tuple[str, ModelAdapter]]]:
+    matches: list[tuple[str, ModelAdapter]] = []
+    preferred_matches: list[tuple[str, ModelAdapter]] = []
+    for adapter in adapters:
+        if requires_local_only and not getattr(adapter, "is_local", False):
+            continue
+        for model_name in getattr(adapter, "models", ()):
+            features = _model_features_for_name(model_name, model_map)
+            if required_features and not required_features.issubset(features):
+                continue
+            candidate = (model_name, adapter)
+            matches.append(candidate)
+            if model_name == requested_model:
+                preferred_matches.append(candidate)
+    return matches, preferred_matches
+
+
+def _required_model_features(node: PreparedNode) -> frozenset[str]:
+    requirements = _mapping_or_none(node.model_requirements) or {}
+    features: set[str] = set()
+    required_capabilities = requirements.get("required_capabilities")
+    if isinstance(required_capabilities, Sequence) and not isinstance(
+        required_capabilities, (str, bytes, bytearray)
+    ):
+        features.update(str(item) for item in required_capabilities)
+    for field_name in ("features", "required_features"):
+        raw_value = node.raw.get(field_name)
+        if isinstance(raw_value, Sequence) and not isinstance(
+            raw_value, (str, bytes, bytearray)
+        ):
+            features.update(str(item) for item in raw_value)
+    return frozenset(features)
+
+
+def _requires_local_only(node: PreparedNode) -> bool:
+    requirements = _mapping_or_none(node.model_requirements) or {}
+    operational_preferences = _mapping_or_none(
+        requirements.get("operational_preferences")
+    )
+    if not operational_preferences:
+        return False
+    return operational_preferences.get("data_boundary") == "local_only"
+
+
+def _model_features_for_name(
+    model_name: str,
+    model_map: Mapping[str, Any],
+) -> frozenset[str]:
+    registry_features = _registry_model_features_for_name(model_name)
+    value = model_map.get(model_name)
+    if isinstance(value, Mapping):
+        if isinstance(value.get("features"), Sequence) and not isinstance(
+            value.get("features"), (str, bytes, bytearray)
+        ):
+            return registry_features | frozenset(
+                str(item) for item in value.get("features", ())
+            )
+        if isinstance(value.get("required_capabilities"), Sequence) and not isinstance(
+            value.get("required_capabilities"), (str, bytes, bytearray)
+        ):
+            return registry_features | frozenset(
+                str(item) for item in value.get("required_capabilities", ())
+            )
+        return registry_features | frozenset(
+            str(key)
+            for key, enabled in value.items()
+            if isinstance(enabled, bool) and enabled
+        )
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return registry_features | frozenset(str(item) for item in value)
+    return registry_features
+
+
+def _registry_model_features_for_name(model_name: str) -> frozenset[str]:
+    capabilities = _get_openai_model_capabilities(model_name)
+    if capabilities is None:
+        return frozenset()
+    features: set[str] = set()
+    if getattr(capabilities, "supports_structured", False):
+        features.update({"structured_output", "json_mode"})
+    if getattr(capabilities, "supports_functions", False):
+        features.add("tool_calling")
+    if getattr(capabilities, "supports_vision", False):
+        features.add("multimodal_input")
+    if getattr(capabilities, "supports_web_search", False):
+        features.add("citation_generation")
+    if (
+        getattr(capabilities, "context_window", 0)
+        and capabilities.context_window >= 128000
+    ):
+        features.add("long_context")
+    input_modalities = set(getattr(capabilities, "input_modalities", ()) or ())
+    if {"image", "audio"} & input_modalities:
+        features.add("multimodal_input")
+    return frozenset(features)
+
+
+def _get_openai_model_capabilities(model_name: str) -> Any | None:
+    try:
+        registry = ModelRegistry.get_default()
+        return registry.get_capabilities(model_name)
+    except (ModelNotSupportedError, AttributeError, ImportError, ValueError):
+        return None
+
+
+def _fallback_model_name(
+    requested_model: str,
+    required_features: frozenset[str],
+    model_map: Mapping[str, Any],
+) -> str:
+    if not required_features:
+        return requested_model
+    requested_features = _model_features_for_name(requested_model, model_map)
+    if not requested_features or required_features.issubset(requested_features):
+        return requested_model
+    for model_name in sorted(str(name) for name in model_map):
+        if required_features.issubset(_model_features_for_name(model_name, model_map)):
+            return model_name
+    return requested_model
 
 
 def _model_parameters(node: PreparedNode) -> dict[str, Any]:

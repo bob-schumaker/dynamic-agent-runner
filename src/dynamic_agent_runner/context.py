@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-
 from dynamic_agent_runner.models import LoadedAgentWorkflow
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
@@ -26,7 +26,12 @@ class WorkflowExecutionContext:
 
     workflow: LoadedAgentWorkflow
     tool_registry: ToolRegistry | None = None
-    model_adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter | None = None
+    model_adapter: (
+        OpenAIClientAdapter
+        | AsyncOpenAIClientAdapter
+        | Sequence[OpenAIClientAdapter | AsyncOpenAIClientAdapter]
+        | None
+    ) = None
     max_steps: int | None = None
     trace_sink: TraceSink | None = None
     prompt_cache: bool | None = None
