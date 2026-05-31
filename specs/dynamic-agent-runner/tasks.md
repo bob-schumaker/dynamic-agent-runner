@@ -627,7 +627,11 @@ canonical contract should be one immutable base package directory with fixed
 sibling files and first-class `skill-bundle/` handling. Caller-owned overrides
 remain supported as separate runtime inputs that compile into a derived final
 workflow. Backward compatibility is not required for the old
-artifact-by-artifact base-package loading flow.
+artifact-by-artifact base-package loading flow. The latest upstream reference
+also adds concrete package-contract guidance for provider-neutral
+`model_requirements`, ReAct-style loop manifests, RAG/GraphRAG metadata, and the
+`evidence_loop` pattern, so package-alignment work should track those surfaces
+explicitly instead of leaving them as undocumented future behavior.
 
 ### Slice P1 — Canonical package-directory loader
 
@@ -681,7 +685,7 @@ artifact-by-artifact base-package loading flow.
 - [ ] P4.6 Update README and docs to describe the immutable-base + caller-
       override + compiled-workflow contract.
 
-### Slice P5 — Manifest/runtime alignment cleanup for model routing work
+### Slice P5 — Manifest/runtime alignment cleanup for upstream taxonomy
 
 - [ ] P5.1 Align manifest capability vocabulary with the current
       `agent-runtime-package.md` guidance so runtime feature routing does not
@@ -690,6 +694,20 @@ artifact-by-artifact base-package loading flow.
       model-selection metadata in the spec and user-facing docs.
 - [ ] P5.3 Decide and document whether automatic local model-adapter fallback is
       part of the supported runtime contract or an internal convenience.
+- [ ] P5.4 Add and validate provider-neutral `model_requirements` support on
+      `llm_step` nodes, including capability, reasoning, context, output, and
+      fallback metadata preservation.
+- [ ] P5.5 Add package-validation and documentation rules for ReAct-style
+      `react_loop` manifests, including `metadata.patterns_present`,
+      `runtime.execution_policy.max_iterations`, `loopback` edges, and
+      model-safe observation-state expectations.
+- [ ] P5.6 Add metadata preservation and validation for package-declared `rag`,
+      `embedding_retrieval`, `graph_retrieval`, and `graphrag` pattern
+      classifications plus `metadata.rag_pipeline` shape.
+- [ ] P5.7 Preserve and document `evidence_loop` pattern metadata so retrieval
+      sufficiency gates, evaluator-driven missing-information flow, and
+      layered model-visible versus runtime-only evidence remain aligned with the
+      upstream skill contract.
 
 ## Deferred library-evaluation follow-ups
 
