@@ -88,10 +88,14 @@
   dedicated pre-adapter preparation seam for hierarchical prompt injection,
   session-message pruning, and summary-style context compaction, and
   `PreparedModelInput` preserves metadata describing those transformations.
-- The next active implementation slice is now `OA1` — add guardrail metadata
-  for input, output, tool-input, and tool-output phases.
+- OA1 is now complete in `a834a90`: `RuntimeManifest` preserves deferred
+  guardrail declarations from `extensions.guardrails.declarations`, covering the
+  `input`, `output`, `tool_input`, and `tool_output` phases plus `abort` and
+  `reject_content` tripwire behavior metadata.
+- The next active implementation slice is now `OA4 + E9` — implement the MCP
+  diagnostics and registry-source cluster.
 - The current active follow-up order is:
-  OA1, OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
+  OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public

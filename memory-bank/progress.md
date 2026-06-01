@@ -540,13 +540,10 @@
 
 ## In Flight
 
-- No source implementation work is currently in flight after S5 implementation
-  commit `84dfd31`, plan/task evidence commit `387b574`, and governing
-  spec-document commit `89926d8`.
-- Memory-bank refresh is in flight to record the committed package-alignment
-  backlog checkpoint from `8308cd6` as a separate docs(memory-bank) commit.
-- Remaining active follow-up work is now explicitly ordered: OA2, OA3, OA1,
-  OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
+- OA1 memory-bank refresh is in flight after implementation/spec-doc commit
+  `a834a90` (`feat(validation): add guardrail metadata declarations`).
+- Remaining active follow-up work is now explicitly ordered: OA4+E9, E11, OA5,
+  OA6, OA7, OA10, OA9, OA8, then OA11.
 
 ## Remaining
 
@@ -566,6 +563,8 @@
   features that are represented in artifacts but not yet implemented.
 - Update the memory bank after each future meaningful implementation
   milestone.
+- Record the OA1 memory-bank checkpoint after the separate docs(memory-bank)
+  commit is created.
 
 ## Risks or Follow-ups
 
