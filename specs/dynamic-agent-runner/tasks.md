@@ -15,40 +15,39 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: OA1 — add guardrail metadata.
+- Next active slice: OA4 + E9 — implement the MCP diagnostics and
+  registry-source cluster.
 - Current focus: all planned implementation slices through P5 are complete;
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
 
 ## Active follow-up implementation order
 
-1. **OA1** — add guardrail metadata for input, output, tool-input, and
-   tool-output phases.
-2. **OA4 + E9** — implement one MCP follow-up cluster covering lifecycle
+1. **OA4 + E9** — implement one MCP follow-up cluster covering lifecycle
    diagnostics plus MCP registry-source support.
-3. **E11** — add the narrower hierarchical file-backed prompt-context
+2. **E11** — add the narrower hierarchical file-backed prompt-context
    constraints on top of OA3's broader prepare-stage design.
-4. **OA5** — draft tool-use completion policy for future iterative agent-loop
+3. **OA5** — draft tool-use completion policy for future iterative agent-loop
    support.
-5. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
+4. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
    patterns.
-6. **OA7** — design workflow interruption and resumable run state for
+5. **OA7** — design workflow interruption and resumable run state for
    approval-required tools.
-7. **OA10** — defer sandbox/workspace runtime support until the earlier policy
+6. **OA10** — defer sandbox/workspace runtime support until the earlier policy
    and interruption surfaces are defined.
-8. **OA9** — consider an optional `tool_from_function(...)` helper after
+7. **OA9** — consider an optional `tool_from_function(...)` helper after
     provenance and policy metadata settle.
-9. **OA8** — consider a small async session protocol only after multi-turn
+8. **OA8** — consider a small async session protocol only after multi-turn
     memory requirements are explicit.
-10. **OA11** — map any future upstream portable tool-type taxonomy only if that
+9. **OA11** — map any future upstream portable tool-type taxonomy only if that
     upstream taxonomy is actually introduced.
 
 ### Active follow-up ordering rationale
 
-- Foundation metadata first: OA2 and OA3 are now complete, and OA1 remains the
-  next foundational metadata work after prompt/context preparation established
-  the dedicated prepare-model-input seam for later guardrail and file-backed
-  context follow-ups.
+- Foundation metadata first: OA1, OA2, and OA3 are now complete, so the next
+  near-term work can move to the grouped MCP/source-aware cluster after the
+  runtime gained dedicated provenance, prepare-model-input, and deferred
+  guardrail metadata seams.
 - MCP/source-aware work next: OA4 and E9 are intentionally grouped because the
   task backlog already says OA4 folds MCP lifecycle diagnostics into E9.
 - Narrower derived context work after the broader design: E11 depends on the
@@ -1060,10 +1059,18 @@ explicitly instead of leaving them as undocumented future behavior.
 
 ## Active OpenAI Agents SDK Python evaluation follow-ups
 
-- [ ] OA1. Add guardrail metadata for input, output, tool-input, and
+- [x] OA1. Add guardrail metadata for input, output, tool-input, and
       tool-output phases, including abort and reject-content behavior.
-      - Active order: next, after OA2 and OA3 establish provenance and
-        prepare-stage groundwork.
+      - Completed in working tree: `RuntimeManifest` now preserves deferred
+        guardrail declarations from `extensions.guardrails.declarations`, with
+        supported `input`, `output`, `tool_input`, and `tool_output` phases plus
+        `abort` and `reject_content` tripwire behavior metadata.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed guardrail declarations, unsupported phases or behaviors, and
+        `reject_content` declarations that omit a model-visible rejection message.
+      - Validation: `poetry run pytest tests/test_validation.py
+        tests/test_executor.py -q 2>&1` — pass; 74 tests passed.
+      - Active order: completed; OA4 + E9 is now the next active slice.
 - [x] OA2. Extend tool provenance metadata to distinguish registered,
       built-in, override, MCP, and future agent-as-tool origins while keeping
       provenance separate from any future portable tool-type taxonomy.

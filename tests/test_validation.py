@@ -419,6 +419,88 @@ def test_malformed_extension_envelope_fails_validation() -> None:
         validate_mapping(data)
 
 
+def test_guardrail_metadata_is_preserved_and_validated() -> None:
+    """Deferred guardrail declarations preserve supported phase and behavior metadata."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "guardrails": {
+            "declarations": [
+                {
+                    "id": "pii_check",
+                    "phase": "input",
+                    "behavior_on_tripwire": "abort",
+                },
+                {
+                    "id": "safe_tool_args",
+                    "phase": "tool_input",
+                    "behavior_on_tripwire": "reject_content",
+                    "reject_content_message": "Tool arguments were rejected.",
+                },
+            ]
+        }
+    }
+
+    manifest = load_runtime_manifest(data)
+
+    assert [guardrail.id for guardrail in manifest.guardrails] == [
+        "pii_check",
+        "safe_tool_args",
+    ]
+    assert [guardrail.phase for guardrail in manifest.guardrails] == [
+        "input",
+        "tool_input",
+    ]
+    assert manifest.guardrails[1].behavior_on_tripwire == "reject_content"
+    assert manifest.guardrails[1].message == "Tool arguments were rejected."
+
+    validate_runtime_manifest(manifest)
+
+
+def test_guardrail_metadata_fails_closed_for_bad_phase_and_behavior() -> None:
+    """Guardrail metadata rejects unsupported phases and behaviors."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "guardrails": {
+            "declarations": [
+                {
+                    "id": "bad_guardrail",
+                    "phase": "session",
+                    "behavior_on_tripwire": "continue",
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "unsupported phase" in message
+    assert "unsupported behavior_on_tripwire" in message
+
+
+def test_guardrail_reject_content_requires_message() -> None:
+    """Reject-content guardrails need a model-visible message."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "guardrails": {
+            "declarations": [
+                {
+                    "id": "safe_output",
+                    "phase": "output",
+                    "behavior_on_tripwire": "reject_content",
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError, match="must define message"):
+        validate_mapping(data)
+
+
 def test_llm_step_requires_prompt_or_prompt_source() -> None:
     """LLM steps need inline prompt data or a prompt source."""
 

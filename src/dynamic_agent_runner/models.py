@@ -175,6 +175,32 @@ class ModelCapabilities:
 
 
 @dataclass(frozen=True)
+class GuardrailDeclaration:
+    """Deferred guardrail metadata preserved from the runtime manifest."""
+
+    id: str | None
+    phase: str | None = None
+    behavior_on_tripwire: str | None = None
+    message: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> GuardrailDeclaration:
+        """Build a guardrail declaration from a manifest mapping."""
+
+        raw = dict(value)
+        return cls(
+            id=_optional_str(raw.get("id")),
+            phase=_optional_str(raw.get("phase")),
+            behavior_on_tripwire=_optional_str(raw.get("behavior_on_tripwire")),
+            message=_optional_str(
+                raw.get("message") or raw.get("reject_content_message")
+            ),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
 class ManifestObject:
     """Generic manifest object with a stable identifier and raw data."""
 
@@ -323,6 +349,7 @@ class RuntimeManifest:
     patterns_present: tuple[str, ...] = ()
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
     model_capabilities: ModelCapabilities | None = None
+    guardrails: tuple[GuardrailDeclaration, ...] = ()
     state: Mapping[str, Any] = field(default_factory=dict)
     skills: tuple[ManifestObject, ...] = ()
     tools: tuple[ToolDefinition, ...] = ()
@@ -344,6 +371,7 @@ class RuntimeManifest:
         metadata = _copy_mapping(_as_mapping(raw.get("metadata")))
         extensions = _copy_mapping(_as_mapping(raw.get("extensions")))
         execution_policy = _copy_mapping(_as_mapping(runtime.get("execution_policy")))
+        guardrails = _guardrail_declarations(extensions)
         return cls(
             raw=raw,
             format_version=raw.get("format_version"),
@@ -367,6 +395,7 @@ class RuntimeManifest:
             ),
             execution_policy=execution_policy,
             model_capabilities=_model_capabilities_from_policy(execution_policy),
+            guardrails=guardrails,
             state=_copy_mapping(_as_mapping(runtime.get("state"))),
             skills=tuple(_manifest_objects(raw.get("skills"))),
             tools=tuple(
@@ -881,3 +910,15 @@ def _output_contracts(value: object) -> dict[str, Any]:
         if contract_id is not None:
             contracts[str(contract_id)] = dict(item)
     return contracts
+
+
+def _guardrail_declarations(
+    extensions: Mapping[str, Any],
+) -> tuple[GuardrailDeclaration, ...]:
+    guardrails = _as_mapping(extensions.get("guardrails"))
+    if not guardrails:
+        return ()
+    declarations = guardrails.get("declarations")
+    return tuple(
+        GuardrailDeclaration.from_mapping(item) for item in _mapping_items(declarations)
+    )

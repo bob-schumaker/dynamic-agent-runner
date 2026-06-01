@@ -103,6 +103,8 @@ SUPPORTED_FALLBACK_ACTIONS = {
     "use_higher_capability",
     "escalate",
 }
+SUPPORTED_GUARDRAIL_PHASES = {"input", "output", "tool_input", "tool_output"}
+SUPPORTED_GUARDRAIL_BEHAVIORS = {"abort", "reject_content"}
 REACT_LOOP_PATTERN_ID = "react_loop"
 PROMPT_REPLACE_FIELDS = {
     "system",
@@ -236,6 +238,7 @@ def validate_runtime_manifest(
     _extend(errors, _rag_pipeline_errors(manifest))
     _extend(errors, _react_loop_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
+    _extend(errors, _guardrail_declaration_errors(manifest))
     if errors:
         raise WorkflowValidationError(_format_errors("runtime manifest", errors))
 
@@ -617,6 +620,42 @@ def _tool_definition_errors(
             errors.append(
                 f"{label} {tool.id!r} at position {index} has unsupported exposure "
                 f"{tool.exposure!r}"
+            )
+    return errors
+
+
+def _guardrail_declaration_errors(manifest: RuntimeManifest) -> list[str]:
+    errors: list[str] = []
+    raw_guardrails = None
+    if isinstance(manifest.extensions.get("guardrails"), Mapping):
+        raw_guardrails = manifest.extensions.get("guardrails")
+    if raw_guardrails is None:
+        return errors
+    declarations = raw_guardrails.get("declarations")
+    if declarations is not None and not isinstance(declarations, list):
+        errors.append("guardrails declarations must be a list")
+        return errors
+    for index, declaration in enumerate(manifest.guardrails):
+        if not declaration.id:
+            errors.append(f"guardrail declaration at position {index} is missing id")
+        if declaration.phase not in SUPPORTED_GUARDRAIL_PHASES:
+            errors.append(
+                f"guardrail declaration {declaration.id!r} has unsupported phase "
+                f"{declaration.phase!r}"
+            )
+        if declaration.behavior_on_tripwire not in SUPPORTED_GUARDRAIL_BEHAVIORS:
+            errors.append(
+                f"guardrail declaration {declaration.id!r} has unsupported "
+                "behavior_on_tripwire "
+                f"{declaration.behavior_on_tripwire!r}"
+            )
+        if (
+            declaration.behavior_on_tripwire == "reject_content"
+            and declaration.message is None
+        ):
+            errors.append(
+                f"guardrail declaration {declaration.id!r} with reject_content "
+                "must define message or reject_content_message"
             )
     return errors
 

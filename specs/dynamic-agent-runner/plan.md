@@ -116,8 +116,8 @@ or a clear error.
   Codex/Cline evaluation follow-ups and OpenAI Agents SDK Python evaluation
   follow-ups captured in `tasks.md`.
 - The recommended implementation order for that active follow-up backlog is:
-  OA1, the combined OA4+E9 MCP cluster, E11, OA5, OA6, OA7, OA10, OA9, OA8,
-  then OA11 as the final upstream-conditional item.
+  the combined OA4+E9 MCP cluster, E11, OA5, OA6, OA7, OA10, OA9, OA8, then
+  OA11 as the final upstream-conditional item.
 - OA2 is now implemented in the working tree: tool provenance preserves the
   existing low-level source kind while adding a higher-level origin bucket that
   distinguishes registered, built-in, override, and future MCP or
@@ -133,6 +133,12 @@ or a clear error.
   transformations.
 - OA3 validation evidence: `poetry run pytest tests/test_executor.py -q 2>&1`
   — pass; 47 tests passed.
+- OA1 is now implemented in the working tree: `RuntimeManifest` preserves
+  deferred guardrail declarations from `extensions.guardrails.declarations`,
+  including supported `input`, `output`, `tool_input`, and `tool_output`
+  phases plus `abort` and `reject_content` tripwire behavior metadata.
+- OA1 validation evidence: `poetry run pytest tests/test_validation.py
+  tests/test_executor.py -q 2>&1` — pass; 74 tests passed.
 
 ## Technical Approach
 
@@ -813,6 +819,6 @@ a qualified verdict:
 This plan is accepted as the current technical planning artifact. The currently
 planned implementation sequence is complete through package-alignment P5 and the
 tracked async-first follow-up slices. Future work should start from the active
-Codex/Cline and OpenAI Agents SDK Python follow-up tasks in this order: OA1,
-OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11 unless a new scoped
-spec/plan update supersedes that sequence.
+Codex/Cline and OpenAI Agents SDK Python follow-up tasks in this order: OA4+E9,
+E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11 unless a new scoped spec/plan
+update supersedes that sequence.
