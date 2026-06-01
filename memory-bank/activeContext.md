@@ -94,6 +94,19 @@
   and `evidence_loop` packaging guidance. Local package-alignment planning should
   stay synchronized to that upstream contract before selecting the next runtime
   slice.
+- The latest governing-doc refresh commit is `cf66be2`
+  (`docs(spec): align runtime-package surface guidance`). It updates
+  `specs/dynamic-agent-runner/spec.md`, `plan.md`, and `tasks.md` so the local
+  docs explicitly track the current upstream grouped-contract surface and the
+  ownership split around:
+  - grouped `runtime` / `metadata` / `extensions` usage
+  - portable tool-type taxonomy as future shared semantic metadata
+  - `handoff` vs `agent-as-tool` as grouped manifest metadata, not a new
+    primitive node kind
+  - portable approval/interruption metadata versus runtime-enforced approval
+    engines
+  - concrete MCP discovery, injection, lifecycle, and extension-schema details
+    remaining downstream-owned
 
 ## Current Status
 

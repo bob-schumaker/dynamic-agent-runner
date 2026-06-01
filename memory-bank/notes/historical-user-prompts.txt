@@ -262,3 +262,9 @@ design a graph mutation interface
 - the first implementation will likely be adding our own internal llm context pruning pipeline into the incoming workflow
 - decide if the graph modification is also defined like the agent workflow definition
 - do we need additional information in the agent workflow definition to be able to cleanly hook it to the existing graph
+
+---
+
+compare "Deferred Codex/Cline evaluation follow-ups" tasks and "Deferred OpenAI Agents SDK Python evaluation follow-ups" tasks
+for duplication and overlap. For each E* task that can be merged with an OA* task, mark the E* task as complete and note
+that its completion is in an OA task.

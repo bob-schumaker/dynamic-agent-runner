@@ -222,6 +222,8 @@
   specs/dynamic-agent-runner/tasks.md`.
 - Package-alignment Slice P5 implementation commit exists:
   `7e9a33e feat(runtime): align manifest taxonomy metadata`.
+- Governing-doc alignment for the newer upstream runtime-package surface now
+  exists in commit `cf66be2 docs(spec): align runtime-package surface guidance`.
 - Slice P5 is complete: the runtime now documents and validates
   `execution_policy.model_capabilities`, `execution_policy.model_map`,
   provider-neutral `llm_step.model_requirements`, ReAct-style `react_loop`
@@ -234,6 +236,17 @@
 - `tests/test_validation.py` covers failing and passing `react_loop` shapes, and
   `tests/test_executor.py` now covers the default async OpenAI adapter contract
   when no explicit adapters are provided for capability routing.
+- The governing spec artifacts now explicitly track the newer upstream grouped
+  contract boundaries: `runtime`, `metadata`, and `extensions` remain the shared
+  manifest surface; future portable tool taxonomy is treated as semantic metadata
+  rather than provenance; `handoff` vs `agent-as-tool` remains metadata rather
+  than a new primitive node kind; portable approval/interruption metadata stays
+  distinct from runtime-enforced approval engines; and concrete MCP discovery,
+  injection, lifecycle, and extension-schema details remain downstream-owned.
+- `specs/dynamic-agent-runner/tasks.md` now records OA11 as a deferred follow-up
+  for mapping any future upstream portable tool-type taxonomy into local
+  registry/policy handling without treating it as an MCP/source injection
+  contract.
 - Focused P5 validation passed with `poetry run pytest tests/test_validation.py
   tests/test_executor.py tests/test_model_capabilities.py tests/test_artifacts.py
   -q` (90 passed) and `poetry run pre-commit run --files
