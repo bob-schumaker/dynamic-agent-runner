@@ -15,7 +15,10 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: P4 — package-directory-first public API and CLI.
+- Next active slice: none.
+- Current focus: all planned implementation slices through P5 are complete;
+  remaining work lives in deferred follow-up items and any future scoped
+  follow-on spec update.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 

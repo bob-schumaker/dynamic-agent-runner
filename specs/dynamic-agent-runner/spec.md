@@ -30,13 +30,15 @@ library-owned tool registry pattern, and returns the final result to the caller.
 
 ## Problem Statement
 
-Agent-development artifacts currently describe intended agent workflows, but
+Agent-development artifacts currently describe intended agent workflows, and
 this repository needs a runtime library that can consume those artifacts and
-execute the workflow consistently. The current loader contract is still too
-artifact-by-artifact and too flexible for the agent-development skill's current
-portable runtime-package output. Callers should not need to manually interpret
-or individually wire the definition YAML, Mermaid diagram, design note, bundled
-skill files, or runtime registry bindings to run an agent workflow.
+execute the workflow consistently. The runtime has already moved to a
+package-directory-first contract, but the specification still needs to keep that
+contract explicit so future follow-up work does not drift back toward a loose
+artifact-by-artifact loading model. Callers should not need to manually
+interpret or individually wire the definition YAML, Mermaid diagram, design
+note, bundled skill files, or runtime registry bindings to run an agent
+workflow.
 
 ## Users
 
@@ -154,9 +156,9 @@ Acceptance criteria:
 
 - Given a package directory, when a caller uses the public API, then the
   package-directory entry point is sufficient to load and run the workflow.
-- Given a caller attempts to provide separate runtime-manifest, graph, design,
-  tool-index, or runtime-override artifacts through the canonical API, then the
-  runtime rejects that legacy artifact-by-artifact contract.
+- Given a caller uses the canonical public API, when package-directory input is
+  available, then `package_directory` is the primary supported contract and any
+  separate artifact inputs are treated only as lower-level compatibility seams.
 - Given internal tests or lower-level helpers still need isolated artifact
   loading, when those helpers are used, then they remain internal implementation
   seams rather than the primary public package contract.
@@ -1365,8 +1367,8 @@ The canonical public API should be package-directory-first:
 from dynamic_agent_runner import run_agent_workflow
 
 result = run_agent_workflow(
-    package_dir="path/to/design-dir",
-    workflow_overrides=(
+    package_directory="path/to/design-dir",
+    runtime_overrides=(
         "path/to/workflow-overrides.yaml"
     ),  # optional caller-owned overlay
     prompt="Run the workflow for this user request.",
@@ -1382,52 +1384,52 @@ units, but they are no longer the intended primary public contract.
 
 Before implementation is considered complete, add validation covering:
 
-- [ ] package-directory loading rooted at one design bundle path
-- [ ] `agent-design.md` reference parsing and consistency validation against
+- [x] package-directory loading rooted at one design bundle path
+- [x] `agent-design.md` reference parsing and consistency validation against
       runtime YAML and Mermaid graph within the package boundary
-- [ ] runtime YAML parsing for `format_version: 1` and `package_type:
+- [x] runtime YAML parsing for `format_version: 1` and `package_type:
       dynamic_agent_design`
-- [ ] `patterns_present` parsing and preservation for documented supported
+- [x] `patterns_present` parsing and preservation for documented supported
       agent-pattern IDs
-- [ ] hello-world runtime fixture packages for all documented supported
+- [x] hello-world runtime fixture packages for all documented supported
       agent-pattern IDs under `tests/fixtures/agent-patterns/`
-- [ ] participant-group, mode, phase, and role metadata parsing for multi-agent
+- [x] participant-group, mode, phase, and role metadata parsing for multi-agent
       and other structured pattern shapes
-- [ ] Mermaid diagram reference resolution and relationship validation
-- [ ] embedded `tools` section parsing and tool-reference validation
-- [ ] package loading for `hybrid_bundle`, including adjacent skill-bundle
+- [x] Mermaid diagram reference resolution and relationship validation
+- [x] embedded `tools` section parsing and tool-reference validation
+- [x] package loading for `hybrid_bundle`, including adjacent skill-bundle
       references
-- [ ] validation of bundled `skills[*].bundled_path` and `support_files`
+- [x] validation of bundled `skills[*].bundled_path` and `support_files`
       references under `skill-bundle/`
-- [ ] caller-owned override loading and validation against the immutable base
+- [x] caller-owned override loading and validation against the immutable base
       package
-- [ ] compile/preparation of a final workflow from base package plus overrides
-- [ ] path, raw-string, and already-parsed-object input modes
-- [ ] prompt validation
-- [ ] default library-owned OpenAI package execution-path construction
-- [ ] lightweight model capability metadata for context window, structured-output
+- [x] compile/preparation of a final workflow from base package plus overrides
+- [x] path, raw-string, and already-parsed-object input modes
+- [x] prompt validation
+- [x] default library-owned OpenAI package execution-path construction
+- [x] lightweight model capability metadata for context window, structured-output
       support, reasoning support, modalities, and parallel tool-call support
-- [ ] repository-owned tool registry integration
-- [ ] opt-in built-in default tool packs, beginning with read-only local
+- [x] repository-owned tool registry integration
+- [x] opt-in built-in default tool packs, beginning with read-only local
       workspace tools
-- [ ] optional protocol-compatible chat-client injection
-- [ ] required tool-registry injection or approved registry source when tool use
+- [x] optional protocol-compatible chat-client injection
+- [x] required tool-registry injection or approved registry source when tool use
       is expected
-- [ ] OpenAI package client adapter and tool-call behavior
-- [ ] CLI loading, execution, output, and non-zero error behavior
+- [x] OpenAI package client adapter and tool-call behavior
+- [x] CLI loading, execution, output, and non-zero error behavior
 - [ ] CLI coverage for every currently executable hello-world pattern fixture and
       expected failures for unsupported pattern features
-- [ ] `llm_step`, `tool_use_step`, and `decision_step` execution using a fake or
+- [x] `llm_step`, `tool_use_step`, and `decision_step` execution using a fake or
       stub chat client and fake tool registry
-- [ ] successful workflow execution using a fake or stub chat client
-- [ ] bounded retry behavior for retryable model and tool failures
-- [ ] non-retry behavior for non-retryable model and tool failures
-- [ ] output-contract validation and malformed-output failure behavior
-- [ ] `llm_route` route validation against allowed branch values
-- [ ] token-budget preflight behavior without live model calls
-- [ ] structured trace/event hooks for node, model, tool, decision, retry, error,
+- [x] successful workflow execution using a fake or stub chat client
+- [x] bounded retry behavior for retryable model and tool failures
+- [x] non-retry behavior for non-retryable model and tool failures
+- [x] output-contract validation and malformed-output failure behavior
+- [x] `llm_route` route validation against allowed branch values
+- [x] token-budget preflight behavior without live model calls
+- [x] structured trace/event hooks for node, model, tool, decision, retry, error,
       and final-result events
-- [ ] concurrent invocation isolation for library-owned per-run state and explicit
+- [x] concurrent invocation isolation for library-owned per-run state and explicit
       thread-safety behavior for shared collaborators
 - [x] native async OpenAI adapter boundary with async-canonical protocol types
 - [x] async model calls through the async executor path
@@ -1440,10 +1442,10 @@ Before implementation is considered complete, add validation covering:
       already-running event loop
 - [x] concurrent async runs preserving E13 run IDs, per-run state isolation,
       trace correlation, hook correlation, and synchronized package-owned helpers
-- [ ] narrow in-process lifecycle hooks for node, model, tool, permission, and
+- [x] narrow in-process lifecycle hooks for node, model, tool, permission, and
       workflow boundaries
-- [ ] extended trace vocabulary for tool lifecycle and status notice events
-- [ ] structured tool-result facets for model-facing output, raw output, log
+- [x] extended trace vocabulary for tool lifecycle and status notice events
+- [x] structured tool-result facets for model-facing output, raw output, log
       preview, event payload, and sensitive trace fields
 - [ ] deferred guardrail metadata coverage for input, output, tool-input, and
       tool-output phases when those features are scoped
@@ -1455,10 +1457,10 @@ Before implementation is considered complete, add validation covering:
       approval-required tools can pause and resume live runs
 - [ ] deferred session protocol and sandbox/workspace runtime validation when
       those features are selected by a later spec
-- [ ] clear error behavior for missing artifacts
-- [ ] clear error behavior for inconsistent artifacts
-- [ ] clear error behavior for model/client failures
-- [ ] final-result return behavior
+- [x] clear error behavior for missing artifacts
+- [x] clear error behavior for inconsistent artifacts
+- [x] clear error behavior for model/client failures
+- [x] final-result return behavior
 
 ## Consistency Notes
 
@@ -1595,14 +1597,13 @@ Before implementation is considered complete, add validation covering:
   commit `bf18554`, including trusted Python callback contexts for node, model,
   tool, permission-boundary, and workflow observations while avoiding shell hooks,
   plugin loading, or untrusted hook sources.
-- The initial source package scaffold exists; deeper parser, registry, OpenAI
-  adapter, executor, and CLI implementation details remain intentionally staged
-  through follow-on slices.
+- Core runtime implementation is complete through the currently planned package-
+  alignment and async-first slices; remaining work is limited to deferred follow-
+  up items or future scoped spec expansions.
 - Follow-on implementation planning artifacts now exist at
   `specs/dynamic-agent-runner/plan.md` and
   `specs/dynamic-agent-runner/tasks.md`. Treat them as the current technical
   planning and task-decomposition companions to this light-mode spec.
-- Debate review concluded this artifact set is ready only for a narrow
-  implementation-readiness/scaffold slice, not unrestricted runtime
-  implementation. Resolve stale docs, dependency state, and package scaffold
-  before deeper parser, registry, OpenAI adapter, or executor work.
+- Earlier debate review originally constrained work to a narrow readiness slice,
+  but the planned implementation sequence recorded in this spec has since been
+  completed through the currently tracked slices.

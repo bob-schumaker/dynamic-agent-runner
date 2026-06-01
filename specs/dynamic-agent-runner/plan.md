@@ -22,9 +22,10 @@ or a clear error.
 
 ## Current Repository State
 
-- Slice 1 is complete and committed: the initial source package scaffold exists
-  under `src/dynamic_agent_runner/` with public API placeholders, project error
-  types, and an import smoke test.
+- Core planned implementation slices are complete through package-alignment P5:
+  the source package scaffold, artifact loading, validation, registry, model
+  adapter, executor, CLI, async execution, runtime-package simplification, and
+  package-directory-first alignment work are all implemented and committed.
 - `pyproject.toml` and `poetry.lock` include the official `openai` dependency
   and package include for `src/dynamic_agent_runner`.
 - `poetry check`, the import smoke test, targeted pytest, and targeted
@@ -158,8 +159,9 @@ implemented or renamed.
 
 ### Artifact loading
 
-The next package-alignment work should replace the current loose artifact
-utility contract with a package-directory-first contract.
+The package-alignment work has replaced the earlier loose artifact utility
+contract with a package-directory-first contract while preserving lower-level
+compatibility seams for tests and controlled callers.
 
 Initial parser responsibilities:
 
@@ -451,6 +453,15 @@ and execution failures.
       immutable base package
     - simplify CLI to a `--package` style contract and keep override inputs
       clearly separate from the canonical base package
+
+22. **Package-alignment Slice P5: manifest/runtime alignment cleanup for
+    upstream taxonomy**
+    - align manifest capability vocabulary with the current upstream runtime-
+      package guidance
+    - preserve and validate provider-neutral `model_requirements`, ReAct-style
+      loop metadata, and `rag` / `embedding_retrieval` / `graph_retrieval` /
+      `graphrag` classifications
+    - document `evidence_loop` metadata and capability-routing expectations
 
 ## Implementation Slices
 
@@ -777,6 +788,8 @@ a qualified verdict:
 
 ## Plan Gate
 
-This plan is accepted as the current technical planning artifact. The
-readiness/scaffold slice is complete and validated. Continue with Slice 2 before
-deeper validation, registry, OpenAI adapter, executor, or CLI runtime work.
+This plan is accepted as the current technical planning artifact. The currently
+planned implementation sequence is complete through package-alignment P5 and the
+tracked async-first follow-up slices. Future work should start from deferred
+follow-up items or from a new scoped spec/plan update rather than resuming an
+earlier implementation slice.
