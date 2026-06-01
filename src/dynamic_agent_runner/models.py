@@ -283,6 +283,58 @@ class ToolUseCompletionPolicy:
 
 
 @dataclass(frozen=True)
+class HandoffMetadata:
+    """Deferred handoff metadata for future active-agent transfer workflows."""
+
+    id: str | None
+    target: str | None = None
+    on_handoff: str | None = None
+    input_filter: str | None = None
+    nested_history: str | None = None
+    enabled_when: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> HandoffMetadata:
+        """Build handoff metadata from grouped manifest metadata."""
+
+        raw = dict(value)
+        return cls(
+            id=_optional_str(raw.get("id")),
+            target=_optional_str(raw.get("target") or raw.get("target_agent")),
+            on_handoff=_optional_str(raw.get("on_handoff")),
+            input_filter=_optional_str(raw.get("input_filter")),
+            nested_history=_optional_str(raw.get("nested_history")),
+            enabled_when=_optional_str(raw.get("enabled_when")),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
+class AgentAsToolMetadata:
+    """Deferred bounded delegation metadata for agent-as-tool nodes."""
+
+    skill_id: str | None = None
+    skill_path: str | None = None
+    task_boundary: str | None = None
+    output_mode: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> AgentAsToolMetadata:
+        """Build agent-as-tool metadata from node-local manifest metadata."""
+
+        raw = dict(value)
+        return cls(
+            skill_id=_optional_str(raw.get("skill_id")),
+            skill_path=_optional_str(raw.get("skill_path")),
+            task_boundary=_optional_str(raw.get("task_boundary") or raw.get("task")),
+            output_mode=_optional_str(raw.get("output_mode")),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
 class ManifestObject:
     """Generic manifest object with a stable identifier and raw data."""
 
@@ -316,6 +368,7 @@ class RuntimeNode:
     decision_subtype: str | None = None
     available_tools: tuple[str, ...] = ()
     skill_refs: tuple[str, ...] = ()
+    agent_as_tool: AgentAsToolMetadata | None = None
     model_requirements: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -327,6 +380,7 @@ class RuntimeNode:
             str(item) for item in _copy_list(raw.get("available_tools"))
         )
         skill_refs = tuple(str(item) for item in _copy_list(raw.get("skill_refs")))
+        agent_as_tool = _as_mapping(raw.get("agent_as_tool") or raw.get("agent_tool"))
         return cls(
             id=str(raw["id"]) if raw.get("id") is not None else None,
             kind=str(raw["kind"]) if raw.get("kind") is not None else None,
@@ -339,6 +393,11 @@ class RuntimeNode:
             ),
             available_tools=available_tools,
             skill_refs=skill_refs,
+            agent_as_tool=(
+                AgentAsToolMetadata.from_mapping(agent_as_tool)
+                if agent_as_tool is not None
+                else None
+            ),
             model_requirements=_copy_mapping(
                 _as_mapping(raw.get("model_requirements"))
             ),
@@ -435,6 +494,7 @@ class RuntimeManifest:
     mcp_registry_sources: tuple[MCPRegistrySource, ...] = ()
     mcp_lifecycle_diagnostics: MCPLifecycleDiagnostics | None = None
     tool_use_completion_policy: ToolUseCompletionPolicy | None = None
+    handoffs: tuple[HandoffMetadata, ...] = ()
     state: Mapping[str, Any] = field(default_factory=dict)
     skills: tuple[ManifestObject, ...] = ()
     tools: tuple[ToolDefinition, ...] = ()
@@ -460,6 +520,7 @@ class RuntimeManifest:
         mcp_registry_sources = _mcp_registry_sources(extensions)
         mcp_lifecycle_diagnostics = _mcp_lifecycle_diagnostics(extensions)
         tool_use_completion = _as_mapping(execution_policy.get("tool_use_completion"))
+        handoffs = _handoff_metadata(metadata)
         return cls(
             raw=raw,
             format_version=raw.get("format_version"),
@@ -491,6 +552,7 @@ class RuntimeManifest:
                 if tool_use_completion is not None
                 else None
             ),
+            handoffs=handoffs,
             state=_copy_mapping(_as_mapping(runtime.get("state"))),
             skills=tuple(_manifest_objects(raw.get("skills"))),
             tools=tuple(
@@ -721,6 +783,7 @@ class PreparedNode:
     decision_subtype: str | None = None
     available_tools: tuple[str, ...] = ()
     skill_refs: tuple[str, ...] = ()
+    agent_as_tool: AgentAsToolMetadata | None = None
     model: str | None = None
     model_parameters: Mapping[str, Any] = field(default_factory=dict)
     model_requirements: Mapping[str, Any] = field(default_factory=dict)
@@ -748,6 +811,7 @@ class ExecutionPlan:
     edges_by_source: Mapping[str, tuple[RuntimeEdge, ...]] = field(default_factory=dict)
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
     tool_use_completion_policy: ToolUseCompletionPolicy | None = None
+    handoffs: tuple[HandoffMetadata, ...] = ()
     output_contracts: Mapping[str, Any] = field(default_factory=dict)
     unsupported_extensions: tuple[str, ...] = ()
     max_steps: int | None = None
@@ -773,6 +837,7 @@ def prepare_execution_plan(
         edges_by_source=_edges_by_source(manifest.edges),
         execution_policy=execution_policy,
         tool_use_completion_policy=manifest.tool_use_completion_policy,
+        handoffs=manifest.handoffs,
         output_contracts=dict(manifest.output_contracts),
         unsupported_extensions=tuple(
             str(extension_id)
@@ -799,6 +864,7 @@ def _prepare_node(
         decision_subtype=node.decision_subtype,
         available_tools=node.available_tools,
         skill_refs=node.skill_refs,
+        agent_as_tool=node.agent_as_tool,
         model=_prepared_model(raw, execution_policy),
         model_parameters=_copy_mapping(_as_mapping(raw.get("model_parameters"))),
         model_requirements=_copy_mapping(_as_mapping(raw.get("model_requirements"))),
@@ -1040,3 +1106,12 @@ def _mcp_lifecycle_diagnostics(
     if not diagnostics:
         return None
     return MCPLifecycleDiagnostics.from_mapping(diagnostics)
+
+
+def _handoff_metadata(
+    metadata: Mapping[str, Any],
+) -> tuple[HandoffMetadata, ...]:
+    handoffs = metadata.get("handoffs")
+    return tuple(
+        HandoffMetadata.from_mapping(item) for item in _mapping_items(handoffs)
+    )

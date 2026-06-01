@@ -126,6 +126,13 @@ SUPPORTED_TOOL_USE_COMPLETION_FINAL_OUTPUT_VALUES = {
     "tool_result",
     "state_field",
 }
+SUPPORTED_HANDOFF_ON_HANDOFF_VALUES = {"switch_active_profile"}
+SUPPORTED_HANDOFF_NESTED_HISTORY_VALUES = {"preserve", "drop", "filtered"}
+SUPPORTED_AGENT_AS_TOOL_OUTPUT_MODE_VALUES = {
+    "default",
+    "tool_result",
+    "state_field",
+}
 REACT_LOOP_PATTERN_ID = "react_loop"
 PROMPT_REPLACE_FIELDS = {
     "system",
@@ -259,6 +266,8 @@ def validate_runtime_manifest(
     _extend(errors, _rag_pipeline_errors(manifest))
     _extend(errors, _react_loop_errors(manifest))
     _extend(errors, _tool_use_completion_policy_errors(manifest))
+    _extend(errors, _handoff_metadata_errors(manifest))
+    _extend(errors, _agent_as_tool_metadata_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
     _extend(errors, _file_context_policy_errors(manifest))
     _extend(errors, _guardrail_declaration_errors(manifest))
@@ -1127,6 +1136,115 @@ def _tool_use_completion_policy_errors(manifest: RuntimeManifest) -> list[str]:
         errors.append(
             f"{label}.final_output_state_key is only allowed when final_output is 'state_field'"
         )
+    return errors
+
+
+def _handoff_metadata_errors(manifest: RuntimeManifest) -> list[str]:
+    raw_handoffs = manifest.metadata.get("handoffs")
+    if raw_handoffs is None:
+        return []
+    if not isinstance(raw_handoffs, list):
+        return ["metadata.handoffs must be a list"]
+
+    errors: list[str] = []
+    for index, handoff in enumerate(manifest.handoffs):
+        _extend(errors, _handoff_entry_errors(index, handoff))
+    return errors
+
+
+def _handoff_entry_errors(index: int, handoff: Any) -> list[str]:
+    errors: list[str] = []
+    handoff_id = handoff.id
+    if not handoff_id:
+        errors.append(f"handoff metadata at position {index} is missing id")
+    if not handoff.target:
+        errors.append(f"handoff metadata {handoff_id!r} must define target")
+    _append_handoff_enum_error(
+        errors,
+        handoff_id,
+        field_name="on_handoff",
+        value=handoff.on_handoff,
+        supported=SUPPORTED_HANDOFF_ON_HANDOFF_VALUES,
+    )
+    _append_non_blank_handoff_field_error(
+        errors,
+        handoff_id,
+        field_name="input_filter",
+        value=handoff.input_filter,
+    )
+    _append_handoff_enum_error(
+        errors,
+        handoff_id,
+        field_name="nested_history",
+        value=handoff.nested_history,
+        supported=SUPPORTED_HANDOFF_NESTED_HISTORY_VALUES,
+    )
+    _append_non_blank_handoff_field_error(
+        errors,
+        handoff_id,
+        field_name="enabled_when",
+        value=handoff.enabled_when,
+    )
+    return errors
+
+
+def _append_handoff_enum_error(
+    errors: list[str],
+    handoff_id: str | None,
+    *,
+    field_name: str,
+    value: str | None,
+    supported: set[str],
+) -> None:
+    if value is None:
+        return
+    if value not in supported:
+        errors.append(
+            f"handoff metadata {handoff_id!r} has unsupported {field_name} {value!r}"
+        )
+
+
+def _append_non_blank_handoff_field_error(
+    errors: list[str],
+    handoff_id: str | None,
+    *,
+    field_name: str,
+    value: str | None,
+) -> None:
+    if value is None:
+        return
+    if not value.strip():
+        errors.append(f"handoff metadata {handoff_id!r} {field_name} must not be blank")
+
+
+def _agent_as_tool_metadata_errors(manifest: RuntimeManifest) -> list[str]:
+    errors: list[str] = []
+    for node in manifest.nodes:
+        raw_agent_tool = node.raw.get("agent_as_tool") or node.raw.get("agent_tool")
+        if raw_agent_tool is None:
+            continue
+        label = f"node {node.id!r} agent-as-tool metadata"
+        if not isinstance(raw_agent_tool, Mapping):
+            errors.append(f"{label} must be a mapping")
+            continue
+        if node.kind != "tool_use_step":
+            errors.append(f"{label} is only allowed on tool_use_step nodes")
+            continue
+        agent_as_tool = node.agent_as_tool
+        if agent_as_tool is None:
+            continue
+        if not agent_as_tool.skill_id:
+            errors.append(f"{label} must define skill_id")
+        if not agent_as_tool.task_boundary:
+            errors.append(f"{label} must define task_boundary")
+        if agent_as_tool.output_mode is not None:
+            if (
+                agent_as_tool.output_mode
+                not in SUPPORTED_AGENT_AS_TOOL_OUTPUT_MODE_VALUES
+            ):
+                errors.append(
+                    f"{label} has unsupported output_mode {agent_as_tool.output_mode!r}"
+                )
     return errors
 
 

@@ -888,6 +888,110 @@ def test_tool_use_completion_policy_passes_with_supported_metadata() -> None:
     validate_mapping(data)
 
 
+def test_handoff_metadata_fails_closed_for_bad_values() -> None:
+    """Handoff metadata rejects malformed grouped multi-agent settings."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "handoffs": [
+            {
+                "id": "",
+                "target": "",
+                "on_handoff": "replace_manager",
+                "input_filter": "   ",
+                "nested_history": "sometimes",
+                "enabled_when": "  ",
+            }
+        ]
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "handoff metadata at position 0 is missing id" in message
+    assert "handoff metadata '' must define target" in message
+    assert "has unsupported on_handoff 'replace_manager'" in message
+    assert "input_filter must not be blank" in message
+    assert "has unsupported nested_history 'sometimes'" in message
+    assert "enabled_when must not be blank" in message
+
+
+def test_agent_as_tool_metadata_fails_closed_for_bad_values() -> None:
+    """Agent-as-tool metadata rejects malformed bounded delegation settings."""
+
+    data = valid_manifest_data()
+    data["nodes"] = [
+        {
+            "id": "analyze_request",
+            "kind": "llm_step",
+            "prompt": {"user_template": "Analyze {prompt}"},
+            "agent_as_tool": "not-a-mapping",
+        },
+        {
+            "id": "lookup_context",
+            "kind": "tool_use_step",
+            "tool_id": "search_repo",
+            "agent_as_tool": {
+                "skill_id": "",
+                "task_boundary": "",
+                "output_mode": "custom",
+            },
+        },
+    ]
+    data["entrypoint"] = "analyze_request"
+    data["edges"] = [
+        {
+            "source": "analyze_request",
+            "target": "lookup_context",
+            "edge_kind": "sequential",
+        }
+    ]
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "node 'analyze_request' agent-as-tool metadata must be a mapping" in message
+    assert (
+        "node 'lookup_context' agent-as-tool metadata must define skill_id" in message
+    )
+    assert (
+        "node 'lookup_context' agent-as-tool metadata must define task_boundary"
+        in message
+    )
+    assert (
+        "node 'lookup_context' agent-as-tool metadata has unsupported output_mode 'custom'"
+        in message
+    )
+
+
+def test_handoff_and_agent_as_tool_metadata_pass_with_supported_shapes() -> None:
+    """OA6 metadata passes with grouped handoff and bounded delegation settings."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "handoffs": [
+            {
+                "id": "handoff_to_reviewer",
+                "target": "reviewer",
+                "on_handoff": "switch_active_profile",
+                "input_filter": "latest_request_only",
+                "nested_history": "filtered",
+                "enabled_when": "needs_review",
+            }
+        ]
+    }
+    data["nodes"][1]["agent_as_tool"] = {
+        "skill_id": "reviewer-skill",
+        "skill_path": "skills/reviewer/SKILL.md",
+        "task_boundary": "review a bounded subtask",
+        "output_mode": "tool_result",
+    }
+
+    validate_mapping(data)
+
+
 def test_file_context_policy_fails_for_unbounded_or_non_relative_settings() -> None:
     """File-backed prompt-context policy fails closed for unsafe settings."""
 

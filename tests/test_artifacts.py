@@ -159,6 +159,61 @@ def test_load_runtime_manifest_from_raw_yaml_preserves_pattern_metadata() -> Non
         "id": "final_answer",
         "type": "object",
     }
+    assert manifest.handoffs == ()
+
+
+def test_load_runtime_manifest_preserves_handoffs_and_agent_as_tool_metadata() -> None:
+    """Grouped handoff metadata and node agent-as-tool metadata are preserved."""
+
+    manifest = load_runtime_manifest(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "handoff-agent-tool-metadata",
+            "entrypoint": "delegate",
+            "packaging": {"mode": "hybrid_bundle"},
+            "metadata": {
+                "handoffs": [
+                    {
+                        "id": "handoff_to_reviewer",
+                        "target": "reviewer",
+                        "on_handoff": "switch_active_profile",
+                        "input_filter": "latest_user_request",
+                        "nested_history": "filtered",
+                        "enabled_when": "needs_review",
+                    }
+                ]
+            },
+            "nodes": [
+                {
+                    "id": "delegate",
+                    "kind": "tool_use_step",
+                    "tool_id": "reviewer_agent",
+                    "agent_as_tool": {
+                        "skill_id": "reviewer-skill",
+                        "skill_path": "skills/reviewer/SKILL.md",
+                        "task_boundary": "review one bounded subtask",
+                        "output_mode": "tool_result",
+                    },
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "reviewer_agent", "adapter": "runtime.reviewer"}],
+        }
+    )
+
+    assert len(manifest.handoffs) == 1
+    assert manifest.handoffs[0].id == "handoff_to_reviewer"
+    assert manifest.handoffs[0].target == "reviewer"
+    assert manifest.handoffs[0].on_handoff == "switch_active_profile"
+    assert manifest.handoffs[0].input_filter == "latest_user_request"
+    assert manifest.handoffs[0].nested_history == "filtered"
+    assert manifest.handoffs[0].enabled_when == "needs_review"
+    assert manifest.nodes[0].agent_as_tool is not None
+    assert manifest.nodes[0].agent_as_tool.skill_id == "reviewer-skill"
+    assert manifest.nodes[0].agent_as_tool.skill_path == "skills/reviewer/SKILL.md"
+    assert manifest.nodes[0].agent_as_tool.task_boundary == "review one bounded subtask"
+    assert manifest.nodes[0].agent_as_tool.output_mode == "tool_result"
 
 
 def test_load_runtime_manifest_preserves_node_skill_refs() -> None:

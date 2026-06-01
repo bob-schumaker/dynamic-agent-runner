@@ -352,6 +352,16 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
                     "token_budget": {"max_prompt_tokens": 100},
                 }
             },
+            "metadata": {
+                "handoffs": [
+                    {
+                        "id": "handoff_to_reviewer",
+                        "target": "reviewer",
+                        "on_handoff": "switch_active_profile",
+                        "nested_history": "preserve",
+                    }
+                ]
+            },
             "extensions": {"future_optional": {"required": False, "config": {}}},
             "output_contracts": [
                 {"id": "answer_contract", "required_fields": ["message"]}
@@ -379,6 +389,11 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
                     "inputs": {"query": "static"},
                     "inputs_from": {"extra": "answer"},
                     "outputs": {"state_key": "lookup_summary"},
+                    "agent_as_tool": {
+                        "skill_id": "search-specialist",
+                        "task_boundary": "perform a bounded search subtask",
+                        "output_mode": "tool_result",
+                    },
                     "failure_behavior": "continue",
                     "retry_policy": {"max_attempts": 4},
                 },
@@ -407,6 +422,9 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
     assert plan.tool_use_completion_policy.stop_on_tool == "enabled"
     assert plan.tool_use_completion_policy.final_output == "state_field"
     assert plan.tool_use_completion_policy.final_output_state_key == "lookup_summary"
+    assert len(plan.handoffs) == 1
+    assert plan.handoffs[0].id == "handoff_to_reviewer"
+    assert plan.handoffs[0].target == "reviewer"
     assert set(plan.nodes_by_id) == {"answer", "lookup", "route"}
     assert [edge.target for edge in plan.edges_by_source["answer"]] == ["lookup"]
     assert plan.unsupported_extensions == ("future_optional",)
@@ -418,6 +436,10 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
     assert answer.retry_policy == {"max_attempts": 3}
     assert answer.token_budget_policy == {"max_prompt_tokens": 50}
     lookup = plan.nodes_by_id["lookup"]
+    assert lookup.agent_as_tool is not None
+    assert lookup.agent_as_tool.skill_id == "search-specialist"
+    assert lookup.agent_as_tool.task_boundary == "perform a bounded search subtask"
+    assert lookup.agent_as_tool.output_mode == "tool_result"
     assert lookup.inputs == {"query": "static"}
     assert lookup.inputs_from == {"extra": "answer"}
     assert lookup.outputs == {"state_key": "lookup_summary"}

@@ -15,25 +15,23 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: OA6 — preserve handoff vs agent-as-tool as distinct
-  manifest metadata patterns for multi-agent workflows.
+- Next active slice: OA7 — design workflow interruption and resumable run state
+  for approval-required tools.
 - Current focus: all planned implementation slices through P5 are complete;
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
 
 ## Active follow-up implementation order
 
-1. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
-   patterns.
-2. **OA7** — design workflow interruption and resumable run state for
+1. **OA7** — design workflow interruption and resumable run state for
    approval-required tools.
-3. **OA10** — defer sandbox/workspace runtime support until the earlier policy
+2. **OA10** — defer sandbox/workspace runtime support until the earlier policy
    and interruption surfaces are defined.
-4. **OA9** — consider an optional `tool_from_function(...)` helper after
+3. **OA9** — consider an optional `tool_from_function(...)` helper after
     provenance and policy metadata settle.
-5. **OA8** — consider a small async session protocol only after multi-turn
+4. **OA8** — consider a small async session protocol only after multi-turn
     memory requirements are explicit.
-6. **OA11** — map any future upstream portable tool-type taxonomy only if that
+5. **OA11** — map any future upstream portable tool-type taxonomy only if that
     upstream taxonomy is actually introduced.
 
 ### Active follow-up ordering rationale
@@ -52,8 +50,12 @@
   `runtime.execution_policy.tool_use_completion` metadata for future iterative
   agent-loop runtimes, with fail-closed validation for `run_again`,
   `stop_on_tool`, and `final_output` decisions.
-- Loop, interruption, and resumable-run policy later: OA5, OA6, and OA7 build
-  on the earlier metadata and lifecycle foundations.
+- Multi-agent metadata distinction next completed: OA6 now preserves grouped
+  `metadata.handoffs` plus node-local `agent_as_tool` / `agent_tool` metadata
+  without introducing a new primitive node kind, and validates the handoff vs
+  bounded-delegation distinction fail-closed.
+- Interruption and resumable-run policy later: OA7 builds on the earlier
+  metadata and lifecycle foundations.
 - Convenience, optional session, and upstream-conditional work last: OA9, OA8,
   OA10, and OA11 should not drive the near-term sequencing.
 
@@ -1139,12 +1141,26 @@ explicitly instead of leaving them as undocumented future behavior.
       - Validation: `poetry run pytest tests/test_validation.py
         tests/test_executor.py -q 2>&1` — pass; 83 tests passed.
       - Active order: completed; OA6 is now the next active slice.
-- [ ] OA6. Preserve handoff vs agent-as-tool as distinct manifest metadata
+- [x] OA6. Preserve handoff vs agent-as-tool as distinct manifest metadata
       patterns for multi-agent workflows, aligned with the grouped
       `runtime`/`metadata`/`extensions` surface and without introducing a new
       primitive node kind.
-      - Active order: after OA5, once earlier metadata and completion-policy
-        foundations are in place.
+      - Active order: completed after OA5, once earlier metadata and
+        completion-policy foundations were in place.
+      - Evidence: `RuntimeManifest` now preserves grouped `metadata.handoffs`
+        and typed node-local `agent_as_tool` / `agent_tool` metadata, while
+        `ExecutionPlan` carries both surfaces forward without changing current
+        executor behavior.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `metadata.handoffs`, unsupported `on_handoff` or
+        `nested_history` values, blank grouped handoff fields, non-mapping
+        node-level agent metadata, agent-as-tool metadata on non-`tool_use_step`
+        nodes, missing `skill_id` / `task_boundary`, and unsupported
+        `output_mode` values.
+      - Validation: `poetry run pytest tests/test_artifacts.py
+        tests/test_validation.py tests/test_executor.py
+        tests/test_power_marimo_fixture.py -q 2>&1` — pass; 106 passed.
+      - Active order: completed; OA7 is now the next active slice.
 - [ ] OA7. Design workflow interruption and resumable run state for
       approval-required tools before implementing live approval pauses. Keep
       portable approval/interruption metadata separate from runtime-enforced

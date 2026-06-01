@@ -116,7 +116,7 @@ or a clear error.
   Codex/Cline evaluation follow-ups and OpenAI Agents SDK Python evaluation
   follow-ups captured in `tasks.md`.
 - The recommended implementation order for that active follow-up backlog is:
-  OA6, OA7, OA10, OA9, OA8, then OA11 as the final upstream-conditional item.
+  OA7, OA10, OA9, OA8, then OA11 as the final upstream-conditional item.
 - OA2 is now implemented in the working tree: tool provenance preserves the
   existing low-level source kind while adding a higher-level origin bucket that
   distinguishes registered, built-in, override, and future MCP or
@@ -174,6 +174,19 @@ or a clear error.
   stray state-key metadata when `final_output` is not `state_field`.
 - OA5 validation evidence: `poetry run pytest tests/test_validation.py
   tests/test_executor.py -q 2>&1` — pass; 83 tests passed.
+- OA6 is now implemented in the working tree: `RuntimeManifest` preserves
+  grouped `metadata.handoffs` for future active-agent transfer workflows, while
+  `RuntimeNode` and `PreparedNode` preserve typed node-local `agent_as_tool` /
+  `agent_tool` metadata for bounded delegation without introducing a new
+  primitive node kind or changing current executor semantics.
+- OA6 validation evidence: `validate_runtime_manifest(...)` now fails closed for
+  malformed `metadata.handoffs`, unsupported `on_handoff` or `nested_history`
+  values, blank grouped handoff fields, non-mapping node-level agent metadata,
+  agent-as-tool metadata on non-`tool_use_step` nodes, missing `skill_id` /
+  `task_boundary`, and unsupported `output_mode` values.
+- OA6 validation evidence: `poetry run pytest tests/test_artifacts.py
+  tests/test_validation.py tests/test_executor.py tests/test_power_marimo_fixture.py
+  -q 2>&1` — pass; 106 tests passed.
 
 ## Technical Approach
 
@@ -854,6 +867,6 @@ a qualified verdict:
 This plan is accepted as the current technical planning artifact. The currently
 planned implementation sequence is complete through package-alignment P5 and the
 tracked async-first follow-up slices. Future work should start from the active
-Codex/Cline and OpenAI Agents SDK Python follow-up tasks in this order: OA6,
-OA7, OA10, OA9, OA8, then OA11 unless a new scoped spec/plan update supersedes
-that sequence.
+Codex/Cline and OpenAI Agents SDK Python follow-up tasks in this order: OA7,
+OA10, OA9, OA8, then OA11 unless a new scoped spec/plan update supersedes that
+sequence.

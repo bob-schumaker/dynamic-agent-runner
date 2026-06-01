@@ -12,7 +12,7 @@ from dynamic_agent_runner.models import (
     ToolDefinition,
     ToolSourceKind,
 )
-from dynamic_agent_runner.openai_client import ModelResponse
+from dynamic_agent_runner.openai_client import OpenAIClientAdapter
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "power-marimo"
 
@@ -46,6 +46,12 @@ def test_power_marimo_runtime_package_loads_and_records_agent_as_tool() -> None:
         "skill_path": "../power-marimo/skills/marimo-pair/SKILL.md",
         "task_boundary": "perform a bounded Marimo notebook operation",
     }
+    assert node_map["invoke_marimo_pair"].agent_as_tool is not None
+    assert node_map["invoke_marimo_pair"].agent_as_tool.skill_id == "marimo-pair"
+    assert (
+        node_map["invoke_marimo_pair"].agent_as_tool.task_boundary
+        == "perform a bounded Marimo notebook operation"
+    )
     assert tool_map["marimo_pair_agent"].source is not None
     assert tool_map["marimo_pair_agent"].source.kind is ToolSourceKind.MANIFEST
     assert tool_map["marimo_pair_agent"].approval_required == "true"
@@ -78,29 +84,29 @@ def test_power_marimo_fake_tools_exercise_bounded_happy_path() -> None:
         workflow,
         prompt="Compare a placeholder room power experiment in a Marimo notebook.",
         tool_registry=_power_marimo_registry(),
-        model_adapter=_FakeModelAdapter(
+        model_adapter=_make_adapter(
             [
-                ModelResponse(
-                    content=(
+                {
+                    "id": "analysis-response",
+                    "output_text": (
                         '{"experiment_goal":"compare placeholder room power",'
                         '"route":"continue"}'
                     ),
-                    response_id="analysis-response",
-                ),
-                ModelResponse(
-                    content=(
+                },
+                {
+                    "id": "cell-plan-response",
+                    "output_text": (
                         '{"cell_plan":["inspect placeholder notebook",'
                         '"render placeholder power summary"]}'
                     ),
-                    response_id="cell-plan-response",
-                ),
-                ModelResponse(
-                    content=(
+                },
+                {
+                    "id": "summary-response",
+                    "output_text": (
                         '{"message":"Placeholder Power-Marimo workflow completed '
                         'without live Marimo or SLD access."}'
                     ),
-                    response_id="summary-response",
-                ),
+                },
             ]
         ),
     )
@@ -114,14 +120,23 @@ def test_power_marimo_fake_tools_exercise_bounded_happy_path() -> None:
     assert result.state.tool_results["run_placeholder_power_analysis"].success is True
 
 
-class _FakeModelAdapter:
-    def __init__(self, responses: list[ModelResponse]) -> None:
+class _FakeResponsesAPI:
+    def __init__(self, responses: list[dict[str, Any]]) -> None:
         self.responses = list(responses)
-        self.requests: list[Any] = []
+        self.calls: list[dict[str, Any]] = []
 
-    def create_response(self, request: Any) -> ModelResponse:
-        self.requests.append(request)
+    def create(self, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append(kwargs)
         return self.responses.pop(0)
+
+
+class _FakeClient:
+    def __init__(self, responses: list[dict[str, Any]]) -> None:
+        self.responses = _FakeResponsesAPI(responses)
+
+
+def _make_adapter(responses: list[dict[str, Any]]) -> OpenAIClientAdapter:
+    return OpenAIClientAdapter(_FakeClient(responses))
 
 
 def _power_marimo_registry() -> InMemoryToolRegistry:
