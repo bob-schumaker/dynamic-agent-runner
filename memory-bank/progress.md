@@ -540,10 +540,10 @@
 
 ## In Flight
 
-- OA4+E9 memory-bank refresh is in flight after implementation/spec-doc commit
-  `20f20d1` (`feat(validation): add MCP extension metadata`).
-- Remaining active follow-up work is now explicitly ordered: E11, OA5, OA6,
-  OA7, OA10, OA9, OA8, then OA11.
+- E11 memory-bank refresh is in flight after implementation/spec-doc commit
+  `3cdc7e9` (`feat(executor): add bounded file context preparation`).
+- Remaining active follow-up work is now explicitly ordered: OA5, OA6, OA7,
+  OA10, OA9, OA8, then OA11.
 
 ## Remaining
 

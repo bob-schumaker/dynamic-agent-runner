@@ -99,10 +99,15 @@
   tool-cache policy, disabled state, operation-locking, memory-pollution,
   strict/degraded startup, reconnect policy, cleanup timeout, and state keys for
   active/failed servers plus error maps.
-- The next active implementation slice is now `E11` — add the narrower
-  hierarchical file-backed prompt-context constraints.
+- E11 is now complete in `3cdc7e9`: `prepare_model_input(...)` supports an
+  opt-in `runtime.execution_policy.prepare_model_input.file_context` policy for
+  package-root-backed workflows, adding deterministic file-context prompt parts,
+  source provenance, bounded relative roots, bounded scan depth/file count, and
+  byte/token accounting in `PreparedInputMetadata`.
+- The next active implementation slice is now `OA5` — draft tool-use completion
+  policy for future iterative agent-loop support.
 - The current active follow-up order is:
-  E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
+  OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public
