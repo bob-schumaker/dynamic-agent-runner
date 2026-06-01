@@ -82,6 +82,7 @@ class WorkflowExecutionState:
 
     prompt: str
     run_id: str | None = None
+    session_messages: tuple[OpenAIMessage, ...] = field(default_factory=tuple)
     node_inputs: dict[str, Any] = field(default_factory=dict)
     node_outputs: dict[str, Any] = field(default_factory=dict)
     tool_results: dict[str, ToolResult] = field(default_factory=dict)
@@ -102,6 +103,16 @@ class WorkflowResult:
 
 
 @dataclass(frozen=True)
+class PreparedInputMetadata:
+    """Preparation-stage metadata for one rendered model input."""
+
+    hierarchy_applied: bool = False
+    session_messages_included: int = 0
+    session_messages_pruned: int = 0
+    context_compaction_applied: bool = False
+
+
+@dataclass(frozen=True)
 class PreparedModelInput:
     """Rendered model input and named prompt parts for one LLM step."""
 
@@ -112,6 +123,7 @@ class PreparedModelInput:
     message_parts: tuple[tuple[str, OpenAIMessage], ...]
     named_parts: Mapping[str, OpenAIMessage]
     prompt: Mapping[str, Any]
+    preparation: PreparedInputMetadata = field(default_factory=PreparedInputMetadata)
     model_parameters: Mapping[str, Any] = field(default_factory=dict)
     tool_choice: Any = None
     response_format: Mapping[str, Any] | None = None
@@ -306,7 +318,11 @@ def prepare_model_input(
 
     workflow = plan.workflow
     behavior = effective_node_behavior(node.source_node, workflow)
-    message_parts = _render_message_parts(behavior, state)
+    message_parts, preparation = _apply_prepare_model_input_stage(
+        _render_message_parts(behavior, state),
+        plan,
+        state,
+    )
     messages = tuple(message for _part, message in message_parts)
     model, adapter = _select_model_and_adapter(
         node,
@@ -314,6 +330,17 @@ def prepare_model_input(
         _execution_policy_model_map(plan.execution_policy),
     )
     if tracer is not None:
+        tracer.emit(
+            "model_input_prepared",
+            node_id=str(node.id),
+            payload={
+                "part_names": tuple(part for part, _message in message_parts),
+                "hierarchy_applied": preparation.hierarchy_applied,
+                "session_messages_included": preparation.session_messages_included,
+                "session_messages_pruned": preparation.session_messages_pruned,
+                "context_compaction_applied": preparation.context_compaction_applied,
+            },
+        )
         _check_prompt_cache(
             workflow,
             message_parts,
@@ -331,6 +358,7 @@ def prepare_model_input(
         message_parts=message_parts,
         named_parts=dict(message_parts),
         prompt=behavior.prompt,
+        preparation=preparation,
         model_parameters=_model_parameters(node),
         tool_choice=node.tool_choice,
         response_format=node.response_format,
@@ -814,6 +842,145 @@ def _render_message_parts(
         )
     )
     return tuple(messages)
+
+
+def _apply_prepare_model_input_stage(
+    base_parts: Sequence[tuple[str, OpenAIMessage]],
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
+    """Apply optional prepare-stage hierarchy and session shaping."""
+
+    policy = _prepare_model_input_policy(plan.execution_policy)
+    if not policy:
+        return tuple(base_parts), PreparedInputMetadata()
+
+    result_parts: list[tuple[str, OpenAIMessage]] = []
+    hierarchy_applied = False
+
+    for index, content in enumerate(_hierarchy_messages(policy, "system"), start=1):
+        result_parts.append(
+            (
+                f"hierarchy_system_{index}",
+                OpenAIMessage(role="system", content=content),
+            )
+        )
+        hierarchy_applied = True
+
+    base_without_user = [part for part in base_parts if part[0] != "user_prompt"]
+    user_part = next((part for part in base_parts if part[0] == "user_prompt"), None)
+    result_parts.extend(base_without_user)
+
+    for index, content in enumerate(_hierarchy_messages(policy, "developer"), start=1):
+        result_parts.append(
+            (
+                f"hierarchy_developer_{index}",
+                OpenAIMessage(role="developer", content=content),
+            )
+        )
+        hierarchy_applied = True
+
+    kept_session, pruned_session = _pruned_session_messages(
+        state.session_messages, policy
+    )
+    context_compaction_applied = False
+    if pruned_session:
+        summary_message = _compacted_session_message(pruned_session, policy)
+        if summary_message is not None:
+            result_parts.append(("session_summary", summary_message))
+            context_compaction_applied = True
+
+    for index, message in enumerate(kept_session, start=1):
+        result_parts.append((f"session_message_{index}", message))
+
+    if user_part is not None:
+        result_parts.append(user_part)
+
+    return tuple(result_parts), PreparedInputMetadata(
+        hierarchy_applied=hierarchy_applied,
+        session_messages_included=len(kept_session),
+        session_messages_pruned=len(pruned_session),
+        context_compaction_applied=context_compaction_applied,
+    )
+
+
+def _prepare_model_input_policy(
+    execution_policy: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    value = execution_policy.get("prepare_model_input")
+    return value if isinstance(value, Mapping) else {}
+
+
+def _hierarchy_messages(policy: Mapping[str, Any], role: str) -> tuple[str, ...]:
+    hierarchy = policy.get("prompt_hierarchy")
+    if not isinstance(hierarchy, Mapping):
+        return ()
+    value = hierarchy.get(role)
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return tuple(str(item) for item in value if item is not None)
+    return (str(value),)
+
+
+def _pruned_session_messages(
+    session_messages: Sequence[OpenAIMessage],
+    policy: Mapping[str, Any],
+) -> tuple[tuple[OpenAIMessage, ...], tuple[OpenAIMessage, ...]]:
+    pruning = policy.get("session_pruning")
+    if not isinstance(pruning, Mapping):
+        return tuple(session_messages), ()
+    max_messages = pruning.get("max_messages")
+    try:
+        limit = int(max_messages)
+    except (TypeError, ValueError):
+        return tuple(session_messages), ()
+    if limit < 0 or len(session_messages) <= limit:
+        return tuple(session_messages), ()
+    if limit == 0:
+        return (), tuple(session_messages)
+    return tuple(session_messages[-limit:]), tuple(session_messages[:-limit])
+
+
+def _compacted_session_message(
+    pruned_session: Sequence[OpenAIMessage],
+    policy: Mapping[str, Any],
+) -> OpenAIMessage | None:
+    compaction = policy.get("context_compaction")
+    if not isinstance(compaction, Mapping):
+        return None
+    strategy = str(compaction.get("strategy") or "summary_message")
+    if strategy != "summary_message":
+        return None
+    role = str(compaction.get("summary_role") or "developer")
+    max_chars = _optional_positive_int(compaction.get("max_chars_per_message")) or 120
+    prefix = str(
+        compaction.get("summary_prefix") or "Compacted earlier session context:"
+    )
+    lines = [prefix]
+    for message in pruned_session:
+        lines.append(f"- {message.role}: {_truncate_text(message.content, max_chars)}")
+    return OpenAIMessage(role=role, content="\n".join(lines))
+
+
+def _optional_positive_int(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _truncate_text(value: str, max_chars: int) -> str:
+    if len(value) <= max_chars:
+        return value
+    if max_chars <= 1:
+        return value[:max_chars]
+    return value[: max_chars - 1] + "…"
 
 
 def _check_prompt_cache(

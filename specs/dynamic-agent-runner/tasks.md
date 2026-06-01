@@ -15,41 +15,40 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: OA3 — design the prepare-model-input stage.
+- Next active slice: OA1 — add guardrail metadata.
 - Current focus: all planned implementation slices through P5 are complete;
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
 
 ## Active follow-up implementation order
 
-1. **OA3** — design the prepare-model-input stage for context compaction,
-   session pruning, and hierarchical prompt injection.
-2. **OA1** — add guardrail metadata for input, output, tool-input, and
+1. **OA1** — add guardrail metadata for input, output, tool-input, and
    tool-output phases.
-3. **OA4 + E9** — implement one MCP follow-up cluster covering lifecycle
+2. **OA4 + E9** — implement one MCP follow-up cluster covering lifecycle
    diagnostics plus MCP registry-source support.
-4. **E11** — add the narrower hierarchical file-backed prompt-context
+3. **E11** — add the narrower hierarchical file-backed prompt-context
    constraints on top of OA3's broader prepare-stage design.
-5. **OA5** — draft tool-use completion policy for future iterative agent-loop
+4. **OA5** — draft tool-use completion policy for future iterative agent-loop
    support.
-6. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
+5. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
    patterns.
-7. **OA7** — design workflow interruption and resumable run state for
+6. **OA7** — design workflow interruption and resumable run state for
    approval-required tools.
-8. **OA10** — defer sandbox/workspace runtime support until the earlier policy
+7. **OA10** — defer sandbox/workspace runtime support until the earlier policy
    and interruption surfaces are defined.
-9. **OA9** — consider an optional `tool_from_function(...)` helper after
+8. **OA9** — consider an optional `tool_from_function(...)` helper after
     provenance and policy metadata settle.
-10. **OA8** — consider a small async session protocol only after multi-turn
+9. **OA8** — consider a small async session protocol only after multi-turn
     memory requirements are explicit.
-11. **OA11** — map any future upstream portable tool-type taxonomy only if that
+10. **OA11** — map any future upstream portable tool-type taxonomy only if that
     upstream taxonomy is actually introduced.
 
 ### Active follow-up ordering rationale
 
-- Foundation metadata first: OA2 is now complete, and OA3 plus OA1 remain the
-  next foundational metadata work for prompt/context preparation and guardrail
-  policy surfaces that later tasks depend on.
+- Foundation metadata first: OA2 and OA3 are now complete, and OA1 remains the
+  next foundational metadata work after prompt/context preparation established
+  the dedicated prepare-model-input seam for later guardrail and file-backed
+  context follow-ups.
 - MCP/source-aware work next: OA4 and E9 are intentionally grouped because the
   task backlog already says OA4 folds MCP lifecycle diagnostics into E9.
 - Narrower derived context work after the broader design: E11 depends on the
@@ -1063,7 +1062,7 @@ explicitly instead of leaving them as undocumented future behavior.
 
 - [ ] OA1. Add guardrail metadata for input, output, tool-input, and
       tool-output phases, including abort and reject-content behavior.
-      - Active order: third, after OA2 and OA3 establish provenance and
+      - Active order: next, after OA2 and OA3 establish provenance and
         prepare-stage groundwork.
 - [x] OA2. Extend tool provenance metadata to distinguish registered,
       built-in, override, MCP, and future agent-as-tool origins while keeping
@@ -1077,9 +1076,16 @@ explicitly instead of leaving them as undocumented future behavior.
         tests/test_artifacts.py tests/test_validation.py 2>&1` — pass; 68 tests
         passed.
       - Active order: completed; OA3 is now the next active slice.
-- [ ] OA3. Design a prepare-model-input stage for context compaction, session
+- [x] OA3. Design a prepare-model-input stage for context compaction, session
       pruning, and hierarchical prompt injection before model adapter calls.
-      - Active order: second, before the narrower file-backed prompt-context
+      - Completed in working tree: `prepare_model_input(...)` now applies an
+        explicit pre-adapter preparation stage that can inject hierarchical
+        system/developer prompt parts, prune session-history messages, and
+        compact pruned history into a summary message while preserving the
+        rendered part ordering in `PreparedModelInput` metadata.
+      - Validation: `poetry run pytest tests/test_executor.py -q 2>&1` — pass;
+        47 tests passed.
+      - Active order: completed, before the narrower file-backed prompt-context
         follow-up in E11.
 - [ ] OA4. Fold MCP lifecycle diagnostics into E9: active/failed server lists,
       error maps, strict/degraded startup, reconnect, and cleanup timeouts.

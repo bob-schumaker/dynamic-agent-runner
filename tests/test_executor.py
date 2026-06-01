@@ -31,6 +31,7 @@ from dynamic_agent_runner.models import (
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     OpenAIClientAdapter,
+    OpenAIMessage,
 )
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
@@ -462,6 +463,101 @@ def test_prepare_model_input_renders_messages_and_named_parts() -> None:
         "Answer question.",
     ]
     assert prepared_input.named_parts["user_prompt"].content == "Answer question."
+
+
+def test_prepare_model_input_applies_hierarchy_pruning_and_compaction() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "prepared-input-policy-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "prompt_hierarchy": {
+                            "system": ["Global safety first."],
+                            "developer": ["Workspace rules apply."],
+                        },
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "summary_message",
+                            "summary_role": "developer",
+                            "summary_prefix": "Earlier session:",
+                            "max_chars_per_message": 18,
+                        },
+                    },
+                }
+            },
+            "skills": [
+                {
+                    "id": "style-guide",
+                    "prompt_role": "developer",
+                    "instructions": "Use concise style for {prompt}.",
+                }
+            ],
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "skill_refs": ["style-guide"],
+                    "prompt": {
+                        "system": "System {prompt}.",
+                        "user_template": "Answer {prompt}.",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="question",
+        session_messages=(
+            OpenAIMessage(role="user", content="First older user request."),
+            OpenAIMessage(role="assistant", content="First older assistant reply."),
+            OpenAIMessage(role="user", content="Most recent user request."),
+            OpenAIMessage(role="assistant", content="Most recent assistant reply."),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert prepared_input.part_names == (
+        "hierarchy_system_1",
+        "system",
+        "skill_instructions",
+        "hierarchy_developer_1",
+        "session_summary",
+        "session_message_1",
+        "session_message_2",
+        "user_prompt",
+    )
+    assert [message.role for message in prepared_input.messages] == [
+        "system",
+        "system",
+        "developer",
+        "developer",
+        "developer",
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert prepared_input.named_parts["session_summary"].content == (
+        "Earlier session:\n- user: First older user …\n- assistant: First older assis…"
+    )
+    assert prepared_input.named_parts["session_message_1"].content == (
+        "Most recent user request."
+    )
+    assert prepared_input.named_parts["session_message_2"].content == (
+        "Most recent assistant reply."
+    )
+    assert prepared_input.preparation.hierarchy_applied is True
+    assert prepared_input.preparation.session_messages_included == 2
+    assert prepared_input.preparation.session_messages_pruned == 2
+    assert prepared_input.preparation.context_compaction_applied is True
 
 
 def test_execute_workflow_async_runs_async_model_adapter() -> None:
