@@ -15,10 +15,51 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: none.
+- Next active slice: OA2 — extend tool provenance metadata.
 - Current focus: all planned implementation slices through P5 are complete;
-  remaining work lives in deferred follow-up items and any future scoped
-  follow-on spec update.
+  the active remaining work is now the promoted Codex/Cline evaluation
+  follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
+
+## Active follow-up implementation order
+
+1. **OA2** — extend tool provenance metadata to distinguish registered,
+   built-in, override, MCP, and future agent-as-tool origins.
+2. **OA3** — design the prepare-model-input stage for context compaction,
+   session pruning, and hierarchical prompt injection.
+3. **OA1** — add guardrail metadata for input, output, tool-input, and
+   tool-output phases.
+4. **OA4 + E9** — implement one MCP follow-up cluster covering lifecycle
+   diagnostics plus MCP registry-source support.
+5. **E11** — add the narrower hierarchical file-backed prompt-context
+   constraints on top of OA3's broader prepare-stage design.
+6. **OA5** — draft tool-use completion policy for future iterative agent-loop
+   support.
+7. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
+   patterns.
+8. **OA7** — design workflow interruption and resumable run state for
+   approval-required tools.
+9. **OA10** — defer sandbox/workspace runtime support until the earlier policy
+   and interruption surfaces are defined.
+10. **OA9** — consider an optional `tool_from_function(...)` helper after
+    provenance and policy metadata settle.
+11. **OA8** — consider a small async session protocol only after multi-turn
+    memory requirements are explicit.
+12. **OA11** — map any future upstream portable tool-type taxonomy only if that
+    upstream taxonomy is actually introduced.
+
+### Active follow-up ordering rationale
+
+- Foundation metadata first: OA2, OA3, and OA1 establish provenance,
+  prompt/context preparation, and guardrail policy surfaces that later tasks
+  depend on.
+- MCP/source-aware work next: OA4 and E9 are intentionally grouped because the
+  task backlog already says OA4 folds MCP lifecycle diagnostics into E9.
+- Narrower derived context work after the broader design: E11 depends on the
+  broader prepare-stage direction from OA3.
+- Loop, interruption, and resumable-run policy later: OA5, OA6, and OA7 build
+  on the earlier metadata and lifecycle foundations.
+- Convenience, optional session, and upstream-conditional work last: OA9, OA8,
+  OA10, and OA11 should not drive the near-term sequencing.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -815,7 +856,7 @@ explicitly instead of leaving them as undocumented future behavior.
 - [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
       helper if prompt/artifact hot-reload workflows become valuable.
 
-## Deferred Codex/Cline evaluation follow-ups
+## Active Codex/Cline evaluation follow-ups
 
 - [x] E1. Introduce a `WorkflowExecutionContext` / `RunContext` object separate
       from mutable `WorkflowExecutionState`.
@@ -891,6 +932,8 @@ explicitly instead of leaving them as undocumented future behavior.
         python -m pytest -q` — pass; 125 tests passed.
 - [ ] E9. Draft MCP registry-source support for visibility, status, tool cache,
       disabled state, operation locking, and memory-pollution metadata.
+      - Active order: implement together with OA4 as the shared MCP follow-up
+        cluster after OA2, OA3, and OA1.
       - Duplication removed: lifecycle diagnostics now live in OA4, and tool
         provenance distinctions are covered by OA2.
 - [x] E10. Add a context-management prepare-stage design for future compaction
@@ -898,6 +941,8 @@ explicitly instead of leaving them as undocumented future behavior.
       - Completion for this overlap is tracked in OA3.
 - [ ] E11. Consider hierarchical file-backed prompt context only with explicit
       roots, source tracking, scan limits, and token/byte budgets.
+      - Active order: implement after OA3 because it is the narrower file-backed
+        specialization of the broader prepare-model-input/context design.
       - Duplication removed: general context compaction and session-pruning
         prepare-stage design now lives in OA3; this E task remains for the
         narrower file-backed prompt-context constraints.
@@ -1016,40 +1061,59 @@ explicitly instead of leaving them as undocumented future behavior.
       - Slice I.7 pre-commit: `poetry run pre-commit run --files
         tests/test_concurrency.py` — pass.
 
-## Deferred OpenAI Agents SDK Python evaluation follow-ups
+## Active OpenAI Agents SDK Python evaluation follow-ups
 
 - [ ] OA1. Add guardrail metadata for input, output, tool-input, and
       tool-output phases, including abort and reject-content behavior.
+      - Active order: third, after OA2 and OA3 establish provenance and
+        prepare-stage groundwork.
 - [ ] OA2. Extend tool provenance metadata to distinguish registered,
       built-in, override, MCP, and future agent-as-tool origins while keeping
       provenance separate from any future portable tool-type taxonomy.
+      - Active order: first, because it is the provenance foundation for later
+        MCP/source-aware and helper-surface work.
 - [ ] OA3. Design a prepare-model-input stage for context compaction, session
       pruning, and hierarchical prompt injection before model adapter calls.
+      - Active order: second, before the narrower file-backed prompt-context
+        follow-up in E11.
 - [ ] OA4. Fold MCP lifecycle diagnostics into E9: active/failed server lists,
       error maps, strict/degraded startup, reconnect, and cleanup timeouts.
       Keep concrete MCP discovery, injection, and lifecycle schemas downstream-
       owned even if upstream later defines portable extension envelopes or tool
       categories.
+      - Active order: implement together with E9 as one MCP follow-up cluster.
 - [ ] OA5. Draft tool-use completion policy for future iterative agent-loop
       support, including run-again, stop-on-tool, and custom final-output
       decisions.
+      - Active order: after OA4/E9 and E11, once context and MCP/lifecycle
+        surfaces are clearer.
 - [ ] OA6. Preserve handoff vs agent-as-tool as distinct manifest metadata
       patterns for multi-agent workflows, aligned with the grouped
       `runtime`/`metadata`/`extensions` surface and without introducing a new
       primitive node kind.
+      - Active order: after OA5, once earlier metadata and completion-policy
+        foundations are in place.
 - [ ] OA7. Design workflow interruption and resumable run state for
       approval-required tools before implementing live approval pauses. Keep
       portable approval/interruption metadata separate from runtime-enforced
       approval engines and pause/resume implementation.
+      - Active order: after OA6, because interruption/resume policy builds on
+        earlier guardrail, MCP, and loop-policy definitions.
 - [ ] OA11. If upstream adds portable tool-type taxonomy to the runtime-package
       reference, map those shared semantic categories into local registry and
       policy handling without treating them as MCP/source injection contracts.
+      - Active order: last and conditional on upstream taxonomy changes.
 - [ ] OA8. Consider a small async session protocol only after multi-turn memory
       requirements are explicit.
+      - Active order: near the end, because it depends on requirements that are
+        not yet explicit.
 - [ ] OA9. Consider an optional `tool_from_function(...)` helper that generates
       explicit registry metadata while preserving side-effect and approval policy.
+      - Active order: after the main provenance/policy surfaces stabilize.
 - [ ] OA10. Keep sandbox/workspace runtime support separate from default local
       tool packs and defer it until write/command tool requirements are approved.
+      - Active order: late, after the policy, interruption, and MCP/source
+        surfaces settle.
 
 ## Cross-Cutting Validation Tasks
 

@@ -111,6 +111,13 @@ or a clear error.
   agent-as-tool `tool_use_step` using
   `../power-marimo/skills/marimo-pair/SKILL.md`; it does not introduce a new
   primitive runtime node kind or durable handoff-style multi-agent metadata.
+- The next active planning surface is no longer a new implementation slice under
+  the original P-series sequence. Active remaining work is the promoted
+  Codex/Cline evaluation follow-ups and OpenAI Agents SDK Python evaluation
+  follow-ups captured in `tasks.md`.
+- The recommended implementation order for that active follow-up backlog is:
+  OA2, OA3, OA1, the combined OA4+E9 MCP cluster, E11, OA5, OA6, OA7, OA10,
+  OA9, OA8, then OA11 as the final upstream-conditional item.
 
 ## Technical Approach
 
@@ -790,6 +797,7 @@ a qualified verdict:
 
 This plan is accepted as the current technical planning artifact. The currently
 planned implementation sequence is complete through package-alignment P5 and the
-tracked async-first follow-up slices. Future work should start from deferred
-follow-up items or from a new scoped spec/plan update rather than resuming an
-earlier implementation slice.
+tracked async-first follow-up slices. Future work should start from the active
+Codex/Cline and OpenAI Agents SDK Python follow-up tasks in this order: OA2,
+OA3, OA1, OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11 unless a new
+scoped spec/plan update supersedes that sequence.
