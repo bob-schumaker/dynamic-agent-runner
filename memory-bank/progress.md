@@ -2,17 +2,17 @@
 
 ## Working
 
-- `OA10` implementation and spec work is complete in `540f56a`
-  (`feat(runtime): preserve sandbox runtime metadata`).
-- OA10 preserved deferred `runtime.execution_policy.sandbox_runtime` metadata on
-  `RuntimeManifest` and `ExecutionPlan`, including sandbox mode, filesystem
-  policy, workspace persistence mode, command policy, and workspace state-key
-  fields for writable roots and working directories.
-- Focused OA10 validation passed with:
-  `poetry run pytest tests/test_artifacts.py tests/test_validation.py -q 2>&1`
-  (`66 passed`) and scoped `poetry run pre-commit run --files ...` on the OA10
+- `OA9` implementation and spec work is complete in `c181328`
+  (`feat(registry): add tool-from-function helper`).
+- OA9 added an optional `tool_from_function(...)` helper to the repository-owned
+  registry layer, exposed it from the package root, and covered both explicit
+  metadata plus inference fallback behavior for callable-derived tool
+  definitions.
+- Focused OA9 validation passed with:
+  `poetry run pytest tests/test_registry.py tests/test_import.py -q 2>&1`
+  (`32 passed`) and scoped `poetry run pre-commit run --files ...` on the OA9
   code/spec/doc files.
-- The next active follow-up slice is `OA9`.
+- The next active follow-up slice is `OA8`.
 
 ## Major Completed Milestones
 
@@ -61,14 +61,15 @@
   - OA6 handoff vs agent-as-tool metadata (`d5f4114`)
   - OA7 approval interruption metadata (`ce85a55`)
   - OA10 sandbox/workspace runtime metadata (`540f56a`)
+  - OA9 optional `tool_from_function(...)` helper (`c181328`)
 
 ## In Flight
 
-- The active ordered backlog is: `OA9`, `OA8`, then `OA11`.
+- The active ordered backlog is: `OA8`, then `OA11`.
 
 ## Remaining
 
-- Start the next scoped implementation from `OA9` in the governing SDD docs.
+- Start the next scoped implementation from `OA8` in the governing SDD docs.
 - Keep extending the runner through package-owned interfaces rather than broad
   framework expansion.
 - Continue using fake-client/fake-tool tests for unit coverage.
