@@ -214,6 +214,12 @@ or a clear error.
   metadata should fall back conservatively to callable-name, docstring, and
   supported-signature inference rather than introducing a broader agent SDK
   compatibility layer.
+- OA8 is planned as a protocol-design slice after the earlier metadata seams: the
+  runtime should preserve deferred `runtime.execution_policy.async_session`
+  metadata for future multi-turn or resumable async workflows, including compact
+  session-id and history-retention protocol fields, without enabling live session
+  persistence, conversation replay, or automatic cross-run message reuse in the
+  current runtime.
 
 ## Technical Approach
 

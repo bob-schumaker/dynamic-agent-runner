@@ -218,6 +218,10 @@ Acceptance criteria:
   then the library preserves portable approval pause/resume metadata for future
   approval-required tool workflows without implementing a runtime approval engine
   or live pause/resume behavior in this slice.
+- Given `runtime.execution_policy.async_session`, when parsing succeeds, then the
+  library preserves a portable async-session protocol for future multi-turn or
+  resumable async runtimes without implementing live session reuse, durable
+  conversation storage, or automatic message-history replay in this slice.
 - Given `runtime.execution_policy.sandbox_runtime`, when parsing succeeds, then
   the library preserves portable sandbox/workspace runtime metadata for future
   write-command tool workflows without enabling a writable workspace runtime,
@@ -235,6 +239,10 @@ Acceptance criteria:
   those surfaces separately so portable interruption state is not conflated with
   runtime-specific approval enforcement or with multi-agent handoff/delegation
   metadata.
+- Given grouped async-session metadata plus the current single-run execution
+  state, when parsing succeeds, then the runtime preserves future session-id and
+  history-retention protocol metadata separately so multi-turn session policy is
+  not conflated with the current in-run `session_messages` accumulator.
 - Given grouped sandbox/workspace runtime metadata and conservative built-in
   local tool packs, when parsing succeeds, then the runtime preserves those
   surfaces separately so future writable-workspace or command-execution policy is

@@ -1030,6 +1030,126 @@ def test_tool_use_completion_policy_passes_with_supported_metadata() -> None:
     validate_mapping(data)
 
 
+def test_async_session_policy_fails_closed_for_bad_values() -> None:
+    """Async session policy rejects malformed deferred session metadata."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "async_session": {
+                "mode": "always_on",
+                "persist": "disk",
+                "history": "all_turns",
+                "session_id_state_key": 9,
+                "session_messages_state_key": "   ",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".mode has unsupported value 'always_on'" in message
+    assert ".persist has unsupported value 'disk'" in message
+    assert ".history has unsupported value 'all_turns'" in message
+    assert ".session_id_state_key must be a string" in message
+    assert ".session_messages_state_key must not be blank" in message
+
+
+def test_async_session_policy_requires_session_id_for_persisted_state() -> None:
+    """Persisted async session metadata requires a stable session id state key."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "async_session": {
+                "mode": "create_or_resume",
+                "persist": "external_checkpoint",
+                "history": "summary",
+                "session_messages_state_key": "session_messages",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert ".session_id_state_key is required" in str(exc_info.value)
+
+
+def test_async_session_policy_rejects_state_keys_when_persist_is_none() -> None:
+    """Non-persisted async session metadata must not declare persisted state keys."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "async_session": {
+                "mode": "metadata_only",
+                "persist": "none",
+                "history": "last_turn",
+                "session_id_state_key": "session_id",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert "state-key fields are only allowed when persist is not 'none'" in str(
+        exc_info.value
+    )
+
+
+def test_async_session_policy_rejects_message_key_when_history_is_none() -> None:
+    """Session-message state keys require history retention beyond 'none'."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "async_session": {
+                "mode": "reuse_existing",
+                "persist": "in_memory",
+                "history": "none",
+                "session_id_state_key": "session_id",
+                "session_messages_state_key": "session_messages",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert (
+        "session_messages_state_key is only allowed when history is not 'none'"
+        in str(exc_info.value)
+    )
+
+
+def test_async_session_policy_passes_with_supported_metadata() -> None:
+    """OA8 async session metadata passes with the supported metadata-only shape."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "async_session": {
+                "mode": "create_or_resume",
+                "persist": "external_checkpoint",
+                "history": "summary",
+                "session_id_state_key": "session_id",
+                "session_messages_state_key": "session_messages",
+            },
+        }
+    }
+
+    validate_mapping(data)
+
+
 def test_approval_interruption_policy_fails_closed_for_bad_values() -> None:
     """Approval interruption policy rejects malformed pause/resume metadata."""
 

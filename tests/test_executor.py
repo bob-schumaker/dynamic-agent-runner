@@ -348,6 +348,13 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
                         "final_output": "state_field",
                         "final_output_state_key": "lookup_summary",
                     },
+                    "async_session": {
+                        "mode": "create_or_resume",
+                        "persist": "external_checkpoint",
+                        "history": "summary",
+                        "session_id_state_key": "session_id",
+                        "session_messages_state_key": "session_messages",
+                    },
                     "retry_policy": {"max_attempts": 2},
                     "token_budget": {"max_prompt_tokens": 100},
                 }
@@ -422,6 +429,12 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
     assert plan.tool_use_completion_policy.stop_on_tool == "enabled"
     assert plan.tool_use_completion_policy.final_output == "state_field"
     assert plan.tool_use_completion_policy.final_output_state_key == "lookup_summary"
+    assert plan.async_session_policy is not None
+    assert plan.async_session_policy.mode == "create_or_resume"
+    assert plan.async_session_policy.persist == "external_checkpoint"
+    assert plan.async_session_policy.history == "summary"
+    assert plan.async_session_policy.session_id_state_key == "session_id"
+    assert plan.async_session_policy.session_messages_state_key == "session_messages"
     assert len(plan.handoffs) == 1
     assert plan.handoffs[0].id == "handoff_to_reviewer"
     assert plan.handoffs[0].target == "reviewer"

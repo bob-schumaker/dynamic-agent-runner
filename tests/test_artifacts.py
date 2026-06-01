@@ -320,6 +320,49 @@ def test_load_runtime_manifest_preserves_sandbox_runtime_metadata() -> None:
     )
 
 
+def test_load_runtime_manifest_preserves_async_session_metadata() -> None:
+    """Async session policy metadata is preserved from execution policy."""
+
+    manifest = load_runtime_manifest(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "async-session-metadata",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "async_session": {
+                        "mode": "create_or_resume",
+                        "persist": "external_checkpoint",
+                        "history": "summary",
+                        "session_id_state_key": "session_id",
+                        "session_messages_state_key": "session_messages",
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    assert manifest.async_session_policy is not None
+    assert manifest.async_session_policy.mode == "create_or_resume"
+    assert manifest.async_session_policy.persist == "external_checkpoint"
+    assert manifest.async_session_policy.history == "summary"
+    assert manifest.async_session_policy.session_id_state_key == "session_id"
+    assert (
+        manifest.async_session_policy.session_messages_state_key == "session_messages"
+    )
+
+
 def test_load_runtime_manifest_preserves_node_skill_refs() -> None:
     """LLM node skill references are preserved for behavior overrides."""
 

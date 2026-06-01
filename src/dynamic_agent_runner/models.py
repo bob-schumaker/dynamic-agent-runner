@@ -317,6 +317,34 @@ class ApprovalInterruptionPolicy:
 
 
 @dataclass(frozen=True)
+class AsyncSessionPolicy:
+    """Deferred async session metadata for future multi-turn runtimes."""
+
+    mode: str | None = None
+    persist: str | None = None
+    history: str | None = None
+    session_id_state_key: str | None = None
+    session_messages_state_key: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> AsyncSessionPolicy:
+        """Build async session policy metadata from execution policy."""
+
+        raw = dict(value)
+        return cls(
+            mode=_optional_str(raw.get("mode")),
+            persist=_optional_str(raw.get("persist")),
+            history=_optional_str(raw.get("history")),
+            session_id_state_key=_optional_str(raw.get("session_id_state_key")),
+            session_messages_state_key=_optional_str(
+                raw.get("session_messages_state_key")
+            ),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
 class SandboxRuntimePolicy:
     """Deferred sandbox/workspace runtime metadata for future write-command runtimes."""
 
@@ -559,6 +587,7 @@ class RuntimeManifest:
     mcp_lifecycle_diagnostics: MCPLifecycleDiagnostics | None = None
     tool_use_completion_policy: ToolUseCompletionPolicy | None = None
     approval_interruption_policy: ApprovalInterruptionPolicy | None = None
+    async_session_policy: AsyncSessionPolicy | None = None
     sandbox_runtime_policy: SandboxRuntimePolicy | None = None
     handoffs: tuple[HandoffMetadata, ...] = ()
     state: Mapping[str, Any] = field(default_factory=dict)
@@ -589,6 +618,7 @@ class RuntimeManifest:
         approval_interruption = _as_mapping(
             execution_policy.get("approval_interruption")
         )
+        async_session = _as_mapping(execution_policy.get("async_session"))
         sandbox_runtime = _as_mapping(execution_policy.get("sandbox_runtime"))
         handoffs = _handoff_metadata(metadata)
         return cls(
@@ -625,6 +655,11 @@ class RuntimeManifest:
             approval_interruption_policy=(
                 ApprovalInterruptionPolicy.from_mapping(approval_interruption)
                 if approval_interruption is not None
+                else None
+            ),
+            async_session_policy=(
+                AsyncSessionPolicy.from_mapping(async_session)
+                if async_session is not None
                 else None
             ),
             sandbox_runtime_policy=(
@@ -892,6 +927,7 @@ class ExecutionPlan:
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
     tool_use_completion_policy: ToolUseCompletionPolicy | None = None
     approval_interruption_policy: ApprovalInterruptionPolicy | None = None
+    async_session_policy: AsyncSessionPolicy | None = None
     sandbox_runtime_policy: SandboxRuntimePolicy | None = None
     handoffs: tuple[HandoffMetadata, ...] = ()
     output_contracts: Mapping[str, Any] = field(default_factory=dict)
@@ -920,6 +956,7 @@ def prepare_execution_plan(
         execution_policy=execution_policy,
         tool_use_completion_policy=manifest.tool_use_completion_policy,
         approval_interruption_policy=manifest.approval_interruption_policy,
+        async_session_policy=manifest.async_session_policy,
         sandbox_runtime_policy=manifest.sandbox_runtime_policy,
         handoffs=manifest.handoffs,
         output_contracts=dict(manifest.output_contracts),

@@ -141,6 +141,22 @@ SUPPORTED_APPROVAL_INTERRUPTION_RESUME_FROM_VALUES = {
     "approval_decision",
     "workflow_restart",
 }
+SUPPORTED_ASYNC_SESSION_MODE_VALUES = {
+    "metadata_only",
+    "reuse_existing",
+    "create_or_resume",
+}
+SUPPORTED_ASYNC_SESSION_PERSIST_VALUES = {
+    "none",
+    "in_memory",
+    "external_checkpoint",
+}
+SUPPORTED_ASYNC_SESSION_HISTORY_VALUES = {
+    "none",
+    "last_turn",
+    "full",
+    "summary",
+}
 SUPPORTED_SANDBOX_RUNTIME_MODE_VALUES = {
     "metadata_only",
     "per_run_workspace",
@@ -302,6 +318,7 @@ def validate_runtime_manifest(
     _extend(errors, _react_loop_errors(manifest))
     _extend(errors, _tool_use_completion_policy_errors(manifest))
     _extend(errors, _approval_interruption_policy_errors(manifest))
+    _extend(errors, _async_session_policy_errors(manifest))
     _extend(errors, _sandbox_runtime_policy_errors(manifest))
     _extend(errors, _handoff_metadata_errors(manifest))
     _extend(errors, _agent_as_tool_metadata_errors(manifest))
@@ -1205,6 +1222,41 @@ def _approval_interruption_policy_errors(manifest: RuntimeManifest) -> list[str]
     return errors
 
 
+def _async_session_policy_errors(manifest: RuntimeManifest) -> list[str]:
+    policy = manifest.execution_policy.get("async_session")
+    if policy is None:
+        return []
+    if not isinstance(policy, Mapping):
+        return ["runtime.execution_policy.async_session must be a mapping"]
+
+    errors: list[str] = []
+    label = "runtime.execution_policy.async_session"
+    _validate_optional_enum(
+        policy,
+        "mode",
+        SUPPORTED_ASYNC_SESSION_MODE_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "persist",
+        SUPPORTED_ASYNC_SESSION_PERSIST_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "history",
+        SUPPORTED_ASYNC_SESSION_HISTORY_VALUES,
+        label,
+        errors,
+    )
+    _validate_async_session_state_key_types(policy, label, errors)
+    _validate_async_session_persistence(policy, label, errors)
+    return errors
+
+
 def _sandbox_runtime_policy_errors(manifest: RuntimeManifest) -> list[str]:
     policy = manifest.execution_policy.get("sandbox_runtime")
     if policy is None:
@@ -1245,6 +1297,59 @@ def _sandbox_runtime_policy_errors(manifest: RuntimeManifest) -> list[str]:
     _validate_sandbox_runtime_state_key_types(policy, label, errors)
     _validate_sandbox_runtime_consistency(policy, label, errors)
     return errors
+
+
+def _validate_async_session_state_key_types(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    for field_name in _async_session_state_key_fields():
+        value = policy.get(field_name)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            errors.append(f"{label}.{field_name} must be a string")
+            continue
+        if not value.strip():
+            errors.append(f"{label}.{field_name} must not be blank")
+
+
+def _validate_async_session_persistence(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    persist = policy.get("persist")
+    has_state_key = any(
+        policy.get(field_name) is not None
+        for field_name in _async_session_state_key_fields()
+    )
+    if persist == "none" and has_state_key:
+        errors.append(
+            f"{label} state-key fields are only allowed when persist is not 'none'"
+        )
+    if persist in {"in_memory", "external_checkpoint"}:
+        for field_name in _async_session_required_persisted_fields():
+            value = policy.get(field_name)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(
+                    f"{label}.{field_name} is required when persist is {persist!r}"
+                )
+    history = policy.get("history")
+    session_messages_state_key = policy.get("session_messages_state_key")
+    if history == "none" and session_messages_state_key is not None:
+        errors.append(
+            f"{label}.session_messages_state_key is only allowed when history is not 'none'"
+        )
+
+
+def _async_session_state_key_fields() -> tuple[str, ...]:
+    return ("session_id_state_key", "session_messages_state_key")
+
+
+def _async_session_required_persisted_fields() -> tuple[str, ...]:
+    return ("session_id_state_key",)
 
 
 def _validate_approval_interruption_enums(

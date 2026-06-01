@@ -29,8 +29,8 @@
    and interruption surfaces are defined.
 3. **OA9** — add an optional `tool_from_function(...)` helper after provenance
     and policy metadata settle.
-4. **OA8** — consider a small async session protocol only after multi-turn
-    memory requirements are explicit.
+4. **OA8** — design a small async session protocol only after the earlier
+    execution-policy metadata seams are in place.
 5. **OA11** — map any future upstream portable tool-type taxonomy only if that
     upstream taxonomy is actually introduced.
 
@@ -62,6 +62,11 @@
   missing or incomplete label, description, or input-schema fields should fall
   back to conservative inference from the Python callable rather than requiring
   fully explicit definitions in every caller.
+- OA8 scope clarification: the slice should preserve a compact deferred
+  `runtime.execution_policy.async_session` protocol for future async multi-turn
+  runtimes, including session-id persistence and optional history-retention
+  metadata, but it should not add live session storage, automatic cross-run
+  history replay, or broader memory/runtime behavior in the current executor.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
