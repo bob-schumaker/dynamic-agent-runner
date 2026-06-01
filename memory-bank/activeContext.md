@@ -107,6 +107,15 @@
     engines
   - concrete MCP discovery, injection, lifecycle, and extension-schema details
     remaining downstream-owned
+- `specs/dynamic-agent-runner/tasks.md` has now been de-duplicated across the
+  deferred Codex/Cline (`E*`) and OpenAI Agents SDK Python (`OA*`) follow-up
+  sections so overlap is tracked in one place:
+  - E10 is now marked complete with completion tracked in OA3.
+  - E12 is now marked complete with completion tracked in OA6.
+  - E9 now keeps only its unique MCP registry-source scope, with lifecycle
+    diagnostics tracked in OA4 and provenance distinctions tracked in OA2.
+  - E11 now keeps only its unique hierarchical file-backed prompt-context scope,
+    while the broader prepare-stage/context-compaction design is tracked in OA3.
 
 ## Current Status
 
@@ -310,18 +319,18 @@
     pipeline and model-requirement consistency, and docs/tests cover the new
     manifest shape.
 - In progress:
-  - Memory-bank refresh is being prepared to record the package-alignment backlog
-    checkpoint from commit `8308cd6` and the latest upstream runtime-package
-    contract details.
+  - Memory-bank refresh is being prepared to record the E/OA deferred-follow-up
+    de-duplication in `specs/dynamic-agent-runner/tasks.md`.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
-  - Remaining deferred Codex/Cline follow-ups include E9, E10, E11, and E12.
-    Deferred OpenAI Agents SDK Python follow-ups OA1-OA10 are also available for
-    later scoped selection. E14 Slices I.1 through I.7 are complete; no E14
-    implementation slice is currently queued.
+  - Remaining deferred Codex/Cline follow-ups now include E9 and E11 only.
+    Deferred OpenAI Agents SDK Python follow-ups OA1-OA11 remain available for
+    later scoped selection, with OA3/OA4/OA6 now serving as the source of truth
+    for the de-duplicated overlap. E14 Slices I.1 through I.7 are complete; no
+    E14 implementation slice is currently queued.
 
 ## Important Current Facts
 
@@ -372,7 +381,7 @@
   and placeholder Marimo metadata only.
 - `specs/dynamic-agent-runner/tasks.md` now contains `Deferred Codex/Cline
   evaluation follow-ups` E1 through E14 and `Deferred OpenAI Agents SDK Python
-  evaluation follow-ups` OA1 through OA10. E1 is complete and checked off with
+  evaluation follow-ups` OA1 through OA11. E1 is complete and checked off with
   implementation commit `38929f1`, E3 is complete and checked off with
   implementation commit `44b0847`, E4/E5 are complete and checked off with
   implementation commit `61f1548`, E6 is complete and checked off with
@@ -396,6 +405,10 @@
   I.1 through I.7 are complete in `acca9da`, `f2296e9`, `ff144f5`, `2b9271b`,
   `72c28dd`, `4f279ff`, and `7990503`; the planned E14 async-first
   implementation and validation sequence is complete.
+  The deferred-backlog review now treats OA3/OA4/OA6 as the canonical source for
+  the overlapping prepare-stage, MCP-lifecycle-diagnostics, and handoff-vs-agent-
+  as-tool design work; E10 and E12 are marked complete to point at those OA
+  items, while E9 and E11 retain only their unique residual scope.
 - Supported agent patterns from the upstream agent-development skill are now
   treated as manifest metadata, not as new primitive runtime node kinds. Slice 2
   now preserves `patterns_present`, `participant_groups`, `modes`, `phases`, and

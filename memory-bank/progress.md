@@ -224,6 +224,13 @@
   `7e9a33e feat(runtime): align manifest taxonomy metadata`.
 - Governing-doc alignment for the newer upstream runtime-package surface now
   exists in commit `cf66be2 docs(spec): align runtime-package surface guidance`.
+- Deferred backlog de-duplication across Codex/Cline and OpenAI Agents SDK
+  Python follow-ups is now recorded in `specs/dynamic-agent-runner/tasks.md`:
+  E10 is marked complete with overlap tracked in OA3, E12 is marked complete
+  with overlap tracked in OA6, E9 is narrowed to unique MCP registry-source
+  scope with OA4/OA2 covering the overlapping portions, and E11 is narrowed to
+  unique hierarchical file-backed prompt-context scope with OA3 covering the
+  broader prepare-stage overlap.
 - Slice P5 is complete: the runtime now documents and validates
   `execution_policy.model_capabilities`, `execution_policy.model_map`,
   provider-neutral `llm_step.model_requirements`, ReAct-style `react_loop`
@@ -500,8 +507,9 @@
   spec-document commit `89926d8`.
 - Memory-bank refresh is in flight to record the committed package-alignment
   backlog checkpoint from `8308cd6` as a separate docs(memory-bank) commit.
-- Remaining deferred Codex/Cline follow-ups E9-E12 and OpenAI Agents SDK Python
-  follow-ups OA1-OA10 should wait for explicit scoped selection.
+- Remaining deferred Codex/Cline follow-ups are now E9 and E11, and OpenAI
+  Agents SDK Python follow-ups OA1-OA11 should wait for explicit scoped
+  selection.
 
 ## Remaining
 
@@ -572,10 +580,12 @@
   pass-through; that remains adapter-gated until exact SDK/API support is
   verified.
 - Codex/Cline follow-ups E1, E2, E3, E4, E5, E6, E7, E8, E13, and E14 are
-  implemented. Remaining follow-ups E9, E10, E11, and E12 should be introduced
-  through package-owned contracts before broad integrations such as MCP, plugins,
-  shell hooks, app-server protocols, or multi-provider routing.
-- OpenAI Agents SDK Python follow-ups OA1-OA10 are deferred design inputs, not
+  implemented. Backlog de-duplication now marks E10 and E12 complete by
+  directing their overlap to OA3 and OA6 respectively, leaving E9 and E11 as
+  the remaining unique deferred Codex/Cline follow-ups to introduce through
+  package-owned contracts before broad integrations such as MCP, plugins, shell
+  hooks, app-server protocols, or multi-provider routing.
+- OpenAI Agents SDK Python follow-ups OA1-OA11 are deferred design inputs, not
   current implementation scope. Guardrails, approval pause/resume state, sessions,
   sandbox/workspace execution, and iterative agent-loop completion policy should
   each require a fresh scoped spec/update before implementation.
