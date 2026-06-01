@@ -214,6 +214,10 @@ Acceptance criteria:
 - Given `runtime.execution_policy` and `runtime.state`, when parsing succeeds,
   then runtime policy and state metadata are available to validation and workflow
   preparation without treating older flat root fields as canonical.
+- Given `runtime.execution_policy.approval_interruption`, when parsing succeeds,
+  then the library preserves portable approval pause/resume metadata for future
+  approval-required tool workflows without implementing a runtime approval engine
+  or live pause/resume behavior in this slice.
 - Given `metadata.patterns_present`, when parsing succeeds, then the library
   preserves documented pattern identifiers even when the current executor does
   not yet implement pattern-specific adapters.
@@ -222,6 +226,11 @@ Acceptance criteria:
   metadata needed to represent multi-agent, debate, council-like,
   workflow-orchestration, observer, simulation, memory, speech, computer-use,
   and other documented patterns without inventing new primitive node kinds.
+- Given grouped approval/interruption metadata, handoff metadata, and
+  agent-as-tool metadata, when parsing succeeds, then the runtime preserves
+  those surfaces separately so portable interruption state is not conflated with
+  runtime-specific approval enforcement or with multi-agent handoff/delegation
+  metadata.
 - Given `extensions` entries, when parsing succeeds, then unsupported extensions
   with `required: true` fail closed, unsupported extensions with
   `required: false` are preserved and reported when a report channel exists,

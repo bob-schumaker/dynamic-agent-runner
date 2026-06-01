@@ -283,6 +283,40 @@ class ToolUseCompletionPolicy:
 
 
 @dataclass(frozen=True)
+class ApprovalInterruptionPolicy:
+    """Deferred approval interruption metadata for future pause/resume runtimes."""
+
+    mode: str | None = None
+    persist: str | None = None
+    resume_from: str | None = None
+    pending_tool_calls_state_key: str | None = None
+    pending_approvals_state_key: str | None = None
+    interruption_state_key: str | None = None
+    resume_token_state_key: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> ApprovalInterruptionPolicy:
+        """Build approval interruption policy metadata from execution policy."""
+
+        raw = dict(value)
+        return cls(
+            mode=_optional_str(raw.get("mode")),
+            persist=_optional_str(raw.get("persist")),
+            resume_from=_optional_str(raw.get("resume_from")),
+            pending_tool_calls_state_key=_optional_str(
+                raw.get("pending_tool_calls_state_key")
+            ),
+            pending_approvals_state_key=_optional_str(
+                raw.get("pending_approvals_state_key")
+            ),
+            interruption_state_key=_optional_str(raw.get("interruption_state_key")),
+            resume_token_state_key=_optional_str(raw.get("resume_token_state_key")),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
 class HandoffMetadata:
     """Deferred handoff metadata for future active-agent transfer workflows."""
 
@@ -494,6 +528,7 @@ class RuntimeManifest:
     mcp_registry_sources: tuple[MCPRegistrySource, ...] = ()
     mcp_lifecycle_diagnostics: MCPLifecycleDiagnostics | None = None
     tool_use_completion_policy: ToolUseCompletionPolicy | None = None
+    approval_interruption_policy: ApprovalInterruptionPolicy | None = None
     handoffs: tuple[HandoffMetadata, ...] = ()
     state: Mapping[str, Any] = field(default_factory=dict)
     skills: tuple[ManifestObject, ...] = ()
@@ -520,6 +555,9 @@ class RuntimeManifest:
         mcp_registry_sources = _mcp_registry_sources(extensions)
         mcp_lifecycle_diagnostics = _mcp_lifecycle_diagnostics(extensions)
         tool_use_completion = _as_mapping(execution_policy.get("tool_use_completion"))
+        approval_interruption = _as_mapping(
+            execution_policy.get("approval_interruption")
+        )
         handoffs = _handoff_metadata(metadata)
         return cls(
             raw=raw,
@@ -550,6 +588,11 @@ class RuntimeManifest:
             tool_use_completion_policy=(
                 ToolUseCompletionPolicy.from_mapping(tool_use_completion)
                 if tool_use_completion is not None
+                else None
+            ),
+            approval_interruption_policy=(
+                ApprovalInterruptionPolicy.from_mapping(approval_interruption)
+                if approval_interruption is not None
                 else None
             ),
             handoffs=handoffs,
@@ -811,6 +854,7 @@ class ExecutionPlan:
     edges_by_source: Mapping[str, tuple[RuntimeEdge, ...]] = field(default_factory=dict)
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
     tool_use_completion_policy: ToolUseCompletionPolicy | None = None
+    approval_interruption_policy: ApprovalInterruptionPolicy | None = None
     handoffs: tuple[HandoffMetadata, ...] = ()
     output_contracts: Mapping[str, Any] = field(default_factory=dict)
     unsupported_extensions: tuple[str, ...] = ()
@@ -837,6 +881,7 @@ def prepare_execution_plan(
         edges_by_source=_edges_by_source(manifest.edges),
         execution_policy=execution_policy,
         tool_use_completion_policy=manifest.tool_use_completion_policy,
+        approval_interruption_policy=manifest.approval_interruption_policy,
         handoffs=manifest.handoffs,
         output_contracts=dict(manifest.output_contracts),
         unsupported_extensions=tuple(

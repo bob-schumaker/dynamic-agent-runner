@@ -133,6 +133,28 @@ instructions and prompt-role placement. Arbitrary ``SKILL.md`` source-path
 resolution remains deferred until trust, packaging, precedence, and loading rules
 are specified.
 
+.. header2:: Approval interruption metadata
+
+Approval-required tool flows can preserve interruption and resumable-state intent
+under ``runtime.execution_policy.approval_interruption``.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       approval_interruption:
+         mode: pause_on_approval
+         persist: external_checkpoint
+         resume_from: approval_decision
+         pending_tool_calls_state_key: pending_tool_calls
+         pending_approvals_state_key: pending_approvals
+         interruption_state_key: interruption_state
+         resume_token_state_key: resume_token
+
+The current runtime preserves and validates this metadata only. It does not yet
+implement a live approval engine, execution pause, resumable checkpoint store,
+or resume-token protocol.
+
 .. header2:: Concurrency and async execution
 
 The implementation is async-first. Synchronous public functions wrap the async

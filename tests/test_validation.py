@@ -888,6 +888,109 @@ def test_tool_use_completion_policy_passes_with_supported_metadata() -> None:
     validate_mapping(data)
 
 
+def test_approval_interruption_policy_fails_closed_for_bad_values() -> None:
+    """Approval interruption policy rejects malformed pause/resume metadata."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "approval_interruption": {
+                "mode": "sometimes_pause",
+                "persist": "disk",
+                "resume_from": "wherever",
+                "pending_tool_calls_state_key": 99,
+                "pending_approvals_state_key": "   ",
+                "interruption_state_key": False,
+                "resume_token_state_key": [],
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".mode has unsupported value 'sometimes_pause'" in message
+    assert ".persist has unsupported value 'disk'" in message
+    assert ".resume_from has unsupported value 'wherever'" in message
+    assert ".pending_tool_calls_state_key must be a string" in message
+    assert ".pending_approvals_state_key must not be blank" in message
+    assert ".interruption_state_key must be a string" in message
+    assert ".resume_token_state_key must be a string" in message
+
+
+def test_approval_interruption_policy_requires_state_keys_for_persisted_state() -> None:
+    """Persisted interruption metadata requires non-blank resumable state keys."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "approval_interruption": {
+                "mode": "pause_on_approval",
+                "persist": "external_checkpoint",
+                "resume_from": "approval_decision",
+                "resume_token_state_key": "resume_token",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".pending_tool_calls_state_key is required" in message
+    assert ".pending_approvals_state_key is required" in message
+    assert ".interruption_state_key is required" in message
+
+
+def test_approval_interruption_policy_rejects_state_keys_when_persist_is_none() -> None:
+    """Non-persisted interruption metadata must not declare resumable state keys."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "approval_interruption": {
+                "mode": "metadata_only",
+                "persist": "none",
+                "resume_from": "workflow_restart",
+                "pending_tool_calls_state_key": "pending_tool_calls",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert "state-key fields are only allowed when persist is not 'none'" in str(
+        exc_info.value
+    )
+
+
+def test_approval_interruption_policy_passes_with_supported_metadata() -> None:
+    """OA7 approval interruption metadata passes with the supported metadata-only shape."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "approval_interruption": {
+                "mode": "pause_on_approval",
+                "persist": "external_checkpoint",
+                "resume_from": "approval_decision",
+                "pending_tool_calls_state_key": "pending_tool_calls",
+                "pending_approvals_state_key": "pending_approvals",
+                "interruption_state_key": "interruption_state",
+                "resume_token_state_key": "resume_token",
+            },
+        }
+    }
+
+    validate_mapping(data)
+
+
 def test_handoff_metadata_fails_closed_for_bad_values() -> None:
     """Handoff metadata rejects malformed grouped multi-agent settings."""
 

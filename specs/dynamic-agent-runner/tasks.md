@@ -1161,12 +1161,22 @@ explicitly instead of leaving them as undocumented future behavior.
         tests/test_validation.py tests/test_executor.py
         tests/test_power_marimo_fixture.py -q 2>&1` — pass; 106 passed.
       - Active order: completed; OA7 is now the next active slice.
-- [ ] OA7. Design workflow interruption and resumable run state for
+- [x] OA7. Design workflow interruption and resumable run state for
       approval-required tools before implementing live approval pauses. Keep
       portable approval/interruption metadata separate from runtime-enforced
       approval engines and pause/resume implementation.
-      - Active order: after OA6, because interruption/resume policy builds on
-        earlier guardrail, MCP, and loop-policy definitions.
+      - Completed in working tree: `RuntimeManifest` and `ExecutionPlan` now
+        preserve deferred `runtime.execution_policy.approval_interruption`
+        metadata, including interruption mode, persistence strategy, resume
+        boundary, and resumable state-key fields for pending tool calls,
+        pending approvals, interruption state, and resume tokens.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `approval_interruption` policy shapes, unsupported mode /
+        persist / resume-from values, non-string or blank state-key fields,
+        persisted interruption policies that omit required resumable state keys,
+        and `persist: none` policies that still declare persisted state keys.
+      - Active order: completed after OA6, because interruption/resume policy
+        builds on earlier guardrail, MCP, and loop-policy definitions.
 - [ ] OA8. Consider a small async session protocol only after multi-turn memory
       requirements are explicit.
       - Active order: near the end, because it depends on requirements that are

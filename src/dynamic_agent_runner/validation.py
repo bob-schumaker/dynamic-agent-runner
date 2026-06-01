@@ -126,6 +126,21 @@ SUPPORTED_TOOL_USE_COMPLETION_FINAL_OUTPUT_VALUES = {
     "tool_result",
     "state_field",
 }
+SUPPORTED_APPROVAL_INTERRUPTION_MODE_VALUES = {
+    "metadata_only",
+    "pause_on_approval",
+    "reject_on_missing_approval",
+}
+SUPPORTED_APPROVAL_INTERRUPTION_PERSIST_VALUES = {
+    "none",
+    "in_memory",
+    "external_checkpoint",
+}
+SUPPORTED_APPROVAL_INTERRUPTION_RESUME_FROM_VALUES = {
+    "tool_call",
+    "approval_decision",
+    "workflow_restart",
+}
 SUPPORTED_HANDOFF_ON_HANDOFF_VALUES = {"switch_active_profile"}
 SUPPORTED_HANDOFF_NESTED_HISTORY_VALUES = {"preserve", "drop", "filtered"}
 SUPPORTED_AGENT_AS_TOOL_OUTPUT_MODE_VALUES = {
@@ -266,6 +281,7 @@ def validate_runtime_manifest(
     _extend(errors, _rag_pipeline_errors(manifest))
     _extend(errors, _react_loop_errors(manifest))
     _extend(errors, _tool_use_completion_policy_errors(manifest))
+    _extend(errors, _approval_interruption_policy_errors(manifest))
     _extend(errors, _handoff_metadata_errors(manifest))
     _extend(errors, _agent_as_tool_metadata_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
@@ -1150,6 +1166,106 @@ def _handoff_metadata_errors(manifest: RuntimeManifest) -> list[str]:
     for index, handoff in enumerate(manifest.handoffs):
         _extend(errors, _handoff_entry_errors(index, handoff))
     return errors
+
+
+def _approval_interruption_policy_errors(manifest: RuntimeManifest) -> list[str]:
+    policy = manifest.execution_policy.get("approval_interruption")
+    if policy is None:
+        return []
+    if not isinstance(policy, Mapping):
+        return ["runtime.execution_policy.approval_interruption must be a mapping"]
+
+    errors: list[str] = []
+    label = "runtime.execution_policy.approval_interruption"
+    _validate_approval_interruption_enums(policy, label, errors)
+    _validate_approval_interruption_state_key_types(policy, label, errors)
+    _validate_approval_interruption_persistence(policy, label, errors)
+
+    return errors
+
+
+def _validate_approval_interruption_enums(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    _validate_optional_enum(
+        policy,
+        "mode",
+        SUPPORTED_APPROVAL_INTERRUPTION_MODE_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "persist",
+        SUPPORTED_APPROVAL_INTERRUPTION_PERSIST_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "resume_from",
+        SUPPORTED_APPROVAL_INTERRUPTION_RESUME_FROM_VALUES,
+        label,
+        errors,
+    )
+
+
+def _validate_approval_interruption_state_key_types(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    for field_name in _approval_interruption_state_key_fields():
+        value = policy.get(field_name)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            errors.append(f"{label}.{field_name} must be a string")
+            continue
+        if not value.strip():
+            errors.append(f"{label}.{field_name} must not be blank")
+
+
+def _validate_approval_interruption_persistence(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    persist = policy.get("persist")
+    has_state_key = any(
+        policy.get(field_name) is not None
+        for field_name in _approval_interruption_state_key_fields()
+    )
+    if persist == "none" and has_state_key:
+        errors.append(
+            f"{label} state-key fields are only allowed when persist is not 'none'"
+        )
+    if persist in {"in_memory", "external_checkpoint"}:
+        for field_name in _approval_interruption_required_persisted_fields():
+            value = policy.get(field_name)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(
+                    f"{label}.{field_name} is required when persist is {persist!r}"
+                )
+
+
+def _approval_interruption_state_key_fields() -> tuple[str, ...]:
+    return (
+        "pending_tool_calls_state_key",
+        "pending_approvals_state_key",
+        "interruption_state_key",
+        "resume_token_state_key",
+    )
+
+
+def _approval_interruption_required_persisted_fields() -> tuple[str, ...]:
+    return (
+        "pending_tool_calls_state_key",
+        "pending_approvals_state_key",
+        "interruption_state_key",
+    )
 
 
 def _handoff_entry_errors(index: int, handoff: Any) -> list[str]:

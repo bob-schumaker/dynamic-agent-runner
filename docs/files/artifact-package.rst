@@ -156,6 +156,31 @@ edge, ``runtime.state`` observation metadata, and both ``llm_step`` and
 top of those primitive nodes and is preserved for retrieval-sufficiency and
 missing-information flows.
 
+.. header2:: Approval interruption metadata
+
+Approval-required tool workflows can declare portable interruption metadata
+under ``runtime.execution_policy.approval_interruption``. This metadata is
+preserved for future pause/resume engines without making the current runtime
+stop for approval automatically.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       approval_interruption:
+         mode: pause_on_approval
+         persist: external_checkpoint
+         resume_from: approval_decision
+         pending_tool_calls_state_key: pending_tool_calls
+         pending_approvals_state_key: pending_approvals
+         interruption_state_key: interruption_state
+         resume_token_state_key: resume_token
+
+Current validation checks the supported enum values for ``mode``, ``persist``,
+and ``resume_from``; requires non-blank string state-key fields; requires
+checkpoint state keys when persistence is enabled; and rejects state-key fields
+when ``persist: none`` is declared.
+
 .. header2:: RAG and embedding-backed retrieval metadata
 
 RAG workflows use the existing primitive node kinds rather than adding a new

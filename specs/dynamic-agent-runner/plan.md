@@ -187,6 +187,16 @@ or a clear error.
 - OA6 validation evidence: `poetry run pytest tests/test_artifacts.py
   tests/test_validation.py tests/test_executor.py tests/test_power_marimo_fixture.py
   -q 2>&1` — pass; 106 tests passed.
+- OA7 is implemented in the working tree: `RuntimeManifest` and `ExecutionPlan`
+  now preserve deferred `runtime.execution_policy.approval_interruption`
+  metadata for future approval-required tool pauses, interruption checkpoints,
+  and resumable run state without adding a live approval engine or pause/resume
+  execution behavior in the current runtime.
+- OA7 validation evidence: `validate_runtime_manifest(...)` now fails closed for
+  malformed `approval_interruption` policy shapes, unsupported `mode`,
+  `persist`, or `resume_from` values, non-string or blank state-key fields,
+  persisted interruption policies that omit required resumable state keys, and
+  `persist: none` policies that incorrectly declare persisted state-key fields.
 
 ## Technical Approach
 

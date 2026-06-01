@@ -216,6 +216,63 @@ def test_load_runtime_manifest_preserves_handoffs_and_agent_as_tool_metadata() -
     assert manifest.nodes[0].agent_as_tool.output_mode == "tool_result"
 
 
+def test_load_runtime_manifest_preserves_approval_interruption_metadata() -> None:
+    """Approval interruption policy metadata is preserved from execution policy."""
+
+    manifest = load_runtime_manifest(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "approval-interruption-metadata",
+            "entrypoint": "request_approval",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "approval_interruption": {
+                        "mode": "pause_on_approval",
+                        "persist": "external_checkpoint",
+                        "resume_from": "approval_decision",
+                        "pending_tool_calls_state_key": "pending_tool_calls",
+                        "pending_approvals_state_key": "pending_approvals",
+                        "interruption_state_key": "interruption_state",
+                        "resume_token_state_key": "resume_token",
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "request_approval",
+                    "kind": "tool_use_step",
+                    "tool_id": "write_repo",
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "write_repo", "adapter": "runtime.write_repo"}],
+        }
+    )
+
+    assert manifest.approval_interruption_policy is not None
+    assert manifest.approval_interruption_policy.mode == "pause_on_approval"
+    assert manifest.approval_interruption_policy.persist == "external_checkpoint"
+    assert manifest.approval_interruption_policy.resume_from == "approval_decision"
+    assert (
+        manifest.approval_interruption_policy.pending_tool_calls_state_key
+        == "pending_tool_calls"
+    )
+    assert (
+        manifest.approval_interruption_policy.pending_approvals_state_key
+        == "pending_approvals"
+    )
+    assert (
+        manifest.approval_interruption_policy.interruption_state_key
+        == "interruption_state"
+    )
+    assert (
+        manifest.approval_interruption_policy.resume_token_state_key == "resume_token"
+    )
+
+
 def test_load_runtime_manifest_preserves_node_skill_refs() -> None:
     """LLM node skill references are preserved for behavior overrides."""
 
