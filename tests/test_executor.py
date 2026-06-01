@@ -342,6 +342,12 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
                 "execution_policy": {
                     "model": "gpt-default",
                     "max_steps": 8,
+                    "tool_use_completion": {
+                        "run_again": "required",
+                        "stop_on_tool": "enabled",
+                        "final_output": "state_field",
+                        "final_output_state_key": "lookup_summary",
+                    },
                     "retry_policy": {"max_attempts": 2},
                     "token_budget": {"max_prompt_tokens": 100},
                 }
@@ -396,6 +402,11 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
 
     assert plan.entrypoint_id == "answer"
     assert plan.max_steps == 8
+    assert plan.tool_use_completion_policy is not None
+    assert plan.tool_use_completion_policy.run_again == "required"
+    assert plan.tool_use_completion_policy.stop_on_tool == "enabled"
+    assert plan.tool_use_completion_policy.final_output == "state_field"
+    assert plan.tool_use_completion_policy.final_output_state_key == "lookup_summary"
     assert set(plan.nodes_by_id) == {"answer", "lookup", "route"}
     assert [edge.target for edge in plan.edges_by_source["answer"]] == ["lookup"]
     assert plan.unsupported_extensions == ("future_optional",)

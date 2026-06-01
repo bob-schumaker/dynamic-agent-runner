@@ -822,6 +822,72 @@ def test_react_loop_manifest_passes_with_loopback_iterations_state_and_tool_step
     validate_mapping(data)
 
 
+def test_tool_use_completion_policy_fails_closed_for_bad_values() -> None:
+    """Tool-use completion policy rejects malformed loop-completion metadata."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "tool_use_completion": {
+                "run_again": "sometimes",
+                "stop_on_tool": "afterwards",
+                "final_output": "custom",
+                "final_output_state_key": 99,
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".run_again has unsupported value 'sometimes'" in message
+    assert ".stop_on_tool has unsupported value 'afterwards'" in message
+    assert ".final_output has unsupported value 'custom'" in message
+    assert ".final_output_state_key must be a string" in message
+
+
+def test_tool_use_completion_policy_requires_state_key_for_state_field() -> None:
+    """State-field final output requires an explicit state key."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "tool_use_completion": {
+                "run_again": "required",
+                "stop_on_tool": "enabled",
+                "final_output": "state_field",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert "final_output_state_key is required" in str(exc_info.value)
+
+
+def test_tool_use_completion_policy_passes_with_supported_metadata() -> None:
+    """Tool-use completion policy accepts the current metadata-only OA5 shape."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "tool_use_completion": {
+                "run_again": "required",
+                "stop_on_tool": "enabled",
+                "final_output": "state_field",
+                "final_output_state_key": "latest_tool_result",
+            },
+        }
+    }
+
+    validate_mapping(data)
+
+
 def test_file_context_policy_fails_for_unbounded_or_non_relative_settings() -> None:
     """File-backed prompt-context policy fails closed for unsafe settings."""
 

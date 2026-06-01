@@ -259,6 +259,30 @@ class MCPLifecycleDiagnostics:
 
 
 @dataclass(frozen=True)
+class ToolUseCompletionPolicy:
+    """Deferred tool-use completion policy metadata for future loop runtimes."""
+
+    run_again: str | None = None
+    stop_on_tool: str | None = None
+    final_output: str | None = None
+    final_output_state_key: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> ToolUseCompletionPolicy:
+        """Build tool-use completion policy metadata from execution policy."""
+
+        raw = dict(value)
+        return cls(
+            run_again=_optional_str(raw.get("run_again")),
+            stop_on_tool=_optional_str(raw.get("stop_on_tool")),
+            final_output=_optional_str(raw.get("final_output")),
+            final_output_state_key=_optional_str(raw.get("final_output_state_key")),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
 class ManifestObject:
     """Generic manifest object with a stable identifier and raw data."""
 
@@ -410,6 +434,7 @@ class RuntimeManifest:
     guardrails: tuple[GuardrailDeclaration, ...] = ()
     mcp_registry_sources: tuple[MCPRegistrySource, ...] = ()
     mcp_lifecycle_diagnostics: MCPLifecycleDiagnostics | None = None
+    tool_use_completion_policy: ToolUseCompletionPolicy | None = None
     state: Mapping[str, Any] = field(default_factory=dict)
     skills: tuple[ManifestObject, ...] = ()
     tools: tuple[ToolDefinition, ...] = ()
@@ -434,6 +459,7 @@ class RuntimeManifest:
         guardrails = _guardrail_declarations(extensions)
         mcp_registry_sources = _mcp_registry_sources(extensions)
         mcp_lifecycle_diagnostics = _mcp_lifecycle_diagnostics(extensions)
+        tool_use_completion = _as_mapping(execution_policy.get("tool_use_completion"))
         return cls(
             raw=raw,
             format_version=raw.get("format_version"),
@@ -460,6 +486,11 @@ class RuntimeManifest:
             guardrails=guardrails,
             mcp_registry_sources=mcp_registry_sources,
             mcp_lifecycle_diagnostics=mcp_lifecycle_diagnostics,
+            tool_use_completion_policy=(
+                ToolUseCompletionPolicy.from_mapping(tool_use_completion)
+                if tool_use_completion is not None
+                else None
+            ),
             state=_copy_mapping(_as_mapping(runtime.get("state"))),
             skills=tuple(_manifest_objects(raw.get("skills"))),
             tools=tuple(
@@ -716,6 +747,7 @@ class ExecutionPlan:
     nodes_by_id: Mapping[str, PreparedNode] = field(default_factory=dict)
     edges_by_source: Mapping[str, tuple[RuntimeEdge, ...]] = field(default_factory=dict)
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
+    tool_use_completion_policy: ToolUseCompletionPolicy | None = None
     output_contracts: Mapping[str, Any] = field(default_factory=dict)
     unsupported_extensions: tuple[str, ...] = ()
     max_steps: int | None = None
@@ -740,6 +772,7 @@ def prepare_execution_plan(
         },
         edges_by_source=_edges_by_source(manifest.edges),
         execution_policy=execution_policy,
+        tool_use_completion_policy=manifest.tool_use_completion_policy,
         output_contracts=dict(manifest.output_contracts),
         unsupported_extensions=tuple(
             str(extension_id)

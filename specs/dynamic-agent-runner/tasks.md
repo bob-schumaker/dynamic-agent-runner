@@ -15,27 +15,25 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: OA5 — draft tool-use completion policy for future
-  iterative agent-loop support.
+- Next active slice: OA6 — preserve handoff vs agent-as-tool as distinct
+  manifest metadata patterns for multi-agent workflows.
 - Current focus: all planned implementation slices through P5 are complete;
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
 
 ## Active follow-up implementation order
 
-1. **OA5** — draft tool-use completion policy for future iterative agent-loop
-   support.
-2. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
+1. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
    patterns.
-3. **OA7** — design workflow interruption and resumable run state for
+2. **OA7** — design workflow interruption and resumable run state for
    approval-required tools.
-4. **OA10** — defer sandbox/workspace runtime support until the earlier policy
+3. **OA10** — defer sandbox/workspace runtime support until the earlier policy
    and interruption surfaces are defined.
-5. **OA9** — consider an optional `tool_from_function(...)` helper after
+4. **OA9** — consider an optional `tool_from_function(...)` helper after
     provenance and policy metadata settle.
-6. **OA8** — consider a small async session protocol only after multi-turn
+5. **OA8** — consider a small async session protocol only after multi-turn
     memory requirements are explicit.
-7. **OA11** — map any future upstream portable tool-type taxonomy only if that
+6. **OA11** — map any future upstream portable tool-type taxonomy only if that
     upstream taxonomy is actually introduced.
 
 ### Active follow-up ordering rationale
@@ -50,6 +48,10 @@
 - Narrower derived context work next completed: E11 extended the broader
   prepare-stage seam from OA3 with bounded file-backed prompt-context loading,
   deterministic ordering, source provenance, and byte/token-aware limits.
+- Loop-completion metadata next completed: OA5 now preserves deferred
+  `runtime.execution_policy.tool_use_completion` metadata for future iterative
+  agent-loop runtimes, with fail-closed validation for `run_again`,
+  `stop_on_tool`, and `final_output` decisions.
 - Loop, interruption, and resumable-run policy later: OA5, OA6, and OA7 build
   on the earlier metadata and lifecycle foundations.
 - Convenience, optional session, and upstream-conditional work last: OA9, OA8,
@@ -1121,11 +1123,22 @@ explicitly instead of leaving them as undocumented future behavior.
       - Validation: `poetry run pytest tests/test_validation.py
         tests/test_executor.py -q 2>&1` — pass; 76 tests passed.
       - Active order: completed with E9; E11 is now the next active slice.
-- [ ] OA5. Draft tool-use completion policy for future iterative agent-loop
+- [x] OA5. Draft tool-use completion policy for future iterative agent-loop
       support, including run-again, stop-on-tool, and custom final-output
       decisions.
-      - Active order: after OA4/E9 and E11, once context and MCP/lifecycle
-        surfaces are clearer.
+      - Completed in working tree: `RuntimeManifest` and `ExecutionPlan` now
+        preserve an opt-in `runtime.execution_policy.tool_use_completion`
+        metadata surface with deferred `run_again`, `stop_on_tool`,
+        `final_output`, and `final_output_state_key` settings for future loop
+        runtimes without changing current executor step semantics.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `tool_use_completion` policy shapes, unsupported enum-like
+        values, missing `final_output_state_key` when `final_output` is
+        `state_field`, and stray state-key metadata when `final_output` is not
+        `state_field`.
+      - Validation: `poetry run pytest tests/test_validation.py
+        tests/test_executor.py -q 2>&1` — pass; 83 tests passed.
+      - Active order: completed; OA6 is now the next active slice.
 - [ ] OA6. Preserve handoff vs agent-as-tool as distinct manifest metadata
       patterns for multi-agent workflows, aligned with the grouped
       `runtime`/`metadata`/`extensions` surface and without introducing a new

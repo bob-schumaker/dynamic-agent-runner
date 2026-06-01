@@ -111,6 +111,21 @@ SUPPORTED_MCP_OPERATION_LOCKING_VALUES = {"none", "per_server", "global"}
 SUPPORTED_MCP_MEMORY_POLLUTION_VALUES = {"low", "medium", "high"}
 SUPPORTED_MCP_STARTUP_MODES = {"strict", "degraded"}
 SUPPORTED_MCP_RECONNECT_VALUES = {"disabled", "manual", "automatic"}
+SUPPORTED_TOOL_USE_COMPLETION_RUN_AGAIN_VALUES = {
+    "default",
+    "required",
+    "disabled",
+}
+SUPPORTED_TOOL_USE_COMPLETION_STOP_ON_TOOL_VALUES = {
+    "default",
+    "enabled",
+    "disabled",
+}
+SUPPORTED_TOOL_USE_COMPLETION_FINAL_OUTPUT_VALUES = {
+    "default",
+    "tool_result",
+    "state_field",
+}
 REACT_LOOP_PATTERN_ID = "react_loop"
 PROMPT_REPLACE_FIELDS = {
     "system",
@@ -243,6 +258,7 @@ def validate_runtime_manifest(
     _extend(errors, _model_requirements_errors(manifest))
     _extend(errors, _rag_pipeline_errors(manifest))
     _extend(errors, _react_loop_errors(manifest))
+    _extend(errors, _tool_use_completion_policy_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
     _extend(errors, _file_context_policy_errors(manifest))
     _extend(errors, _guardrail_declaration_errors(manifest))
@@ -1063,6 +1079,54 @@ def _react_loop_errors(manifest: RuntimeManifest) -> list[str]:
             "react_loop requires at least one llm_step and one tool_use_step node"
         )
 
+    return errors
+
+
+def _tool_use_completion_policy_errors(manifest: RuntimeManifest) -> list[str]:
+    policy = manifest.execution_policy.get("tool_use_completion")
+    if policy is None:
+        return []
+    if not isinstance(policy, Mapping):
+        return ["runtime.execution_policy.tool_use_completion must be a mapping"]
+
+    errors: list[str] = []
+    label = "runtime.execution_policy.tool_use_completion"
+    _validate_optional_enum(
+        policy,
+        "run_again",
+        SUPPORTED_TOOL_USE_COMPLETION_RUN_AGAIN_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "stop_on_tool",
+        SUPPORTED_TOOL_USE_COMPLETION_STOP_ON_TOOL_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "final_output",
+        SUPPORTED_TOOL_USE_COMPLETION_FINAL_OUTPUT_VALUES,
+        label,
+        errors,
+    )
+
+    final_output = policy.get("final_output")
+    state_key = policy.get("final_output_state_key")
+    if state_key is not None and not isinstance(state_key, str):
+        errors.append(f"{label}.final_output_state_key must be a string")
+    if isinstance(state_key, str) and not state_key.strip():
+        errors.append(f"{label}.final_output_state_key must not be blank")
+    if final_output == "state_field" and not isinstance(state_key, str):
+        errors.append(
+            f"{label}.final_output_state_key is required when final_output is 'state_field'"
+        )
+    if final_output != "state_field" and state_key is not None:
+        errors.append(
+            f"{label}.final_output_state_key is only allowed when final_output is 'state_field'"
+        )
     return errors
 
 
