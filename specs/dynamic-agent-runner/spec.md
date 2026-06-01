@@ -218,6 +218,10 @@ Acceptance criteria:
   then the library preserves portable approval pause/resume metadata for future
   approval-required tool workflows without implementing a runtime approval engine
   or live pause/resume behavior in this slice.
+- Given `runtime.execution_policy.sandbox_runtime`, when parsing succeeds, then
+  the library preserves portable sandbox/workspace runtime metadata for future
+  write-command tool workflows without enabling a writable workspace runtime,
+  command execution engine, or sandbox enforcement in this slice.
 - Given `metadata.patterns_present`, when parsing succeeds, then the library
   preserves documented pattern identifiers even when the current executor does
   not yet implement pattern-specific adapters.
@@ -231,6 +235,10 @@ Acceptance criteria:
   those surfaces separately so portable interruption state is not conflated with
   runtime-specific approval enforcement or with multi-agent handoff/delegation
   metadata.
+- Given grouped sandbox/workspace runtime metadata and conservative built-in
+  local tool packs, when parsing succeeds, then the runtime preserves those
+  surfaces separately so future writable-workspace or command-execution policy is
+  not conflated with the current opt-in read-only `local_workspace` pack.
 - Given `extensions` entries, when parsing succeeds, then unsupported extensions
   with `required: true` fail closed, unsupported extensions with
   `required: false` are preserved and reported when a report channel exists,

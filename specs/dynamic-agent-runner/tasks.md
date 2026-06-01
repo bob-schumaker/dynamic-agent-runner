@@ -1184,10 +1184,23 @@ explicitly instead of leaving them as undocumented future behavior.
 - [ ] OA9. Consider an optional `tool_from_function(...)` helper that generates
       explicit registry metadata while preserving side-effect and approval policy.
       - Active order: after the main provenance/policy surfaces stabilize.
-- [ ] OA10. Keep sandbox/workspace runtime support separate from default local
+- [x] OA10. Keep sandbox/workspace runtime support separate from default local
       tool packs and defer it until write/command tool requirements are approved.
       - Active order: late, after the policy, interruption, and MCP/source
         surfaces settle.
+      - Completed in working tree: `RuntimeManifest` and `ExecutionPlan` now
+        preserve deferred `runtime.execution_policy.sandbox_runtime` metadata for
+        future writable-workspace and command-execution runtimes without changing
+        the current opt-in read-only `local_workspace` built-in tool pack.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `sandbox_runtime` policy shapes, unsupported mode /
+        filesystem / persist-workspace / command-policy values, non-string or
+        blank workspace state-key fields, persisted workspace policies that omit
+        required state keys, `persist_workspace: none` policies that still
+        declare state keys, and command-execution policies paired with
+        `filesystem: read_only`.
+      - Active order: completed after OA7, because writable-workspace runtime
+        metadata remains downstream of the earlier policy and interruption seams.
 - [ ] OA11. If upstream adds portable tool-type taxonomy to the runtime-package
       reference, map those shared semantic categories into local registry and
       policy handling without treating them as MCP/source injection contracts.

@@ -273,6 +273,53 @@ def test_load_runtime_manifest_preserves_approval_interruption_metadata() -> Non
     )
 
 
+def test_load_runtime_manifest_preserves_sandbox_runtime_metadata() -> None:
+    """Sandbox runtime policy metadata is preserved from execution policy."""
+
+    manifest = load_runtime_manifest(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "sandbox-runtime-metadata",
+            "entrypoint": "run_write_tool",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "sandbox_runtime": {
+                        "mode": "per_run_workspace",
+                        "filesystem": "workspace_write",
+                        "persist_workspace": "named_session",
+                        "command_policy": "allow_list",
+                        "writable_root_state_key": "writable_root",
+                        "working_directory_state_key": "working_directory",
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "run_write_tool",
+                    "kind": "tool_use_step",
+                    "tool_id": "write_repo",
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "write_repo", "adapter": "runtime.write_repo"}],
+        }
+    )
+
+    assert manifest.sandbox_runtime_policy is not None
+    assert manifest.sandbox_runtime_policy.mode == "per_run_workspace"
+    assert manifest.sandbox_runtime_policy.filesystem == "workspace_write"
+    assert manifest.sandbox_runtime_policy.persist_workspace == "named_session"
+    assert manifest.sandbox_runtime_policy.command_policy == "allow_list"
+    assert manifest.sandbox_runtime_policy.writable_root_state_key == "writable_root"
+    assert (
+        manifest.sandbox_runtime_policy.working_directory_state_key
+        == "working_directory"
+    )
+
+
 def test_load_runtime_manifest_preserves_node_skill_refs() -> None:
     """LLM node skill references are preserved for behavior overrides."""
 

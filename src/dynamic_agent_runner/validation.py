@@ -141,6 +141,26 @@ SUPPORTED_APPROVAL_INTERRUPTION_RESUME_FROM_VALUES = {
     "approval_decision",
     "workflow_restart",
 }
+SUPPORTED_SANDBOX_RUNTIME_MODE_VALUES = {
+    "metadata_only",
+    "per_run_workspace",
+    "shared_workspace",
+}
+SUPPORTED_SANDBOX_RUNTIME_FILESYSTEM_VALUES = {
+    "read_only",
+    "workspace_write",
+    "full_access",
+}
+SUPPORTED_SANDBOX_RUNTIME_PERSIST_WORKSPACE_VALUES = {
+    "none",
+    "per_run",
+    "named_session",
+}
+SUPPORTED_SANDBOX_RUNTIME_COMMAND_POLICY_VALUES = {
+    "forbid",
+    "allow_list",
+    "caller_controlled",
+}
 SUPPORTED_HANDOFF_ON_HANDOFF_VALUES = {"switch_active_profile"}
 SUPPORTED_HANDOFF_NESTED_HISTORY_VALUES = {"preserve", "drop", "filtered"}
 SUPPORTED_AGENT_AS_TOOL_OUTPUT_MODE_VALUES = {
@@ -282,6 +302,7 @@ def validate_runtime_manifest(
     _extend(errors, _react_loop_errors(manifest))
     _extend(errors, _tool_use_completion_policy_errors(manifest))
     _extend(errors, _approval_interruption_policy_errors(manifest))
+    _extend(errors, _sandbox_runtime_policy_errors(manifest))
     _extend(errors, _handoff_metadata_errors(manifest))
     _extend(errors, _agent_as_tool_metadata_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
@@ -1184,6 +1205,48 @@ def _approval_interruption_policy_errors(manifest: RuntimeManifest) -> list[str]
     return errors
 
 
+def _sandbox_runtime_policy_errors(manifest: RuntimeManifest) -> list[str]:
+    policy = manifest.execution_policy.get("sandbox_runtime")
+    if policy is None:
+        return []
+    if not isinstance(policy, Mapping):
+        return ["runtime.execution_policy.sandbox_runtime must be a mapping"]
+
+    errors: list[str] = []
+    label = "runtime.execution_policy.sandbox_runtime"
+    _validate_optional_enum(
+        policy,
+        "mode",
+        SUPPORTED_SANDBOX_RUNTIME_MODE_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "filesystem",
+        SUPPORTED_SANDBOX_RUNTIME_FILESYSTEM_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "persist_workspace",
+        SUPPORTED_SANDBOX_RUNTIME_PERSIST_WORKSPACE_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "command_policy",
+        SUPPORTED_SANDBOX_RUNTIME_COMMAND_POLICY_VALUES,
+        label,
+        errors,
+    )
+    _validate_sandbox_runtime_state_key_types(policy, label, errors)
+    _validate_sandbox_runtime_consistency(policy, label, errors)
+    return errors
+
+
 def _validate_approval_interruption_enums(
     policy: Mapping[str, Any],
     label: str,
@@ -1265,6 +1328,65 @@ def _approval_interruption_required_persisted_fields() -> tuple[str, ...]:
         "pending_tool_calls_state_key",
         "pending_approvals_state_key",
         "interruption_state_key",
+    )
+
+
+def _validate_sandbox_runtime_state_key_types(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    for field_name in _sandbox_runtime_state_key_fields():
+        value = policy.get(field_name)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            errors.append(f"{label}.{field_name} must be a string")
+            continue
+        if not value.strip():
+            errors.append(f"{label}.{field_name} must not be blank")
+
+
+def _validate_sandbox_runtime_consistency(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    persist_workspace = policy.get("persist_workspace")
+    has_state_key = any(
+        policy.get(field_name) is not None
+        for field_name in _sandbox_runtime_state_key_fields()
+    )
+    if persist_workspace == "none" and has_state_key:
+        errors.append(
+            f"{label} state-key fields are only allowed when persist_workspace is not 'none'"
+        )
+    if persist_workspace in {"per_run", "named_session"}:
+        for field_name in _sandbox_runtime_required_persisted_fields():
+            value = policy.get(field_name)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(
+                    f"{label}.{field_name} is required when persist_workspace is {persist_workspace!r}"
+                )
+    command_policy = policy.get("command_policy")
+    filesystem = policy.get("filesystem")
+    if command_policy != "forbid" and filesystem == "read_only":
+        errors.append(
+            f"{label}.filesystem must not be 'read_only' when command_policy is not 'forbid'"
+        )
+
+
+def _sandbox_runtime_state_key_fields() -> tuple[str, ...]:
+    return (
+        "writable_root_state_key",
+        "working_directory_state_key",
+    )
+
+
+def _sandbox_runtime_required_persisted_fields() -> tuple[str, ...]:
+    return (
+        "writable_root_state_key",
+        "working_directory_state_key",
     )
 
 

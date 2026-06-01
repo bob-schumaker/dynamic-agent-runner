@@ -301,6 +301,148 @@ def test_unsupported_runtime_enums_fail() -> None:
     assert "unsupported edge_kind" in message
 
 
+def test_sandbox_runtime_policy_fails_closed_for_bad_values() -> None:
+    """Sandbox runtime metadata rejects unsupported enums and bad state keys."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "sandbox_runtime": {
+                "mode": "always_on",
+                "filesystem": "mutable",
+                "persist_workspace": "forever",
+                "command_policy": "all_commands",
+                "writable_root_state_key": 7,
+                "working_directory_state_key": "   ",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "sandbox_runtime.mode has unsupported value 'always_on'" in message
+    assert "sandbox_runtime.filesystem has unsupported value 'mutable'" in message
+    assert (
+        "sandbox_runtime.persist_workspace has unsupported value 'forever'" in message
+    )
+    assert (
+        "sandbox_runtime.command_policy has unsupported value 'all_commands'" in message
+    )
+    assert "sandbox_runtime.writable_root_state_key must be a string" in message
+    assert "sandbox_runtime.working_directory_state_key must not be blank" in message
+
+
+def test_sandbox_runtime_policy_requires_state_keys_for_persisted_workspace() -> None:
+    """Persisted sandbox workspaces require state keys for resumable location data."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "sandbox_runtime": {
+                "mode": "shared_workspace",
+                "filesystem": "workspace_write",
+                "persist_workspace": "per_run",
+                "command_policy": "caller_controlled",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert (
+        "sandbox_runtime.writable_root_state_key is required when persist_workspace is 'per_run'"
+        in message
+    )
+    assert (
+        "sandbox_runtime.working_directory_state_key is required when persist_workspace is 'per_run'"
+        in message
+    )
+
+
+def test_sandbox_runtime_policy_rejects_state_keys_when_persist_workspace_is_none() -> (
+    None
+):
+    """Non-persisted sandbox metadata must not declare persisted workspace keys."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "sandbox_runtime": {
+                "mode": "metadata_only",
+                "filesystem": "read_only",
+                "persist_workspace": "none",
+                "command_policy": "forbid",
+                "writable_root_state_key": "writable_root",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert (
+        "state-key fields are only allowed when persist_workspace is not 'none'"
+        in str(exc_info.value)
+    )
+
+
+def test_sandbox_runtime_policy_rejects_command_policy_with_read_only_filesystem() -> (
+    None
+):
+    """Command execution metadata must not pair with a read-only filesystem policy."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "sandbox_runtime": {
+                "mode": "per_run_workspace",
+                "filesystem": "read_only",
+                "persist_workspace": "named_session",
+                "command_policy": "allow_list",
+                "writable_root_state_key": "writable_root",
+                "working_directory_state_key": "working_directory",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert (
+        "sandbox_runtime.filesystem must not be 'read_only' when command_policy is not 'forbid'"
+        in str(exc_info.value)
+    )
+
+
+def test_sandbox_runtime_policy_passes_with_supported_metadata() -> None:
+    """Supported sandbox runtime metadata passes validation without enabling execution."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "sandbox_runtime": {
+                "mode": "per_run_workspace",
+                "filesystem": "workspace_write",
+                "persist_workspace": "named_session",
+                "command_policy": "caller_controlled",
+                "writable_root_state_key": "writable_root",
+                "working_directory_state_key": "working_directory",
+            },
+        }
+    }
+
+    validate_mapping(data)
+
+
 def test_duplicate_node_ids_fail() -> None:
     """Node IDs must be unique."""
 

@@ -155,6 +155,28 @@ The current runtime preserves and validates this metadata only. It does not yet
 implement a live approval engine, execution pause, resumable checkpoint store,
 or resume-token protocol.
 
+.. header2:: Sandbox runtime metadata
+
+Sandbox/workspace runtime intent for future write-command tools can be preserved
+under ``runtime.execution_policy.sandbox_runtime``.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       sandbox_runtime:
+         mode: per_run_workspace
+         filesystem: workspace_write
+         persist_workspace: named_session
+         command_policy: allow_list
+         writable_root_state_key: writable_root
+         working_directory_state_key: working_directory
+
+The current runtime preserves and validates this metadata only. It does not yet
+implement a writable workspace runtime, command execution engine, allow-list
+enforcement, or sandbox boundary manager. The existing opt-in ``local_workspace``
+built-in pack remains a separate read-only tool pack.
+
 .. header2:: Concurrency and async execution
 
 The implementation is async-first. Synchronous public functions wrap the async

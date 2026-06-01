@@ -317,6 +317,36 @@ class ApprovalInterruptionPolicy:
 
 
 @dataclass(frozen=True)
+class SandboxRuntimePolicy:
+    """Deferred sandbox/workspace runtime metadata for future write-command runtimes."""
+
+    mode: str | None = None
+    filesystem: str | None = None
+    persist_workspace: str | None = None
+    command_policy: str | None = None
+    writable_root_state_key: str | None = None
+    working_directory_state_key: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> SandboxRuntimePolicy:
+        """Build sandbox runtime policy metadata from execution policy."""
+
+        raw = dict(value)
+        return cls(
+            mode=_optional_str(raw.get("mode")),
+            filesystem=_optional_str(raw.get("filesystem")),
+            persist_workspace=_optional_str(raw.get("persist_workspace")),
+            command_policy=_optional_str(raw.get("command_policy")),
+            writable_root_state_key=_optional_str(raw.get("writable_root_state_key")),
+            working_directory_state_key=_optional_str(
+                raw.get("working_directory_state_key")
+            ),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
 class HandoffMetadata:
     """Deferred handoff metadata for future active-agent transfer workflows."""
 
@@ -529,6 +559,7 @@ class RuntimeManifest:
     mcp_lifecycle_diagnostics: MCPLifecycleDiagnostics | None = None
     tool_use_completion_policy: ToolUseCompletionPolicy | None = None
     approval_interruption_policy: ApprovalInterruptionPolicy | None = None
+    sandbox_runtime_policy: SandboxRuntimePolicy | None = None
     handoffs: tuple[HandoffMetadata, ...] = ()
     state: Mapping[str, Any] = field(default_factory=dict)
     skills: tuple[ManifestObject, ...] = ()
@@ -558,6 +589,7 @@ class RuntimeManifest:
         approval_interruption = _as_mapping(
             execution_policy.get("approval_interruption")
         )
+        sandbox_runtime = _as_mapping(execution_policy.get("sandbox_runtime"))
         handoffs = _handoff_metadata(metadata)
         return cls(
             raw=raw,
@@ -593,6 +625,11 @@ class RuntimeManifest:
             approval_interruption_policy=(
                 ApprovalInterruptionPolicy.from_mapping(approval_interruption)
                 if approval_interruption is not None
+                else None
+            ),
+            sandbox_runtime_policy=(
+                SandboxRuntimePolicy.from_mapping(sandbox_runtime)
+                if sandbox_runtime is not None
                 else None
             ),
             handoffs=handoffs,
@@ -855,6 +892,7 @@ class ExecutionPlan:
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
     tool_use_completion_policy: ToolUseCompletionPolicy | None = None
     approval_interruption_policy: ApprovalInterruptionPolicy | None = None
+    sandbox_runtime_policy: SandboxRuntimePolicy | None = None
     handoffs: tuple[HandoffMetadata, ...] = ()
     output_contracts: Mapping[str, Any] = field(default_factory=dict)
     unsupported_extensions: tuple[str, ...] = ()
@@ -882,6 +920,7 @@ def prepare_execution_plan(
         execution_policy=execution_policy,
         tool_use_completion_policy=manifest.tool_use_completion_policy,
         approval_interruption_policy=manifest.approval_interruption_policy,
+        sandbox_runtime_policy=manifest.sandbox_runtime_policy,
         handoffs=manifest.handoffs,
         output_contracts=dict(manifest.output_contracts),
         unsupported_extensions=tuple(

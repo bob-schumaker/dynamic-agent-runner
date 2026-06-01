@@ -197,6 +197,16 @@ or a clear error.
   `persist`, or `resume_from` values, non-string or blank state-key fields,
   persisted interruption policies that omit required resumable state keys, and
   `persist: none` policies that incorrectly declare persisted state-key fields.
+- OA10 is implemented in the working tree: `RuntimeManifest` and `ExecutionPlan`
+  now preserve deferred `runtime.execution_policy.sandbox_runtime` metadata for
+  future writable-workspace and command-execution runtimes without changing the
+  current read-only `local_workspace` built-in pack or enabling a live sandbox.
+- OA10 validation evidence: `validate_runtime_manifest(...)` now fails closed for
+  malformed `sandbox_runtime` policy shapes, unsupported `mode`, `filesystem`,
+  `persist_workspace`, or `command_policy` values, non-string or blank workspace
+  state-key fields, persisted workspace policies that omit required state keys,
+  `persist_workspace: none` policies that still declare state keys, and
+  command-execution policies that incorrectly pair with `filesystem: read_only`.
 
 ## Technical Approach
 
