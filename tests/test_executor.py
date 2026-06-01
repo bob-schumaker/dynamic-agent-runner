@@ -560,6 +560,140 @@ def test_prepare_model_input_applies_hierarchy_pruning_and_compaction() -> None:
     assert prepared_input.preparation.context_compaction_applied is True
 
 
+def test_prepare_model_input_includes_bounded_file_context_with_provenance(
+    tmp_path,
+) -> None:
+    """File-backed prompt context is opt-in, bounded, and source-tracked."""
+
+    package_dir = tmp_path / "file-context-package"
+    package_dir.mkdir()
+    (package_dir / "README.md").write_text("Package overview\n", encoding="utf-8")
+    docs_dir = package_dir / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "guide.md").write_text("Guide details\n", encoding="utf-8")
+    nested_dir = docs_dir / "nested"
+    nested_dir.mkdir()
+    (nested_dir / "ignored.md").write_text("Ignored nested file\n", encoding="utf-8")
+
+    workflow = LoadedAgentWorkflow(
+        runtime_manifest=load_runtime_manifest(
+            {
+                "format_version": 1,
+                "package_type": "dynamic_agent_design",
+                "package_id": "file-context-agent",
+                "entrypoint": "answer",
+                "packaging": {"mode": "hybrid_bundle"},
+                "runtime": {
+                    "execution_policy": {
+                        "model": "gpt-test",
+                        "prepare_model_input": {
+                            "file_context": {
+                                "enabled": True,
+                                "roots": ["docs", "README.md"],
+                                "max_depth": 1,
+                                "max_files": 2,
+                                "max_bytes": 4096,
+                                "max_tokens": 400,
+                                "prompt_role": "developer",
+                                "header": "Project context:",
+                            }
+                        },
+                    }
+                },
+                "nodes": [
+                    {
+                        "id": "answer",
+                        "kind": "llm_step",
+                        "prompt": {"user_template": "Answer {prompt}."},
+                    }
+                ],
+                "edges": [],
+            }
+        ),
+        package_root=str(package_dir),
+    )
+    plan = prepare_execution_plan(workflow)
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        WorkflowExecutionState(prompt="question"),
+    )
+
+    assert prepared_input.part_names == (
+        "file_context_1",
+        "file_context_2",
+        "user_prompt",
+    )
+    assert prepared_input.preparation.file_context_applied is True
+    assert prepared_input.preparation.file_context_sources == (
+        "README.md",
+        "docs/guide.md",
+    )
+    assert prepared_input.preparation.file_context_files_included == 2
+    assert prepared_input.preparation.file_context_bytes > 0
+    assert prepared_input.preparation.file_context_estimated_tokens > 0
+    assert "Source: README.md" in prepared_input.named_parts["file_context_1"].content
+    assert (
+        "Source: docs/guide.md" in prepared_input.named_parts["file_context_2"].content
+    )
+    assert "ignored.md" not in prepared_input.named_parts["file_context_2"].content
+
+
+def test_prepare_model_input_rejects_file_context_roots_outside_package(
+    tmp_path,
+) -> None:
+    """File-backed prompt context rejects roots that escape the package root."""
+
+    package_dir = tmp_path / "file-context-package"
+    package_dir.mkdir()
+
+    workflow = LoadedAgentWorkflow(
+        runtime_manifest=load_runtime_manifest(
+            {
+                "format_version": 1,
+                "package_type": "dynamic_agent_design",
+                "package_id": "file-context-agent",
+                "entrypoint": "answer",
+                "packaging": {"mode": "hybrid_bundle"},
+                "runtime": {
+                    "execution_policy": {
+                        "model": "gpt-test",
+                        "prepare_model_input": {
+                            "file_context": {
+                                "enabled": True,
+                                "roots": ["../outside"],
+                                "max_depth": 1,
+                                "max_files": 1,
+                                "max_bytes": 512,
+                            }
+                        },
+                    }
+                },
+                "nodes": [
+                    {
+                        "id": "answer",
+                        "kind": "llm_step",
+                        "prompt": {"user_template": "Answer {prompt}."},
+                    }
+                ],
+                "edges": [],
+            }
+        ),
+        package_root=str(package_dir),
+    )
+    plan = prepare_execution_plan(workflow)
+
+    with pytest.raises(WorkflowExecutionError) as exc_info:
+        prepare_model_input(
+            plan.nodes_by_id["answer"],
+            plan,
+            WorkflowExecutionState(prompt="question"),
+        )
+
+    assert "escapes package root" in str(exc_info.value)
+
+
 def test_execute_workflow_async_runs_async_model_adapter() -> None:
     workflow = workflow_from(
         {

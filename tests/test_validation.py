@@ -822,6 +822,67 @@ def test_react_loop_manifest_passes_with_loopback_iterations_state_and_tool_step
     validate_mapping(data)
 
 
+def test_file_context_policy_fails_for_unbounded_or_non_relative_settings() -> None:
+    """File-backed prompt-context policy fails closed for unsafe settings."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "prepare_model_input": {
+                "file_context": {
+                    "enabled": True,
+                    "roots": ["", "/absolute", "../escape"],
+                    "max_depth": 0,
+                    "max_files": "unknown",
+                    "max_bytes": -1,
+                    "max_tokens": False,
+                    "prompt_role": "user",
+                    "header": 99,
+                }
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".roots must not contain blank paths" in message
+    assert ".roots must use package-relative paths" in message
+    assert ".roots must not escape the package root" in message
+    assert ".max_depth must be a positive integer or 'unknown'" in message
+    assert ".max_bytes must be a positive integer or 'unknown'" in message
+    assert ".max_tokens must be a positive integer or 'unknown'" in message
+    assert ".prompt_role has unsupported value 'user'" in message
+    assert ".header must be a string" in message
+
+
+def test_file_context_policy_passes_with_bounded_relative_settings() -> None:
+    """File-backed prompt-context policy accepts bounded relative configuration."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "prepare_model_input": {
+                "file_context": {
+                    "enabled": True,
+                    "roots": ["docs", "README.md"],
+                    "max_depth": 2,
+                    "max_files": 4,
+                    "max_bytes": 2048,
+                    "max_tokens": 400,
+                    "prompt_role": "developer",
+                    "header": "Project context:",
+                }
+            },
+        }
+    }
+
+    validate_mapping(data)
+
+
 def test_runtime_behavior_overrides_pass_validation() -> None:
     """Valid prompt and skill overrides pass before execution."""
 

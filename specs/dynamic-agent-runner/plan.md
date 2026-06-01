@@ -116,7 +116,7 @@ or a clear error.
   Codex/Cline evaluation follow-ups and OpenAI Agents SDK Python evaluation
   follow-ups captured in `tasks.md`.
 - The recommended implementation order for that active follow-up backlog is:
-  E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11 as the final
+  OA5, OA6, OA7, OA10, OA9, OA8, then OA11 as the final
   upstream-conditional item.
 - OA2 is now implemented in the working tree: tool provenance preserves the
   existing low-level source kind while adding a higher-level origin bucket that
@@ -154,6 +154,16 @@ or a clear error.
   generic unsupported-extension reporting.
 - OA4+E9 validation evidence: `poetry run pytest tests/test_validation.py
   tests/test_executor.py -q 2>&1` — pass; 76 tests passed.
+- E11 is now implemented in the working tree: `prepare_model_input(...)` now
+  supports a narrower opt-in file-backed prompt-context policy for
+  package-root-backed workflows, adding deterministic file-context prompt parts
+  with source provenance plus byte/token accounting in `PreparedInputMetadata`.
+- E11 validation evidence: `validate_runtime_manifest(...)` now fails closed for
+  malformed `runtime.execution_policy.prepare_model_input.file_context`
+  mappings, non-relative or escaping roots, unsupported prompt roles, and
+  invalid scan-depth, file-count, byte-budget, or token-budget values.
+- E11 validation evidence: `poetry run pytest tests/test_validation.py
+  tests/test_executor.py -q 2>&1` — pass; 80 tests passed.
 
 ## Technical Approach
 
@@ -834,6 +844,6 @@ a qualified verdict:
 This plan is accepted as the current technical planning artifact. The currently
 planned implementation sequence is complete through package-alignment P5 and the
 tracked async-first follow-up slices. Future work should start from the active
-Codex/Cline and OpenAI Agents SDK Python follow-up tasks in this order: E11,
-OA5, OA6, OA7, OA10, OA9, OA8, then OA11 unless a new scoped spec/plan update
+Codex/Cline and OpenAI Agents SDK Python follow-up tasks in this order: OA5,
+OA6, OA7, OA10, OA9, OA8, then OA11 unless a new scoped spec/plan update
 supersedes that sequence.

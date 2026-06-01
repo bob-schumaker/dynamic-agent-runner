@@ -244,6 +244,7 @@ def validate_runtime_manifest(
     _extend(errors, _rag_pipeline_errors(manifest))
     _extend(errors, _react_loop_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
+    _extend(errors, _file_context_policy_errors(manifest))
     _extend(errors, _guardrail_declaration_errors(manifest))
     _extend(errors, _mcp_registry_source_errors(manifest))
     _extend(errors, _mcp_lifecycle_diagnostics_errors(manifest))
@@ -1227,6 +1228,90 @@ def _prompt_cache_policy_errors(manifest: RuntimeManifest) -> list[str]:
     except Exception as exc:  # noqa: BLE001 - normalized into validation errors.
         return [str(exc)]
     return []
+
+
+def _file_context_policy_errors(manifest: RuntimeManifest) -> list[str]:
+    policy = manifest.execution_policy.get("prepare_model_input")
+    if not isinstance(policy, Mapping):
+        return []
+
+    file_context = policy.get("file_context")
+    if file_context is None:
+        return []
+    if not isinstance(file_context, Mapping):
+        return [
+            "runtime.execution_policy.prepare_model_input.file_context must be a mapping"
+        ]
+
+    errors: list[str] = []
+    label = "runtime.execution_policy.prepare_model_input.file_context"
+    _validate_optional_bool(file_context, "enabled", label, errors)
+    roots = _file_context_roots_errors(file_context, label, errors)
+    _file_context_bound_errors(file_context, label, errors)
+    _file_context_prompt_errors(file_context, label, errors)
+    _file_context_required_field_errors(file_context, manifest, label, roots, errors)
+
+    return errors
+
+
+def _file_context_roots_errors(
+    file_context: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> list[str] | None:
+    roots = file_context.get("roots")
+    if roots is None:
+        return None
+    if not _is_string_list(roots):
+        errors.append(f"{label}.roots must be a list of strings")
+        return None
+    if not roots:
+        errors.append(f"{label}.roots must not be empty when provided")
+        return []
+    for root in roots:
+        if not root.strip():
+            errors.append(f"{label}.roots must not contain blank paths")
+        if root.startswith("/"):
+            errors.append(f"{label}.roots must use package-relative paths")
+        if ".." in root.split("/"):
+            errors.append(f"{label}.roots must not escape the package root")
+    return roots
+
+
+def _file_context_bound_errors(
+    file_context: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    for field_name in ("max_depth", "max_files", "max_bytes", "max_tokens"):
+        _validate_optional_positive_int_or_unknown(
+            file_context, field_name, label, errors
+        )
+
+
+def _file_context_prompt_errors(
+    file_context: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    prompt_role = file_context.get("prompt_role")
+    if prompt_role is not None and prompt_role not in {"system", "developer"}:
+        errors.append(f"{label}.prompt_role has unsupported value {prompt_role!r}")
+
+    header = file_context.get("header")
+    if header is not None and not isinstance(header, str):
+        errors.append(f"{label}.header must be a string")
+
+
+def _file_context_required_field_errors(
+    file_context: Mapping[str, Any],
+    manifest: RuntimeManifest,
+    label: str,
+    roots: list[str] | None,
+    errors: list[str],
+) -> None:
+    if file_context.get("enabled") is True and manifest.entrypoint and roots is None:
+        errors.append(f"{label}.roots is required when file context is enabled")
 
 
 def _extend(target: list[str], values: Iterable[str]) -> None:

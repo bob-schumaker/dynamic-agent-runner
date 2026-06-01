@@ -15,29 +15,27 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: E11 — add the narrower hierarchical file-backed
-  prompt-context constraints.
+- Next active slice: OA5 — draft tool-use completion policy for future
+  iterative agent-loop support.
 - Current focus: all planned implementation slices through P5 are complete;
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
 
 ## Active follow-up implementation order
 
-1. **E11** — add the narrower hierarchical file-backed prompt-context
-   constraints on top of OA3's broader prepare-stage design.
-2. **OA5** — draft tool-use completion policy for future iterative agent-loop
+1. **OA5** — draft tool-use completion policy for future iterative agent-loop
    support.
-3. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
+2. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
    patterns.
-4. **OA7** — design workflow interruption and resumable run state for
+3. **OA7** — design workflow interruption and resumable run state for
    approval-required tools.
-5. **OA10** — defer sandbox/workspace runtime support until the earlier policy
+4. **OA10** — defer sandbox/workspace runtime support until the earlier policy
    and interruption surfaces are defined.
-6. **OA9** — consider an optional `tool_from_function(...)` helper after
+5. **OA9** — consider an optional `tool_from_function(...)` helper after
     provenance and policy metadata settle.
-7. **OA8** — consider a small async session protocol only after multi-turn
+6. **OA8** — consider a small async session protocol only after multi-turn
     memory requirements are explicit.
-8. **OA11** — map any future upstream portable tool-type taxonomy only if that
+7. **OA11** — map any future upstream portable tool-type taxonomy only if that
     upstream taxonomy is actually introduced.
 
 ### Active follow-up ordering rationale
@@ -49,8 +47,9 @@
 - MCP/source-aware work next completed: OA4 and E9 were intentionally grouped,
   and the runtime now preserves deferred MCP lifecycle diagnostics plus
   registry-source metadata through typed manifest extension seams.
-- Narrower derived context work next: E11 now becomes the next active slice
-  because it depends on the broader prepare-stage direction from OA3.
+- Narrower derived context work next completed: E11 extended the broader
+  prepare-stage seam from OA3 with bounded file-backed prompt-context loading,
+  deterministic ordering, source provenance, and byte/token-aware limits.
 - Loop, interruption, and resumable-run policy later: OA5, OA6, and OA7 build
   on the earlier metadata and lifecycle foundations.
 - Convenience, optional session, and upstream-conditional work last: OA9, OA8,
@@ -939,13 +938,20 @@ explicitly instead of leaving them as undocumented future behavior.
 - [x] E10. Add a context-management prepare-stage design for future compaction
       policies while preserving current fail-closed token-budget behavior.
       - Completion for this overlap is tracked in OA3.
-- [ ] E11. Consider hierarchical file-backed prompt context only with explicit
+- [x] E11. Consider hierarchical file-backed prompt context only with explicit
       roots, source tracking, scan limits, and token/byte budgets.
-      - Active order: implement after OA3 because it is the narrower file-backed
-        specialization of the broader prepare-model-input/context design.
-      - Duplication removed: general context compaction and session-pruning
-        prepare-stage design now lives in OA3; this E task remains for the
-        narrower file-backed prompt-context constraints.
+      - Completed in working tree: `prepare_model_input(...)` now supports an
+        opt-in `runtime.execution_policy.prepare_model_input.file_context`
+        policy for package-root-backed workflows, adding deterministic
+        file-context prompt parts with source provenance, bounded relative roots,
+        bounded scan depth/file count, and byte/token budget tracking in
+        `PreparedInputMetadata`.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `file_context` policy shapes, non-relative or escaping roots,
+        unsupported prompt roles, and invalid depth/file/byte/token bounds.
+      - Validation: `poetry run pytest tests/test_validation.py
+        tests/test_executor.py -q 2>&1` — pass; 80 tests passed.
+      - Active order: completed; OA5 is now the next active slice.
 - [x] E12. Keep multi-agent collaboration represented through primitive nodes and
       optional delegation tools; defer durable team runtime until requirements
       justify it.

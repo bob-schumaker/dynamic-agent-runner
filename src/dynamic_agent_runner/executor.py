@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, TypeVar
@@ -110,6 +111,11 @@ class PreparedInputMetadata:
     session_messages_included: int = 0
     session_messages_pruned: int = 0
     context_compaction_applied: bool = False
+    file_context_applied: bool = False
+    file_context_sources: tuple[str, ...] = ()
+    file_context_files_included: int = 0
+    file_context_bytes: int = 0
+    file_context_estimated_tokens: int = 0
 
 
 @dataclass(frozen=True)
@@ -318,17 +324,18 @@ def prepare_model_input(
 
     workflow = plan.workflow
     behavior = effective_node_behavior(node.source_node, workflow)
-    message_parts, preparation = _apply_prepare_model_input_stage(
-        _render_message_parts(behavior, state),
-        plan,
-        state,
-    )
-    messages = tuple(message for _part, message in message_parts)
     model, adapter = _select_model_and_adapter(
         node,
         model_adapters or (),
         _execution_policy_model_map(plan.execution_policy),
     )
+    message_parts, preparation = _apply_prepare_model_input_stage(
+        _render_message_parts(behavior, state),
+        plan,
+        state,
+        model=model,
+    )
+    messages = tuple(message for _part, message in message_parts)
     if tracer is not None:
         tracer.emit(
             "model_input_prepared",
@@ -339,6 +346,11 @@ def prepare_model_input(
                 "session_messages_included": preparation.session_messages_included,
                 "session_messages_pruned": preparation.session_messages_pruned,
                 "context_compaction_applied": preparation.context_compaction_applied,
+                "file_context_applied": preparation.file_context_applied,
+                "file_context_sources": preparation.file_context_sources,
+                "file_context_files_included": preparation.file_context_files_included,
+                "file_context_bytes": preparation.file_context_bytes,
+                "file_context_estimated_tokens": preparation.file_context_estimated_tokens,
             },
         )
         _check_prompt_cache(
@@ -848,6 +860,8 @@ def _apply_prepare_model_input_stage(
     base_parts: Sequence[tuple[str, OpenAIMessage]],
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
+    *,
+    model: str,
 ) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
     """Apply optional prepare-stage hierarchy and session shaping."""
 
@@ -880,6 +894,13 @@ def _apply_prepare_model_input_stage(
         )
         hierarchy_applied = True
 
+    file_context_messages, file_context_metadata = _file_context_messages(
+        plan,
+        policy,
+        model=model,
+    )
+    result_parts.extend(file_context_messages)
+
     kept_session, pruned_session = _pruned_session_messages(
         state.session_messages, policy
     )
@@ -901,6 +922,11 @@ def _apply_prepare_model_input_stage(
         session_messages_included=len(kept_session),
         session_messages_pruned=len(pruned_session),
         context_compaction_applied=context_compaction_applied,
+        file_context_applied=file_context_metadata.file_context_applied,
+        file_context_sources=file_context_metadata.file_context_sources,
+        file_context_files_included=file_context_metadata.file_context_files_included,
+        file_context_bytes=file_context_metadata.file_context_bytes,
+        file_context_estimated_tokens=file_context_metadata.file_context_estimated_tokens,
     )
 
 
@@ -909,6 +935,164 @@ def _prepare_model_input_policy(
 ) -> Mapping[str, Any]:
     value = execution_policy.get("prepare_model_input")
     return value if isinstance(value, Mapping) else {}
+
+
+def _file_context_messages(
+    plan: ExecutionPlan,
+    policy: Mapping[str, Any],
+    *,
+    model: str,
+) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
+    file_context = policy.get("file_context")
+    if not isinstance(file_context, Mapping) or not file_context.get("enabled"):
+        return (), PreparedInputMetadata()
+
+    package_root_value = getattr(plan.workflow, "package_root", None)
+    if not package_root_value:
+        raise WorkflowExecutionError(
+            "prepare_model_input.file_context requires a package-root-backed workflow"
+        )
+
+    package_root = Path(package_root_value).resolve()
+    roots = tuple(
+        str(item) for item in file_context.get("roots", ()) if isinstance(item, str)
+    )
+    max_depth = _optional_positive_int(file_context.get("max_depth")) or 1
+    max_files = _optional_positive_int(file_context.get("max_files")) or 20
+    max_bytes = _optional_positive_int(file_context.get("max_bytes")) or 8192
+    max_tokens = _optional_positive_int(file_context.get("max_tokens"))
+    role = str(file_context.get("prompt_role") or "developer")
+    header = str(file_context.get("header") or "Project file context:")
+
+    files = _collect_file_context_paths(
+        package_root,
+        roots,
+        max_depth=max_depth,
+        max_files=max_files,
+    )
+    parts: list[tuple[str, OpenAIMessage]] = []
+    source_paths: list[str] = []
+    bytes_used = 0
+    tokens_used = 0
+    for index, relative_path in enumerate(files, start=1):
+        path = package_root / relative_path
+        content = path.read_text(encoding="utf-8")
+        candidate = f"{header}\nSource: {relative_path}\n```text\n{content}\n```"
+        candidate_bytes = len(candidate.encode("utf-8"))
+        candidate_tokens = estimate_messages_tokens(
+            ({"role": role, "content": candidate},),
+            model=model,
+        ).token_count
+        if parts and (
+            bytes_used + candidate_bytes > max_bytes
+            or (max_tokens is not None and tokens_used + candidate_tokens > max_tokens)
+        ):
+            break
+        if not parts and (
+            candidate_bytes > max_bytes
+            or (max_tokens is not None and candidate_tokens > max_tokens)
+        ):
+            content = _truncate_file_context_content(content, max_bytes=max_bytes)
+            candidate = f"{header}\nSource: {relative_path}\n```text\n{content}\n```"
+            candidate_bytes = len(candidate.encode("utf-8"))
+            candidate_tokens = estimate_messages_tokens(
+                ({"role": role, "content": candidate},),
+                model=model,
+            ).token_count
+        if candidate_bytes > max_bytes:
+            continue
+        if max_tokens is not None and candidate_tokens > max_tokens:
+            continue
+        part_name = f"file_context_{index}"
+        parts.append((part_name, OpenAIMessage(role=role, content=candidate)))
+        source_paths.append(relative_path.as_posix())
+        bytes_used += candidate_bytes
+        tokens_used += candidate_tokens
+
+    return tuple(parts), PreparedInputMetadata(
+        file_context_applied=bool(parts),
+        file_context_sources=tuple(source_paths),
+        file_context_files_included=len(parts),
+        file_context_bytes=bytes_used,
+        file_context_estimated_tokens=tokens_used,
+    )
+
+
+def _collect_file_context_paths(
+    package_root: Path,
+    roots: Sequence[str],
+    *,
+    max_depth: int,
+    max_files: int,
+) -> tuple[Path, ...]:
+    results: list[Path] = []
+    for root in sorted(roots):
+        candidate = (package_root / root).resolve()
+        if not _is_relative_to(candidate, package_root):
+            raise WorkflowExecutionError(
+                f"prepare_model_input.file_context root {root!r} escapes package root"
+            )
+        if candidate.is_file():
+            results.append(candidate.relative_to(package_root))
+        elif candidate.is_dir():
+            _collect_directory_file_context_paths(
+                candidate,
+                package_root,
+                max_depth=max_depth,
+                max_files=max_files,
+                results=results,
+            )
+        if len(results) >= max_files:
+            break
+    deduped = sorted(dict.fromkeys(results))
+    return tuple(deduped[:max_files])
+
+
+def _collect_directory_file_context_paths(
+    current: Path,
+    package_root: Path,
+    *,
+    max_depth: int,
+    max_files: int,
+    results: list[Path],
+    depth: int = 0,
+) -> None:
+    if len(results) >= max_files or depth > max_depth:
+        return
+    for child in sorted(current.iterdir(), key=lambda item: item.name):
+        if len(results) >= max_files:
+            return
+        if child.is_dir():
+            if depth < max_depth:
+                _collect_directory_file_context_paths(
+                    child,
+                    package_root,
+                    max_depth=max_depth,
+                    max_files=max_files,
+                    results=results,
+                    depth=depth + 1,
+                )
+            continue
+        if child.is_file():
+            results.append(child.relative_to(package_root))
+
+
+def _truncate_file_context_content(value: str, *, max_bytes: int) -> str:
+    if max_bytes <= 0:
+        return ""
+    encoded = value.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return value
+    truncated = encoded[:max_bytes]
+    return truncated.decode("utf-8", errors="ignore")
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
 
 
 def _hierarchy_messages(policy: Mapping[str, Any], role: str) -> tuple[str, ...]:
