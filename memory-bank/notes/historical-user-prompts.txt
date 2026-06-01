@@ -275,3 +275,7 @@ change and leave the E task unmarked.
 make sure the that spec is internally consistent
 
 commit SDD changes, update memory-bank and commit separately
+
+show the order for the remaining E and OA items
+
+do that

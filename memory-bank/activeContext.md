@@ -71,11 +71,16 @@
 - The active SDD artifact set was reconciled in commit `3c5e2e9`
   (`docs(spec): reconcile active SDD artifact state`). `spec.md`, `plan.md`,
   and `tasks.md` now agree that planned implementation through package-
-  alignment P5 is complete, no implementation slice is currently active, and
-  future work should start from deferred follow-up items or a newly scoped spec
-  update.
-- There is no current active implementation slice after P5; the next work item
-  should come from deferred follow-ups or a new scoped backlog selection.
+  alignment P5 is complete.
+- Active follow-up ordering is now committed in `adba462`
+  (`docs(spec): order active evaluation follow-ups`). `tasks.md` and `plan.md`
+  now promote the remaining Codex/Cline and OpenAI Agents SDK Python follow-up
+  work into one explicit active backlog.
+- The next active implementation slice is now `OA2` — extend tool provenance
+  metadata to distinguish registered, built-in, override, MCP, and future
+  agent-as-tool origins.
+- The current active follow-up order is:
+  OA2, OA3, OA1, OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public
@@ -325,18 +330,18 @@
     pipeline and model-requirement consistency, and docs/tests cover the new
     manifest shape.
 - In progress:
-  - Memory-bank refresh is being prepared to record the E/OA deferred-follow-up
-    de-duplication in `specs/dynamic-agent-runner/tasks.md`.
+  - Memory-bank refresh is being prepared to record commit `adba462` and the
+    active OA/E follow-up ordering now captured in `specs/dynamic-agent-runner/
+    tasks.md` and `plan.md`.
 - Not started:
   - Provider-specific prompt-cache request pass-through is deferred until exact
     SDK/API support is verified; Slice 13 records metadata and telemetry only.
   - Interpreter middleware implementation is not started; the future spec
     explicitly defers backend selection until prototypes and benchmarks exist.
-  - Remaining deferred Codex/Cline follow-ups now include E9 and E11 only.
-    Deferred OpenAI Agents SDK Python follow-ups OA1-OA11 remain available for
-    later scoped selection, with OA3/OA4/OA6 now serving as the source of truth
-    for the de-duplicated overlap. E14 Slices I.1 through I.7 are complete; no
-    E14 implementation slice is currently queued.
+- Remaining active follow-up work is now explicitly ordered rather than left
+    as a generic deferred pool. The current sequence is OA2, OA3, OA1,
+    OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11. E14 Slices I.1
+    through I.7 remain complete.
 
 ## Important Current Facts
 
@@ -385,9 +390,11 @@
   new primitive runtime node kind or durable handoff-style multi-agent pattern.
   The fixture is placeholder-safe and uses fake tools, synthetic domain output,
   and placeholder Marimo metadata only.
-- `specs/dynamic-agent-runner/tasks.md` now contains `Deferred Codex/Cline
-  evaluation follow-ups` E1 through E14 and `Deferred OpenAI Agents SDK Python
-  evaluation follow-ups` OA1 through OA11. E1 is complete and checked off with
+- `specs/dynamic-agent-runner/tasks.md` now contains `Active Codex/Cline
+  evaluation follow-ups` and `Active OpenAI Agents SDK Python evaluation
+  follow-ups`, with `OA2` selected as the next active slice and an explicit
+  recommended active implementation order recorded near the top of the file. E1
+  is complete and checked off with
   implementation commit `38929f1`, E3 is complete and checked off with
   implementation commit `44b0847`, E4/E5 are complete and checked off with
   implementation commit `61f1548`, E6 is complete and checked off with
@@ -411,7 +418,7 @@
   I.1 through I.7 are complete in `acca9da`, `f2296e9`, `ff144f5`, `2b9271b`,
   `72c28dd`, `4f279ff`, and `7990503`; the planned E14 async-first
   implementation and validation sequence is complete.
-  The deferred-backlog review now treats OA3/OA4/OA6 as the canonical source for
+  The backlog review now treats OA3/OA4/OA6 as the canonical source for
   the overlapping prepare-stage, MCP-lifecycle-diagnostics, and handoff-vs-agent-
   as-tool design work; E10 and E12 are marked complete to point at those OA
   items, while E9 and E11 retain only their unique residual scope.

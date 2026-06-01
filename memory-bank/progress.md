@@ -231,6 +231,12 @@
   is no active implementation slice, the canonical API/CLI surface is
   package-directory-first, and future work should begin from deferred follow-up
   items or a new scoped spec update.
+- Active evaluation follow-up ordering is now committed in `adba462`
+  (`docs(spec): order active evaluation follow-ups`):
+  `specs/dynamic-agent-runner/tasks.md` and `plan.md` now promote the remaining
+  E/OA backlog into one active ordered queue with `OA2` as the next active
+  slice, followed by OA3, OA1, OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8,
+  and OA11.
 - Deferred backlog de-duplication across Codex/Cline and OpenAI Agents SDK
   Python follow-ups is now recorded in `specs/dynamic-agent-runner/tasks.md`:
   E10 is marked complete with overlap tracked in OA3, E12 is marked complete
@@ -514,9 +520,8 @@
   spec-document commit `89926d8`.
 - Memory-bank refresh is in flight to record the committed package-alignment
   backlog checkpoint from `8308cd6` as a separate docs(memory-bank) commit.
-- Remaining deferred Codex/Cline follow-ups are now E9 and E11, and OpenAI
-  Agents SDK Python follow-ups OA1-OA11 should wait for explicit scoped
-  selection.
+- Remaining active follow-up work is now explicitly ordered: OA2, OA3, OA1,
+  OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
 
 ## Remaining
 
