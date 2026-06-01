@@ -886,16 +886,22 @@ explicitly instead of leaving them as undocumented future behavior.
         failures with stable code, message, tool id, and error detail.
       - Validation: `ruff check src tests && ruff format --check src tests &&
         python -m pytest -q` — pass; 125 tests passed.
-- [ ] E9. Draft MCP registry-source support with server provenance, visibility,
-      status, tool cache, disabled state, operation locking, and memory-pollution
-      metadata.
-- [ ] E10. Add a context-management prepare-stage design for future compaction
+- [ ] E9. Draft MCP registry-source support for visibility, status, tool cache,
+      disabled state, operation locking, and memory-pollution metadata.
+      - Duplication removed: lifecycle diagnostics now live in OA4, and tool
+        provenance distinctions are covered by OA2.
+- [x] E10. Add a context-management prepare-stage design for future compaction
       policies while preserving current fail-closed token-budget behavior.
+      - Completion for this overlap is tracked in OA3.
 - [ ] E11. Consider hierarchical file-backed prompt context only with explicit
       roots, source tracking, scan limits, and token/byte budgets.
-- [ ] E12. Keep multi-agent collaboration represented through primitive nodes and
+      - Duplication removed: general context compaction and session-pruning
+        prepare-stage design now lives in OA3; this E task remains for the
+        narrower file-backed prompt-context constraints.
+- [x] E12. Keep multi-agent collaboration represented through primitive nodes and
       optional delegation tools; defer durable team runtime until requirements
       justify it.
+      - Completion for this overlap is tracked in OA6.
 - [x] E13. Define and validate the package's thread-safety and concurrent
       invocation contract for multiple client-created agents.
       - Implemented in commit `2e45888`: added per-run `run_id` generation and
