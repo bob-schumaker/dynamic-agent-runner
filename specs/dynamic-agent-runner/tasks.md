@@ -1012,18 +1012,29 @@ explicitly instead of leaving them as undocumented future behavior.
 - [ ] OA1. Add guardrail metadata for input, output, tool-input, and
       tool-output phases, including abort and reject-content behavior.
 - [ ] OA2. Extend tool provenance metadata to distinguish registered,
-      built-in, override, MCP, and future agent-as-tool origins.
+      built-in, override, MCP, and future agent-as-tool origins while keeping
+      provenance separate from any future portable tool-type taxonomy.
 - [ ] OA3. Design a prepare-model-input stage for context compaction, session
       pruning, and hierarchical prompt injection before model adapter calls.
 - [ ] OA4. Fold MCP lifecycle diagnostics into E9: active/failed server lists,
       error maps, strict/degraded startup, reconnect, and cleanup timeouts.
+      Keep concrete MCP discovery, injection, and lifecycle schemas downstream-
+      owned even if upstream later defines portable extension envelopes or tool
+      categories.
 - [ ] OA5. Draft tool-use completion policy for future iterative agent-loop
       support, including run-again, stop-on-tool, and custom final-output
       decisions.
 - [ ] OA6. Preserve handoff vs agent-as-tool as distinct manifest metadata
-      patterns for multi-agent workflows.
+      patterns for multi-agent workflows, aligned with the grouped
+      `runtime`/`metadata`/`extensions` surface and without introducing a new
+      primitive node kind.
 - [ ] OA7. Design workflow interruption and resumable run state for
-      approval-required tools before implementing live approval pauses.
+      approval-required tools before implementing live approval pauses. Keep
+      portable approval/interruption metadata separate from runtime-enforced
+      approval engines and pause/resume implementation.
+- [ ] OA11. If upstream adds portable tool-type taxonomy to the runtime-package
+      reference, map those shared semantic categories into local registry and
+      policy handling without treating them as MCP/source injection contracts.
 - [ ] OA8. Consider a small async session protocol only after multi-turn memory
       requirements are explicit.
 - [ ] OA9. Consider an optional `tool_from_function(...)` helper that generates

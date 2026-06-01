@@ -835,6 +835,20 @@ reject or clearly report legacy flat fields such as `execution_policy`, `state`,
 `patterns_present`, `participant_groups`, `modes`, `phases`, `roles`,
 `runtime_surface`, `workspace_boundary`, and `completion_contract` at the root.
 
+The current upstream surface also keeps the capability contract intentionally
+small:
+
+- `runtime` remains the place for behavior a consumer may validate or enforce
+- `metadata` remains the place for design/runtime-shaping facts a consumer should
+  preserve and expose
+- `extensions` remains the place for optional capability declarations using the
+  generic `required` / `config` envelope
+
+Concrete per-extension schemas are not yet part of the shared upstream contract.
+This repository should therefore continue treating MCP discovery/injection,
+runtime-specific extension config, and approval-engine implementation as
+downstream-owned behavior layered under that grouped manifest shape.
+
 The example runtime YAML has this high-level shape:
 
 ```yaml
@@ -1143,6 +1157,18 @@ a caller-registered tool, built-in tool pack, runtime override, MCP registry
 source, or agent-as-tool delegation. Provenance should remain separate from tool
 exposure, approval, sandbox, and side-effect policy.
 
+Future runtime-package alignment should also preserve the likely upstream split
+between:
+
+- portable tool-type semantics such as file, web, shell, code-execution,
+  external-API, agent-tool, or human-approval capabilities
+- runtime-specific source/backend identity such as local adapters, SDK wrappers,
+  MCP servers, or host-provided connectors
+
+This repository should treat portable tool taxonomy as shared manifest semantics
+when upstream defines it, while keeping concrete MCP/source injection contracts
+downstream-owned.
+
 Future context-management work should use a prepare-model-input stage before the
 model adapter call. That stage is the right seam for session pruning, context
 compaction, hierarchical prompt-context injection, and related budgeted prompt
@@ -1156,11 +1182,22 @@ agents-as-tools:
 - An agent-as-tool delegates a bounded subtask and returns a result to the
   current flow without transferring final-output ownership.
 
+That distinction should remain grouped manifest metadata rather than a new
+primitive executor node kind. It fits the current upstream direction of keeping
+the node taxonomy small and representing richer workflow structure through
+metadata, phases, participant groups, modes, and edges.
+
 Future approval support should be designed as a durable interruption/resume flow,
 not only as an inline blocking callback. A paused run should expose stable
 interruption records, per-call approval identifiers, optional rejection messages,
 and a schema-versioned run-state serialization boundary before live approval
 pauses are implemented.
+
+When the upstream runtime-package surface grows here, this repository should keep
+approval-channel or approval-intent metadata separate from runtime enforcement.
+Portable approval/interruption facts belong in grouped manifest metadata, while
+enforced pause/resume behavior and concrete approval engines remain
+runtime-owned.
 
 Future session support should start with a small async protocol for retrieving,
 adding, popping, and clearing conversation items. It should also define how stored

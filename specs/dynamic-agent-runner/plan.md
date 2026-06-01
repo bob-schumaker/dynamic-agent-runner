@@ -101,6 +101,11 @@ or a clear error.
   `agent-graph.mmd`, and `skill-bundle/`). Caller-initiated overrides remain a
   separate runtime input layered over that immutable base and compiled into a
   final workflow before execution.
+- That same alignment review also means future shared manifest additions should
+  be phrased in the upstream grouped-contract vocabulary: portable tool taxonomy,
+  handoff vs agent-as-tool metadata, and approval/interruption metadata should
+  extend `runtime`, `metadata`, and `extensions` rather than reintroducing flat
+  root fields or runtime-specific MCP injection contracts.
 - The S5 Power-Marimo fixture records `marimo-pair` as a SKILL-backed
   agent-as-tool `tool_use_step` using
   `../power-marimo/skills/marimo-pair/SKILL.md`; it does not introduce a new
@@ -170,6 +175,9 @@ Initial parser responsibilities:
   `patterns_present`
 - preservation of structural metadata used by broader pattern shapes, including
   `participant_groups`, `modes`, `phases`, and `roles`
+- preservation of grouped-surface boundaries so future portable tool taxonomy,
+  approval/interruption metadata, and handoff vs agent-as-tool metadata can be
+  consumed without confusing them with runtime-specific MCP/source wiring
 
 Use strongly typed internal dataclasses or Pydantic models only if they reduce
 complexity. Prefer standard-library dataclasses for the first slice unless schema
