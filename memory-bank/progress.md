@@ -2,17 +2,18 @@
 
 ## Working
 
-- `OA6` implementation and spec work is complete in `d5f4114`
-  (`feat(runtime): preserve handoff and agent-as-tool metadata`).
-- OA6 preserved grouped `metadata.handoffs` plus typed node-local
-  `agent_as_tool` / `agent_tool` metadata on `RuntimeManifest`, `PreparedNode`,
-  and `ExecutionPlan` without changing current executor behavior.
-- Focused OA6 validation passed with:
-  `poetry run pytest`
-  `tests/test_artifacts.py tests/test_validation.py`
-  `tests/test_executor.py tests/test_power_marimo_fixture.py -q 2>&1`
-  (`106 passed`) and scoped `pre-commit` on the OA6 code/spec files.
-- The next active follow-up slice is `OA7`.
+- `OA7` implementation and spec work is complete in `ce85a55`
+  (`feat(runtime): preserve approval interruption metadata`).
+- OA7 preserved deferred
+  `runtime.execution_policy.approval_interruption` metadata on
+  `RuntimeManifest` and `ExecutionPlan`, including interruption mode,
+  persistence strategy, resume boundary, and resumable state-key fields for
+  pending tool calls, pending approvals, interruption state, and resume tokens.
+- Focused OA7 validation passed with:
+  `poetry run pytest tests/test_artifacts.py tests/test_validation.py -q 2>&1`
+  (`60 passed`) and scoped `poetry run pre-commit run --files ...` on the OA7
+  code/spec/doc files.
+- The next active follow-up slice is `OA10`.
 
 ## Major Completed Milestones
 
@@ -59,14 +60,15 @@
   - E11 file-context prompt preparation (`3cdc7e9`)
   - OA5 tool-use completion metadata (`3d33bbb`)
   - OA6 handoff vs agent-as-tool metadata (`d5f4114`)
+  - OA7 approval interruption metadata (`ce85a55`)
 
 ## In Flight
 
-- The active ordered backlog is: `OA7`, `OA10`, `OA9`, `OA8`, then `OA11`.
+- The active ordered backlog is: `OA10`, `OA9`, `OA8`, then `OA11`.
 
 ## Remaining
 
-- Start the next scoped implementation from `OA7` in the governing SDD docs.
+- Start the next scoped implementation from `OA10` in the governing SDD docs.
 - Keep extending the runner through package-owned interfaces rather than broad
   framework expansion.
 - Continue using fake-client/fake-tool tests for unit coverage.

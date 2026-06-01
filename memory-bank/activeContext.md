@@ -3,10 +3,10 @@
 ## Current Focus
 
 - The runtime is implemented through package-alignment Slice P5, E14 async-first
-  execution, and OA6 deferred multi-agent metadata preservation.
-- The current next active slice is `OA7`: workflow interruption and resumable
-  run state for approval-required tools.
-- The active follow-up order is: `OA7`, `OA10`, `OA9`, `OA8`, then `OA11`.
+  execution, and OA7 deferred approval interruption metadata preservation.
+- The current next active slice is `OA10`: sandbox/workspace runtime support
+  remains deferred until the earlier policy and interruption surfaces settle.
+- The active follow-up order is: `OA10`, `OA9`, `OA8`, then `OA11`.
 
 ## Current State Snapshot
 
@@ -30,10 +30,19 @@
   - `metadata.rag_pipeline`
   - `evidence_loop`
   - deferred guardrails, MCP registry/lifecycle metadata,
-    tool-use-completion metadata, and handoff vs agent-as-tool metadata
+    tool-use-completion metadata, handoff vs agent-as-tool metadata, and
+    approval interruption/resumable-run metadata
 
 ## Latest Completed Follow-up Slices
 
+- `OA7` completed in `ce85a55`: deferred
+  `runtime.execution_policy.approval_interruption` metadata is preserved on
+  `RuntimeManifest` and `ExecutionPlan` without adding a live approval engine or
+  pause/resume execution behavior.
+- OA7 validation passed with:
+  `poetry run pytest tests/test_artifacts.py tests/test_validation.py -q 2>&1`
+  (`60 passed`) and scoped `poetry run pre-commit run --files ...` on the OA7
+  code/spec/doc files.
 - `OA5` completed in `3d33bbb`: deferred
   `runtime.execution_policy.tool_use_completion` metadata is preserved without
   changing executor behavior.
@@ -67,7 +76,7 @@
 
 ## Next Steps
 
-- If implementation resumes, start from `OA7` in the governing SDD artifacts.
+- If implementation resumes, start from `OA10` in the governing SDD artifacts.
 - Keep new behavior behind package-owned interfaces and fail-closed validation.
 - Preserve fake-client/fake-tool tests and avoid live OpenAI API calls in unit
   coverage.
