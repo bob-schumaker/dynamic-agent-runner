@@ -237,6 +237,18 @@
   E/OA backlog into one active ordered queue with `OA2` as the next active
   slice, followed by OA3, OA1, OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8,
   and OA11.
+- OA2 implementation/spec progress is now committed in `d2cc6b2`
+  (`feat(registry): add tool provenance origins`): `ToolSource` now carries a
+  higher-level provenance `origin` alongside the existing low-level source
+  `kind`, defaulting manifest/tool-index/caller-registered tools to
+  `registered`, built-ins to `built_in`, runtime overrides to `override`, and
+  preserving explicit future `mcp` and `agent_as_tool` origins. The SDD docs
+  now mark OA2 complete and advance the next active slice to OA3.
+- Focused OA2 validation passed with `poetry run pytest tests/test_registry.py
+  tests/test_artifacts.py tests/test_validation.py 2>&1` (68 passed) and
+  `poetry run pre-commit run --files src/dynamic_agent_runner/models.py
+  src/dynamic_agent_runner/registry.py tests/test_registry.py
+  specs/dynamic-agent-runner/tasks.md specs/dynamic-agent-runner/plan.md 2>&1`.
 - Deferred backlog de-duplication across Codex/Cline and OpenAI Agents SDK
   Python follow-ups is now recorded in `specs/dynamic-agent-runner/tasks.md`:
   E10 is marked complete with overlap tracked in OA3, E12 is marked complete
