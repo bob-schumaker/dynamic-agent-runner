@@ -540,10 +540,10 @@
 
 ## In Flight
 
-- OA1 memory-bank refresh is in flight after implementation/spec-doc commit
-  `a834a90` (`feat(validation): add guardrail metadata declarations`).
-- Remaining active follow-up work is now explicitly ordered: OA4+E9, E11, OA5,
-  OA6, OA7, OA10, OA9, OA8, then OA11.
+- OA4+E9 memory-bank refresh is in flight after implementation/spec-doc commit
+  `20f20d1` (`feat(validation): add MCP extension metadata`).
+- Remaining active follow-up work is now explicitly ordered: E11, OA5, OA6,
+  OA7, OA10, OA9, OA8, then OA11.
 
 ## Remaining
 

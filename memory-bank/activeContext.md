@@ -92,10 +92,17 @@
   guardrail declarations from `extensions.guardrails.declarations`, covering the
   `input`, `output`, `tool_input`, and `tool_output` phases plus `abort` and
   `reject_content` tripwire behavior metadata.
-- The next active implementation slice is now `OA4 + E9` — implement the MCP
-  diagnostics and registry-source cluster.
+- OA4+E9 is now complete in `20f20d1`: `RuntimeManifest` preserves deferred MCP
+  registry-source metadata from `extensions.mcp_registry_sources.sources` and
+  deferred MCP lifecycle diagnostics metadata from
+  `extensions.mcp_lifecycle_diagnostics`, covering source visibility/status,
+  tool-cache policy, disabled state, operation-locking, memory-pollution,
+  strict/degraded startup, reconnect policy, cleanup timeout, and state keys for
+  active/failed servers plus error maps.
+- The next active implementation slice is now `E11` — add the narrower
+  hierarchical file-backed prompt-context constraints.
 - The current active follow-up order is:
-  OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
+  E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public
