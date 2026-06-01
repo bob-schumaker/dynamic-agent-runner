@@ -75,18 +75,23 @@
 - Active follow-up ordering was first committed in `adba462`
   (`docs(spec): order active evaluation follow-ups`). `tasks.md` and `plan.md`
   promoted the remaining Codex/Cline and OpenAI Agents SDK Python follow-up
-  work into one explicit active backlog, and OA2 implementation/spec progress is
-  now recorded in `d2cc6b2` (`feat(registry): add tool provenance origins`).
+  work into one explicit active backlog, OA2 implementation/spec progress is now
+  recorded in `d2cc6b2` (`feat(registry): add tool provenance origins`), and
+  OA3 implementation/spec progress is now recorded in `093ab47`
+  (`feat(executor): add prepare-model-input stage`).
 - OA2 is now complete in `d2cc6b2`: `ToolSource` preserves the existing
   low-level source `kind` while adding a higher-level `origin` bucket that
   distinguishes registered, built-in, override, and future MCP or
   agent-as-tool origins without collapsing provenance into any future portable
   tool-type taxonomy.
-- The next active implementation slice is now `OA3` — design the
-  prepare-model-input stage for context compaction, session pruning, and
-  hierarchical prompt injection.
+- OA3 is now complete in `093ab47`: `prepare_model_input(...)` is now the
+  dedicated pre-adapter preparation seam for hierarchical prompt injection,
+  session-message pruning, and summary-style context compaction, and
+  `PreparedModelInput` preserves metadata describing those transformations.
+- The next active implementation slice is now `OA1` — add guardrail metadata
+  for input, output, tool-input, and tool-output phases.
 - The current active follow-up order is:
-  OA3, OA1, OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
+  OA1, OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public

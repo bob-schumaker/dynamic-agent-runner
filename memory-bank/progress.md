@@ -249,6 +249,19 @@
   `poetry run pre-commit run --files src/dynamic_agent_runner/models.py
   src/dynamic_agent_runner/registry.py tests/test_registry.py
   specs/dynamic-agent-runner/tasks.md specs/dynamic-agent-runner/plan.md 2>&1`.
+- OA3 implementation/spec progress is now committed in `093ab47`
+  (`feat(executor): add prepare-model-input stage`):
+  `prepare_model_input(...)` now applies an explicit pre-adapter preparation
+  stage that can inject hierarchical system/developer prompt parts, prune
+  session-history messages, and compact pruned history into a summary message
+  while `PreparedModelInput` preserves preparation metadata describing the
+  transformation.
+- Focused OA3 validation passed with `poetry run pytest tests/test_executor.py
+  -q 2>&1` (47 passed) and `poetry run pre-commit run --files
+  src/dynamic_agent_runner/executor.py tests/test_executor.py
+  specs/dynamic-agent-runner/tasks.md specs/dynamic-agent-runner/plan.md 2>&1`.
+- The next active follow-up slice is now OA1, with the active order updated to
+  OA1, OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
 - Deferred backlog de-duplication across Codex/Cline and OpenAI Agents SDK
   Python follow-ups is now recorded in `specs/dynamic-agent-runner/tasks.md`:
   E10 is marked complete with overlap tracked in OA3, E12 is marked complete
