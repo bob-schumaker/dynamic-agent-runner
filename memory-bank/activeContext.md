@@ -68,8 +68,14 @@
   `skill-bundle/` handling, but also provider-neutral `model_requirements`,
   ReAct-style `react_loop` manifests, RAG/GraphRAG metadata, and the upstream
   `evidence_loop` pattern.
-- The next active implementation slice after P5 is the next not-yet-selected
-  package-alignment follow-up or another backlog item the user chooses.
+- The active SDD artifact set was reconciled in commit `3c5e2e9`
+  (`docs(spec): reconcile active SDD artifact state`). `spec.md`, `plan.md`,
+  and `tasks.md` now agree that planned implementation through package-
+  alignment P5 is complete, no implementation slice is currently active, and
+  future work should start from deferred follow-up items or a newly scoped spec
+  update.
+- There is no current active implementation slice after P5; the next work item
+  should come from deferred follow-ups or a new scoped backlog selection.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public

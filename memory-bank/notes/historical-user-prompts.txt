@@ -269,3 +269,9 @@ compare "Deferred Codex/Cline evaluation follow-ups" tasks and "Deferred OpenAI 
 for duplication and overlap. For each E* task that can be merged with an OA* task, mark the E* task as complete and note
 that its completion is in an OA task. For E* tasks that can only be partially merged, remove the duplication and note the
 change and leave the E task unmarked.
+
+---
+
+make sure the that spec is internally consistent
+
+commit SDD changes, update memory-bank and commit separately

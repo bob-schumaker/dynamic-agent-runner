@@ -224,6 +224,13 @@
   `7e9a33e feat(runtime): align manifest taxonomy metadata`.
 - Governing-doc alignment for the newer upstream runtime-package surface now
   exists in commit `cf66be2 docs(spec): align runtime-package surface guidance`.
+- SDD artifact consistency refresh is now committed in `3c5e2e9`
+  (`docs(spec): reconcile active SDD artifact state`):
+  `specs/dynamic-agent-runner/spec.md`, `plan.md`, and `tasks.md` now agree
+  that planned implementation through package-alignment P5 is complete, there
+  is no active implementation slice, the canonical API/CLI surface is
+  package-directory-first, and future work should begin from deferred follow-up
+  items or a new scoped spec update.
 - Deferred backlog de-duplication across Codex/Cline and OpenAI Agents SDK
   Python follow-ups is now recorded in `specs/dynamic-agent-runner/tasks.md`:
   E10 is marked complete with overlap tracked in OA3, E12 is marked complete
