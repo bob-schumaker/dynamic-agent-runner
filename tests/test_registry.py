@@ -14,6 +14,7 @@ from dynamic_agent_runner.models import (
     RuntimeNode,
     ToolDefinition,
     ToolExposure,
+    ToolOriginKind,
     ToolSource,
     ToolSourceKind,
 )
@@ -87,7 +88,8 @@ def test_registry_lookup_schema_conversion_and_invocation() -> None:
 
     assert registry.get_tool("search_repo").id == "search_repo"
     assert registry.get_tool("search_repo").definition.source == ToolSource(
-        kind=ToolSourceKind.CALLER_REGISTERED
+        kind=ToolSourceKind.CALLER_REGISTERED,
+        origin=ToolOriginKind.REGISTERED,
     )
     schema = registry.to_openai_tools(["search_repo"])
     assert schema == [openai_tool_schema(registry.get_tool("search_repo").definition)]
@@ -354,12 +356,14 @@ def test_tool_definition_records_manifest_and_index_source_metadata() -> None:
 
     assert manifest.tools[0].source == ToolSource(
         kind=ToolSourceKind.MANIFEST,
+        origin=ToolOriginKind.REGISTERED,
         source_id="registry-agent",
         detail="tools",
     )
     assert index is not None
     assert index.tools[0].source == ToolSource(
         kind=ToolSourceKind.TOOL_INDEX,
+        origin=ToolOriginKind.REGISTERED,
         source_id="shared-tools",
         detail="tools",
     )
@@ -407,11 +411,13 @@ def test_runtime_overrides_add_replace_disable_and_restrict_per_node() -> None:
     assert registry.invoke_tool("search_repo", {"query": "x"}).output == "new"
     assert registry.get_tool("read_file").definition.source == ToolSource(
         kind=ToolSourceKind.RUNTIME_OVERRIDE,
+        origin=ToolOriginKind.OVERRIDE,
         source_id="added",
         detail="tool_registry_overrides",
     )
     assert registry.get_tool("search_repo").definition.source == ToolSource(
         kind=ToolSourceKind.RUNTIME_OVERRIDE,
+        origin=ToolOriginKind.OVERRIDE,
         source_id="replacement",
         detail="tool_registry_overrides",
     )
@@ -536,10 +542,10 @@ def test_local_workspace_tool_pack_is_opt_in_and_path_restricted(
 
     assert registry.get_tool("read_file").definition.source == ToolSource(
         kind=ToolSourceKind.BUILT_IN,
+        origin=ToolOriginKind.BUILT_IN,
         source_id="local_workspace",
         detail="read_file",
     )
-
     assert [tool["function"]["name"] for tool in registry.to_openai_tools()] == [
         "read_file",
         "list_files",
@@ -565,3 +571,36 @@ def test_local_workspace_tool_pack_is_opt_in_and_path_restricted(
 
     assert blocked.success is False
     assert "outside approved workspace roots" in str(blocked.error)
+
+
+def test_tool_source_defaults_origin_from_existing_kind_values() -> None:
+    caller = ToolSource.from_mapping({"kind": "caller_registered"})
+    built_in = ToolSource.from_mapping({"kind": "built_in"})
+    override = ToolSource.from_mapping({"kind": "runtime_override"})
+
+    assert caller.origin is ToolOriginKind.REGISTERED
+    assert built_in.origin is ToolOriginKind.BUILT_IN
+    assert override.origin is ToolOriginKind.OVERRIDE
+
+
+def test_tool_source_preserves_explicit_future_origin_values() -> None:
+    mcp_source = ToolSource.from_mapping(
+        {
+            "kind": "tool_index",
+            "origin": "mcp",
+            "source_id": "demo-server",
+            "detail": "search_files",
+        }
+    )
+    agent_source = ToolSource.from_mapping(
+        {
+            "kind": "caller_registered",
+            "origin": "agent_as_tool",
+            "source_id": "marimo-pair",
+        }
+    )
+
+    assert mcp_source.origin is ToolOriginKind.MCP
+    assert mcp_source.to_mapping()["origin"] == "mcp"
+    assert agent_source.origin is ToolOriginKind.AGENT_AS_TOOL
+    assert agent_source.to_mapping()["origin"] == "agent_as_tool"

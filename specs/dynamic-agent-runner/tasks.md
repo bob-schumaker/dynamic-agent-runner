@@ -15,43 +15,41 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: OA2 — extend tool provenance metadata.
+- Next active slice: OA3 — design the prepare-model-input stage.
 - Current focus: all planned implementation slices through P5 are complete;
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
 
 ## Active follow-up implementation order
 
-1. **OA2** — extend tool provenance metadata to distinguish registered,
-   built-in, override, MCP, and future agent-as-tool origins.
-2. **OA3** — design the prepare-model-input stage for context compaction,
+1. **OA3** — design the prepare-model-input stage for context compaction,
    session pruning, and hierarchical prompt injection.
-3. **OA1** — add guardrail metadata for input, output, tool-input, and
+2. **OA1** — add guardrail metadata for input, output, tool-input, and
    tool-output phases.
-4. **OA4 + E9** — implement one MCP follow-up cluster covering lifecycle
+3. **OA4 + E9** — implement one MCP follow-up cluster covering lifecycle
    diagnostics plus MCP registry-source support.
-5. **E11** — add the narrower hierarchical file-backed prompt-context
+4. **E11** — add the narrower hierarchical file-backed prompt-context
    constraints on top of OA3's broader prepare-stage design.
-6. **OA5** — draft tool-use completion policy for future iterative agent-loop
+5. **OA5** — draft tool-use completion policy for future iterative agent-loop
    support.
-7. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
+6. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
    patterns.
-8. **OA7** — design workflow interruption and resumable run state for
+7. **OA7** — design workflow interruption and resumable run state for
    approval-required tools.
-9. **OA10** — defer sandbox/workspace runtime support until the earlier policy
+8. **OA10** — defer sandbox/workspace runtime support until the earlier policy
    and interruption surfaces are defined.
-10. **OA9** — consider an optional `tool_from_function(...)` helper after
+9. **OA9** — consider an optional `tool_from_function(...)` helper after
     provenance and policy metadata settle.
-11. **OA8** — consider a small async session protocol only after multi-turn
+10. **OA8** — consider a small async session protocol only after multi-turn
     memory requirements are explicit.
-12. **OA11** — map any future upstream portable tool-type taxonomy only if that
+11. **OA11** — map any future upstream portable tool-type taxonomy only if that
     upstream taxonomy is actually introduced.
 
 ### Active follow-up ordering rationale
 
-- Foundation metadata first: OA2, OA3, and OA1 establish provenance,
-  prompt/context preparation, and guardrail policy surfaces that later tasks
-  depend on.
+- Foundation metadata first: OA2 is now complete, and OA3 plus OA1 remain the
+  next foundational metadata work for prompt/context preparation and guardrail
+  policy surfaces that later tasks depend on.
 - MCP/source-aware work next: OA4 and E9 are intentionally grouped because the
   task backlog already says OA4 folds MCP lifecycle diagnostics into E9.
 - Narrower derived context work after the broader design: E11 depends on the
@@ -1067,11 +1065,18 @@ explicitly instead of leaving them as undocumented future behavior.
       tool-output phases, including abort and reject-content behavior.
       - Active order: third, after OA2 and OA3 establish provenance and
         prepare-stage groundwork.
-- [ ] OA2. Extend tool provenance metadata to distinguish registered,
+- [x] OA2. Extend tool provenance metadata to distinguish registered,
       built-in, override, MCP, and future agent-as-tool origins while keeping
       provenance separate from any future portable tool-type taxonomy.
-      - Active order: first, because it is the provenance foundation for later
-        MCP/source-aware and helper-surface work.
+      - Completed in working tree: `ToolSource` now carries both the existing
+        low-level `kind` and a higher-level `origin`, defaulting manifest,
+        tool-index, and caller-registered tools to `registered`, built-ins to
+        `built_in`, runtime overrides to `override`, and preserving explicit
+        future `mcp` and `agent_as_tool` origins.
+      - Validation: `poetry run pytest tests/test_registry.py
+        tests/test_artifacts.py tests/test_validation.py 2>&1` — pass; 68 tests
+        passed.
+      - Active order: completed; OA3 is now the next active slice.
 - [ ] OA3. Design a prepare-model-input stage for context compaction, session
       pruning, and hierarchical prompt injection before model adapter calls.
       - Active order: second, before the narrower file-backed prompt-context

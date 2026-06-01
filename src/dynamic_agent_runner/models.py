@@ -71,11 +71,22 @@ class ToolSourceKind(str, Enum):
     CALLER_REGISTERED = "caller_registered"
 
 
+class ToolOriginKind(str, Enum):
+    """Higher-level provenance bucket for runtime and future tool sources."""
+
+    REGISTERED = "registered"
+    BUILT_IN = "built_in"
+    OVERRIDE = "override"
+    MCP = "mcp"
+    AGENT_AS_TOOL = "agent_as_tool"
+
+
 @dataclass(frozen=True)
 class ToolSource:
     """Diagnostic provenance for a tool definition."""
 
     kind: ToolSourceKind
+    origin: ToolOriginKind | None = None
     source_id: str | None = None
     detail: str | None = None
 
@@ -88,8 +99,11 @@ class ToolSource:
             kind = ToolSourceKind(str(raw_kind))
         except ValueError:
             kind = ToolSourceKind.CALLER_REGISTERED
+        raw_origin = value.get("origin") or value.get("origin_kind")
+        origin = _tool_origin_from_value(raw_origin) or _default_tool_origin(kind)
         return cls(
             kind=kind,
+            origin=origin,
             source_id=_optional_str(value.get("source_id")),
             detail=_optional_str(value.get("detail")),
         )
@@ -98,6 +112,8 @@ class ToolSource:
         """Return JSON-serializable provenance metadata."""
 
         payload: dict[str, Any] = {"kind": self.kind.value}
+        if self.origin is not None:
+            payload["origin"] = self.origin.value
         if self.source_id is not None:
             payload["source_id"] = self.source_id
         if self.detail is not None:
@@ -358,6 +374,7 @@ class RuntimeManifest:
                     raw.get("tools"),
                     source=ToolSource(
                         kind=ToolSourceKind.MANIFEST,
+                        origin=ToolOriginKind.REGISTERED,
                         source_id=_optional_str(raw.get("package_id")),
                         detail="tools",
                     ),
@@ -511,6 +528,7 @@ class ToolIndex:
                     raw.get("tools"),
                     source=ToolSource(
                         kind=ToolSourceKind.TOOL_INDEX,
+                        origin=ToolOriginKind.REGISTERED,
                         source_id=_optional_str(raw.get("index_id")),
                         detail="tools",
                     ),
@@ -826,15 +844,34 @@ def _tool_source_from_raw(raw: Mapping[str, Any]) -> ToolSource | None:
     if isinstance(value, Mapping):
         return ToolSource.from_mapping(value)
     raw_kind = raw.get("source_kind") or raw.get("origin_kind")
-    if raw_kind is None:
+    raw_origin = raw.get("tool_origin") or raw.get("provenance_origin")
+    if raw_kind is None and raw_origin is None:
         return None
     return ToolSource.from_mapping(
         {
             "kind": raw_kind,
+            "origin": raw_origin,
             "source_id": raw.get("source_id") or raw.get("origin_id"),
             "detail": raw.get("source_detail") or raw.get("origin_detail"),
         }
     )
+
+
+def _tool_origin_from_value(value: object) -> ToolOriginKind | None:
+    if value is None:
+        return None
+    try:
+        return ToolOriginKind(str(value))
+    except ValueError:
+        return None
+
+
+def _default_tool_origin(kind: ToolSourceKind) -> ToolOriginKind:
+    if kind is ToolSourceKind.BUILT_IN:
+        return ToolOriginKind.BUILT_IN
+    if kind is ToolSourceKind.RUNTIME_OVERRIDE:
+        return ToolOriginKind.OVERRIDE
+    return ToolOriginKind.REGISTERED
 
 
 def _output_contracts(value: object) -> dict[str, Any]:

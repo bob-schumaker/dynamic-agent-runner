@@ -16,6 +16,7 @@ from dynamic_agent_runner.models import (
     RuntimeManifest,
     RuntimeNode,
     ToolDefinition,
+    ToolOriginKind,
     ToolExposure,
     ToolSource,
     ToolSourceKind,
@@ -183,6 +184,7 @@ class InMemoryToolRegistry:
                     tool,
                     ToolSource(
                         kind=ToolSourceKind.RUNTIME_OVERRIDE,
+                        origin=ToolOriginKind.OVERRIDE,
                         source_id="added",
                         detail="tool_registry_overrides",
                     ),
@@ -196,6 +198,7 @@ class InMemoryToolRegistry:
                     tool,
                     ToolSource(
                         kind=ToolSourceKind.RUNTIME_OVERRIDE,
+                        origin=ToolOriginKind.OVERRIDE,
                         source_id="replacement",
                         detail="tool_registry_overrides",
                     ),
@@ -342,7 +345,10 @@ def _tool_with_default_source(tool: RegisteredTool) -> RegisteredTool:
         return tool
     return _tool_with_source(
         tool,
-        ToolSource(kind=ToolSourceKind.CALLER_REGISTERED),
+        ToolSource(
+            kind=ToolSourceKind.CALLER_REGISTERED,
+            origin=ToolOriginKind.REGISTERED,
+        ),
     )
 
 
@@ -571,6 +577,7 @@ def _builtin_tool(
         ToolDefinition.from_mapping(raw),
         source=ToolSource(
             kind=ToolSourceKind.BUILT_IN,
+            origin=ToolOriginKind.BUILT_IN,
             source_id="local_workspace",
             detail=tool_id,
         ),

@@ -116,8 +116,16 @@ or a clear error.
   Codex/Cline evaluation follow-ups and OpenAI Agents SDK Python evaluation
   follow-ups captured in `tasks.md`.
 - The recommended implementation order for that active follow-up backlog is:
-  OA2, OA3, OA1, the combined OA4+E9 MCP cluster, E11, OA5, OA6, OA7, OA10,
-  OA9, OA8, then OA11 as the final upstream-conditional item.
+  OA3, OA1, the combined OA4+E9 MCP cluster, E11, OA5, OA6, OA7, OA10, OA9,
+  OA8, then OA11 as the final upstream-conditional item.
+- OA2 is now implemented in the working tree: tool provenance preserves the
+  existing low-level source kind while adding a higher-level origin bucket that
+  distinguishes registered, built-in, override, and future MCP or
+  agent-as-tool origins without collapsing that metadata into a portable
+  tool-type taxonomy.
+- OA2 validation evidence: `poetry run pytest tests/test_registry.py
+  tests/test_artifacts.py tests/test_validation.py 2>&1` — pass; 68 tests
+  passed.
 
 ## Technical Approach
 
