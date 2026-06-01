@@ -15,31 +15,29 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: OA4 + E9 — implement the MCP diagnostics and
-  registry-source cluster.
+- Next active slice: E11 — add the narrower hierarchical file-backed
+  prompt-context constraints.
 - Current focus: all planned implementation slices through P5 are complete;
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
 
 ## Active follow-up implementation order
 
-1. **OA4 + E9** — implement one MCP follow-up cluster covering lifecycle
-   diagnostics plus MCP registry-source support.
-2. **E11** — add the narrower hierarchical file-backed prompt-context
+1. **E11** — add the narrower hierarchical file-backed prompt-context
    constraints on top of OA3's broader prepare-stage design.
-3. **OA5** — draft tool-use completion policy for future iterative agent-loop
+2. **OA5** — draft tool-use completion policy for future iterative agent-loop
    support.
-4. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
+3. **OA6** — preserve handoff vs agent-as-tool as distinct manifest metadata
    patterns.
-5. **OA7** — design workflow interruption and resumable run state for
+4. **OA7** — design workflow interruption and resumable run state for
    approval-required tools.
-6. **OA10** — defer sandbox/workspace runtime support until the earlier policy
+5. **OA10** — defer sandbox/workspace runtime support until the earlier policy
    and interruption surfaces are defined.
-7. **OA9** — consider an optional `tool_from_function(...)` helper after
+6. **OA9** — consider an optional `tool_from_function(...)` helper after
     provenance and policy metadata settle.
-8. **OA8** — consider a small async session protocol only after multi-turn
+7. **OA8** — consider a small async session protocol only after multi-turn
     memory requirements are explicit.
-9. **OA11** — map any future upstream portable tool-type taxonomy only if that
+8. **OA11** — map any future upstream portable tool-type taxonomy only if that
     upstream taxonomy is actually introduced.
 
 ### Active follow-up ordering rationale
@@ -48,10 +46,11 @@
   near-term work can move to the grouped MCP/source-aware cluster after the
   runtime gained dedicated provenance, prepare-model-input, and deferred
   guardrail metadata seams.
-- MCP/source-aware work next: OA4 and E9 are intentionally grouped because the
-  task backlog already says OA4 folds MCP lifecycle diagnostics into E9.
-- Narrower derived context work after the broader design: E11 depends on the
-  broader prepare-stage direction from OA3.
+- MCP/source-aware work next completed: OA4 and E9 were intentionally grouped,
+  and the runtime now preserves deferred MCP lifecycle diagnostics plus
+  registry-source metadata through typed manifest extension seams.
+- Narrower derived context work next: E11 now becomes the next active slice
+  because it depends on the broader prepare-stage direction from OA3.
 - Loop, interruption, and resumable-run policy later: OA5, OA6, and OA7 build
   on the earlier metadata and lifecycle foundations.
 - Convenience, optional session, and upstream-conditional work last: OA9, OA8,
@@ -926,10 +925,15 @@ explicitly instead of leaving them as undocumented future behavior.
         failures with stable code, message, tool id, and error detail.
       - Validation: `ruff check src tests && ruff format --check src tests &&
         python -m pytest -q` — pass; 125 tests passed.
-- [ ] E9. Draft MCP registry-source support for visibility, status, tool cache,
+- [x] E9. Draft MCP registry-source support for visibility, status, tool cache,
       disabled state, operation locking, and memory-pollution metadata.
-      - Active order: implement together with OA4 as the shared MCP follow-up
-        cluster after OA2, OA3, and OA1.
+      - Completed in working tree: `RuntimeManifest` now preserves deferred MCP
+        registry-source metadata from `extensions.mcp_registry_sources.sources`,
+        including visibility/status, tool-cache policy, disabled state,
+        operation-locking, and memory-pollution fields.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed MCP registry-source extension payloads and unsupported status,
+        tool-cache, operation-locking, or memory-pollution values.
       - Duplication removed: lifecycle diagnostics now live in OA4, and tool
         provenance distinctions are covered by OA2.
 - [x] E10. Add a context-management prepare-stage design for future compaction
@@ -1094,12 +1098,23 @@ explicitly instead of leaving them as undocumented future behavior.
         47 tests passed.
       - Active order: completed, before the narrower file-backed prompt-context
         follow-up in E11.
-- [ ] OA4. Fold MCP lifecycle diagnostics into E9: active/failed server lists,
+- [x] OA4. Fold MCP lifecycle diagnostics into E9: active/failed server lists,
       error maps, strict/degraded startup, reconnect, and cleanup timeouts.
       Keep concrete MCP discovery, injection, and lifecycle schemas downstream-
       owned even if upstream later defines portable extension envelopes or tool
       categories.
-      - Active order: implement together with E9 as one MCP follow-up cluster.
+      - Completed in working tree: `RuntimeManifest` now preserves deferred MCP
+        lifecycle diagnostics metadata from `extensions.mcp_lifecycle_diagnostics`,
+        including strict/degraded startup mode, reconnect policy, cleanup
+        timeout, and state keys for active servers, failed servers, and error
+        maps.
+      - Validation: the runtime now treats `mcp_registry_sources` and
+        `mcp_lifecycle_diagnostics` as supported extension ids, fails closed for
+        malformed payloads or unsupported enum-like values, and keeps those
+        extension envelopes out of generic unsupported-extension reporting.
+      - Validation: `poetry run pytest tests/test_validation.py
+        tests/test_executor.py -q 2>&1` — pass; 76 tests passed.
+      - Active order: completed with E9; E11 is now the next active slice.
 - [ ] OA5. Draft tool-use completion policy for future iterative agent-loop
       support, including run-again, stop-on-tool, and custom final-output
       decisions.
@@ -1117,10 +1132,6 @@ explicitly instead of leaving them as undocumented future behavior.
       approval engines and pause/resume implementation.
       - Active order: after OA6, because interruption/resume policy builds on
         earlier guardrail, MCP, and loop-policy definitions.
-- [ ] OA11. If upstream adds portable tool-type taxonomy to the runtime-package
-      reference, map those shared semantic categories into local registry and
-      policy handling without treating them as MCP/source injection contracts.
-      - Active order: last and conditional on upstream taxonomy changes.
 - [ ] OA8. Consider a small async session protocol only after multi-turn memory
       requirements are explicit.
       - Active order: near the end, because it depends on requirements that are
@@ -1132,6 +1143,10 @@ explicitly instead of leaving them as undocumented future behavior.
       tool packs and defer it until write/command tool requirements are approved.
       - Active order: late, after the policy, interruption, and MCP/source
         surfaces settle.
+- [ ] OA11. If upstream adds portable tool-type taxonomy to the runtime-package
+      reference, map those shared semantic categories into local registry and
+      policy handling without treating them as MCP/source injection contracts.
+      - Active order: last and conditional on upstream taxonomy changes.
 
 ## Cross-Cutting Validation Tasks
 

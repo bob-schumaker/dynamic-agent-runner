@@ -201,6 +201,64 @@ class GuardrailDeclaration:
 
 
 @dataclass(frozen=True)
+class MCPRegistrySource:
+    """Deferred MCP registry-source metadata preserved from manifest extensions."""
+
+    id: str | None
+    server: str | None = None
+    status: str | None = None
+    tool_cache: str | None = None
+    disabled: bool | None = None
+    operation_locking: str | None = None
+    memory_pollution: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> MCPRegistrySource:
+        """Build MCP registry-source metadata from a manifest mapping."""
+
+        raw = dict(value)
+        return cls(
+            id=_optional_str(raw.get("id")),
+            server=_optional_str(raw.get("server")),
+            status=_optional_str(raw.get("status")),
+            tool_cache=_optional_str(raw.get("tool_cache")),
+            disabled=_optional_bool(raw.get("disabled")),
+            operation_locking=_optional_str(raw.get("operation_locking")),
+            memory_pollution=_optional_str(raw.get("memory_pollution")),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
+class MCPLifecycleDiagnostics:
+    """Deferred MCP lifecycle diagnostics metadata preserved from extensions."""
+
+    startup_mode: str | None = None
+    reconnect: str | None = None
+    cleanup_timeout: str | None = None
+    active_servers_state_key: str | None = None
+    failed_servers_state_key: str | None = None
+    error_map_state_key: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> MCPLifecycleDiagnostics:
+        """Build MCP lifecycle diagnostics metadata from a manifest mapping."""
+
+        raw = dict(value)
+        return cls(
+            startup_mode=_optional_str(raw.get("startup_mode")),
+            reconnect=_optional_str(raw.get("reconnect")),
+            cleanup_timeout=_optional_str(raw.get("cleanup_timeout")),
+            active_servers_state_key=_optional_str(raw.get("active_servers_state_key")),
+            failed_servers_state_key=_optional_str(raw.get("failed_servers_state_key")),
+            error_map_state_key=_optional_str(raw.get("error_map_state_key")),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
 class ManifestObject:
     """Generic manifest object with a stable identifier and raw data."""
 
@@ -350,6 +408,8 @@ class RuntimeManifest:
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
     model_capabilities: ModelCapabilities | None = None
     guardrails: tuple[GuardrailDeclaration, ...] = ()
+    mcp_registry_sources: tuple[MCPRegistrySource, ...] = ()
+    mcp_lifecycle_diagnostics: MCPLifecycleDiagnostics | None = None
     state: Mapping[str, Any] = field(default_factory=dict)
     skills: tuple[ManifestObject, ...] = ()
     tools: tuple[ToolDefinition, ...] = ()
@@ -372,6 +432,8 @@ class RuntimeManifest:
         extensions = _copy_mapping(_as_mapping(raw.get("extensions")))
         execution_policy = _copy_mapping(_as_mapping(runtime.get("execution_policy")))
         guardrails = _guardrail_declarations(extensions)
+        mcp_registry_sources = _mcp_registry_sources(extensions)
+        mcp_lifecycle_diagnostics = _mcp_lifecycle_diagnostics(extensions)
         return cls(
             raw=raw,
             format_version=raw.get("format_version"),
@@ -396,6 +458,8 @@ class RuntimeManifest:
             execution_policy=execution_policy,
             model_capabilities=_model_capabilities_from_policy(execution_policy),
             guardrails=guardrails,
+            mcp_registry_sources=mcp_registry_sources,
+            mcp_lifecycle_diagnostics=mcp_lifecycle_diagnostics,
             state=_copy_mapping(_as_mapping(runtime.get("state"))),
             skills=tuple(_manifest_objects(raw.get("skills"))),
             tools=tuple(
@@ -922,3 +986,24 @@ def _guardrail_declarations(
     return tuple(
         GuardrailDeclaration.from_mapping(item) for item in _mapping_items(declarations)
     )
+
+
+def _mcp_registry_sources(
+    extensions: Mapping[str, Any],
+) -> tuple[MCPRegistrySource, ...]:
+    registry_sources = _as_mapping(extensions.get("mcp_registry_sources"))
+    if not registry_sources:
+        return ()
+    sources = registry_sources.get("sources")
+    return tuple(
+        MCPRegistrySource.from_mapping(item) for item in _mapping_items(sources)
+    )
+
+
+def _mcp_lifecycle_diagnostics(
+    extensions: Mapping[str, Any],
+) -> MCPLifecycleDiagnostics | None:
+    diagnostics = _as_mapping(extensions.get("mcp_lifecycle_diagnostics"))
+    if not diagnostics:
+        return None
+    return MCPLifecycleDiagnostics.from_mapping(diagnostics)

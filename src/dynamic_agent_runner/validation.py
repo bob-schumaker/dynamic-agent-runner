@@ -105,6 +105,12 @@ SUPPORTED_FALLBACK_ACTIONS = {
 }
 SUPPORTED_GUARDRAIL_PHASES = {"input", "output", "tool_input", "tool_output"}
 SUPPORTED_GUARDRAIL_BEHAVIORS = {"abort", "reject_content"}
+SUPPORTED_MCP_REGISTRY_SOURCE_STATUSES = {"active", "degraded", "failed", "disabled"}
+SUPPORTED_MCP_TOOL_CACHE_VALUES = {"enabled", "disabled", "refresh_on_startup"}
+SUPPORTED_MCP_OPERATION_LOCKING_VALUES = {"none", "per_server", "global"}
+SUPPORTED_MCP_MEMORY_POLLUTION_VALUES = {"low", "medium", "high"}
+SUPPORTED_MCP_STARTUP_MODES = {"strict", "degraded"}
+SUPPORTED_MCP_RECONNECT_VALUES = {"disabled", "manual", "automatic"}
 REACT_LOOP_PATTERN_ID = "react_loop"
 PROMPT_REPLACE_FIELDS = {
     "system",
@@ -239,6 +245,8 @@ def validate_runtime_manifest(
     _extend(errors, _react_loop_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
     _extend(errors, _guardrail_declaration_errors(manifest))
+    _extend(errors, _mcp_registry_source_errors(manifest))
+    _extend(errors, _mcp_lifecycle_diagnostics_errors(manifest))
     if errors:
         raise WorkflowValidationError(_format_errors("runtime manifest", errors))
 
@@ -541,6 +549,12 @@ def _extension_errors(manifest: RuntimeManifest) -> list[str]:
                 f"malformed extension {extension_id!r}: config must be mapping"
             )
             continue
+        if extension_id in {
+            "guardrails",
+            "mcp_registry_sources",
+            "mcp_lifecycle_diagnostics",
+        }:
+            continue
         if required:
             errors.append(f"required unsupported extension {extension_id!r}")
     return errors
@@ -657,6 +671,108 @@ def _guardrail_declaration_errors(manifest: RuntimeManifest) -> list[str]:
                 f"guardrail declaration {declaration.id!r} with reject_content "
                 "must define message or reject_content_message"
             )
+    return errors
+
+
+def _mcp_registry_source_errors(manifest: RuntimeManifest) -> list[str]:
+    errors: list[str] = []
+    raw_registry_sources = manifest.extensions.get("mcp_registry_sources")
+    if raw_registry_sources is None:
+        return errors
+    if not isinstance(raw_registry_sources, Mapping):
+        return ["mcp_registry_sources extension must be a mapping"]
+    raw_sources = raw_registry_sources.get("sources")
+    if raw_sources is not None and not isinstance(raw_sources, list):
+        return ["mcp_registry_sources.sources must be a list"]
+    for index, source in enumerate(manifest.mcp_registry_sources):
+        _extend(errors, _mcp_registry_source_entry_errors(index, source))
+    return errors
+
+
+def _mcp_registry_source_entry_errors(index: int, source: Any) -> list[str]:
+    errors: list[str] = []
+    source_id = source.id
+    if not source_id:
+        errors.append(f"mcp registry source at position {index} is missing id")
+    if not source.server:
+        errors.append(f"mcp registry source {source_id!r} must define server")
+    _append_unsupported_mcp_registry_source_value(
+        errors,
+        source_id,
+        field_name="status",
+        value=source.status,
+        supported=SUPPORTED_MCP_REGISTRY_SOURCE_STATUSES,
+    )
+    _append_unsupported_mcp_registry_source_value(
+        errors,
+        source_id,
+        field_name="tool_cache",
+        value=source.tool_cache,
+        supported=SUPPORTED_MCP_TOOL_CACHE_VALUES,
+    )
+    _append_unsupported_mcp_registry_source_value(
+        errors,
+        source_id,
+        field_name="operation_locking",
+        value=source.operation_locking,
+        supported=SUPPORTED_MCP_OPERATION_LOCKING_VALUES,
+    )
+    _append_unsupported_mcp_registry_source_value(
+        errors,
+        source_id,
+        field_name="memory_pollution",
+        value=source.memory_pollution,
+        supported=SUPPORTED_MCP_MEMORY_POLLUTION_VALUES,
+    )
+    if source.disabled is None:
+        errors.append(
+            f"mcp registry source {source_id!r} must define disabled as boolean"
+        )
+    return errors
+
+
+def _append_unsupported_mcp_registry_source_value(
+    errors: list[str],
+    source_id: str | None,
+    *,
+    field_name: str,
+    value: str | None,
+    supported: set[str],
+) -> None:
+    if value not in supported:
+        errors.append(
+            f"mcp registry source {source_id!r} has unsupported {field_name} {value!r}"
+        )
+
+
+def _mcp_lifecycle_diagnostics_errors(manifest: RuntimeManifest) -> list[str]:
+    errors: list[str] = []
+    raw_diagnostics = manifest.extensions.get("mcp_lifecycle_diagnostics")
+    if raw_diagnostics is None:
+        return errors
+    if not isinstance(raw_diagnostics, Mapping):
+        return ["mcp_lifecycle_diagnostics extension must be a mapping"]
+    diagnostics = manifest.mcp_lifecycle_diagnostics
+    if diagnostics is None:
+        return errors
+    if diagnostics.startup_mode not in SUPPORTED_MCP_STARTUP_MODES:
+        errors.append(
+            "mcp lifecycle diagnostics has unsupported startup_mode "
+            f"{diagnostics.startup_mode!r}"
+        )
+    if diagnostics.reconnect not in SUPPORTED_MCP_RECONNECT_VALUES:
+        errors.append(
+            "mcp lifecycle diagnostics has unsupported reconnect "
+            f"{diagnostics.reconnect!r}"
+        )
+    for field_name, value in (
+        ("cleanup_timeout", diagnostics.cleanup_timeout),
+        ("active_servers_state_key", diagnostics.active_servers_state_key),
+        ("failed_servers_state_key", diagnostics.failed_servers_state_key),
+        ("error_map_state_key", diagnostics.error_map_state_key),
+    ):
+        if value is None:
+            errors.append(f"mcp lifecycle diagnostics must define {field_name}")
     return errors
 
 

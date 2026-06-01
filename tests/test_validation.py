@@ -501,6 +501,86 @@ def test_guardrail_reject_content_requires_message() -> None:
         validate_mapping(data)
 
 
+def test_mcp_extension_metadata_is_preserved_and_validated() -> None:
+    """MCP registry-source and lifecycle diagnostics metadata round-trips and validates."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "mcp_registry_sources": {
+            "sources": [
+                {
+                    "id": "primary_registry",
+                    "server": "demo-mcp",
+                    "status": "active",
+                    "tool_cache": "enabled",
+                    "disabled": False,
+                    "operation_locking": "per_server",
+                    "memory_pollution": "medium",
+                }
+            ]
+        },
+        "mcp_lifecycle_diagnostics": {
+            "startup_mode": "degraded",
+            "reconnect": "automatic",
+            "cleanup_timeout": "30s",
+            "active_servers_state_key": "mcp_active_servers",
+            "failed_servers_state_key": "mcp_failed_servers",
+            "error_map_state_key": "mcp_error_map",
+        },
+    }
+
+    manifest = load_runtime_manifest(data)
+
+    assert [source.id for source in manifest.mcp_registry_sources] == [
+        "primary_registry"
+    ]
+    assert manifest.mcp_registry_sources[0].server == "demo-mcp"
+    assert manifest.mcp_registry_sources[0].status == "active"
+    assert manifest.mcp_lifecycle_diagnostics is not None
+    assert manifest.mcp_lifecycle_diagnostics.startup_mode == "degraded"
+    assert manifest.mcp_lifecycle_diagnostics.reconnect == "automatic"
+
+    validate_runtime_manifest(manifest)
+
+
+def test_mcp_extension_metadata_fails_closed_for_bad_values() -> None:
+    """MCP extension metadata rejects malformed status and lifecycle values."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "mcp_registry_sources": {
+            "sources": [
+                {
+                    "id": "broken_registry",
+                    "server": "demo-mcp",
+                    "status": "warming",
+                    "tool_cache": "sometimes",
+                    "disabled": "no",
+                    "operation_locking": "cluster",
+                    "memory_pollution": "extreme",
+                }
+            ]
+        },
+        "mcp_lifecycle_diagnostics": {
+            "startup_mode": "best_effort",
+            "reconnect": "often",
+        },
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "unsupported status" in message
+    assert "unsupported tool_cache" in message
+    assert "must define disabled as boolean" in message
+    assert "unsupported operation_locking" in message
+    assert "unsupported memory_pollution" in message
+    assert "unsupported startup_mode" in message
+    assert "unsupported reconnect" in message
+    assert "must define cleanup_timeout" in message
+
+
 def test_llm_step_requires_prompt_or_prompt_source() -> None:
     """LLM steps need inline prompt data or a prompt source."""
 
