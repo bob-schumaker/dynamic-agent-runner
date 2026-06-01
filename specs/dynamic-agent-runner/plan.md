@@ -207,6 +207,13 @@ or a clear error.
   state-key fields, persisted workspace policies that omit required state keys,
   `persist_workspace: none` policies that still declare state keys, and
   command-execution policies that incorrectly pair with `filesystem: read_only`.
+- OA9 is planned as a caller ergonomics slice after the provenance and policy
+  metadata work: the registry should expose an optional `tool_from_function(...)`
+  helper that can build `RegisteredTool` instances from Python callables while
+  letting explicit metadata override inferred defaults. Missing or incomplete
+  metadata should fall back conservatively to callable-name, docstring, and
+  supported-signature inference rather than introducing a broader agent SDK
+  compatibility layer.
 
 ## Technical Approach
 

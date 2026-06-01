@@ -62,6 +62,7 @@ from dynamic_agent_runner.registry import (
     ToolResult,
     create_local_workspace_registry,
     openai_tool_schema,
+    tool_from_function,
     validate_registry_tool_references,
 )
 from dynamic_agent_runner.retry import (
@@ -127,6 +128,7 @@ __all__ = [
     "normalize_openai_response",
     "validate_registry_tool_references",
     "openai_tool_schema",
+    "tool_from_function",
     "create_local_workspace_registry",
     "ToolResult",
     "ToolRegistryOverrides",

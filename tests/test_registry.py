@@ -26,6 +26,7 @@ from dynamic_agent_runner.registry import (
     ToolRegistryOverrides,
     create_local_workspace_registry,
     openai_tool_schema,
+    tool_from_function,
     validate_registry_tool_references,
 )
 
@@ -604,3 +605,82 @@ def test_tool_source_preserves_explicit_future_origin_values() -> None:
     assert mcp_source.to_mapping()["origin"] == "mcp"
     assert agent_source.origin is ToolOriginKind.AGENT_AS_TOOL
     assert agent_source.to_mapping()["origin"] == "agent_as_tool"
+
+
+def test_tool_from_function_infers_metadata_and_invokes_handler() -> None:
+    def search_repo(query: str, limit: int = 5) -> dict[str, object]:
+        """Search repository content."""
+
+        return {"query": query, "limit": limit}
+
+    tool = tool_from_function(search_repo)
+    registry = InMemoryToolRegistry([tool])
+
+    assert tool.definition.id == "search_repo"
+    assert tool.definition.label == "Search Repo"
+    assert tool.definition.raw["description_for_llm"] == "Search repository content."
+    assert tool.definition.raw["input_schema"] == {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string"},
+            "limit": {"type": "integer"},
+        },
+        "required": ["query"],
+    }
+    assert registry.invoke_tool("search_repo", {"query": "agents"}).output == {
+        "query": "agents",
+        "limit": 5,
+    }
+
+
+def test_tool_from_function_merges_partial_metadata_with_inference() -> None:
+    def review_notebook(path: str, include_outputs: bool = False) -> dict[str, object]:
+        """Review a notebook file."""
+
+        return {"path": path, "include_outputs": include_outputs}
+
+    tool = tool_from_function(
+        review_notebook,
+        metadata={
+            "label": "Notebook reviewer",
+            "side_effect": "read",
+            "approval_required": "no",
+            "input_schema": {
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Repository-relative notebook path.",
+                    }
+                }
+            },
+        },
+    )
+
+    assert tool.definition.id == "review_notebook"
+    assert tool.definition.label == "Notebook reviewer"
+    assert tool.definition.side_effect == "read"
+    assert tool.definition.raw["description_for_llm"] == "Review a notebook file."
+    assert tool.definition.raw["input_schema"] == {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Repository-relative notebook path.",
+            },
+            "include_outputs": {"type": "boolean"},
+        },
+        "required": ["path"],
+    }
+
+
+def test_tool_from_function_requires_supported_signature_shapes() -> None:
+    def invalid_tool(*args: object) -> None:
+        return None
+
+    with pytest.raises(ToolRegistryError, match="only supports positional-or-keyword"):
+        tool_from_function(invalid_tool)
+
+
+def test_tool_from_function_requires_explicit_id_for_lambda() -> None:
+    with pytest.raises(ToolRegistryError, match="could not infer a stable tool id"):
+        tool_from_function(lambda query: query)

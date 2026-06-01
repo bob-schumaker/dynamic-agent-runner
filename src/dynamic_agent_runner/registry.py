@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from threading import RLock
-from typing import Any, Protocol
+from typing import Any, Protocol, get_args, get_origin, get_type_hints
 
 from dynamic_agent_runner.errors import ToolRegistryError
 from dynamic_agent_runner.models import (
@@ -314,6 +314,28 @@ class InMemoryToolRegistry:
         return tool, args
 
 
+def tool_from_function(
+    function: Callable[..., Any],
+    *,
+    metadata: Mapping[str, Any] | None = None,
+    source: ToolSource | None = None,
+) -> RegisteredTool:
+    """Build a registered tool from a Python callable.
+
+    Explicit metadata wins when provided. Missing or incomplete metadata falls
+    back to conservative inference from the callable name, docstring, and
+    signature.
+    """
+
+    raw_metadata = dict(metadata or {})
+    inferred = _infer_tool_metadata(function)
+    merged = _merge_tool_metadata(inferred, raw_metadata)
+    definition = ToolDefinition.from_mapping(merged)
+    if source is not None:
+        definition = replace(definition, source=source)
+    return RegisteredTool(definition, _mapping_handler_for_function(function))
+
+
 def _run_async_tool_handler_from_sync(
     handler: ToolHandler,
     args: Mapping[str, Any],
@@ -332,6 +354,172 @@ def _tool_result_from_output(tool_id: str, output: Any) -> ToolResult:
     if isinstance(output, ToolResult):
         return output
     return ToolResult(tool_id=tool_id, success=True, output=output)
+
+
+def _mapping_handler_for_function(function: Callable[..., Any]) -> ToolHandler:
+    signature = inspect.signature(function)
+    parameters = tuple(signature.parameters.values())
+    _validate_function_signature(function, parameters)
+
+    def handler(arguments: Mapping[str, Any]) -> Any:
+        kwargs = {
+            parameter.name: arguments[parameter.name]
+            for parameter in parameters
+            if parameter.name in arguments
+        }
+        return function(**kwargs)
+
+    return handler
+
+
+def _infer_tool_metadata(function: Callable[..., Any]) -> dict[str, Any]:
+    signature = inspect.signature(function)
+    parameters = tuple(signature.parameters.values())
+    _validate_function_signature(function, parameters)
+    tool_id = _inferred_tool_id(function)
+    return {
+        "id": tool_id,
+        "label": tool_id.replace("_", " ").title(),
+        "description_for_llm": _inferred_tool_description(function, tool_id),
+        "input_schema": _infer_input_schema(function, parameters),
+    }
+
+
+def _validate_function_signature(
+    function: Callable[..., Any],
+    parameters: Sequence[inspect.Parameter],
+) -> None:
+    unsupported = [
+        parameter.name
+        for parameter in parameters
+        if parameter.kind
+        not in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    ]
+    if unsupported:
+        raise ToolRegistryError(
+            "tool_from_function(...) only supports positional-or-keyword and "
+            "keyword-only parameters; unsupported parameters: "
+            + ", ".join(repr(name) for name in unsupported)
+        )
+    if not callable(function):
+        raise ToolRegistryError("tool_from_function(...) requires a callable")
+
+
+def _inferred_tool_id(function: Callable[..., Any]) -> str:
+    raw_name = getattr(function, "__name__", None)
+    if raw_name and raw_name != "<lambda>":
+        return str(raw_name)
+    raise ToolRegistryError(
+        "tool_from_function(...) could not infer a stable tool id; provide "
+        "metadata['id'] for lambdas or anonymous callables"
+    )
+
+
+def _inferred_tool_description(function: Callable[..., Any], tool_id: str) -> str:
+    doc = inspect.getdoc(function)
+    if doc:
+        return doc.strip().splitlines()[0]
+    return f"Use {tool_id}"
+
+
+def _infer_input_schema(
+    function: Callable[..., Any],
+    parameters: Sequence[inspect.Parameter],
+) -> dict[str, Any]:
+    type_hints = get_type_hints(function)
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+    for parameter in parameters:
+        annotation = type_hints.get(parameter.name, parameter.annotation)
+        properties[parameter.name] = _schema_for_annotation(annotation)
+        if parameter.default is inspect._empty:
+            required.append(parameter.name)
+    schema: dict[str, Any] = {"type": "object", "properties": properties}
+    if required:
+        schema["required"] = required
+    return schema
+
+
+def _schema_for_annotation(annotation: Any) -> dict[str, Any]:
+    if annotation is inspect._empty:
+        return {}
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+    if origin is None:
+        return _schema_for_simple_annotation(annotation)
+    if origin in (list, tuple, Sequence):
+        item_schema = _schema_for_annotation(args[0]) if args else {}
+        return {"type": "array", "items": item_schema}
+    if origin in (dict, Mapping):
+        return {"type": "object"}
+    if origin is Callable:
+        return {}
+    if str(origin) in {"typing.Union", "types.UnionType"}:
+        non_none = [arg for arg in args if arg is not type(None)]
+        if len(non_none) == 1:
+            return _schema_for_annotation(non_none[0])
+        return {}
+    return {}
+
+
+def _schema_for_simple_annotation(annotation: Any) -> dict[str, Any]:
+    mapping = {
+        str: {"type": "string"},
+        int: {"type": "integer"},
+        float: {"type": "number"},
+        bool: {"type": "boolean"},
+        dict: {"type": "object"},
+        list: {"type": "array"},
+    }
+    return dict(mapping.get(annotation, {}))
+
+
+def _merge_tool_metadata(
+    inferred: Mapping[str, Any],
+    explicit: Mapping[str, Any],
+) -> dict[str, Any]:
+    merged = dict(inferred)
+    for key, value in explicit.items():
+        if key == "input_schema" and isinstance(value, Mapping):
+            merged[key] = _merge_input_schema(
+                inferred.get("input_schema"),
+                value,
+            )
+            continue
+        if value is not None:
+            merged[key] = value
+    return merged
+
+
+def _merge_input_schema(
+    inferred: Any,
+    explicit: Mapping[str, Any],
+) -> dict[str, Any]:
+    inferred_schema = dict(inferred) if isinstance(inferred, Mapping) else {}
+    merged = dict(inferred_schema)
+    explicit_properties = explicit.get("properties")
+    inferred_properties = inferred_schema.get("properties")
+    if isinstance(inferred_properties, Mapping) or isinstance(
+        explicit_properties, Mapping
+    ):
+        properties = dict(inferred_properties or {})
+        if isinstance(explicit_properties, Mapping):
+            for key, value in explicit_properties.items():
+                properties[str(key)] = value
+        merged["properties"] = properties
+    inferred_required = inferred_schema.get("required")
+    explicit_required = explicit.get("required")
+    if isinstance(inferred_required, list) or isinstance(explicit_required, list):
+        merged["required"] = (
+            list(explicit_required)
+            if isinstance(explicit_required, list)
+            else list(inferred_required or [])
+        )
+    for key, value in explicit.items():
+        if key in {"properties", "required"}:
+            continue
+        merged[key] = value
+    return merged
 
 
 def _tool_with_source(tool: RegisteredTool, source: ToolSource) -> RegisteredTool:

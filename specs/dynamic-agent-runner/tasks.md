@@ -27,8 +27,8 @@
    approval-required tools.
 2. **OA10** — defer sandbox/workspace runtime support until the earlier policy
    and interruption surfaces are defined.
-3. **OA9** — consider an optional `tool_from_function(...)` helper after
-    provenance and policy metadata settle.
+3. **OA9** — add an optional `tool_from_function(...)` helper after provenance
+    and policy metadata settle.
 4. **OA8** — consider a small async session protocol only after multi-turn
     memory requirements are explicit.
 5. **OA11** — map any future upstream portable tool-type taxonomy only if that
@@ -58,6 +58,10 @@
   metadata and lifecycle foundations.
 - Convenience, optional session, and upstream-conditional work last: OA9, OA8,
   OA10, and OA11 should not drive the near-term sequencing.
+- OA9 scope clarification: the helper may accept explicit metadata, but any
+  missing or incomplete label, description, or input-schema fields should fall
+  back to conservative inference from the Python callable rather than requiring
+  fully explicit definitions in every caller.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 

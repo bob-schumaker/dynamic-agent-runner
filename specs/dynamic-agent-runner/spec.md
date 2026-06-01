@@ -239,6 +239,11 @@ Acceptance criteria:
   local tool packs, when parsing succeeds, then the runtime preserves those
   surfaces separately so future writable-workspace or command-execution policy is
   not conflated with the current opt-in read-only `local_workspace` pack.
+- Given callers that want a lightweight tool-registration helper, when they use
+  an optional `tool_from_function(...)` convenience seam, then explicit metadata
+  may be provided directly and any missing label, description, or input-schema
+  fields fall back to conservative inference from the callable name, docstring,
+  and supported Python signature shapes.
 - Given `extensions` entries, when parsing succeeds, then unsupported extensions
   with `required: true` fail closed, unsupported extensions with
   `required: false` are preserved and reported when a report channel exists,
