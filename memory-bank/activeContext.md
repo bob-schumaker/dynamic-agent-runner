@@ -104,10 +104,19 @@
   package-root-backed workflows, adding deterministic file-context prompt parts,
   source provenance, bounded relative roots, bounded scan depth/file count, and
   byte/token accounting in `PreparedInputMetadata`.
-- The next active implementation slice is now `OA5` — draft tool-use completion
-  policy for future iterative agent-loop support.
+- OA5 is now complete in `3d33bbb`: `RuntimeManifest` and `ExecutionPlan` now
+  preserve deferred `runtime.execution_policy.tool_use_completion` metadata for
+  future iterative agent-loop runtimes, covering `run_again`, `stop_on_tool`,
+  `final_output`, and `final_output_state_key` without changing current executor
+  semantics.
+- OA5 validation passed with `poetry run pytest tests/test_validation.py
+  tests/test_executor.py -q 2>&1` (83 passed) and scoped `pre-commit` on the
+  OA5 code/spec files.
+- The next active implementation slice is now `OA6` — preserve handoff vs
+  agent-as-tool as distinct manifest metadata patterns for multi-agent
+  workflows.
 - The current active follow-up order is:
-  OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
+  OA6, OA7, OA10, OA9, OA8, then OA11.
 - Current runtime implementation work narrows the new model-routing changes to
   better fit the spec: multiple adapters and manifest-driven
   `runtime.execution_policy.model_map` selection remain, but premature public
