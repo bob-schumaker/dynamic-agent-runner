@@ -2,18 +2,17 @@
 
 ## Working
 
-- `OA7` implementation and spec work is complete in `ce85a55`
-  (`feat(runtime): preserve approval interruption metadata`).
-- OA7 preserved deferred
-  `runtime.execution_policy.approval_interruption` metadata on
-  `RuntimeManifest` and `ExecutionPlan`, including interruption mode,
-  persistence strategy, resume boundary, and resumable state-key fields for
-  pending tool calls, pending approvals, interruption state, and resume tokens.
-- Focused OA7 validation passed with:
+- `OA10` implementation and spec work is complete in `540f56a`
+  (`feat(runtime): preserve sandbox runtime metadata`).
+- OA10 preserved deferred `runtime.execution_policy.sandbox_runtime` metadata on
+  `RuntimeManifest` and `ExecutionPlan`, including sandbox mode, filesystem
+  policy, workspace persistence mode, command policy, and workspace state-key
+  fields for writable roots and working directories.
+- Focused OA10 validation passed with:
   `poetry run pytest tests/test_artifacts.py tests/test_validation.py -q 2>&1`
-  (`60 passed`) and scoped `poetry run pre-commit run --files ...` on the OA7
+  (`66 passed`) and scoped `poetry run pre-commit run --files ...` on the OA10
   code/spec/doc files.
-- The next active follow-up slice is `OA10`.
+- The next active follow-up slice is `OA9`.
 
 ## Major Completed Milestones
 
@@ -61,14 +60,15 @@
   - OA5 tool-use completion metadata (`3d33bbb`)
   - OA6 handoff vs agent-as-tool metadata (`d5f4114`)
   - OA7 approval interruption metadata (`ce85a55`)
+  - OA10 sandbox/workspace runtime metadata (`540f56a`)
 
 ## In Flight
 
-- The active ordered backlog is: `OA10`, `OA9`, `OA8`, then `OA11`.
+- The active ordered backlog is: `OA9`, `OA8`, then `OA11`.
 
 ## Remaining
 
-- Start the next scoped implementation from `OA10` in the governing SDD docs.
+- Start the next scoped implementation from `OA9` in the governing SDD docs.
 - Keep extending the runner through package-owned interfaces rather than broad
   framework expansion.
 - Continue using fake-client/fake-tool tests for unit coverage.
@@ -78,7 +78,7 @@
 
 - More advanced runtime behavior remains deferred until explicitly selected:
   approval/resume engines, sessions, broader MCP integration, sandbox/workspace
-  runtime separation, and iterative agent-loop semantics.
+  runtime execution, and iterative agent-loop semantics.
 - `parallel_join`, `parallel_fanout`, and broader multi-agent execution remain
   unsupported runtime behavior.
 - RAG/GraphRAG, portable tool taxonomy, handoffs, and agent-as-tool support are

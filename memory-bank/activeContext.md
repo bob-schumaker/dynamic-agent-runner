@@ -3,10 +3,11 @@
 ## Current Focus
 
 - The runtime is implemented through package-alignment Slice P5, E14 async-first
-  execution, and OA7 deferred approval interruption metadata preservation.
-- The current next active slice is `OA10`: sandbox/workspace runtime support
-  remains deferred until the earlier policy and interruption surfaces settle.
-- The active follow-up order is: `OA10`, `OA9`, `OA8`, then `OA11`.
+  execution, OA7 deferred approval interruption metadata preservation, and OA10
+  deferred sandbox/workspace runtime metadata preservation.
+- The current next active slice is `OA9`: an optional `tool_from_function(...)`
+  helper after provenance and policy metadata settle.
+- The active follow-up order is: `OA9`, `OA8`, then `OA11`.
 
 ## Current State Snapshot
 
@@ -30,11 +31,20 @@
   - `metadata.rag_pipeline`
   - `evidence_loop`
   - deferred guardrails, MCP registry/lifecycle metadata,
-    tool-use-completion metadata, handoff vs agent-as-tool metadata, and
-    approval interruption/resumable-run metadata
+    tool-use-completion metadata, handoff vs agent-as-tool metadata,
+    approval interruption/resumable-run metadata, and sandbox/workspace runtime
+    metadata
 
 ## Latest Completed Follow-up Slices
 
+- `OA10` completed in `540f56a`: deferred
+  `runtime.execution_policy.sandbox_runtime` metadata is preserved on
+  `RuntimeManifest` and `ExecutionPlan` without changing the current read-only
+  `local_workspace` built-in tool pack or enabling a writable workspace runtime.
+- OA10 validation passed with:
+  `poetry run pytest tests/test_artifacts.py tests/test_validation.py -q 2>&1`
+  (`66 passed`) and scoped `poetry run pre-commit run --files ...` on the OA10
+  code/spec/doc files.
 - `OA7` completed in `ce85a55`: deferred
   `runtime.execution_policy.approval_interruption` metadata is preserved on
   `RuntimeManifest` and `ExecutionPlan` without adding a live approval engine or
@@ -76,7 +86,7 @@
 
 ## Next Steps
 
-- If implementation resumes, start from `OA10` in the governing SDD artifacts.
+- If implementation resumes, start from `OA9` in the governing SDD artifacts.
 - Keep new behavior behind package-owned interfaces and fail-closed validation.
 - Preserve fake-client/fake-tool tests and avoid live OpenAI API calls in unit
   coverage.
