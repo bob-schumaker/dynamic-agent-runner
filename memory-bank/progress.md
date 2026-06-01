@@ -2,16 +2,16 @@
 
 ## Working
 
-- OA5 implementation/spec work is complete in commit `3d33bbb`
-  (`feat(runtime): add deferred tool-use completion policy`).
-- OA5 adds a metadata-first, fail-closed `runtime.execution_policy.tool_use_completion`
-  surface preserved on `RuntimeManifest` and `ExecutionPlan` for future
-  iterative agent-loop runtimes, covering `run_again`, `stop_on_tool`,
-  `final_output`, and `final_output_state_key`.
-- OA5 focused validation passed with `poetry run pytest tests/test_validation.py
-  tests/test_executor.py -q 2>&1` (83 passed) and scoped `pre-commit` on the
-  OA5 code/spec files.
-- The next active follow-up slice is OA6.
+- OA6 implementation/spec work is complete in commit `d5f4114`
+  (`feat(runtime): preserve handoff and agent-as-tool metadata`).
+- OA6 adds grouped `metadata.handoffs` plus typed node-local `agent_as_tool` /
+  `agent_tool` metadata preserved on `RuntimeManifest`, `PreparedNode`, and
+  `ExecutionPlan` for future multi-agent workflow support without adding a new
+  primitive node kind or changing current executor behavior.
+- OA6 focused validation passed with `poetry run pytest tests/test_artifacts.py
+  tests/test_validation.py tests/test_executor.py tests/test_power_marimo_fixture.py
+  -q 2>&1` (106 passed) and scoped `pre-commit` on the OA6 code/spec files.
+- The next active follow-up slice is OA7.
 - Baseline project configuration exists:
   - Python/Poetry package metadata in `pyproject.toml`
   - dependency lock file in `poetry.lock`
@@ -270,8 +270,8 @@
   -q 2>&1` (47 passed) and `poetry run pre-commit run --files
   src/dynamic_agent_runner/executor.py tests/test_executor.py
   specs/dynamic-agent-runner/tasks.md specs/dynamic-agent-runner/plan.md 2>&1`.
-- The next active follow-up slice is now OA1, with the active order updated to
-  OA1, OA4+E9, E11, OA5, OA6, OA7, OA10, OA9, OA8, then OA11.
+- The later active-order refresh recorded in `adba462` has since been advanced
+  through OA1, OA4+E9, E11, OA5, and OA6; the current next active slice is OA7.
 - Deferred backlog de-duplication across Codex/Cline and OpenAI Agents SDK
   Python follow-ups is now recorded in `specs/dynamic-agent-runner/tasks.md`:
   E10 is marked complete with overlap tracked in OA3, E12 is marked complete
@@ -550,10 +550,8 @@
 
 ## In Flight
 
-- E11 memory-bank refresh is in flight after implementation/spec-doc commit
-  `3cdc7e9` (`feat(executor): add bounded file context preparation`).
-- Remaining active follow-up work is now explicitly ordered: OA5, OA6, OA7,
-  OA10, OA9, OA8, then OA11.
+- The remaining active follow-up work is now explicitly ordered: OA7, OA10,
+  OA9, OA8, then OA11.
 
 ## Remaining
 
