@@ -8,6 +8,8 @@
 - The new OA8 artifact set is committed across:
   - `e0b444a` — main spec/planning docs now link OA8 to the feature-spec package
   - `7e01902` — async-session memory pipeline feature-spec package
+  - `b776ad0` — spec docs aligned with the implemented metadata seam
+  - `0a5d59d` — user-facing docs document the async-session metadata seam
 - The next active follow-up slice is `OA11`.
 
 ## Major Completed Milestones

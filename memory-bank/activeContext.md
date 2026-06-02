@@ -10,6 +10,8 @@
   the repository-local feature-spec package under
   `specs/async-session-memory-pipeline/` captures future expansion beyond that
   baseline.
+- User-facing docs are now aligned with that OA8 baseline in `README.md` and
+  `docs/files/runtime-policies.rst` via commit `0a5d59d`.
 - The current next active slice remains `OA11`.
 - The active follow-up order is: `OA11` unless a future scoped follow-up pulls
   OA8 back into active implementation.
@@ -98,6 +100,9 @@
   - `specs/async-session-memory-pipeline/decision-memo.md`
   - `specs/async-session-memory-pipeline/power-marimo-host-integration.md`
   - `specs/async-session-memory-pipeline/implementation-plan.md`
+- The source of truth for current user-facing OA8 documentation is:
+  - `README.md`
+  - `docs/files/runtime-policies.rst`
 - The runtime intentionally remains OpenAI-first through a small adapter
   boundary; `ocihelper`, `ai-tools-core`, and `openai-tools-core` are not part
   of the intended initial runtime direction.
@@ -110,6 +115,10 @@
 - The current first-customer decision for `power-marimo` is to support multi-turn
   continuity through **host-managed repeated runner calls**, not runner-owned
   durable session behavior in the near term.
+- The current published-doc alignment for OA8 is:
+  - spec docs aligned in `b776ad0`
+  - memory-bank alignment recorded in `aec1c5d`
+  - user-facing docs aligned in `0a5d59d`
 - Local llama.cpp and graph-mutation work exists only as preserved feature-spec
   material; the runtime codebase remains in its prior OpenAI-first state.
 
