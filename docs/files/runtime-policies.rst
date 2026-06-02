@@ -155,6 +155,29 @@ The current runtime preserves and validates this metadata only. It does not yet
 implement a live approval engine, execution pause, resumable checkpoint store,
 or resume-token protocol.
 
+.. header2:: Async-session metadata
+
+Future multi-turn or resumable workflow intent can be preserved under
+``runtime.execution_policy.async_session``.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       async_session:
+         mode: conversational
+         persist: external_checkpoint
+         history: full
+         session_id_state_key: session.id
+         session_messages_state_key: session.messages
+
+The current runtime preserves and validates this metadata only. It does not yet
+implement runner-owned session storage, transcript replay, summary generation,
+or automatic cross-run message reuse. Persisted policies must still satisfy the
+implemented fail-closed validation rules, including a required
+``session_id_state_key`` when ``persist`` is not ``none`` and omission of
+``session_messages_state_key`` when ``history`` is ``none``.
+
 .. header2:: Sandbox runtime metadata
 
 Sandbox/workspace runtime intent for future write-command tools can be preserved

@@ -116,12 +116,20 @@ Runtime manifests may also declare provider-neutral metadata for:
 
 - `runtime.execution_policy.model_capabilities`
 - `runtime.execution_policy.model_map`
+- `runtime.execution_policy.async_session`
 - `llm_step.model_requirements`
 - `metadata.patterns_present`
 - `metadata.rag_pipeline`
 
 These fields are preserved and validated as runtime selection or package-shape
 metadata. They are not passed through directly as OpenAI API parameters.
+
+The current runtime also preserves and validates a metadata-only async-session
+policy seam under `runtime.execution_policy.async_session`. This seam supports
+portable future multi-turn or resumable workflow metadata such as `mode`,
+`persist`, `history`, `session_id_state_key`, and
+`session_messages_state_key`, but it does not yet provide runner-owned session
+storage, automatic replay, or automatic cross-run message reuse.
 
 For ReAct-style or retrieval loops, keep the runtime graph expressed in the
 primitive node taxonomy (`llm_step`, `tool_use_step`, `decision_step`) with
@@ -250,6 +258,9 @@ Current tests cover:
   calls
 - emitting package-owned trace events through execution state and optional trace
   sinks without external observability dependencies
+- preserving and validating deferred execution-policy seams such as
+  `approval_interruption`, `async_session`, and `sandbox_runtime` without
+  enabling their future runtime engines
 - converting repository-owned tool registry definitions to OpenAI tool schema
 - dispatching registered tools without live model calls in unit tests
 - running supported workflows from a user prompt with fake clients/tools
