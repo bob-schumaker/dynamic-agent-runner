@@ -4,11 +4,14 @@
 
 - The runtime is implemented through package-alignment Slice P5, E14 async-first
   execution, OA7 deferred approval interruption metadata preservation, OA10
-  deferred sandbox/workspace runtime metadata preservation, OA9
-  `tool_from_function(...)` helper support, and OA8 deferred async-session
-  protocol metadata preservation.
-- The current next active slice is `OA11`.
-- The active follow-up order is: `OA11`.
+  deferred sandbox/workspace runtime metadata preservation, and OA9
+  `tool_from_function(...)` helper support.
+- OA8 is currently represented as a repository-local future feature spec package
+  under `specs/async-session-memory-pipeline/`, not as a completed runtime
+  implementation slice.
+- The current next active slice remains `OA11`.
+- The active follow-up order is: `OA11` unless a future scoped follow-up pulls
+  OA8 back into active implementation.
 
 ## Current State Snapshot
 
@@ -33,21 +36,18 @@
   - `evidence_loop`
   - deferred guardrails, MCP registry/lifecycle metadata,
     tool-use-completion metadata, handoff vs agent-as-tool metadata,
-    approval interruption/resumable-run metadata, async-session protocol
-    metadata, and sandbox/workspace runtime metadata
+    approval interruption/resumable-run metadata, and sandbox/workspace runtime
+    metadata
+- The OA8 design baseline now lives in a dedicated spec package:
+  - `specs/async-session-memory-pipeline/spec.md`
+  - `specs/async-session-memory-pipeline/decision-memo.md`
+  - `specs/async-session-memory-pipeline/power-marimo-host-integration.md`
+  - `specs/async-session-memory-pipeline/implementation-plan.md`
+  - packaged supporting reference summaries under
+    `specs/async-session-memory-pipeline/references/`
 
 ## Latest Completed Follow-up Slices
 
-- `OA8` completed in `c3a506b`: `RuntimeManifest` and `ExecutionPlan` now
-  preserve deferred `runtime.execution_policy.async_session` metadata for future
-  multi-turn or resumable async runtimes, including compact session-id,
-  persistence, and history-retention protocol fields, without enabling live
-  session persistence, automatic history replay, or cross-run message reuse in
-  the current executor.
-- OA8 validation passed with:
-  `poetry run pytest tests/test_artifacts.py tests/test_executor.py`
-  `tests/test_validation.py -q 2>&1` (`121 passed`) and scoped
-  `poetry run pre-commit run --files ...` on the OA8 code/spec/doc files.
 - `OA9` completed in `c181328`: the registry now exposes an optional
   `tool_from_function(...)` helper that builds `RegisteredTool` instances from
   Python callables, accepts explicit metadata when provided, and falls back to
@@ -93,6 +93,11 @@
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/plan.md`
   - `specs/dynamic-agent-runner/tasks.md`
+- The source of truth for current OA8 future design is:
+  - `specs/async-session-memory-pipeline/spec.md`
+  - `specs/async-session-memory-pipeline/decision-memo.md`
+  - `specs/async-session-memory-pipeline/power-marimo-host-integration.md`
+  - `specs/async-session-memory-pipeline/implementation-plan.md`
 - The runtime intentionally remains OpenAI-first through a small adapter
   boundary; `ocihelper`, `ai-tools-core`, and `openai-tools-core` are not part
   of the intended initial runtime direction.
@@ -102,12 +107,18 @@
 - `../power-marimo` remains the first downstream fit. Its `marimo-pair`
   capability is modeled as a bounded agent-as-tool/SKILL-backed operation, not a
   durable handoff or a new runtime primitive.
+- The current first-customer decision for `power-marimo` is to support multi-turn
+  continuity through **host-managed repeated runner calls**, not runner-owned
+  durable session behavior in the near term.
 - Local llama.cpp and graph-mutation work exists only as preserved feature-spec
   material; the runtime codebase remains in its prior OpenAI-first state.
 
 ## Next Steps
 
 - If implementation resumes, start from `OA11` in the governing SDD artifacts.
+- If OA8 implementation is later resumed, start from
+  `specs/async-session-memory-pipeline/implementation-plan.md` and keep the
+  first pass metadata-only.
 - Keep new behavior behind package-owned interfaces and fail-closed validation.
 - Preserve fake-client/fake-tool tests and avoid live OpenAI API calls in unit
   coverage.

@@ -272,10 +272,22 @@ change and leave the E task unmarked.
 
 ---
 
-make sure the that spec is internally consistent
+evaluate the following documents for a potential multi-turn memory pipeline features for slice OA8
 
-commit SDD changes, update memory-bank and commit separately
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Building a Multi‑Turn, Agentic Generative‑AI System (2025 Edition).md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Building an AI agent with Python.md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/How to Build a Multi-Turn AI Agent from Scratch  CloudHedge Blog.md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Multi Turn Goal Based Agents with Large Language Models (with practical use case)  by Nayan Paul  Medium.md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Multi-Agent Debate — AutoGen.md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Multi-turn Conversations with Agents Building Context Across Dialogues  by Sai Nitesh Palamakula  Medium.md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Multiturn Agent Scenarios.md`
+- `/Users/roschuma/.vaults/Personal/AI/Building a Context Pruning Pipeline.md`
+- `/Users/roschuma/.vaults/Personal/AI/Evaluation/Demystifying evals for AI agents  Anthropic.md`
+- `/Users/roschuma/.vaults/Personal/AI/Evaluation/Reinforcing Multi-Turn Reasoning in LLM Agents via Turn-Level Reward Design.md`
+- `/Users/roschuma/.vaults/Personal/AI/Prompting/Chapter 11 Multi-Turn Conversation Design  Prompting Handbook.md`
+- `/Users/roschuma/.vaults/Personal/AI/Prompting/How to Create Multi-Turn Prompt Workflows for Agents - Future Skills Academy.md`
 
-show the order for the remaining E and OA items
+---
 
-do that
+- add a feature spec for the memory pipeline, including copies of whichever references are most relevant and the decision memo
+- generate concrete host-integration sketch showing how `power-marimo` would manage multi-call continuity with the current API

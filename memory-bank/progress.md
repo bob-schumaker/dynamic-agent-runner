@@ -2,16 +2,11 @@
 
 ## Working
 
-- `OA8` implementation and spec work is complete in `c3a506b`
-  (`feat(runtime): add async session protocol metadata`).
-- OA8 added a deferred `runtime.execution_policy.async_session` metadata seam to
-  the runtime manifest, validation engine, artifact loading, and execution-plan
-  preparation surfaces while keeping live session persistence, automatic history
-  replay, and cross-run message reuse out of the current executor.
-- Focused OA8 validation passed with:
-  `poetry run pytest tests/test_artifacts.py tests/test_executor.py`
-  `tests/test_validation.py -q 2>&1` (`121 passed`) and scoped
-  `poetry run pre-commit run --files ...` on the OA8 code/spec/doc files.
+- OA8 is currently captured as a future feature-spec package rather than an
+  implemented runtime slice.
+- The new OA8 artifact set is committed across:
+  - `e0b444a` — main spec/planning docs now link OA8 to the feature-spec package
+  - `7e01902` — async-session memory pipeline feature-spec package
 - The next active follow-up slice is `OA11`.
 
 ## Major Completed Milestones
@@ -62,7 +57,12 @@
   - OA7 approval interruption metadata (`ce85a55`)
   - OA10 sandbox/workspace runtime metadata (`540f56a`)
   - OA9 optional `tool_from_function(...)` helper (`c181328`)
-  - OA8 async-session protocol metadata (`c3a506b`)
+- OA8 future-spec package added in `7e01902`, including:
+  - a light future feature spec
+  - a Power-Marimo readiness decision memo
+  - a host-managed multi-call continuity sketch
+  - a metadata-only implementation plan
+  - packaged summaries of the most relevant external references
 
 ## In Flight
 
@@ -71,6 +71,8 @@
 ## Remaining
 
 - Start the next scoped implementation from `OA11` in the governing SDD docs.
+- If OA8 implementation is later prioritized, treat the current future-spec
+  package as the design baseline and keep the first pass metadata-only.
 - Keep extending the runner through package-owned interfaces rather than broad
   framework expansion.
 - Continue using fake-client/fake-tool tests for unit coverage.
@@ -81,6 +83,8 @@
 - More advanced runtime behavior remains deferred until explicitly selected:
   approval/resume engines, sessions, broader MCP integration, sandbox/workspace
   runtime execution, and iterative agent-loop semantics.
+- OA8 remains specifically deferred as a **protocol-design seam**, not a current
+  runtime-owned memory or replay feature.
 - `parallel_join`, `parallel_fanout`, and broader multi-agent execution remain
   unsupported runtime behavior.
 - RAG/GraphRAG, portable tool taxonomy, handoffs, and agent-as-tool support are
