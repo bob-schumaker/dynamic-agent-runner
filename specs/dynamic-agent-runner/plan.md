@@ -115,8 +115,9 @@ or a clear error.
   the original P-series sequence. Active remaining work is the promoted
   Codex/Cline evaluation follow-ups and OpenAI Agents SDK Python evaluation
   follow-ups captured in `tasks.md`.
-- The recommended implementation order for that active follow-up backlog is:
-  OA7, OA10, OA9, OA8, then OA11 as the final upstream-conditional item.
+- The earlier recommended implementation order for the active follow-up backlog
+  was OA7, OA10, OA9, OA8, then OA11. OA7, OA10, OA9, and the metadata-only OA8
+  seam are now complete; OA11 is the remaining upstream-conditional follow-up.
 - OA2 is now implemented in the working tree: tool provenance preserves the
   existing low-level source kind while adding a higher-level origin bucket that
   distinguishes registered, built-in, override, and future MCP or
@@ -207,22 +208,22 @@ or a clear error.
   state-key fields, persisted workspace policies that omit required state keys,
   `persist_workspace: none` policies that still declare state keys, and
   command-execution policies that incorrectly pair with `filesystem: read_only`.
-- OA9 is planned as a caller ergonomics slice after the provenance and policy
-  metadata work: the registry should expose an optional `tool_from_function(...)`
-  helper that can build `RegisteredTool` instances from Python callables while
-  letting explicit metadata override inferred defaults. Missing or incomplete
-  metadata should fall back conservatively to callable-name, docstring, and
-  supported-signature inference rather than introducing a broader agent SDK
-  compatibility layer.
-- OA8 is planned as a protocol-design slice after the earlier metadata seams: the
-  runtime should preserve deferred `runtime.execution_policy.async_session`
-  metadata for future multi-turn or resumable async workflows, including compact
-  session-id and history-retention protocol fields, without enabling live session
+- OA9 is implemented in the working tree: the registry now exposes an optional
+  `tool_from_function(...)` helper that can build `RegisteredTool` instances
+  from Python callables while letting explicit metadata override inferred
+  defaults. Missing or incomplete metadata falls back conservatively to
+  callable-name, docstring, and supported-signature inference rather than
+  introducing a broader agent SDK compatibility layer.
+- OA8 is now implemented as a metadata-only protocol seam: the runtime preserves
+  deferred `runtime.execution_policy.async_session` metadata for future
+  multi-turn or resumable async workflows, including the currently implemented
+  `mode`, `persist`, `history`, `session_id_state_key`, and
+  `session_messages_state_key` fields, without enabling live session
   persistence, conversation replay, or automatic cross-run message reuse in the
-  current runtime. The current future-feature specification, packaged reference
+  current runtime. The repository-local feature-spec package, packaged reference
   summaries, first-customer decision memo, and host-managed Power-Marimo
-  continuity sketch live under `specs/async-session-memory-pipeline/` and should
-  be treated as the current OA8 design input.
+  continuity sketch under `specs/async-session-memory-pipeline/` extend that
+  implemented baseline with future design analysis.
 
 ## Technical Approach
 
@@ -901,8 +902,7 @@ a qualified verdict:
 ## Plan Gate
 
 This plan is accepted as the current technical planning artifact. The currently
-planned implementation sequence is complete through package-alignment P5 and the
-tracked async-first follow-up slices. Future work should start from the active
-Codex/Cline and OpenAI Agents SDK Python follow-up tasks in this order: OA7,
-OA10, OA9, OA8, then OA11 unless a new scoped spec/plan update supersedes that
-sequence.
+planned implementation sequence is complete through package-alignment P5, the
+tracked async-first follow-up slices, and the metadata-only OA7/OA8/OA9/OA10
+follow-up seams. Future work should start from the remaining active follow-up
+task `OA11` unless a new scoped spec/plan update supersedes that sequence.

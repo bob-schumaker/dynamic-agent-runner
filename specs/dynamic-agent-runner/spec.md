@@ -219,12 +219,12 @@ Acceptance criteria:
   approval-required tool workflows without implementing a runtime approval engine
   or live pause/resume behavior in this slice.
 - Given `runtime.execution_policy.async_session`, when parsing succeeds, then the
-  library preserves a portable async-session protocol for future multi-turn or
-  resumable async runtimes without implementing live session reuse, durable
-  conversation storage, or automatic message-history replay in this slice. The
-  repository-local future feature spec package at
-  `specs/async-session-memory-pipeline/` is the current design baseline for that
-  deferred protocol.
+  library preserves the currently implemented metadata-only async-session seam
+  for future multi-turn or resumable async runtimes without implementing live
+  session reuse, durable conversation storage, or automatic message-history
+  replay in this slice. The repository-local feature-spec package at
+  `specs/async-session-memory-pipeline/` records the current implemented
+  baseline plus proposed future expansion for that protocol.
 - Given `runtime.execution_policy.sandbox_runtime`, when parsing succeeds, then
   the library preserves portable sandbox/workspace runtime metadata for future
   write-command tool workflows without enabling a writable workspace runtime,

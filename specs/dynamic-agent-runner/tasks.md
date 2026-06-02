@@ -15,25 +15,16 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: OA7 — design workflow interruption and resumable run state
-  for approval-required tools.
+- Next active slice: OA11 — map any future upstream portable tool-type taxonomy
+  only if that upstream taxonomy is actually introduced.
 - Current focus: all planned implementation slices through P5 are complete;
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
 
 ## Active follow-up implementation order
 
-1. **OA7** — design workflow interruption and resumable run state for
-   approval-required tools.
-2. **OA10** — defer sandbox/workspace runtime support until the earlier policy
-   and interruption surfaces are defined.
-3. **OA9** — add an optional `tool_from_function(...)` helper after provenance
-    and policy metadata settle.
-4. **OA8** — design a small async session protocol only after the earlier
-    execution-policy metadata seams are in place. Current design inputs live in
-    `specs/async-session-memory-pipeline/`.
-5. **OA11** — map any future upstream portable tool-type taxonomy only if that
-    upstream taxonomy is actually introduced.
+1. **OA11** — map any future upstream portable tool-type taxonomy only if that
+   upstream taxonomy is actually introduced.
 
 ### Active follow-up ordering rationale
 
@@ -55,23 +46,27 @@
   `metadata.handoffs` plus node-local `agent_as_tool` / `agent_tool` metadata
   without introducing a new primitive node kind, and validates the handoff vs
   bounded-delegation distinction fail-closed.
-- Interruption and resumable-run policy later: OA7 builds on the earlier
-  metadata and lifecycle foundations.
-- Convenience, optional session, and upstream-conditional work last: OA9, OA8,
-  OA10, and OA11 should not drive the near-term sequencing.
+- Interruption and resumable-run policy is complete: OA7 built on the earlier
+  metadata and lifecycle foundations and now preserves deferred interruption
+  metadata without a live approval engine.
+- Convenience and optional-session metadata seams are complete: OA9 and the
+  metadata-only OA8 seam are implemented, and OA10 sandbox/runtime metadata is
+  also complete.
+- OA11 is the only remaining active upstream-conditional follow-up item.
 - OA9 scope clarification: the helper may accept explicit metadata, but any
   missing or incomplete label, description, or input-schema fields should fall
   back to conservative inference from the Python callable rather than requiring
   fully explicit definitions in every caller.
-- OA8 scope clarification: the slice should preserve a compact deferred
-  `runtime.execution_policy.async_session` protocol for future async multi-turn
-  runtimes, including session-id persistence and optional history-retention
-  metadata, but it should not add live session storage, automatic cross-run
-  history replay, or broader memory/runtime behavior in the current executor.
-  The repository-local future feature spec at
-  `specs/async-session-memory-pipeline/spec.md` is the current design baseline,
-  with packaged supporting references, a Power-Marimo readiness memo, and a
-  host-managed multi-call continuity sketch.
+- OA8 scope clarification: the implemented metadata-only seam preserves
+  `runtime.execution_policy.async_session` for future async multi-turn runtimes,
+  including the current `mode`, `persist`, `history`, `session_id_state_key`,
+  and `session_messages_state_key` fields, but it still does not add live
+  session storage, automatic cross-run history replay, or broader
+  memory/runtime behavior in the current executor. The repository-local feature
+  spec at `specs/async-session-memory-pipeline/spec.md` records the current
+  implemented baseline plus future expansion analysis, with packaged supporting
+  references, a Power-Marimo readiness memo, and a host-managed multi-call
+  continuity sketch.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -1191,13 +1186,33 @@ explicitly instead of leaving them as undocumented future behavior.
         and `persist: none` policies that still declare persisted state keys.
       - Active order: completed after OA6, because interruption/resume policy
         builds on earlier guardrail, MCP, and loop-policy definitions.
-- [ ] OA8. Consider a small async session protocol only after multi-turn memory
-      requirements are explicit.
-      - Active order: near the end, because it depends on requirements that are
-        not yet explicit.
-- [ ] OA9. Consider an optional `tool_from_function(...)` helper that generates
+- [x] OA8. Preserve a small metadata-only async session protocol after the
+      earlier execution-policy seams settled, while leaving live session
+      behavior out of scope.
+      - Completed in code: `RuntimeManifest` and `ExecutionPlan` now preserve
+        deferred `runtime.execution_policy.async_session` metadata through
+        `AsyncSessionPolicy`, including `mode`, `persist`, `history`,
+        `session_id_state_key`, and `session_messages_state_key`.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `async_session` policy shapes, unsupported mode / persist /
+        history values, non-string or blank state-key fields, persisted session
+        policies that omit `session_id_state_key`, and `history: none` policies
+        that still declare `session_messages_state_key`.
+      - Artifact support: `tests/test_artifacts.py`, `tests/test_executor.py`,
+        and `tests/test_validation.py` cover metadata preservation and fail-
+        closed validation for the implemented seam.
+      - Follow-on design: `specs/async-session-memory-pipeline/` extends this
+        implemented baseline with future memory-pipeline analysis and
+        Power-Marimo host-integration guidance.
+- [x] OA9. Add an optional `tool_from_function(...)` helper that generates
       explicit registry metadata while preserving side-effect and approval policy.
-      - Active order: after the main provenance/policy surfaces stabilize.
+      - Completed in working tree: the registry now exposes
+        `tool_from_function(...)`, accepts explicit metadata when provided, and
+        falls back conservatively to callable-name, docstring, and supported
+        signature/type-hint inference for missing label, description, and input
+        schema fields.
+      - Validation: `poetry run pytest tests/test_registry.py
+        tests/test_import.py -q 2>&1` — pass; 32 tests passed.
 - [x] OA10. Keep sandbox/workspace runtime support separate from default local
       tool packs and defer it until write/command tool requirements are approved.
       - Active order: late, after the policy, interruption, and MCP/source

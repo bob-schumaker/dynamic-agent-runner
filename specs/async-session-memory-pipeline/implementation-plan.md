@@ -2,22 +2,29 @@
 
 ## Goal
 
-Describe the smallest coherent implementation slice for OA8 so the runner can
-preserve validated `runtime.execution_policy.async_session` metadata without
+Describe the next coherent expansion slice for OA8 now that the runner already
+preserves validated `runtime.execution_policy.async_session` metadata without
 adding runner-owned session storage, automatic replay, or broader memory
 behavior.
 
 ## Scope Boundary
 
-This plan is for the **first implementation pass only**.
+This plan is for the **next expansion pass after the implemented metadata-only
+baseline**.
 
-In scope:
+Already implemented baseline:
 
 - preserve the `async_session` mapping in loaded runtime metadata
 - validate the mapping fail-closed
-- surface the metadata through compiled/prepared workflow structures where other
-  execution-policy seams are already preserved
-- add tests for valid and malformed policy shapes
+- surface the metadata through compiled/prepared workflow structures
+
+In scope for the next expansion pass:
+
+- reconcile the spec package with the implemented field names
+- decide whether to keep `session_messages_state_key` as the durable baseline or
+  expand toward richer split fields such as summary-backed continuity metadata
+- add any newly approved metadata fields without changing live runtime behavior
+- extend tests only for the approved metadata expansion
 
 Out of scope:
 
@@ -30,7 +37,7 @@ Out of scope:
 
 ## Proposed Artifact Shape
 
-Expected manifest block:
+Current implemented manifest block:
 
 ```yaml
 runtime:
@@ -40,48 +47,39 @@ runtime:
       persist: none | in_memory | external_checkpoint
       history: none | last_turn | full | summary
       session_id_state_key: session.id
-      history_state_key: session.history
-      summary_state_key: session.summary
+      session_messages_state_key: session.messages
 ```
+
+Future expansion candidates should build from this exact baseline rather than
+replacing it informally in the docs.
 
 ## Implementation Files
 
 ### 1. `src/dynamic_agent_runner/models.py`
 
-Add or extend typed model support so the runtime manifest preserves the raw
-`runtime.execution_policy.async_session` metadata in the same style as the other
-deferred execution-policy seams.
+The typed model support already exists. Future work here should extend it only if
+new approved metadata fields are added.
 
 Expected work:
 
-- add a typed model or dataclass for `AsyncSessionPolicy`, or preserve a raw
-  validated mapping if that matches the existing deferred-policy pattern better
-- wire the field into `RuntimeManifest`
-- ensure compiled/prepared workflow structures keep the metadata accessible if
-  other execution-policy seams are already copied forward there
+- preserve compatibility for the existing `AsyncSessionPolicy`
+- extend `AsyncSessionPolicy` only if new approved metadata fields are added
+- keep `RuntimeManifest` / `ExecutionPlan` propagation aligned with the existing
+  metadata-only seam
 
 ### 2. `src/dynamic_agent_runner/validation.py`
 
-Implement fail-closed validation for the new async-session policy.
+The fail-closed validation path already exists. Future work here should extend
+it only for newly approved metadata fields.
 
 Expected work:
 
-- validate that `runtime.execution_policy.async_session` is a mapping
-- validate required enum fields:
-  - `mode`
-  - `persist`
-  - `history`
-- validate non-empty string rules for:
+- keep the current mapping/enum validation intact
+- keep non-empty string validation for:
   - `session_id_state_key`
-  - `history_state_key`
-  - `summary_state_key`
-- enforce coupling rules:
-  - `persist != none` requires `session_id_state_key`
-  - `persist == none` forbids `session_id_state_key`
-  - `history == none` forbids `history_state_key` and `summary_state_key`
-  - `history == summary` requires `summary_state_key`
-  - `history != summary` forbids `summary_state_key`
-- fail closed for unsupported enum values and stray incompatible fields
+  - `session_messages_state_key`
+- keep current coupling rules intact
+- extend validation only after the docs approve any new metadata fields
 
 ### 3. `src/dynamic_agent_runner/executor.py`
 
@@ -94,20 +92,21 @@ Possible minimal work only if needed for consistency:
 
 ### 4. `tests/test_validation.py`
 
-Add validation coverage for:
+The existing validation coverage already includes:
 
 - valid metadata-only policy
-- valid persisted summary policy
 - invalid enum values
 - missing required `session_id_state_key` when `persist != none`
-- stray `session_id_state_key` when `persist == none`
-- stray history-related keys when `history == none`
-- missing `summary_state_key` when `history == summary`
-- stray `summary_state_key` when `history != summary`
+- stray session state keys when `persist == none`
+- stray `session_messages_state_key` when `history == none`
+
+Future validation coverage may add:
+
+- any newly approved summary-backed or richer retention metadata fields
 
 ### 5. `tests/test_artifacts.py` and/or `tests/test_executor.py`
 
-Add narrow preservation tests showing that:
+The existing artifact/executor coverage already shows that:
 
 - loaded workflow artifacts preserve validated async-session metadata
 - compiled/prepared workflow structures keep the metadata available where
@@ -116,11 +115,11 @@ Add narrow preservation tests showing that:
 
 ## Suggested Task Breakdown
 
-1. Add or finalize the `async_session` policy shape in `RuntimeManifest` models.
-2. Implement fail-closed validation rules in `validation.py`.
-3. Preserve the metadata through compile/preparation surfaces as needed.
-4. Add validation tests for valid and invalid policy shapes.
-5. Add preservation tests proving there is no new runtime behavior.
+1. Align the OA8 feature-spec package with the implemented metadata-only seam.
+2. Decide whether any additional metadata fields are truly needed.
+3. Extend `AsyncSessionPolicy` only for approved new fields.
+4. Extend validation only for those approved fields.
+5. Extend artifact/executor preservation tests only where the metadata grows.
 6. Re-run targeted validation for models, validation, artifacts, and executor.
 
 ## Suggested Validation Commands
@@ -146,7 +145,7 @@ poetry run pytest \
 
 ## Expected Deliverable
 
-After the first implementation pass, the repository should support a validated,
-portable, metadata-only `runtime.execution_policy.async_session` seam that is
-usable by future host integrations and later runtime features, while leaving the
-current execution model unchanged.
+After the next expansion pass, the repository should keep the existing
+validated, portable, metadata-only `runtime.execution_policy.async_session`
+seam and, if approved, extend it in a way that remains compatible with future
+host integrations while leaving the current execution model unchanged.

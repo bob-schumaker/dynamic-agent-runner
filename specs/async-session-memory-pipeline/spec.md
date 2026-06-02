@@ -4,8 +4,10 @@
 
 - Feature slug: `async-session-memory-pipeline`
 - Mode: `light`
-- Artifact type: future feature specification / first-customer readiness analysis
-- Status: proposed for future investigation; no runner-owned session behavior implemented
+- Artifact type: implemented-baseline plus future expansion specification /
+  first-customer readiness analysis
+- Status: documents an implemented metadata-only async-session baseline and
+  proposes future expansion; no runner-owned session behavior is implemented
 - Source context:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/plan.md`
@@ -42,11 +44,12 @@
 
 ## Objective
 
-Define a small, fail-closed future feature spec for an async session memory
-pipeline under `runtime.execution_policy.async_session` so the runner can later
-support multi-turn or resumable async workflows without prematurely introducing
-runner-owned durable memory, automatic history replay, or broader runtime
-behavior changes.
+Record the currently implemented metadata-only async-session seam under
+`runtime.execution_policy.async_session` and define the next future expansion
+layer for a broader async session memory pipeline, so the runner can later
+support richer multi-turn or resumable async workflows without prematurely
+introducing runner-owned durable memory, automatic history replay, or broader
+runtime behavior changes.
 
 This spec also records whether the current API surface is already sufficient for
 the first expected customer, `power-marimo`, when continuity is managed by the
@@ -54,8 +57,20 @@ host across repeated runner calls.
 
 ## Problem Statement
 
-The repository's current OA8 planning notes already identify a narrow desired
-capability:
+The repository now has an implemented metadata-only OA8 baseline plus an open
+question about how far to expand it later.
+
+The implemented baseline is:
+
+- preserve deferred `runtime.execution_policy.async_session` metadata on
+  `RuntimeManifest` and `ExecutionPlan`
+- validate the metadata fail-closed
+- keep live session storage, replay, and broader memory behavior out of scope
+
+The remaining design question is how future session-memory work should grow from
+that baseline without collapsing into an oversized memory/runtime feature.
+
+The current planning notes already identify the narrow desired capability:
 
 - preserve a compact deferred `runtime.execution_policy.async_session` protocol
 - include session-id persistence and optional history-retention metadata
@@ -99,7 +114,7 @@ avoid introducing a new execution abstraction.
 
 ## Proposed Capability Shape
 
-### Manifest location
+### Implemented baseline shape
 
 ```yaml
 runtime:
@@ -108,18 +123,11 @@ runtime:
       mode: metadata_only | reuse_existing | create_or_resume
       persist: none | in_memory | external_checkpoint
       history: none | last_turn | full | summary
-
-      # required when persist != none
       session_id_state_key: session.id
-
-      # optional when history implies transcript continuity
-      history_state_key: session.history
-
-      # required when history == summary
-      summary_state_key: session.summary
+      session_messages_state_key: session.messages
 ```
 
-### Field intent
+### Implemented field intent
 
 - `mode`
   - future behavior class only; no live session behavior in the current runtime
@@ -129,14 +137,23 @@ runtime:
   - declares retained-history intent without requiring replay behavior today
 - `session_id_state_key`
   - state field for future host/runtime session identity
-- `history_state_key`
-  - optional state field for raw retained history
-- `summary_state_key`
-  - state field for compacted history when summary continuity is chosen
+- `session_messages_state_key`
+  - state field for retained session messages when history is not `none`
+
+### Future expansion candidates
+
+The newer OA8 feature package also evaluates possible later expansion beyond the
+implemented baseline, such as:
+
+- explicit summary-backed continuity keys
+- richer pruning/retention metadata
+- stronger host/runtime session contracts for first-customer integrations
+
+Those are design candidates only, not part of the currently implemented seam.
 
 ## Functional Requirements
 
-### FR1 — Declarative async-session metadata
+### FR1 — Preserve the implemented declarative async-session metadata seam
 
 The runtime manifest must be able to preserve a compact
 `runtime.execution_policy.async_session` mapping as future-oriented metadata
@@ -162,7 +179,7 @@ history modes:
 The runtime validator must reject malformed async-session metadata, unsupported
 enum values, and stray state-key fields whose matching policy is inactive.
 
-### FR5 — No runner-owned storage behavior in first pass
+### FR5 — No runner-owned storage behavior in the implemented baseline
 
 The first OA8 implementation must not itself add:
 
@@ -180,7 +197,7 @@ basic session identity and history-retention fields.
 
 ## Validation Rules
 
-The first validator pass should enforce these fail-closed rules.
+The current implemented validator pass enforces these fail-closed rules.
 
 ### Required enum fields
 
@@ -203,23 +220,19 @@ The first validator pass should enforce these fail-closed rules.
 When present, these fields must be non-empty strings:
 
 - `session_id_state_key`
-- `history_state_key`
-- `summary_state_key`
+- `session_messages_state_key`
 
-### Coupling rules
+### Current implemented coupling rules
 
 - if `persist != none`, `session_id_state_key` is required
 - if `persist == none`, `session_id_state_key` must be omitted
-- if `history == none`, both `history_state_key` and `summary_state_key` must be
-  omitted
-- if `history == summary`, `summary_state_key` is required
-- if `history != summary`, `summary_state_key` must be omitted
+- if `history == none`, `session_messages_state_key` must be omitted
 
-### Current recommended strictness
+### Future expansion note
 
-For the first spec pass, keep `history_state_key` aligned with transcript-based
-history (`last_turn` or `full`) and avoid dual raw+summary state unless a later
-slice explicitly needs it.
+If a later slice adds explicit summary-backed or split raw-history state keys,
+that should be treated as a forward expansion from the current implemented
+baseline rather than retroactively redefining the existing OA8 seam.
 
 ## Non-Goals
 
@@ -274,7 +287,7 @@ claiming runner-owned durable memory or replay behavior in the first pass.
 Given a malformed `runtime.execution_policy.async_session` block,
 when validation is implemented from this spec,
 then unsupported enums, missing required state-key fields, and stray inactive
-fields must be rejected.
+fields from the implemented baseline must be rejected.
 
 ### AC3 — Power-Marimo host-managed continuity remains a supported v1 story
 
@@ -302,7 +315,8 @@ machine-specific paths.
 
 ## Recommended Next Steps
 
-1. Keep OA8 as a future feature spec and implementation seam.
+1. Keep OA8 as an implemented metadata seam plus future feature-spec expansion
+   package.
 2. Do not block first-customer `power-marimo` delivery on OA8 implementation.
 3. Document host-managed continuity as the v1 multi-turn pattern.
 4. Prioritize safe tool adapters and, if needed, OA7 before treating OA8 as a
