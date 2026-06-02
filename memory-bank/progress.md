@@ -2,8 +2,9 @@
 
 ## Working
 
-- OA8 is currently captured as a future feature-spec package rather than an
-  implemented runtime slice.
+- OA8 is implemented as a metadata-only async-session policy seam, while the
+  dedicated feature-spec package now captures future expansion beyond that
+  baseline.
 - The new OA8 artifact set is committed across:
   - `e0b444a` — main spec/planning docs now link OA8 to the feature-spec package
   - `7e01902` — async-session memory pipeline feature-spec package
@@ -55,9 +56,11 @@
   - OA5 tool-use completion metadata (`3d33bbb`)
   - OA6 handoff vs agent-as-tool metadata (`d5f4114`)
   - OA7 approval interruption metadata (`ce85a55`)
+  - OA8 async-session metadata seam (`implemented in code/tests; docs aligned in
+    follow-up consistency pass`)
   - OA10 sandbox/workspace runtime metadata (`540f56a`)
   - OA9 optional `tool_from_function(...)` helper (`c181328`)
-- OA8 future-spec package added in `7e01902`, including:
+- OA8 future-expansion spec package added in `7e01902`, including:
   - a light future feature spec
   - a Power-Marimo readiness decision memo
   - a host-managed multi-call continuity sketch
@@ -71,8 +74,9 @@
 ## Remaining
 
 - Start the next scoped implementation from `OA11` in the governing SDD docs.
-- If OA8 implementation is later prioritized, treat the current future-spec
-  package as the design baseline and keep the first pass metadata-only.
+- If OA8 expansion is later prioritized, treat the current future-spec package
+  as the design baseline and preserve the already-implemented metadata-only seam
+  as the first-pass contract.
 - Keep extending the runner through package-owned interfaces rather than broad
   framework expansion.
 - Continue using fake-client/fake-tool tests for unit coverage.
@@ -83,8 +87,9 @@
 - More advanced runtime behavior remains deferred until explicitly selected:
   approval/resume engines, sessions, broader MCP integration, sandbox/workspace
   runtime execution, and iterative agent-loop semantics.
-- OA8 remains specifically deferred as a **protocol-design seam**, not a current
-  runtime-owned memory or replay feature.
+- OA8 currently exists as a **protocol-design seam** in the runtime, but it does
+  not yet provide runner-owned memory storage, replay, or automatic session
+  continuation behavior.
 - `parallel_join`, `parallel_fanout`, and broader multi-agent execution remain
   unsupported runtime behavior.
 - RAG/GraphRAG, portable tool taxonomy, handoffs, and agent-as-tool support are

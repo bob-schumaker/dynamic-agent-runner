@@ -6,9 +6,10 @@
   execution, OA7 deferred approval interruption metadata preservation, OA10
   deferred sandbox/workspace runtime metadata preservation, and OA9
   `tool_from_function(...)` helper support.
-- OA8 is currently represented as a repository-local future feature spec package
-  under `specs/async-session-memory-pipeline/`, not as a completed runtime
-  implementation slice.
+- OA8 is already implemented as a metadata-only async-session policy seam, while
+  the repository-local feature-spec package under
+  `specs/async-session-memory-pipeline/` captures future expansion beyond that
+  baseline.
 - The current next active slice remains `OA11`.
 - The active follow-up order is: `OA11` unless a future scoped follow-up pulls
   OA8 back into active implementation.
@@ -35,9 +36,8 @@
   - `metadata.rag_pipeline`
   - `evidence_loop`
   - deferred guardrails, MCP registry/lifecycle metadata,
-    tool-use-completion metadata, handoff vs agent-as-tool metadata,
-    approval interruption/resumable-run metadata, and sandbox/workspace runtime
-    metadata
+    approval interruption/resumable-run metadata, async-session policy metadata,
+    and sandbox/workspace runtime metadata
 - The OA8 design baseline now lives in a dedicated spec package:
   - `specs/async-session-memory-pipeline/spec.md`
   - `specs/async-session-memory-pipeline/decision-memo.md`
@@ -93,7 +93,7 @@
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/plan.md`
   - `specs/dynamic-agent-runner/tasks.md`
-- The source of truth for current OA8 future design is:
+- The source of truth for current OA8 future-expansion design is:
   - `specs/async-session-memory-pipeline/spec.md`
   - `specs/async-session-memory-pipeline/decision-memo.md`
   - `specs/async-session-memory-pipeline/power-marimo-host-integration.md`
@@ -116,9 +116,9 @@
 ## Next Steps
 
 - If implementation resumes, start from `OA11` in the governing SDD artifacts.
-- If OA8 implementation is later resumed, start from
-  `specs/async-session-memory-pipeline/implementation-plan.md` and keep the
-  first pass metadata-only.
+- If OA8 expansion is later resumed, start from
+  `specs/async-session-memory-pipeline/implementation-plan.md` and preserve the
+  existing metadata-only seam as the first-pass contract.
 - Keep new behavior behind package-owned interfaces and fail-closed validation.
 - Preserve fake-client/fake-tool tests and avoid live OpenAI API calls in unit
   coverage.
