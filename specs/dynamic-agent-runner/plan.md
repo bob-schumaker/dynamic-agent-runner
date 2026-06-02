@@ -219,7 +219,10 @@ or a clear error.
   metadata for future multi-turn or resumable async workflows, including compact
   session-id and history-retention protocol fields, without enabling live session
   persistence, conversation replay, or automatic cross-run message reuse in the
-  current runtime.
+  current runtime. The current future-feature specification, packaged reference
+  summaries, first-customer decision memo, and host-managed Power-Marimo
+  continuity sketch live under `specs/async-session-memory-pipeline/` and should
+  be treated as the current OA8 design input.
 
 ## Technical Approach
 

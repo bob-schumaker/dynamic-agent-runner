@@ -221,7 +221,10 @@ Acceptance criteria:
 - Given `runtime.execution_policy.async_session`, when parsing succeeds, then the
   library preserves a portable async-session protocol for future multi-turn or
   resumable async runtimes without implementing live session reuse, durable
-  conversation storage, or automatic message-history replay in this slice.
+  conversation storage, or automatic message-history replay in this slice. The
+  repository-local future feature spec package at
+  `specs/async-session-memory-pipeline/` is the current design baseline for that
+  deferred protocol.
 - Given `runtime.execution_policy.sandbox_runtime`, when parsing succeeds, then
   the library preserves portable sandbox/workspace runtime metadata for future
   write-command tool workflows without enabling a writable workspace runtime,

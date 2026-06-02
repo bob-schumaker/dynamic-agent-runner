@@ -30,7 +30,8 @@
 3. **OA9** — add an optional `tool_from_function(...)` helper after provenance
     and policy metadata settle.
 4. **OA8** — design a small async session protocol only after the earlier
-    execution-policy metadata seams are in place.
+    execution-policy metadata seams are in place. Current design inputs live in
+    `specs/async-session-memory-pipeline/`.
 5. **OA11** — map any future upstream portable tool-type taxonomy only if that
     upstream taxonomy is actually introduced.
 
@@ -67,6 +68,10 @@
   runtimes, including session-id persistence and optional history-retention
   metadata, but it should not add live session storage, automatic cross-run
   history replay, or broader memory/runtime behavior in the current executor.
+  The repository-local future feature spec at
+  `specs/async-session-memory-pipeline/spec.md` is the current design baseline,
+  with packaged supporting references, a Power-Marimo readiness memo, and a
+  host-managed multi-call continuity sketch.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
