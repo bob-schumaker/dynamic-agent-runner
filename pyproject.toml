@@ -16,7 +16,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.14"
+python = ">=3.13,<3.14.1 || >3.14.1,<3.15"
 docopt-ng = ">=0.9.0"
 roschumalib = {version = "^0.3.386", extras = ["application", "graphics", "spreadsheets"]}
 openai = "^2.38.0"
