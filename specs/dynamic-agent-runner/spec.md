@@ -5,6 +5,9 @@
 - Feature slug: `dynamic-agent-runner`
 - Mode: `light`
 - Artifact type: repository/product specification
+- Status: core runtime implementation is complete through package-alignment P5,
+  prompt-cache Slice 13, and async-first E14 follow-ups; remaining work is
+  limited to OA11 and future scoped expansions
 - Source context:
   - `README.md`
   - `pyproject.toml`
@@ -1354,11 +1357,11 @@ resource limits, backend/client selection, and approval-aware command policies.
 
 ## Open Questions
 
-- NEEDS CLARIFICATION: What precise subset of the official OpenAI Python SDK
-  async client behavior should the async-canonical model client implement, and
-  what cancellation guarantees are actually supported by OpenAI's async calls?
-  Inspect `/Users/roschuma/Repos/github/openai-python/` before finalizing this
-  boundary.
+- NEEDS CLARIFICATION: If the future
+  `openai-compatible-provider-wrapper` feature lands, what additional endpoint
+  configuration and transport-facade behavior beyond today's default
+  `OpenAI()` / `AsyncOpenAI()` factories should become part of the stable
+  provider boundary?
 - NEEDS CLARIFICATION: Which safety, authentication, logging, and redaction
   requirements belong in code configuration versus workflow specification?
 - NEEDS CLARIFICATION: What retry policy vocabulary should runtime manifests use
@@ -1370,9 +1373,9 @@ resource limits, backend/client selection, and approval-aware command policies.
   workflow, or per call site?
 - NEEDS CLARIFICATION: What trace event schema and redaction boundaries should be
   stable before adding external observability sinks?
-- NEEDS CLARIFICATION: What concurrency contract should apply to shared runtime
-  collaborators, and should the package provide synchronization or require
-  callers to supply one collaborator instance per concurrent run?
+- NEEDS CLARIFICATION: What additional guarantees, if any, should future
+  non-package-owned collaborators expose beyond the current E13 contract of
+  per-run isolation plus synchronization for package-owned shared helpers?
 - NEEDS CLARIFICATION: What exact timeout vocabulary should apply to async
   workflow, node, model, tool, hook, and registry boundaries once cancellation
   feasibility has been verified?
@@ -1480,12 +1483,17 @@ Before implementation is considered complete, add validation covering:
 - [x] extended trace vocabulary for tool lifecycle and status notice events
 - [x] structured tool-result facets for model-facing output, raw output, log
       preview, event payload, and sensitive trace fields
-- [ ] deferred guardrail metadata coverage for input, output, tool-input, and
-      tool-output phases when those features are scoped
-- [ ] deferred tool-origin/provenance metadata coverage for registered, built-in,
-      override, MCP, and agent-as-tool sources when those sources are scoped
-- [ ] deferred prepare-model-input stage coverage for context compaction, session
-      pruning, and hierarchical prompt injection when those features are scoped
+- [x] deferred guardrail metadata preservation and fail-closed validation for
+      input, output, tool-input, and tool-output phases
+- [x] tool-origin/provenance metadata coverage for registered, built-in,
+      override, MCP, and agent-as-tool sources as typed metadata seams
+- [x] prepare-model-input stage coverage for prompt-cache observation,
+      hierarchical prompt preparation, and opt-in file-backed context metadata
+      seams
+- [x] metadata-only preservation and fail-closed validation for MCP
+      registry-source and lifecycle-diagnostics extensions, tool-use completion,
+      grouped handoffs, node-local agent-as-tool metadata, approval
+      interruption, async-session, and sandbox/workspace runtime seams
 - [ ] deferred workflow interruption and resumable run-state coverage before
       approval-required tools can pause and resume live runs
 - [ ] deferred session protocol and sandbox/workspace runtime validation when
@@ -1549,6 +1557,15 @@ Before implementation is considered complete, add validation covering:
   approval interruption/resume state, small session protocols, optional
   callable-to-tool helpers, and sandbox/workspace runtime separation. These are
   reference-backed future design inputs, not current implementation scope.
+- The repository now implements the metadata-only or preparation-seam subset of
+  those follow-ups: deferred guardrail declarations, tool provenance,
+  `prepare_model_input(...)`, prompt-cache intent and telemetry, MCP
+  registry-source metadata, MCP lifecycle diagnostics metadata,
+  `tool_use_completion`, grouped `metadata.handoffs`, node-local
+  `agent_as_tool` / `agent_tool`, `approval_interruption`, `async_session`,
+  `sandbox_runtime`, and opt-in file-backed prompt context. Live approval,
+  session, MCP-server, and writable-sandbox engines remain intentionally out of
+  scope.
 - Evaluation follow-up Slice G completed lightweight `ModelCapabilities` metadata
   in commit `13c6dac`, preserving context-window, structured-output, reasoning,
   modality, and parallel-tool-call support metadata from runtime execution policy

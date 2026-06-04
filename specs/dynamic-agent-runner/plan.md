@@ -224,6 +224,10 @@ or a clear error.
   summaries, first-customer decision memo, and host-managed Power-Marimo
   continuity sketch under `specs/async-session-memory-pipeline/` extend that
   implemented baseline with future design analysis.
+- Slice 13 is complete and committed: the runtime now preserves provider-neutral
+  `runtime.execution_policy.prompt_cache` intent, emits prompt-cache trace
+  evidence, accepts per-run `prompt_cache=False` overrides, and records provider
+  cached-token telemetry when exposed by the model response.
 
 ## Technical Approach
 
@@ -262,7 +266,15 @@ boundaries conceptually.
 Expose a small public API from `dynamic_agent_runner`:
 
 - `load_agent_workflow(...)` — parse and validate artifacts without executing.
+- `load_agent_package_workflow(...)` — canonical package-directory load + compile
+  path for immutable base packages plus caller-owned overrides.
+- `compile_agent_workflow(...)` — compile a loaded immutable base workflow plus
+  caller-owned overrides into the final execution-ready workflow.
 - `run_agent_workflow(...)` — load, validate, execute, and return a final result.
+- `run_agent_workflow_async(...)` — first-class async load, validate, execute,
+  and return-final-result entry point.
+- `execute_workflow(...)` / `execute_workflow_async(...)` — lower-level execution
+  interfaces that return detailed workflow state.
 - `ToolRegistry` / registry protocol types for caller-provided tools.
 - clear exception types for loading, validation, registry, model, and execution
   failures.
@@ -534,15 +546,18 @@ threads or async tasks.
 Expose a CLI that can load artifacts and run the workflow:
 
 ```bash
-dynamic-agent-runner run \
+dynamic-agent-runner \
   --package path/to/design-dir \
-  --registry path/to/registry-config.yaml \
-  --prompt "..."
+  --prompt "..." \
+  --runtime-overrides path/to/runtime-overrides.yaml \
+  --workspace-root .
 ```
 
-Exact command shape may use `docopt-ng` or another existing dependency pattern,
-but must support clear non-zero exits for loading, validation, model, registry,
-and execution failures.
+The current CLI is package-directory-first, reads prompts from `--prompt`,
+`--prompt-file`, or stdin, supports `--max-steps`, and enables only the
+read-only `local_workspace` built-in tool pack via one or more
+`--workspace-root` values. It must continue to report clear non-zero exits for
+loading, validation, model, registry, and execution failures.
 
 ## New package-alignment slices
 

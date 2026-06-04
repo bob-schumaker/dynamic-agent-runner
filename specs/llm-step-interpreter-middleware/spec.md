@@ -182,6 +182,9 @@ the
 existing model-client and tool-registry approach: generated artifacts may declare
 intent and policy, while the caller supplies executable adapters at runtime.
 
+The names below are illustrative future API shapes, not current exports from
+`dynamic_agent_runner`.
+
 Conceptual Python API shape:
 
 ```python
@@ -206,7 +209,7 @@ registry.register(
 )
 
 result = run_agent_workflow(
-    runtime="agent-runtime.yaml",
+    package_directory="path/to/agent-package",
     prompt="Analyze the workspace.",
     tool_registry=tool_registry,
     interpreter_registry=registry,

@@ -298,9 +298,9 @@
 
 - [x] T7.1 Add a CLI entry point for loading artifacts and running a workflow
       from a prompt.
-- [x] T7.2 Support CLI options for `agent-design.md`, runtime YAML, Mermaid
-      graph, optional `tool-index.yaml` metadata, registry configuration, and
-      prompt input.
+- [x] T7.2 Support a package-directory-first CLI with prompt input,
+      max-step control, optional runtime-overrides input, and the opt-in
+      read-only `local_workspace` registry pack via `--workspace-root`.
 - [x] T7.3 Return final output on success and clear non-zero errors on loading,
       validation, registry, model, or execution failure.
 - [x] T7.4 Add CLI tests using local fixtures and fake clients/tools.
@@ -314,9 +314,10 @@
   `console_main()` for running generated workflow artifacts from the command
   line.
 - `pyproject.toml` exposes the `dynamic-agent-runner` console script.
-- CLI options cover runtime manifest, agent design, Mermaid graph, optional tool
-  index metadata, prompt text, prompt file, stdin prompt input, max steps, and
-  the opt-in read-only local workspace registry pack via `--workspace-root`.
+- CLI options are package-directory-first and now cover `--package`,
+  `--runtime-overrides`, prompt text, prompt file, stdin prompt input,
+  `--max-steps`, and the opt-in read-only local workspace registry pack via
+  `--workspace-root`.
 - The CLI prints the final workflow result to stdout and reports runtime-specific
   errors to stderr with exit code `1`.
 - `tests/test_cli.py` uses local fixture artifacts and fake OpenAI clients only;
