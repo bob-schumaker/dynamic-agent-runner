@@ -5,6 +5,9 @@
 - The primary spec and feature spec set were refreshed for internal consistency
   and repo-state accuracy, then committed in `e6b5f2c`
   (`docs(specs): align spec artifacts with repo state`).
+- User-facing non-spec docs examples were refreshed and committed in `e9a32d5`
+  (`docs: update package-first usage examples`) so the quickstart and runtime
+  policy docs now match the package-directory-first API/CLI contract.
 - The runtime is implemented through package-alignment Slice P5, E14 async-first
   execution, OA7 deferred approval interruption metadata preservation, OA10
   deferred sandbox/workspace runtime metadata preservation, and OA9
@@ -128,15 +131,18 @@
   - memory-bank alignment recorded in `aec1c5d`
   - user-facing docs aligned in `0a5d59d`
 - The broader spec-set alignment beyond OA8 is now recorded in `e6b5f2c`.
+- The broader non-spec docs follow-up for stale package/API examples is now
+  recorded in `e9a32d5`.
+- `memory-bank/notes/historical-user-prompts.txt` may contain durable prompt
+  history, including a newly recorded future-looking prompt about evaluating
+  `/Users/roschuma/Repos/github/omlx/` as a possible mac-only local model
+  feature.
 - Local llama.cpp and graph-mutation work exists only as preserved feature-spec
   material; the runtime codebase remains in its prior OpenAI-first state.
 
 ## Next Steps
 
 - If implementation resumes, start from `OA11` in the governing SDD artifacts.
-- If documentation follow-up work is requested, check `docs/files/quickstart.rst`
-  and `docs/files/runtime-policies.rst` for older examples that were left out of
-  the spec-only consistency pass.
 - If OA8 expansion is later resumed, start from
   `specs/async-session-memory-pipeline/implementation-plan.md` and preserve the
   existing metadata-only seam as the first-pass contract.

@@ -291,3 +291,7 @@ evaluate the following documents for a potential multi-turn memory pipeline feat
 
 - add a feature spec for the memory pipeline, including copies of whichever references are most relevant and the decision memo
 - generate concrete host-integration sketch showing how `power-marimo` would manage multi-call continuity with the current API
+
+---
+
+evaluate the repo at /Users/roschuma/Repos/github/omlx/ as a possible future mac-only local model feature

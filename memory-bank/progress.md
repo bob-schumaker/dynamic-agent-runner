@@ -22,6 +22,12 @@
   so the spec artifacts now match the implemented package-directory-first API,
   current CLI contract, metadata-only seams already preserved in code, and the
   real implementation status of proposed follow-up features.
+- The follow-up non-spec docs pass is complete in `e9a32d5`
+  (`docs: update package-first usage examples`), updating:
+  - `docs/files/quickstart.rst`
+  - `docs/files/runtime-policies.rst`
+  so the quickstart examples use `package_directory` / `--package`, and runtime
+  policy docs describe the implemented model-selection order.
 - The next active follow-up slice is `OA11`.
 
 ## Major Completed Milestones
@@ -88,9 +94,6 @@
 ## Remaining
 
 - Start the next scoped implementation from `OA11` in the governing SDD docs.
-- If requested, do a follow-up documentation consistency pass for the remaining
-  non-spec docs that still contain older examples, especially
-  `docs/files/quickstart.rst` and `docs/files/runtime-policies.rst`.
 - If OA8 expansion is later prioritized, treat the current future-spec package
   as the design baseline and preserve the already-implemented metadata-only seam
   as the first-pass contract.
