@@ -2,6 +2,9 @@
 
 ## Working
 
+- The primary spec set and related feature specs are now internally consistent
+  with the current repo state in commit `e6b5f2c`
+  (`docs(specs): align spec artifacts with repo state`).
 - OA8 is implemented as a metadata-only async-session policy seam, while the
   dedicated feature-spec package now captures future expansion beyond that
   baseline.
@@ -10,6 +13,15 @@
   - `7e01902` — async-session memory pipeline feature-spec package
   - `b776ad0` — spec docs aligned with the implemented metadata seam
   - `0a5d59d` — user-facing docs document the async-session metadata seam
+- The broader spec-alignment pass in `e6b5f2c` updated:
+  - `specs/dynamic-agent-runner/spec.md`
+  - `specs/dynamic-agent-runner/plan.md`
+  - `specs/dynamic-agent-runner/tasks.md`
+  - `specs/openai-compatible-provider-wrapper/`
+  - `specs/llm-step-interpreter-middleware/spec.md`
+  so the spec artifacts now match the implemented package-directory-first API,
+  current CLI contract, metadata-only seams already preserved in code, and the
+  real implementation status of proposed follow-up features.
 - The next active follow-up slice is `OA11`.
 
 ## Major Completed Milestones
@@ -76,6 +88,9 @@
 ## Remaining
 
 - Start the next scoped implementation from `OA11` in the governing SDD docs.
+- If requested, do a follow-up documentation consistency pass for the remaining
+  non-spec docs that still contain older examples, especially
+  `docs/files/quickstart.rst` and `docs/files/runtime-policies.rst`.
 - If OA8 expansion is later prioritized, treat the current future-spec package
   as the design baseline and preserve the already-implemented metadata-only seam
   as the first-pass contract.
