@@ -30,12 +30,15 @@ return the final result in one call:
    from dynamic_agent_runner import run_agent_workflow
 
    result = run_agent_workflow(
-       runtime_manifest="tests/fixtures/agent-patterns/basic-reasoning-agent/agent-runtime.yaml",
-       agent_design="tests/fixtures/agent-patterns/basic-reasoning-agent/agent-design.md",
        prompt="Say hello from this workflow.",
+       package_directory="tests/fixtures/agent-patterns/basic-reasoning-agent",
        model_adapter=my_model_adapter,
        tool_registry=my_tool_registry,
    )
+
+``package_directory`` is the canonical public input. Lower-level
+``runtime_manifest``/``agent_design``/``mermaid_graph`` inputs remain available
+as compatibility seams for callers that need file-by-file loading.
 
 The default model path uses the official ``openai`` package. Unit tests and local
 examples should inject fake model adapters instead of making live model calls.
@@ -47,12 +50,13 @@ After installation, use the console script:
 .. code-block:: bash
 
    dynamic-agent-runner \
-     --runtime-manifest tests/fixtures/agent-patterns/basic-reasoning-agent/agent-runtime.yaml \
-     --agent-design tests/fixtures/agent-patterns/basic-reasoning-agent/agent-design.md \
+     --package tests/fixtures/agent-patterns/basic-reasoning-agent \
      --prompt "Say hello from this workflow."
 
-If ``--mermaid-graph`` is omitted, the loader resolves the manifest's
-``mermaid_diagram`` reference relative to the runtime manifest path.
+The CLI requires ``--package`` and accepts prompt text from ``--prompt``, a
+UTF-8 ``--prompt-file``, or standard input. It also supports
+``--runtime-overrides``, ``--max-steps``, and repeated ``--workspace-root`` values
+for enabling the read-only ``local_workspace`` registry pack.
 
 .. header2:: What happens during a run
 

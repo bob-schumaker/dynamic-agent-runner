@@ -26,8 +26,10 @@ Common policy fields include:
        model: gpt-test
 
 The runtime currently uses the configured model name and maximum step values.
-Other fields are preserved as policy metadata and should be documented honestly
-until a scoped implementation enforces them.
+Model selection reads a node-level ``model`` first, then
+``execution_policy.model``, then ``execution_policy.default_model``. Other fields
+are preserved as policy metadata and should be documented honestly until a scoped
+implementation enforces them.
 
 The current runtime also preserves ``execution_policy.model_capabilities`` as
 provider-neutral capability metadata on the loaded manifest. This metadata is
