@@ -28,12 +28,13 @@
 - The active follow-up order is: `OA11` unless a future scoped follow-up pulls
   OA8 back into active implementation.
 - User direction has now selected the OpenAI-compatible provider-wrapper feature
-  as the highest-ROI future expansion, and Slice 1 landed in commit `99e225f`
-  (`feat(openai-client): add provider facade seam`). That slice introduced a
-  repository-owned provider/client facade seam plus provider configuration in
-  `src/dynamic_agent_runner/openai_client.py`, while leaving the SDK-backed
-  default construction and `base_url` / optional `api_key` passthrough work for
-  later slices.
+  as the highest-ROI future expansion. Slice 1 landed in commit `99e225f`
+  (`feat(openai-client): add provider facade seam`), and Slice 2 landed in
+  commit `282b93d` (`feat(openai-client): isolate sdk-backed provider
+  defaults`). Together those slices introduced the repository-owned
+  provider/client facade seam, provider configuration, SDK-backed default
+  provider wrappers, and provider-config-aware default sync/async client
+  factories with `base_url` plus optional `api_key` support.
 
 ## Current State Snapshot
 
@@ -47,8 +48,8 @@
   - grouped manifest loading (`runtime`, `metadata`, `extensions`)
   - prepared execution planning and prepared model-input staging
   - repository-owned tool registry and override handling
-  - OpenAI adapter boundary with a repository-owned provider/client facade seam
-    and fake-client-compatible tests
+  - OpenAI adapter boundary with a repository-owned provider/client facade seam,
+    SDK-backed default provider wrappers, and fake-client-compatible tests
   - retry, output-contract validation, token-budget preflight, tracing, and
     runtime behavior overrides
   - run-correlation support for concurrent execution
@@ -70,6 +71,18 @@
 
 ## Latest Completed Follow-up Slices
 
+- Provider-wrapper Slice 2 completed in `282b93d`: `openai_client.py` now
+  exposes `SDKBackedOpenAIClientProvider`,
+  `SDKBackedAsyncOpenAIClientProvider`, `create_default_openai_provider(...)`,
+  and `create_default_async_openai_provider(...)`, while the default sync/async
+  client factories route through the provider seam and apply `base_url` plus
+  optional `api_key` configuration.
+- Provider-wrapper Slice 2 validation passed with:
+  - `poetry run pytest tests/test_openai_client.py -q` (`20 passed`)
+  - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
+    `tests/test_openai_client.py`
+    `specs/openai-compatible-provider-wrapper/tasks.md`
 - Provider-wrapper Slice 1 completed in `99e225f`: `openai_client.py` now
   exposes `OpenAIProviderConfig`, `OpenAIClientProvider`, and
   `AsyncOpenAIClientProvider`, and the sync/async adapters can lazily construct
@@ -135,9 +148,9 @@
   - `specs/openai-compatible-provider-wrapper/spec.md`
   - `specs/openai-compatible-provider-wrapper/plan.md`
   - `specs/openai-compatible-provider-wrapper/tasks.md`
-- Provider-wrapper Slice 1 is now implemented and recorded in
-  `specs/openai-compatible-provider-wrapper/tasks.md`; if that feature continues,
-  Slice 2 is the next logical implementation step.
+- Provider-wrapper Slices 1-2 are now implemented and recorded in
+  `specs/openai-compatible-provider-wrapper/tasks.md`; if that feature
+  continues, Slice 3 is the next logical implementation step.
 - The provider-wrapper plan now explicitly prioritizes:
   - repository-owned sync/async provider-client facades
   - SDK-backed wrapper isolation
@@ -181,10 +194,10 @@
 ## Next Steps
 
 - If the selected provider-wrapper expansion now moves into implementation,
-  continue with Slice 2 from
-  `specs/openai-compatible-provider-wrapper/tasks.md`: move the direct `openai`
-  SDK construction behind the new provider seam and add `base_url` plus optional
-  `api_key` support while preserving the hosted-default path.
+  continue with Slice 3 from
+  `specs/openai-compatible-provider-wrapper/tasks.md`: refactor adapters and
+  routing preservation more explicitly around the provider layer while
+  preserving `models` / `is_local` semantics and executor compatibility.
 - If implementation resumes, start from `OA11` in the governing SDD artifacts.
 - If OA8 expansion is later resumed, start from
   `specs/async-session-memory-pipeline/implementation-plan.md` and preserve the
