@@ -8,8 +8,9 @@
 - Status: approved-for-planning future-feature spec
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model support
-- Next gate: continue Slice 2 execution with T2.6 while recording fresh
-  validation evidence in `validation.md`
+- Next gate: optional Slice 3 follow-up may begin with T3.1 if separate local
+  embedding configuration is explicitly scheduled, while `validation.md`
+  remains the source of truth for fresh execution evidence
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
   - first-slice local endpoint helper implementation landed in commit `6d269ad`
@@ -28,9 +29,11 @@
     `f4bcb0e` (`feat(local-models): translate local endpoint failures`)
   - Slice 2 default Hugging Face download wiring landed in commit `d5857dd`
     (`feat(local-models): wire default hub downloads`)
+  - Slice 2 authoritative model-identity preservation landed in commit
+    `9b7078f` (`feat(local-models): preserve authoritative model identity`)
   - fresh T1.1, T1.2, T2.1, and T2.2 RED checkpoints plus targeted T1.3, T1.4,
-    T1.5, T2.3, T2.4, and T2.5 GREEN validation now exist; the first Slice 1
-    checkpoint is complete and the next follow-up is T2.6
+    T1.5, T2.3, T2.4, T2.5, and T2.6 GREEN validation now exist; Slice 2 is now
+    complete and any next follow-up is an optional Slice 3 step
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
@@ -150,7 +153,7 @@ This feature specification covers:
 - The repository now contains an initial local-model helper module at
   `src/dynamic_agent_runner/local_models.py`, added in commit `6d269ad`
   (`feat(local-models): add local openai endpoint helpers`).
-- Fresh test-first execution has progressed through T2.5 GREEN: T1.1 RED
+- Fresh test-first execution has progressed through T2.6 GREEN: T1.1 RED
   helper-contract tests landed in commit `a5798cc`
   (`test(local-models): add RED tests for local endpoint helpers`), T1.2 RED
   executor-routing tests landed in commit `b79f124`
@@ -162,13 +165,17 @@ This feature specification covers:
   taxonomy RED tests landed in commit `cdc1b00`, and the T2.3 model-reference
   resolution implementation landed in commit `7a11464`, and the T2.4
   endpoint-failure translation implementation landed in commit `f4bcb0e`, and
-  the T2.5 default Hugging Face download wiring landed in commit `d5857dd`,
+  the T2.5 default Hugging Face download wiring landed in commit `d5857dd`, and
+  the T2.6 authoritative model-identity preservation implementation landed in
+  commit `9b7078f`,
   keeping local helper construction on the repository-owned adapter/provider
   path while establishing the approved Slice 2 resolution surface in
   `local_models.py`, the minimal local-model error taxonomy it depends on, the
   local-endpoint-specific translation seam for connectivity and protocol
-  failures, and the default `huggingface_hub` wiring for explicit file and
-  snapshot references.
+  failures, the default `huggingface_hub` wiring for explicit file and snapshot
+  references, and runtime-owned mismatch reporting that preserves authoritative
+  identity metadata across expected model IDs, explicit local paths, explicit
+  Hub file references, and endpoint-observed model names.
 - Any earlier prototype code or prior test results are historical context only
   and do not count as current implementation or validation evidence.
 - This artifact is authoritative for feature intent and design boundaries;
@@ -575,9 +582,8 @@ from this specification.
 ## Open Questions and Next Planning Decisions
 
 - No blocking `NEEDS CLARIFICATION` items remain for this spec-level approval.
-- The next SDD gate should continue Slice 2 with T2.6, preserving
-  authoritative model identity metadata for mismatch reporting across aliases,
-  local paths, and explicit Hub references.
+- The next SDD gate may begin optional Slice 3 planning with T3.1 if separate
+  local embedding configuration is explicitly scheduled.
 - `tasks.md` should decompose the first endpoint-backed local chat slice
   separately from later optional embedding or in-process follow-up work.
 
@@ -615,9 +621,10 @@ from this specification.
 
 - This spec is authoritative for intended future behavior and boundaries.
 - Fresh validation evidence now includes T1.1, T1.2, T2.1, and T2.2 RED
-  checkpoints plus the targeted T1.3, T1.4, T1.5, T2.3, T2.4, and T2.5 GREEN
-  implementation checks, recorded in commits `a5798cc`, `b79f124`, `6d269ad`,
-  `ee0bf33`, `dd37c62`, `f564caa`, `cdc1b00`, `7a11464`, `f4bcb0e`, `d5857dd`, and
+  checkpoints plus the targeted T1.3, T1.4, T1.5, T2.3, T2.4, T2.5, and T2.6
+  GREEN implementation checks, recorded in commits `a5798cc`, `b79f124`,
+  `6d269ad`, `ee0bf33`, `dd37c62`, `f564caa`, `cdc1b00`, `7a11464`, `f4bcb0e`,
+  `d5857dd`, `9b7078f`, and
   `specs/llama-cpp-local-model/validation.md`.
   - Command: `poetry run pytest tests/test_openai_client.py -q 2>&1`
   - Observed outcome: `3 failed, 24 passed`
@@ -668,6 +675,15 @@ from this specification.
   - Command: `poetry run pre-commit run --files
     src/dynamic_agent_runner/local_models.py tests/test_local_models.py`
     `pyproject.toml poetry.lock 2>&1`
+  - Observed outcome: Ruff Check passed; Ruff Format passed
+  - Command: `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - Observed outcome: `15 passed in 0.14s`
+  - Command: `poetry run pytest tests/test_local_models.py`
+    `tests/test_openai_client.py -q 2>&1`
+  - Observed outcome: `44 passed in 0.18s`
+  - Command: `poetry run pre-commit run --files
+    src/dynamic_agent_runner/local_models.py
+    src/dynamic_agent_runner/openai_client.py tests/test_local_models.py 2>&1`
   - Observed outcome: Ruff Check passed; Ruff Format passed
 - Future implementation work must continue generating fresh validation evidence
   rather than relying on any reverted prototype results.

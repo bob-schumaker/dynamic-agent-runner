@@ -14,8 +14,9 @@ Status: in progress
   committed in `f564caa`, T2.2 RED failure-taxonomy tests are now committed in
   `cdc1b00`, T2.3 resolution helpers are now implemented in `7a11464`, T2.4
   endpoint-failure translation is now implemented in `f4bcb0e`, T2.5 default
-  Hub download wiring is now implemented in `d5857dd`, and T2.6 is the next
-  pending step
+  Hub download wiring is now implemented in `d5857dd`, and T2.6 authoritative
+  model-identity preservation is now implemented in `9b7078f`; the Slice 2
+  checkpoint is complete through T4.4
 
 ## Executed Checks
 
@@ -229,9 +230,31 @@ Status: in progress
   supplied download functions are absent, while `pyproject.toml` and
   `poetry.lock` now record the corresponding runtime dependency surface.
 
+### T2.6 GREEN — authoritative model identity preservation
+
+- Commit: `9b7078f` (`feat(local-models): preserve authoritative model
+  identity`)
+- Commands:
+  - `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - `poetry run pytest tests/test_local_models.py tests/test_openai_client.py -q
+    2>&1`
+  - `poetry run pre-commit run --files src/dynamic_agent_runner/local_models.py`
+    `src/dynamic_agent_runner/openai_client.py tests/test_local_models.py 2>&1`
+- Expected result: mismatch errors preserve runtime-owned intended identity
+  metadata across expected model IDs, explicit local paths, explicit Hub
+  references, and endpoint-observed model names without changing the generic
+  provider path for non-local callers
+- Observed result:
+  - `15 passed in 0.14s`
+  - `44 passed in 0.18s`
+  - Ruff Check passed; Ruff Format passed
+- Interpretation: `dynamic_agent_runner.local_models` now preserves
+  authoritative mismatch identity details in runtime-facing errors, and
+  `dynamic_agent_runner.openai_client` now supports local response validation so
+  endpoint-backed adapters can reject mismatched observed model names while
+  keeping the generic OpenAI-compatible adapter seam intact.
+
 ## Pending Follow-up
 
-- T2.6 — preserve authoritative model identity metadata for mismatch reporting
-  when aliases, local paths, or Hub references are used
-- T4.4 — run `poetry run pytest tests/test_local_models.py -q` when the
-  local-model helper module and resolution logic exist
+- T3.1 — add RED tests for separate local embedding configuration only if the
+  optional Slice 3 follow-up is explicitly scheduled

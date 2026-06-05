@@ -30,11 +30,14 @@ Status: Draft
   endpoint-failure translation is complete in commit `f4bcb0e`
   (`feat(local-models): translate local endpoint failures`); T2.5 default
   Hugging Face download wiring is complete in commit `d5857dd`
-  (`feat(local-models): wire default hub downloads`); the Slice 1 validation
-  checkpoint is complete through T4.5
-- Current execution gate: T2.6 is the next pending step — preserve
-  authoritative model identity metadata for mismatch reporting when aliases,
-  local paths, or Hub references are used
+  (`feat(local-models): wire default hub downloads`); T2.6 authoritative
+  model-identity preservation is complete in commit `9b7078f`
+  (`feat(local-models): preserve authoritative model identity`); the Slice 2
+  validation checkpoint is complete through T4.4 and the first validation pass
+  remains complete through T4.5
+- Current execution gate: T3.1 is the next pending step — add RED tests for
+  separate local embedding configuration only if that optional Slice 3 follow-up
+  is explicitly scheduled
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
@@ -231,7 +234,7 @@ Status: Draft
       tests/test_local_models.py pyproject.toml poetry.lock 2>&1` — Ruff Check
       passed; Ruff Format passed
 
-- [ ] T2.6 [implementation] Preserve authoritative model identity metadata for
+- [x] T2.6 [implementation] Preserve authoritative model identity metadata for
       mismatch reporting when aliases, local paths, or Hub references are used.
   - Spec: FR-3, FR-5c
   - Plan: Caller-facing local endpoint helper contract; Later model-reference
@@ -243,6 +246,17 @@ Status: Draft
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Evidence: mismatch errors report the runtime-owned intended identity rather
     than a guessed provider response
+  - Completed in commit `9b7078f` (`feat(local-models): preserve authoritative
+    model identity`)
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py -q 2>&1` — `15 passed in
+      0.14s`
+    - `poetry run pytest tests/test_local_models.py tests/test_openai_client.py
+      -q 2>&1` — `44 passed in 0.18s`
+    - `poetry run pre-commit run --files
+      src/dynamic_agent_runner/local_models.py
+      src/dynamic_agent_runner/openai_client.py tests/test_local_models.py 2>&1`
+      — Ruff Check passed; Ruff Format passed
 
 ## Slice 3 — Optional embedding and in-process follow-up
 
@@ -318,7 +332,7 @@ Status: Draft
   - GREEN:
     - `poetry run pytest tests/test_import.py -q 2>&1` — `1 passed in 0.19s`
 
-- [ ] T4.4 [validation] Run `poetry run pytest tests/test_local_models.py -q`
+- [x] T4.4 [validation] Run `poetry run pytest tests/test_local_models.py -q`
       when the local-model helper module and resolution logic exist.
   - Spec: FR-5, FR-5b, FR-5c
   - Plan: Verification Strategy
@@ -327,6 +341,10 @@ Status: Draft
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Evidence: local config, resolution, and error taxonomy checks pass without
     live-network requirements
+  - Completed during T2.6 validation in commit `9b7078f`
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py -q 2>&1` — `15 passed in
+      0.14s`
 
 - [x] T4.5 [validation/docs] Run focused `pre-commit` and create
       `specs/llama-cpp-local-model/validation.md` when implementation begins.

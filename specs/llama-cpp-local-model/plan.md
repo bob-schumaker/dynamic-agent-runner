@@ -67,8 +67,11 @@ lifecycle.
   resolution, mismatch, connectivity, and protocol boundaries, plus a
   local-endpoint-specific error-translation seam layered on the existing
   adapter-factory helpers in `openai_client.py`, and default
-  `huggingface_hub` file/snapshot wiring for the runtime-owned resolution path;
-  T2.6 authoritative model-identity follow-up is now the next Slice 2 step.
+  `huggingface_hub` file/snapshot wiring for the runtime-owned resolution path,
+  plus authoritative model-identity preservation across endpoint aliases,
+  explicit local paths, explicit Hub references, and observed provider model
+  names; Slice 2 is now complete and optional Slice 3 follow-up is next only if
+  explicitly scheduled.
 - Existing tests already exercise fake-client adapter behavior and executor
   routing, so the new feature can extend current test surfaces without live
   infrastructure.
@@ -103,8 +106,10 @@ Deliver the highest-ROI path first:
   endpoint-failure translation completed in commit `f4bcb0e`
   (`feat(local-models): translate local endpoint failures`); T2.5 default Hub
   download wiring completed in commit `d5857dd`
-  (`feat(local-models): wire default hub downloads`); T2.6 is the next Slice 2
-  step
+  (`feat(local-models): wire default hub downloads`); T2.6 authoritative model
+  identity preservation completed in commit `9b7078f`
+  (`feat(local-models): preserve authoritative model identity`); Slice 2 is now
+  complete
 
 This slice satisfies the primary implementation path in the approved spec.
 
@@ -370,6 +375,16 @@ Initial recorded evidence:
     src/dynamic_agent_runner/local_models.py tests/test_local_models.py`
     `pyproject.toml poetry.lock 2>&1`
   - Observed outcome: Ruff Check passed; Ruff Format passed
+- T2.6 GREEN evidence after commit `9b7078f`:
+  - Command: `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - Observed outcome: `15 passed in 0.14s`
+  - Command: `poetry run pytest tests/test_local_models.py`
+    `tests/test_openai_client.py -q 2>&1`
+  - Observed outcome: `44 passed in 0.18s`
+  - Command: `poetry run pre-commit run --files
+    src/dynamic_agent_runner/local_models.py
+    src/dynamic_agent_runner/openai_client.py tests/test_local_models.py 2>&1`
+  - Observed outcome: Ruff Check passed; Ruff Format passed
 
 ## Risks and Mitigations
 
@@ -404,7 +419,8 @@ Initial recorded evidence:
 
 ## Plan Approval
 
-- Status: active for Slice 2 follow-up after the completed Slice 1 checkpoint
+- Status: active as the approved implementation record through completed
+  Slice 2
 - Notes: created by explicit user direction after the authoritative spec was
   approved and committed; the user later directed `execute T1.1 and commit`,
   producing RED commit `a5798cc`, and later directed T1.2 execution, producing
@@ -416,8 +432,10 @@ Initial recorded evidence:
   execution, producing RED commit `cdc1b00`. The user later directed T2.3
   execution, producing implementation commit `7a11464`. The user later directed
   T2.4 execution, producing implementation commit `f4bcb0e`. The user later
-  directed T2.5 execution, producing implementation commit `d5857dd`. Slice 1
-  is now complete through its export and focused-validation checkpoint, and
-  Slice 2 now has committed precedence and failure-taxonomy RED tests plus
-  runtime-owned resolution, endpoint-failure translation, and default Hub
-  download wiring before broader follow-up continues at T2.6.
+  directed T2.5 execution, producing implementation commit `d5857dd`. The user
+  later directed T2.6 execution, producing implementation commit `9b7078f`.
+  Slice 1 is now complete through its export and focused-validation checkpoint,
+  and Slice 2 now has committed precedence and failure-taxonomy RED tests plus
+  runtime-owned resolution, endpoint-failure translation, default Hub download
+  wiring, and authoritative mismatch-identity preservation. Any next work is an
+  optional Slice 3 follow-up rather than an unfinished Slice 2 gate.
