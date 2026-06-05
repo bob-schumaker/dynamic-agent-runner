@@ -2,6 +2,20 @@
 
 ## Working
 
+- The OpenAI-compatible provider-wrapper plan was refreshed and committed in
+  `1e6d37d` (`docs(specs): prioritize provider wrapper implementation`).
+- That planning refresh updated `specs/openai-compatible-provider-wrapper/plan.md`
+  with:
+  - ROI framing for the feature
+  - priority tiers across Slices 1 through 7
+  - a smallest useful kickoff slice
+  - a phased implementation order from facade work through validation/polish
+- The governing main-spec backlog is still unchanged: `OA11` remains the only
+  active remaining upstream-conditional follow-up in
+  `specs/dynamic-agent-runner/tasks.md`.
+- User direction has selected the provider-wrapper feature as the next
+  high-ROI future expansion, and Slice 1 has been requested, but no code
+  implementation for that slice has been committed yet.
 - The primary spec set and related feature specs are now internally consistent
   with the current repo state in commit `e6b5f2c`
   (`docs(specs): align spec artifacts with repo state`).
@@ -93,6 +107,10 @@
 
 ## Remaining
 
+- If the provider-wrapper follow-up is implemented next, start with Slice 1 in
+  `specs/openai-compatible-provider-wrapper/tasks.md`:
+  repository-owned sync/async provider-client facades plus the small provider
+  configuration seam.
 - Start the next scoped implementation from `OA11` in the governing SDD docs.
 - If OA8 expansion is later prioritized, treat the current future-spec package
   as the design baseline and preserve the already-implemented metadata-only seam

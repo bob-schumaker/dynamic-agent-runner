@@ -2,6 +2,12 @@
 
 ## Current Focus
 
+- The OpenAI-compatible provider-wrapper feature plan was reprioritized and
+  expanded in commit `1e6d37d`
+  (`docs(specs): prioritize provider wrapper implementation`). The updated
+  `specs/openai-compatible-provider-wrapper/plan.md` now records ROI framing,
+  priority tiers across the full feature scope, a smallest useful kickoff slice,
+  and a phased implementation order from facade work through validation/polish.
 - The primary spec and feature spec set were refreshed for internal consistency
   and repo-state accuracy, then committed in `e6b5f2c`
   (`docs(specs): align spec artifacts with repo state`).
@@ -21,6 +27,9 @@
 - The current next active slice remains `OA11`.
 - The active follow-up order is: `OA11` unless a future scoped follow-up pulls
   OA8 back into active implementation.
+- User direction has now selected the OpenAI-compatible provider-wrapper feature
+  as the highest-ROI future expansion, and Slice 1 has been requested next, but
+  no Slice 1 implementation work has landed in code yet.
 
 ## Current State Snapshot
 
@@ -106,6 +115,16 @@
   future API example in
   `specs/llm-step-interpreter-middleware/spec.md` to match the current
   package-directory-first runtime contract.
+- The source of truth for the current provider-wrapper follow-up is:
+  - `specs/openai-compatible-provider-wrapper/spec.md`
+  - `specs/openai-compatible-provider-wrapper/plan.md`
+  - `specs/openai-compatible-provider-wrapper/tasks.md`
+- The provider-wrapper plan now explicitly prioritizes:
+  - repository-owned sync/async provider-client facades
+  - SDK-backed wrapper isolation
+  - `base_url` plus optional `api_key` configuration
+  - adapter refactoring that preserves `models` / `is_local`
+  - repository-owned request/response semantics
 - The source of truth for current OA8 future-expansion design is:
   - `specs/async-session-memory-pipeline/spec.md`
   - `specs/async-session-memory-pipeline/decision-memo.md`
@@ -142,6 +161,11 @@
 
 ## Next Steps
 
+- If the selected provider-wrapper expansion now moves into implementation,
+  start with Slice 1 from
+  `specs/openai-compatible-provider-wrapper/tasks.md`: define the narrow
+  repository-owned sync/async provider-client facades and the small provider
+  configuration seam.
 - If implementation resumes, start from `OA11` in the governing SDD artifacts.
 - If OA8 expansion is later resumed, start from
   `specs/async-session-memory-pipeline/implementation-plan.md` and preserve the
