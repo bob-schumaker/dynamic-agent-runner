@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -460,6 +461,105 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
     route = plan.nodes_by_id["route"]
     assert route.route_from == "answer"
     assert route.allowed_routes == frozenset({"done"})
+
+
+def test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes() -> (
+    None
+):
+    """Eligible context-pipeline nodes should be prepared without mutating base workflow data."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "graph-mutation-base-immutability",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "prepared_context",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    base_raw_before = deepcopy(workflow.runtime_manifest.nodes[0].raw)
+
+    plan = prepare_execution_plan(workflow)
+
+    assert workflow.runtime_manifest.nodes[0].raw == base_raw_before
+    assert getattr(plan, "mutation_bundle", None) is not None
+
+
+def test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step() -> (
+    None
+):
+    """Eligible llm_step nodes should receive derived mutation preparation metadata."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "graph-mutation-derived-preparation",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "prepared_context",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    plan = prepare_execution_plan(workflow)
+    answer = plan.nodes_by_id["answer"]
+
+    assert getattr(answer, "mutation_spec", None) is not None
 
 
 def test_prepare_model_input_renders_messages_and_named_parts() -> None:
