@@ -9,8 +9,8 @@ Status: in progress
 - Tasks: `specs/llama-cpp-local-model/tasks.md`
 - Current checkpoint: T1.1 and T1.2 RED tests are committed, T1.3 helper
   implementation landed in commit `6d269ad`, T1.4 provider-seam wiring landed
-  in commit `ee0bf33`, and the targeted Slice 1 checks are GREEN; T1.5 is the
-  next pending step
+  in commit `ee0bf33`, T1.5 package-root exports landed in commit `dd37c62`, and
+  the targeted Slice 1 checks are GREEN; T2.1 is the next pending step
 
 ## Executed Checks
 
@@ -78,9 +78,35 @@ Status: in progress
   under repository-owned `openai_client.py` helper factories and keeps the same
   metadata-based executor routing behavior.
 
+### T1.5 GREEN — package-root export surface
+
+- Commit: `dd37c62` (`feat(local-models): export local endpoint helpers`)
+- Commands:
+  - `poetry run pytest tests/test_import.py -q 2>&1`
+  - `poetry run pytest tests/test_openai_client.py`
+    `tests/test_executor.py tests/test_import.py -q 2>&1`
+  - `poetry run pre-commit run --files
+    src/dynamic_agent_runner/local_models.py
+    src/dynamic_agent_runner/openai_client.py
+    src/dynamic_agent_runner/__init__.py
+    tests/test_openai_client.py tests/test_executor.py`
+    `tests/test_import.py 2>&1`
+- Expected result: the approved local endpoint config and helper functions are
+  importable from `dynamic_agent_runner`, and the completed Slice 1 surface
+  remains green under focused test and formatting/lint coverage
+- Observed result:
+  - `1 passed in 0.19s`
+  - `80 passed in 0.47s`
+  - Ruff Check passed; Ruff Format passed
+- Interpretation: `dynamic_agent_runner` now re-exports
+  `LocalOpenAIEndpointConfig`, `create_local_openai_adapter(...)`, and
+  `create_local_async_openai_adapter(...)`, keeping the caller-visible local
+  helper surface additive while preserving the existing executor-facing adapter
+  boundary and the focused Slice 1 validation checkpoint.
+
 ## Pending Follow-up
 
-- T1.5 — export any approved caller-visible local helper or config type from the
-  package root
-- T4.1 / T4.2 — rerun targeted pytest commands after later Slice 1 follow-up
-  changes when additional implementation lands
+- T2.1 — add failing tests in `tests/test_local_models.py` for the approved
+  model-resolution precedence order
+- T4.4 — run `poetry run pytest tests/test_local_models.py -q` when the
+  local-model helper module and resolution logic exist

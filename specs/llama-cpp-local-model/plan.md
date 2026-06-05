@@ -58,10 +58,12 @@ lifecycle.
   sync/async provider facades, SDK-backed default providers, and normalized
   response handling.
 - The repository now exposes an initial llama.cpp-oriented local endpoint helper
-  module at `src/dynamic_agent_runner/local_models.py`, but it does not yet
-  include package-root exports, model reference types, asset-resolution helpers,
-  or a distinct local-model failure taxonomy; the helper now routes through
-  explicit adapter-factory helpers owned by `openai_client.py`.
+  module at `src/dynamic_agent_runner/local_models.py`, now re-exported from
+  `src/dynamic_agent_runner/__init__.py` for the approved caller-facing config
+  and helper surface, but it does not yet include model reference types,
+  asset-resolution helpers, or a distinct local-model failure taxonomy; the
+  helper routes through explicit adapter-factory helpers owned by
+  `openai_client.py`.
 - Existing tests already exercise fake-client adapter behavior and executor
   routing, so the new feature can extend current test surfaces without live
   infrastructure.
@@ -84,8 +86,10 @@ Deliver the highest-ROI path first:
   implementation completed in commit `6d269ad`
   (`feat(local-models): add local openai endpoint helpers`); T1.4 provider-seam
   wiring completed in commit `ee0bf33`
-  (`refactor(local-models): route helpers through adapter factories`); T1.5 is
-  the next Slice 1 step
+  (`refactor(local-models): route helpers through adapter factories`); T1.5
+  package-root exports completed in commit `dd37c62`
+  (`feat(local-models): export local endpoint helpers`); T2.1 is the next Slice
+  2 step
 
 This slice satisfies the primary implementation path in the approved spec.
 
@@ -301,6 +305,18 @@ Initial recorded evidence:
   - Observed outcome: `29 passed in 0.15s`
   - Command: `poetry run pytest tests/test_executor.py -q 2>&1`
   - Observed outcome: `50 passed in 0.38s`
+- T1.5 GREEN evidence after commit `dd37c62`:
+  - Command: `poetry run pytest tests/test_import.py -q 2>&1`
+  - Observed outcome: `1 passed in 0.19s`
+  - Command: `poetry run pytest tests/test_openai_client.py`
+    `tests/test_executor.py tests/test_import.py -q 2>&1`
+  - Observed outcome: `80 passed in 0.47s`
+  - Command: `poetry run pre-commit run --files
+    src/dynamic_agent_runner/local_models.py
+    src/dynamic_agent_runner/openai_client.py
+    src/dynamic_agent_runner/__init__.py tests/test_openai_client.py
+    tests/test_executor.py tests/test_import.py 2>&1`
+  - Observed outcome: Ruff Check passed; Ruff Format passed
 
 ## Risks and Mitigations
 
@@ -335,11 +351,13 @@ Initial recorded evidence:
 
 ## Plan Approval
 
-- Status: active for Slice 1 test-first execution
+- Status: active for Slice 2 follow-up after the completed Slice 1 checkpoint
 - Notes: created by explicit user direction after the authoritative spec was
   approved and committed; the user later directed `execute T1.1 and commit`,
   producing RED commit `a5798cc`, and later directed T1.2 execution, producing
   RED commit `b79f124`. The user later directed T1.3 execution, producing
   implementation commit `6d269ad`, and later directed T1.4 execution,
-  producing implementation commit `ee0bf33`. Broader Slice 1 follow-up remains
-  gated by subsequent execution steps.
+  producing implementation commit `ee0bf33`. The user later directed T1.5
+  execution, producing implementation commit `dd37c62`. Slice 1 is now complete
+  through its export and focused-validation checkpoint, and broader follow-up now
+  moves to Slice 2 planning/execution.

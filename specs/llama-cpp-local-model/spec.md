@@ -8,7 +8,7 @@
 - Status: approved-for-planning future-feature spec
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model support
-- Next gate: continue Slice 1 execution with T1.5 while recording fresh
+- Next gate: begin Slice 2 execution with T2.1 while recording fresh
   validation evidence in `validation.md`
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
@@ -16,8 +16,11 @@
     (`feat(local-models): add local openai endpoint helpers`)
   - provider-seam wiring follow-up landed in commit `ee0bf33`
     (`refactor(local-models): route helpers through adapter factories`)
-  - fresh T1.1 and T1.2 RED checkpoints plus targeted T1.3 and T1.4 GREEN
-    validation now exist; later Slice 1 follow-up remains pending
+  - package-root export follow-up landed in commit `dd37c62`
+    (`feat(local-models): export local endpoint helpers`)
+  - fresh T1.1 and T1.2 RED checkpoints plus targeted T1.3, T1.4, and T1.5
+    GREEN validation now exist; the first Slice 1 checkpoint is complete and the
+    next follow-up is T2.1
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
@@ -137,14 +140,16 @@ This feature specification covers:
 - The repository now contains an initial local-model helper module at
   `src/dynamic_agent_runner/local_models.py`, added in commit `6d269ad`
   (`feat(local-models): add local openai endpoint helpers`).
-- Fresh test-first execution has progressed through T1.4: T1.1 RED
+- Fresh test-first execution has progressed through T1.5: T1.1 RED
   helper-contract tests landed in commit `a5798cc`
   (`test(local-models): add RED tests for local endpoint helpers`), T1.2 RED
   executor-routing tests landed in commit `b79f124`
   (`test(local-models): add RED executor routing coverage`), the T1.3 helper
   implementation landed in commit `6d269ad`, and the T1.4 provider-seam
-  follow-up landed in commit `ee0bf33`, keeping local helper construction on the
-  repository-owned adapter/provider path.
+  follow-up landed in commit `ee0bf33`, and the T1.5 package-root export
+  follow-up landed in commit `dd37c62`, keeping local helper construction on the
+  repository-owned adapter/provider path while exposing the approved caller-
+  visible helper/config surface from `dynamic_agent_runner`.
 - Any earlier prototype code or prior test results are historical context only
   and do not count as current implementation or validation evidence.
 - This artifact is authoritative for feature intent and design boundaries;
@@ -551,9 +556,9 @@ from this specification.
 ## Open Questions and Next Planning Decisions
 
 - No blocking `NEEDS CLARIFICATION` items remain for this spec-level approval.
-- The next SDD gate should continue Slice 1 implementation with T1.5, exporting
-  any approved caller-visible local helper or config surface from the package
-  root while preserving the approved helper and provider-seam boundaries.
+- The next SDD gate should begin Slice 2 with T2.1, adding failing tests for the
+  approved model-resolution precedence order while preserving the completed
+  Slice 1 helper/export and provider-seam boundaries.
 - `tasks.md` should decompose the first endpoint-backed local chat slice
   separately from later optional embedding or in-process follow-up work.
 
@@ -591,8 +596,8 @@ from this specification.
 
 - This spec is authoritative for intended future behavior and boundaries.
 - Fresh validation evidence now includes T1.1 and T1.2 RED checkpoints plus the
-  targeted T1.3 and T1.4 GREEN implementation checks, recorded in commits
-  `a5798cc`, `b79f124`, `6d269ad`, `ee0bf33`, and
+  targeted T1.3, T1.4, and T1.5 GREEN implementation checks, recorded in commits
+  `a5798cc`, `b79f124`, `6d269ad`, `ee0bf33`, `dd37c62`, and
   `specs/llama-cpp-local-model/validation.md`.
   - Command: `poetry run pytest tests/test_openai_client.py -q 2>&1`
   - Observed outcome: `3 failed, 24 passed`
@@ -610,6 +615,11 @@ from this specification.
   - Observed outcome: `29 passed in 0.15s`
   - Command: `poetry run pytest tests/test_executor.py -q 2>&1`
   - Observed outcome: `50 passed in 0.38s`
+  - Command: `poetry run pytest tests/test_import.py -q 2>&1`
+  - Observed outcome: `1 passed in 0.19s`
+  - Command: `poetry run pytest tests/test_openai_client.py`
+    `tests/test_executor.py tests/test_import.py -q 2>&1`
+  - Observed outcome: `80 passed in 0.47s`
 - Future implementation work must continue generating fresh validation evidence
   rather than relying on any reverted prototype results.
 - The current authoritative companion SDD artifacts for this feature are

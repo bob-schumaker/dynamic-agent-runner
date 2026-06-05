@@ -18,9 +18,13 @@ Status: Draft
   implementation is complete in commit `6d269ad`
   (`feat(local-models): add local openai endpoint helpers`); T1.4 provider-seam
   wiring is complete in commit `ee0bf33`
-  (`refactor(local-models): route helpers through adapter factories`)
-- Current execution gate: T1.5 is the next pending step — export any approved
-  caller-visible local helper or config type from the package root
+  (`refactor(local-models): route helpers through adapter factories`); T1.5
+  package-root exports are complete in commit `dd37c62`
+  (`feat(local-models): export local endpoint helpers`); the Slice 1 validation
+  checkpoint is complete through T4.5
+- Current execution gate: T2.1 is the next pending step — add failing tests in
+  `tests/test_local_models.py` for the approved model-resolution precedence
+  order
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
@@ -103,7 +107,7 @@ Status: Draft
     - `poetry run pytest tests/test_executor.py -q 2>&1` — `50 passed in
       0.38s`
 
-- [ ] T1.5 [implementation] Export any approved caller-visible local helper or
+- [x] T1.5 [implementation] Export any approved caller-visible local helper or
       config type from the package root.
   - Spec: FR-1, FR-3
   - Plan: Affected Areas; Caller-facing local endpoint helper contract
@@ -112,6 +116,10 @@ Status: Draft
   - Depends on: T1.3
   - Validation: `poetry run pytest tests/test_import.py -q`
   - Evidence: import-level tests can load the approved public helper surface
+  - Completed in commit `dd37c62` (`feat(local-models): export local endpoint
+    helpers`)
+  - GREEN:
+    - `poetry run pytest tests/test_import.py -q 2>&1` — `1 passed in 0.19s`
 
 ## Slice 2 — Runtime-owned model reference resolution and failure taxonomy
 
@@ -222,7 +230,7 @@ Status: Draft
 
 ## Slice 4 — Validation and artifact completion
 
-- [ ] T4.1 [validation] Run `poetry run pytest tests/test_openai_client.py -q`
+- [x] T4.1 [validation] Run `poetry run pytest tests/test_openai_client.py -q`
       after Slice 1 changes.
   - Spec: FR-1, FR-2, FR-3, FR-4, FR-6
   - Plan: Verification Strategy
@@ -230,8 +238,12 @@ Status: Draft
   - Depends on: T1.4
   - Validation: `poetry run pytest tests/test_openai_client.py -q`
   - Evidence: adapter/provider behavior remains green with fake-client coverage
+  - Completed during the post-T1.5 Slice 1 checkpoint refresh
+  - GREEN:
+    - `poetry run pytest tests/test_openai_client.py tests/test_executor.py`
+      `tests/test_import.py -q 2>&1` — `80 passed in 0.47s`
 
-- [ ] T4.2 [validation] Run `poetry run pytest tests/test_executor.py -q` after
+- [x] T4.2 [validation] Run `poetry run pytest tests/test_executor.py -q` after
       local routing changes.
   - Spec: FR-1, FR-6
   - Plan: Verification Strategy
@@ -239,8 +251,12 @@ Status: Draft
   - Depends on: T1.4
   - Validation: `poetry run pytest tests/test_executor.py -q`
   - Evidence: executor `local_only` routing still works through adapter metadata
+  - Completed during the post-T1.5 Slice 1 checkpoint refresh
+  - GREEN:
+    - `poetry run pytest tests/test_openai_client.py tests/test_executor.py`
+      `tests/test_import.py -q 2>&1` — `80 passed in 0.47s`
 
-- [ ] T4.3 [validation] Run `poetry run pytest tests/test_import.py -q` if new
+- [x] T4.3 [validation] Run `poetry run pytest tests/test_import.py -q` if new
       caller-visible exports are added.
   - Spec: FR-1, FR-3
   - Plan: Verification Strategy
@@ -248,6 +264,9 @@ Status: Draft
   - Depends on: T1.5
   - Validation: `poetry run pytest tests/test_import.py -q`
   - Evidence: package-root imports remain stable
+  - Completed during T1.5 export validation in commit `dd37c62`
+  - GREEN:
+    - `poetry run pytest tests/test_import.py -q 2>&1` — `1 passed in 0.19s`
 
 - [ ] T4.4 [validation] Run `poetry run pytest tests/test_local_models.py -q`
       when the local-model helper module and resolution logic exist.
@@ -259,7 +278,7 @@ Status: Draft
   - Evidence: local config, resolution, and error taxonomy checks pass without
     live-network requirements
 
-- [ ] T4.5 [validation/docs] Run focused `pre-commit` and create
+- [x] T4.5 [validation/docs] Run focused `pre-commit` and create
       `specs/llama-cpp-local-model/validation.md` when implementation begins.
   - Spec: Validation Status
   - Plan: Verification Strategy
@@ -278,6 +297,14 @@ Status: Draft
     `tests/test_import.py` `2>&1`
   - Evidence: validation commands and outcomes are recorded in the feature's
     validation artifact
+  - Completed during the post-T1.5 Slice 1 checkpoint refresh
+  - GREEN:
+    - `poetry run pre-commit run --files
+      src/dynamic_agent_runner/local_models.py
+      src/dynamic_agent_runner/openai_client.py
+      src/dynamic_agent_runner/__init__.py tests/test_openai_client.py
+      tests/test_executor.py tests/test_import.py 2>&1` — Ruff Check passed;
+      Ruff Format passed
 
 ## Ordering Notes
 
