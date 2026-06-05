@@ -114,9 +114,39 @@
   - priority tiers across Slices 1 through 7
   - a smallest useful kickoff slice
   - a phased implementation order from facade work through validation/polish
-- The governing main-spec backlog is still unchanged: `OA11` remains the only
-  active remaining upstream-conditional follow-up in
-  `specs/dynamic-agent-runner/tasks.md`.
+- `OA11` is now complete in `1d0aa32`
+  (`feat(registry): add portable tool type metadata`).
+- That implementation added an upstream-aligned portable `tool_type` seam so:
+  - `src/dynamic_agent_runner/models.py` now defines `ToolType` and preserves
+    `ToolDefinition.tool_type` separately from runtime-specific `adapter` and
+    provenance/source metadata
+  - `src/dynamic_agent_runner/validation.py` now fails closed for unsupported
+    `tool_type` values in manifest and tool-index tool definitions
+  - `src/dynamic_agent_runner/registry.py` now records portable `file_read`
+    semantics for the built-in `local_workspace` tool pack
+  - `src/dynamic_agent_runner/__init__.py` now exports `ToolType`
+  - focused tests now cover import, registry, built-in-pack, and validation
+    behavior for `tool_type`
+- OA11 implementation validation passed with:
+  - `poetry run pytest tests/test_import.py tests/test_registry.py`
+    `tests/test_validation.py -q 2>&1` (`86 passed`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/__init__.py`
+    `src/dynamic_agent_runner/models.py`
+    `src/dynamic_agent_runner/registry.py`
+    `src/dynamic_agent_runner/validation.py`
+    `tests/test_import.py` `tests/test_registry.py` `tests/test_validation.py`
+- The OA11 spec-doc alignment is complete in `ac422b0`
+  (`docs(specs): record OA11 tool type alignment`), updating:
+  - `specs/dynamic-agent-runner/spec.md`
+  - `specs/dynamic-agent-runner/plan.md`
+  - `specs/dynamic-agent-runner/tasks.md`
+  so the primary spec package now records the upstream-confirmed `tool_type`
+  seam and marks the original OA follow-up queue complete.
+- OA11 spec-doc validation passed with:
+  - `pre-commit run --files specs/dynamic-agent-runner/spec.md`
+    `specs/dynamic-agent-runner/plan.md`
+    `specs/dynamic-agent-runner/tasks.md`
+  - all targeted spec files passed `rumdl check` / `rumdl format`
 - User direction selected the provider-wrapper feature as the next high-ROI
   future expansion, and Slices 1-6 are now committed.
 - The primary spec set and related feature specs are now internally consistent
@@ -149,7 +179,7 @@
   - `docs/files/runtime-policies.rst`
   so the quickstart examples use `package_directory` / `--package`, and runtime
   policy docs describe the implemented model-selection order.
-- The next active follow-up slice is `OA11`.
+- The original OA follow-up slice queue is complete through OA11.
 
 ## Major Completed Milestones
 
@@ -210,7 +240,8 @@
 
 ## In Flight
 
-- The active ordered backlog is: `OA11`.
+- The active ordered backlog has no remaining OA slice; future work now depends
+  on a newly scoped follow-up or promoted evaluation-driven task.
 - The provider-wrapper follow-up is complete through Slice 6; any further work
   there would now be optional polish or broader provider-specific follow-up.
 
@@ -219,7 +250,8 @@
 - If the provider-wrapper area is resumed, treat it as optional follow-up work
   rather than a required next slice; any new work should preserve fake-client
   testing and avoid live network calls.
-- Start the next scoped implementation from `OA11` in the governing SDD docs.
+- Start the next scoped implementation from a newly selected follow-up in the
+  governing SDD docs; OA11 is already complete.
 - If OA8 expansion is later prioritized, treat the current future-spec package
   as the design baseline and preserve the already-implemented metadata-only seam
   as the first-pass contract.
@@ -238,7 +270,8 @@
   continuation behavior.
 - `parallel_join`, `parallel_fanout`, and broader multi-agent execution remain
   unsupported runtime behavior.
-- RAG/GraphRAG, portable tool taxonomy, handoffs, and agent-as-tool support are
-  currently metadata/validation surfaces, not full runtime execution engines.
+- RAG/GraphRAG, handoffs, and agent-as-tool support are currently
+  metadata/validation surfaces, not full runtime execution engines. Portable
+  tool taxonomy is now implemented as a metadata/validation seam through OA11.
 - Local llama.cpp and graph-mutation work remains feature-spec-only, with no
   active runtime implementation in the codebase.

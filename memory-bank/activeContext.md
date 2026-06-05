@@ -16,17 +16,26 @@
   policy docs now match the package-directory-first API/CLI contract.
 - The runtime is implemented through package-alignment Slice P5, E14 async-first
   execution, OA7 deferred approval interruption metadata preservation, OA10
-  deferred sandbox/workspace runtime metadata preservation, and OA9
-  `tool_from_function(...)` helper support.
+  deferred sandbox/workspace runtime metadata preservation, OA9
+  `tool_from_function(...)` helper support, and OA11 portable `tool_type`
+  metadata alignment.
 - OA8 is already implemented as a metadata-only async-session policy seam, while
   the repository-local feature-spec package under
   `specs/async-session-memory-pipeline/` captures future expansion beyond that
   baseline.
 - User-facing docs are now aligned with that OA8 baseline in `README.md` and
   `docs/files/runtime-policies.rst` via commit `0a5d59d`.
-- The current next active slice remains `OA11`.
-- The active follow-up order is: `OA11` unless a future scoped follow-up pulls
-  OA8 back into active implementation.
+- OA11 landed in commit `1d0aa32`
+  (`feat(registry): add portable tool type metadata`), aligning the runtime with
+  the upstream `tool_type` manifest field from the agent-runtime-package
+  reference.
+- The OA11 spec-doc refresh landed in commit `ac422b0`
+  (`docs(specs): record OA11 tool type alignment`), updating the main
+  spec/plan/task package to record the implemented seam and mark the original OA
+  follow-up queue complete.
+- There is no remaining active OA slice in the original follow-up sequence; the
+  current remaining work is back to future scoped follow-ups and promoted
+  evaluation-driven expansions.
 - User direction has now selected the OpenAI-compatible provider-wrapper feature
   as the highest-ROI future expansion. Slice 1 landed in commit `99e225f`
   (`feat(openai-client): add provider facade seam`), and Slice 2 landed in
