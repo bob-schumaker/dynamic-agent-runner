@@ -64,6 +64,38 @@ class AsyncOpenAIClientProvider(Protocol):
 
 
 @dataclass(frozen=True)
+class SDKBackedOpenAIClientProvider:
+    """SDK-backed sync provider for hosted OpenAI and compatible endpoints."""
+
+    config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
+
+    def get_client(self) -> OpenAIClientProtocol:
+        try:
+            from openai import OpenAI
+        except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+            raise ModelExecutionError(
+                "official openai package is not available"
+            ) from exc
+        return OpenAI(**_provider_config_to_client_kwargs(self.config))
+
+
+@dataclass(frozen=True)
+class SDKBackedAsyncOpenAIClientProvider:
+    """SDK-backed async provider for hosted OpenAI and compatible endpoints."""
+
+    config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
+
+    def get_client(self) -> AsyncOpenAIClientProtocol:
+        try:
+            from openai import AsyncOpenAI
+        except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+            raise ModelExecutionError(
+                "official openai package is not available"
+            ) from exc
+        return AsyncOpenAI(**_provider_config_to_client_kwargs(self.config))
+
+
+@dataclass(frozen=True)
 class OpenAIMessage:
     """Rendered message sent to the model adapter."""
 
@@ -231,24 +263,36 @@ class AsyncOpenAIClientAdapter:
         return self._is_local
 
 
-def create_default_openai_client() -> OpenAIClientProtocol:
+def create_default_openai_provider(
+    config: OpenAIProviderConfig | None = None,
+) -> OpenAIClientProvider:
+    """Construct the default sync SDK-backed provider facade."""
+
+    return SDKBackedOpenAIClientProvider(config or OpenAIProviderConfig())
+
+
+def create_default_openai_client(
+    config: OpenAIProviderConfig | None = None,
+) -> OpenAIClientProtocol:
     """Construct the official OpenAI client from environment/default config."""
 
-    try:
-        from openai import OpenAI
-    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
-        raise ModelExecutionError("official openai package is not available") from exc
-    return OpenAI()
+    return create_default_openai_provider(config).get_client()
 
 
-def create_default_async_openai_client() -> AsyncOpenAIClientProtocol:
+def create_default_async_openai_provider(
+    config: OpenAIProviderConfig | None = None,
+) -> AsyncOpenAIClientProvider:
+    """Construct the default async SDK-backed provider facade."""
+
+    return SDKBackedAsyncOpenAIClientProvider(config or OpenAIProviderConfig())
+
+
+def create_default_async_openai_client(
+    config: OpenAIProviderConfig | None = None,
+) -> AsyncOpenAIClientProtocol:
     """Construct the official async OpenAI client from environment/default config."""
 
-    try:
-        from openai import AsyncOpenAI
-    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
-        raise ModelExecutionError("official openai package is not available") from exc
-    return AsyncOpenAI()
+    return create_default_async_openai_provider(config).get_client()
 
 
 def build_openai_request(
@@ -354,3 +398,12 @@ def _as_sequence(value: Any) -> Sequence[Any]:
 
 def _optional_str(value: Any) -> str | None:
     return str(value) if value is not None else None
+
+
+def _provider_config_to_client_kwargs(config: OpenAIProviderConfig) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {}
+    if config.base_url is not None:
+        kwargs["base_url"] = config.base_url
+    if config.api_key is not None:
+        kwargs["api_key"] = config.api_key
+    return kwargs

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import sys
 from types import SimpleNamespace
 
@@ -16,6 +17,7 @@ from dynamic_agent_runner.openai_client import (
     OpenAIProviderConfig,
     build_openai_request,
     create_default_async_openai_client,
+    create_default_openai_client,
     normalize_openai_response,
 )
 from dynamic_agent_runner.registry import openai_tool_schema
@@ -280,6 +282,74 @@ def test_async_adapter_wraps_model_failures() -> None:
         asyncio.run(adapter.create_response(request))
 
 
+def test_create_default_openai_client_uses_official_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created: list[object] = []
+    created_kwargs: list[dict[str, object]] = []
+
+    class FakeOfficialOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created.append(self)
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
+    )
+
+    client = create_default_openai_client()
+
+    assert client is created[0]
+    assert created_kwargs == [{}]
+
+
+def test_create_default_openai_client_applies_provider_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_kwargs: list[dict[str, object]] = []
+
+    class FakeOfficialOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
+    )
+
+    client = create_default_openai_client(
+        OpenAIProviderConfig(
+            base_url="http://localhost:11434/v1",
+            api_key="test-key",
+            provider_name="local-llm",
+        )
+    )
+
+    assert created_kwargs == [
+        {"base_url": "http://localhost:11434/v1", "api_key": "test-key"}
+    ]
+    assert client is not None
+
+
+def test_create_default_openai_client_omits_api_key_when_not_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_kwargs: list[dict[str, object]] = []
+
+    class FakeOfficialOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
+    )
+
+    create_default_openai_client(
+        OpenAIProviderConfig(base_url="http://localhost:11434/v1", api_key=None)
+    )
+
+    assert created_kwargs == [{"base_url": "http://localhost:11434/v1"}]
+
+
 def test_create_default_async_openai_client_uses_official_async_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -298,6 +368,103 @@ def test_create_default_async_openai_client_uses_official_async_client(
     client = create_default_async_openai_client()
 
     assert client is created[0]
+
+
+def test_create_default_async_openai_client_applies_provider_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_kwargs: list[dict[str, object]] = []
+
+    class FakeOfficialAsyncOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules,
+        "openai",
+        SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
+    )
+
+    client = create_default_async_openai_client(
+        OpenAIProviderConfig(base_url="http://localhost:11434/v1", api_key="test-key")
+    )
+
+    assert created_kwargs == [
+        {"base_url": "http://localhost:11434/v1", "api_key": "test-key"}
+    ]
+    assert client is not None
+
+
+def test_create_default_async_openai_client_omits_api_key_when_not_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_kwargs: list[dict[str, object]] = []
+
+    class FakeOfficialAsyncOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules,
+        "openai",
+        SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
+    )
+
+    create_default_async_openai_client(
+        OpenAIProviderConfig(base_url="http://localhost:11434/v1", api_key=None)
+    )
+
+    assert created_kwargs == [{"base_url": "http://localhost:11434/v1"}]
+
+
+def test_create_default_openai_client_wraps_import_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_import = builtins.__import__
+
+    def fake_import(
+        name: str,
+        globals: object | None = None,
+        locals: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "openai":
+            raise ImportError("openai unavailable")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.delitem(sys.modules, "openai", raising=False)
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(
+        ModelExecutionError, match="official openai package is not available"
+    ):
+        create_default_openai_client()
+
+
+def test_create_default_async_openai_client_wraps_import_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_import = builtins.__import__
+
+    def fake_import(
+        name: str,
+        globals: object | None = None,
+        locals: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "openai":
+            raise ImportError("openai unavailable")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.delitem(sys.modules, "openai", raising=False)
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(
+        ModelExecutionError, match="official openai package is not available"
+    ):
+        create_default_async_openai_client()
 
 
 @pytest.mark.parametrize(

@@ -2,11 +2,11 @@
 
 ## Status
 
-- State: Slice 1 implemented; `src/dynamic_agent_runner/openai_client.py` now
-  exposes a repository-owned provider/client facade and provider configuration,
-  while the default factories still directly construct `openai.OpenAI()` /
-  `openai.AsyncOpenAI()` and do not yet expose `base_url` / optional `api_key`
-  provider configuration
+- State: Slices 1-2 implemented; `src/dynamic_agent_runner/openai_client.py`
+  now exposes a repository-owned provider/client facade, provider
+  configuration, SDK-backed default provider wrappers, and provider-config-aware
+  default sync/async client factories supporting `base_url` plus optional
+  `api_key`
 - Source spec: `specs/openai-compatible-provider-wrapper/spec.md`
 - Technical plan: `specs/openai-compatible-provider-wrapper/plan.md`
 - Primary implementation area: `src/dynamic_agent_runner/openai_client.py`
@@ -25,15 +25,15 @@
 
 ## Slice 2 — SDK-backed default wrapper isolation
 
-- [ ] T2.1 Move the direct `openai` SDK import and construction path behind the
+- [x] T2.1 Move the direct `openai` SDK import and construction path behind the
       repository-owned wrapper implementation.
-- [ ] T2.2 Preserve project-specific `ModelExecutionError` behavior when the
+- [x] T2.2 Preserve project-specific `ModelExecutionError` behavior when the
       `openai` package is unavailable.
-- [ ] T2.3 Support default hosted OpenAI construction with no required new
+- [x] T2.3 Support default hosted OpenAI construction with no required new
       caller-facing provider object.
-- [ ] T2.4 Support optional `base_url` configuration for OpenAI-compatible
+- [x] T2.4 Support optional `base_url` configuration for OpenAI-compatible
       endpoints.
-- [ ] T2.5 Support optional `api_key` passthrough for hosted or compatible
+- [x] T2.5 Support optional `api_key` passthrough for hosted or compatible
       providers.
 
 ## Slice 3 — Adapter refactor and routing preservation
@@ -63,11 +63,11 @@
       wrapper path using fake clients or monkeypatched construction.
 - [ ] T5.2 Update `tests/test_openai_client.py` to validate the refactored async
       wrapper path using fake clients or monkeypatched construction.
-- [ ] T5.3 Add coverage for default hosted OpenAI construction behavior without
+- [x] T5.3 Add coverage for default hosted OpenAI construction behavior without
       live network calls.
-- [ ] T5.4 Add coverage for custom `base_url` configuration targeting an
+- [x] T5.4 Add coverage for custom `base_url` configuration targeting an
       OpenAI-compatible endpoint.
-- [ ] T5.5 Add coverage for optional `api_key` passthrough behavior.
+- [x] T5.5 Add coverage for optional `api_key` passthrough behavior.
 - [ ] T5.6 Add coverage proving `is_local=True` adapters remain compatible with
       existing runtime routing semantics.
 
