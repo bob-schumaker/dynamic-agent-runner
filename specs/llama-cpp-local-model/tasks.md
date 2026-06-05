@@ -14,11 +14,12 @@ Status: Draft
 - State: T1.1 RED helper-contract tests are complete in commit `a5798cc`
   (`test(local-models): add RED tests for local endpoint helpers`) and T1.2 RED
   executor-routing tests are complete in commit `b79f124`
-  (`test(local-models): add RED executor routing coverage`); production
-  local-model helper implementation has not landed yet
-- Current execution gate: T1.3 is the next pending step — implement
-  `src/dynamic_agent_runner/local_models.py` to satisfy the committed RED
-  helper-contract and executor-routing checks
+  (`test(local-models): add RED executor routing coverage`); T1.3 helper
+  implementation is complete in commit `6d269ad`
+  (`feat(local-models): add local openai endpoint helpers`)
+- Current execution gate: T1.4 is the next pending step — confirm the new
+  helper remains fully on the existing provider seam without changing request
+  construction or response normalization ownership
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
@@ -66,7 +67,7 @@ Status: Draft
     to prove helper-built local adapters still satisfy `local_only` routing via
     adapter `models` plus `is_local`
 
-- [ ] T1.3 [implementation] Add `src/dynamic_agent_runner/local_models.py` with
+- [x] T1.3 [implementation] Add `src/dynamic_agent_runner/local_models.py` with
       the first-slice local endpoint config and helper factory.
   - Spec: FR-1, FR-2, FR-3, FR-6
   - Plan: Chosen approach; Caller-facing local endpoint helper contract
@@ -75,6 +76,13 @@ Status: Draft
   - Validation: `poetry run pytest tests/test_openai_client.py -q`
   - Evidence: the helper builds `OpenAIClientAdapter` /
     `AsyncOpenAIClientAdapter` with caller aliases and `is_local=True`
+  - Completed in commit `6d269ad` (`feat(local-models): add local openai
+    endpoint helpers`)
+  - GREEN:
+    - `poetry run pytest tests/test_openai_client.py -q 2>&1` — `27 passed in
+      0.17s`
+    - `poetry run pytest tests/test_executor.py -q 2>&1` — `50 passed in
+      0.41s`
 
 - [ ] T1.4 [implementation] Wire the new helper into the existing provider seam
       without changing request construction or response normalization ownership.

@@ -7,8 +7,9 @@ Status: in progress
 - Feature: `specs/llama-cpp-local-model/spec.md`
 - Plan: `specs/llama-cpp-local-model/plan.md`
 - Tasks: `specs/llama-cpp-local-model/tasks.md`
-- Current checkpoint: T1.1 and T1.2 RED tests are committed; no production
-  `src/dynamic_agent_runner/local_models.py` implementation exists yet
+- Current checkpoint: T1.1 and T1.2 RED tests are committed, T1.3 helper
+  implementation landed in commit `6d269ad`, and the targeted Slice 1 helper
+  checks are GREEN; T1.4 is the next pending step
 
 ## Executed Checks
 
@@ -43,8 +44,25 @@ Status: in progress
   are now captured against the planned helper-built local adapter contract and
   still fail only at the missing `local_models` implementation boundary.
 
+### T1.3 GREEN — local endpoint helper implementation
+
+- Commit: `6d269ad` (`feat(local-models): add local openai endpoint helpers`)
+- Commands:
+  - `poetry run pytest tests/test_openai_client.py -q 2>&1`
+  - `poetry run pytest tests/test_executor.py -q 2>&1`
+- Expected result: the new helper module satisfies both the helper-contract and
+  executor-routing checks without adding a new executor branch
+- Observed result:
+  - `27 passed in 0.17s`
+  - `50 passed in 0.41s`
+- Interpretation: the first-slice local endpoint helper now exists at
+  `src/dynamic_agent_runner/local_models.py`, builds provider-backed sync/async
+  adapters with caller aliases plus `is_local=True`, and preserves the existing
+  metadata-based `local_only` routing seam.
+
 ## Pending Follow-up
 
-- T1.3 — implement `src/dynamic_agent_runner/local_models.py`
-- T4.1 / T4.2 — rerun targeted pytest commands once Slice 1 implementation turns
-  GREEN
+- T1.4 — confirm the helper remains fully on the existing provider seam without
+  changing request construction or response normalization ownership
+- T4.1 / T4.2 — rerun targeted pytest commands after later Slice 1 follow-up
+  changes when additional implementation lands

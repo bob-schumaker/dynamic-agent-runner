@@ -8,12 +8,14 @@
 - Status: approved-for-planning future-feature spec
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model support
-- Next gate: continue Slice 1 test-first execution with T1.3 while recording
-  fresh validation evidence in `validation.md`
+- Next gate: continue Slice 1 execution with T1.4 while recording fresh
+  validation evidence in `validation.md`
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
-  - no production local-model implementation is present in the repository yet;
-    only fresh T1.1 and T1.2 RED tests exist so far
+  - first-slice local endpoint helper implementation landed in commit `6d269ad`
+    (`feat(local-models): add local openai endpoint helpers`)
+  - fresh T1.1 and T1.2 RED checkpoints and targeted T1.3 GREEN validation now
+    exist; later Slice 1 follow-up remains pending
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
@@ -130,14 +132,15 @@ This feature specification covers:
 
 ## Current Status and Boundary
 
-- No active llama.cpp adapter implementation is currently present in the
-  repository.
-- Fresh test-first execution has started: T1.1 RED helper-contract tests landed
-  in commit `a5798cc` (`test(local-models): add RED tests for local endpoint
-  helpers`) and T1.2 RED executor-routing tests landed in commit `b79f124`
-  (`test(local-models): add RED executor routing coverage`), but the runtime
-  helper module under
-  `src/dynamic_agent_runner/local_models.py` does not exist yet.
+- The repository now contains an initial local-model helper module at
+  `src/dynamic_agent_runner/local_models.py`, added in commit `6d269ad`
+  (`feat(local-models): add local openai endpoint helpers`).
+- Fresh test-first execution has progressed through T1.3: T1.1 RED
+  helper-contract tests landed in commit `a5798cc`
+  (`test(local-models): add RED tests for local endpoint helpers`), T1.2 RED
+  executor-routing tests landed in commit `b79f124`
+  (`test(local-models): add RED executor routing coverage`), and the T1.3
+  helper implementation now satisfies the targeted Slice 1 checks.
 - Any earlier prototype code or prior test results are historical context only
   and do not count as current implementation or validation evidence.
 - This artifact is authoritative for feature intent and design boundaries;
@@ -530,8 +533,9 @@ from this specification.
 
 ### Assumptions
 
-- The repository currently has no active llama.cpp implementation, so all future
-  implementation validation must be generated fresh.
+- The repository now has an initial local endpoint helper implementation, but
+  broader llama.cpp follow-up work still requires fresh validation as each slice
+  lands.
 - The caller or deployer can own endpoint provisioning, credentials, readiness,
   and lifecycle for the preferred first slice.
 - The endpoint-backed OpenAI-compatible path remains the preferred first slice
@@ -543,9 +547,9 @@ from this specification.
 ## Open Questions and Next Planning Decisions
 
 - No blocking `NEEDS CLARIFICATION` items remain for this spec-level approval.
-- The next SDD gate must define the technical plan for the first implementation
-  slice, including exact runtime-owned configuration shapes, affected modules,
-  and validation commands.
+- The next SDD gate should continue Slice 1 implementation with T1.4, preserving
+  the approved helper surface while confirming request-construction and
+  response-normalization ownership stay on the existing provider seam.
 - `tasks.md` should decompose the first endpoint-backed local chat slice
   separately from later optional embedding or in-process follow-up work.
 
@@ -582,11 +586,9 @@ from this specification.
 ## Validation Status
 
 - This spec is authoritative for intended future behavior and boundaries.
-- There is not yet any GREEN implementation validation for this feature in the
-  present repository state.
-- Fresh validation evidence has begun with the T1.1 and T1.2 RED checkpoints
-  recorded in commits `a5798cc`, `b79f124`, and
-  `specs/llama-cpp-local-model/validation.md`.
+- Fresh validation evidence now includes T1.1 and T1.2 RED checkpoints plus the
+  targeted T1.3 GREEN implementation checks, recorded in commits `a5798cc`,
+  `b79f124`, `6d269ad`, and `specs/llama-cpp-local-model/validation.md`.
   - Command: `poetry run pytest tests/test_openai_client.py -q 2>&1`
   - Observed outcome: `3 failed, 24 passed`
   - Expected RED reason: `ModuleNotFoundError: No module named
@@ -595,6 +597,10 @@ from this specification.
   - Observed outcome: `1 failed, 49 passed`
   - Expected RED reason: `ModuleNotFoundError: No module named
     'dynamic_agent_runner.local_models'`
+  - Command: `poetry run pytest tests/test_openai_client.py -q 2>&1`
+  - Observed outcome: `27 passed in 0.17s`
+  - Command: `poetry run pytest tests/test_executor.py -q 2>&1`
+  - Observed outcome: `50 passed in 0.41s`
 - Future implementation work must continue generating fresh validation evidence
   rather than relying on any reverted prototype results.
 - The current authoritative companion SDD artifacts for this feature are
