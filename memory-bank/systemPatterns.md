@@ -179,6 +179,20 @@
   adapter/provider seam with runtime-owned provider config and normal adapter
   metadata such as `models` and `is_local=True`; a llama-specific helper may be
   added later but is not required for the first slice.
+- The current llama.cpp SDD plan/tasks package now narrows that into a concrete
+  first implementation shape: prefer a dedicated runtime-owned local-model
+  helper module (planned at `src/dynamic_agent_runner/local_models.py`) that
+  constructs `OpenAIClientAdapter` / `AsyncOpenAIClientAdapter` instances for
+  caller/deployer-owned local endpoints instead of adding a new executor branch.
+- Preserve the current executor boundary during that work: `executor.py` already
+  selects adapters through advertised `models` and filters on `is_local` for
+  `local_only`, so local-model follow-up should extend helper/config seams and
+  tests rather than widening executor control flow.
+- Expected first-slice validation surfaces for llama.cpp work are now explicit:
+  `tests/test_openai_client.py` for provider/helper behavior,
+  `tests/test_executor.py` for `local_only` routing, and a future
+  `tests/test_local_models.py` for local-model helper, resolution, and failure
+  taxonomy coverage.
 - Keep offline or no-network download policy runtime-owned above the portable
   workflow package, and treat model-identity mismatch checks as driven by
   runtime-owned adapter configuration such as declared alias, explicit local

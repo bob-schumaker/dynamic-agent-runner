@@ -312,3 +312,27 @@
   - model mismatch reporting keys off runtime-owned adapter identity such as
     declared model alias, explicit local path, or explicit Hugging Face
     reference
+- The llama.cpp local-model future feature now has an authoritative SDD spec in
+  commit `1fdfdda` (`docs(specs): make llama.cpp local-model spec
+  authoritative`). That refresh converted the feature doc from light-mode
+  framing into a guided SDD spec with explicit user stories, non-functional
+  requirements, scope boundaries, dependencies/assumptions, and a next-gate
+  requirement that planning artifacts exist before implementation.
+- Focused validation for that authoritative-spec refresh passed with:
+  - `pre-commit run --files specs/llama-cpp-local-model/spec.md 2>&1`
+  - `rumdl check` / `rumdl format` passed after one markdown line-wrap fix
+- The next SDD gate for the same feature is now committed in `82c62fe`
+  (`docs(specs): add llama.cpp local-model planning artifacts`), adding:
+  - `specs/llama-cpp-local-model/plan.md`
+  - `specs/llama-cpp-local-model/tasks.md`
+- That planning pass established:
+  - Slice 1 = endpoint-backed local chat through the existing provider seam
+  - Slice 2 = runtime-owned model-reference resolution and failure taxonomy
+  - Slice 3 = optional embedding / in-process follow-up
+  - a new expected helper surface in `src/dynamic_agent_runner/local_models.py`
+    instead of a new executor path
+  - explicit test-first tasks and validation commands for the first slice
+- Focused validation for the new planning artifacts passed with:
+  - `pre-commit run --files specs/llama-cpp-local-model/plan.md`
+    `specs/llama-cpp-local-model/tasks.md` `2>&1`
+  - `rumdl check` / `rumdl format` passed

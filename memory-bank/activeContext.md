@@ -312,13 +312,37 @@
   - intended model identity for mismatch reporting comes from runtime-owned
     adapter configuration such as declared model alias, explicit local path, or
     explicit Hugging Face reference
+- That future feature now has a committed authoritative SDD artifact set:
+  - `1fdfdda` — `docs(specs): make llama.cpp local-model spec authoritative`
+  - `82c62fe` — `docs(specs): add llama.cpp local-model planning artifacts`
+- `specs/llama-cpp-local-model/spec.md` is now the authoritative guided SDD
+  spec for the feature rather than a light-mode design note, and it now
+  explicitly requires `plan.md` / `tasks.md` before implementation.
+- `specs/llama-cpp-local-model/plan.md` now records the preferred phased
+  implementation strategy:
+  - Slice 1 = caller/deployer-owned OpenAI-compatible endpoint-backed local
+    chat through the existing provider seam
+  - Slice 2 = runtime-owned model-reference resolution plus clearer local-model
+    failure taxonomy
+  - Slice 3 = optional embedding and in-process follow-up
+- `specs/llama-cpp-local-model/tasks.md` now makes Slice 1 the active next
+  execution gate and decomposes it into concrete test-first work around a new
+  runtime-owned local-model helper surface, expected to live in
+  `src/dynamic_agent_runner/local_models.py`, while preserving current executor
+  routing through adapter `models` and `is_local` metadata.
 
 ## Next Steps
 
 - The provider-wrapper follow-up is currently complete through Slice 6; if work
   resumes in that area, treat it as optional future polish or broader
   provider-specific follow-up rather than a required next implementation slice.
-- If implementation resumes, start from `OA11` in the governing SDD artifacts.
+- If llama.cpp local-model implementation resumes, start from
+  `specs/llama-cpp-local-model/tasks.md` Slice 1 rather than from the old OA
+  follow-up queue.
+- Treat the current source of truth for the llama.cpp feature as:
+  - `specs/llama-cpp-local-model/spec.md`
+  - `specs/llama-cpp-local-model/plan.md`
+  - `specs/llama-cpp-local-model/tasks.md`
 - If OA8 expansion is later resumed, start from
   `specs/async-session-memory-pipeline/implementation-plan.md` and preserve the
   existing metadata-only seam as the first-pass contract.
