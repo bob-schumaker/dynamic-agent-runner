@@ -20,11 +20,13 @@ Status: Draft
   wiring is complete in commit `ee0bf33`
   (`refactor(local-models): route helpers through adapter factories`); T1.5
   package-root exports are complete in commit `dd37c62`
-  (`feat(local-models): export local endpoint helpers`); the Slice 1 validation
-  checkpoint is complete through T4.5
-- Current execution gate: T2.1 is the next pending step — add failing tests in
-  `tests/test_local_models.py` for the approved model-resolution precedence
-  order
+  (`feat(local-models): export local endpoint helpers`); T2.1 RED
+  model-resolution precedence tests are complete in commit `f564caa`
+  (`test(local-models): add RED resolution precedence coverage`); the Slice 1
+  validation checkpoint is complete through T4.5
+- Current execution gate: T2.2 is the next pending step — add failing tests in
+  `tests/test_local_models.py` for offline-policy blocks, invalid Hub
+  references, cache misses, and model-mismatch classification
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
@@ -123,7 +125,7 @@ Status: Draft
 
 ## Slice 2 — Runtime-owned model reference resolution and failure taxonomy
 
-- [ ] T2.1 [tests] Add failing tests in `tests/test_local_models.py` for the
+- [x] T2.1 [tests] Add failing tests in `tests/test_local_models.py` for the
       approved model-resolution precedence order.
   - Spec: FR-5, FR-5b
   - Plan: Slice 2 — Runtime-owned model reference resolution and failure
@@ -134,6 +136,13 @@ Status: Draft
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Evidence: coverage proves precedence across explicit local path, explicit
     cache root, default cache root, and explicit Hub reference
+  - Completed in commit `f564caa` (`test(local-models): add RED resolution
+    precedence coverage`)
+  - RED: `poetry run pytest tests/test_local_models.py -q 2>&1` — failed with
+    `ImportError: cannot import name 'HuggingFaceModelFileReference' from
+    'dynamic_agent_runner.local_models'` after adding precedence coverage for
+    explicit local path, explicit cache root, default cache root, and explicit
+    Hub-file fallback resolution
 
 - [ ] T2.2 [tests] Add failing tests in `tests/test_local_models.py` for offline
       policy blocks, invalid Hub references, cache misses, and model-mismatch

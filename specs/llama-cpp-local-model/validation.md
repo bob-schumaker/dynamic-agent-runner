@@ -10,7 +10,8 @@ Status: in progress
 - Current checkpoint: T1.1 and T1.2 RED tests are committed, T1.3 helper
   implementation landed in commit `6d269ad`, T1.4 provider-seam wiring landed
   in commit `ee0bf33`, T1.5 package-root exports landed in commit `dd37c62`, and
-  the targeted Slice 1 checks are GREEN; T2.1 is the next pending step
+  the targeted Slice 1 checks are GREEN; T2.1 RED precedence tests are now
+  committed in `f564caa`, and T2.2 is the next pending step
 
 ## Executed Checks
 
@@ -104,9 +105,34 @@ Status: in progress
   helper surface additive while preserving the existing executor-facing adapter
   boundary and the focused Slice 1 validation checkpoint.
 
+### T2.1 RED — model-resolution precedence contract
+
+- Commit: `f564caa` (`test(local-models): add RED resolution precedence coverage`)
+- Commands:
+  - `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - `poetry run pre-commit run --files tests/test_local_models.py 2>&1`
+- Expected result: fail before the Slice 2 model-reference types and resolution
+  helper exist, while formatting/lint checks pass for the new focused test file
+- Observed result:
+  - `4 failed in 0.20s`
+  - Ruff Check passed; Ruff Format passed
+- Failure boundary:
+  - `ImportError: cannot import name 'HuggingFaceModelFileReference' from
+    'dynamic_agent_runner.local_models'`
+  - affected tests:
+    - `test_resolve_local_model_path_prefers_explicit_local_path_over_cache_and_hub`
+    - `test_resolve_local_model_path_prefers_explicit_cache_root_over_default_cache`
+    - `test_resolve_local_model_path_prefers_default_cache_root_over_hub_download`
+    - `test_resolve_local_model_path_falls_back_to_hub_reference_after_local_misses`
+- Interpretation: the RED checkpoint now fixes the approved T2.1 precedence
+  order in `tests/test_local_models.py` and confirms the next implementation
+  boundary is the missing Slice 2 resolution surface in
+  `dynamic_agent_runner.local_models`.
+
 ## Pending Follow-up
 
-- T2.1 — add failing tests in `tests/test_local_models.py` for the approved
-  model-resolution precedence order
+- T2.2 — add failing tests in `tests/test_local_models.py` for offline-policy
+  blocks, invalid Hub references, cache misses, and model-mismatch
+  classification
 - T4.4 — run `poetry run pytest tests/test_local_models.py -q` when the
   local-model helper module and resolution logic exist

@@ -60,10 +60,11 @@ lifecycle.
 - The repository now exposes an initial llama.cpp-oriented local endpoint helper
   module at `src/dynamic_agent_runner/local_models.py`, now re-exported from
   `src/dynamic_agent_runner/__init__.py` for the approved caller-facing config
-  and helper surface, but it does not yet include model reference types,
-  asset-resolution helpers, or a distinct local-model failure taxonomy; the
-  helper routes through explicit adapter-factory helpers owned by
-  `openai_client.py`.
+  and helper surface, and `tests/test_local_models.py` now captures the approved
+  T2.1 model-resolution precedence contract in RED, but the runtime still does
+  not yet include model reference types, asset-resolution helpers, or a distinct
+  local-model failure taxonomy; the helper routes through explicit adapter-
+  factory helpers owned by `openai_client.py`.
 - Existing tests already exercise fake-client adapter behavior and executor
   routing, so the new feature can extend current test surfaces without live
   infrastructure.
@@ -88,8 +89,10 @@ Deliver the highest-ROI path first:
   wiring completed in commit `ee0bf33`
   (`refactor(local-models): route helpers through adapter factories`); T1.5
   package-root exports completed in commit `dd37c62`
-  (`feat(local-models): export local endpoint helpers`); T2.1 is the next Slice
-  2 step
+  (`feat(local-models): export local endpoint helpers`); T2.1 RED
+  model-resolution precedence tests completed in commit `f564caa`
+  (`test(local-models): add RED resolution precedence coverage`); T2.2 is the
+  next Slice 2 step
 
 This slice satisfies the primary implementation path in the approved spec.
 
@@ -317,6 +320,13 @@ Initial recorded evidence:
     src/dynamic_agent_runner/__init__.py tests/test_openai_client.py
     tests/test_executor.py tests/test_import.py 2>&1`
   - Observed outcome: Ruff Check passed; Ruff Format passed
+- T2.1 RED evidence after commit `f564caa`:
+  - Command: `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - Observed outcome: `4 failed in 0.20s`
+  - Expected RED reason: `ImportError: cannot import name
+    'HuggingFaceModelFileReference' from 'dynamic_agent_runner.local_models'`
+  - Command: `poetry run pre-commit run --files tests/test_local_models.py 2>&1`
+  - Observed outcome: Ruff Check passed; Ruff Format passed
 
 ## Risks and Mitigations
 
@@ -358,6 +368,8 @@ Initial recorded evidence:
   RED commit `b79f124`. The user later directed T1.3 execution, producing
   implementation commit `6d269ad`, and later directed T1.4 execution,
   producing implementation commit `ee0bf33`. The user later directed T1.5
-  execution, producing implementation commit `dd37c62`. Slice 1 is now complete
-  through its export and focused-validation checkpoint, and broader follow-up now
-  moves to Slice 2 planning/execution.
+  execution, producing implementation commit `dd37c62`. The user later directed
+  T2.1 execution, producing RED commit `f564caa`. Slice 1 is now complete
+  through its export and focused-validation checkpoint, and Slice 2 now has its
+  first committed precedence-contract tests before broader follow-up continues at
+  T2.2.
