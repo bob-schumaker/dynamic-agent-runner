@@ -4,7 +4,8 @@
 
 - Feature slug: `openai-compatible-provider-wrapper`
 - Mode: `guided`
-- Status: proposed follow-up; not implemented in the current repo state
+- Status: partially implemented follow-up; Slices 1-2 are implemented in the
+  current repo state, while later slices remain planned
 - Related artifacts:
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`
@@ -23,20 +24,23 @@ optional `api_key` inputs.
 
 ## Problem Statement
 
-The current runtime already has a useful model-adapter seam, but the default
-OpenAI path is still coupled to direct SDK construction inside
+The current runtime already has a useful model-adapter seam, and the first two
+provider-wrapper slices have improved the default OpenAI path inside
 `src/dynamic_agent_runner/openai_client.py`:
 
-- `create_default_openai_client()` currently returns `openai.OpenAI()`
-- `create_default_async_openai_client()` currently returns
-  `openai.AsyncOpenAI()`
-- the current default factories do not yet accept `base_url`, optional
-  `api_key`, or a repository-owned provider-configuration object
+- `OpenAIProviderConfig`, `OpenAIClientProvider`, and
+  `AsyncOpenAIClientProvider` now provide a repository-owned provider/client
+  facade boundary
+- `SDKBackedOpenAIClientProvider` and `SDKBackedAsyncOpenAIClientProvider` now
+  isolate the official `openai` SDK-backed default transport
+- `create_default_openai_client(...)` and
+  `create_default_async_openai_client(...)` now accept a repository-owned
+  provider configuration object and support `base_url` plus optional `api_key`
 
-That is acceptable for the hosted OpenAI default path, but it keeps runtime
-implementation details too close to one SDK vendor shape and makes generic
-OpenAI-compatible providers feel like exceptions instead of first-class
-adapter-backed endpoints.
+That is meaningful progress, but the runtime has not yet completed the full
+refactor. The adapters still need a more explicit provider-layer refactor and
+the remaining slices must still lock down metadata-preserving routing semantics,
+request/response ownership boundaries, and the remaining validation surfaces.
 
 The repository also has a preserved local-model direction in
 `specs/llama-cpp-graph-mutation/spec.md` that prefers fitting local execution
@@ -59,6 +63,10 @@ runtime logic for each future local provider.
 - `openai_client.py` already owns request construction (`build_openai_request`)
   and response normalization (`normalize_openai_response`), which are good
   repository-owned seams to preserve.
+- `openai_client.py` now also exposes repository-owned provider/configuration
+  seams and SDK-backed default provider wrappers, but later slices still need to
+  tighten adapter-level consumption of that seam and preserve routing semantics
+  explicitly.
 - Adapter selection already preserves `models` and `is_local`, and executor
   routing already supports `local_only` requirements using those existing
   adapter attributes.

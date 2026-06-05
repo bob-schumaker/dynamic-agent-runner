@@ -27,13 +27,26 @@ hosted OpenAI default path.
 - The runtime already exposes `OpenAIClientAdapter` and
   `AsyncOpenAIClientAdapter` as the model-execution boundary.
 - `executor.py` already depends on those adapters rather than importing raw SDK
-  client classes, which means the main remaining coupling is inside
-  `openai_client.py`.
-- `openai_client.py` currently defines protocol types for a minimal Responses API
-  client, but its default factory functions still directly instantiate
-  `openai.OpenAI()` and `openai.AsyncOpenAI()`.
+  client classes, which means the remaining work is now focused on tightening
+  adapter-level use of the provider seam inside `openai_client.py`.
+- `openai_client.py` now defines repository-owned provider/configuration seams
+  (`OpenAIProviderConfig`, `OpenAIClientProvider`,
+  `AsyncOpenAIClientProvider`) and SDK-backed default provider wrappers
+  (`SDKBackedOpenAIClientProvider`, `SDKBackedAsyncOpenAIClientProvider`).
+- The default client factories now route through provider-backed construction and
+  support `base_url` plus optional `api_key`, while later slices still need to
+  tighten adapter/routing preservation around that seam.
 - Request construction and response normalization already live in repository code
   and should remain repository-owned after the refactor.
+
+## Current Implementation Status
+
+- **Slice 1** is complete in commit `99e225f`
+  (`feat(openai-client): add provider facade seam`).
+- **Slice 2** is complete in commit `282b93d`
+  (`feat(openai-client): isolate sdk-backed provider defaults`).
+- The next planned implementation step is **Slice 3 — Adapter refactor and
+  routing preservation**.
 
 ## Architectural Decision
 
