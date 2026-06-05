@@ -183,6 +183,45 @@ def test_adapter_can_use_repository_owned_provider_facade() -> None:
     assert result.content == "via provider"
 
 
+def test_adapter_default_path_constructs_through_default_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = FakeResponses(
+        {"id": "resp_default_provider", "output_text": "via default provider"}
+    )
+    provider = FakeProvider(responses)
+
+    def fake_default_provider() -> FakeProvider:
+        return provider
+
+    def fail_default_client() -> object:
+        raise AssertionError("default client factory should not be used directly")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.openai_client.create_default_openai_provider",
+        fake_default_provider,
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.openai_client.create_default_openai_client",
+        fail_default_client,
+    )
+
+    adapter = OpenAIClientAdapter()
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    first_client = adapter.client
+    second_client = adapter.client
+    result = adapter.create_response(request)
+
+    assert first_client is second_client is provider.client
+    assert provider.calls == 1
+    assert result.response_id == "resp_default_provider"
+    assert result.content == "via default provider"
+
+
 def test_async_adapter_awaits_injected_client_and_normalizes_response() -> None:
     responses = FakeAsyncResponses(
         {"id": "resp_async_123", "output_text": "async final"}
@@ -227,6 +266,48 @@ def test_async_adapter_can_use_repository_owned_provider_facade() -> None:
     assert provider.config.base_url == "http://localhost:11434/v1"
     assert result.response_id == "resp_async_provider"
     assert result.content == "via async provider"
+
+
+def test_async_adapter_default_path_constructs_through_default_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = FakeAsyncResponses(
+        {
+            "id": "resp_async_default_provider",
+            "output_text": "via async default provider",
+        }
+    )
+    provider = FakeAsyncProvider(responses)
+
+    def fake_default_provider() -> FakeAsyncProvider:
+        return provider
+
+    def fail_default_client() -> object:
+        raise AssertionError("default async client factory should not be used directly")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.openai_client.create_default_async_openai_provider",
+        fake_default_provider,
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.openai_client.create_default_async_openai_client",
+        fail_default_client,
+    )
+
+    adapter = AsyncOpenAIClientAdapter()
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello async")],
+    )
+
+    first_client = adapter.client
+    second_client = adapter.client
+    result = asyncio.run(adapter.create_response(request))
+
+    assert first_client is second_client is provider.client
+    assert provider.calls == 1
+    assert result.response_id == "resp_async_default_provider"
+    assert result.content == "via async default provider"
 
 
 def test_normalize_openai_response_extracts_message_text_and_tool_calls() -> None:

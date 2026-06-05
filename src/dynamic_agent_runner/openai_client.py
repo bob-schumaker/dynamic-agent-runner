@@ -180,10 +180,9 @@ class OpenAIClientAdapter:
 
         with self._client_lock:
             if self._client is None:
-                if self._provider is not None:
-                    self._client = self._provider.get_client()
-                else:
-                    self._client = create_default_openai_client()
+                if self._provider is None:
+                    self._provider = create_default_openai_provider()
+                self._client = self._provider.get_client()
             return self._client
 
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
@@ -235,10 +234,9 @@ class AsyncOpenAIClientAdapter:
 
         with self._client_lock:
             if self._client is None:
-                if self._provider is not None:
-                    self._client = self._provider.get_client()
-                else:
-                    self._client = create_default_async_openai_client()
+                if self._provider is None:
+                    self._provider = create_default_async_openai_provider()
+                self._client = self._provider.get_client()
             return self._client
 
     async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
