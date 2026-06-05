@@ -40,6 +40,15 @@
   `specs/openai-compatible-provider-wrapper/spec.md` and
   `specs/openai-compatible-provider-wrapper/plan.md` now describe Slices 1-2 as
   implemented and keep Slice 3 as the next planned implementation step.
+- Provider-wrapper Slice 3 landed in commit `bc1ce39`
+  (`feat(openai-client): route default adapters through providers`). That slice
+  refactored `OpenAIClientAdapter` and `AsyncOpenAIClientAdapter` so their
+  default lazy-construction paths now resolve clients through the repository-
+  owned default provider facades instead of bypassing the provider seam.
+- The provider-wrapper spec docs were refreshed again after Slice 3 in commit
+  `1e92aa3` (`docs(specs): align provider wrapper docs with slice 3`) so the
+  feature-spec package now records Slices 1-3 as implemented and advances the
+  next planned step to Slice 4.
 
 ## Current State Snapshot
 
@@ -76,6 +85,18 @@
 
 ## Latest Completed Follow-up Slices
 
+- Provider-wrapper Slice 3 completed in `bc1ce39`: `OpenAIClientAdapter` and
+  `AsyncOpenAIClientAdapter` now lazily construct default clients through
+  `create_default_openai_provider(...)` /
+  `create_default_async_openai_provider(...)`, so both explicit-provider and
+  default-construction paths consistently depend on the repository-owned
+  provider seam while preserving `models` / `is_local` executor-routing
+  semantics.
+- Provider-wrapper Slice 3 validation passed with:
+  - `poetry run pytest tests/test_openai_client.py -q` (`22 passed`)
+  - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
+    `tests/test_openai_client.py`
 - Provider-wrapper Slice 2 completed in `282b93d`: `openai_client.py` now
   exposes `SDKBackedOpenAIClientProvider`,
   `SDKBackedAsyncOpenAIClientProvider`, `create_default_openai_provider(...)`,
@@ -153,12 +174,12 @@
   - `specs/openai-compatible-provider-wrapper/spec.md`
   - `specs/openai-compatible-provider-wrapper/plan.md`
   - `specs/openai-compatible-provider-wrapper/tasks.md`
-- Provider-wrapper Slices 1-2 are now implemented and recorded in
+- Provider-wrapper Slices 1-3 are now implemented and recorded in
   `specs/openai-compatible-provider-wrapper/tasks.md`; if that feature
-  continues, Slice 3 is the next logical implementation step.
-- The provider-wrapper spec/plan docs are also aligned through Slice 2 in
-  commit `5dce42b`, so the feature-spec package now consistently reflects the
-  committed implementation state before Slice 3 begins.
+  continues, Slice 4 is the next logical implementation step.
+- The provider-wrapper spec/plan/task docs are aligned through Slice 3 in
+  commit `1e92aa3`, so the feature-spec package now consistently reflects the
+  committed implementation state before Slice 4 begins.
 - The provider-wrapper plan now explicitly prioritizes:
   - repository-owned sync/async provider-client facades
   - SDK-backed wrapper isolation
@@ -202,10 +223,10 @@
 ## Next Steps
 
 - If the selected provider-wrapper expansion now moves into implementation,
-  continue with Slice 3 from
+  continue with Slice 4 from
   `specs/openai-compatible-provider-wrapper/tasks.md`: refactor adapters and
-  routing preservation more explicitly around the provider layer while
-  preserving `models` / `is_local` semantics and executor compatibility.
+  preserve repository-owned request construction and response normalization so
+  provider-transport changes do not leak semantics into executor logic.
 - If implementation resumes, start from `OA11` in the governing SDD artifacts.
 - If OA8 expansion is later resumed, start from
   `specs/async-session-memory-pipeline/implementation-plan.md` and preserve the

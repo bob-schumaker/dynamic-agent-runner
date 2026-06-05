@@ -2,6 +2,27 @@
 
 ## Working
 
+- The OpenAI-compatible provider-wrapper Slice 3 implementation is complete in
+  `bc1ce39` (`feat(openai-client): route default adapters through providers`).
+- That implementation updated `src/dynamic_agent_runner/openai_client.py` so:
+  - `OpenAIClientAdapter` lazily resolves its default client through
+    `create_default_openai_provider(...)`
+  - `AsyncOpenAIClientAdapter` lazily resolves its default client through
+    `create_default_async_openai_provider(...)`
+  - both default and explicit-provider adapter paths now consistently depend on
+    the repository-owned provider seam while preserving `models` / `is_local`
+- Slice 3 validation passed with:
+  - `poetry run pytest tests/test_openai_client.py -q` (`22 passed`)
+  - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
+    `tests/test_openai_client.py`
+- The provider-wrapper spec docs are now aligned through Slice 3 in `1e92aa3`
+  (`docs(specs): align provider wrapper docs with slice 3`), updating:
+  - `specs/openai-compatible-provider-wrapper/spec.md`
+  - `specs/openai-compatible-provider-wrapper/plan.md`
+  - `specs/openai-compatible-provider-wrapper/tasks.md`
+  so they match the committed adapter/provider seam implementation state and set
+  Slice 4 as the next planned step.
 - The OpenAI-compatible provider-wrapper Slice 2 implementation is complete in
   `282b93d` (`feat(openai-client): isolate sdk-backed provider defaults`).
 - That implementation added SDK-backed default provider wrapping in
@@ -44,13 +65,8 @@
   active remaining upstream-conditional follow-up in
   `specs/dynamic-agent-runner/tasks.md`.
 - User direction has selected the provider-wrapper feature as the next
-  high-ROI future expansion, and Slices 1-2 are now committed while Slice 3 is
+  high-ROI future expansion, and Slices 1-3 are now committed while Slice 4 is
   the next logical provider-wrapper implementation step.
-- The provider-wrapper spec docs are now aligned through Slice 2 in `5dce42b`
-  (`docs(specs): align provider wrapper docs with slice 2`), updating
-  `specs/openai-compatible-provider-wrapper/spec.md` and
-  `specs/openai-compatible-provider-wrapper/plan.md` so they match the committed
-  provider seam and SDK-backed default-wrapper implementation state.
 - The primary spec set and related feature specs are now internally consistent
   with the current repo state in commit `e6b5f2c`
   (`docs(specs): align spec artifacts with repo state`).
@@ -139,14 +155,14 @@
 ## In Flight
 
 - The active ordered backlog is: `OA11`.
-- The active provider-wrapper follow-up, if resumed, is Slice 3.
+- The active provider-wrapper follow-up, if resumed, is Slice 4.
 
 ## Remaining
 
-- If the provider-wrapper follow-up is implemented next, continue with Slice 3
-  in `specs/openai-compatible-provider-wrapper/tasks.md`: refactor adapters and
-  routing preservation more explicitly around the provider layer while
-  preserving `models` / `is_local` semantics and executor compatibility.
+- If the provider-wrapper follow-up is implemented next, continue with Slice 4
+  in `specs/openai-compatible-provider-wrapper/tasks.md`: preserve
+  repository-owned request construction and response normalization so provider-
+  transport changes do not leak semantics into executor logic.
 - Start the next scoped implementation from `OA11` in the governing SDD docs.
 - If OA8 expansion is later prioritized, treat the current future-spec package
   as the design baseline and preserve the already-implemented metadata-only seam
