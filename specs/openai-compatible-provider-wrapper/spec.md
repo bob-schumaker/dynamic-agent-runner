@@ -4,8 +4,8 @@
 
 - Feature slug: `openai-compatible-provider-wrapper`
 - Mode: `guided`
-- Status: partially implemented follow-up; Slices 1-4 are implemented in the
-  current repo state, while later slices remain planned
+- Status: implemented follow-up; Slices 1-6 are implemented in the current
+  repo state, and the planned validation evidence has been recorded
 - Related artifacts:
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`
@@ -42,13 +42,18 @@ provider-wrapper slices have improved the default OpenAI path inside
 - repository-owned sync/async response-dispatch helpers now centralize transport
   calls, runtime-facing error translation, and response normalization inside
   `openai_client.py`
+- `dynamic_agent_runner.__init__` now re-exports the provider-configuration seam
+  so callers can construct OpenAI-compatible adapters through the package's
+  public surface, and `README.md` now includes a concrete compatible-endpoint
+  example
 
-That is meaningful progress, but the runtime has not yet completed the full
-refactor. Slice 4 now makes request dispatch and response normalization ownership
-more explicit by routing both adapters through repository-owned sync/async
-helpers while preserving existing metadata-based routing semantics. The
-remaining slices are now focused on broader validation bookkeeping and optional
-follow-up polish.
+That refactor is now implemented in the repository. Slice 4 made request
+dispatch and response normalization ownership more explicit by routing both
+adapters through repository-owned sync/async helpers while preserving existing
+metadata-based routing semantics. Slice 6 then made the provider-configuration
+seam caller-visible through package exports and added a README example for
+OpenAI-compatible endpoints. The remaining work in this area is now optional
+future polish rather than unfinished feature-core behavior.
 
 The repository also has a preserved local-model direction in
 `specs/llama-cpp-graph-mutation/spec.md` that prefers fitting local execution
@@ -79,6 +84,9 @@ runtime logic for each future local provider.
   dispatch helpers so transport calls, runtime-facing error translation, and
   normalization remain centralized in repository code rather than spread across
   adapter implementations.
+- `__init__.py` now re-exports `OpenAIProviderConfig` plus the default provider
+  factory helpers so callers can configure OpenAI-compatible endpoints through
+  the package-level API without reaching into internal module paths.
 - Adapter selection already preserves `models` and `is_local`, and executor
   routing already supports `local_only` requirements using those existing
   adapter attributes.

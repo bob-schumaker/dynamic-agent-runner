@@ -2,14 +2,16 @@
 
 ## Status
 
-- State: Slices 1-4 implemented; `src/dynamic_agent_runner/openai_client.py`
+- State: Slices 1-6 implemented; `src/dynamic_agent_runner/openai_client.py`
   now exposes a repository-owned provider/client facade, provider
   configuration, SDK-backed default provider wrappers, provider-config-aware
   default sync/async client factories supporting `base_url` plus optional
   `api_key`, and adapters that lazily resolve their default clients through the
   provider seam while preserving `models` / `is_local` routing semantics;
   response dispatch now also flows through repository-owned sync/async helpers
-  so transport calls, error translation, and normalization remain centralized
+  so transport calls, error translation, and normalization remain centralized,
+  while `src/dynamic_agent_runner/__init__.py` and `README.md` now expose the
+  provider-configuration seam through the package-level public API
 - Source spec: `specs/openai-compatible-provider-wrapper/spec.md`
 - Technical plan: `specs/openai-compatible-provider-wrapper/plan.md`
 - Primary implementation area: `src/dynamic_agent_runner/openai_client.py`
@@ -76,10 +78,10 @@
 
 ## Slice 6 — Optional export and documentation follow-up
 
-- [ ] T6.1 Update `src/dynamic_agent_runner/__init__.py` exports if the refactor
+- [x] T6.1 Update `src/dynamic_agent_runner/__init__.py` exports if the refactor
       introduces new public wrapper or configuration types that should be
       caller-visible.
-- [ ] T6.2 Update `README.md` or adjacent docs only if public usage changes or a
+- [x] T6.2 Update `README.md` or adjacent docs only if public usage changes or a
       new OpenAI-compatible endpoint example materially improves clarity.
 
 ## Slice 7 — Validation evidence
@@ -88,7 +90,7 @@
       result.
 - [x] T7.2 If adapter integration behavior changed, run
       `poetry run pytest tests/test_executor.py -q` and record the result.
-- [ ] T7.3 If exports changed, run `poetry run pytest tests/test_import.py -q`
+- [x] T7.3 If exports changed, run `poetry run pytest tests/test_import.py -q`
       and record the result.
 
 ## Ordering Notes

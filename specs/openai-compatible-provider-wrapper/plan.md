@@ -43,6 +43,9 @@ hosted OpenAI default path.
 - Request construction and response normalization now live behind explicit
   repository-owned helper boundaries, including centralized sync/async response
   dispatch helpers inside `openai_client.py`.
+- `src/dynamic_agent_runner/__init__.py` now re-exports
+  `OpenAIProviderConfig` plus the default sync/async provider factories, and
+  `README.md` now shows a package-level OpenAI-compatible endpoint example.
 
 ## Current Implementation Status
 
@@ -54,13 +57,20 @@ hosted OpenAI default path.
   (`feat(openai-client): route default adapters through providers`).
 - **Slice 4** is complete in commit `a437b1a`
   (`feat(openai-client): centralize response dispatch helpers`).
-- Slice 4 validation passed with:
+- **Slice 6** is complete in commit `66212f4`
+  (`feat(openai-client): export provider config seam`).
+- Current focused validation evidence includes:
   - `poetry run pytest tests/test_openai_client.py -q` (`24 passed`)
   - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
+  - `poetry run pytest tests/test_import.py -q` (`1 passed`)
   - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
     `tests/test_openai_client.py`
-- The next planned implementation step is **Slice 5 — Tests for wrapper behavior
-  and compatible endpoints**.
+  - focused `pre-commit run --files src/dynamic_agent_runner/__init__.py`
+    `tests/test_import.py` `README.md`
+- The Slice 6 follow-up exposed the provider-configuration seam through the
+  package public API and documented a compatible-endpoint adapter example.
+- No additional implementation slice is currently required for this feature;
+  future work would be optional polish or broader provider-specific follow-up.
 
 ## Architectural Decision
 
@@ -239,6 +249,12 @@ This slice is valuable but should not delay the core transport-boundary work:
     caller-visible
   - update docs only when usage materially changes or an endpoint example adds
     clarity
+
+Slice 6 is now complete: the package re-exports `OpenAIProviderConfig`,
+`create_default_openai_provider(...)`, and
+`create_default_async_openai_provider(...)`, while `README.md` includes a
+package-level compatible-endpoint example that preserves the existing
+`model_adapter` execution seam.
 
 ### Smallest useful kickoff slice
 
