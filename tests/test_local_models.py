@@ -38,6 +38,19 @@ class _FailingAsyncClient:
         self.responses = _FailingAsyncResponses(error)
 
 
+class _StaticResponses:
+    def __init__(self, response: object) -> None:
+        self.response = response
+
+    def create(self, **_: object) -> object:
+        return self.response
+
+
+class _StaticClient:
+    def __init__(self, response: object) -> None:
+        self.responses = _StaticResponses(response)
+
+
 def test_resolve_local_model_path_prefers_explicit_local_path_over_cache_and_hub(
     tmp_path: Path,
 ) -> None:
@@ -326,6 +339,83 @@ def test_validate_local_model_identity_classifies_model_mismatch_with_runtime_ow
             expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
             observed_model_id="llama-2-7b-chat",
         )
+
+
+def test_validate_local_model_identity_reports_explicit_local_path_metadata() -> None:
+    from dynamic_agent_runner.errors import LocalModelIdentityMismatchError
+    from dynamic_agent_runner.local_models import validate_local_model_identity
+
+    with pytest.raises(
+        LocalModelIdentityMismatchError,
+        match="local-qwen-chat.*Qwen/Qwen3-4B-Instruct-2507.*models/chat-model\\.gguf.*llama-2-7b-chat",
+    ):
+        validate_local_model_identity(
+            requested_model="local-qwen-chat",
+            expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+            observed_model_id="llama-2-7b-chat",
+            explicit_model_path=Path("/models/chat-model.gguf"),
+        )
+
+
+def test_validate_local_model_identity_reports_hub_file_reference_metadata() -> None:
+    from dynamic_agent_runner.errors import LocalModelIdentityMismatchError
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        validate_local_model_identity,
+    )
+
+    with pytest.raises(
+        LocalModelIdentityMismatchError,
+        match="local-qwen-chat.*Qwen/Qwen3-4B-Instruct-2507.*Qwen/Qwen3-4B-GGUF.*chat-model\\.gguf.*main.*llama-2-7b-chat",
+    ):
+        validate_local_model_identity(
+            requested_model="local-qwen-chat",
+            expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+            observed_model_id="llama-2-7b-chat",
+            huggingface_file=HuggingFaceModelFileReference(
+                repo_id="Qwen/Qwen3-4B-GGUF",
+                filename="chat-model.gguf",
+                revision="main",
+            ),
+        )
+
+
+def test_local_openai_adapter_validates_observed_model_against_expected_identity() -> (
+    None
+):
+    from dynamic_agent_runner.errors import LocalModelIdentityMismatchError
+    from dynamic_agent_runner.local_models import (
+        LocalOpenAIEndpointConfig,
+        create_local_openai_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    adapter = create_local_openai_adapter(
+        LocalOpenAIEndpointConfig(
+            base_url="http://localhost:11434/v1",
+            model_aliases=["local-qwen-chat"],
+            provider_name="llama.cpp",
+            expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+        )
+    )
+    adapter._client = _StaticClient(
+        {
+            "id": "resp_1",
+            "model": "llama-2-7b-chat",
+            "output_text": "hello from the wrong model",
+        }
+    )
+
+    request = build_openai_request(
+        model="local-qwen-chat",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    with pytest.raises(
+        LocalModelIdentityMismatchError,
+        match="local-qwen-chat.*Qwen/Qwen3-4B-Instruct-2507.*llama-2-7b-chat",
+    ):
+        adapter.create_response(request)
 
 
 def test_local_openai_adapter_translates_endpoint_connectivity_failures() -> None:

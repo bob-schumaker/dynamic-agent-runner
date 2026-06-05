@@ -17,6 +17,8 @@ from dynamic_agent_runner.errors import (
 from dynamic_agent_runner.openai_client import (
     OpenAIProviderConfig,
     AsyncOpenAIClientAdapter,
+    ModelResponse,
+    OpenAIModelRequest,
     OpenAIClientAdapter,
     create_async_openai_adapter_from_provider_config,
     create_openai_adapter_from_provider_config,
@@ -95,6 +97,7 @@ def create_local_openai_adapter(
         models=config.model_aliases,
         is_local=True,
         error_translator=_local_endpoint_error_translator(config),
+        response_validator=_local_endpoint_response_validator(config),
     )
 
 
@@ -108,6 +111,7 @@ def create_local_async_openai_adapter(
         models=config.model_aliases,
         is_local=True,
         error_translator=_local_endpoint_error_translator(config),
+        response_validator=_local_endpoint_response_validator(config),
     )
 
 
@@ -169,6 +173,9 @@ def validate_local_model_identity(
     requested_model: str,
     expected_model_id: str | None,
     observed_model_id: str | None,
+    explicit_model_path: Path | None = None,
+    huggingface_file: HuggingFaceModelFileReference | None = None,
+    huggingface_snapshot: HuggingFaceSnapshotReference | None = None,
 ) -> None:
     """Validate that the observed local-model identity matches the intended one."""
 
@@ -176,9 +183,15 @@ def validate_local_model_identity(
         return
     if expected_model_id == observed_model_id:
         return
+    authoritative_identity = _describe_authoritative_model_identity(
+        expected_model_id=expected_model_id,
+        explicit_model_path=explicit_model_path,
+        huggingface_file=huggingface_file,
+        huggingface_snapshot=huggingface_snapshot,
+    )
     raise LocalModelIdentityMismatchError(
         "Local model identity mismatch for requested model "
-        f"{requested_model!r}: expected {expected_model_id!r} but observed "
+        f"{requested_model!r}: expected {authoritative_identity} but observed "
         f"{observed_model_id!r}"
     )
 
@@ -230,12 +243,59 @@ def _local_endpoint_error_translator(
     return translate
 
 
+def _local_endpoint_response_validator(
+    config: LocalOpenAIEndpointConfig,
+):
+    def validate(request: OpenAIModelRequest, response: ModelResponse) -> None:
+        validate_local_model_identity(
+            requested_model=request.model,
+            expected_model_id=config.expected_model_id,
+            observed_model_id=_read_observed_model_id(response.raw),
+        )
+
+    return validate
+
+
 def _describe_local_endpoint(config: LocalOpenAIEndpointConfig) -> str:
     provider_name = config.provider_name or "local endpoint"
     aliases = ", ".join(repr(alias) for alias in config.model_aliases)
     return (
         f"provider {provider_name!r} at {config.base_url!r} serving aliases ({aliases})"
     )
+
+
+def _describe_authoritative_model_identity(
+    *,
+    expected_model_id: str,
+    explicit_model_path: Path | None,
+    huggingface_file: HuggingFaceModelFileReference | None,
+    huggingface_snapshot: HuggingFaceSnapshotReference | None,
+) -> str:
+    details = [f"runtime-owned expected model id {expected_model_id!r}"]
+    if explicit_model_path is not None:
+        details.append(f"explicit local path {str(explicit_model_path)!r}")
+    if huggingface_file is not None:
+        details.append(
+            "Hugging Face file reference "
+            f"repo_id={huggingface_file.repo_id!r}, "
+            f"filename={huggingface_file.filename!r}, "
+            f"revision={huggingface_file.revision!r}"
+        )
+    if huggingface_snapshot is not None:
+        details.append(
+            "Hugging Face snapshot reference "
+            f"repo_id={huggingface_snapshot.repo_id!r}, "
+            f"revision={huggingface_snapshot.revision!r}"
+        )
+    return ", ".join(details)
+
+
+def _read_observed_model_id(raw_response: object) -> str | None:
+    if isinstance(raw_response, dict):
+        observed_model_id = raw_response.get("model")
+    else:
+        observed_model_id = getattr(raw_response, "model", None)
+    return str(observed_model_id) if observed_model_id is not None else None
 
 
 def _default_local_model_cache_root() -> Path:
