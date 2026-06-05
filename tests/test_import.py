@@ -25,3 +25,6 @@ def test_package_imports() -> None:
     assert dynamic_agent_runner.OpenAIProviderConfig is not None
     assert dynamic_agent_runner.create_default_openai_provider is not None
     assert dynamic_agent_runner.create_default_async_openai_provider is not None
+    assert dynamic_agent_runner.LocalOpenAIEndpointConfig is not None
+    assert dynamic_agent_runner.create_local_openai_adapter is not None
+    assert dynamic_agent_runner.create_local_async_openai_adapter is not None

@@ -21,6 +21,11 @@ from dynamic_agent_runner.prompt_cache import (
     build_prompt_cache_observation,
     prompt_cache_policy_from_value,
 )
+from dynamic_agent_runner.local_models import (
+    LocalOpenAIEndpointConfig,
+    create_local_async_openai_adapter,
+    create_local_openai_adapter,
+)
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     AsyncOpenAIClientProtocol,
@@ -105,6 +110,7 @@ __all__ = [
     "CompiledAgentWorkflow",
     "compile_agent_workflow",
     "DynamicAgentRunnerError",
+    "LocalOpenAIEndpointConfig",
     "ModelExecutionError",
     "ModelResponse",
     "ModelToolCall",
@@ -127,6 +133,8 @@ __all__ = [
     "build_openai_request",
     "create_default_async_openai_provider",
     "build_prompt_cache_observation",
+    "create_local_async_openai_adapter",
+    "create_local_openai_adapter",
     "create_default_async_openai_client",
     "create_default_openai_provider",
     "create_default_openai_client",
