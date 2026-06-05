@@ -117,7 +117,8 @@ or a clear error.
   follow-ups captured in `tasks.md`.
 - The earlier recommended implementation order for the active follow-up backlog
   was OA7, OA10, OA9, OA8, then OA11. OA7, OA10, OA9, and the metadata-only OA8
-  seam are now complete; OA11 is the remaining upstream-conditional follow-up.
+  seam are now complete, and OA11 is also complete, so the original follow-up
+  sequence is finished.
 - OA2 is now implemented in the working tree: tool provenance preserves the
   existing low-level source kind while adding a higher-level origin bucket that
   distinguishes registered, built-in, override, and future MCP or
@@ -224,6 +225,14 @@ or a clear error.
   summaries, first-customer decision memo, and host-managed Power-Marimo
   continuity sketch under `specs/async-session-memory-pipeline/` extend that
   implemented baseline with future design analysis.
+- OA11 is now implemented in the working tree: `ToolDefinition` preserves the
+  upstream portable `tool_type` vocabulary separately from runtime-specific
+  `adapter` selection and provenance/source metadata, validation fails closed
+  for unsupported `tool_type` values, and the built-in `local_workspace` tool
+  pack now records portable `file_read` semantics.
+- OA11 validation evidence: `poetry run pytest tests/test_import.py
+  tests/test_registry.py tests/test_validation.py -q 2>&1` — pass; 86 tests
+  passed.
 - Slice 13 is complete and committed: the runtime now preserves provider-neutral
   `runtime.execution_policy.prompt_cache` intent, emits prompt-cache trace
   evidence, accepts per-run `prompt_cache=False` overrides, and records provider

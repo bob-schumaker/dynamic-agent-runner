@@ -6,8 +6,8 @@
 - Mode: `light`
 - Artifact type: repository/product specification
 - Status: core runtime implementation is complete through package-alignment P5,
-  prompt-cache Slice 13, and async-first E14 follow-ups; remaining work is
-  limited to OA11 and future scoped expansions
+  prompt-cache Slice 13, async-first E14 follow-ups, and the OA11 portable
+  `tool_type` alignment; remaining work is limited to future scoped expansions
 - Source context:
   - `README.md`
   - `pyproject.toml`
@@ -318,6 +318,10 @@ Acceptance criteria:
   definitions are parsed, then the runtime preserves those values in a
   lightweight policy object separate from callable registry entries and node
   exposure decisions.
+- Given a tool definition includes portable `tool_type` metadata, when parsing
+  or validation runs, then the runtime preserves supported upstream `tool_type`
+  values separately from runtime-specific `adapter` and provenance/source
+  metadata, and fails closed for unsupported `tool_type` values.
 
 ### FR-2b: Compile a final workflow from base package plus overrides
 
@@ -1195,17 +1199,18 @@ a caller-registered tool, built-in tool pack, runtime override, MCP registry
 source, or agent-as-tool delegation. Provenance should remain separate from tool
 exposure, approval, sandbox, and side-effect policy.
 
-Future runtime-package alignment should also preserve the likely upstream split
-between:
+The upstream runtime-package reference now defines a portable `tool_type` field,
+and this repository preserves the split between:
 
-- portable tool-type semantics such as file, web, shell, code-execution,
-  external-API, agent-tool, or human-approval capabilities
+- portable tool-type semantics such as `file_read`, `file_write`,
+  `web_search`, `web_fetch`, `shell_command`, `code_execution`,
+  `structured_data_query`, `external_api`, `agent_tool`, or
+  `human_approval`
 - runtime-specific source/backend identity such as local adapters, SDK wrappers,
   MCP servers, or host-provided connectors
 
-This repository should treat portable tool taxonomy as shared manifest semantics
-when upstream defines it, while keeping concrete MCP/source injection contracts
-downstream-owned.
+The runtime now treats `tool_type` as shared manifest semantics while keeping
+concrete MCP/source injection contracts downstream-owned.
 
 Future context-management work should use a prepare-model-input stage before the
 model adapter call. That stage is the right seam for session pruning, context

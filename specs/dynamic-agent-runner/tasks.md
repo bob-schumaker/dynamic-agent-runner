@@ -15,16 +15,16 @@
 - Readiness verdict: runtime-package simplification follow-up is complete; not
   ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
   automation work without a new scoped follow-up.
-- Next active slice: OA11 — map any future upstream portable tool-type taxonomy
-  only if that upstream taxonomy is actually introduced.
-- Current focus: all planned implementation slices through P5 are complete;
+- Next active slice: none — OA11 is complete and the original OA follow-up
+  sequence is finished.
+- Current focus: all planned implementation slices through OA11 are complete;
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
 
 ## Active follow-up implementation order
 
-1. **OA11** — map any future upstream portable tool-type taxonomy only if that
-   upstream taxonomy is actually introduced.
+1. **Completed:** OA11 landed the upstream portable `tool_type` seam, so the
+   original OA follow-up sequence has no remaining active slices.
 
 ### Active follow-up ordering rationale
 
@@ -52,7 +52,8 @@
 - Convenience and optional-session metadata seams are complete: OA9 and the
   metadata-only OA8 seam are implemented, and OA10 sandbox/runtime metadata is
   also complete.
-- OA11 is the only remaining active upstream-conditional follow-up item.
+- OA11 is complete, so the original upstream-alignment follow-up queue is now
+  finished.
 - OA9 scope clarification: the helper may accept explicit metadata, but any
   missing or incomplete label, description, or input-schema fields should fall
   back to conservative inference from the Python callable rather than requiring
@@ -1231,10 +1232,19 @@ explicitly instead of leaving them as undocumented future behavior.
         `filesystem: read_only`.
       - Active order: completed after OA7, because writable-workspace runtime
         metadata remains downstream of the earlier policy and interruption seams.
-- [ ] OA11. If upstream adds portable tool-type taxonomy to the runtime-package
-      reference, map those shared semantic categories into local registry and
-      policy handling without treating them as MCP/source injection contracts.
-      - Active order: last and conditional on upstream taxonomy changes.
+- [x] OA11. The upstream runtime-package reference now defines portable
+      `tool_type` metadata, and the runtime maps those shared semantic
+      categories into local tool metadata and validation without treating them
+      as MCP/source injection contracts.
+      - Completed in commit `1d0aa32`: `ToolDefinition` now preserves portable
+        `tool_type` metadata separately from runtime-specific `adapter` and tool
+        provenance/source metadata, validation fails closed for unsupported
+        `tool_type` values, and the built-in `local_workspace` tool pack records
+        portable `file_read` semantics.
+      - Validation: `poetry run pytest tests/test_import.py tests/test_registry.py
+        tests/test_validation.py -q 2>&1` — pass; 86 tests passed.
+      - Active order: completed after OA10 once the upstream `tool_type`
+        vocabulary was confirmed in the runtime-package reference.
 
 ## Cross-Cutting Validation Tasks
 
