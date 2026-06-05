@@ -34,8 +34,12 @@ hosted OpenAI default path.
   `AsyncOpenAIClientProvider`) and SDK-backed default provider wrappers
   (`SDKBackedOpenAIClientProvider`, `SDKBackedAsyncOpenAIClientProvider`).
 - The default client factories now route through provider-backed construction and
-  support `base_url` plus optional `api_key`, while later slices still need to
-  tighten adapter/routing preservation around that seam.
+  support `base_url` plus optional `api_key`.
+- `OpenAIClientAdapter` and `AsyncOpenAIClientAdapter` now lazily resolve their
+  default clients through the default provider facades as well, so the adapter
+  layer consistently depends on the provider seam for both injected-provider and
+  default-construction paths while preserving `models` / `is_local` executor
+  routing semantics.
 - Request construction and response normalization already live in repository code
   and should remain repository-owned after the refactor.
 
@@ -45,8 +49,15 @@ hosted OpenAI default path.
   (`feat(openai-client): add provider facade seam`).
 - **Slice 2** is complete in commit `282b93d`
   (`feat(openai-client): isolate sdk-backed provider defaults`).
-- The next planned implementation step is **Slice 3 — Adapter refactor and
-  routing preservation**.
+- **Slice 3** is complete in commit `bc1ce39`
+  (`feat(openai-client): route default adapters through providers`).
+- Slice 3 validation passed with:
+  - `poetry run pytest tests/test_openai_client.py -q` (`22 passed`)
+  - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
+    `tests/test_openai_client.py`
+- The next planned implementation step is **Slice 4 — Preserve repository-owned
+  request and normalization logic**.
 
 ## Architectural Decision
 

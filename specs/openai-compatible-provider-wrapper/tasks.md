@@ -2,11 +2,12 @@
 
 ## Status
 
-- State: Slices 1-2 implemented; `src/dynamic_agent_runner/openai_client.py`
+- State: Slices 1-3 implemented; `src/dynamic_agent_runner/openai_client.py`
   now exposes a repository-owned provider/client facade, provider
-  configuration, SDK-backed default provider wrappers, and provider-config-aware
+  configuration, SDK-backed default provider wrappers, provider-config-aware
   default sync/async client factories supporting `base_url` plus optional
-  `api_key`
+  `api_key`, and adapters that lazily resolve their default clients through the
+  provider seam while preserving `models` / `is_local` routing semantics
 - Source spec: `specs/openai-compatible-provider-wrapper/spec.md`
 - Technical plan: `specs/openai-compatible-provider-wrapper/plan.md`
 - Primary implementation area: `src/dynamic_agent_runner/openai_client.py`
@@ -38,14 +39,14 @@
 
 ## Slice 3 — Adapter refactor and routing preservation
 
-- [ ] T3.1 Refactor `OpenAIClientAdapter` to depend on the repository-owned
+- [x] T3.1 Refactor `OpenAIClientAdapter` to depend on the repository-owned
       wrapper/facade rather than raw SDK-construction assumptions.
-- [ ] T3.2 Refactor `AsyncOpenAIClientAdapter` to depend on the repository-owned
+- [x] T3.2 Refactor `AsyncOpenAIClientAdapter` to depend on the repository-owned
       async wrapper/facade rather than raw SDK-construction assumptions.
-- [ ] T3.3 Preserve existing adapter metadata fields `models` and `is_local`.
-- [ ] T3.4 Preserve existing executor compatibility so `executor.py` does not
+- [x] T3.3 Preserve existing adapter metadata fields `models` and `is_local`.
+- [x] T3.4 Preserve existing executor compatibility so `executor.py` does not
       need a new provider-specific execution path.
-- [ ] T3.5 If provider diagnostics metadata is added, keep it optional and
+- [x] T3.5 If provider diagnostics metadata is added, keep it optional and
       non-authoritative for executor routing.
 
 ## Slice 4 — Preserve repository-owned request and normalization logic
@@ -59,16 +60,16 @@
 
 ## Slice 5 — Tests for wrapper behavior and compatible endpoints
 
-- [ ] T5.1 Update `tests/test_openai_client.py` to validate the refactored sync
+- [x] T5.1 Update `tests/test_openai_client.py` to validate the refactored sync
       wrapper path using fake clients or monkeypatched construction.
-- [ ] T5.2 Update `tests/test_openai_client.py` to validate the refactored async
+- [x] T5.2 Update `tests/test_openai_client.py` to validate the refactored async
       wrapper path using fake clients or monkeypatched construction.
 - [x] T5.3 Add coverage for default hosted OpenAI construction behavior without
       live network calls.
 - [x] T5.4 Add coverage for custom `base_url` configuration targeting an
       OpenAI-compatible endpoint.
 - [x] T5.5 Add coverage for optional `api_key` passthrough behavior.
-- [ ] T5.6 Add coverage proving `is_local=True` adapters remain compatible with
+- [x] T5.6 Add coverage proving `is_local=True` adapters remain compatible with
       existing runtime routing semantics.
 
 ## Slice 6 — Optional export and documentation follow-up
