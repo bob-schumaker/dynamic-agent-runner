@@ -1582,6 +1582,72 @@ def test_prepare_model_input_uses_openai_model_registry_for_native_features(
     assert prepared_input.adapter is local
 
 
+def test_prepare_model_input_routes_local_only_requests_to_helper_built_local_adapter() -> (
+    None
+):
+    from dynamic_agent_runner.local_models import (
+        LocalOpenAIEndpointConfig,
+        create_local_openai_adapter,
+    )
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "local-only-helper-routing-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "default_model": "qwen-local",
+                    "model_map": {
+                        "qwen-local": ["structured_output"],
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "model_requirements": {
+                        "operational_preferences": {"data_boundary": "local_only"},
+                        "required_capabilities": ["structured_output"],
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="Hi")
+    remote = make_named_adapter(
+        [{"id": "unused", "output_text": "remote"}],
+        models=["qwen-local"],
+    )
+    local = create_local_openai_adapter(
+        LocalOpenAIEndpointConfig(
+            base_url="http://localhost:11434/v1",
+            api_key="local-key",
+            model_aliases=["qwen-local", "chat-default"],
+            provider_name="llama.cpp",
+            expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+        )
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=[remote, local],
+    )
+
+    assert prepared_input.model == "qwen-local"
+    assert prepared_input.adapter is local
+    assert prepared_input.adapter.is_local is True
+    assert prepared_input.adapter.models == ("qwen-local", "chat-default")
+
+
 def test_prepare_model_input_uses_default_openai_adapter_without_capability_routing() -> (
     None
 ):
