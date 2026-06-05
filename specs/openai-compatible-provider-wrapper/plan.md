@@ -135,6 +135,97 @@ these responsibilities more explicitly:
 - If clearer terminology is desired later, introduce aliases or staged export
   migration rather than combining naming churn with the wrapper refactor.
 
+## Delivery Priorities and ROI Framing
+
+### Highest-ROI feature work
+
+The highest-ROI work in this feature is the **core provider-wrapper
+implementation** that turns the current direct SDK construction path into a
+repository-owned provider/client facade with configurable OpenAI-compatible
+endpoint support.
+
+That highest-value cluster is:
+
+1. repository-owned sync/async provider-client facades
+2. SDK-backed wrapper isolation
+3. `base_url` and optional `api_key` provider configuration
+4. adapter refactoring that preserves existing `models` and `is_local` routing
+5. preservation of repository-owned request construction and response
+   normalization
+
+This work has the best return because it:
+
+- fixes a concrete current coupling in `src/dynamic_agent_runner/openai_client.py`
+- unlocks arbitrary OpenAI-compatible endpoints without executor redesign
+- preserves the hosted OpenAI default path
+- improves future compatibility with local or self-hosted providers without
+  creating a separate runtime family
+- keeps request shaping and response normalization under repository ownership
+
+### Priority tiers
+
+#### Priority 1 — core feature implementation
+
+These slices create the main user and architectural value of the feature:
+
+- **Slice 1 — Repository-owned provider/client facade**
+  - define narrow repository-owned sync and async wrapper/facade contracts
+  - add any small provider configuration structure needed for `base_url`,
+    optional `api_key`, and optional diagnostics metadata
+- **Slice 2 — SDK-backed default wrapper isolation**
+  - move direct `openai` import and SDK construction behind the wrapper layer
+  - preserve the default hosted OpenAI path
+  - add OpenAI-compatible `base_url` support and optional `api_key`
+    passthrough
+- **Slice 3 — Adapter refactor and routing preservation**
+  - refactor `OpenAIClientAdapter` and `AsyncOpenAIClientAdapter` to consume the
+    wrapper/facade rather than raw SDK-construction assumptions
+  - preserve `models` and `is_local` as the canonical executor-routing metadata
+- **Slice 4 — Preserve repository-owned request/normalization logic**
+  - keep `build_openai_request(...)` as the canonical request-construction path
+  - keep `normalize_openai_response(...)` as the canonical normalization path
+  - prevent provider-specific transport concerns from leaking into executor
+    logic
+
+#### Priority 2 — validation that protects the feature investment
+
+These slices are required to prove the boundary refactor preserved behavior:
+
+- **Slice 5 — Tests for wrapper behavior and compatible endpoints**
+  - cover sync and async wrapper paths
+  - cover hosted-default construction without live network calls
+  - cover custom `base_url`, optional `api_key`, and preserved `is_local`
+    routing semantics
+- **Slice 7 — Validation evidence**
+  - run the focused validation commands for `tests/test_openai_client.py`
+  - widen to executor and import validation only when the implementation surface
+    requires it
+
+#### Priority 3 — optional polish
+
+This slice is valuable but should not delay the core transport-boundary work:
+
+- **Slice 6 — Optional export and documentation follow-up**
+  - export new public wrapper/configuration types only if they should be
+    caller-visible
+  - update docs only when usage materially changes or an endpoint example adds
+    clarity
+
+### Smallest useful kickoff slice
+
+The smallest coherent first implementation pass should deliver the seam and the
+main OpenAI-compatible endpoint unlock before broader polishing:
+
+1. define the repository-owned sync/async facades
+2. add the provider configuration seam
+3. move direct SDK construction behind the wrapper
+4. preserve default hosted OpenAI construction
+5. add `base_url` support
+6. add optional `api_key` passthrough
+
+Immediately after that, the next pass should refactor the adapters onto the new
+seam, preserve routing metadata, and lock behavior down with focused tests.
+
 ## Scope Boundaries
 
 ### In scope
@@ -178,10 +269,70 @@ If public exports change:
 
 ## Recommended Implementation Order
 
-1. Add the repository-owned sync/async wrapper/facade and configuration seam.
-2. Move SDK-specific construction behind that seam.
-3. Refactor adapters to consume the seam while preserving `models` and
-   `is_local`.
-4. Add tests for default construction, fake clients, and custom
-   OpenAI-compatible endpoint configuration.
-5. Update exports or docs only if the refactor changes public usage or naming.
+Implement the feature in phases so the highest-value boundary changes land
+before polish work:
+
+### Phase A — establish the repository-owned seam
+
+1. Define the sync provider/client facade.
+2. Define the async provider/client facade.
+3. Introduce a small provider-configuration seam for `base_url`, optional
+   `api_key`, and optional diagnostics metadata.
+4. Keep the facade narrow enough for fake-client tests and future alternate
+   implementations.
+
+### Phase B — isolate SDK construction and unlock compatible endpoints
+
+5. Move direct `openai` SDK import and construction behind the repository-owned
+   wrapper implementation.
+6. Preserve project-specific `ModelExecutionError` behavior when the SDK is
+   unavailable.
+7. Preserve default hosted OpenAI construction with no mandatory new provider
+   object.
+8. Add optional `base_url` support for OpenAI-compatible endpoints.
+9. Add optional `api_key` passthrough support.
+
+### Phase C — refactor adapters while preserving executor routing
+
+10. Refactor `OpenAIClientAdapter` to consume the wrapper/facade.
+11. Refactor `AsyncOpenAIClientAdapter` to consume the async wrapper/facade.
+12. Preserve `models` metadata.
+13. Preserve `is_local` metadata.
+14. Keep any additional provider diagnostics optional and non-authoritative for
+    executor routing.
+
+### Phase D — preserve repository ownership of request/response semantics
+
+15. Keep `build_openai_request(...)` or a directly equivalent helper as the
+    canonical request-construction path.
+16. Keep `normalize_openai_response(...)` or a directly equivalent helper as the
+    canonical response-normalization path.
+17. Ensure provider-transport changes do not move request or response semantics
+    into executor logic.
+
+### Phase E — prove behavior with focused tests
+
+18. Update sync wrapper tests using fake clients or monkeypatched construction.
+19. Update async wrapper tests using fake clients or monkeypatched construction.
+20. Add coverage for hosted-default construction without live network calls.
+21. Add coverage for custom `base_url` configuration.
+22. Add coverage for optional `api_key` passthrough.
+23. Add coverage confirming `is_local=True` adapters preserve existing routing
+    semantics.
+
+### Phase F — validate and polish
+
+24. Run `poetry run pytest tests/test_openai_client.py -q` and record the
+    result.
+25. If adapter integration behavior changed, run
+    `poetry run pytest tests/test_executor.py -q` and record the result.
+26. If exports changed, run `poetry run pytest tests/test_import.py -q` and
+    record the result.
+27. Update exports only if new public wrapper/configuration types should be
+    caller-visible.
+28. Update README or adjacent docs only if public usage changed or a new
+    endpoint example materially improves clarity.
+
+This ordering intentionally treats Slices 1 through 4 as the core feature,
+Slice 5 plus Slice 7 as the confidence-building validation layer, and Slice 6
+as optional polish that should not delay the main transport-boundary refactor.
