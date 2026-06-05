@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,32 @@ import pytest
 
 def _default_cache_root(home_dir: Path) -> Path:
     return home_dir / ".ollama" / "models"
+
+
+class _FailingResponses:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    def create(self, **_: object) -> object:
+        raise self.error
+
+
+class _FailingClient:
+    def __init__(self, error: Exception) -> None:
+        self.responses = _FailingResponses(error)
+
+
+class _FailingAsyncResponses:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    async def create(self, **_: object) -> object:
+        raise self.error
+
+
+class _FailingAsyncClient:
+    def __init__(self, error: Exception) -> None:
+        self.responses = _FailingAsyncResponses(error)
 
 
 def test_resolve_local_model_path_prefers_explicit_local_path_over_cache_and_hub(
@@ -299,3 +326,61 @@ def test_validate_local_model_identity_classifies_model_mismatch_with_runtime_ow
             expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
             observed_model_id="llama-2-7b-chat",
         )
+
+
+def test_local_openai_adapter_translates_endpoint_connectivity_failures() -> None:
+    from dynamic_agent_runner.errors import LocalModelEndpointConnectivityError
+    from dynamic_agent_runner.local_models import (
+        LocalOpenAIEndpointConfig,
+        create_local_openai_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    adapter = create_local_openai_adapter(
+        LocalOpenAIEndpointConfig(
+            base_url="http://localhost:11434/v1",
+            model_aliases=["local-qwen-chat"],
+            provider_name="llama.cpp",
+        )
+    )
+    adapter._client = _FailingClient(ConnectionError("connection refused"))
+
+    request = build_openai_request(
+        model="local-qwen-chat",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    with pytest.raises(
+        LocalModelEndpointConnectivityError,
+        match="localhost:11434/v1.*connection refused",
+    ):
+        adapter.create_response(request)
+
+
+def test_local_async_openai_adapter_translates_endpoint_protocol_failures() -> None:
+    from dynamic_agent_runner.errors import LocalModelEndpointProtocolError
+    from dynamic_agent_runner.local_models import (
+        LocalOpenAIEndpointConfig,
+        create_local_async_openai_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    adapter = create_local_async_openai_adapter(
+        LocalOpenAIEndpointConfig(
+            base_url="http://localhost:11434/v1",
+            model_aliases=["local-qwen-chat"],
+            provider_name="llama.cpp",
+        )
+    )
+    adapter._client = _FailingAsyncClient(RuntimeError("unexpected response schema"))
+
+    request = build_openai_request(
+        model="local-qwen-chat",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    with pytest.raises(
+        LocalModelEndpointProtocolError,
+        match="localhost:11434/v1.*unexpected response schema",
+    ):
+        asyncio.run(adapter.create_response(request))

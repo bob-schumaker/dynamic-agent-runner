@@ -7,9 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from dynamic_agent_runner.errors import (
+    LocalModelEndpointConnectivityError,
+    LocalModelEndpointProtocolError,
     LocalModelIdentityMismatchError,
     LocalModelOfflinePolicyError,
     LocalModelResolutionError,
+    ModelExecutionError,
 )
 from dynamic_agent_runner.openai_client import (
     OpenAIProviderConfig,
@@ -91,6 +94,7 @@ def create_local_openai_adapter(
         _provider_config_from_local_endpoint(config),
         models=config.model_aliases,
         is_local=True,
+        error_translator=_local_endpoint_error_translator(config),
     )
 
 
@@ -103,6 +107,7 @@ def create_local_async_openai_adapter(
         _provider_config_from_local_endpoint(config),
         models=config.model_aliases,
         is_local=True,
+        error_translator=_local_endpoint_error_translator(config),
     )
 
 
@@ -185,6 +190,51 @@ def _provider_config_from_local_endpoint(
         base_url=config.base_url,
         api_key=config.api_key,
         provider_name=config.provider_name,
+    )
+
+
+def _local_endpoint_error_translator(
+    config: LocalOpenAIEndpointConfig,
+):
+    def translate(error: ModelExecutionError) -> ModelExecutionError:
+        if isinstance(
+            error, LocalModelResolutionError | LocalModelIdentityMismatchError
+        ):
+            return error
+
+        cause = error.__cause__ if isinstance(error.__cause__, Exception) else error
+        message = str(cause).lower()
+        endpoint_label = _describe_local_endpoint(config)
+
+        if isinstance(cause, (ConnectionError, TimeoutError)) or any(
+            token in message
+            for token in (
+                "connect",
+                "connection refused",
+                "network",
+                "timed out",
+                "timeout",
+                "unreachable",
+                "service unavailable",
+                "not ready",
+            )
+        ):
+            return LocalModelEndpointConnectivityError(
+                f"Local endpoint connectivity failure for {endpoint_label}: {cause}"
+            )
+
+        return LocalModelEndpointProtocolError(
+            f"Local endpoint protocol failure for {endpoint_label}: {cause}"
+        )
+
+    return translate
+
+
+def _describe_local_endpoint(config: LocalOpenAIEndpointConfig) -> str:
+    provider_name = config.provider_name or "local endpoint"
+    aliases = ", ".join(repr(alias) for alias in config.model_aliases)
+    return (
+        f"provider {provider_name!r} at {config.base_url!r} serving aliases ({aliases})"
     )
 
 

@@ -37,5 +37,17 @@ class LocalModelIdentityMismatchError(LocalModelError):
     """Raised when the resolved or observed model identity does not match."""
 
 
+class LocalModelEndpointError(LocalModelError):
+    """Base exception for local endpoint execution failures."""
+
+
+class LocalModelEndpointConnectivityError(LocalModelEndpointError):
+    """Raised when a local endpoint cannot be reached or is not ready."""
+
+
+class LocalModelEndpointProtocolError(LocalModelEndpointError):
+    """Raised when a local endpoint responds in an unsupported way."""
+
+
 class WorkflowExecutionError(DynamicAgentRunnerError):
     """Raised when workflow execution cannot complete successfully."""

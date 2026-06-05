@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from threading import RLock
 from typing import Any, Protocol
 
 from dynamic_agent_runner.errors import ModelExecutionError
+
+
+ErrorTranslator = Callable[[ModelExecutionError], ModelExecutionError]
 
 
 class OpenAIResponsesResource(Protocol):
@@ -165,6 +168,7 @@ class OpenAIClientAdapter:
         provider: OpenAIClientProvider | None = None,
         models: Sequence[str] | None = None,
         is_local: bool = False,
+        error_translator: ErrorTranslator | None = None,
     ) -> None:
         if client is not None and provider is not None:
             raise ValueError("OpenAIClientAdapter accepts either client or provider")
@@ -173,6 +177,7 @@ class OpenAIClientAdapter:
         self._client_lock = RLock()
         self._models = tuple(str(model) for model in models or ())
         self._is_local = is_local
+        self._error_translator = error_translator
 
     @property
     def client(self) -> OpenAIClientProtocol:
@@ -188,7 +193,15 @@ class OpenAIClientAdapter:
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Send a request and normalize the returned model response."""
 
-        return create_openai_response(self.client, request)
+        try:
+            return create_openai_response(self.client, request)
+        except ModelExecutionError as exc:
+            if self._error_translator is None:
+                raise
+            translated = self._error_translator(exc)
+            if translated is exc:
+                raise
+            raise translated from exc
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -213,6 +226,7 @@ class AsyncOpenAIClientAdapter:
         provider: AsyncOpenAIClientProvider | None = None,
         models: Sequence[str] | None = None,
         is_local: bool = False,
+        error_translator: ErrorTranslator | None = None,
     ) -> None:
         if client is not None and provider is not None:
             raise ValueError(
@@ -223,6 +237,7 @@ class AsyncOpenAIClientAdapter:
         self._client_lock = RLock()
         self._models = tuple(str(model) for model in models or ())
         self._is_local = is_local
+        self._error_translator = error_translator
 
     @property
     def client(self) -> AsyncOpenAIClientProtocol:
@@ -238,7 +253,15 @@ class AsyncOpenAIClientAdapter:
     async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Send a request asynchronously and normalize the model response."""
 
-        return await create_async_openai_response(self.client, request)
+        try:
+            return await create_async_openai_response(self.client, request)
+        except ModelExecutionError as exc:
+            if self._error_translator is None:
+                raise
+            translated = self._error_translator(exc)
+            if translated is exc:
+                raise
+            raise translated from exc
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -275,6 +298,7 @@ def create_openai_adapter(
     provider: OpenAIClientProvider | None = None,
     models: Sequence[str] | None = None,
     is_local: bool = False,
+    error_translator: ErrorTranslator | None = None,
 ) -> OpenAIClientAdapter:
     """Construct a sync adapter through the repository-owned adapter seam."""
 
@@ -283,6 +307,7 @@ def create_openai_adapter(
         provider=provider,
         models=models,
         is_local=is_local,
+        error_translator=error_translator,
     )
 
 
@@ -291,6 +316,7 @@ def create_openai_adapter_from_provider_config(
     *,
     models: Sequence[str] | None = None,
     is_local: bool = False,
+    error_translator: ErrorTranslator | None = None,
 ) -> OpenAIClientAdapter:
     """Construct a sync adapter from provider config through repo-owned helpers."""
 
@@ -298,6 +324,7 @@ def create_openai_adapter_from_provider_config(
         provider=create_default_openai_provider(config),
         models=models,
         is_local=is_local,
+        error_translator=error_translator,
     )
 
 
@@ -323,6 +350,7 @@ def create_async_openai_adapter(
     provider: AsyncOpenAIClientProvider | None = None,
     models: Sequence[str] | None = None,
     is_local: bool = False,
+    error_translator: ErrorTranslator | None = None,
 ) -> AsyncOpenAIClientAdapter:
     """Construct an async adapter through the repository-owned adapter seam."""
 
@@ -331,6 +359,7 @@ def create_async_openai_adapter(
         provider=provider,
         models=models,
         is_local=is_local,
+        error_translator=error_translator,
     )
 
 
@@ -339,6 +368,7 @@ def create_async_openai_adapter_from_provider_config(
     *,
     models: Sequence[str] | None = None,
     is_local: bool = False,
+    error_translator: ErrorTranslator | None = None,
 ) -> AsyncOpenAIClientAdapter:
     """Construct an async adapter from provider config through repo-owned helpers."""
 
@@ -346,6 +376,7 @@ def create_async_openai_adapter_from_provider_config(
         provider=create_default_async_openai_provider(config),
         models=models,
         is_local=is_local,
+        error_translator=error_translator,
     )
 
 
