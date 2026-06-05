@@ -28,11 +28,13 @@ Status: Draft
   model-reference resolution implementation is complete in commit `7a11464`
   (`feat(local-models): add runtime model path resolution`); T2.4
   endpoint-failure translation is complete in commit `f4bcb0e`
-  (`feat(local-models): translate local endpoint failures`); the Slice 1
-  validation checkpoint is complete through T4.5
-- Current execution gate: T2.5 is the next pending step — add
-  `huggingface_hub` dependency wiring only when the resolution slice is actively
-  implemented
+  (`feat(local-models): translate local endpoint failures`); T2.5 default
+  Hugging Face download wiring is complete in commit `d5857dd`
+  (`feat(local-models): wire default hub downloads`); the Slice 1 validation
+  checkpoint is complete through T4.5
+- Current execution gate: T2.6 is the next pending step — preserve
+  authoritative model identity metadata for mismatch reporting when aliases,
+  local paths, or Hub references are used
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
@@ -211,7 +213,7 @@ Status: Draft
       src/dynamic_agent_runner/local_models.py tests/test_local_models.py 2>&1`
       — Ruff Check passed; Ruff Format passed
 
-- [ ] T2.5 [implementation] Add `huggingface_hub` dependency wiring only when
+- [x] T2.5 [implementation] Add `huggingface_hub` dependency wiring only when
       the resolution slice is actively implemented.
   - Spec: FR-5b
   - Plan: Affected Areas; Risks and Mitigations
@@ -220,6 +222,14 @@ Status: Draft
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Evidence: explicit Hub file and snapshot references can be exercised through
     isolated tests without live-network requirements
+  - Completed in commit `d5857dd` (`feat(local-models): wire default hub
+    downloads`)
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py -q 2>&1` — `12 passed in
+      0.19s`
+    - `poetry run pre-commit run --files src/dynamic_agent_runner/local_models.py
+      tests/test_local_models.py pyproject.toml poetry.lock 2>&1` — Ruff Check
+      passed; Ruff Format passed
 
 - [ ] T2.6 [implementation] Preserve authoritative model identity metadata for
       mismatch reporting when aliases, local paths, or Hub references are used.

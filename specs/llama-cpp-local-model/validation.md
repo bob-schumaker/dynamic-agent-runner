@@ -13,8 +13,9 @@ Status: in progress
   the targeted Slice 1 checks are GREEN; T2.1 RED precedence tests are now
   committed in `f564caa`, T2.2 RED failure-taxonomy tests are now committed in
   `cdc1b00`, T2.3 resolution helpers are now implemented in `7a11464`, T2.4
-  endpoint-failure translation is now implemented in `f4bcb0e`, and T2.5 is the
-  next pending step
+  endpoint-failure translation is now implemented in `f4bcb0e`, T2.5 default
+  Hub download wiring is now implemented in `d5857dd`, and T2.6 is the next
+  pending step
 
 ## Executed Checks
 
@@ -210,9 +211,27 @@ Status: in progress
   connectivity and protocol errors without changing the generic provider path
   for non-local callers.
 
+### T2.5 GREEN — default Hugging Face download wiring
+
+- Commit: `d5857dd` (`feat(local-models): wire default hub downloads`)
+- Commands:
+  - `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - `poetry run pre-commit run --files src/dynamic_agent_runner/local_models.py`
+    `tests/test_local_models.py pyproject.toml poetry.lock 2>&1`
+- Expected result: explicit Hub file and snapshot references can use runtime-
+  owned default `huggingface_hub` wiring without live-network requirements in
+  focused tests
+- Observed result:
+  - `12 passed in 0.19s`
+  - Ruff Check passed; Ruff Format passed
+- Interpretation: `dynamic_agent_runner.local_models` now lazily loads default
+  `hf_hub_download(...)` and `snapshot_download(...)` helpers when caller-
+  supplied download functions are absent, while `pyproject.toml` and
+  `poetry.lock` now record the corresponding runtime dependency surface.
+
 ## Pending Follow-up
 
-- T2.5 — add `huggingface_hub` dependency wiring only when the resolution slice
-  is actively implemented
+- T2.6 — preserve authoritative model identity metadata for mismatch reporting
+  when aliases, local paths, or Hub references are used
 - T4.4 — run `poetry run pytest tests/test_local_models.py -q` when the
   local-model helper module and resolution logic exist

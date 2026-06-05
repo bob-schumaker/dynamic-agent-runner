@@ -66,8 +66,9 @@ lifecycle.
   asset-resolution helpers, minimal local-model error classes for offline,
   resolution, mismatch, connectivity, and protocol boundaries, plus a
   local-endpoint-specific error-translation seam layered on the existing
-  adapter-factory helpers in `openai_client.py`; T2.5 dependency wiring is now
-  the next Slice 2 follow-up.
+  adapter-factory helpers in `openai_client.py`, and default
+  `huggingface_hub` file/snapshot wiring for the runtime-owned resolution path;
+  T2.6 authoritative model-identity follow-up is now the next Slice 2 step.
 - Existing tests already exercise fake-client adapter behavior and executor
   routing, so the new feature can extend current test surfaces without live
   infrastructure.
@@ -100,8 +101,10 @@ Deliver the highest-ROI path first:
   model-reference resolution implementation completed in commit `7a11464`
   (`feat(local-models): add runtime model path resolution`); T2.4
   endpoint-failure translation completed in commit `f4bcb0e`
-  (`feat(local-models): translate local endpoint failures`); T2.5 is the next
-  Slice 2 step
+  (`feat(local-models): translate local endpoint failures`); T2.5 default Hub
+  download wiring completed in commit `d5857dd`
+  (`feat(local-models): wire default hub downloads`); T2.6 is the next Slice 2
+  step
 
 This slice satisfies the primary implementation path in the approved spec.
 
@@ -360,6 +363,13 @@ Initial recorded evidence:
     src/dynamic_agent_runner/errors.py src/dynamic_agent_runner/openai_client.py`
     `src/dynamic_agent_runner/local_models.py tests/test_local_models.py 2>&1`
   - Observed outcome: Ruff Check passed; Ruff Format passed
+- T2.5 GREEN evidence after commit `d5857dd`:
+  - Command: `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - Observed outcome: `12 passed in 0.19s`
+  - Command: `poetry run pre-commit run --files
+    src/dynamic_agent_runner/local_models.py tests/test_local_models.py`
+    `pyproject.toml poetry.lock 2>&1`
+  - Observed outcome: Ruff Check passed; Ruff Format passed
 
 ## Risks and Mitigations
 
@@ -405,8 +415,9 @@ Initial recorded evidence:
   T2.1 execution, producing RED commit `f564caa`. The user later directed T2.2
   execution, producing RED commit `cdc1b00`. The user later directed T2.3
   execution, producing implementation commit `7a11464`. The user later directed
-  T2.4 execution, producing implementation commit `f4bcb0e`. Slice 1 is now
-  complete through its export and focused-validation checkpoint, and Slice 2
-  now has committed precedence and failure-taxonomy RED tests plus runtime-owned
-  resolution and endpoint-failure translation before broader follow-up
-  continues at T2.5.
+  T2.4 execution, producing implementation commit `f4bcb0e`. The user later
+  directed T2.5 execution, producing implementation commit `d5857dd`. Slice 1
+  is now complete through its export and focused-validation checkpoint, and
+  Slice 2 now has committed precedence and failure-taxonomy RED tests plus
+  runtime-owned resolution, endpoint-failure translation, and default Hub
+  download wiring before broader follow-up continues at T2.6.
