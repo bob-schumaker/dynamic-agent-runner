@@ -108,6 +108,38 @@ result = run_agent_workflow(
 )
 ```
 
+To target an OpenAI-compatible endpoint without changing executor logic, provide
+an adapter that uses the public provider-configuration seam:
+
+```python
+from dynamic_agent_runner import (
+    OpenAIClientAdapter,
+    OpenAIProviderConfig,
+    create_default_openai_provider,
+    run_agent_workflow,
+)
+
+local_adapter = OpenAIClientAdapter(
+    provider=create_default_openai_provider(
+        OpenAIProviderConfig(
+            base_url="http://localhost:11434/v1",
+            provider_name="local-openai-compatible",
+        )
+    ),
+    models=("gpt-4o-mini",),
+    is_local=True,
+)
+
+result = run_agent_workflow(
+    package_directory="path/to/agent-package",
+    prompt="Run the workflow for this user request.",
+    model_adapter=local_adapter,
+)
+```
+
+If the compatible provider requires authentication, set `api_key` on
+`OpenAIProviderConfig`. If it does not, the key may be omitted.
+
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls. Lower-level
 file-by-file artifact inputs remain available only as a compatibility seam.

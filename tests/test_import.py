@@ -21,3 +21,6 @@ def test_package_imports() -> None:
     assert dynamic_agent_runner.RegisteredLifecycleHook is not None
     assert dynamic_agent_runner.invoke_lifecycle_hook_async is not None
     assert dynamic_agent_runner.DynamicAgentRunnerError is not None
+    assert dynamic_agent_runner.OpenAIProviderConfig is not None
+    assert dynamic_agent_runner.create_default_openai_provider is not None
+    assert dynamic_agent_runner.create_default_async_openai_provider is not None
