@@ -118,6 +118,11 @@ This feature specification covers:
 - The first implementation should prefer **caller-owned or deployer-owned
   OpenAI-compatible local endpoints** consumed through the existing
   provider-wrapper seam.
+- The expected first-slice runtime surface is the repository's existing
+  OpenAI-compatible adapter/provider seam, with local execution represented by
+  runtime-owned provider configuration plus normal adapter metadata such as
+  advertised model names and `is_local=True`; a llama-specific helper or thin
+  wrapper may be added later, but it is not required for the first slice.
 - Documented in-process `llama_cpp.Llama` integration remains an allowed future
   path, but it is not the default first implementation target unless later work
   explicitly reprioritizes it.
@@ -177,6 +182,11 @@ Acceptance criteria:
 The feature must allow local chat-model configuration plus optional separate
 embedding-capable local configuration for internal runtime behavior.
 
+The first implementation slice may ship endpoint-backed local chat without
+simultaneously shipping separate local embedding execution, as long as later
+implementation planning preserves the embedding configuration contract defined
+here.
+
 Acceptance criteria:
 
 - Given a caller configures a primary local chat model, when a llama.cpp-backed
@@ -199,6 +209,10 @@ Acceptance criteria:
   documented in-process API, then the design may rely on the upstream
   `create_embedding` or `embed` surfaces rather than inventing a repository-
   specific embedding primitive first.
+- Given graph-mutation or context-pruning work later needs local embeddings,
+  when that work is planned, then embedding support may be implemented as a
+  later slice of this feature rather than expanding the first endpoint-backed
+  chat slice into graph-mutation delivery.
 
 ### FR-4: Preserve repository-owned response normalization
 
@@ -291,6 +305,10 @@ Acceptance criteria:
   or no-network policy blocks access, when the referenced asset is missing
   locally, then automatic download is the default resolution behavior rather
   than an optional manual prefetch-only path.
+- Given offline or no-network behavior must be enforced, when that policy is
+  applied during model resolution, then it comes from caller-owned or
+  deployment-owned runtime configuration above the portable workflow package
+  rather than from implicit workflow metadata.
 - Given download is requested but the Hub reference is invalid, credentials are
   unavailable, offline or local-only policy forbids network access, or the
   remote asset cannot be resolved, when the adapter prepares local execution,
@@ -315,6 +333,11 @@ Acceptance criteria:
   a different model than intended, when the adapter detects a mismatch through
   configured model metadata or request failure, then the runtime reports the
   mismatch clearly instead of silently rerouting to another model.
+- Given mismatch detection is needed, when the runtime decides what model was
+  intended, then the authoritative identity comes from runtime-owned adapter
+  configuration such as the declared model alias, explicit local path, or
+  explicit Hugging Face reference rather than from guessed workflow-package
+  semantics.
 
 ### FR-6: Keep server ownership outside the runtime library
 
@@ -340,6 +363,9 @@ Acceptance criteria:
 ## Non-Goals
 
 - No graph-mutation protocol design in this feature.
+- No requirement that the first implementation slice deliver graph-mutation or
+  context-pruning integration just because later pruning work may use local
+  embeddings.
 - No requirement to introduce a public top-level embedding API.
 - No requirement to auto-discover local providers or models.
 - No requirement to make local filesystem paths part of the portable workflow
