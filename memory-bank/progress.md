@@ -2,6 +2,23 @@
 
 ## Working
 
+- A focused primary-vs-feature spec consistency audit is complete in `3f61d99`
+  (`docs(specs): reconcile primary spec with provider wrapper state`).
+- That follow-up updated `specs/dynamic-agent-runner/spec.md` so the main
+  product spec no longer describes the OpenAI-compatible provider-wrapper seam
+  as future work. Instead, it now records the provider boundary as resolved and
+  aligned with the implemented provider-wrapper feature spec state.
+- Focused validation for that audit passed with:
+  - `pre-commit run --files specs/dynamic-agent-runner/spec.md`
+    `specs/dynamic-agent-runner/plan.md`
+    `specs/dynamic-agent-runner/tasks.md`
+    `specs/async-session-memory-pipeline/spec.md`
+    `specs/llama-cpp-graph-mutation/spec.md`
+    `specs/llm-step-interpreter-middleware/spec.md`
+    `specs/openai-compatible-provider-wrapper/spec.md`
+    `specs/openai-compatible-provider-wrapper/plan.md`
+    `specs/openai-compatible-provider-wrapper/tasks.md`
+  - all targeted spec files passed `rumdl check` / `rumdl format`
 - The OpenAI-compatible provider-wrapper Slice 6 implementation is complete in
   `66212f4` (`feat(openai-client): export provider config seam`).
 - That implementation updated the package-level public surface so:
@@ -105,6 +122,10 @@
 - The primary spec set and related feature specs are now internally consistent
   with the current repo state in commit `e6b5f2c`
   (`docs(specs): align spec artifacts with repo state`).
+- The later focused audit in `3f61d99` reconciled the one remaining stale
+  provider-wrapper reference in the main spec, so the audited primary spec and
+  current feature-spec packages are now aligned on that feature's implemented
+  status.
 - OA8 is implemented as a metadata-only async-session policy seam, while the
   dedicated feature-spec package now captures future expansion beyond that
   baseline.

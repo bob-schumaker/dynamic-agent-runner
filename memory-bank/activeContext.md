@@ -71,6 +71,13 @@
   feature-spec package now records Slices 1-6 as implemented, records the
   import-surface validation evidence, and treats additional provider-wrapper
   work as optional future polish rather than a required next slice.
+- A focused primary-spec consistency audit landed in commit `3f61d99`
+  (`docs(specs): reconcile primary spec with provider wrapper state`). That
+  follow-up verified the main `specs/dynamic-agent-runner/` artifacts against
+  the active feature-spec packages and resolved the stale primary-spec open
+  question that still described the provider-wrapper seam as future work even
+  though `specs/openai-compatible-provider-wrapper/` now records it as
+  implemented through Slice 6.
 
 ## Current State Snapshot
 
@@ -208,6 +215,9 @@
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/plan.md`
   - `specs/dynamic-agent-runner/tasks.md`
+- The primary spec now explicitly treats the provider-wrapper boundary as
+  resolved in commit `3f61d99`, aligning the main product spec with the
+  implemented OpenAI-compatible provider-wrapper feature state.
 - The spec-consistency refresh also added and aligned the follow-up feature-spec
   package at `specs/openai-compatible-provider-wrapper/` and corrected the
   future API example in
