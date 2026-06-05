@@ -4,19 +4,25 @@
 
 - The active implementation focus has shifted to the authoritative llama.cpp
   local-model feature under `specs/llama-cpp-local-model/`.
-- Slice 1 progress is now through T1.4:
+- Slice 1 progress is now complete through T1.5:
   - T1.3 landed in `6d269ad`
     (`feat(local-models): add local openai endpoint helpers`)
   - T1.4 landed in `ee0bf33`
     (`refactor(local-models): route helpers through adapter factories`)
-  - the Slice 1 docs/validation refresh landed in `22cc09b`
-    (`docs(specs): record llama.cpp T1.4 GREEN evidence`)
+  - T1.5 landed in `dd37c62`
+    (`feat(local-models): export local endpoint helpers`)
+  - the Slice 1 docs/validation refresh through T1.5 landed in `130bc44`
+    (`docs(specs): record llama.cpp T1.5 GREEN evidence`)
 - `src/dynamic_agent_runner/local_models.py` now provides the first caller-facing
   local endpoint helper surface, and that helper now translates local endpoint
   config into the repository-owned provider/adapter seam in
   `src/dynamic_agent_runner/openai_client.py`.
-- The current execution gate for this feature is T1.5: export any approved
-  caller-visible local helper or config type from the package root.
+- `dynamic_agent_runner` now re-exports the approved local helper surface:
+  `LocalOpenAIEndpointConfig`, `create_local_openai_adapter(...)`, and
+  `create_local_async_openai_adapter(...)`.
+- The current execution gate for this feature is T2.1: add failing tests in
+  `tests/test_local_models.py` for the approved model-resolution precedence
+  order.
 - The OpenAI-compatible provider-wrapper feature plan was reprioritized and
   expanded in commit `1e6d37d`
   (`docs(specs): prioritize provider wrapper implementation`). The updated
@@ -138,6 +144,18 @@
 
 ## Latest Completed Follow-up Slices
 
+- llama.cpp local-model T1.5 completed in `dd37c62`: package-root exports now
+  expose the approved caller-facing local endpoint config and helper functions
+  from `dynamic_agent_runner` without changing the existing executor-facing
+  adapter boundary.
+- llama.cpp local-model T1.5 validation passed with:
+  - `poetry run pytest tests/test_import.py -q` (`1 passed`)
+  - `poetry run pytest tests/test_openai_client.py tests/test_executor.py`
+    `tests/test_import.py -q` (`80 passed`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/local_models.py`
+    `src/dynamic_agent_runner/openai_client.py`
+    `src/dynamic_agent_runner/__init__.py` `tests/test_openai_client.py`
+    `tests/test_executor.py` `tests/test_import.py`
 - llama.cpp local-model T1.4 completed in `ee0bf33`: local endpoint helpers now
   route through explicit repository-owned adapter-factory helpers in
   `openai_client.py`, preserving existing request construction, response
@@ -360,6 +378,18 @@
   runtime-owned local-model helper surface, expected to live in
   `src/dynamic_agent_runner/local_models.py`, while preserving current executor
   routing through adapter `models` and `is_local` metadata.
+- That feature is now implemented through the full Slice 1 checkpoint:
+  - T1.1 RED in `a5798cc`
+  - T1.2 RED in `b79f124`
+  - T1.3 GREEN in `6d269ad`
+  - T1.4 GREEN in `ee0bf33`
+  - T1.5 GREEN in `dd37c62`
+  - authoritative spec/plan/tasks/validation refresh through T1.5 in `130bc44`
+- The current source of truth for the active local-model checkpoint is:
+  - `specs/llama-cpp-local-model/spec.md`
+  - `specs/llama-cpp-local-model/plan.md`
+  - `specs/llama-cpp-local-model/tasks.md`
+  - `specs/llama-cpp-local-model/validation.md`
 
 ## Next Steps
 
@@ -367,12 +397,11 @@
   resumes in that area, treat it as optional future polish or broader
   provider-specific follow-up rather than a required next implementation slice.
 - If llama.cpp local-model implementation resumes, start from
-  `specs/llama-cpp-local-model/tasks.md` Slice 1 rather than from the old OA
+  `specs/llama-cpp-local-model/tasks.md` Slice 2 rather than from the old OA
   follow-up queue.
-- For the active llama.cpp Slice 1 sequence, resume at T1.5:
-  export the approved caller-visible local helper/config surface from
-  `src/dynamic_agent_runner/__init__.py` and validate it with
-  `poetry run pytest tests/test_import.py -q`.
+- For the active llama.cpp sequence, resume at T2.1: add failing tests in
+  `tests/test_local_models.py` for the approved model-resolution precedence
+  order.
 - Treat the current source of truth for the llama.cpp feature as:
   - `specs/llama-cpp-local-model/spec.md`
   - `specs/llama-cpp-local-model/plan.md`

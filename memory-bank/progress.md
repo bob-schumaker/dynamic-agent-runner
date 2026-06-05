@@ -4,25 +4,32 @@
 
 - The authoritative llama.cpp local-model Slice 1 implementation is now active
   progress rather than a future-only spec area.
-- Slice 1 is complete through T1.4:
+- Slice 1 is complete through T1.5:
   - `a5798cc` — T1.1 RED helper-contract tests
   - `b79f124` — T1.2 RED executor-routing tests
   - `6d269ad` — T1.3 helper implementation
   - `ee0bf33` — T1.4 provider-seam wiring
-  - `22cc09b` — authoritative spec/plan/tasks/validation refresh through T1.4
+  - `dd37c62` — T1.5 package-root export work
+  - `130bc44` — authoritative spec/plan/tasks/validation refresh through T1.5
 - The resulting first-slice local endpoint helper state now includes:
   - `src/dynamic_agent_runner/local_models.py`
   - `LocalOpenAIEndpointConfig`
   - `create_local_openai_adapter(...)`
   - `create_local_async_openai_adapter(...)`
+  - package-root re-exports for the approved local helper/config surface from
+    `dynamic_agent_runner`
   - provider-config translation that routes adapter construction through
     repository-owned helper factories in
     `src/dynamic_agent_runner/openai_client.py`
 - Focused validation for the latest local-model implementation step passed with:
-  - `poetry run pytest tests/test_openai_client.py -q 2>&1`
-    (`29 passed in 0.15s`)
-  - `poetry run pytest tests/test_executor.py -q 2>&1`
-    (`50 passed in 0.38s`)
+  - `poetry run pytest tests/test_import.py -q 2>&1`
+    (`1 passed in 0.19s`)
+  - `poetry run pytest tests/test_openai_client.py tests/test_executor.py`
+    `tests/test_import.py -q 2>&1` (`80 passed in 0.47s`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/local_models.py`
+    `src/dynamic_agent_runner/openai_client.py`
+    `src/dynamic_agent_runner/__init__.py` `tests/test_openai_client.py`
+    `tests/test_executor.py` `tests/test_import.py`
 - A focused primary-vs-feature spec consistency audit is complete in `3f61d99`
   (`docs(specs): reconcile primary spec with provider wrapper state`).
 - That follow-up updated `specs/dynamic-agent-runner/spec.md` so the main
@@ -264,17 +271,17 @@
 - The active ordered backlog has no remaining OA slice; the currently active
   implementation track is the llama.cpp local-model feature under
   `specs/llama-cpp-local-model/`.
-- The current execution gate for that feature is T1.5: export any approved
-  caller-visible local helper or config type from the package root and validate
-  it with `poetry run pytest tests/test_import.py -q`.
+- The current execution gate for that feature is T2.1: add failing tests in
+  `tests/test_local_models.py` for the approved model-resolution precedence
+  order.
 - The provider-wrapper follow-up is complete through Slice 6; any further work
   there would now be optional polish or broader provider-specific follow-up.
 
 ## Remaining
 
-- Complete llama.cpp local-model Slice 1 from the authoritative task list,
-  beginning with T1.5 package-root export work and then any later Slice 1
-  follow-up validation/docs steps that become necessary.
+- Begin llama.cpp local-model Slice 2 from the authoritative task list,
+  starting with T2.1 RED tests for model-resolution precedence and then the
+  later resolution/error-taxonomy work.
 - If the provider-wrapper area is resumed, treat it as optional follow-up work
   rather than a required next slice; any new work should preserve fake-client
   testing and avoid live network calls.
@@ -306,7 +313,8 @@
   - `specs/llama-cpp-local-model/spec.md`
   - `specs/internal-graph-mutation/spec.md`
   The graph-mutation area still has no active runtime implementation, while the
-  llama.cpp local-model area is now implemented through Slice 1 T1.4 only.
+  llama.cpp local-model area is now implemented through the full Slice 1
+  checkpoint, with Slice 2 now the next pending area.
 - The llama.cpp local-model spec has since been tightened against upstream
   `llama-cpp-python` docs/README/examples and the local `huggingface_hub`
   checkout so that future implementation now explicitly assumes:
@@ -369,5 +377,7 @@
   - T1.2 RED in `b79f124`
   - T1.3 GREEN in `6d269ad`
   - T1.4 GREEN in `ee0bf33`
-  - docs/validation refresh through T1.4 in `22cc09b`
-- The current next gate for that feature is T1.5 package-root export work.
+  - T1.5 GREEN in `dd37c62`
+  - docs/validation refresh through T1.5 in `130bc44`
+- The current next gate for that feature is T2.1 model-resolution precedence
+  RED coverage.
