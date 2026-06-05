@@ -750,6 +750,7 @@ def _builtin_tool(
         "id": tool_id,
         "label": label,
         "description_for_llm": description,
+        "tool_type": "file_read",
         "input_schema": {
             "type": "object",
             "properties": dict(properties),

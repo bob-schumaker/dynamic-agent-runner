@@ -61,6 +61,21 @@ class ToolExposure(str, Enum):
     HIDDEN = "hidden"
 
 
+class ToolType(str, Enum):
+    """Portable semantic capability category for a tool."""
+
+    FILE_READ = "file_read"
+    FILE_WRITE = "file_write"
+    WEB_SEARCH = "web_search"
+    WEB_FETCH = "web_fetch"
+    SHELL_COMMAND = "shell_command"
+    CODE_EXECUTION = "code_execution"
+    STRUCTURED_DATA_QUERY = "structured_data_query"
+    EXTERNAL_API = "external_api"
+    AGENT_TOOL = "agent_tool"
+    HUMAN_APPROVAL = "human_approval"
+
+
 class ToolSourceKind(str, Enum):
     """Where a tool definition originated before runtime dispatch."""
 
@@ -535,6 +550,7 @@ class ToolDefinition:
     id: str | None
     raw: Mapping[str, Any] = field(default_factory=dict)
     label: str | None = None
+    tool_type: ToolType | str | None = None
     adapter: str | None = None
     side_effect: str | None = None
     approval_required: str | None = None
@@ -552,6 +568,7 @@ class ToolDefinition:
         return cls(
             id=str(raw["id"]) if raw.get("id") is not None else None,
             label=str(raw["label"]) if raw.get("label") is not None else None,
+            tool_type=_tool_type_from_value(raw.get("tool_type")),
             adapter=str(raw["adapter"]) if raw.get("adapter") is not None else None,
             side_effect=policy.side_effect,
             approval_required=policy.approval_required,
@@ -1091,6 +1108,15 @@ def _model_capabilities_from_policy(
     return ModelCapabilities.from_mapping(value)
 
 
+def _tool_type_from_value(value: object) -> ToolType | str | None:
+    if value is None:
+        return None
+    try:
+        return ToolType(str(value))
+    except ValueError:
+        return str(value)
+
+
 def _tool_exposure_from_value(value: object) -> ToolExposure | str:
     if value is None:
         return ToolExposure.DIRECT
@@ -1143,6 +1169,7 @@ def _tool_definition_with_source(
         id=definition.id,
         raw=definition.raw,
         label=definition.label,
+        tool_type=definition.tool_type,
         adapter=definition.adapter,
         side_effect=definition.side_effect,
         approval_required=definition.approval_required,

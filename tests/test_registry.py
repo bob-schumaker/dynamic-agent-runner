@@ -17,6 +17,7 @@ from dynamic_agent_runner.models import (
     ToolOriginKind,
     ToolSource,
     ToolSourceKind,
+    ToolType,
 )
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
@@ -370,6 +371,18 @@ def test_tool_definition_records_manifest_and_index_source_metadata() -> None:
     )
 
 
+def test_tool_definition_preserves_portable_tool_type_metadata() -> None:
+    definition = ToolDefinition.from_mapping(
+        {
+            "id": "workspace_search",
+            "tool_type": "file_read",
+            "adapter": "runtime.search_files",
+        }
+    )
+
+    assert definition.tool_type is ToolType.FILE_READ
+
+
 def test_registry_validates_callable_tool_references_not_metadata_only() -> None:
     manifest = manifest_with_tool("metadata_only")
     registry = InMemoryToolRegistry([])
@@ -547,6 +560,10 @@ def test_local_workspace_tool_pack_is_opt_in_and_path_restricted(
         source_id="local_workspace",
         detail="read_file",
     )
+    assert registry.get_tool("read_file").definition.tool_type is ToolType.FILE_READ
+    assert registry.get_tool("list_files").definition.tool_type is ToolType.FILE_READ
+    assert registry.get_tool("search_files").definition.tool_type is ToolType.FILE_READ
+    assert registry.get_tool("inspect_path").definition.tool_type is ToolType.FILE_READ
     assert [tool["function"]["name"] for tool in registry.to_openai_tools()] == [
         "read_file",
         "list_files",

@@ -45,6 +45,7 @@ from dynamic_agent_runner.models import (
     RuntimeBehaviorOverrides,
     ToolExposure,
     ToolPolicy,
+    ToolType,
 )
 from dynamic_agent_runner.hooks import (
     ModelHookContext,
@@ -142,6 +143,7 @@ __all__ = [
     "ToolExposureOverride",
     "ToolExposure",
     "ToolPolicy",
+    "ToolType",
     "RegisteredTool",
     "PromptCacheObservation",
     "PromptCachePolicy",

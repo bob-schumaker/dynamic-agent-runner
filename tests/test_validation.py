@@ -526,6 +526,53 @@ def test_tool_metadata_rejects_unknown_exposure() -> None:
         validate_tool_index(tool_index)
 
 
+def test_tool_metadata_accepts_supported_portable_tool_type() -> None:
+    """Portable tool_type metadata is preserved and validated separately from adapters."""
+
+    data = valid_manifest_data()
+    data["tools"] = [
+        {
+            "id": "search_repo",
+            "tool_type": "external_api",
+            "adapter": "runtime.search_files",
+        }
+    ]
+
+    manifest = load_runtime_manifest(data)
+
+    validate_runtime_manifest(manifest)
+    assert manifest.tools[0].tool_type is not None
+    assert manifest.tools[0].tool_type.value == "external_api"
+
+
+def test_tool_metadata_rejects_unknown_portable_tool_type() -> None:
+    """Unsupported portable tool_type values fail closed for manifests and tool indexes."""
+
+    data = valid_manifest_data()
+    data["tools"] = [
+        {
+            "id": "search_repo",
+            "adapter": "runtime.search_files",
+            "tool_type": "spreadsheet_macro",
+        }
+    ]
+
+    with pytest.raises(WorkflowValidationError, match="unsupported tool_type"):
+        validate_mapping(data)
+
+    tool_index = load_tool_index(
+        {
+            "format_version": 1,
+            "index_type": "agent_runtime_tool_index",
+            "tools": [{"id": "external_search", "tool_type": "spreadsheet_macro"}],
+        }
+    )
+    assert tool_index is not None
+
+    with pytest.raises(WorkflowValidationError, match="unsupported tool_type"):
+        validate_tool_index(tool_index)
+
+
 def test_legacy_root_runtime_fields_fail_validation() -> None:
     """Legacy flat optional root fields fail instead of acting as compatibility."""
 

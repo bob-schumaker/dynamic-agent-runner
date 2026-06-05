@@ -16,6 +16,7 @@ from dynamic_agent_runner.models import (
     ToolDefinition,
     ToolExposure,
     ToolIndex,
+    ToolType,
 )
 from dynamic_agent_runner.prompt_cache import prompt_cache_policy_from_value
 
@@ -33,6 +34,18 @@ SUPPORTED_EDGE_KINDS = (
 )
 SUPPORTED_TOOL_INDEX_TYPE = "agent_runtime_tool_index"
 SUPPORTED_OVERRIDE_TYPE = "dynamic_agent_runtime_overrides"
+SUPPORTED_TOOL_TYPES = {
+    "file_read",
+    "file_write",
+    "web_search",
+    "web_fetch",
+    "shell_command",
+    "code_execution",
+    "structured_data_query",
+    "external_api",
+    "agent_tool",
+    "human_approval",
+}
 RAG_PATTERN_IDS = {"rag", "embedding_retrieval", "graph_retrieval", "graphrag"}
 SUPPORTED_RAG_RETRIEVAL_MODES = {
     "keyword",
@@ -710,6 +723,11 @@ def _tool_definition_errors(
 ) -> list[str]:
     errors: list[str] = []
     for index, tool in enumerate(tools):
+        if tool.tool_type is not None and not isinstance(tool.tool_type, ToolType):
+            errors.append(
+                f"{label} {tool.id!r} at position {index} has unsupported tool_type "
+                f"{tool.tool_type!r}"
+            )
         if not isinstance(tool.exposure, ToolExposure):
             errors.append(
                 f"{label} {tool.id!r} at position {index} has unsupported exposure "
