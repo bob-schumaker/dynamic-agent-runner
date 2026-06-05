@@ -79,7 +79,9 @@ Deliver the highest-ROI path first:
 - prove `local_only` executor routing works without any new executor branch
 - current checkpoint: T1.1 RED helper-contract tests completed in commit
   `a5798cc` (`test(local-models): add RED tests for local endpoint helpers`);
-  T1.2 executor RED coverage is the next test-first step
+  T1.2 RED executor-routing tests completed in commit `b79f124`
+  (`test(local-models): add RED executor routing coverage`); T1.3 helper
+  implementation is the next test-first step
 
 This slice satisfies the primary implementation path in the approved spec.
 
@@ -280,6 +282,11 @@ Initial recorded evidence:
   - Observed outcome: `3 failed, 24 passed`
   - Expected RED reason: `ModuleNotFoundError: No module named
     'dynamic_agent_runner.local_models'`
+- T1.2 RED evidence in commit `b79f124`:
+  - Command: `poetry run pytest tests/test_executor.py -q 2>&1`
+  - Observed outcome: `1 failed, 49 passed`
+  - Expected RED reason: `ModuleNotFoundError: No module named
+    'dynamic_agent_runner.local_models'`
 
 ## Risks and Mitigations
 
@@ -317,5 +324,6 @@ Initial recorded evidence:
 - Status: active for Slice 1 test-first execution
 - Notes: created by explicit user direction after the authoritative spec was
   approved and committed; the user later directed `execute T1.1 and commit`,
-  producing RED commit `a5798cc`. Broader Slice 1 implementation remains gated
-  by subsequent execution steps.
+  producing RED commit `a5798cc`, and later directed T1.2 execution, producing
+  RED commit `b79f124`. Broader Slice 1 implementation remains gated by
+  subsequent execution steps.

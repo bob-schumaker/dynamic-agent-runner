@@ -8,12 +8,12 @@
 - Status: approved-for-planning future-feature spec
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model support
-- Next gate: continue Slice 1 test-first execution with T1.2/T1.3 while recording
+- Next gate: continue Slice 1 test-first execution with T1.3 while recording
   fresh validation evidence in `validation.md`
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
   - no production local-model implementation is present in the repository yet;
-    only fresh T1.1 RED tests exist so far
+    only fresh T1.1 and T1.2 RED tests exist so far
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
@@ -134,7 +134,9 @@ This feature specification covers:
   repository.
 - Fresh test-first execution has started: T1.1 RED helper-contract tests landed
   in commit `a5798cc` (`test(local-models): add RED tests for local endpoint
-  helpers`), but the runtime helper module under
+  helpers`) and T1.2 RED executor-routing tests landed in commit `b79f124`
+  (`test(local-models): add RED executor routing coverage`), but the runtime
+  helper module under
   `src/dynamic_agent_runner/local_models.py` does not exist yet.
 - Any earlier prototype code or prior test results are historical context only
   and do not count as current implementation or validation evidence.
@@ -582,10 +584,15 @@ from this specification.
 - This spec is authoritative for intended future behavior and boundaries.
 - There is not yet any GREEN implementation validation for this feature in the
   present repository state.
-- Fresh validation evidence has begun with the T1.1 RED checkpoint recorded in
-  commit `a5798cc` and `specs/llama-cpp-local-model/validation.md`.
+- Fresh validation evidence has begun with the T1.1 and T1.2 RED checkpoints
+  recorded in commits `a5798cc`, `b79f124`, and
+  `specs/llama-cpp-local-model/validation.md`.
   - Command: `poetry run pytest tests/test_openai_client.py -q 2>&1`
   - Observed outcome: `3 failed, 24 passed`
+  - Expected RED reason: `ModuleNotFoundError: No module named
+    'dynamic_agent_runner.local_models'`
+  - Command: `poetry run pytest tests/test_executor.py -q 2>&1`
+  - Observed outcome: `1 failed, 49 passed`
   - Expected RED reason: `ModuleNotFoundError: No module named
     'dynamic_agent_runner.local_models'`
 - Future implementation work must continue generating fresh validation evidence

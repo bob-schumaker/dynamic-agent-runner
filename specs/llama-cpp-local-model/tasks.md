@@ -12,11 +12,13 @@ Status: Draft
 ## Status
 
 - State: T1.1 RED helper-contract tests are complete in commit `a5798cc`
-  (`test(local-models): add RED tests for local endpoint helpers`); production
+  (`test(local-models): add RED tests for local endpoint helpers`) and T1.2 RED
+  executor-routing tests are complete in commit `b79f124`
+  (`test(local-models): add RED executor routing coverage`); production
   local-model helper implementation has not landed yet
-- Current execution gate: T1.2 is the next pending step — add executor RED
-  coverage proving `local_only` routing still works for the caller-built local
-  adapter
+- Current execution gate: T1.3 is the next pending step — implement
+  `src/dynamic_agent_runner/local_models.py` to satisfy the committed RED
+  helper-contract and executor-routing checks
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
@@ -43,7 +45,7 @@ Status: Draft
     `create_local_openai_adapter(...)`, and
     `create_local_async_openai_adapter(...)`
 
-- [ ] T1.2 [tests] Add failing executor coverage in `tests/test_executor.py`
+- [x] T1.2 [tests] Add failing executor coverage in `tests/test_executor.py`
       proving `local_only` routing still works for the caller-built local
       adapter.
   - Spec: FR-1, FR-6
@@ -56,6 +58,13 @@ Status: Draft
   - Validation: `poetry run pytest tests/test_executor.py -q`
   - Evidence: a `local_only` request selects the local adapter without any new
     executor-specific branch
+  - Completed in commit `b79f124` (`test(local-models): add RED executor
+    routing coverage`)
+  - RED: `poetry run pytest tests/test_executor.py -q 2>&1` — failed with
+    `ModuleNotFoundError: No module named 'dynamic_agent_runner.local_models'`
+    after adding `test_prepare_model_input_routes_local_only_requests_to_helper_built_local_adapter`
+    to prove helper-built local adapters still satisfy `local_only` routing via
+    adapter `models` plus `is_local`
 
 - [ ] T1.3 [implementation] Add `src/dynamic_agent_runner/local_models.py` with
       the first-slice local endpoint config and helper factory.
