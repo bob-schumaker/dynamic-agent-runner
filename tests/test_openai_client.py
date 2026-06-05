@@ -222,6 +222,36 @@ def test_adapter_default_path_constructs_through_default_provider(
     assert result.content == "via default provider"
 
 
+def test_adapter_create_response_uses_repository_owned_dispatch_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = FakeResponses({"id": "resp_123", "output_text": "final answer"})
+    adapter = OpenAIClientAdapter(FakeClient(responses))
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+    sentinel = object()
+    observed: dict[str, object] = {}
+
+    def fake_create_openai_response(client: object, req: object) -> object:
+        observed["client"] = client
+        observed["request"] = req
+        return sentinel
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.openai_client.create_openai_response",
+        fake_create_openai_response,
+        raising=False,
+    )
+
+    result = adapter.create_response(request)
+
+    assert result is sentinel
+    assert observed == {"client": adapter.client, "request": request}
+    assert responses.calls == []
+
+
 def test_async_adapter_awaits_injected_client_and_normalizes_response() -> None:
     responses = FakeAsyncResponses(
         {"id": "resp_async_123", "output_text": "async final"}
@@ -308,6 +338,38 @@ def test_async_adapter_default_path_constructs_through_default_provider(
     assert provider.calls == 1
     assert result.response_id == "resp_async_default_provider"
     assert result.content == "via async default provider"
+
+
+def test_async_adapter_create_response_uses_repository_owned_dispatch_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = FakeAsyncResponses(
+        {"id": "resp_async_123", "output_text": "async final"}
+    )
+    adapter = AsyncOpenAIClientAdapter(FakeAsyncClient(responses))
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello async")],
+    )
+    sentinel = object()
+    observed: dict[str, object] = {}
+
+    async def fake_create_async_openai_response(client: object, req: object) -> object:
+        observed["client"] = client
+        observed["request"] = req
+        return sentinel
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.openai_client.create_async_openai_response",
+        fake_create_async_openai_response,
+        raising=False,
+    )
+
+    result = asyncio.run(adapter.create_response(request))
+
+    assert result is sentinel
+    assert observed == {"client": adapter.client, "request": request}
+    assert responses.calls == []
 
 
 def test_normalize_openai_response_extracts_message_text_and_tool_calls() -> None:

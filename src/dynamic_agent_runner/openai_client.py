@@ -188,11 +188,7 @@ class OpenAIClientAdapter:
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Send a request and normalize the returned model response."""
 
-        try:
-            raw_response = self.client.responses.create(**request.to_kwargs())
-        except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
-            raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
-        return normalize_openai_response(raw_response)
+        return create_openai_response(self.client, request)
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -242,11 +238,7 @@ class AsyncOpenAIClientAdapter:
     async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Send a request asynchronously and normalize the model response."""
 
-        try:
-            raw_response = await self.client.responses.create(**request.to_kwargs())
-        except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
-            raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
-        return normalize_openai_response(raw_response)
+        return await create_async_openai_response(self.client, request)
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -331,6 +323,32 @@ def normalize_openai_response(raw_response: Any) -> ModelResponse:
         response_id=response_id,
         raw=raw_response,
     )
+
+
+def create_openai_response(
+    client: OpenAIClientProtocol,
+    request: OpenAIModelRequest,
+) -> ModelResponse:
+    """Dispatch a sync OpenAI-compatible request through repo-owned helpers."""
+
+    try:
+        raw_response = client.responses.create(**request.to_kwargs())
+    except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
+        raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+    return normalize_openai_response(raw_response)
+
+
+async def create_async_openai_response(
+    client: AsyncOpenAIClientProtocol,
+    request: OpenAIModelRequest,
+) -> ModelResponse:
+    """Dispatch an async OpenAI-compatible request through repo-owned helpers."""
+
+    try:
+        raw_response = await client.responses.create(**request.to_kwargs())
+    except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
+        raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+    return normalize_openai_response(raw_response)
 
 
 def _message_to_mapping(
