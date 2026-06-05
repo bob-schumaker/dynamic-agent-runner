@@ -155,12 +155,26 @@
   a later scoped slice implements them.
 - Defer LiteLLM, Watchfiles, Rich, and Diskcache until a future scoped requirement
   justifies them; the current OpenAI-first adapter boundary remains in force.
-- If local-model support returns, prefer fitting llama.cpp into the existing
-  `model_adapter` contract rather than introducing a parallel runtime model
-  interface. The committed feature spec also recommends treating future
-  context-pruning attachment as an internal compile-time graph-mutation layer,
-  ideally starting with input transformation on `llm_step` nodes before any
-  true node/edge graph surgery.
+- If local-model support returns, follow the split authoritative specs:
+  `specs/llama-cpp-local-model/spec.md` for local adapter design and
+  `specs/internal-graph-mutation/spec.md` for mutation design. Fit llama.cpp
+  into the existing `model_adapter` contract rather than introducing a parallel
+  runtime model interface, and treat future context-pruning attachment as an
+  internal compile-time graph-mutation layer, ideally starting with input
+  transformation on `llm_step` nodes before any true node or edge graph
+  surgery.
+- For the llama.cpp local-model slice specifically, preserve these boundaries:
+  consume caller/deployer-provided OpenAI-compatible local endpoints through
+  the existing provider seam rather than launching local servers in the runtime;
+  use runtime-owned Hugging Face download/caching for missing referenced model
+  assets; and default the adapter model-cache path to `~/.ollama/models` unless
+  the caller provides an explicit cache folder.
+- The current preferred first implementation path for llama.cpp is endpoint-
+  backed rather than in-process: prefer caller/deployer-provided
+  OpenAI-compatible local endpoints first, keep in-process `llama_cpp.Llama`
+  integration as a later allowed path, and preserve explicit model-resolution
+  precedence plus separate error boundaries for model resolution versus endpoint
+  connectivity/protocol failures.
 - Repository-local reference packaging is now being used for external guidance
   that should remain available inside this repo. The OpenAI Model Registry notes
   under `cline-tasks/references/openai-model-registry/` are supporting

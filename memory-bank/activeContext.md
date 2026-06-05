@@ -279,8 +279,28 @@
   history, including a newly recorded future-looking prompt about evaluating
   `/Users/roschuma/Repos/github/omlx/` as a possible mac-only local model
   feature.
-- Local llama.cpp and graph-mutation work exists only as preserved feature-spec
-  material; the runtime codebase remains in its prior OpenAI-first state.
+- The future local-model and workflow-derivation area is now split between:
+  - `specs/llama-cpp-local-model/spec.md`
+  - `specs/internal-graph-mutation/spec.md`
+  Both are authoritative future-feature specs, and the runtime codebase still
+  has no active implementation for either feature area.
+- The llama.cpp local-model spec was further refined against the upstream
+  `llama-cpp-python` docs/README/examples and the local `huggingface_hub`
+  checkout. The current spec direction now says:
+  - caller/deployer-owned OpenAI-compatible llama.cpp server endpoints are the
+    supported server-side boundary
+  - the runtime should not launch or supervise a local llama.cpp server itself
+  - missing Hugging Face-referenced model assets may be downloaded by the
+    adapter via `huggingface_hub`
+  - the adapter accepts an optional model-cache folder and defaults to
+    `~/.ollama/models` when unspecified
+  - the first implementation should prefer caller/deployer-provided
+    OpenAI-compatible endpoints over in-process llama.cpp integration
+  - model resolution now has explicit supported reference shapes and precedence:
+    explicit local path, explicit cache lookup, default `~/.ollama/models`
+    lookup, then explicit Hugging Face download
+  - model-resolution failures are expected to remain distinct from endpoint
+    connectivity or protocol failures
 
 ## Next Steps
 

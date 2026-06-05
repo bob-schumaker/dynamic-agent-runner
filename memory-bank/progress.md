@@ -13,7 +13,7 @@
     `specs/dynamic-agent-runner/plan.md`
     `specs/dynamic-agent-runner/tasks.md`
     `specs/async-session-memory-pipeline/spec.md`
-    `specs/llama-cpp-graph-mutation/spec.md`
+    `the then-current local-model/graph-mutation future spec`
     `specs/llm-step-interpreter-middleware/spec.md`
     `specs/openai-compatible-provider-wrapper/spec.md`
     `specs/openai-compatible-provider-wrapper/plan.md`
@@ -273,5 +273,29 @@
 - RAG/GraphRAG, handoffs, and agent-as-tool support are currently
   metadata/validation surfaces, not full runtime execution engines. Portable
   tool taxonomy is now implemented as a metadata/validation seam through OA11.
-- Local llama.cpp and graph-mutation work remains feature-spec-only, with no
-  active runtime implementation in the codebase.
+- The old combined llama.cpp and graph-mutation future-spec area is now split
+  into two authoritative feature specs:
+  - `specs/llama-cpp-local-model/spec.md`
+  - `specs/internal-graph-mutation/spec.md`
+  The codebase still has no active runtime implementation for either feature
+  area.
+- The llama.cpp local-model spec has since been tightened against upstream
+  `llama-cpp-python` docs/README/examples and the local `huggingface_hub`
+  checkout so that future implementation now explicitly assumes:
+  - caller/deployer-owned OpenAI-compatible local server endpoints rather than
+    runtime-managed server launch
+  - adapter-supported Hugging Face model download when referenced assets are
+    missing locally
+  - an optional adapter model-cache folder with default path
+    `~/.ollama/models`
+- Council review of `specs/llama-cpp-local-model/spec.md` was completed and the
+  spec was updated accordingly. The current llama.cpp local-model direction now
+  also explicitly records:
+  - a preferred first implementation path of caller/deployer-provided
+    OpenAI-compatible endpoints over in-process integration
+  - supported runtime-owned model reference shapes for local path, Hub file, and
+    Hub snapshot resolution
+  - model-resolution precedence of explicit local path, explicit cache lookup,
+    default `~/.ollama/models` lookup, then explicit Hub download
+  - separate failure boundaries for model-resolution errors versus endpoint
+    connectivity/protocol errors
