@@ -2,6 +2,27 @@
 
 ## Working
 
+- The OpenAI-compatible provider-wrapper Slice 4 implementation is complete in
+  `a437b1a` (`feat(openai-client): centralize response dispatch helpers`).
+- That implementation updated `src/dynamic_agent_runner/openai_client.py` so:
+  - `create_openai_response(...)` centralizes sync transport dispatch,
+    runtime-facing `ModelExecutionError` translation, and
+    `normalize_openai_response(...)` use
+  - `create_async_openai_response(...)` centralizes the async equivalent
+  - `OpenAIClientAdapter` and `AsyncOpenAIClientAdapter` now route through those
+    repository-owned helpers instead of inlining transport/normalization logic
+- Slice 4 validation passed with:
+  - `poetry run pytest tests/test_openai_client.py -q` (`24 passed`)
+  - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
+    `tests/test_openai_client.py`
+- The provider-wrapper spec docs are now aligned through Slice 4 in `14fa1ea`
+  (`docs(specs): align provider wrapper docs with slice 4`), updating:
+  - `specs/openai-compatible-provider-wrapper/spec.md`
+  - `specs/openai-compatible-provider-wrapper/plan.md`
+  - `specs/openai-compatible-provider-wrapper/tasks.md`
+  so they match the committed provider-wrapper implementation state and set
+  Slice 5 as the next planned step.
 - The OpenAI-compatible provider-wrapper Slice 3 implementation is complete in
   `bc1ce39` (`feat(openai-client): route default adapters through providers`).
 - That implementation updated `src/dynamic_agent_runner/openai_client.py` so:
@@ -16,13 +37,6 @@
   - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
   - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
     `tests/test_openai_client.py`
-- The provider-wrapper spec docs are now aligned through Slice 3 in `1e92aa3`
-  (`docs(specs): align provider wrapper docs with slice 3`), updating:
-  - `specs/openai-compatible-provider-wrapper/spec.md`
-  - `specs/openai-compatible-provider-wrapper/plan.md`
-  - `specs/openai-compatible-provider-wrapper/tasks.md`
-  so they match the committed adapter/provider seam implementation state and set
-  Slice 4 as the next planned step.
 - The OpenAI-compatible provider-wrapper Slice 2 implementation is complete in
   `282b93d` (`feat(openai-client): isolate sdk-backed provider defaults`).
 - That implementation added SDK-backed default provider wrapping in
@@ -65,7 +79,7 @@
   active remaining upstream-conditional follow-up in
   `specs/dynamic-agent-runner/tasks.md`.
 - User direction has selected the provider-wrapper feature as the next
-  high-ROI future expansion, and Slices 1-3 are now committed while Slice 4 is
+  high-ROI future expansion, and Slices 1-4 are now committed while Slice 5 is
   the next logical provider-wrapper implementation step.
 - The primary spec set and related feature specs are now internally consistent
   with the current repo state in commit `e6b5f2c`
@@ -155,14 +169,14 @@
 ## In Flight
 
 - The active ordered backlog is: `OA11`.
-- The active provider-wrapper follow-up, if resumed, is Slice 4.
+- The active provider-wrapper follow-up, if resumed, is Slice 5.
 
 ## Remaining
 
-- If the provider-wrapper follow-up is implemented next, continue with Slice 4
-  in `specs/openai-compatible-provider-wrapper/tasks.md`: preserve
-  repository-owned request construction and response normalization so provider-
-  transport changes do not leak semantics into executor logic.
+- If the provider-wrapper follow-up is implemented next, continue with Slice 5
+  in `specs/openai-compatible-provider-wrapper/tasks.md`: expand focused wrapper
+  and compatible-endpoint validation while keeping tests fake-client based and
+  free of live network calls.
 - Start the next scoped implementation from `OA11` in the governing SDD docs.
 - If OA8 expansion is later prioritized, treat the current future-spec package
   as the design baseline and preserve the already-implemented metadata-only seam
