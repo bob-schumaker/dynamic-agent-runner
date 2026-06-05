@@ -12,7 +12,7 @@
   - `src/dynamic_agent_runner/__init__.py`
   - `tests/test_openai_client.py`
   - `tests/test_executor.py`
-  - `specs/llama-cpp-graph-mutation/spec.md`
+  - `specs/llama-cpp-local-model/spec.md`
 
 ## Objective
 
@@ -56,11 +56,11 @@ OpenAI-compatible endpoints. The remaining work in this area is now optional
 future polish rather than unfinished feature-core behavior.
 
 The repository also has a preserved local-model direction in
-`specs/llama-cpp-graph-mutation/spec.md` that prefers fitting local execution
-into the existing adapter contract rather than inventing a parallel runtime
-model family. A provider/client wrapper around the OpenAI-compatible wire
-protocol supports that direction better than introducing backend-specific
-runtime logic for each future local provider.
+`specs/llama-cpp-local-model/spec.md` that prefers fitting local execution into
+the existing adapter contract rather than inventing a parallel runtime model
+family. A provider/client wrapper around the OpenAI-compatible wire protocol
+supports that direction better than introducing backend-specific runtime logic
+for each future local provider.
 
 ## Users
 

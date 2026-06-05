@@ -1565,6 +1565,11 @@ Before implementation is considered complete, add validation covering:
   approval interruption/resume state, small session protocols, optional
   callable-to-tool helpers, and sandbox/workspace runtime separation. These are
   reference-backed future design inputs, not current implementation scope.
+- The earlier combined local-model and graph-mutation future-work area is now
+  split into two feature-spec packages with separate authority boundaries:
+  `specs/llama-cpp-local-model/spec.md` owns future llama.cpp adapter direction,
+  while `specs/internal-graph-mutation/spec.md` owns future compile-time
+  workflow-mutation direction.
 - The repository now implements the metadata-only or preparation-seam subset of
   those follow-ups: deferred guardrail declarations, tool provenance,
   `prepare_model_input(...)`, prompt-cache intent and telemetry, MCP

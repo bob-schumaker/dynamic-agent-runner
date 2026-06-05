@@ -18,7 +18,7 @@ hosted OpenAI default path.
 - `tests/test_openai_client.py` — primary validation surface for this refactor.
 - `tests/test_executor.py` — secondary validation surface if adapter metadata or
   construction semantics change.
-- `specs/llama-cpp-graph-mutation/spec.md` — related future local-model design
+- `specs/llama-cpp-local-model/spec.md` — related future local-model design
   direction that should keep using the adapter contract rather than a parallel
   runtime family.
 
