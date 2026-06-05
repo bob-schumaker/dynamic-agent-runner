@@ -11,15 +11,18 @@ Status: Draft
 
 ## Status
 
-- State: task list created from the authoritative spec and the first technical
-  plan
-- Current execution gate: implementation has not started
+- State: T1.1 RED helper-contract tests are complete in commit `a5798cc`
+  (`test(local-models): add RED tests for local endpoint helpers`); production
+  local-model helper implementation has not landed yet
+- Current execution gate: T1.2 is the next pending step — add executor RED
+  coverage proving `local_only` routing still works for the caller-built local
+  adapter
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
 ## Slice 1 — Endpoint-backed local chat through the existing provider seam
 
-- [ ] T1.1 [tests] Add failing tests in `tests/test_openai_client.py` for a
+- [x] T1.1 [tests] Add failing tests in `tests/test_openai_client.py` for a
       caller-facing local endpoint helper that builds a local adapter through the
       existing provider seam.
   - Spec: FR-1, FR-2, FR-3, FR-6
@@ -32,6 +35,13 @@ Status: Draft
   - Validation: `poetry run pytest tests/test_openai_client.py -q`
   - Evidence: tests fail before the helper exists and pass once the helper
     returns correctly configured adapters
+  - Completed in commit `a5798cc` (`test(local-models): add RED tests for local
+    endpoint helpers`)
+  - RED: `poetry run pytest tests/test_openai_client.py -q 2>&1` — failed with
+    `ModuleNotFoundError: No module named 'dynamic_agent_runner.local_models'`
+    after adding helper-contract coverage for `LocalOpenAIEndpointConfig`,
+    `create_local_openai_adapter(...)`, and
+    `create_local_async_openai_adapter(...)`
 
 - [ ] T1.2 [tests] Add failing executor coverage in `tests/test_executor.py`
       proving `local_only` routing still works for the caller-built local

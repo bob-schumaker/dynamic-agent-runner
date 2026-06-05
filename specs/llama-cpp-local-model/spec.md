@@ -8,16 +8,20 @@
 - Status: approved-for-planning future-feature spec
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model support
-- Next gate: create `plan.md`, `tasks.md`, and fresh validation artifacts before
-  implementation
+- Next gate: continue Slice 1 test-first execution with T1.2/T1.3 while recording
+  fresh validation evidence in `validation.md`
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
-  - no active implementation is present in the repository
+  - no production local-model implementation is present in the repository yet;
+    only fresh T1.1 RED tests exist so far
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/openai-compatible-provider-wrapper/spec.md`
   - `specs/internal-graph-mutation/spec.md`
+  - `specs/llama-cpp-local-model/plan.md`
+  - `specs/llama-cpp-local-model/tasks.md`
+  - `specs/llama-cpp-local-model/validation.md`
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`
   - local llama-cpp Python source checkout:
@@ -128,17 +132,20 @@ This feature specification covers:
 
 - No active llama.cpp adapter implementation is currently present in the
   repository.
+- Fresh test-first execution has started: T1.1 RED helper-contract tests landed
+  in commit `a5798cc` (`test(local-models): add RED tests for local endpoint
+  helpers`), but the runtime helper module under
+  `src/dynamic_agent_runner/local_models.py` does not exist yet.
 - Any earlier prototype code or prior test results are historical context only
   and do not count as current implementation or validation evidence.
-- This artifact is authoritative for feature intent, scope, and design
-  boundaries until a future implementation plan and task list are created.
+- This artifact is authoritative for feature intent and design boundaries;
+  `plan.md`, `tasks.md`, and `validation.md` track execution state and evidence.
 - This artifact is authoritative for **what** the feature must do and **why** it
   exists. Future implementation work must derive technical approach, execution
   order, and validation commands from companion SDD artifacts rather than coding
   directly from this spec alone.
-- Unless the user explicitly waives the gate, implementation for this feature
-  should not begin until `plan.md` and `tasks.md` exist and are consistent with
-  this spec.
+- Implementation for this feature now proceeds from the approved `plan.md` and
+  `tasks.md`; future validation evidence should be recorded in `validation.md`.
 
 ## Primary Implementation Path
 
@@ -573,9 +580,15 @@ from this specification.
 ## Validation Status
 
 - This spec is authoritative for intended future behavior and boundaries.
-- There is no current implementation validation for this feature in the present
-  repository state.
-- Future implementation work must create fresh validation evidence rather than
-  relying on any reverted prototype results.
-- The next authoritative SDD artifacts for this feature are `plan.md`,
-  `tasks.md`, and, once implementation begins, `validation.md`.
+- There is not yet any GREEN implementation validation for this feature in the
+  present repository state.
+- Fresh validation evidence has begun with the T1.1 RED checkpoint recorded in
+  commit `a5798cc` and `specs/llama-cpp-local-model/validation.md`.
+  - Command: `poetry run pytest tests/test_openai_client.py -q 2>&1`
+  - Observed outcome: `3 failed, 24 passed`
+  - Expected RED reason: `ModuleNotFoundError: No module named
+    'dynamic_agent_runner.local_models'`
+- Future implementation work must continue generating fresh validation evidence
+  rather than relying on any reverted prototype results.
+- The current authoritative companion SDD artifacts for this feature are
+  `plan.md`, `tasks.md`, and `validation.md`.

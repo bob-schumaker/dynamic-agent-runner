@@ -77,6 +77,9 @@ Deliver the highest-ROI path first:
 - allow one or more caller-declared model aliases
 - preserve repository-owned request construction and normalization
 - prove `local_only` executor routing works without any new executor branch
+- current checkpoint: T1.1 RED helper-contract tests completed in commit
+  `a5798cc` (`test(local-models): add RED tests for local endpoint helpers`);
+  T1.2 executor RED coverage is the next test-first step
 
 This slice satisfies the primary implementation path in the approved spec.
 
@@ -270,6 +273,14 @@ execution family.
     `tests/test_openai_client.py` `tests/test_executor.py`
     `tests/test_import.py` `2>&1`
 
+Initial recorded evidence:
+
+- T1.1 RED evidence in commit `a5798cc`:
+  - Command: `poetry run pytest tests/test_openai_client.py -q 2>&1`
+  - Observed outcome: `3 failed, 24 passed`
+  - Expected RED reason: `ModuleNotFoundError: No module named
+    'dynamic_agent_runner.local_models'`
+
 ## Risks and Mitigations
 
 - Risk: the feature scope expands the first slice into server ownership or graph
@@ -303,7 +314,8 @@ execution family.
 
 ## Plan Approval
 
-- Status: pending
+- Status: active for Slice 1 test-first execution
 - Notes: created by explicit user direction after the authoritative spec was
-  approved and committed; implementation should wait for task review and any
-  further user direction.
+  approved and committed; the user later directed `execute T1.1 and commit`,
+  producing RED commit `a5798cc`. Broader Slice 1 implementation remains gated
+  by subsequent execution steps.
