@@ -2,6 +2,21 @@
 
 ## Current Focus
 
+- The active implementation focus has shifted to the authoritative llama.cpp
+  local-model feature under `specs/llama-cpp-local-model/`.
+- Slice 1 progress is now through T1.4:
+  - T1.3 landed in `6d269ad`
+    (`feat(local-models): add local openai endpoint helpers`)
+  - T1.4 landed in `ee0bf33`
+    (`refactor(local-models): route helpers through adapter factories`)
+  - the Slice 1 docs/validation refresh landed in `22cc09b`
+    (`docs(specs): record llama.cpp T1.4 GREEN evidence`)
+- `src/dynamic_agent_runner/local_models.py` now provides the first caller-facing
+  local endpoint helper surface, and that helper now translates local endpoint
+  config into the repository-owned provider/adapter seam in
+  `src/dynamic_agent_runner/openai_client.py`.
+- The current execution gate for this feature is T1.5: export any approved
+  caller-visible local helper or config type from the package root.
 - The OpenAI-compatible provider-wrapper feature plan was reprioritized and
   expanded in commit `1e6d37d`
   (`docs(specs): prioritize provider wrapper implementation`). The updated
@@ -123,6 +138,21 @@
 
 ## Latest Completed Follow-up Slices
 
+- llama.cpp local-model T1.4 completed in `ee0bf33`: local endpoint helpers now
+  route through explicit repository-owned adapter-factory helpers in
+  `openai_client.py`, preserving existing request construction, response
+  normalization, and metadata-based `local_only` routing.
+- llama.cpp local-model T1.4 validation passed with:
+  - `poetry run pytest tests/test_openai_client.py -q` (`29 passed`)
+  - `poetry run pytest tests/test_executor.py -q` (`50 passed`)
+- llama.cpp local-model T1.3 completed in `6d269ad`:
+  `local_models.py` now exposes `LocalOpenAIEndpointConfig`,
+  `create_local_openai_adapter(...)`, and
+  `create_local_async_openai_adapter(...)` for caller-owned OpenAI-compatible
+  local endpoints.
+- llama.cpp local-model T1.3 validation passed with:
+  - `poetry run pytest tests/test_openai_client.py -q` (`27 passed`)
+  - `poetry run pytest tests/test_executor.py -q` (`50 passed`)
 - Provider-wrapper Slice 3 completed in `bc1ce39`: `OpenAIClientAdapter` and
   `AsyncOpenAIClientAdapter` now lazily construct default clients through
   `create_default_openai_provider(...)` /
@@ -339,6 +369,10 @@
 - If llama.cpp local-model implementation resumes, start from
   `specs/llama-cpp-local-model/tasks.md` Slice 1 rather than from the old OA
   follow-up queue.
+- For the active llama.cpp Slice 1 sequence, resume at T1.5:
+  export the approved caller-visible local helper/config surface from
+  `src/dynamic_agent_runner/__init__.py` and validate it with
+  `poetry run pytest tests/test_import.py -q`.
 - Treat the current source of truth for the llama.cpp feature as:
   - `specs/llama-cpp-local-model/spec.md`
   - `specs/llama-cpp-local-model/plan.md`

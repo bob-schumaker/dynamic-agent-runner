@@ -295,3 +295,12 @@ evaluate the following documents for a potential multi-turn memory pipeline feat
 ---
 
 evaluate the repo at /Users/roschuma/Repos/github/omlx/ as a possible future mac-only local model feature
+
+---
+
+the adapter should support downloading referenced models that are not available locally using the `huggingface_hub` package
+the local repo for that package is at /Users/roschuma/Repos/github/huggingface_hub/
+
+---
+
+the adapter should take an optional model cache folder path, if not specified use `~/.ollama/models`
