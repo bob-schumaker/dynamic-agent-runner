@@ -269,6 +269,38 @@ def create_default_openai_client(
     return create_default_openai_provider(config).get_client()
 
 
+def create_openai_adapter(
+    *,
+    client: OpenAIClientProtocol | None = None,
+    provider: OpenAIClientProvider | None = None,
+    models: Sequence[str] | None = None,
+    is_local: bool = False,
+) -> OpenAIClientAdapter:
+    """Construct a sync adapter through the repository-owned adapter seam."""
+
+    return OpenAIClientAdapter(
+        client=client,
+        provider=provider,
+        models=models,
+        is_local=is_local,
+    )
+
+
+def create_openai_adapter_from_provider_config(
+    config: OpenAIProviderConfig,
+    *,
+    models: Sequence[str] | None = None,
+    is_local: bool = False,
+) -> OpenAIClientAdapter:
+    """Construct a sync adapter from provider config through repo-owned helpers."""
+
+    return create_openai_adapter(
+        provider=create_default_openai_provider(config),
+        models=models,
+        is_local=is_local,
+    )
+
+
 def create_default_async_openai_provider(
     config: OpenAIProviderConfig | None = None,
 ) -> AsyncOpenAIClientProvider:
@@ -283,6 +315,38 @@ def create_default_async_openai_client(
     """Construct the official async OpenAI client from environment/default config."""
 
     return create_default_async_openai_provider(config).get_client()
+
+
+def create_async_openai_adapter(
+    *,
+    client: AsyncOpenAIClientProtocol | None = None,
+    provider: AsyncOpenAIClientProvider | None = None,
+    models: Sequence[str] | None = None,
+    is_local: bool = False,
+) -> AsyncOpenAIClientAdapter:
+    """Construct an async adapter through the repository-owned adapter seam."""
+
+    return AsyncOpenAIClientAdapter(
+        client=client,
+        provider=provider,
+        models=models,
+        is_local=is_local,
+    )
+
+
+def create_async_openai_adapter_from_provider_config(
+    config: OpenAIProviderConfig,
+    *,
+    models: Sequence[str] | None = None,
+    is_local: bool = False,
+) -> AsyncOpenAIClientAdapter:
+    """Construct an async adapter from provider config through repo-owned helpers."""
+
+    return create_async_openai_adapter(
+        provider=create_default_async_openai_provider(config),
+        models=models,
+        is_local=is_local,
+    )
 
 
 def build_openai_request(

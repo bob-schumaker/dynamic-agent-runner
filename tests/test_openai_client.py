@@ -16,8 +16,10 @@ from dynamic_agent_runner.openai_client import (
     OpenAIMessage,
     OpenAIProviderConfig,
     build_openai_request,
+    create_async_openai_adapter_from_provider_config,
     create_default_async_openai_client,
     create_default_openai_client,
+    create_openai_adapter_from_provider_config,
     normalize_openai_response,
 )
 from dynamic_agent_runner.registry import openai_tool_schema
@@ -227,6 +229,94 @@ def test_create_local_async_openai_adapter_builds_local_provider_backed_adapter(
     assert adapter.is_local is True
     assert adapter._provider is not None
     assert adapter._provider.config == OpenAIProviderConfig(
+        base_url="http://localhost:11434/v1",
+        api_key="local-key",
+        provider_name="llama.cpp",
+    )
+
+
+def test_create_openai_adapter_from_provider_config_uses_default_provider_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = FakeProvider(
+        FakeResponses({"id": "resp_provider_factory", "output_text": "factory"}),
+        OpenAIProviderConfig(
+            base_url="http://localhost:11434/v1",
+            api_key="local-key",
+            provider_name="llama.cpp",
+        ),
+    )
+    observed: dict[str, object] = {}
+
+    def fake_default_provider(config: OpenAIProviderConfig):
+        observed["config"] = config
+        return provider
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.openai_client.create_default_openai_provider",
+        fake_default_provider,
+    )
+
+    adapter = create_openai_adapter_from_provider_config(
+        OpenAIProviderConfig(
+            base_url="http://localhost:11434/v1",
+            api_key="local-key",
+            provider_name="llama.cpp",
+        ),
+        models=["qwen-local", "chat-default"],
+        is_local=True,
+    )
+
+    assert isinstance(adapter, OpenAIClientAdapter)
+    assert adapter._provider is provider
+    assert adapter.models == ("qwen-local", "chat-default")
+    assert adapter.is_local is True
+    assert observed["config"] == OpenAIProviderConfig(
+        base_url="http://localhost:11434/v1",
+        api_key="local-key",
+        provider_name="llama.cpp",
+    )
+
+
+def test_create_async_openai_adapter_from_provider_config_uses_default_provider_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = FakeAsyncProvider(
+        FakeAsyncResponses(
+            {"id": "resp_async_provider_factory", "output_text": "factory async"}
+        ),
+        OpenAIProviderConfig(
+            base_url="http://localhost:11434/v1",
+            api_key="local-key",
+            provider_name="llama.cpp",
+        ),
+    )
+    observed: dict[str, object] = {}
+
+    def fake_default_provider(config: OpenAIProviderConfig):
+        observed["config"] = config
+        return provider
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.openai_client.create_default_async_openai_provider",
+        fake_default_provider,
+    )
+
+    adapter = create_async_openai_adapter_from_provider_config(
+        OpenAIProviderConfig(
+            base_url="http://localhost:11434/v1",
+            api_key="local-key",
+            provider_name="llama.cpp",
+        ),
+        models=["qwen-local", "chat-default"],
+        is_local=True,
+    )
+
+    assert isinstance(adapter, AsyncOpenAIClientAdapter)
+    assert adapter._provider is provider
+    assert adapter.models == ("qwen-local", "chat-default")
+    assert adapter.is_local is True
+    assert observed["config"] == OpenAIProviderConfig(
         base_url="http://localhost:11434/v1",
         api_key="local-key",
         provider_name="llama.cpp",

@@ -6,11 +6,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from dynamic_agent_runner.openai_client import (
+    OpenAIProviderConfig,
     AsyncOpenAIClientAdapter,
     OpenAIClientAdapter,
-    OpenAIProviderConfig,
-    create_default_async_openai_provider,
-    create_default_openai_provider,
+    create_async_openai_adapter_from_provider_config,
+    create_openai_adapter_from_provider_config,
 )
 
 
@@ -49,10 +49,8 @@ def create_local_openai_adapter(
 ) -> OpenAIClientAdapter:
     """Build a sync local adapter through the existing provider seam."""
 
-    return OpenAIClientAdapter(
-        provider=create_default_openai_provider(
-            _provider_config_from_local_endpoint(config)
-        ),
+    return create_openai_adapter_from_provider_config(
+        _provider_config_from_local_endpoint(config),
         models=config.model_aliases,
         is_local=True,
     )
@@ -63,10 +61,8 @@ def create_local_async_openai_adapter(
 ) -> AsyncOpenAIClientAdapter:
     """Build an async local adapter through the existing provider seam."""
 
-    return AsyncOpenAIClientAdapter(
-        provider=create_default_async_openai_provider(
-            _provider_config_from_local_endpoint(config)
-        ),
+    return create_async_openai_adapter_from_provider_config(
+        _provider_config_from_local_endpoint(config),
         models=config.model_aliases,
         is_local=True,
     )
