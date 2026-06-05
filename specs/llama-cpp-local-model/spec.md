@@ -3,9 +3,15 @@
 ## Metadata
 
 - Feature slug: `llama-cpp-local-model`
-- Mode: `light`
-- Artifact type: feature specification
-- Status: authoritative future-feature spec
+- Mode: `guided`
+- Artifact type: authoritative SDD feature specification
+- Status: approved-for-planning future-feature spec
+- Version: `1.0`
+- Owner: repository maintainers and future implementers of local-model support
+- Next gate: create `plan.md`, `tasks.md`, and fresh validation artifacts before
+  implementation
+- Approval state: user-directed refresh to make this file the authoritative SDD
+  spec for the feature
   - no active implementation is present in the repository
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
@@ -45,6 +51,20 @@ execution path that bypasses the established adapter/provider direction.
 - Runtime maintainers defining the next local-model execution seam.
 - Internal callers or downstream hosts that need local-only model execution.
 - Future implementers of local embedding-backed runtime features.
+
+## User Stories
+
+- As a runtime maintainer, I want llama.cpp local-model support to reuse the
+  existing adapter/provider seams, so that local execution does not fork the
+  runtime architecture into a separate model family.
+- As a caller or downstream host, I want to target a caller-owned or
+  deployer-owned OpenAI-compatible local endpoint, so that I can run local
+  models without giving the core library ownership of server installation,
+  launch, and lifecycle behavior.
+- As a future implementer of local embedding-backed features, I want the chat,
+  embedding, model-resolution, and error-boundary contracts defined up front, so
+  that later work can extend the feature without rewriting the initial local
+  chat slice.
 
 ## Existing Runtime Context
 
@@ -112,6 +132,13 @@ This feature specification covers:
   and do not count as current implementation or validation evidence.
 - This artifact is authoritative for feature intent, scope, and design
   boundaries until a future implementation plan and task list are created.
+- This artifact is authoritative for **what** the feature must do and **why** it
+  exists. Future implementation work must derive technical approach, execution
+  order, and validation commands from companion SDD artifacts rather than coding
+  directly from this spec alone.
+- Unless the user explicitly waives the gate, implementation for this feature
+  should not begin until `plan.md` and `tasks.md` exist and are consistent with
+  this spec.
 
 ## Primary Implementation Path
 
@@ -360,6 +387,112 @@ Acceptance criteria:
   then the library consumes a provided OpenAI-compatible wrapper or endpoint
   rather than launching and supervising a local server itself.
 
+## Non-Functional Requirements
+
+### NFR-1: Preserve architecture continuity
+
+The feature must preserve the repository's existing adapter/provider architecture
+instead of introducing a second top-level local-runtime API or bypass path.
+
+### NFR-2: Preserve workflow-package portability
+
+Portable workflow packages must remain environment-agnostic and must not become
+the canonical storage location for machine-specific local-model deployment
+details.
+
+### NFR-3: Preserve clear failure taxonomy
+
+The runtime must keep local model-resolution failures, endpoint connectivity
+failures, endpoint protocol failures, and model-identity mismatch failures
+distinguishable enough for callers and maintainers to debug the correct layer.
+
+### NFR-4: Preserve testability without live infrastructure
+
+The first implementation slice must remain testable with fake clients, fake
+resolution helpers, and repository-owned fixtures, without requiring live
+network access, live Hugging Face access, or a live llama.cpp server for core
+unit validation.
+
+### NFR-5: Preserve spec-first drift control
+
+If future implementation planning changes the default first slice, server
+ownership boundary, model-resolution precedence, or embedding scope, the SDD
+artifacts must be updated explicitly rather than letting code drift silently
+from this specification.
+
+## Edge and Error Cases
+
+- If the configured local endpoint is reachable but serves a different model than
+  the runtime-owned adapter configuration intended, the runtime must fail with a
+  clear mismatch error instead of silently accepting the wrong model.
+- If an explicit Hugging Face reference is invalid, unauthorized, or blocked by
+  runtime-owned offline policy, the runtime must fail as a model-resolution
+  failure instead of falling back to another model source.
+- If the default cache root or explicit cache root exists but does not contain a
+  usable asset for the requested configuration, the runtime must continue the
+  documented resolution order or fail clearly rather than claiming success
+  from a partial cache hit.
+- If a later slice enables in-process embeddings or tool calling, the runtime
+  must honor upstream prerequisites such as `embedding=True` and
+  function-calling-compatible model or chat-format requirements.
+- If local chat support ships before separate local embedding execution, later
+  embedding work must extend the approved contract rather than retroactively
+  redefining the first chat slice.
+
+## Boundaries
+
+### In Scope
+
+- Reusing the existing adapter/provider seam for llama.cpp-backed local chat.
+- Supporting caller-owned or deployer-owned OpenAI-compatible local endpoints as
+  the preferred first implementation path.
+- Defining the runtime-owned local model-resolution contract, including explicit
+  local paths, cache lookup, default cache lookup at `~/.ollama/models`, and
+  explicit Hugging Face references.
+- Preserving repository-owned response normalization and tool-call shaping.
+- Defining the future contract for optional local embedding-capable
+  configuration without requiring it to ship in the first chat slice.
+
+### Out of Scope
+
+- Graph-mutation protocol design or context-pruning delivery in this feature.
+- Runtime-managed installation, launch, supervision, readiness, or shutdown of a
+  local llama.cpp server.
+- A new public top-level execution API dedicated to local models.
+- Provider auto-discovery from `/v1/models` or similar remote endpoint scans.
+- Portable workflow-package fields for low-level deployment details such as local
+  filesystem paths, server ports, credentials, launch scripts, or backend build
+  flags.
+
+### Always Do
+
+- Reuse the existing adapter/provider seam unless a later approved spec revision
+  changes that boundary.
+- Keep runtime-owned local-model settings above the portable workflow package.
+- Preserve repository-owned response normalization and existing executor routing
+  semantics.
+- Keep local-model support separable from graph-mutation work even if later
+  pruning features use local embeddings.
+
+### Ask First
+
+- Changing the default first implementation path away from the endpoint-backed
+  provider-wrapper seam.
+- Expanding the first slice to include graph mutation, context pruning, or
+  runtime-managed server ownership.
+- Introducing new portable workflow manifest fields for deployment-specific local
+  model settings.
+- Requiring live-network or live-server validation as the primary unit-test path.
+
+### Never Do
+
+- Require portable workflow packages to embed environment-specific local file
+  paths, model weights, launch scripts, or server lifecycle metadata.
+- Silently fall back to another model when model resolution or endpoint/model
+  identity checks fail.
+- Collapse endpoint connectivity/protocol failures into model-resolution errors.
+- Treat graph-mutation delivery as part of the required first local chat slice.
+
 ## Non-Goals
 
 - No graph-mutation protocol design in this feature.
@@ -372,6 +505,40 @@ Acceptance criteria:
   contract.
 - No requirement that `dynamic-agent-runner` launch or supervise a local
   llama.cpp server as part of its core library behavior.
+
+## Dependencies and Assumptions
+
+### Dependencies
+
+- `specs/openai-compatible-provider-wrapper/spec.md` remains the authoritative
+  seam for OpenAI-compatible provider integration used by the preferred first
+  slice.
+- `specs/internal-graph-mutation/spec.md` remains the authoritative future spec
+  for graph mutation and context pruning rather than this feature.
+- Future implementation planning may depend on accepted runtime integration with
+  `llama-cpp-python` and `huggingface_hub`, but this spec does not by itself
+  authorize dependency changes or packaging decisions.
+
+### Assumptions
+
+- The repository currently has no active llama.cpp implementation, so all future
+  implementation validation must be generated fresh.
+- The caller or deployer can own endpoint provisioning, credentials, readiness,
+  and lifecycle for the preferred first slice.
+- The endpoint-backed OpenAI-compatible path remains the preferred first slice
+  unless a later approved SDD artifact set explicitly reprioritizes in-process
+  execution.
+- Local embedding support may be deferred, but the contract defined in this spec
+  must remain stable enough for later planning and implementation to build on it.
+
+## Open Questions and Next Planning Decisions
+
+- No blocking `NEEDS CLARIFICATION` items remain for this spec-level approval.
+- The next SDD gate must define the technical plan for the first implementation
+  slice, including exact runtime-owned configuration shapes, affected modules,
+  and validation commands.
+- `tasks.md` should decompose the first endpoint-backed local chat slice
+  separately from later optional embedding or in-process follow-up work.
 
 ## Design Constraints
 
@@ -410,3 +577,5 @@ Acceptance criteria:
   repository state.
 - Future implementation work must create fresh validation evidence rather than
   relying on any reverted prototype results.
+- The next authoritative SDD artifacts for this feature are `plan.md`,
+  `tasks.md`, and, once implementation begins, `validation.md`.
