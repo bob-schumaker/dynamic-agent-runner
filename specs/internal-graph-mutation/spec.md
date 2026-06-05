@@ -3,9 +3,9 @@
 ## Metadata
 
 - Feature slug: `internal-graph-mutation`
-- Mode: `light`
-- Artifact type: feature specification
-- Status: authoritative future-feature spec
+- Mode: `guided`
+- Artifact type: authoritative SDD feature specification
+- Status: authoritative current follow-up feature spec
   - no active implementation is present in the repository
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
@@ -74,8 +74,14 @@ This feature specification covers:
   repository.
 - Any earlier prototype code or prior test results are historical context only
   and do not count as current implementation or validation evidence.
-- This artifact is authoritative for feature intent, scope, and design
-  boundaries until a future implementation plan and task list are created.
+- This artifact is now the repository's current authoritative next-feature spec
+  for context-pruning-oriented runtime expansion.
+- Companion planning artifacts now live at:
+  - `specs/internal-graph-mutation/plan.md`
+  - `specs/internal-graph-mutation/tasks.md`
+- This artifact remains authoritative for feature intent, scope, and design
+  boundaries, while the companion plan and task list own the first
+  implementation path and execution sequencing.
 
 ## Functional Requirements
 

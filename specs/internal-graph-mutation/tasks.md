@@ -1,0 +1,179 @@
+# Internal Graph Mutation Task List
+
+Status: Draft
+
+## Prerequisites
+
+- Spec: `specs/internal-graph-mutation/spec.md`
+- Plan: `specs/internal-graph-mutation/plan.md`
+- Data model: none
+- Contracts: none
+
+## Status
+
+- State: authoritative spec and implementation plan exist; no graph-mutation
+  implementation is currently present in the repository
+- Current execution gate: T1.1 is the next pending step — add RED validation
+  coverage for explicit context-pipeline attachment metadata and fail-closed
+  mutation boundaries
+- Scope rule: keep the first slice input-transform-only; do not introduce public
+  mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
+  transport ownership into these tasks
+
+## Slice 1 — Mutation metadata contract and internal seam
+
+- [ ] T1.1 [tests] Add failing validation coverage in `tests/test_validation.py`
+      for explicit context-pipeline attachment metadata on eligible `llm_step`
+      nodes.
+  - Spec: FR-3, FR-4, FR-5
+  - Plan: Technical Summary; Proposed portable attachment metadata
+  - Files/components: `tests/test_validation.py`,
+    `src/dynamic_agent_runner/validation.py`
+  - Domain context: the first slice must fail closed when mutation attachment is
+    implicit, incomplete, or attached to an ineligible node
+  - Depends on: none
+  - Validation: `poetry run pytest tests/test_validation.py -q`
+  - Evidence: tests fail before the context-pipeline metadata contract and
+    corresponding validation exist
+
+- [ ] T1.2 [tests] Add failing mutation-seam coverage in `tests/test_executor.py`
+      and/or `tests/test_graph_mutation.py` proving the base workflow remains
+      unchanged while eligible `llm_step` nodes can receive derived mutation
+      preparation.
+  - Spec: FR-1, FR-2, FR-3
+  - Plan: First-slice compile-time mutation flow; Internal mutation contract
+  - Files/components: `tests/test_executor.py`,
+    `tests/test_graph_mutation.py`, `src/dynamic_agent_runner/graph_mutation.py`
+  - Domain context: graph mutation is a compile-time derivation layer, not an
+    in-place edit of portable artifacts
+  - Depends on: none
+  - Validation: `poetry run pytest tests/test_executor.py -q`
+  - Evidence: tests fail before an internal mutation bundle or mutation-apply
+    seam exists
+
+- [ ] T1.3 [implementation] Add `src/dynamic_agent_runner/graph_mutation.py`
+      with the first internal mutation protocol and datamodels.
+  - Spec: FR-1, FR-2
+  - Plan: Chosen approach; Internal mutation contract
+  - Files/components: `src/dynamic_agent_runner/graph_mutation.py`
+  - Depends on: T1.2
+  - Validation: `poetry run pytest tests/test_graph_mutation.py -q`
+  - Evidence: repository-owned types such as `WorkflowGraphMutation`,
+    `GraphMutationSpec`, `WorkflowMutationBundle`, and `MutationResult` exist and
+    can represent the first context-pruning target
+
+- [ ] T1.4 [implementation] Integrate the mutation seam with
+      `prepare_execution_plan(...)` so eligible nodes receive derived mutation
+      preparation without mutating the base workflow.
+  - Spec: FR-1, FR-2, FR-3
+  - Plan: First-slice compile-time mutation flow
+  - Files/components: `src/dynamic_agent_runner/models.py`,
+    `src/dynamic_agent_runner/graph_mutation.py`
+  - Depends on: T1.2, T1.3
+  - Validation: `poetry run pytest tests/test_executor.py -q`
+  - Evidence: execution-plan preparation can carry mutation-owned derived
+    behavior while `LoadedAgentWorkflow` / `RuntimeManifest` stay unchanged
+
+- [ ] T1.5 [implementation] Extend `src/dynamic_agent_runner/validation.py` to
+      reject missing or ambiguous mutation attachment metadata.
+  - Spec: FR-4, FR-5
+  - Plan: Affected Areas; Proposed portable attachment metadata
+  - Files/components: `src/dynamic_agent_runner/validation.py`,
+    `tests/test_validation.py`
+  - Depends on: T1.1
+  - Validation: `poetry run pytest tests/test_validation.py -q`
+  - Evidence: invalid targets, missing context sources, ambiguous output slots,
+    and non-`llm_step` attachments fail clearly before execution
+
+## Slice 2 — Prepared-input integration for context-pruning attachment
+
+- [ ] T2.1 [tests] Add failing prepared-input coverage in `tests/test_executor.py`
+      for routing declared context inputs through an internal mutation-owned
+      transform before `llm_step` model execution.
+  - Spec: FR-3, FR-4
+  - Plan: Prepared-input mutation integration
+  - Files/components: `tests/test_executor.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Domain context: the first live behavior should be a narrow input transform,
+    not visible graph surgery
+  - Depends on: T1.4, T1.5
+  - Validation: `poetry run pytest tests/test_executor.py -q`
+  - Evidence: tests fail before prepared-input assembly honors derived mutation
+    behavior for eligible nodes
+
+- [ ] T2.2 [implementation] Extend `prepare_model_input(...)` and adjacent
+      executor helpers so mutation-derived prepared context is applied before
+      request construction.
+  - Spec: FR-1, FR-3
+  - Plan: First-slice compile-time mutation flow; Executor integration contract
+  - Files/components: `src/dynamic_agent_runner/executor.py`,
+    `src/dynamic_agent_runner/models.py`
+  - Depends on: T2.1
+  - Validation: `poetry run pytest tests/test_executor.py -q`
+  - Evidence: prepared model input includes the mutation-owned context output in
+    a deterministic pre-model stage
+
+- [ ] T2.3 [implementation] Add the first `ContextPruningMutation`
+      implementation that consumes declared context metadata and produces a narrow
+      repository-owned prepared-context transform.
+  - Spec: FR-3, FR-4
+  - Plan: Delivery Strategy Slice 2; Internal mutation contract
+  - Files/components: `src/dynamic_agent_runner/graph_mutation.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Depends on: T1.3, T1.4, T2.2
+  - Validation: `poetry run pytest tests/test_graph_mutation.py -q`
+  - Evidence: the first mutation target exists as an internal context-pruning
+    attachment rather than only a placeholder seam
+
+- [ ] T2.4 [implementation] Record clear preparation diagnostics for mutation
+      application so tests and traces can distinguish unchanged vs transformed
+      `llm_step` inputs.
+  - Spec: FR-1, FR-3, FR-5
+  - Plan: Prepared-input mutation integration
+  - Files/components: `src/dynamic_agent_runner/executor.py`,
+    `tests/test_executor.py`
+  - Depends on: T2.2, T2.3
+  - Validation: `poetry run pytest tests/test_executor.py -q`
+  - Evidence: mutation application status is visible through prepared-input
+    metadata or equivalent runtime-owned diagnostics
+
+## Slice 3 — Validation evidence and artifact follow-up
+
+- [ ] T3.1 [tests] Run the focused mutation validation suite and record the
+      outcome.
+  - Spec: FR-1 through FR-5
+  - Plan: Validation Strategy
+  - Files/components: `tests/test_graph_mutation.py`, `tests/test_validation.py`,
+    `tests/test_executor.py`
+  - Depends on: T1.5, T2.4
+  - Validation:
+    `poetry run pytest tests/test_graph_mutation.py`
+    `tests/test_validation.py tests/test_executor.py -q`
+  - Evidence: the focused mutation suite passes with fresh first-slice evidence
+
+- [ ] T3.2 [docs] Update the graph-mutation spec artifacts to record the first
+      implementation checkpoint and validation evidence.
+  - Spec: FR-1 through FR-5
+  - Plan: Expected Deliverable
+  - Files/components: `specs/internal-graph-mutation/spec.md`,
+    `specs/internal-graph-mutation/plan.md`,
+    `specs/internal-graph-mutation/tasks.md`
+  - Depends on: T3.1
+  - Validation:
+    `poetry run pre-commit run --files`
+    `specs/internal-graph-mutation/spec.md`
+    `specs/internal-graph-mutation/plan.md`
+    `specs/internal-graph-mutation/tasks.md`
+  - Evidence: the artifact set records the implemented slice honestly and stays
+    aligned with repository reality
+
+## Ordering Notes
+
+- Slice 1 must land before Slice 2 because the first live behavior depends on a
+  validated internal mutation seam.
+- Validation should fail closed before executor integration so mutation behavior
+  cannot attach implicitly.
+- The first implementation should remain input-transform-only until the
+  repository proves that true node insertion is needed.
+- Semantic ranking, embedding selection, and local-model transport follow-up
+  should remain separate from this first mutation slice.
