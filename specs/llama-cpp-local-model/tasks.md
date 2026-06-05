@@ -26,11 +26,13 @@ Status: Draft
   failure-taxonomy tests are complete in commit `cdc1b00`
   (`test(local-models): add RED failure taxonomy coverage`); T2.3
   model-reference resolution implementation is complete in commit `7a11464`
-  (`feat(local-models): add runtime model path resolution`); the Slice 1
+  (`feat(local-models): add runtime model path resolution`); T2.4
+  endpoint-failure translation is complete in commit `f4bcb0e`
+  (`feat(local-models): translate local endpoint failures`); the Slice 1
   validation checkpoint is complete through T4.5
-- Current execution gate: T2.4 is the next pending step — add runtime-facing
-  error translation for model-resolution, endpoint-connectivity,
-  endpoint-protocol, and model-mismatch failures
+- Current execution gate: T2.5 is the next pending step — add
+  `huggingface_hub` dependency wiring only when the resolution slice is actively
+  implemented
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
@@ -187,7 +189,7 @@ Status: Draft
       src/dynamic_agent_runner/local_models.py src/dynamic_agent_runner/errors.py`
       `tests/test_local_models.py 2>&1` — Ruff Check passed; Ruff Format passed
 
-- [ ] T2.4 [implementation] Add runtime-facing error translation for
+- [x] T2.4 [implementation] Add runtime-facing error translation for
       model-resolution, endpoint-connectivity, endpoint-protocol, and
       model-mismatch failures.
   - Spec: FR-5c
@@ -199,6 +201,15 @@ Status: Draft
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Evidence: callers can distinguish resolution failures from endpoint failures
     without reading provider-specific raw exceptions
+  - Completed in commit `f4bcb0e` (`feat(local-models): translate local endpoint
+    failures`)
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py -q 2>&1` — `10 passed in
+      0.12s`
+    - `poetry run pre-commit run --files src/dynamic_agent_runner/errors.py
+      src/dynamic_agent_runner/openai_client.py
+      src/dynamic_agent_runner/local_models.py tests/test_local_models.py 2>&1`
+      — Ruff Check passed; Ruff Format passed
 
 - [ ] T2.5 [implementation] Add `huggingface_hub` dependency wiring only when
       the resolution slice is actively implemented.

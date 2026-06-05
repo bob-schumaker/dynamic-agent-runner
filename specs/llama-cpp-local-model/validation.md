@@ -12,8 +12,9 @@ Status: in progress
   in commit `ee0bf33`, T1.5 package-root exports landed in commit `dd37c62`, and
   the targeted Slice 1 checks are GREEN; T2.1 RED precedence tests are now
   committed in `f564caa`, T2.2 RED failure-taxonomy tests are now committed in
-  `cdc1b00`, T2.3 resolution helpers are now implemented in `7a11464`, and
-  T2.4 is the next pending step
+  `cdc1b00`, T2.3 resolution helpers are now implemented in `7a11464`, T2.4
+  endpoint-failure translation is now implemented in `f4bcb0e`, and T2.5 is the
+  next pending step
 
 ## Executed Checks
 
@@ -189,9 +190,29 @@ Status: in progress
   resolution, and identity-mismatch error classes used by the focused Slice 2
   unit surface.
 
+### T2.4 GREEN — local endpoint failure translation
+
+- Commit: `f4bcb0e` (`feat(local-models): translate local endpoint failures`)
+- Commands:
+  - `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - `poetry run pre-commit run --files
+    src/dynamic_agent_runner/errors.py src/dynamic_agent_runner/openai_client.py`
+    `src/dynamic_agent_runner/local_models.py tests/test_local_models.py 2>&1`
+- Expected result: local adapters preserve model-resolution and mismatch
+  boundaries while translating provider-facing local endpoint failures into
+  runtime-facing connectivity vs protocol categories
+- Observed result:
+  - `10 passed in 0.12s`
+  - Ruff Check passed; Ruff Format passed
+- Interpretation: `dynamic_agent_runner.openai_client` now supports an optional
+  adapter-scoped error-translation seam, and `dynamic_agent_runner.local_models`
+  uses it to convert local endpoint execution failures into runtime-facing
+  connectivity and protocol errors without changing the generic provider path
+  for non-local callers.
+
 ## Pending Follow-up
 
-- T2.4 — add runtime-facing error translation for model-resolution,
-  endpoint-connectivity, endpoint-protocol, and model-mismatch failures
+- T2.5 — add `huggingface_hub` dependency wiring only when the resolution slice
+  is actively implemented
 - T4.4 — run `poetry run pytest tests/test_local_models.py -q` when the
   local-model helper module and resolution logic exist
