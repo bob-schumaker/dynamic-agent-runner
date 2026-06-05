@@ -22,11 +22,13 @@ Status: Draft
   package-root exports are complete in commit `dd37c62`
   (`feat(local-models): export local endpoint helpers`); T2.1 RED
   model-resolution precedence tests are complete in commit `f564caa`
-  (`test(local-models): add RED resolution precedence coverage`); the Slice 1
+  (`test(local-models): add RED resolution precedence coverage`); T2.2 RED
+  failure-taxonomy tests are complete in commit `cdc1b00`
+  (`test(local-models): add RED failure taxonomy coverage`); the Slice 1
   validation checkpoint is complete through T4.5
-- Current execution gate: T2.2 is the next pending step — add failing tests in
-  `tests/test_local_models.py` for offline-policy blocks, invalid Hub
-  references, cache misses, and model-mismatch classification
+- Current execution gate: T2.3 is the next pending step — extend
+  `src/dynamic_agent_runner/local_models.py` with explicit model-reference types
+  and resolution helpers
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
@@ -144,7 +146,7 @@ Status: Draft
     explicit local path, explicit cache root, default cache root, and explicit
     Hub-file fallback resolution
 
-- [ ] T2.2 [tests] Add failing tests in `tests/test_local_models.py` for offline
+- [x] T2.2 [tests] Add failing tests in `tests/test_local_models.py` for offline
       policy blocks, invalid Hub references, cache misses, and model-mismatch
       classification.
   - Spec: FR-5b, FR-5c
@@ -155,6 +157,13 @@ Status: Draft
   - Depends on: T2.1
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Evidence: each failure mode maps to a clear runtime-facing category
+  - Completed in commit `cdc1b00` (`test(local-models): add RED failure taxonomy
+    coverage`)
+  - RED: `poetry run pytest tests/test_local_models.py -q 2>&1` — failed with
+    import boundaries in both `dynamic_agent_runner.local_models` and
+    `dynamic_agent_runner.errors`, confirming the missing Slice 2
+    model-reference and failure-taxonomy surfaces after adding offline-policy,
+    invalid Hub-reference, cache-miss, and model-mismatch coverage
 
 - [ ] T2.3 [implementation] Extend `src/dynamic_agent_runner/local_models.py`
       with explicit model-reference types and resolution helpers.
@@ -162,7 +171,7 @@ Status: Draft
   - Plan: Slice 2 — Runtime-owned model reference resolution and failure
     taxonomy
   - Files/components: `src/dynamic_agent_runner/local_models.py`
-  - Depends on: T2.1
+  - Depends on: T2.1, T2.2
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Evidence: runtime-owned helpers resolve assets using the approved precedence
     order without taking over server lifecycle

@@ -8,7 +8,7 @@
 - Status: approved-for-planning future-feature spec
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model support
-- Next gate: continue Slice 2 execution with T2.2 while recording fresh
+- Next gate: continue Slice 2 execution with T2.3 while recording fresh
   validation evidence in `validation.md`
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
@@ -20,9 +20,11 @@
     (`feat(local-models): export local endpoint helpers`)
   - Slice 2 model-resolution precedence RED tests landed in commit `f564caa`
     (`test(local-models): add RED resolution precedence coverage`)
-  - fresh T1.1, T1.2, and T2.1 RED checkpoints plus targeted T1.3, T1.4, and
-    T1.5 GREEN validation now exist; the first Slice 1 checkpoint is complete
-    and the next follow-up is T2.2
+  - Slice 2 failure-taxonomy RED tests landed in commit `cdc1b00`
+    (`test(local-models): add RED failure taxonomy coverage`)
+  - fresh T1.1, T1.2, T2.1, and T2.2 RED checkpoints plus targeted T1.3, T1.4,
+    and T1.5 GREEN validation now exist; the first Slice 1 checkpoint is
+    complete and the next follow-up is T2.3
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
@@ -142,7 +144,7 @@ This feature specification covers:
 - The repository now contains an initial local-model helper module at
   `src/dynamic_agent_runner/local_models.py`, added in commit `6d269ad`
   (`feat(local-models): add local openai endpoint helpers`).
-- Fresh test-first execution has progressed through T2.1 RED: T1.1 RED
+- Fresh test-first execution has progressed through T2.2 RED: T1.1 RED
   helper-contract tests landed in commit `a5798cc`
   (`test(local-models): add RED tests for local endpoint helpers`), T1.2 RED
   executor-routing tests landed in commit `b79f124`
@@ -150,9 +152,11 @@ This feature specification covers:
   implementation landed in commit `6d269ad`, and the T1.4 provider-seam
   follow-up landed in commit `ee0bf33`, and the T1.5 package-root export
   follow-up landed in commit `dd37c62`, and the T2.1 model-resolution
-  precedence RED tests landed in commit `f564caa`, keeping local helper
+  precedence RED tests landed in commit `f564caa`, and the T2.2 failure-
+  taxonomy RED tests landed in commit `cdc1b00`, keeping local helper
   construction on the repository-owned adapter/provider path while specifying
-  the next Slice 2 resolution surface from `tests/test_local_models.py`.
+  the next Slice 2 resolution and error-taxonomy surfaces from
+  `tests/test_local_models.py`.
 - Any earlier prototype code or prior test results are historical context only
   and do not count as current implementation or validation evidence.
 - This artifact is authoritative for feature intent and design boundaries;
@@ -559,10 +563,9 @@ from this specification.
 ## Open Questions and Next Planning Decisions
 
 - No blocking `NEEDS CLARIFICATION` items remain for this spec-level approval.
-- The next SDD gate should continue Slice 2 with T2.2, adding failing tests for
-  offline-policy blocks, invalid Hub references, cache misses, and model-
-  mismatch classification while preserving the completed T2.1 precedence
-  contract.
+- The next SDD gate should continue Slice 2 with T2.3, implementing the
+  explicit model-reference types and resolution helpers needed to satisfy the
+  committed T2.1 precedence and T2.2 failure-taxonomy RED contracts.
 - `tasks.md` should decompose the first endpoint-backed local chat slice
   separately from later optional embedding or in-process follow-up work.
 
@@ -599,10 +602,11 @@ from this specification.
 ## Validation Status
 
 - This spec is authoritative for intended future behavior and boundaries.
-- Fresh validation evidence now includes T1.1, T1.2, and T2.1 RED checkpoints
-  plus the targeted T1.3, T1.4, and T1.5 GREEN implementation checks, recorded
-  in commits `a5798cc`, `b79f124`, `6d269ad`, `ee0bf33`, `dd37c62`, `f564caa`,
-  and `specs/llama-cpp-local-model/validation.md`.
+- Fresh validation evidence now includes T1.1, T1.2, T2.1, and T2.2 RED
+  checkpoints plus the targeted T1.3, T1.4, and T1.5 GREEN implementation
+  checks, recorded in commits `a5798cc`, `b79f124`, `6d269ad`, `ee0bf33`,
+  `dd37c62`, `f564caa`, `cdc1b00`, and
+  `specs/llama-cpp-local-model/validation.md`.
   - Command: `poetry run pytest tests/test_openai_client.py -q 2>&1`
   - Observed outcome: `3 failed, 24 passed`
   - Expected RED reason: `ModuleNotFoundError: No module named
@@ -628,6 +632,13 @@ from this specification.
   - Observed outcome: `4 failed in 0.20s`
   - Expected RED reason: `ImportError: cannot import name
     'HuggingFaceModelFileReference' from 'dynamic_agent_runner.local_models'`
+  - Command: `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - Observed outcome: `8 failed in 0.17s`
+  - Expected RED reason: missing Slice 2 model-reference and failure-taxonomy
+    surfaces, including `HuggingFaceModelFileReference` in
+    `dynamic_agent_runner.local_models` plus
+    `LocalModelOfflinePolicyError`, `LocalModelResolutionError`, and
+    `LocalModelIdentityMismatchError` in `dynamic_agent_runner.errors`
 - Future implementation work must continue generating fresh validation evidence
   rather than relying on any reverted prototype results.
 - The current authoritative companion SDD artifacts for this feature are

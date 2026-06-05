@@ -11,7 +11,8 @@ Status: in progress
   implementation landed in commit `6d269ad`, T1.4 provider-seam wiring landed
   in commit `ee0bf33`, T1.5 package-root exports landed in commit `dd37c62`, and
   the targeted Slice 1 checks are GREEN; T2.1 RED precedence tests are now
-  committed in `f564caa`, and T2.2 is the next pending step
+  committed in `f564caa`, T2.2 RED failure-taxonomy tests are now committed in
+  `cdc1b00`, and T2.3 is the next pending step
 
 ## Executed Checks
 
@@ -129,10 +130,45 @@ Status: in progress
   boundary is the missing Slice 2 resolution surface in
   `dynamic_agent_runner.local_models`.
 
+### T2.2 RED — failure taxonomy contract
+
+- Commit: `cdc1b00` (`test(local-models): add RED failure taxonomy coverage`)
+- Commands:
+  - `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - `poetry run pre-commit run --files tests/test_local_models.py 2>&1`
+- Expected result: fail before the Slice 2 model-reference and runtime-facing
+  failure-taxonomy surfaces exist, while the focused test file remains clean
+  under formatting/lint checks
+- Observed result:
+  - `8 failed in 0.17s`
+  - Ruff Check passed; Ruff Format passed
+- Failure boundary:
+  - `ImportError: cannot import name 'HuggingFaceModelFileReference' from
+    'dynamic_agent_runner.local_models'`
+  - `ImportError: cannot import name 'LocalModelOfflinePolicyError' from
+    'dynamic_agent_runner.errors'`
+  - `ImportError: cannot import name 'LocalModelResolutionError' from
+    'dynamic_agent_runner.errors'`
+  - `ImportError: cannot import name 'LocalModelIdentityMismatchError' from
+    'dynamic_agent_runner.errors'`
+  - affected tests:
+    - `test_resolve_local_model_path_prefers_explicit_local_path_over_cache_and_hub`
+    - `test_resolve_local_model_path_prefers_explicit_cache_root_over_default_cache`
+    - `test_resolve_local_model_path_prefers_default_cache_root_over_hub_download`
+    - `test_resolve_local_model_path_falls_back_to_hub_reference_after_local_misses`
+    - `test_resolve_local_model_path_blocks_hub_download_when_offline_policy_disallows_network`
+    - `test_resolve_local_model_path_classifies_invalid_hub_reference_as_resolution_error`
+    - `test_resolve_local_model_path_classifies_cache_miss_without_remote_reference_as_resolution_error`
+    - `test_validate_local_model_identity_classifies_model_mismatch_with_runtime_owned_identity`
+- Interpretation: the RED checkpoint now fixes the approved T2.2 failure
+  categories in `tests/test_local_models.py` and confirms the next
+  implementation boundaries are the missing Slice 2 model-reference helpers in
+  `dynamic_agent_runner.local_models` plus the runtime-facing local-model error
+  classes in `dynamic_agent_runner.errors`.
+
 ## Pending Follow-up
 
-- T2.2 — add failing tests in `tests/test_local_models.py` for offline-policy
-  blocks, invalid Hub references, cache misses, and model-mismatch
-  classification
+- T2.3 — extend `src/dynamic_agent_runner/local_models.py` with explicit
+  model-reference types and resolution helpers
 - T4.4 — run `poetry run pytest tests/test_local_models.py -q` when the
   local-model helper module and resolution logic exist
