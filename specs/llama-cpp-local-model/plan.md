@@ -60,7 +60,8 @@ lifecycle.
 - The repository now exposes an initial llama.cpp-oriented local endpoint helper
   module at `src/dynamic_agent_runner/local_models.py`, but it does not yet
   include package-root exports, model reference types, asset-resolution helpers,
-  or a distinct local-model failure taxonomy.
+  or a distinct local-model failure taxonomy; the helper now routes through
+  explicit adapter-factory helpers owned by `openai_client.py`.
 - Existing tests already exercise fake-client adapter behavior and executor
   routing, so the new feature can extend current test surfaces without live
   infrastructure.
@@ -81,8 +82,10 @@ Deliver the highest-ROI path first:
   T1.2 RED executor-routing tests completed in commit `b79f124`
   (`test(local-models): add RED executor routing coverage`); T1.3 helper
   implementation completed in commit `6d269ad`
-  (`feat(local-models): add local openai endpoint helpers`); T1.4 is the next
-  Slice 1 step
+  (`feat(local-models): add local openai endpoint helpers`); T1.4 provider-seam
+  wiring completed in commit `ee0bf33`
+  (`refactor(local-models): route helpers through adapter factories`); T1.5 is
+  the next Slice 1 step
 
 This slice satisfies the primary implementation path in the approved spec.
 
@@ -293,6 +296,11 @@ Initial recorded evidence:
   - Observed outcome: `27 passed in 0.17s`
   - Command: `poetry run pytest tests/test_executor.py -q 2>&1`
   - Observed outcome: `50 passed in 0.41s`
+- T1.4 GREEN evidence after commit `ee0bf33`:
+  - Command: `poetry run pytest tests/test_openai_client.py -q 2>&1`
+  - Observed outcome: `29 passed in 0.15s`
+  - Command: `poetry run pytest tests/test_executor.py -q 2>&1`
+  - Observed outcome: `50 passed in 0.38s`
 
 ## Risks and Mitigations
 
@@ -332,5 +340,6 @@ Initial recorded evidence:
   approved and committed; the user later directed `execute T1.1 and commit`,
   producing RED commit `a5798cc`, and later directed T1.2 execution, producing
   RED commit `b79f124`. The user later directed T1.3 execution, producing
-  implementation commit `6d269ad`. Broader Slice 1 follow-up remains gated by
-  subsequent execution steps.
+  implementation commit `6d269ad`, and later directed T1.4 execution,
+  producing implementation commit `ee0bf33`. Broader Slice 1 follow-up remains
+  gated by subsequent execution steps.

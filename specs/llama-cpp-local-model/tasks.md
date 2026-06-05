@@ -16,10 +16,11 @@ Status: Draft
   executor-routing tests are complete in commit `b79f124`
   (`test(local-models): add RED executor routing coverage`); T1.3 helper
   implementation is complete in commit `6d269ad`
-  (`feat(local-models): add local openai endpoint helpers`)
-- Current execution gate: T1.4 is the next pending step — confirm the new
-  helper remains fully on the existing provider seam without changing request
-  construction or response normalization ownership
+  (`feat(local-models): add local openai endpoint helpers`); T1.4 provider-seam
+  wiring is complete in commit `ee0bf33`
+  (`refactor(local-models): route helpers through adapter factories`)
+- Current execution gate: T1.5 is the next pending step — export any approved
+  caller-visible local helper or config type from the package root
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
@@ -84,7 +85,7 @@ Status: Draft
     - `poetry run pytest tests/test_executor.py -q 2>&1` — `50 passed in
       0.41s`
 
-- [ ] T1.4 [implementation] Wire the new helper into the existing provider seam
+- [x] T1.4 [implementation] Wire the new helper into the existing provider seam
       without changing request construction or response normalization ownership.
   - Spec: FR-2, FR-4, FR-6
   - Plan: Affected Areas; Architecture and Data Flow
@@ -94,6 +95,13 @@ Status: Draft
   - Validation: `poetry run pytest tests/test_openai_client.py -q`
   - Evidence: local helper output still uses `build_openai_request(...)` and
     `normalize_openai_response(...)` through the existing adapter path
+  - Completed in commit `ee0bf33` (`refactor(local-models): route helpers
+    through adapter factories`)
+  - GREEN:
+    - `poetry run pytest tests/test_openai_client.py -q 2>&1` — `29 passed in
+      0.15s`
+    - `poetry run pytest tests/test_executor.py -q 2>&1` — `50 passed in
+      0.38s`
 
 - [ ] T1.5 [implementation] Export any approved caller-visible local helper or
       config type from the package root.

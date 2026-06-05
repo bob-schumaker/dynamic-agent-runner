@@ -8,8 +8,9 @@ Status: in progress
 - Plan: `specs/llama-cpp-local-model/plan.md`
 - Tasks: `specs/llama-cpp-local-model/tasks.md`
 - Current checkpoint: T1.1 and T1.2 RED tests are committed, T1.3 helper
-  implementation landed in commit `6d269ad`, and the targeted Slice 1 helper
-  checks are GREEN; T1.4 is the next pending step
+  implementation landed in commit `6d269ad`, T1.4 provider-seam wiring landed
+  in commit `ee0bf33`, and the targeted Slice 1 checks are GREEN; T1.5 is the
+  next pending step
 
 ## Executed Checks
 
@@ -60,9 +61,26 @@ Status: in progress
   adapters with caller aliases plus `is_local=True`, and preserves the existing
   metadata-based `local_only` routing seam.
 
+### T1.4 GREEN — provider-seam adapter factory wiring
+
+- Commit: `ee0bf33` (`refactor(local-models): route helpers through adapter factories`)
+- Commands:
+  - `poetry run pytest tests/test_openai_client.py -q 2>&1`
+  - `poetry run pytest tests/test_executor.py -q 2>&1`
+- Expected result: local helper construction routes through explicit
+  repository-owned adapter factories in `openai_client.py` while preserving the
+  existing request-construction and response-normalization boundary
+- Observed result:
+  - `29 passed in 0.15s`
+  - `50 passed in 0.38s`
+- Interpretation: `local_models.py` now translates local endpoint config into
+  `OpenAIProviderConfig`, while adapter construction from provider config lives
+  under repository-owned `openai_client.py` helper factories and keeps the same
+  metadata-based executor routing behavior.
+
 ## Pending Follow-up
 
-- T1.4 — confirm the helper remains fully on the existing provider seam without
-  changing request construction or response normalization ownership
+- T1.5 — export any approved caller-visible local helper or config type from the
+  package root
 - T4.1 / T4.2 — rerun targeted pytest commands after later Slice 1 follow-up
   changes when additional implementation lands
