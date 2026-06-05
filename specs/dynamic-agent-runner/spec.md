@@ -1357,11 +1357,14 @@ resource limits, backend/client selection, and approval-aware command policies.
 
 ## Open Questions
 
-- NEEDS CLARIFICATION: If the future
-  `openai-compatible-provider-wrapper` feature lands, what additional endpoint
-  configuration and transport-facade behavior beyond today's default
-  `OpenAI()` / `AsyncOpenAI()` factories should become part of the stable
-  provider boundary?
+- RESOLVED: The `openai-compatible-provider-wrapper` feature is now implemented.
+  The stable provider boundary now includes repository-owned provider
+  configuration (`base_url`, optional `api_key`, optional provider diagnostics),
+  repository-owned sync/async provider facades, SDK-backed default provider
+  wrappers, centralized repository-owned request/response helpers, and
+  package-level exports for the public provider-configuration seam. Any further
+  work here is optional compatibility polish rather than an unresolved baseline
+  architecture question.
 - NEEDS CLARIFICATION: Which safety, authentication, logging, and redaction
   requirements belong in code configuration versus workflow specification?
 - NEEDS CLARIFICATION: What retry policy vocabulary should runtime manifests use
