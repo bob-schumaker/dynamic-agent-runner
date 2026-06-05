@@ -62,10 +62,11 @@ lifecycle.
   `src/dynamic_agent_runner/__init__.py` for the approved caller-facing config
   and helper surface, and `tests/test_local_models.py` now captures the approved
   T2.1 model-resolution precedence contract and T2.2 failure taxonomy in RED,
-  but the runtime still does not yet include model reference types,
-  asset-resolution helpers, or a distinct local-model failure taxonomy; the
-  helper routes through explicit adapter-factory helpers owned by
-  `openai_client.py`.
+  while the runtime now includes explicit model-reference types,
+  asset-resolution helpers, and minimal local-model error classes for offline,
+  resolution, and mismatch boundaries; runtime-facing endpoint failure
+  translation remains the next Slice 2 follow-up. The helper continues to route
+  through explicit adapter-factory helpers owned by `openai_client.py`.
 - Existing tests already exercise fake-client adapter behavior and executor
   routing, so the new feature can extend current test surfaces without live
   infrastructure.
@@ -94,7 +95,9 @@ Deliver the highest-ROI path first:
   model-resolution precedence tests completed in commit `f564caa`
   (`test(local-models): add RED resolution precedence coverage`); T2.2 RED
   failure-taxonomy tests completed in commit `cdc1b00`
-  (`test(local-models): add RED failure taxonomy coverage`); T2.3 is the next
+  (`test(local-models): add RED failure taxonomy coverage`); T2.3
+  model-reference resolution implementation completed in commit `7a11464`
+  (`feat(local-models): add runtime model path resolution`); T2.4 is the next
   Slice 2 step
 
 This slice satisfies the primary implementation path in the approved spec.
@@ -340,6 +343,13 @@ Initial recorded evidence:
     `LocalModelIdentityMismatchError` in `dynamic_agent_runner.errors`
   - Command: `poetry run pre-commit run --files tests/test_local_models.py 2>&1`
   - Observed outcome: Ruff Check passed; Ruff Format passed
+- T2.3 GREEN evidence after commit `7a11464`:
+  - Command: `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - Observed outcome: `8 passed in 0.16s`
+  - Command: `poetry run pre-commit run --files
+    src/dynamic_agent_runner/local_models.py src/dynamic_agent_runner/errors.py`
+    `tests/test_local_models.py 2>&1`
+  - Observed outcome: Ruff Check passed; Ruff Format passed
 
 ## Risks and Mitigations
 
@@ -383,7 +393,9 @@ Initial recorded evidence:
   producing implementation commit `ee0bf33`. The user later directed T1.5
   execution, producing implementation commit `dd37c62`. The user later directed
   T2.1 execution, producing RED commit `f564caa`. The user later directed T2.2
-  execution, producing RED commit `cdc1b00`. Slice 1 is now complete through
-  its export and focused-validation checkpoint, and Slice 2 now has committed
-  precedence and failure-taxonomy RED tests before broader follow-up continues
-  at T2.3.
+  execution, producing RED commit `cdc1b00`. The user later directed T2.3
+  execution, producing implementation commit `7a11464`. Slice 1 is now
+  complete through its export and focused-validation checkpoint, and Slice 2
+  now has committed precedence and failure-taxonomy RED tests plus the first
+  runtime-owned resolution implementation before broader follow-up continues at
+  T2.4.

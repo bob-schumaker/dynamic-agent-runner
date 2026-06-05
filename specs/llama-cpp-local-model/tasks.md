@@ -24,11 +24,13 @@ Status: Draft
   model-resolution precedence tests are complete in commit `f564caa`
   (`test(local-models): add RED resolution precedence coverage`); T2.2 RED
   failure-taxonomy tests are complete in commit `cdc1b00`
-  (`test(local-models): add RED failure taxonomy coverage`); the Slice 1
+  (`test(local-models): add RED failure taxonomy coverage`); T2.3
+  model-reference resolution implementation is complete in commit `7a11464`
+  (`feat(local-models): add runtime model path resolution`); the Slice 1
   validation checkpoint is complete through T4.5
-- Current execution gate: T2.3 is the next pending step — extend
-  `src/dynamic_agent_runner/local_models.py` with explicit model-reference types
-  and resolution helpers
+- Current execution gate: T2.4 is the next pending step — add runtime-facing
+  error translation for model-resolution, endpoint-connectivity,
+  endpoint-protocol, and model-mismatch failures
 - Scope rule: keep the first slice centered on endpoint-backed local chat; do
   not merge graph-mutation or runtime-managed server work into these tasks
 
@@ -165,16 +167,25 @@ Status: Draft
     model-reference and failure-taxonomy surfaces after adding offline-policy,
     invalid Hub-reference, cache-miss, and model-mismatch coverage
 
-- [ ] T2.3 [implementation] Extend `src/dynamic_agent_runner/local_models.py`
+- [x] T2.3 [implementation] Extend `src/dynamic_agent_runner/local_models.py`
       with explicit model-reference types and resolution helpers.
   - Spec: FR-5, FR-5b
   - Plan: Slice 2 — Runtime-owned model reference resolution and failure
     taxonomy
-  - Files/components: `src/dynamic_agent_runner/local_models.py`
+  - Files/components: `src/dynamic_agent_runner/local_models.py`,
+    `src/dynamic_agent_runner/errors.py`
   - Depends on: T2.1, T2.2
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Evidence: runtime-owned helpers resolve assets using the approved precedence
     order without taking over server lifecycle
+  - Completed in commit `7a11464` (`feat(local-models): add runtime model path
+    resolution`)
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py -q 2>&1` — `8 passed in
+      0.16s`
+    - `poetry run pre-commit run --files
+      src/dynamic_agent_runner/local_models.py src/dynamic_agent_runner/errors.py`
+      `tests/test_local_models.py 2>&1` — Ruff Check passed; Ruff Format passed
 
 - [ ] T2.4 [implementation] Add runtime-facing error translation for
       model-resolution, endpoint-connectivity, endpoint-protocol, and

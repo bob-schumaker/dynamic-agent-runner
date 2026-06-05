@@ -12,7 +12,8 @@ Status: in progress
   in commit `ee0bf33`, T1.5 package-root exports landed in commit `dd37c62`, and
   the targeted Slice 1 checks are GREEN; T2.1 RED precedence tests are now
   committed in `f564caa`, T2.2 RED failure-taxonomy tests are now committed in
-  `cdc1b00`, and T2.3 is the next pending step
+  `cdc1b00`, T2.3 resolution helpers are now implemented in `7a11464`, and
+  T2.4 is the next pending step
 
 ## Executed Checks
 
@@ -166,9 +167,31 @@ Status: in progress
   `dynamic_agent_runner.local_models` plus the runtime-facing local-model error
   classes in `dynamic_agent_runner.errors`.
 
+### T2.3 GREEN — model-reference resolution helpers
+
+- Commit: `7a11464` (`feat(local-models): add runtime model path resolution`)
+- Commands:
+  - `poetry run pytest tests/test_local_models.py -q 2>&1`
+  - `poetry run pre-commit run --files
+    src/dynamic_agent_runner/local_models.py src/dynamic_agent_runner/errors.py`
+    `tests/test_local_models.py 2>&1`
+- Expected result: the Slice 2 local-model helper module exposes the approved
+  model-reference types, resolution precedence helpers, and minimal
+  runtime-facing local-model error classes needed to satisfy the committed T2.1
+  and T2.2 contracts
+- Observed result:
+  - `8 passed in 0.16s`
+  - Ruff Check passed; Ruff Format passed
+- Interpretation: `dynamic_agent_runner.local_models` now resolves explicit
+  local paths, explicit cache roots, the default `~/.ollama/models` cache root,
+  and explicit Hugging Face file references in the approved precedence order,
+  while `dynamic_agent_runner.errors` now exposes the minimal offline,
+  resolution, and identity-mismatch error classes used by the focused Slice 2
+  unit surface.
+
 ## Pending Follow-up
 
-- T2.3 — extend `src/dynamic_agent_runner/local_models.py` with explicit
-  model-reference types and resolution helpers
+- T2.4 — add runtime-facing error translation for model-resolution,
+  endpoint-connectivity, endpoint-protocol, and model-mismatch failures
 - T4.4 — run `poetry run pytest tests/test_local_models.py -q` when the
   local-model helper module and resolution logic exist
