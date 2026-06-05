@@ -2,13 +2,18 @@
 
 Status: In progress
 
-- Current checkpoint: T1.1 RED validation coverage is committed in
-  `tests/test_validation.py`.
-- Current evidence: `poetry run pytest tests/test_validation.py -q` fails with
-  the expected missing-contract and ineligible-node attachment cases.
-- Next overall task gate: T1.2 mutation-seam RED coverage.
-- Next implementation step that can satisfy the current RED validation evidence:
-  T1.5 fail-closed attachment-metadata validation.
+- Current checkpoint: T1.1 and T1.2 RED coverage are committed in
+  `tests/test_validation.py` and `tests/test_executor.py`.
+- Current evidence:
+  - `poetry run pytest tests/test_validation.py -q` fails with the expected
+    missing-contract and ineligible-node attachment cases.
+  - `poetry run pytest tests/test_executor.py -q` fails with the expected
+    missing mutation-bundle and per-node mutation-preparation cases.
+- Next overall task gate: T1.3 internal mutation protocol and datamodels.
+- Next implementation steps that can satisfy the current RED evidence:
+  - T1.3 repository-owned mutation types
+  - T1.4 execution-plan mutation integration
+  - T1.5 fail-closed attachment-metadata validation
 
 ## Goal
 
@@ -303,6 +308,16 @@ Current recorded checkpoint:
 - Failing tests:
   - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
   - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
+- T1.2 RED evidence was captured with:
+
+  ```bash
+  poetry run pytest tests/test_executor.py -q
+  ```
+
+- Observed result: `2 failed, 50 passed`
+- Failing tests:
+  - `test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes`
+  - `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`
 
 If the first implementation adds a focused mutation test module, widen to:
 
@@ -349,5 +364,6 @@ eligible `llm_step` nodes, and a narrow context-pruning-oriented input transform
 that integrates with existing preparation and execution boundaries without
 changing the immutable portable workflow package contract.
 
-At the current checkpoint, the repository has only the first RED validation
-evidence for that contract; runtime implementation work remains ahead.
+At the current checkpoint, the repository has RED evidence for both attachment
+validation and execution-plan mutation preparation, while runtime
+implementation work remains ahead.

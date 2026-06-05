@@ -11,18 +11,23 @@ Status: Draft
 
 ## Status
 
-- State: authoritative spec and implementation plan exist; T1.1 RED validation
-  coverage is now committed, but no graph-mutation runtime implementation is
+- State: authoritative spec and implementation plan exist; T1.1 and T1.2 RED
+  coverage are now committed, but no graph-mutation runtime implementation is
   currently present in the repository
-- Current execution gate: T1.2 is the next pending step — add RED
-  mutation-seam coverage proving the base workflow remains unchanged while
-  eligible `llm_step` nodes can receive derived mutation preparation
-- Current RED evidence: `poetry run pytest tests/test_validation.py -q` -> `2
-  failed, 53 passed`
+- Current execution gate: T1.3 is the next pending step — add the repository-
+  owned internal mutation protocol and datamodels
+- Current RED evidence:
+  - `poetry run pytest tests/test_validation.py -q` -> `2 failed, 53 passed`
+  - `poetry run pytest tests/test_executor.py -q` -> `2 failed, 50 passed`
 - Current RED failures:
   - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
   - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
-- First implementation step that can satisfy the T1.1 RED checkpoint: T1.5
+  - `test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes`
+  - `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`
+- First implementation steps that can satisfy the current RED checkpoints:
+  - T1.3 for repository-owned mutation types
+  - T1.4 for execution-plan mutation integration
+  - T1.5 for fail-closed attachment validation
 - Scope rule: keep the first slice input-transform-only; do not introduce public
   mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
   transport ownership into these tasks
@@ -46,7 +51,7 @@ Status: Draft
     the context-pipeline metadata contract and corresponding validation do not
     yet exist
 
-- [ ] T1.2 [tests] Add failing mutation-seam coverage in `tests/test_executor.py`
+- [x] T1.2 [tests] Add failing mutation-seam coverage in `tests/test_executor.py`
       and/or `tests/test_graph_mutation.py` proving the base workflow remains
       unchanged while eligible `llm_step` nodes can receive derived mutation
       preparation.
@@ -58,8 +63,11 @@ Status: Draft
     in-place edit of portable artifacts
   - Depends on: none
   - Validation: `poetry run pytest tests/test_executor.py -q`
-  - Evidence: tests fail before an internal mutation bundle or mutation-apply
-    seam exists
+  - Evidence: `poetry run pytest tests/test_executor.py -q` currently fails on
+    `test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes`
+    and `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`,
+    proving no internal mutation bundle or per-node mutation-preparation seam
+    exists yet
 
 - [ ] T1.3 [implementation] Add `src/dynamic_agent_runner/graph_mutation.py`
       with the first internal mutation protocol and datamodels.
