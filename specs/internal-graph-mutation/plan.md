@@ -1,6 +1,14 @@
 # Internal Graph Mutation Implementation Plan
 
-Status: Draft
+Status: In progress
+
+- Current checkpoint: T1.1 RED validation coverage is committed in
+  `tests/test_validation.py`.
+- Current evidence: `poetry run pytest tests/test_validation.py -q` fails with
+  the expected missing-contract and ineligible-node attachment cases.
+- Next overall task gate: T1.2 mutation-seam RED coverage.
+- Next implementation step that can satisfy the current RED validation evidence:
+  T1.5 fail-closed attachment-metadata validation.
 
 ## Goal
 
@@ -283,6 +291,19 @@ Primary targeted checks for the first implementation slice:
 poetry run pytest tests/test_validation.py tests/test_executor.py -q
 ```
 
+Current recorded checkpoint:
+
+- T1.1 RED evidence was captured with:
+
+  ```bash
+  poetry run pytest tests/test_validation.py -q
+  ```
+
+- Observed result: `2 failed, 53 passed`
+- Failing tests:
+  - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
+  - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
+
 If the first implementation adds a focused mutation test module, widen to:
 
 ```bash
@@ -327,3 +348,6 @@ internal graph-mutation seam, explicit fail-closed attachment metadata for
 eligible `llm_step` nodes, and a narrow context-pruning-oriented input transform
 that integrates with existing preparation and execution boundaries without
 changing the immutable portable workflow package contract.
+
+At the current checkpoint, the repository has only the first RED validation
+evidence for that contract; runtime implementation work remains ahead.

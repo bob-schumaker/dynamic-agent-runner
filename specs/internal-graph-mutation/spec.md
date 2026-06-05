@@ -6,7 +6,8 @@
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
 - Status: authoritative current follow-up feature spec
-  - no active implementation is present in the repository
+  - no active graph-mutation runtime implementation is present in the repository
+  - T1.1 RED validation evidence now exists in `tests/test_validation.py`
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
@@ -197,7 +198,14 @@ Acceptance criteria:
 ## Validation Status
 
 - This spec is authoritative for intended future behavior and boundaries.
-- There is no current implementation validation for this feature in the present
-  repository state.
+- There is not yet a passing implementation validation checkpoint for this
+  feature in the present repository state.
+- Fresh T1.1 RED validation evidence exists from
+  `poetry run pytest tests/test_validation.py -q`, with two expected failures:
+  - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
+  - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
+- That RED checkpoint proves the repository does not yet enforce the required
+  fail-closed attachment contract for `context_pipeline`, `context_sources`, and
+  `context_contract` metadata.
 - Future implementation work must create fresh validation evidence rather than
   relying on any reverted prototype results.

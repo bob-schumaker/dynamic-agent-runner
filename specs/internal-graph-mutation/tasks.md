@@ -11,18 +11,25 @@ Status: Draft
 
 ## Status
 
-- State: authoritative spec and implementation plan exist; no graph-mutation
-  implementation is currently present in the repository
-- Current execution gate: T1.1 is the next pending step — add RED validation
-  coverage for explicit context-pipeline attachment metadata and fail-closed
-  mutation boundaries
+- State: authoritative spec and implementation plan exist; T1.1 RED validation
+  coverage is now committed, but no graph-mutation runtime implementation is
+  currently present in the repository
+- Current execution gate: T1.2 is the next pending step — add RED
+  mutation-seam coverage proving the base workflow remains unchanged while
+  eligible `llm_step` nodes can receive derived mutation preparation
+- Current RED evidence: `poetry run pytest tests/test_validation.py -q` -> `2
+  failed, 53 passed`
+- Current RED failures:
+  - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
+  - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
+- First implementation step that can satisfy the T1.1 RED checkpoint: T1.5
 - Scope rule: keep the first slice input-transform-only; do not introduce public
   mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
   transport ownership into these tasks
 
 ## Slice 1 — Mutation metadata contract and internal seam
 
-- [ ] T1.1 [tests] Add failing validation coverage in `tests/test_validation.py`
+- [x] T1.1 [tests] Add failing validation coverage in `tests/test_validation.py`
       for explicit context-pipeline attachment metadata on eligible `llm_step`
       nodes.
   - Spec: FR-3, FR-4, FR-5
@@ -33,8 +40,11 @@ Status: Draft
     implicit, incomplete, or attached to an ineligible node
   - Depends on: none
   - Validation: `poetry run pytest tests/test_validation.py -q`
-  - Evidence: tests fail before the context-pipeline metadata contract and
-    corresponding validation exist
+  - Evidence: `poetry run pytest tests/test_validation.py -q` currently fails on
+    `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
+    and `test_context_pipeline_attachment_rejects_non_llm_step_nodes`, proving
+    the context-pipeline metadata contract and corresponding validation do not
+    yet exist
 
 - [ ] T1.2 [tests] Add failing mutation-seam coverage in `tests/test_executor.py`
       and/or `tests/test_graph_mutation.py` proving the base workflow remains
