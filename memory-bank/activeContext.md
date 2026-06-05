@@ -289,6 +289,9 @@
   checkout. The current spec direction now says:
   - caller/deployer-owned OpenAI-compatible llama.cpp server endpoints are the
     supported server-side boundary
+  - the expected first implementation slice uses the existing OpenAI-compatible
+    adapter/provider seam plus runtime-owned provider config and normal adapter
+    metadata such as advertised model names and `is_local=True`
   - the runtime should not launch or supervise a local llama.cpp server itself
   - missing Hugging Face-referenced model assets may be downloaded by the
     adapter via `huggingface_hub`
@@ -296,11 +299,19 @@
     `~/.ollama/models` when unspecified
   - the first implementation should prefer caller/deployer-provided
     OpenAI-compatible endpoints over in-process llama.cpp integration
+  - endpoint-backed local chat may land before separate local embedding
+    execution, and that later embedding work does not expand the first slice
+    into graph-mutation delivery
   - model resolution now has explicit supported reference shapes and precedence:
     explicit local path, explicit cache lookup, default `~/.ollama/models`
     lookup, then explicit Hugging Face download
+  - offline or no-network behavior for model download/resolution is owned by
+    caller/deployment runtime configuration rather than workflow metadata
   - model-resolution failures are expected to remain distinct from endpoint
     connectivity or protocol failures
+  - intended model identity for mismatch reporting comes from runtime-owned
+    adapter configuration such as declared model alias, explicit local path, or
+    explicit Hugging Face reference
 
 ## Next Steps
 

@@ -299,3 +299,16 @@
     default `~/.ollama/models` lookup, then explicit Hub download
   - separate failure boundaries for model-resolution errors versus endpoint
     connectivity/protocol errors
+- A later three-round debate review then tightened the same llama.cpp spec so
+  the future contract now also explicitly states:
+  - the expected first implementation slice uses the existing OpenAI-compatible
+    adapter/provider seam with runtime-owned provider config and normal adapter
+    metadata rather than requiring a new llama-specific wrapper first
+  - endpoint-backed local chat may ship before separate local embedding
+    execution, while preserving the later embedding contract for pruning-related
+    work
+  - offline or no-network policy for model download/resolution is owned by
+    caller/deployment runtime configuration above the portable workflow package
+  - model mismatch reporting keys off runtime-owned adapter identity such as
+    declared model alias, explicit local path, or explicit Hugging Face
+    reference

@@ -175,6 +175,17 @@
   integration as a later allowed path, and preserve explicit model-resolution
   precedence plus separate error boundaries for model resolution versus endpoint
   connectivity/protocol failures.
+- Treat that first llama.cpp slice as a reuse of the existing OpenAI-compatible
+  adapter/provider seam with runtime-owned provider config and normal adapter
+  metadata such as `models` and `is_local=True`; a llama-specific helper may be
+  added later but is not required for the first slice.
+- Keep offline or no-network download policy runtime-owned above the portable
+  workflow package, and treat model-identity mismatch checks as driven by
+  runtime-owned adapter configuration such as declared alias, explicit local
+  path, or explicit Hugging Face reference.
+- Allow endpoint-backed local chat to ship before separate local embedding
+  execution, while preserving the later embedding contract and keeping that
+  deferred embedding work separate from first-slice graph-mutation delivery.
 - Repository-local reference packaging is now being used for external guidance
   that should remain available inside this repo. The OpenAI Model Registry notes
   under `cline-tasks/references/openai-model-registry/` are supporting
