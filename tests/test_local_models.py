@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 def _default_cache_root(home_dir: Path) -> Path:
     return home_dir / ".ollama" / "models"
@@ -172,3 +174,128 @@ def test_resolve_local_model_path_falls_back_to_hub_reference_after_local_misses
 
     assert resolved_path == downloaded_path
     assert download_calls == [(hub_reference, _default_cache_root(home_dir))]
+
+
+def test_resolve_local_model_path_blocks_hub_download_when_offline_policy_disallows_network(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from dynamic_agent_runner.errors import LocalModelOfflinePolicyError
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        LocalModelPathConfig,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+
+    explicit_cache_root = tmp_path / "empty-explicit-cache-root"
+    explicit_cache_root.mkdir()
+    hub_reference = HuggingFaceModelFileReference(
+        repo_id="Qwen/Qwen3-4B-GGUF",
+        filename="chat-model.gguf",
+        revision="main",
+    )
+    config = LocalModelPathConfig(
+        model_filename="chat-model.gguf",
+        model_cache_root=explicit_cache_root,
+        huggingface_file=hub_reference,
+    )
+
+    download_calls: list[tuple[object, Path]] = []
+
+    def fake_download(reference: object, target_cache_root: Path) -> Path:
+        download_calls.append((reference, target_cache_root))
+        return target_cache_root / "downloaded.gguf"
+
+    with pytest.raises(
+        LocalModelOfflinePolicyError, match="offline.*chat-model\\.gguf"
+    ):
+        resolve_local_model_path(
+            config,
+            allow_network=False,
+            download_file=fake_download,
+        )
+
+    assert download_calls == []
+
+
+def test_resolve_local_model_path_classifies_invalid_hub_reference_as_resolution_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from dynamic_agent_runner.errors import LocalModelResolutionError
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        LocalModelPathConfig,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+
+    explicit_cache_root = tmp_path / "empty-explicit-cache-root"
+    explicit_cache_root.mkdir()
+    hub_reference = HuggingFaceModelFileReference(
+        repo_id="Qwen/Qwen3-4B-GGUF",
+        filename="missing-chat-model.gguf",
+        revision="main",
+    )
+    config = LocalModelPathConfig(
+        model_filename="missing-chat-model.gguf",
+        model_cache_root=explicit_cache_root,
+        huggingface_file=hub_reference,
+    )
+
+    def fake_download(reference: object, target_cache_root: Path) -> Path:
+        raise FileNotFoundError(
+            f"missing remote asset for {reference!r} in {target_cache_root}"
+        )
+
+    with pytest.raises(
+        LocalModelResolutionError,
+        match="missing-chat-model\\.gguf",
+    ):
+        resolve_local_model_path(config, download_file=fake_download)
+
+
+def test_resolve_local_model_path_classifies_cache_miss_without_remote_reference_as_resolution_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from dynamic_agent_runner.errors import LocalModelResolutionError
+    from dynamic_agent_runner.local_models import (
+        LocalModelPathConfig,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+
+    explicit_cache_root = tmp_path / "empty-explicit-cache-root"
+    explicit_cache_root.mkdir()
+    config = LocalModelPathConfig(
+        model_filename="chat-model.gguf",
+        model_cache_root=explicit_cache_root,
+    )
+
+    with pytest.raises(LocalModelResolutionError, match="chat-model\\.gguf"):
+        resolve_local_model_path(config)
+
+
+def test_validate_local_model_identity_classifies_model_mismatch_with_runtime_owned_identity() -> (
+    None
+):
+    from dynamic_agent_runner.errors import LocalModelIdentityMismatchError
+    from dynamic_agent_runner.local_models import validate_local_model_identity
+
+    with pytest.raises(
+        LocalModelIdentityMismatchError,
+        match="local-qwen-chat.*Qwen/Qwen3-4B-Instruct-2507.*llama-2-7b-chat",
+    ):
+        validate_local_model_identity(
+            requested_model="local-qwen-chat",
+            expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+            observed_model_id="llama-2-7b-chat",
+        )
