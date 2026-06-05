@@ -2,12 +2,14 @@
 
 ## Status
 
-- State: Slices 1-3 implemented; `src/dynamic_agent_runner/openai_client.py`
+- State: Slices 1-4 implemented; `src/dynamic_agent_runner/openai_client.py`
   now exposes a repository-owned provider/client facade, provider
   configuration, SDK-backed default provider wrappers, provider-config-aware
   default sync/async client factories supporting `base_url` plus optional
   `api_key`, and adapters that lazily resolve their default clients through the
-  provider seam while preserving `models` / `is_local` routing semantics
+  provider seam while preserving `models` / `is_local` routing semantics;
+  response dispatch now also flows through repository-owned sync/async helpers
+  so transport calls, error translation, and normalization remain centralized
 - Source spec: `specs/openai-compatible-provider-wrapper/spec.md`
 - Technical plan: `specs/openai-compatible-provider-wrapper/plan.md`
 - Primary implementation area: `src/dynamic_agent_runner/openai_client.py`
@@ -51,11 +53,11 @@
 
 ## Slice 4 — Preserve repository-owned request and normalization logic
 
-- [ ] T4.1 Keep `build_openai_request(...)` or a directly equivalent
+- [x] T4.1 Keep `build_openai_request(...)` or a directly equivalent
       repository-owned helper as the canonical request construction path.
-- [ ] T4.2 Keep `normalize_openai_response(...)` or a directly equivalent
+- [x] T4.2 Keep `normalize_openai_response(...)` or a directly equivalent
       repository-owned helper as the canonical response normalization path.
-- [ ] T4.3 Ensure provider-specific transport changes do not move request or
+- [x] T4.3 Ensure provider-specific transport changes do not move request or
       response semantics into executor logic.
 
 ## Slice 5 — Tests for wrapper behavior and compatible endpoints

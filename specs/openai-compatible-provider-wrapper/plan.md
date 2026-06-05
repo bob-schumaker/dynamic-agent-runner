@@ -40,8 +40,9 @@ hosted OpenAI default path.
   layer consistently depends on the provider seam for both injected-provider and
   default-construction paths while preserving `models` / `is_local` executor
   routing semantics.
-- Request construction and response normalization already live in repository code
-  and should remain repository-owned after the refactor.
+- Request construction and response normalization now live behind explicit
+  repository-owned helper boundaries, including centralized sync/async response
+  dispatch helpers inside `openai_client.py`.
 
 ## Current Implementation Status
 
@@ -51,13 +52,15 @@ hosted OpenAI default path.
   (`feat(openai-client): isolate sdk-backed provider defaults`).
 - **Slice 3** is complete in commit `bc1ce39`
   (`feat(openai-client): route default adapters through providers`).
-- Slice 3 validation passed with:
-  - `poetry run pytest tests/test_openai_client.py -q` (`22 passed`)
+- **Slice 4** is complete in commit `a437b1a`
+  (`feat(openai-client): centralize response dispatch helpers`).
+- Slice 4 validation passed with:
+  - `poetry run pytest tests/test_openai_client.py -q` (`24 passed`)
   - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
   - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
     `tests/test_openai_client.py`
-- The next planned implementation step is **Slice 4 — Preserve repository-owned
-  request and normalization logic**.
+- The next planned implementation step is **Slice 5 — Tests for wrapper behavior
+  and compatible endpoints**.
 
 ## Architectural Decision
 
@@ -151,6 +154,8 @@ these responsibilities more explicitly:
 4. **Runtime adapters**
    - keep existing adapter semantics
    - refactor them to depend on the facade rather than raw SDK client instances
+   - route sync and async response dispatch through repository-owned helpers so
+     request kwargs, error translation, and normalization stay centralized
 
 ### Backward compatibility strategy
 

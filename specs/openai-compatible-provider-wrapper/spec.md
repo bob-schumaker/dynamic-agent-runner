@@ -4,7 +4,7 @@
 
 - Feature slug: `openai-compatible-provider-wrapper`
 - Mode: `guided`
-- Status: partially implemented follow-up; Slices 1-3 are implemented in the
+- Status: partially implemented follow-up; Slices 1-4 are implemented in the
   current repo state, while later slices remain planned
 - Related artifacts:
   - `src/dynamic_agent_runner/openai_client.py`
@@ -39,13 +39,16 @@ provider-wrapper slices have improved the default OpenAI path inside
 - `OpenAIClientAdapter` and `AsyncOpenAIClientAdapter` now lazily resolve their
   default sync/async clients through the repository-owned default provider
   facades instead of bypassing that seam on the default path
+- repository-owned sync/async response-dispatch helpers now centralize transport
+  calls, runtime-facing error translation, and response normalization inside
+  `openai_client.py`
 
 That is meaningful progress, but the runtime has not yet completed the full
-refactor. Slice 3 now makes the adapters consume the provider seam consistently
-for both explicit-provider and default lazy-construction paths while preserving
-existing metadata-based routing semantics. The remaining slices are now focused
-on request/response ownership boundaries, remaining validation bookkeeping, and
-optional follow-up polish.
+refactor. Slice 4 now makes request dispatch and response normalization ownership
+more explicit by routing both adapters through repository-owned sync/async
+helpers while preserving existing metadata-based routing semantics. The
+remaining slices are now focused on broader validation bookkeeping and optional
+follow-up polish.
 
 The repository also has a preserved local-model direction in
 `specs/llama-cpp-graph-mutation/spec.md` that prefers fitting local execution
@@ -72,6 +75,10 @@ runtime logic for each future local provider.
   seams and SDK-backed default provider wrappers, and the adapters now consume
   that seam consistently for both explicit-provider and default lazy
   construction paths.
+- `openai_client.py` now also exposes repository-owned sync/async response-
+  dispatch helpers so transport calls, runtime-facing error translation, and
+  normalization remain centralized in repository code rather than spread across
+  adapter implementations.
 - Adapter selection already preserves `models` and `is_local`, and executor
   routing already supports `local_only` requirements using those existing
   adapter attributes.
