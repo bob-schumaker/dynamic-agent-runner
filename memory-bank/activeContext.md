@@ -28,8 +28,12 @@
 - The active follow-up order is: `OA11` unless a future scoped follow-up pulls
   OA8 back into active implementation.
 - User direction has now selected the OpenAI-compatible provider-wrapper feature
-  as the highest-ROI future expansion, and Slice 1 has been requested next, but
-  no Slice 1 implementation work has landed in code yet.
+  as the highest-ROI future expansion, and Slice 1 landed in commit `99e225f`
+  (`feat(openai-client): add provider facade seam`). That slice introduced a
+  repository-owned provider/client facade seam plus provider configuration in
+  `src/dynamic_agent_runner/openai_client.py`, while leaving the SDK-backed
+  default construction and `base_url` / optional `api_key` passthrough work for
+  later slices.
 
 ## Current State Snapshot
 
@@ -43,7 +47,8 @@
   - grouped manifest loading (`runtime`, `metadata`, `extensions`)
   - prepared execution planning and prepared model-input staging
   - repository-owned tool registry and override handling
-  - OpenAI adapter boundary with fake-client-compatible tests
+  - OpenAI adapter boundary with a repository-owned provider/client facade seam
+    and fake-client-compatible tests
   - retry, output-contract validation, token-budget preflight, tracing, and
     runtime behavior overrides
   - run-correlation support for concurrent execution
@@ -65,6 +70,17 @@
 
 ## Latest Completed Follow-up Slices
 
+- Provider-wrapper Slice 1 completed in `99e225f`: `openai_client.py` now
+  exposes `OpenAIProviderConfig`, `OpenAIClientProvider`, and
+  `AsyncOpenAIClientProvider`, and the sync/async adapters can lazily construct
+  clients through that repository-owned facade while preserving the existing
+  injected-client path and default lazy client construction behavior.
+- Provider-wrapper Slice 1 validation passed with:
+  - `poetry run pytest tests/test_openai_client.py -q` (`13 passed`)
+  - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
+    `tests/test_openai_client.py`
+    `specs/openai-compatible-provider-wrapper/tasks.md`
 - `OA9` completed in `c181328`: the registry now exposes an optional
   `tool_from_function(...)` helper that builds `RegisteredTool` instances from
   Python callables, accepts explicit metadata when provided, and falls back to
@@ -119,6 +135,9 @@
   - `specs/openai-compatible-provider-wrapper/spec.md`
   - `specs/openai-compatible-provider-wrapper/plan.md`
   - `specs/openai-compatible-provider-wrapper/tasks.md`
+- Provider-wrapper Slice 1 is now implemented and recorded in
+  `specs/openai-compatible-provider-wrapper/tasks.md`; if that feature continues,
+  Slice 2 is the next logical implementation step.
 - The provider-wrapper plan now explicitly prioritizes:
   - repository-owned sync/async provider-client facades
   - SDK-backed wrapper isolation
@@ -162,10 +181,10 @@
 ## Next Steps
 
 - If the selected provider-wrapper expansion now moves into implementation,
-  start with Slice 1 from
-  `specs/openai-compatible-provider-wrapper/tasks.md`: define the narrow
-  repository-owned sync/async provider-client facades and the small provider
-  configuration seam.
+  continue with Slice 2 from
+  `specs/openai-compatible-provider-wrapper/tasks.md`: move the direct `openai`
+  SDK construction behind the new provider seam and add `base_url` plus optional
+  `api_key` support while preserving the hosted-default path.
 - If implementation resumes, start from `OA11` in the governing SDD artifacts.
 - If OA8 expansion is later resumed, start from
   `specs/async-session-memory-pipeline/implementation-plan.md` and preserve the
