@@ -35,6 +35,11 @@
   provider/client facade seam, provider configuration, SDK-backed default
   provider wrappers, and provider-config-aware default sync/async client
   factories with `base_url` plus optional `api_key` support.
+- The provider-wrapper spec docs were refreshed after Slice 2 in commit
+  `5dce42b` (`docs(specs): align provider wrapper docs with slice 2`) so
+  `specs/openai-compatible-provider-wrapper/spec.md` and
+  `specs/openai-compatible-provider-wrapper/plan.md` now describe Slices 1-2 as
+  implemented and keep Slice 3 as the next planned implementation step.
 
 ## Current State Snapshot
 
@@ -151,6 +156,9 @@
 - Provider-wrapper Slices 1-2 are now implemented and recorded in
   `specs/openai-compatible-provider-wrapper/tasks.md`; if that feature
   continues, Slice 3 is the next logical implementation step.
+- The provider-wrapper spec/plan docs are also aligned through Slice 2 in
+  commit `5dce42b`, so the feature-spec package now consistently reflects the
+  committed implementation state before Slice 3 begins.
 - The provider-wrapper plan now explicitly prioritizes:
   - repository-owned sync/async provider-client facades
   - SDK-backed wrapper isolation

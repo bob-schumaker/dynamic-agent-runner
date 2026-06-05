@@ -46,6 +46,11 @@
 - User direction has selected the provider-wrapper feature as the next
   high-ROI future expansion, and Slices 1-2 are now committed while Slice 3 is
   the next logical provider-wrapper implementation step.
+- The provider-wrapper spec docs are now aligned through Slice 2 in `5dce42b`
+  (`docs(specs): align provider wrapper docs with slice 2`), updating
+  `specs/openai-compatible-provider-wrapper/spec.md` and
+  `specs/openai-compatible-provider-wrapper/plan.md` so they match the committed
+  provider seam and SDK-backed default-wrapper implementation state.
 - The primary spec set and related feature specs are now internally consistent
   with the current repo state in commit `e6b5f2c`
   (`docs(specs): align spec artifacts with repo state`).
