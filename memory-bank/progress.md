@@ -273,17 +273,25 @@
 
 ## In Flight
 
-- The active ordered backlog has no remaining OA slice; the currently active
-  implementation track is the llama.cpp local-model feature under
-  `specs/llama-cpp-local-model/`.
-- The current execution gate for that feature is optional T3.1: add RED tests
-  for separate local embedding configuration only if Slice 3 is explicitly
-  scheduled.
+- The active ordered backlog has no remaining OA slice.
+- The current authoritative next-feature spec is now
+  `specs/internal-graph-mutation/spec.md`.
+- The graph-mutation planning package is now committed in `7239e80`
+  (`docs(specs): add graph-mutation planning artifacts`), adding the companion
+  `plan.md` and `tasks.md` artifact set.
+- The current active graph-mutation execution gate is T1.1: RED validation
+  coverage for explicit context-pipeline attachment metadata and fail-closed
+  mutation boundaries.
+- The llama.cpp local-model area remains implemented through the Slice 2
+  checkpoint; its optional T3.1 follow-up is no longer the primary active focus.
 - The provider-wrapper follow-up is complete through Slice 6; any further work
   there would now be optional polish or broader provider-specific follow-up.
 
 ## Remaining
 
+- If graph-mutation work proceeds, begin from
+  `specs/internal-graph-mutation/tasks.md` T1.1 by adding RED validation
+  coverage for explicit context-pipeline attachment metadata.
 - If llama.cpp local-model work resumes, begin optional Slice 3 from the
   authoritative task list only if separate local embedding configuration is
   explicitly scheduled.

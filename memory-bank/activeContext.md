@@ -2,9 +2,24 @@
 
 ## Current Focus
 
-- The active implementation focus remains the authoritative llama.cpp
-  local-model feature under `specs/llama-cpp-local-model/`, but the active
-  Slice 2 checkpoint is now complete through T2.6.
+- The current authoritative next-feature spec is now
+  `specs/internal-graph-mutation/spec.md`.
+- The current spec-first focus is defining the compile-time graph-mutation seam
+  for context-pruning attachment on selected `llm_step` nodes before any new
+  implementation slice is scheduled.
+- The graph-mutation area still has no active runtime implementation; this is a
+  spec-authority and planning-focus change rather than an implementation
+  milestone.
+- The graph-mutation planning package is now committed in `7239e80`
+  (`docs(specs): add graph-mutation planning artifacts`), adding
+  `specs/internal-graph-mutation/plan.md` and
+  `specs/internal-graph-mutation/tasks.md` alongside the updated guided spec.
+- The current execution gate for graph mutation is now T1.1: add RED validation
+  coverage for explicit context-pipeline attachment metadata and fail-closed
+  mutation boundaries.
+- The llama.cpp local-model feature under `specs/llama-cpp-local-model/`
+  remains implemented through the Slice 2 checkpoint and is no longer the
+  primary active spec focus.
 - The llama.cpp local-model sequence is now implemented and documented through:
   - T1.3 in `6d269ad`
     (`feat(local-models): add local openai endpoint helpers`)
@@ -32,6 +47,9 @@
 - The current execution gate for this feature is now optional T3.1: add RED
   tests for separate local embedding configuration only if Slice 3 is explicitly
   scheduled.
+- `specs/internal-graph-mutation/spec.md` now owns the current authoritative
+  direction for the next high-ROI feature area: an internal compile-time
+  graph-mutation layer beginning with context-pruning attachment.
 - The OpenAI-compatible provider-wrapper feature plan was reprioritized and
   expanded in commit `1e6d37d`
   (`docs(specs): prioritize provider wrapper implementation`). The updated
@@ -343,6 +361,24 @@
   - `specs/internal-graph-mutation/spec.md`
   The graph-mutation area still has no active runtime implementation, while the
   llama.cpp local-model area is now implemented through completed Slice 2.
+- The graph-mutation feature now has a committed authoritative guided SDD
+  artifact set:
+  - `7239e80` — `docs(specs): add graph-mutation planning artifacts`
+- `specs/internal-graph-mutation/spec.md` is now the authoritative guided SDD
+  spec for the current next-feature area rather than a light-mode future-spec
+  note, and it now explicitly points to companion planning artifacts.
+- `specs/internal-graph-mutation/plan.md` now records the preferred first
+  implementation path:
+  - Slice 1 = mutation metadata contract and internal seam
+  - Slice 2 = prepared-input integration for context-pruning attachment
+  - Slice 3 = later strategy/profile growth and semantic pruning hooks
+- `specs/internal-graph-mutation/tasks.md` now records T1.1 as the next pending
+  step and keeps the first implementation input-transform-only, with RED-first
+  validation and executor coverage before production code changes.
+- The current source of truth for the active graph-mutation checkpoint is:
+  - `specs/internal-graph-mutation/spec.md`
+  - `specs/internal-graph-mutation/plan.md`
+  - `specs/internal-graph-mutation/tasks.md`
 - The llama.cpp local-model spec was further refined against the upstream
   `llama-cpp-python` docs/README/examples and the local `huggingface_hub`
   checkout. The current spec direction now says:
@@ -409,13 +445,21 @@
 
 ## Next Steps
 
+- Start the graph-mutation implementation sequence from
+  `specs/internal-graph-mutation/tasks.md` at T1.1 by adding RED validation
+  coverage for explicit context-pipeline attachment metadata in
+  `tests/test_validation.py`.
+- Treat the current source of truth for the graph-mutation feature as:
+  - `specs/internal-graph-mutation/spec.md`
+  - `specs/internal-graph-mutation/plan.md`
+  - `specs/internal-graph-mutation/tasks.md`
 - The provider-wrapper follow-up is currently complete through Slice 6; if work
   resumes in that area, treat it as optional future polish or broader
   provider-specific follow-up rather than a required next implementation slice.
 - If llama.cpp local-model implementation resumes, start from
   `specs/llama-cpp-local-model/tasks.md` optional Slice 3 rather than from the
   old OA follow-up queue.
-- For the active llama.cpp sequence, resume at T3.1 only if separate local
+- For the parked llama.cpp sequence, resume at T3.1 only if separate local
   embedding configuration is explicitly scheduled; otherwise treat Slice 2 as
   complete.
 - Treat the current source of truth for the llama.cpp feature as:
