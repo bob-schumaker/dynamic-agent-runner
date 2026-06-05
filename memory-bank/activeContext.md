@@ -59,6 +59,18 @@
   `14fa1ea` (`docs(specs): align provider wrapper docs with slice 4`) so the
   feature-spec package now records Slices 1-4 as implemented and advances the
   next planned step to Slice 5.
+- Provider-wrapper Slice 6 landed in commit `66212f4`
+  (`feat(openai-client): export provider config seam`). That slice re-exported
+  `OpenAIProviderConfig`, `create_default_openai_provider(...)`, and
+  `create_default_async_openai_provider(...)` from
+  `src/dynamic_agent_runner/__init__.py`, added import-smoke coverage in
+  `tests/test_import.py`, and documented a package-level compatible-endpoint
+  example in `README.md`.
+- The provider-wrapper spec docs were refreshed again after Slice 6 in commit
+  `556694e` (`docs(specs): align provider wrapper docs with slice 6`) so the
+  feature-spec package now records Slices 1-6 as implemented, records the
+  import-surface validation evidence, and treats additional provider-wrapper
+  work as optional future polish rather than a required next slice.
 
 ## Current State Snapshot
 
@@ -108,6 +120,16 @@
   `AsyncOpenAIClientAdapter` route through those repository-owned helpers so
   request kwargs, runtime-facing error translation, and response normalization
   remain centralized in the adapter boundary.
+- Provider-wrapper Slice 6 completed in `66212f4`:
+  `dynamic_agent_runner.__init__` now re-exports the provider-configuration
+  seam (`OpenAIProviderConfig`, `create_default_openai_provider(...)`, and
+  `create_default_async_openai_provider(...)`), `tests/test_import.py` now
+  covers those package-level exports, and `README.md` now shows a package-level
+  OpenAI-compatible endpoint example using `model_adapter`.
+- Provider-wrapper Slice 6 validation passed with:
+  - `poetry run pytest tests/test_import.py -q` (`1 passed`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/__init__.py`
+    `tests/test_import.py` `README.md`
 - Provider-wrapper Slice 4 validation passed with:
   - `poetry run pytest tests/test_openai_client.py -q` (`24 passed`)
   - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
@@ -195,12 +217,12 @@
   - `specs/openai-compatible-provider-wrapper/spec.md`
   - `specs/openai-compatible-provider-wrapper/plan.md`
   - `specs/openai-compatible-provider-wrapper/tasks.md`
-- Provider-wrapper Slices 1-4 are now implemented and recorded in
-  `specs/openai-compatible-provider-wrapper/tasks.md`; if that feature
-  continues, Slice 5 is the next logical implementation step.
-- The provider-wrapper spec/plan/task docs are aligned through Slice 4 in
-  commit `14fa1ea`, so the feature-spec package now consistently reflects the
-  committed implementation state before Slice 5 begins.
+- Provider-wrapper Slices 1-6 are now implemented and recorded in
+  `specs/openai-compatible-provider-wrapper/tasks.md`.
+- The provider-wrapper spec/plan/task docs are aligned through Slice 6 in
+  commit `556694e`, so the feature-spec package now consistently reflects the
+  committed implementation state, public export surface, and focused validation
+  evidence.
 - The provider-wrapper plan now explicitly prioritizes:
   - repository-owned sync/async provider-client facades
   - SDK-backed wrapper isolation
@@ -243,11 +265,9 @@
 
 ## Next Steps
 
-- If the selected provider-wrapper expansion now moves into implementation,
-  continue with Slice 5 from
-  `specs/openai-compatible-provider-wrapper/tasks.md`: keep broadening focused
-  wrapper-path and compatible-endpoint validation while preserving fake-client,
-  live-network-free coverage.
+- The provider-wrapper follow-up is currently complete through Slice 6; if work
+  resumes in that area, treat it as optional future polish or broader
+  provider-specific follow-up rather than a required next implementation slice.
 - If implementation resumes, start from `OA11` in the governing SDD artifacts.
 - If OA8 expansion is later resumed, start from
   `specs/async-session-memory-pipeline/implementation-plan.md` and preserve the

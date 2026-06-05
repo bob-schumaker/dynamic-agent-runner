@@ -2,6 +2,28 @@
 
 ## Working
 
+- The OpenAI-compatible provider-wrapper Slice 6 implementation is complete in
+  `66212f4` (`feat(openai-client): export provider config seam`).
+- That implementation updated the package-level public surface so:
+  - `src/dynamic_agent_runner/__init__.py` now re-exports
+    `OpenAIProviderConfig`
+  - `src/dynamic_agent_runner/__init__.py` now re-exports
+    `create_default_openai_provider(...)` and
+    `create_default_async_openai_provider(...)`
+  - `tests/test_import.py` now verifies those public exports exist
+  - `README.md` now includes a package-level OpenAI-compatible endpoint example
+    that preserves the existing `model_adapter` seam
+- Slice 6 validation passed with:
+  - `poetry run pytest tests/test_import.py -q` (`1 passed`)
+  - focused `pre-commit run --files src/dynamic_agent_runner/__init__.py`
+    `tests/test_import.py` `README.md`
+- The provider-wrapper spec docs are now aligned through Slice 6 in `556694e`
+  (`docs(specs): align provider wrapper docs with slice 6`), updating:
+  - `specs/openai-compatible-provider-wrapper/spec.md`
+  - `specs/openai-compatible-provider-wrapper/plan.md`
+  - `specs/openai-compatible-provider-wrapper/tasks.md`
+  so they match the committed provider-wrapper implementation state, public
+  export surface, and focused import-validation evidence.
 - The OpenAI-compatible provider-wrapper Slice 4 implementation is complete in
   `a437b1a` (`feat(openai-client): centralize response dispatch helpers`).
 - That implementation updated `src/dynamic_agent_runner/openai_client.py` so:
@@ -78,9 +100,8 @@
 - The governing main-spec backlog is still unchanged: `OA11` remains the only
   active remaining upstream-conditional follow-up in
   `specs/dynamic-agent-runner/tasks.md`.
-- User direction has selected the provider-wrapper feature as the next
-  high-ROI future expansion, and Slices 1-4 are now committed while Slice 5 is
-  the next logical provider-wrapper implementation step.
+- User direction selected the provider-wrapper feature as the next high-ROI
+  future expansion, and Slices 1-6 are now committed.
 - The primary spec set and related feature specs are now internally consistent
   with the current repo state in commit `e6b5f2c`
   (`docs(specs): align spec artifacts with repo state`).
@@ -169,14 +190,14 @@
 ## In Flight
 
 - The active ordered backlog is: `OA11`.
-- The active provider-wrapper follow-up, if resumed, is Slice 5.
+- The provider-wrapper follow-up is complete through Slice 6; any further work
+  there would now be optional polish or broader provider-specific follow-up.
 
 ## Remaining
 
-- If the provider-wrapper follow-up is implemented next, continue with Slice 5
-  in `specs/openai-compatible-provider-wrapper/tasks.md`: expand focused wrapper
-  and compatible-endpoint validation while keeping tests fake-client based and
-  free of live network calls.
+- If the provider-wrapper area is resumed, treat it as optional follow-up work
+  rather than a required next slice; any new work should preserve fake-client
+  testing and avoid live network calls.
 - Start the next scoped implementation from `OA11` in the governing SDD docs.
 - If OA8 expansion is later prioritized, treat the current future-spec package
   as the design baseline and preserve the already-implemented metadata-only seam
