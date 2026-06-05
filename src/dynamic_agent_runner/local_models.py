@@ -266,10 +266,7 @@ def _download_model_file(
             f"{config.model_filename!r}"
         )
     if download_file is None:
-        raise LocalModelResolutionError(
-            "No Hugging Face file download helper is configured for local model "
-            f"asset {config.model_filename!r}"
-        )
+        download_file, _ = _load_huggingface_download_helpers()
     try:
         resolved_path = Path(download_file(reference, cache_root))
     except Exception as exc:  # noqa: BLE001 - normalize download failures.
@@ -301,10 +298,7 @@ def _download_model_snapshot(
             f"asset {config.model_filename!r}"
         )
     if download_snapshot is None:
-        raise LocalModelResolutionError(
-            "No Hugging Face snapshot download helper is configured for local "
-            f"model asset {config.model_filename!r}"
-        )
+        _, download_snapshot = _load_huggingface_download_helpers()
     try:
         snapshot_root = Path(download_snapshot(reference, cache_root))
     except Exception as exc:  # noqa: BLE001 - normalize download failures.
@@ -320,3 +314,41 @@ def _download_model_snapshot(
             f"{config.model_filename!r}"
         )
     return candidate
+
+
+def _load_huggingface_download_helpers() -> tuple[
+    DownloadFileCallable, DownloadSnapshotCallable
+]:
+    try:
+        from huggingface_hub import hf_hub_download, snapshot_download
+    except Exception as exc:  # noqa: BLE001 - dependency/import errors vary.
+        raise LocalModelResolutionError(
+            "huggingface_hub is required for default local-model download wiring"
+        ) from exc
+
+    def download_file(
+        reference: HuggingFaceModelFileReference,
+        cache_root: Path,
+    ) -> Path:
+        return Path(
+            hf_hub_download(
+                repo_id=reference.repo_id,
+                filename=reference.filename,
+                revision=reference.revision,
+                cache_dir=cache_root,
+            )
+        )
+
+    def download_snapshot(
+        reference: HuggingFaceSnapshotReference,
+        cache_root: Path,
+    ) -> Path:
+        return Path(
+            snapshot_download(
+                repo_id=reference.repo_id,
+                revision=reference.revision,
+                cache_dir=cache_root,
+            )
+        )
+
+    return download_file, download_snapshot

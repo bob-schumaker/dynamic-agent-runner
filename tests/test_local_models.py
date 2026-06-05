@@ -384,3 +384,104 @@ def test_local_async_openai_adapter_translates_endpoint_protocol_failures() -> N
         match="localhost:11434/v1.*unexpected response schema",
     ):
         asyncio.run(adapter.create_response(request))
+
+
+def test_resolve_local_model_path_uses_default_hub_file_download_helper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        LocalModelPathConfig,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+
+    explicit_cache_root = tmp_path / "empty-explicit-cache-root"
+    explicit_cache_root.mkdir()
+    hub_reference = HuggingFaceModelFileReference(
+        repo_id="Qwen/Qwen3-4B-GGUF",
+        filename="chat-model.gguf",
+        revision="main",
+    )
+    config = LocalModelPathConfig(
+        model_filename="chat-model.gguf",
+        model_cache_root=explicit_cache_root,
+        huggingface_file=hub_reference,
+    )
+
+    download_calls: list[tuple[object, Path]] = []
+    downloaded_path = _default_cache_root(home_dir) / "downloads" / "chat-model.gguf"
+    downloaded_path.parent.mkdir(parents=True)
+
+    def fake_default_file_download(reference: object, target_cache_root: Path) -> Path:
+        download_calls.append((reference, target_cache_root))
+        downloaded_path.write_text("downloaded-model", encoding="utf-8")
+        return downloaded_path
+
+    def fake_default_snapshot_download(_: object, __: Path) -> Path:
+        raise AssertionError("snapshot helper should not be used for file references")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.local_models._load_huggingface_download_helpers",
+        lambda: (fake_default_file_download, fake_default_snapshot_download),
+    )
+
+    resolved_path = resolve_local_model_path(config)
+
+    assert resolved_path == downloaded_path
+    assert download_calls == [(hub_reference, _default_cache_root(home_dir))]
+
+
+def test_resolve_local_model_path_uses_default_hub_snapshot_download_helper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceSnapshotReference,
+        LocalModelPathConfig,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+
+    explicit_cache_root = tmp_path / "empty-explicit-cache-root"
+    explicit_cache_root.mkdir()
+    hub_reference = HuggingFaceSnapshotReference(
+        repo_id="Qwen/Qwen3-4B-GGUF",
+        revision="main",
+    )
+    config = LocalModelPathConfig(
+        model_filename="chat-model.gguf",
+        model_cache_root=explicit_cache_root,
+        huggingface_snapshot=hub_reference,
+    )
+
+    download_calls: list[tuple[object, Path]] = []
+    snapshot_root = _default_cache_root(home_dir) / "snapshots" / "qwen"
+    snapshot_root.mkdir(parents=True)
+    expected_path = snapshot_root / "chat-model.gguf"
+    expected_path.write_text("downloaded-model", encoding="utf-8")
+
+    def fake_default_file_download(_: object, __: Path) -> Path:
+        raise AssertionError("file helper should not be used for snapshot references")
+
+    def fake_default_snapshot_download(
+        reference: object,
+        target_cache_root: Path,
+    ) -> Path:
+        download_calls.append((reference, target_cache_root))
+        return snapshot_root
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.local_models._load_huggingface_download_helpers",
+        lambda: (fake_default_file_download, fake_default_snapshot_download),
+    )
+
+    resolved_path = resolve_local_model_path(config)
+
+    assert resolved_path == expected_path
+    assert download_calls == [(hub_reference, _default_cache_root(home_dir))]
