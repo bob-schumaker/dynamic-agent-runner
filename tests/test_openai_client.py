@@ -159,6 +159,80 @@ def test_openai_provider_config_preserves_endpoint_settings() -> None:
     assert config.provider_name == "local-llm"
 
 
+def test_local_openai_endpoint_config_preserves_aliases_and_expected_identity() -> None:
+    from dynamic_agent_runner.local_models import LocalOpenAIEndpointConfig
+
+    config = LocalOpenAIEndpointConfig(
+        base_url="http://localhost:11434/v1",
+        api_key="local-key",
+        model_aliases=["qwen-local", "chat-default"],
+        provider_name="llama.cpp",
+        expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+    )
+
+    assert config.base_url == "http://localhost:11434/v1"
+    assert config.api_key == "local-key"
+    assert config.model_aliases == ("qwen-local", "chat-default")
+    assert config.provider_name == "llama.cpp"
+    assert config.expected_model_id == "Qwen/Qwen3-4B-Instruct-2507"
+
+
+def test_create_local_openai_adapter_builds_local_provider_backed_adapter() -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalOpenAIEndpointConfig,
+        create_local_openai_adapter,
+    )
+
+    config = LocalOpenAIEndpointConfig(
+        base_url="http://localhost:11434/v1",
+        api_key="local-key",
+        model_aliases=["qwen-local", "chat-default"],
+        provider_name="llama.cpp",
+        expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+    )
+
+    adapter = create_local_openai_adapter(config)
+
+    assert isinstance(adapter, OpenAIClientAdapter)
+    assert adapter.models == ("qwen-local", "chat-default")
+    assert adapter.is_local is True
+    assert adapter._provider is not None
+    assert adapter._provider.config == OpenAIProviderConfig(
+        base_url="http://localhost:11434/v1",
+        api_key="local-key",
+        provider_name="llama.cpp",
+    )
+
+
+def test_create_local_async_openai_adapter_builds_local_provider_backed_adapter() -> (
+    None
+):
+    from dynamic_agent_runner.local_models import (
+        LocalOpenAIEndpointConfig,
+        create_local_async_openai_adapter,
+    )
+
+    config = LocalOpenAIEndpointConfig(
+        base_url="http://localhost:11434/v1",
+        api_key="local-key",
+        model_aliases=["qwen-local", "chat-default"],
+        provider_name="llama.cpp",
+        expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+    )
+
+    adapter = create_local_async_openai_adapter(config)
+
+    assert isinstance(adapter, AsyncOpenAIClientAdapter)
+    assert adapter.models == ("qwen-local", "chat-default")
+    assert adapter.is_local is True
+    assert adapter._provider is not None
+    assert adapter._provider.config == OpenAIProviderConfig(
+        base_url="http://localhost:11434/v1",
+        api_key="local-key",
+        provider_name="llama.cpp",
+    )
+
+
 def test_adapter_can_use_repository_owned_provider_facade() -> None:
     responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
     provider = FakeProvider(
