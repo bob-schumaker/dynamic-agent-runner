@@ -783,6 +783,64 @@ def test_llm_step_requires_prompt_or_prompt_source() -> None:
         validate_mapping(data)
 
 
+def test_context_pipeline_attachment_requires_explicit_sources_and_contract() -> None:
+    """Context-pipeline metadata must fail closed when attachment fields are incomplete."""
+
+    data = valid_manifest_data()
+    nodes = deepcopy(data["nodes"])
+    assert isinstance(nodes, list)
+    nodes[0] = {
+        "id": "analyze_request",
+        "kind": "llm_step",
+        "prompt": {"user_template": "Analyze {prompt} with {prepared_context}"},
+        "context_pipeline": {
+            "enabled": True,
+            "strategy": "semantic_pruning",
+            "profile": "default",
+        },
+        "context_sources": [
+            {"kind": "conversation_history", "source": "state.chat_history"}
+        ],
+    }
+    data["nodes"] = nodes
+
+    with pytest.raises(WorkflowValidationError, match="context_contract"):
+        validate_mapping(data)
+
+
+def test_context_pipeline_attachment_rejects_non_llm_step_nodes() -> None:
+    """Context-pipeline metadata must not attach to non-llm-step nodes."""
+
+    data = valid_manifest_data()
+    nodes = deepcopy(data["nodes"])
+    assert isinstance(nodes, list)
+    nodes[1] = {
+        "id": "lookup_context",
+        "kind": "tool_use_step",
+        "tool_id": "search_repo",
+        "context_pipeline": {
+            "enabled": True,
+            "strategy": "semantic_pruning",
+            "profile": "default",
+        },
+        "context_sources": [
+            {"kind": "conversation_history", "source": "state.chat_history"},
+            {"kind": "latest_user_prompt", "source": "prompt"},
+        ],
+        "context_contract": {
+            "history_input": "state.chat_history",
+            "current_prompt_input": "prompt",
+            "output_slot": "prepared_context",
+        },
+    }
+    data["nodes"] = nodes
+
+    with pytest.raises(
+        WorkflowValidationError, match="non-llm_step node 'lookup_context'"
+    ):
+        validate_mapping(data)
+
+
 def test_rag_manifest_preserves_and_validates_pipeline_and_model_requirements() -> None:
     """RAG metadata and LLM embedding requirements are accepted as manifest guidance."""
 
