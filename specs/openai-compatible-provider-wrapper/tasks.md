@@ -2,10 +2,11 @@
 
 ## Status
 
-- State: planned; current runtime still directly constructs `openai.OpenAI()` /
-  `openai.AsyncOpenAI()` in `src/dynamic_agent_runner/openai_client.py` and does
-  not yet expose `base_url` / optional `api_key` provider configuration on the
-  default factories
+- State: Slice 1 implemented; `src/dynamic_agent_runner/openai_client.py` now
+  exposes a repository-owned provider/client facade and provider configuration,
+  while the default factories still directly construct `openai.OpenAI()` /
+  `openai.AsyncOpenAI()` and do not yet expose `base_url` / optional `api_key`
+  provider configuration
 - Source spec: `specs/openai-compatible-provider-wrapper/spec.md`
 - Technical plan: `specs/openai-compatible-provider-wrapper/plan.md`
 - Primary implementation area: `src/dynamic_agent_runner/openai_client.py`
@@ -13,13 +14,13 @@
 
 ## Slice 1 — Repository-owned provider/client facade
 
-- [ ] T1.1 Define the repository-owned sync provider/client facade used by the
+- [x] T1.1 Define the repository-owned sync provider/client facade used by the
       runtime adapter boundary.
-- [ ] T1.2 Define the repository-owned async provider/client facade used by the
+- [x] T1.2 Define the repository-owned async provider/client facade used by the
       async runtime adapter boundary.
-- [ ] T1.3 Introduce any small provider configuration structure needed for
+- [x] T1.3 Introduce any small provider configuration structure needed for
       `base_url`, optional `api_key`, and optional provider diagnostics metadata.
-- [ ] T1.4 Keep the facade narrow enough for fake-client tests and future
+- [x] T1.4 Keep the facade narrow enough for fake-client tests and future
       alternate implementations.
 
 ## Slice 2 — SDK-backed default wrapper isolation
@@ -80,9 +81,9 @@
 
 ## Slice 7 — Validation evidence
 
-- [ ] T7.1 Run `poetry run pytest tests/test_openai_client.py -q` and record the
+- [x] T7.1 Run `poetry run pytest tests/test_openai_client.py -q` and record the
       result.
-- [ ] T7.2 If adapter integration behavior changed, run
+- [x] T7.2 If adapter integration behavior changed, run
       `poetry run pytest tests/test_executor.py -q` and record the result.
 - [ ] T7.3 If exports changed, run `poetry run pytest tests/test_import.py -q`
       and record the result.

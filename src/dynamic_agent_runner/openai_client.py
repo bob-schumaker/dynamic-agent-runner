@@ -37,6 +37,33 @@ class AsyncOpenAIClientProtocol(Protocol):
 
 
 @dataclass(frozen=True)
+class OpenAIProviderConfig:
+    """Repository-owned configuration for an OpenAI-compatible provider."""
+
+    base_url: str | None = None
+    api_key: str | None = None
+    provider_name: str | None = None
+
+
+class OpenAIClientProvider(Protocol):
+    """Repository-owned sync provider facade for constructing model clients."""
+
+    config: OpenAIProviderConfig
+
+    def get_client(self) -> OpenAIClientProtocol:
+        """Return a sync client compatible with the runtime adapter boundary."""
+
+
+class AsyncOpenAIClientProvider(Protocol):
+    """Repository-owned async provider facade for constructing model clients."""
+
+    config: OpenAIProviderConfig
+
+    def get_client(self) -> AsyncOpenAIClientProtocol:
+        """Return an async client compatible with the runtime adapter boundary."""
+
+
+@dataclass(frozen=True)
 class OpenAIMessage:
     """Rendered message sent to the model adapter."""
 
@@ -97,27 +124,34 @@ class ModelResponse:
 
 
 class OpenAIClientAdapter:
-    """Small adapter around the official OpenAI Python client."""
+    """Small adapter around a repository-owned OpenAI-compatible client boundary."""
 
     def __init__(
         self,
         client: OpenAIClientProtocol | None = None,
         *,
+        provider: OpenAIClientProvider | None = None,
         models: Sequence[str] | None = None,
         is_local: bool = False,
     ) -> None:
+        if client is not None and provider is not None:
+            raise ValueError("OpenAIClientAdapter accepts either client or provider")
         self._client = client
+        self._provider = provider
         self._client_lock = RLock()
         self._models = tuple(str(model) for model in models or ())
         self._is_local = is_local
 
     @property
     def client(self) -> OpenAIClientProtocol:
-        """Return the injected or lazily constructed official OpenAI client."""
+        """Return the injected or lazily constructed OpenAI-compatible client."""
 
         with self._client_lock:
             if self._client is None:
-                self._client = create_default_openai_client()
+                if self._provider is not None:
+                    self._client = self._provider.get_client()
+                else:
+                    self._client = create_default_openai_client()
             return self._client
 
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
@@ -143,27 +177,36 @@ class OpenAIClientAdapter:
 
 
 class AsyncOpenAIClientAdapter:
-    """Async adapter around the official OpenAI Python client."""
+    """Async adapter around a repository-owned OpenAI-compatible client boundary."""
 
     def __init__(
         self,
         client: AsyncOpenAIClientProtocol | None = None,
         *,
+        provider: AsyncOpenAIClientProvider | None = None,
         models: Sequence[str] | None = None,
         is_local: bool = False,
     ) -> None:
+        if client is not None and provider is not None:
+            raise ValueError(
+                "AsyncOpenAIClientAdapter accepts either client or provider"
+            )
         self._client = client
+        self._provider = provider
         self._client_lock = RLock()
         self._models = tuple(str(model) for model in models or ())
         self._is_local = is_local
 
     @property
     def client(self) -> AsyncOpenAIClientProtocol:
-        """Return the injected or lazily constructed async OpenAI client."""
+        """Return the injected or lazily constructed async OpenAI-compatible client."""
 
         with self._client_lock:
             if self._client is None:
-                self._client = create_default_async_openai_client()
+                if self._provider is not None:
+                    self._client = self._provider.get_client()
+                else:
+                    self._client = create_default_async_openai_client()
             return self._client
 
     async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:

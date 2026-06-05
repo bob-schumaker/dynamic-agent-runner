@@ -13,6 +13,7 @@ from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     OpenAIClientAdapter,
     OpenAIMessage,
+    OpenAIProviderConfig,
     build_openai_request,
     create_default_async_openai_client,
     normalize_openai_response,
@@ -55,6 +56,38 @@ class FakeAsyncResponses:
 class FakeAsyncClient:
     def __init__(self, responses: FakeAsyncResponses):
         self.responses = responses
+
+
+class FakeProvider:
+    def __init__(
+        self,
+        responses: FakeResponses,
+        config: OpenAIProviderConfig | None = None,
+    ):
+        self.responses = responses
+        self.config = config or OpenAIProviderConfig()
+        self.calls = 0
+        self.client = FakeClient(responses)
+
+    def get_client(self) -> FakeClient:
+        self.calls += 1
+        return self.client
+
+
+class FakeAsyncProvider:
+    def __init__(
+        self,
+        responses: FakeAsyncResponses,
+        config: OpenAIProviderConfig | None = None,
+    ):
+        self.responses = responses
+        self.config = config or OpenAIProviderConfig()
+        self.calls = 0
+        self.client = FakeAsyncClient(responses)
+
+    def get_client(self) -> FakeAsyncClient:
+        self.calls += 1
+        return self.client
 
 
 def test_build_openai_request_includes_messages_tools_and_options() -> None:
@@ -112,6 +145,42 @@ def test_adapter_uses_injected_client_and_normalizes_response() -> None:
     assert result.tool_calls == ()
 
 
+def test_openai_provider_config_preserves_endpoint_settings() -> None:
+    config = OpenAIProviderConfig(
+        base_url="http://localhost:11434/v1",
+        api_key=None,
+        provider_name="local-llm",
+    )
+
+    assert config.base_url == "http://localhost:11434/v1"
+    assert config.api_key is None
+    assert config.provider_name == "local-llm"
+
+
+def test_adapter_can_use_repository_owned_provider_facade() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    provider = FakeProvider(
+        responses,
+        OpenAIProviderConfig(base_url="http://localhost:11434/v1"),
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    first_client = adapter.client
+    second_client = adapter.client
+
+    assert first_client is second_client is provider.client
+    result = adapter.create_response(request)
+
+    assert provider.calls == 1
+    assert provider.config.base_url == "http://localhost:11434/v1"
+    assert result.response_id == "resp_provider"
+    assert result.content == "via provider"
+
+
 def test_async_adapter_awaits_injected_client_and_normalizes_response() -> None:
     responses = FakeAsyncResponses(
         {"id": "resp_async_123", "output_text": "async final"}
@@ -130,6 +199,32 @@ def test_async_adapter_awaits_injected_client_and_normalizes_response() -> None:
     assert result.response_id == "resp_async_123"
     assert result.content == "async final"
     assert result.tool_calls == ()
+
+
+def test_async_adapter_can_use_repository_owned_provider_facade() -> None:
+    responses = FakeAsyncResponses(
+        {"id": "resp_async_provider", "output_text": "via async provider"}
+    )
+    provider = FakeAsyncProvider(
+        responses,
+        OpenAIProviderConfig(base_url="http://localhost:11434/v1"),
+    )
+    adapter = AsyncOpenAIClientAdapter(provider=provider)
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello async")],
+    )
+
+    first_client = adapter.client
+    second_client = adapter.client
+
+    assert first_client is second_client is provider.client
+    result = asyncio.run(adapter.create_response(request))
+
+    assert provider.calls == 1
+    assert provider.config.base_url == "http://localhost:11434/v1"
+    assert result.response_id == "resp_async_provider"
+    assert result.content == "via async provider"
 
 
 def test_normalize_openai_response_extracts_message_text_and_tool_calls() -> None:
