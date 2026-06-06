@@ -6,6 +6,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Mapping
 
+from dynamic_agent_runner.graph_mutation import (
+    GraphMutationSpec,
+    WorkflowMutationBundle,
+    derive_workflow_mutation_bundle,
+)
+
 SUPPORTED_AGENT_PATTERNS = (
     "basic-reasoning-agent",
     "tool-based-function-calling-agent",
@@ -930,6 +936,7 @@ class PreparedNode:
     failure_behavior: str = "error"
     retry_policy: Any = None
     token_budget_policy: Any = None
+    mutation_spec: GraphMutationSpec | None = None
     raw: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -950,6 +957,9 @@ class ExecutionPlan:
     output_contracts: Mapping[str, Any] = field(default_factory=dict)
     unsupported_extensions: tuple[str, ...] = ()
     max_steps: int | None = None
+    mutation_bundle: WorkflowMutationBundle = field(
+        default_factory=WorkflowMutationBundle
+    )
 
 
 def prepare_execution_plan(
@@ -959,13 +969,15 @@ def prepare_execution_plan(
 
     manifest = workflow.runtime_manifest
     execution_policy = dict(manifest.execution_policy)
+    mutation_bundle = derive_workflow_mutation_bundle(workflow)
     return ExecutionPlan(
         workflow=workflow,
         entrypoint_id=manifest.entrypoint,
         nodes_by_id={
             prepared_node.id: prepared_node
             for prepared_node in (
-                _prepare_node(node, execution_policy) for node in manifest.nodes
+                _prepare_node(node, execution_policy, mutation_bundle)
+                for node in manifest.nodes
             )
             if prepared_node.id
         },
@@ -984,18 +996,21 @@ def prepare_execution_plan(
             and extension.get("required", False) is False
         ),
         max_steps=_max_steps(execution_policy),
+        mutation_bundle=mutation_bundle,
     )
 
 
 def _prepare_node(
     node: RuntimeNode,
     execution_policy: Mapping[str, Any],
+    mutation_bundle: WorkflowMutationBundle,
 ) -> PreparedNode:
     raw = dict(node.raw)
     prompt = _as_mapping(raw.get("prompt")) or {}
+    node_id = str(node.id or "")
     return PreparedNode(
         source_node=node,
-        id=str(node.id or ""),
+        id=node_id,
         kind=str(node.kind or ""),
         label=node.label,
         tool_id=node.tool_id,
@@ -1017,8 +1032,17 @@ def _prepare_node(
         failure_behavior=str(raw.get("failure_behavior") or "error"),
         retry_policy=raw.get("retry_policy"),
         token_budget_policy=raw.get("token_budget") or raw.get("token_budget_policy"),
+        mutation_spec=_first_mutation_spec(mutation_bundle, node_id),
         raw=raw,
     )
+
+
+def _first_mutation_spec(
+    mutation_bundle: WorkflowMutationBundle,
+    node_id: str,
+) -> GraphMutationSpec | None:
+    specs = mutation_bundle.for_node(node_id)
+    return specs[0] if specs else None
 
 
 def _prepared_model(
