@@ -13,21 +13,22 @@ Status: Draft
 ## Status
 
 - State: authoritative spec and implementation plan exist; T1.1, T1.2, and T2.1
-  RED coverage plus the T1.3, T1.4, T1.5, and T2.2 implementation slices are
-  now committed
-- Current execution gate: T2.3 is the next pending step — add the first
-  `ContextPruningMutation` implementation now that prepared-input integration is
-  in place
+  RED coverage plus the T1.3, T1.4, T1.5, T2.2, and T2.3 implementation slices
+  are now committed
+- Current execution gate: T2.4 is the next pending step — record clear
+  preparation diagnostics for mutation application now that the first live
+  `ContextPruningMutation` exists
 - Current GREEN evidence:
-  - `poetry run pytest tests/test_graph_mutation.py -q` -> `3 passed`
+  - `poetry run pytest tests/test_graph_mutation.py -q` -> `5 passed`
   - `poetry run pytest tests/test_validation.py -q` -> `55 passed`
   - `poetry run pytest tests/test_executor.py -q -k`
     `"context_pipeline_prepared_context_before_render or`
-    `context_contract_output_slot_name"`
-    -> `2 passed, 52 deselected`
+    `context_contract_output_slot_name or`
+    `prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step"`
+    -> `3 passed, 51 deselected`
   - `poetry run pytest tests/test_executor.py -q` -> `54 passed`
 - Next implementation steps:
-  - T2.3 for the first `ContextPruningMutation` implementation
+  - T2.4 for mutation-application diagnostics
 - Scope rule: keep the first slice input-transform-only; do not introduce public
   mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
   transport ownership into these tasks
@@ -147,7 +148,7 @@ Status: Draft
     `54 passed`, proving prepared model input includes the mutation-owned context
     output in a deterministic pre-model stage before prompt rendering
 
-- [ ] T2.3 [implementation] Add the first `ContextPruningMutation`
+- [x] T2.3 [implementation] Add the first `ContextPruningMutation`
       implementation that consumes declared context metadata and produces a narrow
       repository-owned prepared-context transform.
   - Spec: FR-3, FR-4
@@ -156,8 +157,14 @@ Status: Draft
     `src/dynamic_agent_runner/executor.py`
   - Depends on: T1.3, T1.4, T2.2
   - Validation: `poetry run pytest tests/test_graph_mutation.py -q`
-  - Evidence: the first mutation target exists as an internal context-pruning
-    attachment rather than only a placeholder seam
+  - Evidence: `poetry run pytest tests/test_graph_mutation.py -q` now passes with
+    `5 passed`, and `poetry run pytest tests/test_executor.py -q -k`
+    `"context_pipeline_prepared_context_before_render or`
+    `context_contract_output_slot_name or`
+    `prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step"`
+    passes with `3 passed, 51 deselected`, proving the first mutation target now
+    exists as an internal context-pruning runtime and the executor delegates the
+    prepared-context transform to it without regressing earlier seams
 
 - [ ] T2.4 [implementation] Record clear preparation diagnostics for mutation
       application so tests and traces can distinguish unchanged vs transformed

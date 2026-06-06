@@ -10,6 +10,8 @@
     `src/dynamic_agent_runner/graph_mutation.py`
   - T1.3 focused GREEN datamodel evidence now exists in
     `tests/test_graph_mutation.py`
+  - T2.3 focused GREEN mutation-runtime evidence now exists in
+    `tests/test_graph_mutation.py` and `src/dynamic_agent_runner/executor.py`
   - T1.4 focused GREEN execution-plan seam evidence now exists in
     `tests/test_executor.py`
   - T1.5 focused GREEN validation evidence now exists in
@@ -93,6 +95,9 @@ This feature specification covers:
 - The repository now has committed prepared-input executor integration that
   populates the mutation-owned output slot before prompt rendering for eligible
   `llm_step` nodes.
+- The repository now also has a committed first live `ContextPruningMutation`
+  implementation that owns prepared-context rendering from declared metadata and
+  is invoked by the executor rather than duplicated there.
 
 ## Functional Requirements
 
@@ -213,6 +218,9 @@ Acceptance criteria:
     - `test_workflow_mutation_bundle_can_describe_context_pruning_target`
     - `test_mutation_result_preserves_workflow_and_notices`
     - `test_workflow_graph_mutation_protocol_supports_apply_contract`
+    - `test_context_pruning_mutation_renders_prepared_context_from_declared_sources`
+    - `test_apply_workflow_mutations_aggregates_context_pruning_mutation_results`
+    - observed result: `5 passed`
   - earlier `poetry run pytest tests/test_executor.py -q`
     - `test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes`
     - `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`
@@ -222,15 +230,18 @@ Acceptance criteria:
     - observed result: `55 passed`
   - `poetry run pytest tests/test_executor.py -q -k`
     `"context_pipeline_prepared_context_before_render or`
-    `context_contract_output_slot_name"`
+    `context_contract_output_slot_name or`
+    `prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step"`
     - `test_prepare_model_input_applies_context_pipeline_prepared_context_before_render`
     - `test_prepare_model_input_respects_context_contract_output_slot_name`
-    - observed result: `2 passed, 52 deselected`
+    - `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`
+    - observed result: `3 passed, 51 deselected`
   - `poetry run pytest tests/test_executor.py -q`
     - observed result: `54 passed`
 - The passing graph-mutation checkpoint proves the repository now has internal
-  typed mutation datamodels and protocol seams that can represent the first
-  context-pruning target.
+  typed mutation datamodels, mutation orchestration, and a first live
+  `ContextPruningMutation` runtime that can render the first context-pruning
+  target from declared metadata.
 - The passing executor checkpoint proves the repository now derives a
   workflow-level mutation bundle and per-node mutation-preparation seam during
   `prepare_execution_plan(...)` without mutating the base loaded workflow.
@@ -240,6 +251,8 @@ Acceptance criteria:
   nodes and rejects ineligible attachment targets before execution.
 - The passing prepared-input checkpoint proves `prepare_model_input(...)` now
   assembles a mutation-aware render context before prompt formatting, including
-  declared output slots such as `prepared_context` and `context_window`.
+  declared output slots such as `prepared_context` and `context_window`, while
+  delegating the context-pruning transform itself to the runtime-owned mutation
+  implementation.
 - Future implementation work must create fresh validation evidence rather than
   relying on any reverted prototype results.

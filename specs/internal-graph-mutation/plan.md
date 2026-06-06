@@ -2,29 +2,30 @@
 
 Status: In progress
 
-- Current checkpoint: T2.2 prepared-input mutation integration is committed in
+- Current checkpoint: T2.3 first `ContextPruningMutation` implementation is
+  committed in `src/dynamic_agent_runner/graph_mutation.py` and delegated from
   `src/dynamic_agent_runner/executor.py`, following the earlier T1.5 fail-closed
-  attachment validation in `src/dynamic_agent_runner/validation.py`, the GREEN
-  datamodel and execution-plan seam checkpoints in `tests/test_graph_mutation.py`
-  and `tests/test_executor.py`, and the T2.1 committed RED coverage in
-  `tests/test_executor.py`.
+  attachment validation, T1.4 execution-plan seam checkpoint, and T2.2
+  prepared-input integration checkpoint.
 - Current evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` passes with the focused
-    internal mutation datamodel and protocol checks.
+    internal mutation datamodel, orchestration, and runtime-rendering checks.
   - `poetry run pytest tests/test_validation.py -q` passes with the expected
     fail-closed attachment-metadata validation behavior.
   - `poetry run pytest tests/test_executor.py -q -k`
     `"context_pipeline_prepared_context_before_render or`
-    `context_contract_output_slot_name"`
-    passes with `2 passed, 52 deselected`, proving prompt rendering now receives
+    `context_contract_output_slot_name or`
+    `prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step"`
+    passes with `3 passed, 51 deselected`, proving the executor still receives
     mutation-owned prepared-context output-slot values before request
-    construction.
+    construction after delegating rendering to the first live mutation runtime.
   - `poetry run pytest tests/test_executor.py -q` passes with `54 passed` after
     the executor integration change.
-- Next overall task gate: T2.3 first `ContextPruningMutation` implementation.
+- Next overall task gate: T2.4 preparation diagnostics after the first live
+  mutation target exists.
 - Next implementation steps at the current GREEN checkpoint:
-  - T2.3 first `ContextPruningMutation` implementation
   - T2.4 preparation diagnostics after the first live mutation target exists
+  - T3.1 focused mutation validation suite after the diagnostics slice lands
 
 ## Goal
 
@@ -280,12 +281,11 @@ src/dynamic_agent_runner/graph_mutation.py
 
 Suggested first contents:
 
-- Implemented in T1.3:
+- Implemented by the current checkpoint:
   - `WorkflowGraphMutation` protocol
   - `MutationResult`
   - `GraphMutationSpec`
   - `WorkflowMutationBundle`
-- Still pending in later slices:
   - `apply_workflow_mutations(...)`
   - `ContextPruningMutation`
 
@@ -322,6 +322,16 @@ Current recorded checkpoint:
   - `test_workflow_mutation_bundle_can_describe_context_pruning_target`
   - `test_mutation_result_preserves_workflow_and_notices`
   - `test_workflow_graph_mutation_protocol_supports_apply_contract`
+- T2.3 GREEN evidence was captured with:
+
+  ```bash
+  poetry run pytest tests/test_graph_mutation.py -q
+  ```
+
+- Observed result: `5 passed`
+- Passing tests include:
+  - `test_context_pruning_mutation_renders_prepared_context_from_declared_sources`
+  - `test_apply_workflow_mutations_aggregates_context_pruning_mutation_results`
 - T1.4 GREEN evidence was captured with:
 
   ```bash
@@ -363,6 +373,19 @@ Current recorded checkpoint:
   ```
 
 - Observed result: `54 passed`
+- T2.3 focused executor regression evidence was captured with:
+
+  ```bash
+  poetry run pytest tests/test_executor.py -q -k \
+    "context_pipeline_prepared_context_before_render or \
+    context_contract_output_slot_name or \
+    prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step"
+  ```
+
+- Observed result: `3 passed, 51 deselected`
+- Observed outcome: the executor still prepares mutation-owned output slots
+  before prompt rendering after delegating the transform to
+  `ContextPruningMutation`
 For the current focused checkpoint, widen to:
 
 ```bash
@@ -410,5 +433,6 @@ changing the immutable portable workflow package contract.
 
 At the current checkpoint, the repository has GREEN evidence for the internal
 mutation datamodel layer, the execution-plan mutation seam, fail-closed
-attachment validation, and prepared-input mutation integration before prompt
-rendering.
+attachment validation, prepared-input mutation integration before prompt
+rendering, and a first live `ContextPruningMutation` runtime owned by
+`src/dynamic_agent_runner/graph_mutation.py`.
