@@ -326,6 +326,7 @@ def validate_runtime_manifest(
     _extend(errors, _tool_definition_errors(manifest.tools, "runtime manifest tool"))
     _extend(errors, _tool_reference_errors(manifest, tool_index, tool_registry))
     _extend(errors, _llm_prompt_errors(manifest.nodes))
+    _extend(errors, _context_pipeline_attachment_errors(manifest.nodes))
     _extend(errors, _model_requirements_errors(manifest))
     _extend(errors, _rag_pipeline_errors(manifest))
     _extend(errors, _react_loop_errors(manifest))
@@ -884,6 +885,118 @@ def _llm_prompt_errors(nodes: Iterable[RuntimeNode]) -> list[str]:
                 f"llm_step node {node.id!r} must define prompt or prompt_source"
             )
     return errors
+
+
+def _context_pipeline_attachment_errors(nodes: Iterable[RuntimeNode]) -> list[str]:
+    errors: list[str] = []
+    for node in nodes:
+        raw_context_pipeline = node.raw.get("context_pipeline")
+        raw_context_sources = node.raw.get("context_sources")
+        raw_context_contract = node.raw.get("context_contract")
+        if (
+            raw_context_pipeline is None
+            and raw_context_sources is None
+            and raw_context_contract is None
+        ):
+            continue
+        if node.kind != "llm_step":
+            errors.append(
+                f"non-llm_step node {node.id!r} must not define context_pipeline "
+                "attachment metadata"
+            )
+            continue
+
+        label = f"llm_step node {node.id!r}"
+        enabled = False
+        if raw_context_pipeline is None:
+            errors.append(
+                f"{label} context_pipeline attachment requires context_pipeline"
+            )
+        elif not isinstance(raw_context_pipeline, Mapping):
+            errors.append(f"{label} context_pipeline must be a mapping")
+        else:
+            _validate_optional_bool(raw_context_pipeline, "enabled", label, errors)
+            enabled = raw_context_pipeline.get("enabled") is True
+
+        requires_explicit_contract = (
+            enabled
+            or raw_context_sources is not None
+            or raw_context_contract is not None
+        )
+        if not requires_explicit_contract:
+            continue
+        if raw_context_sources is None:
+            errors.append(
+                f"{label} context_pipeline attachment requires context_sources"
+            )
+        else:
+            _append_context_source_errors(errors, label, raw_context_sources)
+        if raw_context_contract is None:
+            errors.append(
+                f"{label} context_pipeline attachment requires context_contract"
+            )
+        else:
+            _append_context_contract_errors(errors, label, raw_context_contract)
+    return errors
+
+
+def _append_context_source_errors(
+    errors: list[str],
+    label: str,
+    context_sources: object,
+) -> None:
+    if not isinstance(context_sources, list):
+        errors.append(f"{label} context_sources must be a list")
+        return
+    if not context_sources:
+        errors.append(f"{label} context_sources must not be empty")
+        return
+    for index, source in enumerate(context_sources):
+        if not isinstance(source, Mapping):
+            errors.append(f"{label} context_sources[{index}] must be a mapping")
+            continue
+        for field_name in ("kind", "source"):
+            value = source.get(field_name)
+            if not isinstance(value, str):
+                errors.append(
+                    f"{label} context_sources[{index}].{field_name} must be a string"
+                )
+            elif not value.strip():
+                errors.append(
+                    f"{label} context_sources[{index}].{field_name} must not be blank"
+                )
+
+
+def _append_context_contract_errors(
+    errors: list[str],
+    label: str,
+    context_contract: object,
+) -> None:
+    if not isinstance(context_contract, Mapping):
+        errors.append(f"{label} context_contract must be a mapping")
+        return
+
+    values: dict[str, str] = {}
+    for field_name in ("history_input", "current_prompt_input", "output_slot"):
+        value = context_contract.get(field_name)
+        if not isinstance(value, str):
+            errors.append(f"{label} context_contract.{field_name} must be a string")
+            continue
+        if not value.strip():
+            errors.append(f"{label} context_contract.{field_name} must not be blank")
+            continue
+        values[field_name] = value
+
+    output_slot = values.get("output_slot")
+    if output_slot is None:
+        return
+    if output_slot in {
+        values.get("history_input"),
+        values.get("current_prompt_input"),
+    }:
+        errors.append(
+            f"{label} context_contract.output_slot must be distinct from input fields"
+        )
 
 
 def _model_requirements_errors(manifest: RuntimeManifest) -> list[str]:
