@@ -13,19 +13,16 @@ Status: Draft
 ## Status
 
 - State: authoritative spec and implementation plan exist; T1.1 and T1.2 RED
-  coverage plus the T1.3 and T1.4 implementation slices are now committed
-- Current execution gate: T1.5 is the next pending step — reject missing or
-  ambiguous mutation attachment metadata in validation
+  coverage plus the T1.3, T1.4, and T1.5 implementation slices are now
+  committed
+- Current execution gate: T2.1 is the next pending step — add failing
+  prepared-input coverage for mutation-owned context transformation
 - Current GREEN evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` -> `3 passed`
   - `poetry run pytest tests/test_executor.py -q` -> `52 passed`
-- Current RED evidence:
-  - `poetry run pytest tests/test_validation.py -q` -> `2 failed, 53 passed`
-- Current RED failures:
-  - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
-  - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
-- First implementation steps that can satisfy the current RED checkpoints:
-  - T1.5 for fail-closed attachment validation
+  - `poetry run pytest tests/test_validation.py -q` -> `55 passed`
+- Next implementation steps:
+  - T2.1 for prepared-input RED coverage
 - Scope rule: keep the first slice input-transform-only; do not introduce public
   mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
   transport ownership into these tasks
@@ -93,7 +90,7 @@ Status: Draft
     workflow bundle and per-node derived mutation behavior while
     `LoadedAgentWorkflow` / `RuntimeManifest` stay unchanged
 
-- [ ] T1.5 [implementation] Extend `src/dynamic_agent_runner/validation.py` to
+- [x] T1.5 [implementation] Extend `src/dynamic_agent_runner/validation.py` to
       reject missing or ambiguous mutation attachment metadata.
   - Spec: FR-4, FR-5
   - Plan: Affected Areas; Proposed portable attachment metadata
@@ -101,8 +98,10 @@ Status: Draft
     `tests/test_validation.py`
   - Depends on: T1.1
   - Validation: `poetry run pytest tests/test_validation.py -q`
-  - Evidence: invalid targets, missing context sources, ambiguous output slots,
-    and non-`llm_step` attachments fail clearly before execution
+  - Evidence: `poetry run pytest tests/test_validation.py -q` now passes with
+    `55 passed`, proving the repository enforces fail-closed attachment
+    metadata for eligible `llm_step` nodes and rejects ineligible attachment
+    targets before execution
 
 ## Slice 2 — Prepared-input integration for context-pruning attachment
 

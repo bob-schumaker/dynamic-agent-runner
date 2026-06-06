@@ -2,22 +2,22 @@
 
 Status: In progress
 
-- Current checkpoint: T1.4 execution-plan mutation integration is committed in
-  `src/dynamic_agent_runner/models.py` and
-  `src/dynamic_agent_runner/graph_mutation.py` with focused GREEN evidence in
-  `tests/test_graph_mutation.py` and `tests/test_executor.py`, while T1.1 RED
-  validation evidence remains active in `tests/test_validation.py`.
+- Current checkpoint: T1.5 fail-closed attachment validation is committed in
+  `src/dynamic_agent_runner/validation.py` with focused GREEN evidence in
+  `tests/test_validation.py`, alongside the earlier GREEN datamodel and
+  execution-plan seam checkpoints in `tests/test_graph_mutation.py` and
+  `tests/test_executor.py`.
 - Current evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` passes with the focused
     internal mutation datamodel and protocol checks.
   - `poetry run pytest tests/test_executor.py -q` passes with the expected
     mutation-bundle and per-node mutation-preparation seam assertions.
-  - `poetry run pytest tests/test_validation.py -q` fails with the expected
-    missing-contract and ineligible-node attachment cases.
-- Next overall task gate: T1.5 fail-closed attachment-metadata validation.
+  - `poetry run pytest tests/test_validation.py -q` passes with the expected
+    fail-closed attachment-metadata validation behavior.
+- Next overall task gate: T2.1 prepared-input RED coverage.
 - Next implementation steps that can satisfy the current RED evidence:
-  - T1.5 fail-closed attachment-metadata validation
-  - T2.1 prepared-input RED coverage after validation closes
+  - T2.1 prepared-input RED coverage
+  - T2.2 prepared-input mutation integration after RED coverage lands
 
 ## Goal
 
@@ -325,17 +325,17 @@ Current recorded checkpoint:
 - Passing tests include:
   - `test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes`
   - `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`
-- T1.1 RED evidence was captured with:
+- T1.5 GREEN evidence was captured with:
 
   ```bash
   poetry run pytest tests/test_validation.py -q
   ```
 
-- Observed result: `2 failed, 53 passed`
-- Failing tests:
+- Observed result: `55 passed`
+- Passing tests include:
   - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
   - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
-For the current mixed checkpoint, widen to:
+For the current focused checkpoint, widen to:
 
 ```bash
 poetry run pytest \
@@ -380,7 +380,6 @@ eligible `llm_step` nodes, and a narrow context-pruning-oriented input transform
 that integrates with existing preparation and execution boundaries without
 changing the immutable portable workflow package contract.
 
-At the current checkpoint, the repository has GREEN evidence for both the
-internal mutation datamodel layer and the execution-plan mutation seam, while
-fail-closed attachment validation and prepared-input mutation behavior remain
-ahead.
+At the current checkpoint, the repository has GREEN evidence for the internal
+mutation datamodel layer, the execution-plan mutation seam, and fail-closed
+attachment validation, while prepared-input mutation behavior remains ahead.

@@ -8,11 +8,12 @@
 - Status: authoritative current follow-up feature spec
   - initial internal graph-mutation datamodel implementation now exists in
     `src/dynamic_agent_runner/graph_mutation.py`
-  - T1.1 RED validation evidence now exists in `tests/test_validation.py`
   - T1.3 focused GREEN datamodel evidence now exists in
     `tests/test_graph_mutation.py`
   - T1.4 focused GREEN execution-plan seam evidence now exists in
     `tests/test_executor.py`
+  - T1.5 focused GREEN validation evidence now exists in
+    `tests/test_validation.py`
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
@@ -89,8 +90,7 @@ This feature specification covers:
 - This artifact remains authoritative for feature intent, scope, and design
   boundaries, while the companion plan and task list own the first
   implementation path and execution sequencing.
-- Fail-closed attachment validation and live prepared-input mutation behavior
-  remain pending follow-up work.
+- Live prepared-input mutation behavior remains pending follow-up work.
 
 ## Functional Requirements
 
@@ -214,18 +214,19 @@ Acceptance criteria:
   - `poetry run pytest tests/test_executor.py -q`
     - `test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes`
     - `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`
-- Fresh RED evidence still exists from:
   - `poetry run pytest tests/test_validation.py -q`
     - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
     - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
+    - observed result: `55 passed`
 - The passing graph-mutation checkpoint proves the repository now has internal
   typed mutation datamodels and protocol seams that can represent the first
   context-pruning target.
 - The passing executor checkpoint proves the repository now derives a
   workflow-level mutation bundle and per-node mutation-preparation seam during
   `prepare_execution_plan(...)` without mutating the base loaded workflow.
-- The remaining RED checkpoints prove the repository does not yet enforce the
-  required fail-closed attachment contract for `context_pipeline`,
-  `context_sources`, and `context_contract` metadata.
+- The passing validation checkpoint proves the repository now enforces a
+  fail-closed attachment contract for explicit `context_pipeline`,
+  `context_sources`, and `context_contract` metadata on eligible `llm_step`
+  nodes and rejects ineligible attachment targets before execution.
 - Future implementation work must create fresh validation evidence rather than
   relying on any reverted prototype results.
