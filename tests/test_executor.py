@@ -39,6 +39,7 @@ from dynamic_agent_runner.registry import (
     RegisteredTool,
     ToolResult,
 )
+from dynamic_agent_runner.tracing import WorkflowTracer
 
 
 class FakeResponses:
@@ -676,6 +677,96 @@ def test_prepare_model_input_respects_context_contract_output_slot_name() -> Non
     assert "First question." in user_prompt
     assert "First answer." in user_prompt
     assert "Summarize the thread." in user_prompt
+
+
+def test_prepare_model_input_records_mutation_preparation_diagnostics() -> None:
+    """Prepared-input metadata and traces should distinguish transformed inputs."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "prepared-context-diagnostics-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "prepared_context",
+                    },
+                },
+                {
+                    "id": "plain",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                },
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="What changed?",
+        session_messages=(
+            OpenAIMessage(role="user", content="Earlier question."),
+            OpenAIMessage(role="assistant", content="Earlier answer."),
+        ),
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    transformed_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        tracer=tracer,
+    )
+    unchanged_input = prepare_model_input(
+        plan.nodes_by_id["plain"],
+        plan,
+        state,
+        tracer=tracer,
+    )
+
+    assert transformed_input.preparation.mutation_applied is True
+    assert transformed_input.preparation.mutation_id == "context-pruning-answer"
+    assert transformed_input.preparation.mutation_output_slots == ("prepared_context",)
+    assert unchanged_input.preparation.mutation_applied is False
+    assert unchanged_input.preparation.mutation_id is None
+    assert unchanged_input.preparation.mutation_output_slots == ()
+
+    prepared_events = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    prepared_payloads = {event.node_id: event.payload for event in prepared_events}
+
+    assert prepared_payloads["answer"]["mutation_applied"] is True
+    assert prepared_payloads["answer"]["mutation_id"] == "context-pruning-answer"
+    assert prepared_payloads["answer"]["mutation_output_slots"] == ("prepared_context",)
+    assert prepared_payloads["plain"]["mutation_applied"] is False
+    assert prepared_payloads["plain"]["mutation_id"] is None
+    assert prepared_payloads["plain"]["mutation_output_slots"] == ()
 
 
 def test_prepare_model_input_renders_messages_and_named_parts() -> None:

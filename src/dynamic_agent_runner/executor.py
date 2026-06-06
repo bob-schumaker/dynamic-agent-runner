@@ -117,6 +117,9 @@ class PreparedInputMetadata:
     file_context_files_included: int = 0
     file_context_bytes: int = 0
     file_context_estimated_tokens: int = 0
+    mutation_applied: bool = False
+    mutation_id: str | None = None
+    mutation_output_slots: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -330,13 +333,16 @@ def prepare_model_input(
         model_adapters or (),
         _execution_policy_model_map(plan.execution_policy),
     )
-    render_context = _prepare_model_input_render_context(node, state)
+    render_context, mutation_preparation = _prepare_model_input_render_context(
+        node, state
+    )
     message_parts, preparation = _apply_prepare_model_input_stage(
         _render_message_parts(behavior, state, context=render_context),
         plan,
         state,
         model=model,
     )
+    preparation = _merge_prepared_input_metadata(preparation, mutation_preparation)
     messages = tuple(message for _part, message in message_parts)
     if tracer is not None:
         tracer.emit(
@@ -353,6 +359,9 @@ def prepare_model_input(
                 "file_context_files_included": preparation.file_context_files_included,
                 "file_context_bytes": preparation.file_context_bytes,
                 "file_context_estimated_tokens": preparation.file_context_estimated_tokens,
+                "mutation_applied": preparation.mutation_applied,
+                "mutation_id": preparation.mutation_id,
+                "mutation_output_slots": preparation.mutation_output_slots,
             },
         )
         _check_prompt_cache(
@@ -869,10 +878,11 @@ def _render_message_parts(
 def _prepare_model_input_render_context(
     node: PreparedNode,
     state: WorkflowExecutionState,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], PreparedInputMetadata]:
     context = _format_context(state)
-    context.update(_mutation_render_context(node, state))
-    return context
+    mutation_context = _mutation_render_context(node, state)
+    context.update(mutation_context)
+    return context, _mutation_preparation_metadata(node, mutation_context)
 
 
 def _mutation_render_context(
@@ -886,6 +896,40 @@ def _mutation_render_context(
         prompt=state.prompt,
         session_messages=state.session_messages,
         resolve_source=lambda binding: _resolve_mutation_render_source(binding, state),
+    )
+
+
+def _mutation_preparation_metadata(
+    node: PreparedNode,
+    mutation_context: Mapping[str, Any],
+) -> PreparedInputMetadata:
+    spec = node.mutation_spec
+    if spec is None or spec.kind != "context_pruning" or not mutation_context:
+        return PreparedInputMetadata()
+    return PreparedInputMetadata(
+        mutation_applied=True,
+        mutation_id=spec.mutation_id,
+        mutation_output_slots=tuple(mutation_context.keys()),
+    )
+
+
+def _merge_prepared_input_metadata(
+    base: PreparedInputMetadata,
+    overlay: PreparedInputMetadata,
+) -> PreparedInputMetadata:
+    return PreparedInputMetadata(
+        hierarchy_applied=base.hierarchy_applied,
+        session_messages_included=base.session_messages_included,
+        session_messages_pruned=base.session_messages_pruned,
+        context_compaction_applied=base.context_compaction_applied,
+        file_context_applied=base.file_context_applied,
+        file_context_sources=base.file_context_sources,
+        file_context_files_included=base.file_context_files_included,
+        file_context_bytes=base.file_context_bytes,
+        file_context_estimated_tokens=base.file_context_estimated_tokens,
+        mutation_applied=overlay.mutation_applied,
+        mutation_id=overlay.mutation_id,
+        mutation_output_slots=overlay.mutation_output_slots,
     )
 
 
