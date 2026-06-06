@@ -20,6 +20,7 @@ from dynamic_agent_runner.errors import (
     ToolRegistryError,
     WorkflowExecutionError,
 )
+from dynamic_agent_runner.graph_mutation import ContextPruningMutation
 from dynamic_agent_runner.hooks import (
     ModelHookContext,
     NodeHookContext,
@@ -881,72 +882,20 @@ def _mutation_render_context(
     spec = node.mutation_spec
     if spec is None or spec.kind != "context_pruning":
         return {}
-    output_slot = _prepared_context_output_slot(spec)
-    return {output_slot: _prepared_context_value(spec, state)}
+    return ContextPruningMutation(spec).render_context(
+        prompt=state.prompt,
+        session_messages=state.session_messages,
+        resolve_source=lambda binding: _resolve_mutation_render_source(binding, state),
+    )
 
 
-def _prepared_context_output_slot(spec: Any) -> str:
-    config = spec.config if isinstance(spec.config, Mapping) else {}
-    contract = _mapping_or_none(config.get("context_contract")) or {}
-    output_slot = contract.get("output_slot")
-    return str(output_slot) if output_slot is not None else "prepared_context"
-
-
-def _prepared_context_value(spec: Any, state: WorkflowExecutionState) -> str:
-    parts = [
-        _stringify_prepared_context_value(
-            _resolve_prepared_context_source(source, state)
-        )
-        for source in _prepared_context_sources(spec)
-    ]
-    return "\n".join(part for part in parts if part)
-
-
-def _prepared_context_sources(spec: Any) -> tuple[Mapping[str, Any], ...]:
-    config = spec.config if isinstance(spec.config, Mapping) else {}
-    sources = config.get("context_sources")
-    if isinstance(sources, Sequence) and not isinstance(
-        sources, (str, bytes, bytearray)
-    ):
-        explicit_sources = tuple(item for item in sources if isinstance(item, Mapping))
-        if explicit_sources:
-            return explicit_sources
-    contract = _mapping_or_none(config.get("context_contract")) or {}
-    fallback_sources: list[Mapping[str, Any]] = []
-    history_input = contract.get("history_input")
-    if history_input is not None:
-        fallback_sources.append(
-            {"kind": "conversation_history", "source": history_input}
-        )
-    current_prompt_input = contract.get("current_prompt_input")
-    if current_prompt_input is not None:
-        fallback_sources.append(
-            {"kind": "latest_user_prompt", "source": current_prompt_input}
-        )
-    return tuple(fallback_sources)
-
-
-def _resolve_prepared_context_source(
-    source: Mapping[str, Any],
+def _resolve_mutation_render_source(
+    binding: str | None,
     state: WorkflowExecutionState,
 ) -> Any:
-    binding = source.get("source")
-    if binding in {"state.chat_history", "state.session_messages"}:
-        return state.session_messages
+    if binding is None:
+        return None
     return _resolve_value(binding, state)
-
-
-def _stringify_prepared_context_value(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, OpenAIMessage):
-        return f"{value.role}: {value.content}"
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        rendered = [_stringify_prepared_context_value(item) for item in value]
-        return "\n".join(part for part in rendered if part)
-    if isinstance(value, Mapping):
-        return json.dumps(value, sort_keys=True)
-    return str(value)
 
 
 def _apply_prepare_model_input_stage(
