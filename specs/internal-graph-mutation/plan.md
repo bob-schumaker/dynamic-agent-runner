@@ -2,30 +2,31 @@
 
 Status: In progress
 
-- Current checkpoint: T2.3 first `ContextPruningMutation` implementation is
-  committed in `src/dynamic_agent_runner/graph_mutation.py` and delegated from
-  `src/dynamic_agent_runner/executor.py`, following the earlier T1.5 fail-closed
-  attachment validation, T1.4 execution-plan seam checkpoint, and T2.2
-  prepared-input integration checkpoint.
+- Current checkpoint: T2.4 mutation-preparation diagnostics are committed in
+  `src/dynamic_agent_runner/executor.py` and `tests/test_executor.py`, following
+  the earlier T2.3 first `ContextPruningMutation` implementation, T1.5
+  fail-closed attachment validation, T1.4 execution-plan seam checkpoint, and
+  T2.2 prepared-input integration checkpoint.
 - Current evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` passes with the focused
     internal mutation datamodel, orchestration, and runtime-rendering checks.
   - `poetry run pytest tests/test_validation.py -q` passes with the expected
     fail-closed attachment-metadata validation behavior.
   - `poetry run pytest tests/test_executor.py -q -k`
-    `"context_pipeline_prepared_context_before_render or`
-    `context_contract_output_slot_name or`
-    `prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step"`
-    passes with `3 passed, 51 deselected`, proving the executor still receives
-    mutation-owned prepared-context output-slot values before request
-    construction after delegating rendering to the first live mutation runtime.
-  - `poetry run pytest tests/test_executor.py -q` passes with `54 passed` after
-    the executor integration change.
-- Next overall task gate: T2.4 preparation diagnostics after the first live
-  mutation target exists.
+    `"mutation_preparation_diagnostics or`
+    `context_pipeline_prepared_context_before_render or`
+    `context_contract_output_slot_name"` passes with `3 passed, 52 deselected`,
+    proving prepared-input metadata and trace payloads now distinguish
+    transformed vs unchanged `llm_step` rendering while preserving the earlier
+    prepared-context integration behavior.
+  - `poetry run pytest tests/test_executor.py -q` passes with `55 passed` after
+    the diagnostics integration change.
+- Next overall task gate: T3.1 focused mutation validation suite after the T2.4
+  diagnostics slice.
 - Next implementation steps at the current GREEN checkpoint:
-  - T2.4 preparation diagnostics after the first live mutation target exists
   - T3.1 focused mutation validation suite after the diagnostics slice lands
+  - T3.2 spec-artifact refresh after the focused validation checkpoint is
+    recorded
 
 ## Goal
 
@@ -194,7 +195,9 @@ artifacts in place.
   `context_pipeline`, `context_sources`, and `context_contract` attachment
   metadata
 - `src/dynamic_agent_runner/executor.py` — prepared-input integration point for
-  applying mutation-derived context transformation before model execution
+  applying mutation-derived context transformation before model execution,
+  including runtime-owned mutation diagnostics in prepared-input metadata and
+  traces
 - `tests/test_validation.py` — attachment-metadata validation coverage
 - `tests/test_executor.py` — prepared-input and mutation-integration coverage
 - `tests/test_graph_mutation.py` — optional focused internal mutation-unit tests

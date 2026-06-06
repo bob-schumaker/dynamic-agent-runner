@@ -13,22 +13,20 @@ Status: Draft
 ## Status
 
 - State: authoritative spec and implementation plan exist; T1.1, T1.2, and T2.1
-  RED coverage plus the T1.3, T1.4, T1.5, T2.2, and T2.3 implementation slices
-  are now committed
-- Current execution gate: T2.4 is the next pending step — record clear
-  preparation diagnostics for mutation application now that the first live
-  `ContextPruningMutation` exists
+  RED coverage plus the T1.3, T1.4, T1.5, T2.2, T2.3, and T2.4 implementation
+  slices are now committed
+- Current execution gate: T3.1 is the next pending step — run the focused
+  mutation validation suite now that preparation diagnostics are committed
 - Current GREEN evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` -> `5 passed`
   - `poetry run pytest tests/test_validation.py -q` -> `55 passed`
   - `poetry run pytest tests/test_executor.py -q -k`
-    `"context_pipeline_prepared_context_before_render or`
-    `context_contract_output_slot_name or`
-    `prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step"`
-    -> `3 passed, 51 deselected`
-  - `poetry run pytest tests/test_executor.py -q` -> `54 passed`
+    `"mutation_preparation_diagnostics or`
+    `context_pipeline_prepared_context_before_render or`
+    `context_contract_output_slot_name"` -> `3 passed, 52 deselected`
+  - `poetry run pytest tests/test_executor.py -q` -> `55 passed`
 - Next implementation steps:
-  - T2.4 for mutation-application diagnostics
+  - T3.1 for focused mutation validation evidence
 - Scope rule: keep the first slice input-transform-only; do not introduce public
   mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
   transport ownership into these tasks
@@ -166,7 +164,7 @@ Status: Draft
     exists as an internal context-pruning runtime and the executor delegates the
     prepared-context transform to it without regressing earlier seams
 
-- [ ] T2.4 [implementation] Record clear preparation diagnostics for mutation
+- [x] T2.4 [implementation] Record clear preparation diagnostics for mutation
       application so tests and traces can distinguish unchanged vs transformed
       `llm_step` inputs.
   - Spec: FR-1, FR-3, FR-5
@@ -175,8 +173,14 @@ Status: Draft
     `tests/test_executor.py`
   - Depends on: T2.2, T2.3
   - Validation: `poetry run pytest tests/test_executor.py -q`
-  - Evidence: mutation application status is visible through prepared-input
-    metadata or equivalent runtime-owned diagnostics
+  - Evidence: `poetry run pytest tests/test_executor.py -q -k`
+    `"mutation_preparation_diagnostics or`
+    `context_pipeline_prepared_context_before_render or`
+    `context_contract_output_slot_name"` now passes with `3 passed, 52
+    deselected`, and `poetry run pytest tests/test_executor.py -q` passes with
+    `55 passed`, proving mutation application status is now visible through
+    prepared-input metadata and `model_input_prepared` trace diagnostics for
+    transformed vs unchanged `llm_step` inputs
 
 ## Slice 3 — Validation evidence and artifact follow-up
 
