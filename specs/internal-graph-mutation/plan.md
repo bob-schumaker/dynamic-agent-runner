@@ -2,16 +2,19 @@
 
 Status: In progress
 
-- Current checkpoint: T1.1 and T1.2 RED coverage are committed in
-  `tests/test_validation.py` and `tests/test_executor.py`.
+- Current checkpoint: T1.3 internal mutation datamodels are committed in
+  `src/dynamic_agent_runner/graph_mutation.py` with focused unit coverage in
+  `tests/test_graph_mutation.py`, while T1.1 and T1.2 RED checkpoints remain
+  active in `tests/test_validation.py` and `tests/test_executor.py`.
 - Current evidence:
+- `poetry run pytest tests/test_graph_mutation.py -q` passes with the focused
+  internal mutation datamodel and protocol checks.
   - `poetry run pytest tests/test_validation.py -q` fails with the expected
     missing-contract and ineligible-node attachment cases.
   - `poetry run pytest tests/test_executor.py -q` fails with the expected
     missing mutation-bundle and per-node mutation-preparation cases.
-- Next overall task gate: T1.3 internal mutation protocol and datamodels.
+- Next overall task gate: T1.4 execution-plan mutation integration.
 - Next implementation steps that can satisfy the current RED evidence:
-  - T1.3 repository-owned mutation types
   - T1.4 execution-plan mutation integration
   - T1.5 fail-closed attachment-metadata validation
 
@@ -269,12 +272,14 @@ src/dynamic_agent_runner/graph_mutation.py
 
 Suggested first contents:
 
-- `WorkflowGraphMutation` protocol
-- `MutationResult`
-- `GraphMutationSpec`
-- `WorkflowMutationBundle`
-- `apply_workflow_mutations(...)`
-- `ContextPruningMutation`
+- Implemented in T1.3:
+  - `WorkflowGraphMutation` protocol
+  - `MutationResult`
+  - `GraphMutationSpec`
+  - `WorkflowMutationBundle`
+- Still pending in later slices:
+  - `apply_workflow_mutations(...)`
+  - `ContextPruningMutation`
 
 ### Executor integration contract
 
@@ -293,11 +298,22 @@ Suggested first contents:
 Primary targeted checks for the first implementation slice:
 
 ```bash
-poetry run pytest tests/test_validation.py tests/test_executor.py -q
+poetry run pytest tests/test_graph_mutation.py -q
 ```
 
 Current recorded checkpoint:
 
+- T1.3 GREEN evidence was captured with:
+
+  ```bash
+  poetry run pytest tests/test_graph_mutation.py -q
+  ```
+
+- Observed result: `3 passed`
+- Passing tests:
+  - `test_workflow_mutation_bundle_can_describe_context_pruning_target`
+  - `test_mutation_result_preserves_workflow_and_notices`
+  - `test_workflow_graph_mutation_protocol_supports_apply_contract`
 - T1.1 RED evidence was captured with:
 
   ```bash
@@ -319,7 +335,7 @@ Current recorded checkpoint:
   - `test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes`
   - `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`
 
-If the first implementation adds a focused mutation test module, widen to:
+For the current mixed checkpoint, widen to:
 
 ```bash
 poetry run pytest \
@@ -365,5 +381,6 @@ that integrates with existing preparation and execution boundaries without
 changing the immutable portable workflow package contract.
 
 At the current checkpoint, the repository has RED evidence for both attachment
-validation and execution-plan mutation preparation, while runtime
-implementation work remains ahead.
+validation and execution-plan mutation preparation, while the internal mutation
+datamodel layer itself is now implemented and covered by a focused GREEN unit
+checkpoint.

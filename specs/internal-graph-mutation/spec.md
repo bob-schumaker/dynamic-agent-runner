@@ -6,9 +6,12 @@
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
 - Status: authoritative current follow-up feature spec
-  - no active graph-mutation runtime implementation is present in the repository
+  - initial internal graph-mutation datamodel implementation now exists in
+    `src/dynamic_agent_runner/graph_mutation.py`
   - T1.1 RED validation evidence now exists in `tests/test_validation.py`
   - T1.2 RED execution-plan seam evidence now exists in `tests/test_executor.py`
+  - T1.3 focused GREEN datamodel evidence now exists in
+    `tests/test_graph_mutation.py`
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
@@ -16,6 +19,7 @@
   - `specs/llama-cpp-local-model/spec.md`
   - `src/dynamic_agent_runner/behavior.py`
   - `src/dynamic_agent_runner/executor.py`
+  - `src/dynamic_agent_runner/graph_mutation.py`
 
 ## Objective
 
@@ -72,8 +76,8 @@ This feature specification covers:
 
 ## Current Status and Boundary
 
-- No active graph-mutation implementation is currently present in the
-  repository.
+- The repository now contains an initial internal graph-mutation datamodel and
+  protocol module at `src/dynamic_agent_runner/graph_mutation.py`.
 - Any earlier prototype code or prior test results are historical context only
   and do not count as current implementation or validation evidence.
 - This artifact is now the repository's current authoritative next-feature spec
@@ -84,6 +88,8 @@ This feature specification covers:
 - This artifact remains authoritative for feature intent, scope, and design
   boundaries, while the companion plan and task list own the first
   implementation path and execution sequencing.
+- Execution-plan integration, fail-closed attachment validation, and live
+  prepared-input mutation behavior remain pending follow-up work.
 
 ## Functional Requirements
 
@@ -199,18 +205,25 @@ Acceptance criteria:
 ## Validation Status
 
 - This spec is authoritative for intended future behavior and boundaries.
-- There is not yet a passing implementation validation checkpoint for this
-  feature in the present repository state.
-- Fresh RED evidence now exists from:
+- Fresh focused GREEN evidence now exists from:
+  - `poetry run pytest tests/test_graph_mutation.py -q`
+    - `test_workflow_mutation_bundle_can_describe_context_pruning_target`
+    - `test_mutation_result_preserves_workflow_and_notices`
+    - `test_workflow_graph_mutation_protocol_supports_apply_contract`
+- Fresh RED evidence still exists from:
   - `poetry run pytest tests/test_validation.py -q`
     - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
     - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
   - `poetry run pytest tests/test_executor.py -q`
     - `test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes`
     - `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`
-- Those RED checkpoints prove the repository does not yet enforce the required
-  fail-closed attachment contract for `context_pipeline`, `context_sources`, and
-  `context_contract` metadata, and does not yet expose the intended compile-time
-  mutation bundle or per-node derived mutation-preparation seam.
+- The passing graph-mutation checkpoint proves the repository now has internal
+  typed mutation datamodels and protocol seams that can represent the first
+  context-pruning target.
+- The remaining RED checkpoints prove the repository does not yet enforce the
+  required fail-closed attachment contract for `context_pipeline`,
+  `context_sources`, and `context_contract` metadata, and does not yet expose
+  the intended execution-plan mutation bundle or per-node derived
+  mutation-preparation seam.
 - Future implementation work must create fresh validation evidence rather than
   relying on any reverted prototype results.

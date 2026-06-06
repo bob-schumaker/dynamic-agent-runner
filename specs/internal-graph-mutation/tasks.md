@@ -6,16 +6,19 @@ Status: Draft
 
 - Spec: `specs/internal-graph-mutation/spec.md`
 - Plan: `specs/internal-graph-mutation/plan.md`
-- Data model: none
-- Contracts: none
+- Data model: `src/dynamic_agent_runner/graph_mutation.py`
+- Contracts: internal mutation protocol and datamodels in
+  `src/dynamic_agent_runner/graph_mutation.py`
 
 ## Status
 
 - State: authoritative spec and implementation plan exist; T1.1 and T1.2 RED
-  coverage are now committed, but no graph-mutation runtime implementation is
-  currently present in the repository
-- Current execution gate: T1.3 is the next pending step — add the repository-
-  owned internal mutation protocol and datamodels
+  coverage plus the T1.3 internal mutation datamodel implementation are now
+  committed
+- Current execution gate: T1.4 is the next pending step — integrate the
+  mutation seam with `prepare_execution_plan(...)`
+- Current GREEN evidence:
+  - `poetry run pytest tests/test_graph_mutation.py -q` -> `3 passed`
 - Current RED evidence:
   - `poetry run pytest tests/test_validation.py -q` -> `2 failed, 53 passed`
   - `poetry run pytest tests/test_executor.py -q` -> `2 failed, 50 passed`
@@ -25,7 +28,6 @@ Status: Draft
   - `test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes`
   - `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`
 - First implementation steps that can satisfy the current RED checkpoints:
-  - T1.3 for repository-owned mutation types
   - T1.4 for execution-plan mutation integration
   - T1.5 for fail-closed attachment validation
 - Scope rule: keep the first slice input-transform-only; do not introduce public
@@ -69,16 +71,17 @@ Status: Draft
     proving no internal mutation bundle or per-node mutation-preparation seam
     exists yet
 
-- [ ] T1.3 [implementation] Add `src/dynamic_agent_runner/graph_mutation.py`
+- [x] T1.3 [implementation] Add `src/dynamic_agent_runner/graph_mutation.py`
       with the first internal mutation protocol and datamodels.
   - Spec: FR-1, FR-2
   - Plan: Chosen approach; Internal mutation contract
   - Files/components: `src/dynamic_agent_runner/graph_mutation.py`
   - Depends on: T1.2
   - Validation: `poetry run pytest tests/test_graph_mutation.py -q`
-  - Evidence: repository-owned types such as `WorkflowGraphMutation`,
-    `GraphMutationSpec`, `WorkflowMutationBundle`, and `MutationResult` exist and
-    can represent the first context-pruning target
+  - Evidence: `poetry run pytest tests/test_graph_mutation.py -q` now passes with
+    `3 passed`, proving repository-owned types such as
+    `WorkflowGraphMutation`, `GraphMutationSpec`, `WorkflowMutationBundle`, and
+    `MutationResult` exist and can represent the first context-pruning target
 
 - [ ] T1.4 [implementation] Integrate the mutation seam with
       `prepare_execution_plan(...)` so eligible nodes receive derived mutation
