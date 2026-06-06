@@ -12,17 +12,21 @@ Status: Draft
 
 ## Status
 
-- State: authoritative spec and implementation plan exist; T1.1 and T1.2 RED
-  coverage plus the T1.3, T1.4, and T1.5 implementation slices are now
+- State: authoritative spec and implementation plan exist; T1.1, T1.2, and T2.1
+  RED coverage plus the T1.3, T1.4, and T1.5 implementation slices are now
   committed
-- Current execution gate: T2.1 is the next pending step — add failing
-  prepared-input coverage for mutation-owned context transformation
+- Current execution gate: T2.2 is the next pending step — implement
+  prepared-input mutation integration to satisfy the committed T2.1 RED coverage
 - Current GREEN evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` -> `3 passed`
-  - `poetry run pytest tests/test_executor.py -q` -> `52 passed`
   - `poetry run pytest tests/test_validation.py -q` -> `55 passed`
+- Current RED evidence:
+  - `poetry run pytest tests/test_executor.py -q -k`
+    `"context_pipeline_prepared_context_before_render or`
+    `context_contract_output_slot_name"`
+    -> `2 failed, 52 deselected`
 - Next implementation steps:
-  - T2.1 for prepared-input RED coverage
+  - T2.2 for prepared-input mutation integration
 - Scope rule: keep the first slice input-transform-only; do not introduce public
   mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
   transport ownership into these tasks
@@ -105,7 +109,7 @@ Status: Draft
 
 ## Slice 2 — Prepared-input integration for context-pruning attachment
 
-- [ ] T2.1 [tests] Add failing prepared-input coverage in `tests/test_executor.py`
+- [x] T2.1 [tests] Add failing prepared-input coverage in `tests/test_executor.py`
       for routing declared context inputs through an internal mutation-owned
       transform before `llm_step` model execution.
   - Spec: FR-3, FR-4
@@ -116,8 +120,15 @@ Status: Draft
     not visible graph surgery
   - Depends on: T1.4, T1.5
   - Validation: `poetry run pytest tests/test_executor.py -q`
-  - Evidence: tests fail before prepared-input assembly honors derived mutation
-    behavior for eligible nodes
+  - Evidence: `poetry run pytest tests/test_executor.py -q -k`
+    `"context_pipeline_prepared_context_before_render or`
+    `context_contract_output_slot_name"`
+    now fails on
+    `test_prepare_model_input_applies_context_pipeline_prepared_context_before_render`
+    and `test_prepare_model_input_respects_context_contract_output_slot_name`
+    with `missing prompt input 'prepared_context'` and `missing prompt input
+    'context_window'`, proving prepared-input assembly still renders the prompt
+    before mutation-owned output-slot population
 
 - [ ] T2.2 [implementation] Extend `prepare_model_input(...)` and adjacent
       executor helpers so mutation-derived prepared context is applied before
