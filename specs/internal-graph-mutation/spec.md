@@ -90,8 +90,9 @@ This feature specification covers:
 - This artifact remains authoritative for feature intent, scope, and design
   boundaries, while the companion plan and task list own the first
   implementation path and execution sequencing.
-- Committed RED executor coverage now proves live prepared-input mutation
-  behavior is still pending follow-up work.
+- The repository now has committed prepared-input executor integration that
+  populates the mutation-owned output slot before prompt rendering for eligible
+  `llm_step` nodes.
 
 ## Functional Requirements
 
@@ -219,13 +220,14 @@ Acceptance criteria:
     - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
     - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
     - observed result: `55 passed`
-- Fresh focused RED evidence now exists from:
   - `poetry run pytest tests/test_executor.py -q -k`
     `"context_pipeline_prepared_context_before_render or`
     `context_contract_output_slot_name"`
     - `test_prepare_model_input_applies_context_pipeline_prepared_context_before_render`
     - `test_prepare_model_input_respects_context_contract_output_slot_name`
-    - observed result: `2 failed, 52 deselected`
+    - observed result: `2 passed, 52 deselected`
+  - `poetry run pytest tests/test_executor.py -q`
+    - observed result: `54 passed`
 - The passing graph-mutation checkpoint proves the repository now has internal
   typed mutation datamodels and protocol seams that can represent the first
   context-pruning target.
@@ -236,9 +238,8 @@ Acceptance criteria:
   fail-closed attachment contract for explicit `context_pipeline`,
   `context_sources`, and `context_contract` metadata on eligible `llm_step`
   nodes and rejects ineligible attachment targets before execution.
-- The failing prepared-input checkpoint proves `prepare_model_input(...)` still
-  renders the prompt before mutation-owned output slots such as
-  `prepared_context` or `context_window` are populated, so the first live
-  context-pruning behavior remains unimplemented.
+- The passing prepared-input checkpoint proves `prepare_model_input(...)` now
+  assembles a mutation-aware render context before prompt formatting, including
+  declared output slots such as `prepared_context` and `context_window`.
 - Future implementation work must create fresh validation evidence rather than
   relying on any reverted prototype results.

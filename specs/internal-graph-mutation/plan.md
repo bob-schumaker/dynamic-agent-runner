@@ -2,10 +2,11 @@
 
 Status: In progress
 
-- Current checkpoint: T2.1 prepared-input RED coverage is committed in
-  `tests/test_executor.py`, following the earlier T1.5 fail-closed attachment
-  validation in `src/dynamic_agent_runner/validation.py` and the GREEN datamodel
-  and execution-plan seam checkpoints in `tests/test_graph_mutation.py` and
+- Current checkpoint: T2.2 prepared-input mutation integration is committed in
+  `src/dynamic_agent_runner/executor.py`, following the earlier T1.5 fail-closed
+  attachment validation in `src/dynamic_agent_runner/validation.py`, the GREEN
+  datamodel and execution-plan seam checkpoints in `tests/test_graph_mutation.py`
+  and `tests/test_executor.py`, and the T2.1 committed RED coverage in
   `tests/test_executor.py`.
 - Current evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` passes with the focused
@@ -15,14 +16,15 @@ Status: In progress
   - `poetry run pytest tests/test_executor.py -q -k`
     `"context_pipeline_prepared_context_before_render or`
     `context_contract_output_slot_name"`
-    fails with `missing prompt input 'prepared_context'` and `missing prompt
-    input 'context_window'`, proving prompt rendering still runs before any
-    mutation-owned prepared-context output slot is populated.
-- Next overall task gate: T2.2 prepared-input mutation integration.
-- Next implementation steps that can satisfy the current RED evidence:
-  - T2.2 prepared-input mutation integration
-  - T2.3 first `ContextPruningMutation` implementation after executor
-    integration lands
+    passes with `2 passed, 52 deselected`, proving prompt rendering now receives
+    mutation-owned prepared-context output-slot values before request
+    construction.
+  - `poetry run pytest tests/test_executor.py -q` passes with `54 passed` after
+    the executor integration change.
+- Next overall task gate: T2.3 first `ContextPruningMutation` implementation.
+- Next implementation steps at the current GREEN checkpoint:
+  - T2.3 first `ContextPruningMutation` implementation
+  - T2.4 preparation diagnostics after the first live mutation target exists
 
 ## Goal
 
@@ -340,20 +342,27 @@ Current recorded checkpoint:
 - Passing tests include:
   - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
   - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
-- T2.1 RED evidence was captured with:
+- T2.1 checkpoint was captured with:
 
   ```bash
   poetry run pytest tests/test_executor.py -q -k \
     "context_pipeline_prepared_context_before_render or context_contract_output_slot_name"
   ```
 
-- Observed result: `2 failed, 52 deselected`
-- Failing tests:
+- Observed result: `2 passed, 52 deselected`
+- Focused tests:
   - `test_prepare_model_input_applies_context_pipeline_prepared_context_before_render`
   - `test_prepare_model_input_respects_context_contract_output_slot_name`
-- Observed failure reason: `prepare_model_input(...)` currently renders the user
-  prompt before any mutation-owned output slot such as `prepared_context` or
-  `context_window` is populated, raising `missing prompt input ...`
+- Observed outcome: `prepare_model_input(...)` now renders the user prompt with
+  mutation-owned output slots such as `prepared_context` or `context_window`
+  populated before request construction
+- T2.2 GREEN evidence was captured with:
+
+  ```bash
+  poetry run pytest tests/test_executor.py -q
+  ```
+
+- Observed result: `54 passed`
 For the current focused checkpoint, widen to:
 
 ```bash
@@ -400,6 +409,6 @@ that integrates with existing preparation and execution boundaries without
 changing the immutable portable workflow package contract.
 
 At the current checkpoint, the repository has GREEN evidence for the internal
-mutation datamodel layer, the execution-plan mutation seam, and fail-closed
-attachment validation, plus committed RED coverage proving prepared-input
-mutation behavior is still missing at prompt-render time.
+mutation datamodel layer, the execution-plan mutation seam, fail-closed
+attachment validation, and prepared-input mutation integration before prompt
+rendering.

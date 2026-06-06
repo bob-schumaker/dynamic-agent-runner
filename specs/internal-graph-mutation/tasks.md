@@ -13,20 +13,21 @@ Status: Draft
 ## Status
 
 - State: authoritative spec and implementation plan exist; T1.1, T1.2, and T2.1
-  RED coverage plus the T1.3, T1.4, and T1.5 implementation slices are now
-  committed
-- Current execution gate: T2.2 is the next pending step — implement
-  prepared-input mutation integration to satisfy the committed T2.1 RED coverage
+  RED coverage plus the T1.3, T1.4, T1.5, and T2.2 implementation slices are
+  now committed
+- Current execution gate: T2.3 is the next pending step — add the first
+  `ContextPruningMutation` implementation now that prepared-input integration is
+  in place
 - Current GREEN evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` -> `3 passed`
   - `poetry run pytest tests/test_validation.py -q` -> `55 passed`
-- Current RED evidence:
   - `poetry run pytest tests/test_executor.py -q -k`
     `"context_pipeline_prepared_context_before_render or`
     `context_contract_output_slot_name"`
-    -> `2 failed, 52 deselected`
+    -> `2 passed, 52 deselected`
+  - `poetry run pytest tests/test_executor.py -q` -> `54 passed`
 - Next implementation steps:
-  - T2.2 for prepared-input mutation integration
+  - T2.3 for the first `ContextPruningMutation` implementation
 - Scope rule: keep the first slice input-transform-only; do not introduce public
   mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
   transport ownership into these tasks
@@ -130,7 +131,7 @@ Status: Draft
     'context_window'`, proving prepared-input assembly still renders the prompt
     before mutation-owned output-slot population
 
-- [ ] T2.2 [implementation] Extend `prepare_model_input(...)` and adjacent
+- [x] T2.2 [implementation] Extend `prepare_model_input(...)` and adjacent
       executor helpers so mutation-derived prepared context is applied before
       request construction.
   - Spec: FR-1, FR-3
@@ -139,8 +140,12 @@ Status: Draft
     `src/dynamic_agent_runner/models.py`
   - Depends on: T2.1
   - Validation: `poetry run pytest tests/test_executor.py -q`
-  - Evidence: prepared model input includes the mutation-owned context output in
-    a deterministic pre-model stage
+  - Evidence: `poetry run pytest tests/test_executor.py -q -k`
+    `"context_pipeline_prepared_context_before_render or`
+    `context_contract_output_slot_name"` now passes with `2 passed, 52
+    deselected`, and `poetry run pytest tests/test_executor.py -q` passes with
+    `54 passed`, proving prepared model input includes the mutation-owned context
+    output in a deterministic pre-model stage before prompt rendering
 
 - [ ] T2.3 [implementation] Add the first `ContextPruningMutation`
       implementation that consumes declared context metadata and produces a narrow
