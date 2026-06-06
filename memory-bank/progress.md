@@ -2,455 +2,64 @@
 
 ## Working
 
-- The internal graph-mutation feature's first implementation checkpoint is now
-  closed through T3.2:
-  - `c732315` — T1.3 internal mutation datamodels and protocol
-  - `ffa0d63` — T1.4 execution-plan mutation seam derivation
-  - `e974a54` — T1.5 fail-closed attachment validation
-  - `5eadf4a` — mutation-preparation diagnostics in executor metadata/traces
-  - `f341dca` — T2.4 spec-doc refresh
-  - `0d5faea` — T3.1 validation-checkpoint docs refresh
-  - `ca20123` — T3.2 docs closure for the first implementation checkpoint
-- The resulting graph-mutation Slice 1 state now includes:
-  - `src/dynamic_agent_runner/graph_mutation.py` with repository-owned mutation
-    types such as `WorkflowGraphMutation`, `GraphMutationSpec`,
-    `WorkflowMutationBundle`, and `MutationResult`
-  - `src/dynamic_agent_runner/models.py` support for a workflow-level mutation
-    bundle and per-node derived mutation metadata during
-    `prepare_execution_plan(...)`
-  - `src/dynamic_agent_runner/validation.py` fail-closed enforcement for
-    explicit `context_pipeline`, `context_sources`, and `context_contract`
-    attachment metadata on eligible `llm_step` nodes
-- The resulting first-checkpoint graph-mutation state now also includes:
-  - mutation-owned prepared-context rendering before prompt formatting in
-    `src/dynamic_agent_runner/executor.py`
-  - runtime-owned mutation diagnostics recorded in prepared-input metadata and
-    `model_input_prepared` trace payloads
-  - a closed `specs/internal-graph-mutation/` task list with no pending tasks in
-    the first implementation checkpoint
-- Focused validation for the latest graph-mutation checkpoint passed with:
-  - `poetry run pytest tests/test_graph_mutation.py -q` (`5 passed`)
-  - `poetry run pytest tests/test_validation.py -q` (`55 passed`)
-  - `poetry run pytest tests/test_executor.py -q -k`
-    `"mutation_preparation_diagnostics or`
-    `context_pipeline_prepared_context_before_render or`
-    `context_contract_output_slot_name"`
-    (`3 passed, 52 deselected`)
-  - `poetry run pytest tests/test_executor.py -q` (`55 passed`)
-  - `poetry run pytest tests/test_graph_mutation.py tests/test_validation.py`
-    `tests/test_executor.py -q` (`115 passed`)
-  - focused `poetry run pre-commit run --files`
-    `specs/internal-graph-mutation/spec.md`
-    `specs/internal-graph-mutation/plan.md`
-    `specs/internal-graph-mutation/tasks.md`
-- There is no currently scheduled next graph-mutation gate inside the first
-  implementation checkpoint; any follow-up should begin from a new approved task
-  or spec update.
-- The authoritative llama.cpp local-model implementation is now complete
-  through the Slice 2 checkpoint rather than only the first Slice 1 milestone.
-- Slice 2 is complete through T2.6:
-  - `a5798cc` — T1.1 RED helper-contract tests
-  - `b79f124` — T1.2 RED executor-routing tests
-  - `6d269ad` — T1.3 helper implementation
-  - `ee0bf33` — T1.4 provider-seam wiring
-  - `dd37c62` — T1.5 package-root export work
-  - `f564caa` — T2.1 RED model-resolution precedence tests
-  - `cdc1b00` — T2.2 RED failure-taxonomy tests
-  - `7a11464` — T2.3 runtime model-path resolution
-  - `f4bcb0e` — T2.4 endpoint-failure translation
-  - `d5857dd` — T2.5 default Hub download wiring
-  - `9b7078f` — T2.6 authoritative model-identity preservation
-  - `0a7ac2f` — authoritative spec/plan/tasks/validation refresh through T2.6
-- The resulting local-model helper state now includes:
-  - `src/dynamic_agent_runner/local_models.py`
-  - `LocalOpenAIEndpointConfig`
-  - `create_local_openai_adapter(...)`
-  - `create_local_async_openai_adapter(...)`
-  - package-root re-exports for the approved local helper/config surface from
-    `dynamic_agent_runner`
-  - provider-config translation that routes adapter construction through
-    repository-owned helper factories in
-    `src/dynamic_agent_runner/openai_client.py`
-- Focused validation for the latest local-model implementation step passed with:
-  - `poetry run pytest tests/test_local_models.py -q 2>&1`
-    (`15 passed in 0.14s`)
-  - `poetry run pytest tests/test_local_models.py tests/test_openai_client.py -q
-    2>&1` (`44 passed in 0.18s`)
-  - focused `pre-commit run --files src/dynamic_agent_runner/local_models.py`
-    `src/dynamic_agent_runner/openai_client.py`
-    `tests/test_local_models.py`
-- A focused primary-vs-feature spec consistency audit is complete in `3f61d99`
-  (`docs(specs): reconcile primary spec with provider wrapper state`).
-- That follow-up updated `specs/dynamic-agent-runner/spec.md` so the main
-  product spec no longer describes the OpenAI-compatible provider-wrapper seam
-  as future work. Instead, it now records the provider boundary as resolved and
-  aligned with the implemented provider-wrapper feature spec state.
-- Focused validation for that audit passed with:
-  - `pre-commit run --files specs/dynamic-agent-runner/spec.md`
-    `specs/dynamic-agent-runner/plan.md`
-    `specs/dynamic-agent-runner/tasks.md`
-    `specs/async-session-memory-pipeline/spec.md`
-    `the then-current local-model/graph-mutation future spec`
-    `specs/llm-step-interpreter-middleware/spec.md`
-    `specs/openai-compatible-provider-wrapper/spec.md`
-    `specs/openai-compatible-provider-wrapper/plan.md`
-    `specs/openai-compatible-provider-wrapper/tasks.md`
-  - all targeted spec files passed `rumdl check` / `rumdl format`
-- The OpenAI-compatible provider-wrapper Slice 6 implementation is complete in
-  `66212f4` (`feat(openai-client): export provider config seam`).
-- That implementation updated the package-level public surface so:
-  - `src/dynamic_agent_runner/__init__.py` now re-exports
-    `OpenAIProviderConfig`
-  - `src/dynamic_agent_runner/__init__.py` now re-exports
-    `create_default_openai_provider(...)` and
-    `create_default_async_openai_provider(...)`
-  - `tests/test_import.py` now verifies those public exports exist
-  - `README.md` now includes a package-level OpenAI-compatible endpoint example
-    that preserves the existing `model_adapter` seam
-- Slice 6 validation passed with:
-  - `poetry run pytest tests/test_import.py -q` (`1 passed`)
-  - focused `pre-commit run --files src/dynamic_agent_runner/__init__.py`
-    `tests/test_import.py` `README.md`
-- The provider-wrapper spec docs are now aligned through Slice 6 in `556694e`
-  (`docs(specs): align provider wrapper docs with slice 6`), updating:
-  - `specs/openai-compatible-provider-wrapper/spec.md`
-  - `specs/openai-compatible-provider-wrapper/plan.md`
-  - `specs/openai-compatible-provider-wrapper/tasks.md`
-  so they match the committed provider-wrapper implementation state, public
-  export surface, and focused import-validation evidence.
-- The OpenAI-compatible provider-wrapper Slice 4 implementation is complete in
-  `a437b1a` (`feat(openai-client): centralize response dispatch helpers`).
-- That implementation updated `src/dynamic_agent_runner/openai_client.py` so:
-  - `create_openai_response(...)` centralizes sync transport dispatch,
-    runtime-facing `ModelExecutionError` translation, and
-    `normalize_openai_response(...)` use
-  - `create_async_openai_response(...)` centralizes the async equivalent
-  - `OpenAIClientAdapter` and `AsyncOpenAIClientAdapter` now route through those
-    repository-owned helpers instead of inlining transport/normalization logic
-- Slice 4 validation passed with:
-  - `poetry run pytest tests/test_openai_client.py -q` (`24 passed`)
-  - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
-  - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
-    `tests/test_openai_client.py`
-- The provider-wrapper spec docs are now aligned through Slice 4 in `14fa1ea`
-  (`docs(specs): align provider wrapper docs with slice 4`), updating:
-  - `specs/openai-compatible-provider-wrapper/spec.md`
-  - `specs/openai-compatible-provider-wrapper/plan.md`
-  - `specs/openai-compatible-provider-wrapper/tasks.md`
-  so they match the committed provider-wrapper implementation state and set
-  Slice 5 as the next planned step.
-- The OpenAI-compatible provider-wrapper Slice 3 implementation is complete in
-  `bc1ce39` (`feat(openai-client): route default adapters through providers`).
-- That implementation updated `src/dynamic_agent_runner/openai_client.py` so:
-  - `OpenAIClientAdapter` lazily resolves its default client through
-    `create_default_openai_provider(...)`
-  - `AsyncOpenAIClientAdapter` lazily resolves its default client through
-    `create_default_async_openai_provider(...)`
-  - both default and explicit-provider adapter paths now consistently depend on
-    the repository-owned provider seam while preserving `models` / `is_local`
-- Slice 3 validation passed with:
-  - `poetry run pytest tests/test_openai_client.py -q` (`22 passed`)
-  - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
-  - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
-    `tests/test_openai_client.py`
-- The OpenAI-compatible provider-wrapper Slice 2 implementation is complete in
-  `282b93d` (`feat(openai-client): isolate sdk-backed provider defaults`).
-- That implementation added SDK-backed default provider wrapping in
-  `src/dynamic_agent_runner/openai_client.py` via:
-  - `SDKBackedOpenAIClientProvider`
-  - `SDKBackedAsyncOpenAIClientProvider`
-  - `create_default_openai_provider(...)`
-  - `create_default_async_openai_provider(...)`
-  - provider-config-aware default sync/async client factories with `base_url`
-    plus optional `api_key`
-- Slice 2 validation passed with:
-  - `poetry run pytest tests/test_openai_client.py -q` (`20 passed`)
-  - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
-  - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
-    `tests/test_openai_client.py`
-    `specs/openai-compatible-provider-wrapper/tasks.md`
-- The OpenAI-compatible provider-wrapper Slice 1 implementation is complete in
-  `99e225f` (`feat(openai-client): add provider facade seam`).
-- That implementation added a repository-owned provider/client facade seam in
-  `src/dynamic_agent_runner/openai_client.py` via:
-  - `OpenAIProviderConfig`
-  - `OpenAIClientProvider`
-  - `AsyncOpenAIClientProvider`
-  - sync/async adapter support for lazy provider-backed client construction
-- Slice 1 validation passed with:
-  - `poetry run pytest tests/test_openai_client.py -q` (`13 passed`)
-  - `poetry run pytest tests/test_executor.py -q` (`49 passed`)
-  - focused `pre-commit run --files src/dynamic_agent_runner/openai_client.py`
-    `tests/test_openai_client.py`
-    `specs/openai-compatible-provider-wrapper/tasks.md`
-- The OpenAI-compatible provider-wrapper plan was refreshed and committed in
-  `1e6d37d` (`docs(specs): prioritize provider wrapper implementation`).
-- That planning refresh updated `specs/openai-compatible-provider-wrapper/plan.md`
-  with:
-  - ROI framing for the feature
-  - priority tiers across Slices 1 through 7
-  - a smallest useful kickoff slice
-  - a phased implementation order from facade work through validation/polish
-- `OA11` is now complete in `1d0aa32`
-  (`feat(registry): add portable tool type metadata`).
-- That implementation added an upstream-aligned portable `tool_type` seam so:
-  - `src/dynamic_agent_runner/models.py` now defines `ToolType` and preserves
-    `ToolDefinition.tool_type` separately from runtime-specific `adapter` and
-    provenance/source metadata
-  - `src/dynamic_agent_runner/validation.py` now fails closed for unsupported
-    `tool_type` values in manifest and tool-index tool definitions
-  - `src/dynamic_agent_runner/registry.py` now records portable `file_read`
-    semantics for the built-in `local_workspace` tool pack
-  - `src/dynamic_agent_runner/__init__.py` now exports `ToolType`
-  - focused tests now cover import, registry, built-in-pack, and validation
-    behavior for `tool_type`
-- OA11 implementation validation passed with:
-  - `poetry run pytest tests/test_import.py tests/test_registry.py`
-    `tests/test_validation.py -q 2>&1` (`86 passed`)
-  - focused `pre-commit run --files src/dynamic_agent_runner/__init__.py`
-    `src/dynamic_agent_runner/models.py`
-    `src/dynamic_agent_runner/registry.py`
-    `src/dynamic_agent_runner/validation.py`
-    `tests/test_import.py` `tests/test_registry.py` `tests/test_validation.py`
-- The OA11 spec-doc alignment is complete in `ac422b0`
-  (`docs(specs): record OA11 tool type alignment`), updating:
-  - `specs/dynamic-agent-runner/spec.md`
-  - `specs/dynamic-agent-runner/plan.md`
-  - `specs/dynamic-agent-runner/tasks.md`
-  so the primary spec package now records the upstream-confirmed `tool_type`
-  seam and marks the original OA follow-up queue complete.
-- OA11 spec-doc validation passed with:
-  - `pre-commit run --files specs/dynamic-agent-runner/spec.md`
-    `specs/dynamic-agent-runner/plan.md`
-    `specs/dynamic-agent-runner/tasks.md`
-  - all targeted spec files passed `rumdl check` / `rumdl format`
-- User direction selected the provider-wrapper feature as the next high-ROI
-  future expansion, and Slices 1-6 are now committed.
-- The primary spec set and related feature specs are now internally consistent
-  with the current repo state in commit `e6b5f2c`
-  (`docs(specs): align spec artifacts with repo state`).
-- A later focused spec-doc consistency refresh is complete in `4a13d89`
-  (`docs(specs): align roadmap and checkpoint status`).
-- That follow-up updated:
-  - `specs/dynamic-agent-runner/plan.md`
-  - `specs/internal-graph-mutation/spec.md`
-  - `specs/internal-graph-mutation/plan.md`
-  so the primary plan no longer treats OA11 as the next pending starting point,
-  and the graph-mutation spec/plan now explicitly describe the first
-  implementation checkpoint as closed through T3.2.
-- The later focused audit in `3f61d99` reconciled the one remaining stale
-  provider-wrapper reference in the main spec, so the audited primary spec and
-  current feature-spec packages are now aligned on that feature's implemented
-  status.
-- OA8 is implemented as a metadata-only async-session policy seam, while the
-  dedicated feature-spec package now captures future expansion beyond that
-  baseline.
-- The new OA8 artifact set is committed across:
-  - `e0b444a` — main spec/planning docs now link OA8 to the feature-spec package
-  - `7e01902` — async-session memory pipeline feature-spec package
-  - `b776ad0` — spec docs aligned with the implemented metadata seam
-  - `0a5d59d` — user-facing docs document the async-session metadata seam
-- The broader spec-alignment pass in `e6b5f2c` updated:
-  - `specs/dynamic-agent-runner/spec.md`
-  - `specs/dynamic-agent-runner/plan.md`
-  - `specs/dynamic-agent-runner/tasks.md`
-  - `specs/openai-compatible-provider-wrapper/`
-  - `specs/llm-step-interpreter-middleware/spec.md`
-  so the spec artifacts now match the implemented package-directory-first API,
-  current CLI contract, metadata-only seams already preserved in code, and the
-  real implementation status of proposed follow-up features.
-- The follow-up non-spec docs pass is complete in `e9a32d5`
-  (`docs: update package-first usage examples`), updating:
-  - `docs/files/quickstart.rst`
-  - `docs/files/runtime-policies.rst`
-  so the quickstart examples use `package_directory` / `--package`, and runtime
-  policy docs describe the implemented model-selection order.
-- The original OA follow-up slice queue is complete through OA11.
+- `dynamic-agent-runner` has a working Python package under
+  `src/dynamic_agent_runner/`, tests under `tests/`, user-facing docs under
+  `docs/`, and SDD/spec artifacts under `specs/`.
+- The runtime supports package-directory workflow loading and execution,
+  async-first APIs, sync compatibility wrappers, repository-owned tool registry
+  and overrides, OpenAI-compatible provider/client facades, retry, output
+  contracts, token budgeting, tracing, lifecycle hooks, runtime behavior
+  overrides, prompt preparation, and package-owned validation.
+- Provider-wrapper support is implemented through Slices 1-6 and exposes
+  package-level provider configuration for OpenAI-compatible endpoints.
+- llama.cpp local-model support is implemented through Slice 2: endpoint helper
+  construction, provider-seam wiring, package exports, model-resolution
+  precedence, Hugging Face download wiring, local endpoint failure taxonomy, and
+  authoritative model-identity mismatch reporting.
+- Internal graph mutation has a complete first checkpoint: typed mutation
+  datamodels, context-pruning mutation, fail-closed attachment validation,
+  prepared-input integration, and mutation diagnostics.
+- Async-session support is currently metadata-only and documented as host-managed
+  continuity for first-customer use cases.
 
-## Major Completed Milestones
+## Latest Documentation Milestone
 
-- Core runtime foundation is complete:
-  - loader and validation engine
-  - repository-owned tool registry
-  - OpenAI adapter boundary
-  - workflow executor and CLI
-  - all-pattern hello-world fixture coverage
-- Runtime hardening is complete:
-  - Slice 8 retry/resilience
-  - Slice 9 output contracts and route validation
-  - Slice 10 token budgeting
-  - Slice 11 tracing/observability hooks
-  - Slice 12 runtime behavior overrides
-  - Slice 13 prompt-cache intent/telemetry
-- Evaluation follow-up milestones are complete through:
-  - execution context (`38929f1`)
-  - stricter tool schema validation (`44b0847`)
-  - tool exposure and policy metadata (`61f1548`)
-  - richer tool result facets (`815f55a`)
-  - tool lifecycle trace events (`bcd76d4`)
-  - lifecycle hooks (`bf18554`)
-  - model capabilities metadata (`13c6dac`)
-  - concurrent run correlation (`2e45888`)
-  - async-first execution through E14 Slice I.7 (`7990503`)
-- Runtime-package simplification S1-S5 is complete through `84dfd31`, including:
-  - grouped manifest support
-  - prepared execution planning
-  - prepared model-input staging
-  - tool provenance metadata
-  - placeholder-safe Power-Marimo fixture coverage
-- Package-alignment P1-P5 is complete through `7e9a33e`, including:
-  - package-directory loading
-  - bundled-asset validation
-  - compiled workflow layering
-  - package-directory-first API/CLI contracts
-  - newer upstream runtime-package taxonomy alignment
-- OpenAI Agents SDK Python follow-ups completed so far:
-  - OA1 guardrail metadata preservation (`a834a90`)
-  - OA2 tool provenance origins (`d2cc6b2`)
-  - OA3 prepare-model-input stage (`093ab47`)
-  - OA4 + E9 MCP registry/lifecycle metadata (`20f20d1`)
-  - E11 file-context prompt preparation (`3cdc7e9`)
-  - OA5 tool-use completion metadata (`3d33bbb`)
-  - OA6 handoff vs agent-as-tool metadata (`d5f4114`)
-  - OA7 approval interruption metadata (`ce85a55`)
-  - OA8 async-session metadata seam (`implemented in code/tests; docs aligned in
-    follow-up consistency pass`)
-  - OA10 sandbox/workspace runtime metadata (`540f56a`)
-  - OA9 optional `tool_from_function(...)` helper (`c181328`)
-- OA8 future-expansion spec package added in `7e01902`, including:
-  - a light future feature spec
-  - a Power-Marimo readiness decision memo
-  - a host-managed multi-call continuity sketch
-  - a metadata-only implementation plan
-  - packaged summaries of the most relevant external references
-
-## In Flight
-
-- The active ordered backlog has no remaining OA slice.
-- The current authoritative next-feature spec is now
-  `specs/internal-graph-mutation/spec.md`.
-- The graph-mutation planning package is now committed in `7239e80`
-  (`docs(specs): add graph-mutation planning artifacts`), adding the companion
-  `plan.md` and `tasks.md` artifact set.
-- The graph-mutation first implementation checkpoint is closed through T3.2;
-  there is no currently scheduled active execution gate in that artifact set.
-- The graph-mutation companion spec and plan now explicitly encode that closed
-  checkpoint status, not just the task artifact.
-- The llama.cpp local-model area remains implemented through the Slice 2
-  checkpoint; its optional T3.1 follow-up is no longer the primary active focus.
-- The provider-wrapper follow-up is complete through Slice 6; any further work
-  there would now be optional polish or broader provider-specific follow-up.
+- Commit `a973ae8` (`docs(specs): add future feature specs`) added or refreshed:
+  - `specs/README.md`
+  - `specs/approval-interruption-resume/spec.md`
+  - `specs/sandbox-workspace-runtime/spec.md`
+  - `specs/mcp-runtime-integration/spec.md`
+  - `specs/live-guardrail-execution/spec.md`
+  - `specs/skill-source-resolution/spec.md`
+  - `specs/iterative-agent-loop-runtime/spec.md`
+  - `specs/power-marimo-host-automation/spec.md`
+  - primary roadmap/status consistency in `specs/dynamic-agent-runner/`
+- The new future-feature specs capture known requirements, non-goals, design
+  constraints, validation checklists, and `NEEDS CLARIFICATION` items. They do
+  not authorize implementation by themselves.
 
 ## Remaining
 
-- If graph-mutation work resumes, start from a newly approved follow-up task or
-  spec update rather than the closed T1-T3.2 checkpoint sequence.
-- If llama.cpp local-model work resumes, begin optional Slice 3 from the
-  authoritative task list only if separate local embedding configuration is
+- Optional llama.cpp Slice 3: separate local embedding configuration, if
   explicitly scheduled.
-- If the provider-wrapper area is resumed, treat it as optional follow-up work
-  rather than a required next slice; any new work should preserve fake-client
-  testing and avoid live network calls.
-- Start the next scoped implementation from a newly selected follow-up in the
-  governing SDD docs; OA11 is already complete.
-- If OA8 expansion is later prioritized, treat the current future-spec package
-  as the design baseline and preserve the already-implemented metadata-only seam
-  as the first-pass contract.
-- Keep extending the runner through package-owned interfaces rather than broad
-  framework expansion.
-- Continue using fake-client/fake-tool tests for unit coverage.
-- Refresh the memory bank after each meaningful implementation milestone.
+- Live approval interruption/resume engine and serialized resume state.
+- Writable sandbox/workspace runtime, write/patch/shell tools, and command
+  approval policy.
+- Live MCP source discovery, lifecycle management, registry injection, and tool
+  invocation.
+- Live guardrail adapter execution and abort/reject behavior.
+- Trusted `SKILL.md` body loading, source precedence, and prompt injection.
+- Iterative model/tool loop runtime and stop policy.
+- Power-Marimo live host automation, Marimo-session tools, domain adapters, and
+  optional PyQt-widget automation.
 
 ## Risks or Follow-ups
 
-- More advanced runtime behavior remains deferred until explicitly selected:
-  approval/resume engines, sessions, broader MCP integration, sandbox/workspace
-  runtime execution, and iterative agent-loop semantics.
-- OA8 currently exists as a **protocol-design seam** in the runtime, but it does
-  not yet provide runner-owned memory storage, replay, or automatic session
-  continuation behavior.
-- `parallel_join`, `parallel_fanout`, and broader multi-agent execution remain
-  unsupported runtime behavior.
-- RAG/GraphRAG, handoffs, and agent-as-tool support are currently
-  metadata/validation surfaces, not full runtime execution engines. Portable
-  tool taxonomy is now implemented as a metadata/validation seam through OA11.
-- The old combined llama.cpp and graph-mutation future-spec area is now split
-  into two authoritative feature specs:
-  - `specs/llama-cpp-local-model/spec.md`
-  - `specs/internal-graph-mutation/spec.md`
-  The graph-mutation area is now closed through the first implementation
-  checkpoint T3.2, while the llama.cpp local-model area is implemented through
-  the full Slice 2 checkpoint, with optional Slice 3 as the next potential
-  area.
-- The llama.cpp local-model spec has since been tightened against upstream
-  `llama-cpp-python` docs/README/examples and the local `huggingface_hub`
-  checkout so that future implementation now explicitly assumes:
-  - caller/deployer-owned OpenAI-compatible local server endpoints rather than
-    runtime-managed server launch
-  - adapter-supported Hugging Face model download when referenced assets are
-    missing locally
-  - an optional adapter model-cache folder with default path
-    `~/.ollama/models`
-- Council review of `specs/llama-cpp-local-model/spec.md` was completed and the
-  spec was updated accordingly. The current llama.cpp local-model direction now
-  also explicitly records:
-  - a preferred first implementation path of caller/deployer-provided
-    OpenAI-compatible endpoints over in-process integration
-  - supported runtime-owned model reference shapes for local path, Hub file, and
-    Hub snapshot resolution
-  - model-resolution precedence of explicit local path, explicit cache lookup,
-    default `~/.ollama/models` lookup, then explicit Hub download
-  - separate failure boundaries for model-resolution errors versus endpoint
-    connectivity/protocol errors
-- A later three-round debate review then tightened the same llama.cpp spec so
-  the future contract now also explicitly states:
-  - the expected first implementation slice uses the existing OpenAI-compatible
-    adapter/provider seam with runtime-owned provider config and normal adapter
-    metadata rather than requiring a new llama-specific wrapper first
-  - endpoint-backed local chat may ship before separate local embedding
-    execution, while preserving the later embedding contract for pruning-related
-    work
-  - offline or no-network policy for model download/resolution is owned by
-    caller/deployment runtime configuration above the portable workflow package
-  - model mismatch reporting keys off runtime-owned adapter identity such as
-    declared model alias, explicit local path, or explicit Hugging Face
-    reference
-- The llama.cpp local-model future feature now has an authoritative SDD spec in
-  commit `1fdfdda` (`docs(specs): make llama.cpp local-model spec
-  authoritative`). That refresh converted the feature doc from light-mode
-  framing into a guided SDD spec with explicit user stories, non-functional
-  requirements, scope boundaries, dependencies/assumptions, and a next-gate
-  requirement that planning artifacts exist before implementation.
-- Focused validation for that authoritative-spec refresh passed with:
-  - `pre-commit run --files specs/llama-cpp-local-model/spec.md 2>&1`
-  - `rumdl check` / `rumdl format` passed after one markdown line-wrap fix
-- The next SDD gate for the same feature is now committed in `82c62fe`
-  (`docs(specs): add llama.cpp local-model planning artifacts`), adding:
-  - `specs/llama-cpp-local-model/plan.md`
-  - `specs/llama-cpp-local-model/tasks.md`
-- That planning pass established:
-  - Slice 1 = endpoint-backed local chat through the existing provider seam
-  - Slice 2 = runtime-owned model-reference resolution and failure taxonomy
-  - Slice 3 = optional embedding / in-process follow-up
-  - a new expected helper surface in `src/dynamic_agent_runner/local_models.py`
-    instead of a new executor path
-  - explicit test-first tasks and validation commands for the first slice
-- Focused validation for the new planning artifacts passed with:
-  - `pre-commit run --files specs/llama-cpp-local-model/plan.md`
-    `specs/llama-cpp-local-model/tasks.md` `2>&1`
-  - `rumdl check` / `rumdl format` passed
-- Subsequent implementation progress for that feature is now complete through:
-  - T1.1 RED in `a5798cc`
-  - T1.2 RED in `b79f124`
-  - T1.3 GREEN in `6d269ad`
-  - T1.4 GREEN in `ee0bf33`
-  - T1.5 GREEN in `dd37c62`
-  - T2.1 RED in `f564caa`
-  - T2.2 RED in `cdc1b00`
-  - T2.3 GREEN in `7a11464`
-  - T2.4 GREEN in `f4bcb0e`
-  - T2.5 GREEN in `d5857dd`
-  - T2.6 GREEN in `9b7078f`
-  - docs/validation refresh through T2.6 in `0a7ac2f`
-- The current next gate for that feature is optional T3.1 separate local
-  embedding RED coverage.
+- Do not treat future-feature specs as implementation approval; create a scoped
+  plan/task slice first.
+- Keep generated workflow packages portable: no machine-specific local paths,
+  credentials, server lifecycle details, notebook handles, or GUI handles in
+  base package artifacts.
+- Keep high-risk capabilities fail-closed: write, shell, MCP, approval, guardrail,
+  notebook automation, and arbitrary skill-source loading need explicit policy
+  before live execution.

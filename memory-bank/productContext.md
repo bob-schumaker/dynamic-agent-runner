@@ -29,14 +29,16 @@
 - The exact package layout, public API, CLI shape, and core workflow execution
   internals are implemented, but broader multi-agent behavior, approval/resume
   engines, sessions, and sandbox/workspace runtime separation remain deferred.
+- Deferred live-runtime areas now have separate future-feature specs under
+  `specs/`; those specs capture known requirements and open decisions but do not
+  authorize implementation by themselves.
 - Treat source code and tests as the authority for concrete API behavior.
 
 ## Open Product Questions
 
-- What exact schema is used by the generated definition YAML?
-- What parts of the Mermaid diagram are execution-relevant versus documentation?
-- What shape does the tool index use, and how are tool calls resolved?
-- How should approval-required tool interruption and resumable run state be
-  represented in OA7?
-- What future session, MCP, sandbox/workspace, and broader agent-loop semantics
-  should be added beyond the current metadata-preservation slices?
+- Which future-feature spec should become the next active implementation slice?
+- Which `NEEDS CLARIFICATION` items must be resolved before implementing live
+  approval/resume, sandbox/workspace, MCP, guardrail, skill-source, loop, or
+  Power-Marimo automation behavior?
+- What customer-facing commitments should be made for host-managed continuity
+  before runner-owned session memory exists?
