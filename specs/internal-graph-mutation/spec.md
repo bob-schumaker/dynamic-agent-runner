@@ -89,8 +89,9 @@ This feature specification covers:
   protocol module at `src/dynamic_agent_runner/graph_mutation.py`.
 - Any earlier prototype code or prior test results are historical context only
   and do not count as current implementation or validation evidence.
-- This artifact is now the repository's current authoritative next-feature spec
-  for context-pruning-oriented runtime expansion.
+- This artifact is the authoritative feature spec for the scoped internal
+  graph-mutation follow-up and its first context-pruning-oriented implementation
+  checkpoint.
 - Companion planning artifacts now live at:
   - `specs/internal-graph-mutation/plan.md`
   - `specs/internal-graph-mutation/tasks.md`
@@ -106,6 +107,9 @@ This feature specification covers:
 - The repository now also records mutation-application diagnostics in
   `PreparedInputMetadata` and `model_input_prepared` trace payloads so prepared
   inputs can distinguish unchanged vs transformed `llm_step` rendering.
+- The first implementation checkpoint is closed through T3.2 in the companion
+  plan and task artifacts; any additional graph-mutation work now requires a
+  new approved task or spec update rather than continuing an open checkpoint.
 
 ## Functional Requirements
 

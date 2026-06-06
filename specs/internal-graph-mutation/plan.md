@@ -1,6 +1,6 @@
 # Internal Graph Mutation Implementation Plan
 
-Status: In progress
+Status: first implementation checkpoint complete through T3.2
 
 - Current checkpoint: T3.2 spec-artifact refresh is recorded after the T3.1
   focused mutation validation evidence and the earlier T2.4
@@ -31,6 +31,14 @@ Status: In progress
   this first implementation checkpoint.
 - Next implementation steps at the current GREEN checkpoint:
   - future follow-up work, if any, should start from a new approved task or spec
+
+## Planning Gate
+
+This plan remains the accepted implementation-planning artifact for the first
+internal graph-mutation checkpoint, and that checkpoint is now complete through
+T3.2. Future graph-mutation work should begin from a newly approved scoped
+follow-up rather than continuing this closed checkpoint as if it were still
+active.
 
 ## Goal
 

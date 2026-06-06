@@ -928,5 +928,6 @@ a qualified verdict:
 This plan is accepted as the current technical planning artifact. The currently
 planned implementation sequence is complete through package-alignment P5, the
 tracked async-first follow-up slices, and the metadata-only OA7/OA8/OA9/OA10
-follow-up seams. Future work should start from the remaining active follow-up
-task `OA11` unless a new scoped spec/plan update supersedes that sequence.
+follow-up seams, and OA11 is also complete. Future work should therefore start
+from a newly approved scoped follow-up in `tasks.md` or from a new feature-spec
+update rather than from the completed OA sequence.
