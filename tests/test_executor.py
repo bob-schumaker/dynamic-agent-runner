@@ -562,6 +562,122 @@ def test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_st
     assert getattr(answer, "mutation_spec", None) is not None
 
 
+def test_prepare_model_input_applies_context_pipeline_prepared_context_before_render() -> (
+    None
+):
+    """Eligible llm_step nodes should receive prepared context before prompt rendering."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "prepared-context-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "prepared_context",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="What changed?",
+        session_messages=(
+            OpenAIMessage(role="user", content="Earlier question."),
+            OpenAIMessage(role="assistant", content="Earlier answer."),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    user_prompt = prepared_input.named_parts["user_prompt"].content
+    assert "Earlier question." in user_prompt
+    assert "Earlier answer." in user_prompt
+    assert "What changed?" in user_prompt
+
+
+def test_prepare_model_input_respects_context_contract_output_slot_name() -> None:
+    """Prepared-input mutation should fill the declared output slot, not a hard-coded key."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "prepared-context-output-slot-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {context_window} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "context_window",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Summarize the thread.",
+        session_messages=(
+            OpenAIMessage(role="user", content="First question."),
+            OpenAIMessage(role="assistant", content="First answer."),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    user_prompt = prepared_input.named_parts["user_prompt"].content
+    assert "First question." in user_prompt
+    assert "First answer." in user_prompt
+    assert "Summarize the thread." in user_prompt
+
+
 def test_prepare_model_input_renders_messages_and_named_parts() -> None:
     workflow = workflow_from(
         {
