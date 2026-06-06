@@ -8,6 +8,9 @@
 - Status: authoritative current follow-up feature spec
   - initial internal graph-mutation datamodel implementation now exists in
     `src/dynamic_agent_runner/graph_mutation.py`
+  - T3.2 spec-artifact refresh evidence now exists in
+    `specs/internal-graph-mutation/plan.md` and
+    `specs/internal-graph-mutation/tasks.md`
   - T1.3 focused GREEN datamodel evidence now exists in
     `tests/test_graph_mutation.py`
   - T2.4 focused GREEN mutation-diagnostics evidence now exists in

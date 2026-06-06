@@ -15,9 +15,9 @@ Status: Draft
 - State: authoritative spec and implementation plan exist; T1.1, T1.2, and T2.1
   RED coverage plus the T1.3, T1.4, T1.5, T2.2, T2.3, and T2.4 implementation
   slices are now committed
-- Current execution gate: T3.2 is the next pending step — record the focused
-  mutation validation checkpoint in the spec artifacts now that the validation
-  suite has passed
+- Current execution gate: no pending tasks remain in this first implementation
+  checkpoint; the focused mutation validation evidence and spec-artifact refresh
+  are both recorded
 - Current GREEN evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` -> `5 passed`
   - `poetry run pytest tests/test_validation.py -q` -> `55 passed`
@@ -29,7 +29,7 @@ Status: Draft
   - `poetry run pytest tests/test_graph_mutation.py tests/test_validation.py`
     `tests/test_executor.py -q` -> `115 passed`
 - Next implementation steps:
-  - T3.2 for spec-artifact refresh with the focused mutation validation evidence
+  - No additional tasks are currently scheduled in this artifact set
 - Scope rule: keep the first slice input-transform-only; do not introduce public
   mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
   transport ownership into these tasks
@@ -203,7 +203,7 @@ Status: Draft
     validation, prepared-input integration, and mutation diagnostics remain
     green together as one focused checkpoint
 
-- [ ] T3.2 [docs] Update the graph-mutation spec artifacts to record the first
+- [x] T3.2 [docs] Update the graph-mutation spec artifacts to record the first
       implementation checkpoint and validation evidence.
   - Spec: FR-1 through FR-5
   - Plan: Expected Deliverable
@@ -216,8 +216,10 @@ Status: Draft
     `specs/internal-graph-mutation/spec.md`
     `specs/internal-graph-mutation/plan.md`
     `specs/internal-graph-mutation/tasks.md`
-  - Evidence: the artifact set records the implemented slice honestly and stays
-    aligned with repository reality
+  - Evidence: the artifact set now records the implemented slice honestly and
+    stays aligned with repository reality, including the T3.1 focused mutation
+    validation checkpoint and the resulting next-gate closure for this first
+    implementation pass
 
 ## Ordering Notes
 

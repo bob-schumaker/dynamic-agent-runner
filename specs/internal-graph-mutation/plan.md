@@ -2,8 +2,9 @@
 
 Status: In progress
 
-- Current checkpoint: T3.1 focused mutation validation evidence is recorded after
-  the earlier T2.4 mutation-preparation diagnostics slice in
+- Current checkpoint: T3.2 spec-artifact refresh is recorded after the T3.1
+  focused mutation validation evidence and the earlier T2.4
+  mutation-preparation diagnostics slice in
   `src/dynamic_agent_runner/executor.py` and `tests/test_executor.py`, following
   the earlier T2.3 first `ContextPruningMutation` implementation, T1.5
   fail-closed attachment validation, T1.4 execution-plan seam checkpoint, and
@@ -26,11 +27,10 @@ Status: In progress
     `tests/test_executor.py -q` passes with `115 passed`, proving the mutation
     datamodel, validation, executor integration, and diagnostics checkpoints
     remain green together as one focused validation slice.
-- Next overall task gate: T3.2 spec-artifact refresh after the focused mutation
-  validation suite.
+- Next overall task gate: no additional tasks are currently scheduled inside
+  this first implementation checkpoint.
 - Next implementation steps at the current GREEN checkpoint:
-  - T3.2 spec-artifact refresh after the focused validation checkpoint is
-    recorded
+  - future follow-up work, if any, should start from a new approved task or spec
 
 ## Goal
 
