@@ -1,6 +1,6 @@
 # llama.cpp Local-Model Adapter Task List
 
-Status: Draft
+Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
 
 ## Prerequisites
 

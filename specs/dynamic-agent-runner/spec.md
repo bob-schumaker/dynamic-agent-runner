@@ -1360,7 +1360,7 @@ resource limits, backend/client selection, and approval-aware command policies.
   features, but this package remains a generated-artifact finite graph executor
   unless a later spec explicitly adds iterative agent-loop semantics.
 
-## Open Questions
+## Resolved Baselines and Open Questions
 
 - RESOLVED: The `openai-compatible-provider-wrapper` feature is now implemented.
   The stable provider boundary now includes repository-owned provider
@@ -1393,15 +1393,22 @@ resource limits, backend/client selection, and approval-aware command policies.
 - NEEDS CLARIFICATION: What guardrail phases and behaviors should a future
   manifest support, and which guardrails should abort execution versus return
   model-visible rejection content?
-- NEEDS CLARIFICATION: What stable tool-origin metadata should be exposed for
-  registered, built-in, override, MCP, and agent-as-tool sources?
-- NEEDS CLARIFICATION: What serialized state is required to resume approval
-  interruptions safely, and what schema-version policy should govern that state?
-- NEEDS CLARIFICATION: What session-memory contract, if any, should the runtime
-  support beyond current per-run execution state and provider response chaining?
-- NEEDS CLARIFICATION: What workspace manifest, path grants, resource limits,
-  and approval policy are required before write, shell, apply-patch, or sandbox
-  execution tools can be added?
+- RESOLVED BASELINE: Tool provenance and portable `tool_type` metadata are now
+  preserved for registered, built-in, override, MCP, and agent-as-tool sources.
+  NEEDS CLARIFICATION only for any future public reporting or observability
+  schema that exposes that metadata outside current runtime structures.
+- RESOLVED BASELINE: Approval-interruption metadata is preserved without a live
+  pause/resume engine. NEEDS CLARIFICATION for serialized state, resume safety,
+  and schema-version policy before live approval interruption is implemented.
+- RESOLVED BASELINE: Async-session metadata is preserved and host-managed
+  continuity is documented in `specs/async-session-memory-pipeline/`. NEEDS
+  CLARIFICATION for any future runner-owned session memory, storage, replay, or
+  pruning behavior beyond current per-run execution state and provider response
+  chaining.
+- RESOLVED BASELINE: Sandbox/workspace runtime metadata is preserved without
+  enabling write or command tools. NEEDS CLARIFICATION for workspace manifests,
+  path grants, resource limits, and approval policy before write, shell,
+  apply-patch, or sandbox execution tools can be added.
 
 ## Suggested Public API Shape
 
@@ -1570,6 +1577,17 @@ Before implementation is considered complete, add validation covering:
   `specs/llama-cpp-local-model/spec.md` owns future llama.cpp adapter direction,
   while `specs/internal-graph-mutation/spec.md` owns future compile-time
   workflow-mutation direction.
+- Deferred live-runtime areas now have separate future-feature authority
+  boundaries: `specs/approval-interruption-resume/spec.md`,
+  `specs/sandbox-workspace-runtime/spec.md`,
+  `specs/mcp-runtime-integration/spec.md`,
+  `specs/live-guardrail-execution/spec.md`,
+  `specs/skill-source-resolution/spec.md`, and
+  `specs/iterative-agent-loop-runtime/spec.md`. The downstream Power-Marimo
+  automation boundary is recorded in
+  `specs/power-marimo-host-automation/spec.md`. These specs document known
+  requirements and open decisions without authorizing implementation by
+  themselves.
 - The repository now implements the metadata-only or preparation-seam subset of
   those follow-ups: deferred guardrail declarations, tool provenance,
   `prepare_model_input(...)`, prompt-cache intent and telemetry, MCP

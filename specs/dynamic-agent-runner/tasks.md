@@ -21,6 +21,45 @@
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
 
+## Feature-spec roadmap index
+
+- `specs/openai-compatible-provider-wrapper/` — implemented follow-up; Slices
+  1-6 complete, with any remaining work treated as optional compatibility
+  polish.
+- `specs/llama-cpp-local-model/` — active feature record; endpoint-backed local
+  chat and model-resolution Slices 1-2 are complete, while optional Slice 3
+  separate local embedding configuration is pending only if explicitly
+  scheduled.
+- `specs/internal-graph-mutation/` — first implementation checkpoint complete;
+  no additional graph-mutation tasks are currently scheduled in that artifact
+  set.
+- `specs/async-session-memory-pipeline/` — implemented metadata-only OA8
+  baseline plus future expansion analysis; no runner-owned session behavior is
+  implemented.
+- `specs/llm-step-interpreter-middleware/` — future investigation spec; no
+  interpreter backend is selected and no implementation is authorized yet.
+- `specs/approval-interruption-resume/` — future feature spec for live approval
+  pause/resume, serialized run state, and approval outcomes; metadata baseline
+  only is currently implemented.
+- `specs/sandbox-workspace-runtime/` — future feature spec for write, patch,
+  shell, workspace grants, sandbox adapters, and approval-aware command policy;
+  metadata baseline only is currently implemented.
+- `specs/mcp-runtime-integration/` — future feature spec for live MCP source
+  configuration, lifecycle, tool discovery, registry injection, and invocation;
+  metadata diagnostics baseline only is currently implemented.
+- `specs/live-guardrail-execution/` — future feature spec for guardrail adapter
+  execution at input, output, tool-input, and tool-output phases; metadata
+  baseline only is currently implemented.
+- `specs/skill-source-resolution/` — future feature spec for trusted `SKILL.md`
+  body loading, source precedence, and prompt injection; current runtime only
+  preserves skill metadata and refs.
+- `specs/iterative-agent-loop-runtime/` — future feature spec for live
+  model/tool loop execution and stop policies; current runtime only preserves
+  tool-use completion metadata.
+- `specs/power-marimo-host-automation/` — future downstream integration spec for
+  live Marimo-session tools, power-domain adapters, PyQt-widget automation, and
+  host safety policy; current runtime only has placeholder-safe fixture coverage.
+
 ## Active follow-up implementation order
 
 1. **Completed:** OA11 landed the upstream portable `tool_type` seam, so the
@@ -1246,16 +1285,21 @@ explicitly instead of leaving them as undocumented future behavior.
       - Active order: completed after OA10 once the upstream `tool_type`
         vocabulary was confirmed in the runtime-package reference.
 
-## Cross-Cutting Validation Tasks
+## Cross-Cutting Validation Rules
 
-- [ ] V1. Keep unit tests free of live OpenAI API calls.
-- [ ] V2. Run `poetry check` after package/dependency changes.
-- [ ] V3. Run targeted `pytest` after each implemented slice once tests exist.
-- [ ] V4. Run `pre-commit run --files <changed files>` before scoped commits.
-- [ ] V5. Track drift: update `spec.md`, `plan.md`, or this task list when
+Standing rules:
+
+- V1. Keep unit tests free of live OpenAI API calls.
+- V2. Run `poetry check` after package/dependency changes.
+- V3. Run targeted `pytest` after each implemented slice once tests exist.
+- V4. Run `pre-commit run --files <changed files>` before scoped commits.
+- V5. Track drift: update `spec.md`, `plan.md`, or this task list when
       implementation reveals changed requirements, architecture, or task order.
-- [ ] V8. Validate package-directory-first loading with focused tests before
+- V8. Validate package-directory-first loading with focused tests before
       changing the public API and CLI contracts.
+
+Completed cross-cutting checkpoints:
+
 - [x] V6. Add concurrency validation before claiming full thread safety: run
       concurrent fake-client/fake-tool executions and verify there is no
       library-owned run-state crosstalk and that shared-collaborator behavior

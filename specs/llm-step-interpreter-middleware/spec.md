@@ -623,7 +623,7 @@ Metrics to record:
 
 ## Suggested Next Steps
 
-- [ ] Add this feature to the deferred follow-up list in
+- [x] Add this feature to the deferred follow-up list in
       `specs/dynamic-agent-runner/tasks.md` if the team wants it tracked with the
       main runtime roadmap.
 - [ ] Summarize any implementation details borrowed from the local Deep Agents

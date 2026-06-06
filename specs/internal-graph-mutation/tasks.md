@@ -1,6 +1,6 @@
 # Internal Graph Mutation Task List
 
-Status: Draft
+Status: first implementation checkpoint complete through T3.2
 
 ## Prerequisites
 

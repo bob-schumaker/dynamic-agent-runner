@@ -1,6 +1,6 @@
 # llama.cpp Local-Model Adapter Implementation Plan
 
-Status: Draft
+Status: active implementation record; Slices 1-2 complete, optional Slice 3 unscheduled
 
 ## Goal
 
