@@ -329,8 +329,9 @@ def prepare_model_input(
         model_adapters or (),
         _execution_policy_model_map(plan.execution_policy),
     )
+    render_context = _prepare_model_input_render_context(node, state)
     message_parts, preparation = _apply_prepare_model_input_stage(
-        _render_message_parts(behavior, state),
+        _render_message_parts(behavior, state, context=render_context),
         plan,
         state,
         model=model,
@@ -815,10 +816,13 @@ def _render_messages(
 
 
 def _render_message_parts(
-    behavior: Any, state: WorkflowExecutionState
+    behavior: Any,
+    state: WorkflowExecutionState,
+    *,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[tuple[str, OpenAIMessage], ...]:
     prompt_data = behavior.prompt
-    context = _format_context(state)
+    render_context = dict(context) if context is not None else _format_context(state)
     messages: list[tuple[str, OpenAIMessage]] = []
     for role in ("system", "developer"):
         value = prompt_data.get(role)
@@ -826,7 +830,10 @@ def _render_message_parts(
             messages.append(
                 (
                     role,
-                    OpenAIMessage(role=role, content=_format_text(str(value), context)),
+                    OpenAIMessage(
+                        role=role,
+                        content=_format_text(str(value), render_context),
+                    ),
                 )
             )
     for skill in behavior.skills:
@@ -838,7 +845,8 @@ def _render_message_parts(
             (
                 "skill_instructions",
                 OpenAIMessage(
-                    role=role, content=_format_text(str(instructions), context)
+                    role=role,
+                    content=_format_text(str(instructions), render_context),
                 ),
             )
         )
@@ -849,11 +857,96 @@ def _render_message_parts(
         (
             "user_prompt",
             OpenAIMessage(
-                role="user", content=_format_text(str(user_template), context)
+                role="user",
+                content=_format_text(str(user_template), render_context),
             ),
         )
     )
     return tuple(messages)
+
+
+def _prepare_model_input_render_context(
+    node: PreparedNode,
+    state: WorkflowExecutionState,
+) -> dict[str, Any]:
+    context = _format_context(state)
+    context.update(_mutation_render_context(node, state))
+    return context
+
+
+def _mutation_render_context(
+    node: PreparedNode,
+    state: WorkflowExecutionState,
+) -> dict[str, Any]:
+    spec = node.mutation_spec
+    if spec is None or spec.kind != "context_pruning":
+        return {}
+    output_slot = _prepared_context_output_slot(spec)
+    return {output_slot: _prepared_context_value(spec, state)}
+
+
+def _prepared_context_output_slot(spec: Any) -> str:
+    config = spec.config if isinstance(spec.config, Mapping) else {}
+    contract = _mapping_or_none(config.get("context_contract")) or {}
+    output_slot = contract.get("output_slot")
+    return str(output_slot) if output_slot is not None else "prepared_context"
+
+
+def _prepared_context_value(spec: Any, state: WorkflowExecutionState) -> str:
+    parts = [
+        _stringify_prepared_context_value(
+            _resolve_prepared_context_source(source, state)
+        )
+        for source in _prepared_context_sources(spec)
+    ]
+    return "\n".join(part for part in parts if part)
+
+
+def _prepared_context_sources(spec: Any) -> tuple[Mapping[str, Any], ...]:
+    config = spec.config if isinstance(spec.config, Mapping) else {}
+    sources = config.get("context_sources")
+    if isinstance(sources, Sequence) and not isinstance(
+        sources, (str, bytes, bytearray)
+    ):
+        explicit_sources = tuple(item for item in sources if isinstance(item, Mapping))
+        if explicit_sources:
+            return explicit_sources
+    contract = _mapping_or_none(config.get("context_contract")) or {}
+    fallback_sources: list[Mapping[str, Any]] = []
+    history_input = contract.get("history_input")
+    if history_input is not None:
+        fallback_sources.append(
+            {"kind": "conversation_history", "source": history_input}
+        )
+    current_prompt_input = contract.get("current_prompt_input")
+    if current_prompt_input is not None:
+        fallback_sources.append(
+            {"kind": "latest_user_prompt", "source": current_prompt_input}
+        )
+    return tuple(fallback_sources)
+
+
+def _resolve_prepared_context_source(
+    source: Mapping[str, Any],
+    state: WorkflowExecutionState,
+) -> Any:
+    binding = source.get("source")
+    if binding in {"state.chat_history", "state.session_messages"}:
+        return state.session_messages
+    return _resolve_value(binding, state)
+
+
+def _stringify_prepared_context_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, OpenAIMessage):
+        return f"{value.role}: {value.content}"
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        rendered = [_stringify_prepared_context_value(item) for item in value]
+        return "\n".join(part for part in rendered if part)
+    if isinstance(value, Mapping):
+        return json.dumps(value, sort_keys=True)
+    return str(value)
 
 
 def _apply_prepare_model_input_stage(
