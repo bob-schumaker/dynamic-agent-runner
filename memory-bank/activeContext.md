@@ -7,23 +7,38 @@
 - The current active implementation track is the internal compile-time
   graph-mutation seam for context-pruning attachment on selected `llm_step`
   nodes.
-- Slice 1 is now implemented through T1.5:
+- The first internal graph-mutation implementation checkpoint is now closed
+  through T3.2:
   - T1.3 in `c732315`
     (`feat(graph-mutation): add internal mutation datamodels`)
   - T1.4 in `ffa0d63`
     (`feat(graph-mutation): derive execution-plan seams`)
   - T1.5 in `e974a54`
     (`fix(graph-mutation): validate attachment metadata`)
-  - the authoritative graph-mutation spec/docs refresh through T1.5 in
-    `00d99e4` (`docs(specs): record attachment validation checkpoint`)
+  - T2.3 in `5eadf4a`
+    (`feat(graph-mutation): add mutation preparation diagnostics`)
+  - T2.4 spec-doc refresh in `f341dca`
+    (`docs(specs): record T2.4 diagnostics checkpoint`)
+  - T3.1 spec-doc refresh in `0d5faea`
+    (`docs(specs): record T3.1 validation checkpoint`)
+  - T3.2 closure in `ca20123`
+    (`docs(specs): close T3.2 checkpoint`)
 - `src/dynamic_agent_runner/graph_mutation.py` now provides the internal
   mutation protocol and datamodel seam, `src/dynamic_agent_runner/models.py`
   carries workflow-level and per-node mutation preparation metadata, and
   `src/dynamic_agent_runner/validation.py` now enforces fail-closed attachment
   metadata for eligible nodes.
-- The current execution gate for graph mutation is now T2.1: add RED prepared-
-  input coverage for routing declared context inputs through a mutation-owned
-  transform before `llm_step` model execution.
+- `src/dynamic_agent_runner/executor.py` now also applies mutation-owned
+  prepared-context output before prompt rendering and records runtime-owned
+  mutation-preparation diagnostics in `PreparedInputMetadata` and
+  `model_input_prepared` trace payloads.
+- The focused combined graph-mutation validation checkpoint now passes with:
+  - `poetry run pytest tests/test_graph_mutation.py tests/test_validation.py`
+    `tests/test_executor.py -q` -> `115 passed`
+- The `specs/internal-graph-mutation/` artifact set now records that no pending
+  tasks remain inside this first implementation checkpoint.
+- There is no newly approved follow-up slice yet; future graph-mutation work
+  should start from a new explicit task or spec update.
 - The llama.cpp local-model feature under `specs/llama-cpp-local-model/`
   remains implemented through the Slice 2 checkpoint and is no longer the
   primary active spec focus.
@@ -366,24 +381,29 @@
 - The future local-model and workflow-derivation area is now split between:
   - `specs/llama-cpp-local-model/spec.md`
   - `specs/internal-graph-mutation/spec.md`
-  The graph-mutation area is now implemented through Slice 1 T1.5, while the
-  llama.cpp local-model area is implemented through completed Slice 2.
+  The graph-mutation area is now closed through the first implementation
+  checkpoint T3.2, while the llama.cpp local-model area is implemented through
+  completed Slice 2.
 - The graph-mutation feature now has a committed authoritative guided SDD
   artifact set:
   - `7239e80` — `docs(specs): add graph-mutation planning artifacts`
   - `3418bd9` — `docs(specs): record graph-mutation seam checkpoint`
   - `00d99e4` — `docs(specs): record attachment validation checkpoint`
+  - `f341dca` — `docs(specs): record T2.4 diagnostics checkpoint`
+  - `0d5faea` — `docs(specs): record T3.1 validation checkpoint`
+  - `ca20123` — `docs(specs): close T3.2 checkpoint`
 - `specs/internal-graph-mutation/spec.md` is now the authoritative guided SDD
   spec for the current next-feature area rather than a light-mode future-spec
   note, and it now explicitly points to companion planning artifacts.
-- `specs/internal-graph-mutation/plan.md` now records the preferred first
-  implementation path:
+- `specs/internal-graph-mutation/plan.md` records the preferred first
+  implementation path and now records the checkpoint as closed:
   - Slice 1 = mutation metadata contract and internal seam
   - Slice 2 = prepared-input integration for context-pruning attachment
   - Slice 3 = later strategy/profile growth and semantic pruning hooks
-- `specs/internal-graph-mutation/tasks.md` now records T1.5 as complete,
-  preserves the first implementation as input-transform-only, and advances the
-  next pending step to T2.1 prepared-input RED coverage.
+- `specs/internal-graph-mutation/tasks.md` now records the first implementation
+  checkpoint as complete, preserves the input-transform-only boundary, and
+  records that no pending tasks remain in this artifact set until a new
+  follow-up is approved.
 - The current source of truth for the active graph-mutation checkpoint is:
   - `specs/internal-graph-mutation/spec.md`
   - `specs/internal-graph-mutation/plan.md`
@@ -454,14 +474,12 @@
 
 ## Next Steps
 
-- Continue the graph-mutation implementation sequence from
-  `specs/internal-graph-mutation/tasks.md` at T2.1 by adding RED prepared-input
-  coverage in `tests/test_executor.py` for routing declared context inputs
-  through a mutation-owned transform before `llm_step` model execution.
 - Treat the current source of truth for the graph-mutation feature as:
   - `specs/internal-graph-mutation/spec.md`
   - `specs/internal-graph-mutation/plan.md`
   - `specs/internal-graph-mutation/tasks.md`
+- Treat the graph-mutation checkpoint as closed through T3.2; only resume work
+  there if a new explicit task or follow-up spec change is approved.
 - The provider-wrapper follow-up is currently complete through Slice 6; if work
   resumes in that area, treat it as optional future polish or broader
   provider-specific follow-up rather than a required next implementation slice.

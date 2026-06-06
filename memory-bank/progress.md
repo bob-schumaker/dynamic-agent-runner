@@ -2,11 +2,15 @@
 
 ## Working
 
-- The internal graph-mutation feature is now implemented through Slice 1 T1.5:
+- The internal graph-mutation feature's first implementation checkpoint is now
+  closed through T3.2:
   - `c732315` — T1.3 internal mutation datamodels and protocol
   - `ffa0d63` — T1.4 execution-plan mutation seam derivation
   - `e974a54` — T1.5 fail-closed attachment validation
-  - `00d99e4` — authoritative graph-mutation spec-doc refresh through T1.5
+  - `5eadf4a` — mutation-preparation diagnostics in executor metadata/traces
+  - `f341dca` — T2.4 spec-doc refresh
+  - `0d5faea` — T3.1 validation-checkpoint docs refresh
+  - `ca20123` — T3.2 docs closure for the first implementation checkpoint
 - The resulting graph-mutation Slice 1 state now includes:
   - `src/dynamic_agent_runner/graph_mutation.py` with repository-owned mutation
     types such as `WorkflowGraphMutation`, `GraphMutationSpec`,
@@ -17,19 +21,31 @@
   - `src/dynamic_agent_runner/validation.py` fail-closed enforcement for
     explicit `context_pipeline`, `context_sources`, and `context_contract`
     attachment metadata on eligible `llm_step` nodes
+- The resulting first-checkpoint graph-mutation state now also includes:
+  - mutation-owned prepared-context rendering before prompt formatting in
+    `src/dynamic_agent_runner/executor.py`
+  - runtime-owned mutation diagnostics recorded in prepared-input metadata and
+    `model_input_prepared` trace payloads
+  - a closed `specs/internal-graph-mutation/` task list with no pending tasks in
+    the first implementation checkpoint
 - Focused validation for the latest graph-mutation checkpoint passed with:
-  - `poetry run pytest tests/test_graph_mutation.py -q` (`3 passed`)
-  - `poetry run pytest tests/test_executor.py -q` (`52 passed`)
-  - `poetry run pytest tests/test_validation.py -q 2>&1`
-    (`55 passed in 0.23s`)
-  - focused `poetry run pre-commit run --files`
-    `src/dynamic_agent_runner/validation.py`
+  - `poetry run pytest tests/test_graph_mutation.py -q` (`5 passed`)
+  - `poetry run pytest tests/test_validation.py -q` (`55 passed`)
+  - `poetry run pytest tests/test_executor.py -q -k`
+    `"mutation_preparation_diagnostics or`
+    `context_pipeline_prepared_context_before_render or`
+    `context_contract_output_slot_name"`
+    (`3 passed, 52 deselected`)
+  - `poetry run pytest tests/test_executor.py -q` (`55 passed`)
+  - `poetry run pytest tests/test_graph_mutation.py tests/test_validation.py`
+    `tests/test_executor.py -q` (`115 passed`)
   - focused `poetry run pre-commit run --files`
     `specs/internal-graph-mutation/spec.md`
     `specs/internal-graph-mutation/plan.md`
     `specs/internal-graph-mutation/tasks.md`
-- The current next graph-mutation gate is T2.1: add failing prepared-input
-  coverage before implementing the first live mutation-owned input transform.
+- There is no currently scheduled next graph-mutation gate inside the first
+  implementation checkpoint; any follow-up should begin from a new approved task
+  or spec update.
 - The authoritative llama.cpp local-model implementation is now complete
   through the Slice 2 checkpoint rather than only the first Slice 1 milestone.
 - Slice 2 is complete through T2.6:
@@ -307,9 +323,8 @@
 - The graph-mutation planning package is now committed in `7239e80`
   (`docs(specs): add graph-mutation planning artifacts`), adding the companion
   `plan.md` and `tasks.md` artifact set.
-- The current active graph-mutation execution gate is T2.1: RED prepared-input
-  coverage for mutation-owned context transformation before `llm_step` model
-  execution.
+- The graph-mutation first implementation checkpoint is closed through T3.2;
+  there is no currently scheduled active execution gate in that artifact set.
 - The llama.cpp local-model area remains implemented through the Slice 2
   checkpoint; its optional T3.1 follow-up is no longer the primary active focus.
 - The provider-wrapper follow-up is complete through Slice 6; any further work
@@ -317,10 +332,8 @@
 
 ## Remaining
 
-- If graph-mutation work proceeds, begin from
-  `specs/internal-graph-mutation/tasks.md` T2.1 by adding RED prepared-input
-  coverage for mutation-owned context transformation before `llm_step` model
-  execution.
+- If graph-mutation work resumes, start from a newly approved follow-up task or
+  spec update rather than the closed T1-T3.2 checkpoint sequence.
 - If llama.cpp local-model work resumes, begin optional Slice 3 from the
   authoritative task list only if separate local embedding configuration is
   explicitly scheduled.
@@ -354,9 +367,10 @@
   into two authoritative feature specs:
   - `specs/llama-cpp-local-model/spec.md`
   - `specs/internal-graph-mutation/spec.md`
-  The graph-mutation area is now implemented through Slice 1 T1.5, while the
-  llama.cpp local-model area is implemented through the full Slice 2
-  checkpoint, with optional Slice 3 as the next potential area.
+  The graph-mutation area is now closed through the first implementation
+  checkpoint T3.2, while the llama.cpp local-model area is implemented through
+  the full Slice 2 checkpoint, with optional Slice 3 as the next potential
+  area.
 - The llama.cpp local-model spec has since been tightened against upstream
   `llama-cpp-python` docs/README/examples and the local `huggingface_hub`
   checkout so that future implementation now explicitly assumes:
