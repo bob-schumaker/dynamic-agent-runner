@@ -2,7 +2,8 @@
 
 Status: In progress
 
-- Current checkpoint: T2.4 mutation-preparation diagnostics are committed in
+- Current checkpoint: T3.1 focused mutation validation evidence is recorded after
+  the earlier T2.4 mutation-preparation diagnostics slice in
   `src/dynamic_agent_runner/executor.py` and `tests/test_executor.py`, following
   the earlier T2.3 first `ContextPruningMutation` implementation, T1.5
   fail-closed attachment validation, T1.4 execution-plan seam checkpoint, and
@@ -21,10 +22,13 @@ Status: In progress
     prepared-context integration behavior.
   - `poetry run pytest tests/test_executor.py -q` passes with `55 passed` after
     the diagnostics integration change.
-- Next overall task gate: T3.1 focused mutation validation suite after the T2.4
-  diagnostics slice.
+  - `poetry run pytest tests/test_graph_mutation.py tests/test_validation.py`
+    `tests/test_executor.py -q` passes with `115 passed`, proving the mutation
+    datamodel, validation, executor integration, and diagnostics checkpoints
+    remain green together as one focused validation slice.
+- Next overall task gate: T3.2 spec-artifact refresh after the focused mutation
+  validation suite.
 - Next implementation steps at the current GREEN checkpoint:
-  - T3.1 focused mutation validation suite after the diagnostics slice lands
   - T3.2 spec-artifact refresh after the focused validation checkpoint is
     recorded
 
@@ -398,6 +402,19 @@ poetry run pytest \
   tests/test_executor.py -q
 ```
 
+- T3.1 focused validation evidence was captured with:
+
+  ```bash
+  poetry run pytest tests/test_graph_mutation.py \
+    tests/test_validation.py tests/test_executor.py -q
+  ```
+
+- Observed result: `115 passed`
+- Observed outcome: the first-slice internal mutation contract, fail-closed
+  attachment validation, prepared-input integration, and mutation diagnostics now
+  have one combined focused checkpoint across the graph-mutation, validation, and
+  executor test surfaces.
+
 Formatting and repository-policy validation:
 
 ```bash
@@ -439,3 +456,7 @@ mutation datamodel layer, the execution-plan mutation seam, fail-closed
 attachment validation, prepared-input mutation integration before prompt
 rendering, and a first live `ContextPruningMutation` runtime owned by
 `src/dynamic_agent_runner/graph_mutation.py`.
+
+The repository now also has a focused combined validation checkpoint showing
+that the graph-mutation, validation, and executor surfaces pass together with
+`115 passed`.

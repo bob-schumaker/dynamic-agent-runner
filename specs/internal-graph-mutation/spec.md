@@ -263,5 +263,11 @@ Acceptance criteria:
   `model_input_prepared` trace payloads now expose runtime-owned mutation
   diagnostics, including whether mutation was applied, which mutation id ran,
   and which prepared output slots were populated.
+- A fresh focused combined validation checkpoint now exists from
+  `poetry run pytest tests/test_graph_mutation.py tests/test_validation.py`
+  `tests/test_executor.py -q` with observed result `115 passed`, proving the
+  internal mutation contract, fail-closed validation, prepared-input behavior,
+  and mutation diagnostics remain green together across the first-slice test
+  surfaces.
 - Future implementation work must create fresh validation evidence rather than
   relying on any reverted prototype results.
