@@ -32,12 +32,15 @@ Current tests cover:
 - runtime manifest validation
 - grouped runtime, metadata, and extension parsing
 - external tool-index metadata validation
+- context-pipeline validation and internal graph-mutation preparation
 - callable registry lookup, schema conversion, and invocation
 - runtime tool overrides and behavior overrides
 - OpenAI request construction and fake-client adapter execution
+- local model path resolution, offline policy, identity checks, and local endpoint
+  error classification
 - async model, tool, and hook dispatch
 - workflow execution, retries, output contracts, route validation, token budgets,
-  prompt-cache observations, and traces
+  prompt-cache observations, provider cache telemetry, and traces
 - CLI execution and error reporting
 - all 11 hello-world agent-pattern fixture packages
 - the placeholder-safe Power-Marimo first-customer fixture

@@ -65,6 +65,32 @@ The async path awaits async model adapters, async tool handlers, and async
 lifecycle hooks. Synchronous tool handlers are dispatched without blocking the
 event loop.
 
+.. header2:: Local OpenAI-compatible endpoints
+
+Use ``LocalOpenAIEndpointConfig`` when a caller owns a local server that exposes
+an OpenAI-compatible Responses API:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       LocalOpenAIEndpointConfig,
+       create_local_async_openai_adapter,
+   )
+
+   adapter = create_local_async_openai_adapter(
+       LocalOpenAIEndpointConfig(
+           base_url="http://localhost:11434/v1",
+           model_aliases=("local-chat",),
+           provider_name="local-openai-compatible",
+           expected_model_id="local-chat",
+       )
+   )
+
+The local helpers reuse the package's OpenAI adapter boundary, mark the adapter
+as local for capability routing, and translate local endpoint connectivity,
+protocol, and model-identity failures into package-owned errors. They do not
+start or supervise a local model server.
+
 .. header2:: Reusable execution contexts
 
 Use ``WorkflowExecutionContext`` or its alias ``RunContext`` when several runs
@@ -116,3 +142,14 @@ Use ``execute_workflow(...)`` or ``execute_workflow_async(...)`` when you need t
 The execution state records node inputs, node outputs, tool results, completed
 node executions, retry records, token usage, trace events, errors, run ID, and
 final result.
+
+.. header2:: Lifecycle hooks and prompt-cache observations
+
+``WorkflowLifecycleHooks`` provides trusted in-process callbacks around workflow,
+node, model, and tool boundaries. Hooks may be synchronous or asynchronous and
+may abort execution by raising a project error.
+
+``prompt_cache=True`` can request provider-neutral prompt-cache observation for a
+run when manifest metadata is absent. ``prompt_cache=False`` disables
+prompt-cache observation for that run. The runtime records eligibility evidence
+and provider cached-token telemetry in trace events when that data is available.

@@ -103,6 +103,37 @@ Validation currently checks supported enum values, schema-ref consistency with
 ``output_contracts``, and that only ``llm_step`` nodes declare
 ``model_requirements``.
 
+.. header2:: Context-pipeline attachments
+
+``llm_step`` nodes may declare a ``context_pipeline`` attachment for the current
+internal graph-mutation slice. The attachment lets the runtime derive a prepared
+context input from declared context sources before rendering the model prompt.
+
+.. code-block:: yaml
+
+   - id: answer
+     kind: llm_step
+     context_pipeline:
+       enabled: true
+       strategy: semantic_pruning
+       profile: default
+     context_sources:
+     - kind: conversation_history
+       source: state.chat_history
+     - kind: latest_user_prompt
+       source: prompt
+     context_contract:
+       history_input: state.chat_history
+       current_prompt_input: prompt
+       output_slot: prepared_context
+     prompt:
+       user_template: "Answer from {prepared_context}"
+
+Current validation requires enabled context-pipeline attachments to appear only
+on ``llm_step`` nodes and to include explicit ``context_sources`` and a
+``context_contract``. The first live implementation renders declared sources
+into the contract's ``output_slot`` while preserving the base workflow object.
+
 .. header2:: ReAct-style loop manifests
 
 ReAct-style loops stay within the primitive taxonomy. Represent the loop as an

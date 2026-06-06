@@ -60,6 +60,11 @@ fallback.
          - tool_calling
          - structured_output
 
+Caller-owned local OpenAI-compatible endpoints can be represented with
+``LocalOpenAIEndpointConfig`` and the local adapter helpers. Those helpers wrap an
+existing endpoint and classify connectivity, protocol, and identity failures; the
+runner does not start, stop, or supervise model-server processes.
+
 .. header2:: Retry policy
 
 By default, model and tool calls are attempted once. Workflows can opt into
@@ -109,8 +114,9 @@ implemented.
 .. header2:: Prompt-cache intent
 
 Prompt-cache metadata is provider-neutral intent. It records stable prefix and
-variable prompt-part expectations and emits trace evidence, but provider-specific
-request pass-through remains deferred until SDK/API support is verified.
+variable prompt-part expectations and emits trace evidence. Provider-specific
+request controls remain deferred; adapter responses that expose cached-token
+usage are recorded as telemetry.
 
 .. code-block:: yaml
 

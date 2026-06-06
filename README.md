@@ -49,12 +49,15 @@ artifacts.
 Known configuration:
 
 - Python package managed by Poetry
-- Python compatibility: `>=3.11,<3.14`
+- Python compatibility: `>=3.13,<3.14.1 || >3.14.1,<3.15`
 - local mise configuration selects Python `3.13`
 - primary runtime dependencies on `roschumalib` and the official `openai` package
 - retry support uses `tenacity` behind package-owned retry policy interfaces
 - token estimation uses `tiktoken` behind package-owned token-budget interfaces
 - workflow tracing uses package-owned trace events and optional trace sinks
+- async execution, lifecycle hooks, prompt-cache observation, local
+  OpenAI-compatible endpoint helpers, and context-pipeline graph-mutation helpers
+  are implemented behind package-owned interfaces
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
 - the initial implementation targets the OpenAI Python SDK behind a small adapter
@@ -80,7 +83,7 @@ entry point.
 Install dependencies with Poetry:
 
 ```bash
-poetry install --with dev
+poetry install --with dev --with docs
 ```
 
 If using mise, enter the project normally so `.mise.toml` can configure the
@@ -108,26 +111,27 @@ result = run_agent_workflow(
 )
 ```
 
+Use `run_agent_workflow_async(...)` in async applications, or construct a
+`WorkflowExecutionContext` when several runs share the same loaded workflow and
+runtime collaborators.
+
 To target an OpenAI-compatible endpoint without changing executor logic, provide
-an adapter that uses the public provider-configuration seam:
+an adapter that uses the public provider-configuration boundary. For
+caller-owned local endpoints, the package exposes explicit local helper types:
 
 ```python
 from dynamic_agent_runner import (
-    OpenAIClientAdapter,
-    OpenAIProviderConfig,
-    create_default_openai_provider,
+    LocalOpenAIEndpointConfig,
+    create_local_openai_adapter,
     run_agent_workflow,
 )
 
-local_adapter = OpenAIClientAdapter(
-    provider=create_default_openai_provider(
-        OpenAIProviderConfig(
-            base_url="http://localhost:11434/v1",
-            provider_name="local-openai-compatible",
-        )
-    ),
-    models=("gpt-4o-mini",),
-    is_local=True,
+local_adapter = create_local_openai_adapter(
+    LocalOpenAIEndpointConfig(
+        base_url="http://localhost:11434/v1",
+        model_aliases=("gpt-4o-mini",),
+        provider_name="local-openai-compatible",
+    )
 )
 
 result = run_agent_workflow(
@@ -138,11 +142,13 @@ result = run_agent_workflow(
 ```
 
 If the compatible provider requires authentication, set `api_key` on
-`OpenAIProviderConfig`. If it does not, the key may be omitted.
+`LocalOpenAIEndpointConfig`. If it does not, the key may be omitted.
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
-package relationship without executing model or tool calls. Lower-level
-file-by-file artifact inputs remain available only as a compatibility seam.
+package relationship without executing model or tool calls.
+`load_agent_package_workflow(...)` loads and compiles package-directory input.
+Lower-level file-by-file artifact inputs remain available only as a
+compatibility seam.
 
 Runtime manifests may also declare provider-neutral metadata for:
 
@@ -285,9 +291,16 @@ Current tests cover:
   relationships
 - constructing the OpenAI package-backed model execution path through an adapter
 - applying bounded model and tool retry policies without live model calls
+- resolving local model assets and classifying local OpenAI-compatible endpoint
+  failures
+- dispatching async model, tool, and lifecycle hook calls
+- deriving and applying context-pipeline graph-mutation helpers for prepared
+  context injection
 - validating LLM output contracts and decision routes before trusting node output
 - estimating prompt tokens and enforcing configured token budgets before model
   calls
+- recording provider-neutral prompt-cache observations and provider cached-token
+  telemetry when exposed by an adapter response
 - emitting package-owned trace events through execution state and optional trace
   sinks without external observability dependencies
 - preserving and validating deferred execution-policy seams such as

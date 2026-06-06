@@ -11,7 +11,7 @@ Install the project dependencies with Poetry:
 
 .. code-block:: bash
 
-   poetry install --with dev
+   poetry install --with dev --with docs
 
 If you use mise, enter the repository so ``.mise.toml`` can configure the local
 Python environment. The repository also provides ``env_setup`` for shell setup:
@@ -42,6 +42,9 @@ as compatibility seams for callers that need file-by-file loading.
 
 The default model path uses the official ``openai`` package. Unit tests and local
 examples should inject fake model adapters instead of making live model calls.
+Caller-owned local OpenAI-compatible endpoints can be supplied through
+``LocalOpenAIEndpointConfig`` with ``create_local_openai_adapter(...)`` or
+``create_local_async_openai_adapter(...)``.
 
 .. header2:: Run from the CLI
 
@@ -66,7 +69,8 @@ A normal run follows this flow:
    and optional runtime behavior overrides.
 2. Validate required fields, node IDs, edges, prompts, skill references, output
    contracts, extension envelopes, and callable tool availability.
-3. Prepare an internal execution plan from primitive runtime nodes.
+3. Prepare an internal execution plan from primitive runtime nodes and supported
+   internal graph-mutation metadata.
 4. Render model input for each ``llm_step``.
 5. Dispatch ``tool_use_step`` nodes through a caller-provided tool registry.
 6. Traverse supported ``sequential`` and ``branch`` control-flow edges.
@@ -82,5 +86,6 @@ The runtime supports a finite graph executor with primitive node kinds:
 - ``decision_step``
 
 Broader behavior such as live Marimo automation, MCP discovery, durable approval
-resume, unrestricted notebook mutation, and full multi-agent execution remains
-out of scope until future scoped follow-ups define it.
+resume, unrestricted notebook mutation, automatic local model server management,
+and full multi-agent execution remains out of scope until future scoped
+follow-ups define it.
