@@ -13,22 +13,18 @@ Status: Draft
 ## Status
 
 - State: authoritative spec and implementation plan exist; T1.1 and T1.2 RED
-  coverage plus the T1.3 internal mutation datamodel implementation are now
-  committed
-- Current execution gate: T1.4 is the next pending step — integrate the
-  mutation seam with `prepare_execution_plan(...)`
+  coverage plus the T1.3 and T1.4 implementation slices are now committed
+- Current execution gate: T1.5 is the next pending step — reject missing or
+  ambiguous mutation attachment metadata in validation
 - Current GREEN evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` -> `3 passed`
+  - `poetry run pytest tests/test_executor.py -q` -> `52 passed`
 - Current RED evidence:
   - `poetry run pytest tests/test_validation.py -q` -> `2 failed, 53 passed`
-  - `poetry run pytest tests/test_executor.py -q` -> `2 failed, 50 passed`
 - Current RED failures:
   - `test_context_pipeline_attachment_requires_explicit_sources_and_contract`
   - `test_context_pipeline_attachment_rejects_non_llm_step_nodes`
-  - `test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes`
-  - `test_prepare_execution_plan_derives_mutation_preparation_for_eligible_llm_step`
 - First implementation steps that can satisfy the current RED checkpoints:
-  - T1.4 for execution-plan mutation integration
   - T1.5 for fail-closed attachment validation
 - Scope rule: keep the first slice input-transform-only; do not introduce public
   mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
@@ -83,7 +79,7 @@ Status: Draft
     `WorkflowGraphMutation`, `GraphMutationSpec`, `WorkflowMutationBundle`, and
     `MutationResult` exist and can represent the first context-pruning target
 
-- [ ] T1.4 [implementation] Integrate the mutation seam with
+- [x] T1.4 [implementation] Integrate the mutation seam with
       `prepare_execution_plan(...)` so eligible nodes receive derived mutation
       preparation without mutating the base workflow.
   - Spec: FR-1, FR-2, FR-3
@@ -92,8 +88,10 @@ Status: Draft
     `src/dynamic_agent_runner/graph_mutation.py`
   - Depends on: T1.2, T1.3
   - Validation: `poetry run pytest tests/test_executor.py -q`
-  - Evidence: execution-plan preparation can carry mutation-owned derived
-    behavior while `LoadedAgentWorkflow` / `RuntimeManifest` stay unchanged
+  - Evidence: `poetry run pytest tests/test_executor.py -q` now passes with
+    `52 passed`, proving execution-plan preparation carries a mutation-owned
+    workflow bundle and per-node derived mutation behavior while
+    `LoadedAgentWorkflow` / `RuntimeManifest` stay unchanged
 
 - [ ] T1.5 [implementation] Extend `src/dynamic_agent_runner/validation.py` to
       reject missing or ambiguous mutation attachment metadata.
