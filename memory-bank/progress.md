@@ -229,6 +229,15 @@
 - The primary spec set and related feature specs are now internally consistent
   with the current repo state in commit `e6b5f2c`
   (`docs(specs): align spec artifacts with repo state`).
+- A later focused spec-doc consistency refresh is complete in `4a13d89`
+  (`docs(specs): align roadmap and checkpoint status`).
+- That follow-up updated:
+  - `specs/dynamic-agent-runner/plan.md`
+  - `specs/internal-graph-mutation/spec.md`
+  - `specs/internal-graph-mutation/plan.md`
+  so the primary plan no longer treats OA11 as the next pending starting point,
+  and the graph-mutation spec/plan now explicitly describe the first
+  implementation checkpoint as closed through T3.2.
 - The later focused audit in `3f61d99` reconciled the one remaining stale
   provider-wrapper reference in the main spec, so the audited primary spec and
   current feature-spec packages are now aligned on that feature's implemented
@@ -325,6 +334,8 @@
   `plan.md` and `tasks.md` artifact set.
 - The graph-mutation first implementation checkpoint is closed through T3.2;
   there is no currently scheduled active execution gate in that artifact set.
+- The graph-mutation companion spec and plan now explicitly encode that closed
+  checkpoint status, not just the task artifact.
 - The llama.cpp local-model area remains implemented through the Slice 2
   checkpoint; its optional T3.1 follow-up is no longer the primary active focus.
 - The provider-wrapper follow-up is complete through Slice 6; any further work

@@ -79,8 +79,14 @@
   priority tiers across the full feature scope, a smallest useful kickoff slice,
   and a phased implementation order from facade work through validation/polish.
 - The primary spec and feature spec set were refreshed for internal consistency
-  and repo-state accuracy, then committed in `e6b5f2c`
+  and repo-state accuracy in `e6b5f2c`
   (`docs(specs): align spec artifacts with repo state`).
+- A later focused spec-doc consistency refresh landed in `4a13d89`
+  (`docs(specs): align roadmap and checkpoint status`). That follow-up updated
+  `specs/dynamic-agent-runner/plan.md`, `specs/internal-graph-mutation/spec.md`,
+  and `specs/internal-graph-mutation/plan.md` so the primary plan no longer
+  points to OA11 as pending and the graph-mutation spec/plan now explicitly
+  agree that the first implementation checkpoint is closed through T3.2.
 - User-facing non-spec docs examples were refreshed and committed in `e9a32d5`
   (`docs: update package-first usage examples`) so the quickstart and runtime
   policy docs now match the package-directory-first API/CLI contract.
@@ -371,7 +377,8 @@
   - spec docs aligned in `b776ad0`
   - memory-bank alignment recorded in `aec1c5d`
   - user-facing docs aligned in `0a5d59d`
-- The broader spec-set alignment beyond OA8 is now recorded in `e6b5f2c`.
+- The broader spec-set alignment beyond OA8 is recorded in `e6b5f2c`, and the
+  narrower roadmap/checkpoint follow-up is recorded in `4a13d89`.
 - The broader non-spec docs follow-up for stale package/API examples is now
   recorded in `e9a32d5`.
 - `memory-bank/notes/historical-user-prompts.txt` may contain durable prompt
