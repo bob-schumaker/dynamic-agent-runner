@@ -140,8 +140,9 @@ Choose adapter coverage explicitly when the client's adapter boundary matters:
 - For local-only client intent, pass only local adapters and set strict
   coverage. Do not rely on workflow `local_only` metadata to filter adapters.
 
-For caller-owned local llama.cpp servers, use the OpenAI-compatible adapter
-helpers against the already-running server:
+If the caller already has a local llama.cpp server exposing an OpenAI-compatible
+API, use the OpenAI-compatible adapter helpers against that already-running
+server:
 
 ```python
 from dynamic_agent_runner import (
@@ -160,7 +161,7 @@ adapter = create_local_async_openai_adapter(
 ```
 
 Pass that adapter with `model_adapter_coverage="strict"` when the workflow must
-stay within the local llama.cpp boundary. Use augmented coverage only when it is
+stay within that local server boundary. Use augmented coverage only when it is
 acceptable for missing eligible coverage to fall back to the default OpenAI
 adapter.
 
