@@ -2,10 +2,12 @@
 
 ## Current Focus
 
-- The latest completed work is a spec-documentation refresh committed in
-  `a973ae8` (`docs(specs): add future feature specs`).
-- The repo now has a top-level spec index at `specs/README.md` that identifies
-  the primary runtime spec, all feature-spec packages, and a completion matrix.
+- The latest completed work is the Hugging Face model-search feature and a spec
+  consistency refresh:
+  - `191f722` (`docs(hugging-face): document model search api`)
+  - `3f5b51f` (`docs(specs): align feature status matrix`)
+- The repo has a top-level spec index at `specs/README.md` that identifies the
+  primary runtime spec, all feature-spec packages, and the completion matrix.
 - The primary runtime spec remains `specs/dynamic-agent-runner/spec.md`.
 - There is no active implementation slice currently scheduled. Future code work
   should start from an explicit feature spec, plan, or task update.
@@ -21,6 +23,7 @@
   - `specs/openai-compatible-provider-wrapper/spec.md`
   - `specs/llama-cpp-local-model/spec.md`
   - `specs/internal-graph-mutation/spec.md`
+  - `specs/hugging-face-model-search/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
 - Future investigation or future-feature specs:
   - `specs/llm-step-interpreter-middleware/spec.md`
@@ -38,6 +41,9 @@
   async-first execution, OA11 portable `tool_type` alignment, prompt-cache
   metadata, provider-wrapper Slices 1-6, llama.cpp local-model Slices 1-2, and
   the first internal graph-mutation checkpoint.
+- Public Hugging Face model discovery is implemented with a repository-owned
+  search API, normalized result type, package-owned error boundary, exports,
+  deterministic tests, and Python API docs.
 - Metadata-only runtime surfaces are implemented for guardrails, MCP registry
   sources/lifecycle diagnostics, approval interruption, async session policy,
   sandbox runtime policy, and tool-use completion policy.
@@ -50,8 +56,8 @@
 
 ## Next Steps
 
-- For implementation: select one future-feature spec and create or approve a
-  concrete plan/task slice before editing code.
+- For implementation: select one future-feature spec or optional follow-up and
+  create or approve a concrete plan/task slice before editing code.
 - For documentation: keep `specs/README.md`, `specs/dynamic-agent-runner/tasks.md`,
   and feature spec statuses synchronized when new slices are selected or closed.
 - For validation: continue using fake clients/tools for unit tests and avoid live

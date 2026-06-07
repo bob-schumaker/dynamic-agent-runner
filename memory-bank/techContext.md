@@ -3,7 +3,7 @@
 ## Language and Runtime
 
 - Python package.
-- Declared Python compatibility: `>=3.11,<3.14`.
+- Declared Python compatibility: `>=3.13,<3.14.1 || >3.14.1,<3.15`.
 - mise-selected local Python version: `3.13`.
 
 ## Package and Dependency Management
@@ -30,6 +30,9 @@ Current committed dependency context includes:
 - `PyYAML >=6.0`
 - `tenacity >=9.0.0`
 - `tiktoken >=0.12.0`
+- `openai-model-registry ^1.0.5`
+- `llama-cpp-python ^0.3.26` with the `server` extra
+- `huggingface-hub ^1.18.0`
 
 Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 
@@ -51,6 +54,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   sinks; no external observability dependency is required for Slice 11
 - support runtime behavior overrides for prompt patches and inline skill
   bindings without adding new external dependencies
+- expose read-only public Hugging Face model discovery through a package-owned
+  API and normalized result/error contracts
 
 ## Development and Test Dependencies
 

@@ -19,29 +19,32 @@
 - Internal graph mutation has a complete first checkpoint: typed mutation
   datamodels, context-pruning mutation, fail-closed attachment validation,
   prepared-input integration, and mutation diagnostics.
+- Public Hugging Face model discovery is implemented: callers can use
+  `search_hugging_face_models(...)` and receive
+  `HuggingFaceModelSearchResult` values with package-owned
+  `HuggingFaceModelSearchError` failure translation.
 - Async-session support is currently metadata-only and documented as host-managed
   continuity for first-customer use cases.
 
-## Latest Documentation Milestone
+## Latest Documentation and Spec Milestones
 
-- Commit `a973ae8` (`docs(specs): add future feature specs`) added or refreshed:
-  - `specs/README.md`
-  - `specs/approval-interruption-resume/spec.md`
-  - `specs/sandbox-workspace-runtime/spec.md`
-  - `specs/mcp-runtime-integration/spec.md`
-  - `specs/live-guardrail-execution/spec.md`
-  - `specs/skill-source-resolution/spec.md`
-  - `specs/iterative-agent-loop-runtime/spec.md`
-  - `specs/power-marimo-host-automation/spec.md`
-  - primary roadmap/status consistency in `specs/dynamic-agent-runner/`
-- The new future-feature specs capture known requirements, non-goals, design
-  constraints, validation checklists, and `NEEDS CLARIFICATION` items. They do
-  not authorize implementation by themselves.
+- Commit `8216ca7` added the authoritative Hugging Face model-search spec.
+- Commits `4c83c2b`, `b343a9c`, `af8b2a0`, and `191f722` made that spec
+  actionable, added RED contract tests, implemented the public discovery API,
+  and documented it.
+- Commit `3f5b51f` synchronized the primary spec, feature-spec statuses,
+  `specs/README.md`, and the completion matrix after the Hugging Face feature
+  landed.
+- Future-feature specs still capture known requirements, non-goals, design
+  constraints, validation checklists, and clarification items. They do not
+  authorize implementation by themselves.
 
 ## Remaining
 
 - Optional llama.cpp Slice 3: separate local embedding configuration, if
   explicitly scheduled.
+- Future richer Hugging Face Hub behavior beyond read-only model discovery; this
+  requires a separate feature spec.
 - Live approval interruption/resume engine and serialized resume state.
 - Writable sandbox/workspace runtime, write/patch/shell tools, and command
   approval policy.
