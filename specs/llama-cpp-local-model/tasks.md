@@ -38,8 +38,9 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
 - Current execution gate: T3.1 is the next pending step — add RED tests for
   separate local embedding configuration only if that optional Slice 3 follow-up
   is explicitly scheduled
-- Scope rule: keep the first slice centered on endpoint-backed local chat; do
-  not merge graph-mutation or runtime-managed server work into these tasks
+- Scope rule: keep completed endpoint-wrapper work separate from the next direct
+  in-process llama.cpp chat slice; do not merge graph-mutation or
+  runtime-managed server work into these tasks
 
 ## Slice 1 — Endpoint-backed local chat through the existing provider seam
 
@@ -65,25 +66,28 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
     `create_local_async_openai_adapter(...)`
 
 - [x] T1.2 [tests] Add failing executor coverage in `tests/test_executor.py`
-      proving `local_only` routing still works for the caller-built local
-      adapter.
+      proving the then-current `local_only` routing worked for the caller-built
+      local adapter. Later model-adapter coverage work replaced this routing
+      metadata with `model_adapter_coverage="strict"` for local-only client
+      intent.
   - Spec: FR-1, FR-6
   - Plan: Current Repository State; Architecture and Data Flow
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
-  - Domain context: local routing must continue to depend on adapter `models`
-    plus `is_local`
+  - Domain context: local routing depended on adapter `models` plus `is_local`
+    at the time; current client intent uses strict adapter coverage.
   - Depends on: none
   - Validation: `poetry run pytest tests/test_executor.py -q`
-  - Evidence: a `local_only` request selects the local adapter without any new
-    executor-specific branch
+  - Evidence: a historical `local_only` request selected the local adapter
+    without any new executor-specific branch
   - Completed in commit `b79f124` (`test(local-models): add RED executor
     routing coverage`)
   - RED: `poetry run pytest tests/test_executor.py -q 2>&1` — failed with
     `ModuleNotFoundError: No module named 'dynamic_agent_runner.local_models'`
-    after adding `test_prepare_model_input_routes_local_only_requests_to_helper_built_local_adapter`
-    to prove helper-built local adapters still satisfy `local_only` routing via
-    adapter `models` plus `is_local`
+    after adding
+    `test_prepare_model_input_routes_local_only_requests_to_helper_built_local_adapter`
+    to prove helper-built local adapters satisfied the then-current
+    `local_only` routing via adapter `models` plus `is_local`
 
 - [x] T1.3 [implementation] Add `src/dynamic_agent_runner/local_models.py` with
       the first-slice local endpoint config and helper factory.
@@ -258,39 +262,80 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
       src/dynamic_agent_runner/openai_client.py tests/test_local_models.py 2>&1`
       — Ruff Check passed; Ruff Format passed
 
-## Slice 3 — Optional embedding and in-process follow-up
+## Slice 3 — Direct in-process llama.cpp chat
 
-- [ ] T3.1 [tests] Add failing tests for separate local embedding configuration
-      only when a later slice is explicitly scheduled.
-  - Spec: FR-3
-  - Plan: Slice 3 — Optional embedding and in-process follow-up
+- [ ] T3.1 [tests] Add RED tests for direct llama.cpp config and package-root
+      factory exports without importing `llama_cpp` at package import time.
+  - Spec: FR-1, FR-2, FR-6
+  - Plan: Slice 3 — Direct in-process llama.cpp chat
   - Files/components: `tests/test_local_models.py`,
-    `src/dynamic_agent_runner/local_models.py`
-  - Depends on: T1.3
+    `tests/test_import.py`, `src/dynamic_agent_runner/local_models.py`,
+    `src/dynamic_agent_runner/__init__.py`
   - Validation: `poetry run pytest tests/test_local_models.py -q`
-  - Evidence: chat and embedding configuration can remain related but distinct
+  - Expected RED: direct llama.cpp config/factories do not exist yet.
+  - Evidence: package import remains lightweight and direct llama.cpp helpers
+    are caller-visible.
 
-- [ ] T3.2 [implementation] Extend the local-model helper surface with separate
-      embedding configuration while preserving the first chat slice boundary.
-  - Spec: FR-3
-  - Plan: Slice 3 — Optional embedding and in-process follow-up
+- [ ] T3.2 [tests] Add RED tests for direct in-process model resolution,
+      dependency loading, and local backend failure translation.
+  - Spec: FR-2, FR-5, FR-5b, FR-5c, FR-6
+  - Plan: Slice 3 — Direct in-process llama.cpp chat
   - Files/components: `src/dynamic_agent_runner/local_models.py`,
     `tests/test_local_models.py`
   - Depends on: T3.1
   - Validation: `poetry run pytest tests/test_local_models.py -q`
-  - Evidence: local embeddings can be configured without introducing a new
-    top-level execution API
+  - Expected RED: no direct in-process llama.cpp adapter loads resolved model
+    assets or translates backend failures.
+  - Evidence: missing `llama_cpp`, model-load failures, and generation failures
+    fail through package-owned errors without trying to start a server.
 
-- [ ] T3.3 [research/implementation] Evaluate the in-process
-      `llama_cpp.Llama` path only after the endpoint-backed slice is complete.
-  - Spec: FR-2, FR-3, FR-4
-  - Plan: Why in-process llama.cpp is not the first slice
+- [ ] T3.3 [implementation] Add direct sync llama.cpp adapter construction using
+      documented `llama_cpp.Llama` chat APIs and existing model-resolution
+      helpers.
+  - Spec: FR-1, FR-2, FR-4, FR-5, FR-5b, FR-5c, FR-6
+  - Plan: Slice 3 — Direct in-process llama.cpp chat
   - Files/components: `src/dynamic_agent_runner/local_models.py`,
     `tests/test_local_models.py`
-  - Depends on: T1.4
-  - Validation: unknown — depends on the exact in-process surface chosen later
-  - Evidence: any in-process path remains thin, documented, and aligned with
-    upstream prerequisites
+  - Depends on: T3.2
+  - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - Evidence: direct local chat works through fake llama.cpp backends, advertises
+    model aliases, resolves assets, and normalizes generated text into the
+    runtime response contract.
+
+- [ ] T3.4 [implementation] Add async direct llama.cpp adapter wrapper without
+      requiring an undocumented native async llama.cpp API.
+  - Spec: FR-1, FR-2, FR-4
+  - Plan: Slice 3 — Direct in-process llama.cpp chat
+  - Files/components: `src/dynamic_agent_runner/local_models.py`,
+    `tests/test_local_models.py`, `tests/test_executor.py`
+  - Depends on: T3.3
+  - Validation:
+    `poetry run pytest tests/test_local_models.py tests/test_executor.py -q`
+  - Evidence: async workflows can use direct llama.cpp adapters without blocking
+    the event loop directly in adapter code.
+
+- [ ] T3.5 [tests/implementation] Prove strict and augmented adapter coverage
+      behavior with direct llama.cpp adapters.
+  - Spec: FR-1
+  - Plan: Slice 3 — Direct in-process llama.cpp chat
+  - Files/components: `tests/test_executor.py`,
+    `src/dynamic_agent_runner/local_models.py`
+  - Depends on: T3.4
+  - Validation: `poetry run pytest tests/test_executor.py -q`
+  - Evidence: strict mode keeps direct llama.cpp adapters authoritative, while
+    augmented mode may still use default OpenAI coverage for eligible misses.
+
+## Slice 5 — Optional embedding follow-up
+
+- [ ] T5.0 [planning] Add a focused embedding task breakdown before implementing
+      separate local embedding configuration.
+  - Spec: FR-3
+  - Plan: optional embedding follow-up
+  - Files/components: `specs/llama-cpp-local-model/tasks.md`,
+    `src/dynamic_agent_runner/local_models.py`, `tests/test_local_models.py`
+  - Depends on: Slice 3
+  - Validation: spec/task review
+  - Evidence: chat and embedding configuration can remain related but distinct
 
 ## Slice 4 — Validation and artifact completion
 
@@ -314,7 +359,8 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
   - Files/components: `tests/test_executor.py`
   - Depends on: T1.4
   - Validation: `poetry run pytest tests/test_executor.py -q`
-  - Evidence: executor `local_only` routing still works through adapter metadata
+  - Evidence: executor local routing worked through adapter metadata at the
+    Slice 1 checkpoint
   - Completed during the post-T1.5 Slice 1 checkpoint refresh
   - GREEN:
     - `poetry run pytest tests/test_openai_client.py tests/test_executor.py`
@@ -381,21 +427,26 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
   surface is implemented.
 - Slice 2 should not begin until the endpoint-backed local chat checkpoint is
   stable.
-- Slice 3 remains explicitly optional and should not block first-slice delivery.
+- Slice 3 is the next direct in-process llama.cpp chat slice.
+- Slice 5 embedding follow-up remains optional and should not block direct local
+  chat delivery.
 
 ## Checkpoints
 
 - Checkpoint 1 — caller-owned endpoint-backed local chat adapter works through
-  the existing provider seam and satisfies `local_only` routing.
+  the existing provider seam and satisfied the then-current local routing tests.
 - Checkpoint 2 — runtime-owned model reference resolution and failure taxonomy
   work without taking ownership of server lifecycle.
-- Checkpoint 3 — optional embedding or in-process follow-up remains separate
-  from graph-mutation delivery.
+- Checkpoint 3 — direct in-process llama.cpp chat works without requiring a
+  server.
+- Checkpoint 4 — optional embedding follow-up remains separate from
+  graph-mutation delivery.
 
 ## Validation Commands
 
 - `poetry run pytest tests/test_openai_client.py -q` — adapter/provider coverage
-- `poetry run pytest tests/test_executor.py -q` — local routing coverage
+- `poetry run pytest tests/test_executor.py -q` — adapter coverage and selection
+  coverage
 - `poetry run pytest tests/test_import.py -q` — package export coverage when
   needed
 - `poetry run pytest tests/test_local_models.py -q` — local-model helper and

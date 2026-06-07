@@ -1,13 +1,14 @@
 # llama.cpp Local-Model Adapter Implementation Plan
 
-Status: active implementation record; Slices 1-2 complete, optional Slice 3 unscheduled
+Status: active implementation record; Slices 1-2 complete, direct in-process
+Slice 3 pending
 
 ## Goal
 
 Plan a phased implementation that adds llama.cpp-oriented local-model support
-through the repository's existing OpenAI-compatible adapter/provider seam,
-without introducing a separate executor path or runtime-managed server
-lifecycle.
+through the repository's existing model-adapter contract, including direct
+in-process `llama_cpp.Llama` execution without a local server, while preserving
+the existing OpenAI-compatible endpoint path when callers already provide one.
 
 ## Spec Trace
 
@@ -20,18 +21,20 @@ lifecycle.
 
 ## Technical Summary
 
-- The first implementation slice should add a caller-facing local-model helper
-  that builds `OpenAIClientAdapter` / `AsyncOpenAIClientAdapter` instances for
-  caller-owned or deployer-owned OpenAI-compatible local endpoints.
-- The first slice must keep executor behavior unchanged by continuing to rely on
-  advertised adapter `models` plus `is_local=True` for `local_only` routing.
+- Slices 1-2 already added caller-facing local endpoint helpers, model asset
+  resolution, and local failure taxonomy.
+- Slice 3 should add a caller-facing direct in-process llama.cpp chat adapter
+  backed by documented `llama_cpp.Llama` APIs without requiring a local server
+  or the `llama-cpp-python[server]` extra.
+- Slice 3 must keep executor behavior unchanged by continuing to rely on
+  advertised adapter `models`, `is_local=True`, and strict/augmented
+  `model_adapter_coverage` behavior.
 - Local-model-specific configuration, reference parsing, and future asset
   resolution should live in a dedicated runtime-owned helper module rather than
   overloading `executor.py` with provider-specific behavior.
 - Runtime-managed server launch, supervision, readiness, and shutdown remain
   out of scope.
-- Runtime-owned model reference resolution, cache lookup, Hugging Face download,
-  and optional embedding follow-up should be planned as later slices that extend
+- Optional embedding follow-up should be planned as a later slice that extends
   the same local-model helper surface without changing the core executor path.
 
 ## Source Artifacts
@@ -39,11 +42,11 @@ lifecycle.
 - `specs/llama-cpp-local-model/spec.md` — authoritative feature intent and
   boundaries
 - `specs/openai-compatible-provider-wrapper/spec.md` — existing provider seam
-  that the first slice must reuse
+  used by caller-owned local server wrappers
 - `src/dynamic_agent_runner/openai_client.py` — current adapter/provider and
   response-normalization boundary
 - `src/dynamic_agent_runner/executor.py` — current model selection and
-  `local_only` routing behavior
+  strict/augmented adapter coverage behavior
 - `src/dynamic_agent_runner/errors.py` — runtime-facing error types
 - `src/dynamic_agent_runner/__init__.py` — package-level exports
 - `tests/test_openai_client.py` — primary adapter/provider validation surface
@@ -70,8 +73,8 @@ lifecycle.
   `huggingface_hub` file/snapshot wiring for the runtime-owned resolution path,
   plus authoritative model-identity preservation across endpoint aliases,
   explicit local paths, explicit Hub references, and observed provider model
-  names; Slice 2 is now complete and optional Slice 3 follow-up is next only if
-  explicitly scheduled.
+  names; Slice 2 is now complete and direct in-process llama.cpp chat is the
+  next pending follow-up.
 - Existing tests already exercise fake-client adapter behavior and executor
   routing, so the new feature can extend current test surfaces without live
   infrastructure.
@@ -86,7 +89,7 @@ Deliver the highest-ROI path first:
 - default resulting adapters to `is_local=True`
 - allow one or more caller-declared model aliases
 - preserve repository-owned request construction and normalization
-- prove `local_only` executor routing works without any new executor branch
+- prove local adapter selection works without any new executor branch
 - current checkpoint: T1.1 RED helper-contract tests completed in commit
   `a5798cc` (`test(local-models): add RED tests for local endpoint helpers`);
   T1.2 RED executor-routing tests completed in commit `b79f124`
@@ -134,31 +137,37 @@ This slice should also introduce a clearer runtime-facing distinction between:
 This remains runtime-owned preflight and resolution logic, not server-lifecycle
 ownership.
 
-### Slice 3 — Optional embedding and in-process follow-up
+### Slice 3 — Direct in-process llama.cpp chat
 
-Only after Slices 1 and 2 are complete should later work consider:
+After Slices 1 and 2, add direct local chat execution without requiring a
+server:
 
-- separate local embedding configuration
-- in-process `llama_cpp.Llama` usage
-- upstream prerequisites such as `embedding=True` and chat-format-specific
-  function-calling requirements
+- caller-facing config/factory for direct llama.cpp chat adapters
+- lazy `llama_cpp` dependency loading and model construction
+- model asset resolution reuse from Slice 2
+- chat generation through documented `llama_cpp.Llama` high-level APIs
+- package-owned normalization to `ModelResponse`
+- sync adapter plus async wrapper behavior consistent with the MLX local adapter
+- strict/augmented executor coverage tests without live models
 
-This slice must remain separate from graph-mutation delivery.
+This slice must remain separate from graph-mutation delivery and server
+lifecycle ownership.
 
 ## Architectural Decision
 
 ### Chosen approach
 
-Introduce a dedicated local-model support module that builds on the existing
-OpenAI-compatible provider seam instead of introducing a new top-level model
-execution family.
+Introduce dedicated local-model support surfaces that build on the existing
+model-adapter contract instead of introducing a new top-level model execution
+family. Use the OpenAI-compatible provider seam for caller-owned servers and a
+direct `llama_cpp.Llama` adapter for in-process execution.
 
 ### Why this approach is preferred
 
-- It preserves the current executor contract and local-routing behavior.
+- It preserves the current executor contract and adapter coverage behavior.
 - It keeps provider-specific configuration out of `executor.py`.
 - It creates one place to evolve local endpoint config, model references,
-  resolution helpers, and optional embeddings.
+  resolution helpers, direct llama.cpp adapters, and optional embeddings.
 - It keeps response normalization and request shaping under current repository
   ownership.
 
@@ -176,18 +185,17 @@ execution family.
 - Server ownership would add deployment-specific behavior to a portable runtime
   library and would not improve the existing adapter-routing seam.
 
-### Why in-process llama.cpp is not the first slice
+### Why direct in-process llama.cpp is now the next slice
 
-- The approved spec prefers endpoint-backed local chat as the first delivery
-  path.
-- The repository already has an async-friendly OpenAI-compatible transport seam,
-  while in-process integration would add a separate runtime surface earlier than
-  needed.
+- The endpoint-backed helper path and model-resolution support already exist.
+- The package dependency now uses `llama-cpp-python` without the `server` extra.
+- Direct local execution is needed so callers can run GGUF models without an
+  installed or reachable OpenAI-compatible local server.
 
 ## Affected Areas
 
 - `src/dynamic_agent_runner/local_models.py` — new runtime-owned local-model
-  config, helper, reference, and future resolution surface
+  config, helper, reference, resolution, and direct llama.cpp adapter surface
 - `src/dynamic_agent_runner/openai_client.py` — integration point for any local
   helper that builds existing adapters and preserves normalization ownership
 - `src/dynamic_agent_runner/errors.py` — optional new local-model error typing or
@@ -197,13 +205,13 @@ execution family.
 - `tests/test_local_models.py` — new focused unit coverage for local-model
   config and resolution logic
 - `tests/test_openai_client.py` — provider-seam and adapter-behavior coverage
-- `tests/test_executor.py` — `local_only` routing and adapter-selection coverage
-- `pyproject.toml` and `poetry.lock` — only if the model-resolution slice adds a
-  runtime dependency on `huggingface_hub`
+- `tests/test_executor.py` — strict/augmented adapter-selection coverage
+- `pyproject.toml` and `poetry.lock` — dependency policy already uses direct
+  `llama-cpp-python` without the `server` extra and optional `huggingface`
 
 ## Architecture and Data Flow
 
-### First-slice endpoint-backed local chat
+### Completed endpoint-backed local chat
 
 1. The caller provides runtime-owned local endpoint inputs such as base URL,
    optional API key, model aliases, and optional expected model identity.
@@ -244,7 +252,7 @@ execution family.
 - Tactical pattern fit: thin config/helper layer over existing adapter and
   transport seams, with separate preflight resolution helpers for later slices
 - Domain assumptions:
-  - caller or deployer can provision the endpoint for the first slice
+  - caller or deployer can provision the endpoint when choosing the wrapper path
   - graph mutation stays in its own feature spec
   - local embedding support is a later slice, not a first-slice requirement
 
@@ -286,7 +294,7 @@ execution family.
 
 ## Verification Strategy
 
-- FR-1 / FR-2 / FR-3 / FR-6 first slice:
+- FR-1 / FR-2 / FR-3 / FR-6 endpoint-wrapper path:
   - `poetry run pytest tests/test_openai_client.py -q`
   - `poetry run pytest tests/test_executor.py -q`
 - FR-4 response-normalization ownership:
@@ -388,19 +396,19 @@ Initial recorded evidence:
 
 ## Risks and Mitigations
 
-- Risk: the feature scope expands the first slice into server ownership or graph
-  mutation follow-up.
-  - Mitigation: keep the first slice limited to endpoint-backed local chat and
-    defer later work into separate checkpoints.
+- Risk: the feature scope expands direct in-process llama.cpp work into server
+  ownership or graph mutation follow-up.
+  - Mitigation: keep direct execution limited to local chat and defer graph
+    mutation into separate checkpoints.
 - Risk: local-model behavior leaks into executor-specific branches.
   - Mitigation: keep all local behavior behind adapter metadata and helper
     construction, then validate existing routing with executor tests.
 - Risk: model-resolution and endpoint failures become indistinguishable.
   - Mitigation: add explicit local-model failure translation in the later
     resolution slice.
-- Risk: dependency churn lands before the endpoint-backed slice proves value.
-  - Mitigation: gate `huggingface_hub` dependency changes behind the later
-    model-resolution slice.
+- Risk: dependency churn obscures the direct-execution boundary.
+  - Mitigation: keep `llama-cpp-python` as the direct dependency without the
+    `server` extra and keep Hub access behind the optional `huggingface` extra.
 
 ## Rejected Alternatives
 
@@ -410,9 +418,9 @@ Initial recorded evidence:
 - Alternative: launch and supervise `llama_cpp.server` from the runtime library.
   - Rejected because the approved spec assigns server ownership to the caller or
     deployer.
-- Alternative: start with in-process `llama_cpp.Llama` integration first.
-  - Rejected because the approved first slice prefers the endpoint-backed path
-    and the provider seam already exists.
+- Alternative: require callers to expose llama.cpp through `llama_cpp.server`.
+  - Rejected because direct in-process execution must work without a local
+    server being installed, launched, or reachable.
 - Alternative: combine embedding delivery with the first chat slice.
   - Rejected because the approved spec explicitly allows embedding work to land
     later.
