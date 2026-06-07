@@ -38,6 +38,7 @@ Current tests cover:
 - OpenAI request construction and fake-client adapter execution
 - local model path resolution, offline policy, identity checks, and local endpoint
   error classification
+- Hugging Face model discovery normalization and error wrapping
 - async model, tool, and hook dispatch
 - workflow execution, retries, output contracts, route validation, token budgets,
   prompt-cache observations, provider cache telemetry, and traces

@@ -50,14 +50,21 @@ Known configuration:
 
 - Python package managed by Poetry
 - Python compatibility: `>=3.13,<3.14.1 || >3.14.1,<3.15`
-- local mise configuration selects Python `3.13`
+- local mise configuration selects Python `3.13`, uses an in-project `.venv`,
+  and sources `env_setup` on shell entry
 - primary runtime dependencies on `roschumalib` and the official `openai` package
+- CLI parsing uses `argparse` through the package-owned console entry point
 - retry support uses `tenacity` behind package-owned retry policy interfaces
 - token estimation uses `tiktoken` behind package-owned token-budget interfaces
+- model capability metadata uses `openai-model-registry` behind
+  package-owned validation and selection interfaces
 - workflow tracing uses package-owned trace events and optional trace sinks
 - async execution, lifecycle hooks, prompt-cache observation, local
   OpenAI-compatible endpoint helpers, and context-pipeline graph-mutation helpers
   are implemented behind package-owned interfaces
+- local model asset and endpoint support is represented through
+  package-owned local-model helpers; `llama-cpp-python` and `huggingface-hub`
+  are available dependencies, but the runner does not start model servers
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
 - the initial implementation targets the OpenAI Python SDK behind a small adapter
@@ -86,9 +93,10 @@ Install dependencies with Poetry:
 poetry install --with dev --with docs
 ```
 
-If using mise, enter the project normally so `.mise.toml` can configure the
-in-project virtual environment. The repository also provides `env_setup`, which
-must be sourced rather than executed directly:
+If using mise, enter the project normally so `.mise.toml` can select Python
+3.13, configure Poetry to use the in-project `.venv`, and source `env_setup`.
+The repository also provides `env_setup` for manual shells; it must be sourced
+rather than executed directly:
 
 ```bash
 source env_setup
@@ -293,6 +301,8 @@ Current tests cover:
 - applying bounded model and tool retry policies without live model calls
 - resolving local model assets and classifying local OpenAI-compatible endpoint
   failures
+- searching Hugging Face models through a repository-owned public result
+  contract
 - dispatching async model, tool, and lifecycle hook calls
 - deriving and applying context-pipeline graph-mutation helpers for prepared
   context injection

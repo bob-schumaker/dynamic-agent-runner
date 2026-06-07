@@ -91,6 +91,12 @@ as local for capability routing, and translate local endpoint connectivity,
 protocol, and model-identity failures into package-owned errors. They do not
 start or supervise a local model server.
 
+Local model asset resolution is available through the package-owned helpers in
+``dynamic_agent_runner.local_models``. Those helpers resolve explicit paths,
+configured cache roots, default local cache roots, and optional Hugging Face file
+or snapshot references; they keep downloading and server supervision caller
+controlled.
+
 .. header2:: Hugging Face model discovery
 
 Use ``search_hugging_face_models(...)`` to search Hugging Face models through a
