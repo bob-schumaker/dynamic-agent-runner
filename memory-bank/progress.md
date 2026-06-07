@@ -29,6 +29,11 @@
 - Model adapter coverage policy is implemented: callers can choose
   `model_adapter_coverage="strict"` for authoritative supplied adapters or rely
   on default augmented behavior for eligible default OpenAI coverage.
+- macOS MLX local-model adapter support is implemented: callers can create sync
+  or async MLX adapters with `MLXLocalModelConfig`, use strict coverage for
+  local-only execution, validate converted MLX model directories, resolve
+  explicit Hub file/snapshot references through injected download functions, and
+  receive normalized text responses.
 - Async-session support is currently metadata-only and documented as host-managed
   continuity for first-customer use cases.
 
@@ -60,9 +65,9 @@
   local-only routing removal, focused tests, client-facing docs, and
   repository-local skill guidance for default OpenAI and local llama.cpp adapter
   usage.
-- The macOS MLX local-model adapter spec is now implementation-ready with
-  `specs/mlx-local-model-adapter/spec.md`, `plan.md`, and `tasks.md`; no runtime
-  implementation has started.
+- The macOS MLX local-model adapter landed through Slices 1-4 with public
+  helpers, lazy platform/dependency failures, local asset resolution, identity
+  validation, executor coverage, docs, and focused regression validation.
 - The Hugging Face support-layer implementation is complete and satisfies the
   MLX Hub-reference dependency for T3.5/T3.6.
 
@@ -70,9 +75,6 @@
 
 - Optional llama.cpp Slice 3: separate local embedding configuration, if
   explicitly scheduled.
-- Active MLX next work: continue from Slice 3 in
-  `specs/mlx-local-model-adapter/tasks.md`; the Hugging Face dependency for
-  T3.5/T3.6 is complete.
 - Future richer Hugging Face Hub behavior beyond read-only model discovery; this
   requires a separate feature spec.
 - Ongoing docs hygiene: keep `README.md` and authored Sphinx files under

@@ -5,8 +5,8 @@
 - Feature slug: `mlx-local-model-adapter`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: ready for implementation; plan and task list prepared; not
-  implemented
+- Status: implemented; public adapter helpers, path/Hub resolution,
+  identity validation, executor coverage, docs, and focused validation complete
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/llama-cpp-local-model/spec.md`
@@ -326,23 +326,23 @@ Acceptance criteria:
 
 ## Validation Checklist
 
-- [ ] Importing `dynamic_agent_runner` succeeds without MLX installed.
-- [ ] MLX adapter construction fails clearly on unsupported platforms.
-- [ ] MLX adapter construction fails clearly when MLX dependencies are missing.
-- [ ] Fake MLX adapter tests prove advertised model aliases are selected by the
+- [x] Importing `dynamic_agent_runner` succeeds without MLX installed.
+- [x] MLX adapter construction fails clearly on unsupported platforms.
+- [x] MLX adapter construction fails clearly when MLX dependencies are missing.
+- [x] Fake MLX adapter tests prove advertised model aliases are selected by the
       existing executor path.
-- [ ] Strict coverage with only MLX adapters prevents default OpenAI fallback.
-- [ ] Augmented coverage continues to allow default OpenAI fallback for eligible
+- [x] Strict coverage with only MLX adapters prevents default OpenAI fallback.
+- [x] Augmented coverage continues to allow default OpenAI fallback for eligible
       missing coverage.
-- [ ] Explicit local model-path resolution succeeds and missing assets fail
+- [x] Explicit local model-path resolution succeeds and missing assets fail
       before generation.
-- [ ] Hugging Face snapshot/file reference behavior is tested without network
+- [x] Hugging Face snapshot/file reference behavior is tested without network
       by injected fake download functions.
-- [ ] Model identity mismatch failures preserve requested alias and
+- [x] Model identity mismatch failures preserve requested alias and
       authoritative identity.
-- [ ] MLX generation output is normalized to `ModelResponse`.
-- [ ] Unsupported tool-call or structured-output requests fail clearly.
-- [ ] Documentation explains macOS-only support, strict local-only usage, and
+- [x] MLX generation output is normalized to `ModelResponse`.
+- [x] Unsupported tool-call or structured-output requests fail clearly.
+- [x] Documentation explains macOS-only support, strict local-only usage, and
       the distinction between in-process MLX adapters and OpenAI-compatible
       endpoint adapters.
 

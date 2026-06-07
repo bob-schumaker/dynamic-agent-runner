@@ -24,6 +24,10 @@ from dynamic_agent_runner.executor import (
     prepare_model_input,
 )
 from dynamic_agent_runner.hooks import NodeHookContext, WorkflowLifecycleHooks
+from dynamic_agent_runner.mlx_models import (
+    MLXLocalModelConfig,
+    create_mlx_local_adapter,
+)
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
     ToolDefinition,
@@ -78,6 +82,16 @@ class AsyncFakeResponses:
 class AsyncFakeClient:
     def __init__(self, responses: list[object]):
         self.responses = AsyncFakeResponses(responses)
+
+
+class FakeMLXBackend:
+    def __init__(self, content: str = "mlx local") -> None:
+        self.content = content
+        self.requests: list[object] = []
+
+    def generate(self, request: object) -> str:
+        self.requests.append(request)
+        return self.content
 
 
 def package_fixture_path(pattern_id: str = "basic-reasoning-agent") -> Path:
@@ -1959,6 +1973,48 @@ def test_execute_workflow_strict_fails_with_nonmatching_adapter() -> None:
     assert adapter.client.responses.calls == []
 
 
+def test_execute_workflow_strict_with_mlx_adapter_prevents_default_openai(
+    tmp_path: Path,
+) -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "strict-mlx-nonmatching-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    backend = FakeMLXBackend()
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=tmp_path / "mlx-model",
+        ),
+        backend=backend,
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="model_adapter_coverage.*strict"):
+        execute_workflow(
+            workflow,
+            prompt="Hello",
+            model_adapter=[adapter],
+            model_adapter_coverage="strict",
+        )
+
+    assert backend.requests == []
+
+
 def test_execute_workflow_strict_fails_when_required_features_are_unavailable() -> None:
     workflow = workflow_from(
         {
@@ -2050,6 +2106,61 @@ def test_execute_workflow_augmented_uses_default_openai_for_missing_coverage(
 
     assert result.final_result == "default ok"
     assert supplied.client.responses.calls == []
+    assert isinstance(seen_adapters[0], AsyncOpenAIClientAdapter)
+    assert seen_adapters[0].models == ("gpt-test",)
+
+
+def test_execute_workflow_augmented_with_mlx_adapter_uses_default_openai(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "augmented-mlx-default-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    backend = FakeMLXBackend("wrong")
+    supplied = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=tmp_path / "mlx-model",
+        ),
+        backend=backend,
+        platform_system=lambda: "Darwin",
+    )
+    seen_adapters: list[object] = []
+
+    async def fake_create_model_response(adapter, request):
+        seen_adapters.append(adapter)
+        return ModelResponse(response_id="resp-default", content="default ok")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.executor._create_model_response_async",
+        fake_create_model_response,
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Hello",
+        model_adapter=[supplied],
+        model_adapter_coverage="augmented",
+    )
+
+    assert result.final_result == "default ok"
+    assert backend.requests == []
     assert isinstance(seen_adapters[0], AsyncOpenAIClientAdapter)
     assert seen_adapters[0].models == ("gpt-test",)
 

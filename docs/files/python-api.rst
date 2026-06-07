@@ -137,6 +137,41 @@ configured cache roots, default local cache roots, and optional Hugging Face fil
 or snapshot references; they keep downloading and server supervision caller
 controlled.
 
+.. header2:: macOS MLX local models
+
+Use ``MLXLocalModelConfig`` when a macOS caller owns a converted MLX model
+directory and wants in-process local text generation through the normal adapter
+contract:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       MLXLocalModelConfig,
+       create_mlx_local_async_adapter,
+   )
+
+   adapter = create_mlx_local_async_adapter(
+       MLXLocalModelConfig(
+           model_aliases=("mlx-local-chat",),
+           model_path="path/to/mlx-model-directory",
+           expected_model_id="mlx-community/example-model",
+       )
+   )
+
+   result = await run_agent_workflow_async(
+       prompt="Run locally on MLX.",
+       package_directory="path/to/agent-package",
+       model_adapter=[adapter],
+       model_adapter_coverage="strict",
+   )
+
+MLX helpers are macOS-only and lazily import ``mlx-lm`` for the default
+in-process backend. They validate converted model directories before generation,
+normalize generated text into the package ``ModelResponse`` contract, and reject
+unsupported tool-call or structured-output requests. Use strict coverage for
+local-only execution. If a caller already exposes an MLX model through an
+OpenAI-compatible local server, use ``LocalOpenAIEndpointConfig`` instead.
+
 .. header2:: Hugging Face model discovery
 
 Use ``search_hugging_face_models(...)`` to search Hugging Face models through a

@@ -1,6 +1,6 @@
 # macOS MLX Local-Model Adapter Task List
 
-Status: ready for implementation
+Status: implemented; Slices 1-4 complete
 
 ## Prerequisites
 
@@ -187,7 +187,7 @@ fields.
 
 ## Slice 4 — Executor Coverage and Public Documentation
 
-- [ ] T4.1 [tests] Add RED executor tests proving strict and augmented behavior
+- [x] T4.1 [tests] Add RED executor tests proving strict and augmented behavior
       with MLX adapters.
   - Spec: FR-1
   - Plan: Executor integration
@@ -199,8 +199,10 @@ fields.
       not match an eligible OpenAI model
   - Validation: `poetry run pytest tests/test_executor.py -q`
   - Expected RED: MLX adapter test helpers do not exist or do not integrate.
+  - GREEN: `poetry run pytest tests/test_executor.py tests/test_mlx_models.py -q`
+    passed with 78 tests.
 
-- [ ] T4.2 [implementation] Complete executor-facing adapter metadata behavior.
+- [x] T4.2 [implementation] Complete executor-facing adapter metadata behavior.
   - Spec: FR-1
   - Plan: Executor integration
   - Files/components: `src/dynamic_agent_runner/mlx_models.py`,
@@ -208,8 +210,10 @@ fields.
   - Depends on: T4.1
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_mlx_models.py -q`
+  - GREEN: `poetry run pytest tests/test_executor.py tests/test_mlx_models.py -q`
+    passed with 78 tests.
 
-- [ ] T4.3 [docs] Document client-facing MLX adapter usage.
+- [x] T4.3 [docs] Document client-facing MLX adapter usage.
   - Spec: Validation Checklist
   - Plan: Public exports, Dependency policy
   - Files/components: `README.md`, `docs/files/python-api.rst`,
@@ -217,8 +221,9 @@ fields.
     `specs/README.md`
   - Depends on: T4.2
   - Validation: `make -C docs html`
+  - GREEN: `make -C docs html` passed.
 
-- [ ] T4.4 [validation] Run focused regression validation.
+- [x] T4.4 [validation] Run focused regression validation.
   - Spec: Validation Checklist
   - Plan: Validation Plan
   - Files/components: implementation and docs changed in Slices 1-4
@@ -226,8 +231,9 @@ fields.
   - Validation:
     `poetry run pytest tests/test_import.py tests/test_local_models.py
     tests/test_mlx_models.py tests/test_executor.py tests/test_cli.py -q`
+  - GREEN: focused MLX regression validation passed with 112 tests.
 
-- [ ] T4.5 [spec-maintenance] Record implementation evidence and update
+- [x] T4.5 [spec-maintenance] Record implementation evidence and update
       status.
   - Spec: Metadata, Validation Checklist
   - Plan: Validation Plan
@@ -237,3 +243,5 @@ fields.
     `memory-bank/activeContext.md`, `memory-bank/progress.md`
   - Depends on: T4.4
   - Validation: `pre-commit run --files <changed files>`
+  - GREEN: targeted pre-commit passed for MLX implementation, docs, spec, and
+    memory files.

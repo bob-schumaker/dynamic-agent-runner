@@ -168,6 +168,27 @@ Local endpoint helpers wrap an already-running compatible server, including
 llama.cpp servers exposing an OpenAI-compatible API. They do not start, stop, or
 supervise model-server processes.
 
+For macOS in-process MLX local models, use the MLX adapter helpers:
+
+```python
+from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+adapter = create_mlx_local_adapter(
+    MLXLocalModelConfig(
+        model_aliases=("mlx-local-chat",),
+        model_path="path/to/mlx-model-directory",
+        expected_model_id="mlx-community/example-model",
+    )
+)
+```
+
+Pass MLX adapters as a list with `model_adapter_coverage="strict"` when the run
+must stay local. MLX helpers validate converted model directories and normalize
+plain generated text into the runner response contract. The default in-process
+backend lazily uses `mlx-lm` when installed; tests and hosts can inject a fake or
+custom backend. The helpers do not start a server, and they are distinct from
+the OpenAI-compatible endpoint helpers.
+
 `search_hugging_face_models(...)` is read-only discovery. A matching result does
 not mean the model is downloaded, runnable, or compatible with the workflow.
 

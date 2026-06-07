@@ -25,6 +25,10 @@
   OpenAI-compatible local endpoints. Implementation plan/tasks are prepared in
   `specs/mlx-local-model-adapter/plan.md` and
   `specs/mlx-local-model-adapter/tasks.md`.
+- The macOS MLX local-model adapter is implemented through Slices 1-4:
+  package-root helpers, lazy dependency/platform failures, converted directory
+  preflight, injected Hub file/snapshot resolution, identity validation,
+  executor coverage, and client docs are complete.
 - The repo has a top-level spec index at `specs/README.md` that identifies the
   primary runtime spec, all feature-spec packages, and the completion matrix.
 - The primary runtime spec remains `specs/dynamic-agent-runner/spec.md`.
@@ -44,7 +48,6 @@
   - `specs/async-session-memory-pipeline/spec.md`
   - `specs/model-adapter-coverage/spec.md`
   - `specs/hugging-face-support-layer/spec.md`
-- Active next-change spec:
   - `specs/mlx-local-model-adapter/spec.md`
 - Future investigation or future-feature specs:
   - `specs/llm-step-interpreter-middleware/spec.md`
@@ -72,6 +75,10 @@
   `model_adapter_coverage` argument on high-level and lower-level execution
   APIs, strict missing-coverage failures, augmented default OpenAI coverage, and
   no `local_only` adapter-routing semantics.
+- macOS MLX local-model adapter support is implemented with
+  `MLXLocalModelConfig`, `create_mlx_local_adapter(...)`,
+  `create_mlx_local_async_adapter(...)`, local model preflight, package-owned
+  errors, normalized text responses, and strict/augmented executor coverage.
 - User-facing docs now document the current mise/Poetry setup, package-owned
   local-model helper boundary, Hugging Face discovery test coverage, adapter
   coverage modes, default OpenAI fallback behavior, and dependency direction.
@@ -84,16 +91,14 @@
   and Power-Marimo host automation.
 - The active llama.cpp gate remains optional Slice 3: separate local embedding
   configuration, only if explicitly scheduled.
-- The active MLX gate is ready to continue from
-  `specs/mlx-local-model-adapter/tasks.md`; Slices 1-2 are implemented and
-  Slice 3 can now proceed because the Hugging Face support-layer dependency for
-  T3.5/T3.6 is satisfied.
+- The MLX implementation gate is closed through Slice 4; deferred MLX work
+  includes GGUF, embeddings, multimodal behavior, streaming, tool calling,
+  structured output, model conversion, and any MLX server helper.
 
 ## Next Steps
 
-- For implementation: continue from
-  `specs/mlx-local-model-adapter/tasks.md`; next unresolved MLX work starts at
-  Slice 3 model assets, identity, and generation normalization.
+- For implementation: select the next scoped feature spec or create a new task
+  breakdown before editing runtime code.
 - For documentation: keep `README.md`, `docs/files/`, `specs/README.md`,
   `specs/dynamic-agent-runner/tasks.md`, and feature spec statuses synchronized
   when new slices are selected or closed.

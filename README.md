@@ -162,6 +162,36 @@ result = run_agent_workflow(
 If the compatible provider requires authentication, set `api_key` on
 `LocalOpenAIEndpointConfig`. If it does not, the key may be omitted.
 
+For macOS in-process MLX local models, provide an MLX adapter and strict
+coverage when the workflow must stay local:
+
+```python
+from dynamic_agent_runner import (
+    MLXLocalModelConfig,
+    create_mlx_local_adapter,
+)
+
+mlx_adapter = create_mlx_local_adapter(
+    MLXLocalModelConfig(
+        model_aliases=("mlx-local-chat",),
+        model_path="path/to/mlx-model-directory",
+        expected_model_id="mlx-community/example-model",
+    )
+)
+
+result = run_agent_workflow(
+    package_directory="path/to/agent-package",
+    prompt="Run locally on MLX.",
+    model_adapter=[mlx_adapter],
+    model_adapter_coverage="strict",
+)
+```
+
+The MLX helper is macOS-only, lazily imports `mlx-lm` for the default
+in-process backend, and expects a caller-controlled converted MLX model
+directory or explicit Hugging Face reference. It does not start a server or wrap
+MLX as hosted OpenAI.
+
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls.
 `load_agent_package_workflow(...)` loads and compiles package-directory input.

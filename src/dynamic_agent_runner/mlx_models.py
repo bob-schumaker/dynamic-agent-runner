@@ -90,7 +90,7 @@ class MLXLocalModelAdapter:
     ) -> None:
         self._config = config
         self._backend = backend
-        self._dependency_loader = dependency_loader or _default_dependency_loader
+        self._dependency_loader = dependency_loader
         self._platform_system = platform_system or platform.system
         self._download_file = download_file
         self._download_snapshot = download_snapshot
@@ -135,7 +135,11 @@ class MLXLocalModelAdapter:
     def _get_backend(self) -> MLXLocalBackend:
         if self._backend is None:
             try:
-                loaded = self._dependency_loader()
+                loaded = (
+                    self._dependency_loader()
+                    if self._dependency_loader is not None
+                    else _load_default_mlx_lm_backend(self._config)
+                )
             except ModelExecutionError:
                 raise
             except ImportError as exc:
@@ -315,15 +319,48 @@ def _read_backend_model_id(backend: MLXLocalBackend) -> str | None:
     return str(model_id)
 
 
-def _default_dependency_loader() -> object:
+class _MLXLMBackend:
+    def __init__(self, *, model: object, tokenizer: object) -> None:
+        self._model = model
+        self._tokenizer = tokenizer
+
+    def generate(self, request: OpenAIModelRequest) -> str:
+        try:
+            from mlx_lm import generate
+        except Exception as exc:  # noqa: BLE001 - import errors vary.
+            raise ModelExecutionError(
+                "MLX dependency unavailable for local model execution; install "
+                "mlx-lm before using the default MLX backend"
+            ) from exc
+        prompt = _prompt_from_request(request)
+        return str(generate(self._model, self._tokenizer, prompt=prompt, verbose=False))
+
+
+def _load_default_mlx_lm_backend(config: MLXLocalModelConfig) -> object:
     try:
-        import mlx  # noqa: F401
+        from mlx_lm import load
     except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
         raise ModelExecutionError(
-            "MLX dependency unavailable for local model execution; install MLX "
-            "support before creating a default MLX backend"
+            "MLX dependency unavailable for local model execution; install mlx-lm "
+            "before using the default MLX backend"
         ) from exc
-    raise ModelExecutionError(
-        "MLX local model backend is not configured; provide a backend or use a "
-        "future packaged MLX backend implementation"
-    )
+    try:
+        model, tokenizer = load(str(config.model_path))
+    except Exception as exc:  # noqa: BLE001 - MLX load errors vary.
+        raise ModelExecutionError(
+            f"MLX local model load failed for {config.model_path!s}: {exc}"
+        ) from exc
+    return _MLXLMBackend(model=model, tokenizer=tokenizer)
+
+
+def _prompt_from_request(request: OpenAIModelRequest) -> str:
+    parts: list[str] = []
+    for message in request.messages:
+        role = str(message.get("role", "user"))
+        content = message.get("content", "")
+        if isinstance(content, str):
+            rendered_content = content
+        else:
+            rendered_content = str(content)
+        parts.append(f"{role}: {rendered_content}")
+    return "\n".join(parts)
