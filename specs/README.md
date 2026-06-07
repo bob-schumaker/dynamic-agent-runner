@@ -21,6 +21,7 @@ Companion planning artifacts:
 | --- | --- | --- | --- |
 | OpenAI-compatible provider wrapper | [`spec.md`](openai-compatible-provider-wrapper/spec.md) | Implemented | Slices 1-6 complete; optional compatibility polish only |
 | llama.cpp local-model adapter | [`spec.md`](llama-cpp-local-model/spec.md) | Active implemented baseline | Slices 1-2 complete; optional Slice 3 embedding follow-up unscheduled |
+| Model adapter coverage policy | [`spec.md`](model-adapter-coverage/spec.md) | Ready for implementation | Authoritative active change spec with plan/tasks for explicit `strict` vs default `augmented` adapter coverage; not implemented |
 | Internal graph mutation | [`spec.md`](internal-graph-mutation/spec.md) | Checkpoint complete | T3.2 complete; no additional tasks scheduled |
 | Hugging Face model search | [`spec.md`](hugging-face-model-search/spec.md) | Implemented | Public Hub discovery API, result contract, error translation, exports, tests, and docs complete |
 | Hugging Face support layer | [`spec.md`](hugging-face-support-layer/spec.md) | Future internal refactor | Spec captured; shared Hub import/call/error mechanics not implemented |
@@ -41,6 +42,7 @@ Companion planning artifacts:
 | Package-directory workflow loading and execution | `dynamic-agent-runner` | Complete through package alignment, async-first execution, tracing, hooks, prompt-cache metadata, and portable `tool_type` preservation | Future scoped expansions only |
 | OpenAI-compatible provider facade | `openai-compatible-provider-wrapper` | Sync/async provider facade, provider config, SDK-backed defaults, package exports, and README example complete | Optional compatibility polish for provider-specific behavior |
 | Local endpoint-backed model adapters | `llama-cpp-local-model` | Local endpoint helpers, provider-seam wiring, exports, model-resolution precedence, Hugging Face download wiring, and local failure taxonomy complete | Optional separate local embedding configuration and in-process llama.cpp evaluation |
+| Model adapter coverage policy | `model-adapter-coverage` | Not implemented | Active continuation point: add explicit `model_adapter_coverage` API with `strict` and default `augmented` behavior; remove `local_only` adapter routing |
 | Compile-time graph mutation | `internal-graph-mutation` | Internal typed mutation datamodel, context-pruning mutation, validation, prepared-input integration, and diagnostics complete | Future structural graph surgery or public mutation schema require new approval |
 | Public Hugging Face model discovery | `hugging-face-model-search` | Repository-owned search API, normalized result types, error translation, exports, tests, and docs complete | Future richer Hub capabilities require a separate feature spec |
 | Shared Hugging Face SDK support | `hugging-face-support-layer` | No shared internal support layer exists today; search and local-model download helpers wrap Hub SDK access separately | Internal helper for lazy Hub import, read-only Hub calls, and domain-specific error translation |
@@ -59,7 +61,10 @@ Companion planning artifacts:
 1. Start with the primary [`dynamic-agent-runner/spec.md`](dynamic-agent-runner/spec.md).
 2. Read [`dynamic-agent-runner/tasks.md`](dynamic-agent-runner/tasks.md) for the
    implementation history and feature roadmap index.
-3. Read a feature package when working in that specific area; each feature spec
+3. For continuing adapter-coverage work, read
+   [`model-adapter-coverage/spec.md`](model-adapter-coverage/spec.md); it is the
+   active authoritative change spec for the next implementation slice.
+4. Read a feature package when working in that specific area; each feature spec
    owns its own scope boundary and completion evidence.
 
 Do not treat future-analysis specs as implementation authorization. Feature

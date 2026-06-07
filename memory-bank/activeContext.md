@@ -14,9 +14,10 @@
 - The repo has a top-level spec index at `specs/README.md` that identifies the
   primary runtime spec, all feature-spec packages, and the completion matrix.
 - The primary runtime spec remains `specs/dynamic-agent-runner/spec.md`.
-- There is no active implementation slice currently scheduled. Future code or
-  docs work should start from an explicit feature spec, plan, task update, or
-  documentation-refresh request.
+- The active continuation point is `specs/model-adapter-coverage/spec.md`.
+  Continuing implementation work should treat that spec as authoritative for
+  adding `model_adapter_coverage`, defaulting to `augmented`, supporting
+  `strict`, and removing `local_only` adapter routing.
 
 ## Current Spec Authority Map
 
@@ -31,6 +32,8 @@
   - `specs/internal-graph-mutation/spec.md`
   - `specs/hugging-face-model-search/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
+- Active next-change spec:
+  - `specs/model-adapter-coverage/spec.md`
 - Future investigation or future-feature specs:
   - `specs/llm-step-interpreter-middleware/spec.md`
   - `specs/approval-interruption-resume/spec.md`
@@ -66,11 +69,16 @@
   and Power-Marimo host automation.
 - The active llama.cpp gate remains optional Slice 3: separate local embedding
   configuration, only if explicitly scheduled.
+- The active adapter-coverage gate is to implement
+  `model_adapter_coverage="strict" | "augmented"` across public execution APIs
+  and `WorkflowExecutionContext`, default to `augmented`, and remove the
+  `local_only` selection branch without backward compatibility.
 
 ## Next Steps
 
-- For implementation: select one future-feature spec or optional follow-up and
-  create or approve a concrete plan/task slice before editing code.
+- For implementation: continue from
+  `specs/model-adapter-coverage/spec.md`; create any needed task breakdown from
+  that spec before editing code.
 - For documentation: keep `README.md`, `docs/files/`, `specs/README.md`,
   `specs/dynamic-agent-runner/tasks.md`, and feature spec statuses synchronized
   when new slices are selected or closed.
