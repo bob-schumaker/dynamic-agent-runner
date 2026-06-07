@@ -21,6 +21,10 @@ class ModelExecutionError(DynamicAgentRunnerError):
     """Raised when model execution fails."""
 
 
+class HuggingFaceModelSearchError(DynamicAgentRunnerError):
+    """Raised when Hugging Face model discovery fails."""
+
+
 class LocalModelError(ModelExecutionError):
     """Base exception for local-model preparation and identity failures."""
 

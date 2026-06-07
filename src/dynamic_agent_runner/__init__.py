@@ -26,6 +26,10 @@ from dynamic_agent_runner.local_models import (
     create_local_async_openai_adapter,
     create_local_openai_adapter,
 )
+from dynamic_agent_runner.hugging_face_models import (
+    HuggingFaceModelSearchResult,
+    search_hugging_face_models,
+)
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     AsyncOpenAIClientProtocol,
@@ -96,6 +100,7 @@ from dynamic_agent_runner.tracing import (
 from dynamic_agent_runner.errors import (
     ArtifactLoadError,
     DynamicAgentRunnerError,
+    HuggingFaceModelSearchError,
     ModelExecutionError,
     ToolRegistryError,
     WorkflowExecutionError,
@@ -110,6 +115,8 @@ __all__ = [
     "CompiledAgentWorkflow",
     "compile_agent_workflow",
     "DynamicAgentRunnerError",
+    "HuggingFaceModelSearchError",
+    "HuggingFaceModelSearchResult",
     "LocalOpenAIEndpointConfig",
     "ModelExecutionError",
     "ModelResponse",
@@ -133,6 +140,7 @@ __all__ = [
     "build_openai_request",
     "create_default_async_openai_provider",
     "build_prompt_cache_observation",
+    "search_hugging_face_models",
     "create_local_async_openai_adapter",
     "create_local_openai_adapter",
     "create_default_async_openai_client",

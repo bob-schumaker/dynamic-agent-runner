@@ -11,8 +11,8 @@ Status: actionable task list; implementation not started
 
 ## Status
 
-- State: Slice 1 RED contract tests are complete.
-- Current execution gate: T2.1 is the next pending step.
+- State: Slices 1-2 are complete.
+- Current execution gate: T3.1 is the next pending step.
 - Scope rule: keep this feature limited to read-only public model discovery.
   Do not merge model download, endpoint startup, workflow schema, or write-side
   Hugging Face operations into these tasks.
@@ -65,7 +65,7 @@ Status: actionable task list; implementation not started
 
 ## Slice 2 — Implementation and Exports
 
-- [ ] T2.1 [implementation] Add
+- [x] T2.1 [implementation] Add
       `src/dynamic_agent_runner/hugging_face_models.py` with the result value
       object, public search function, normalization helpers, and default Hub
       adapter.
@@ -75,8 +75,10 @@ Status: actionable task list; implementation not started
   - Depends on: T1.1, T1.2
   - Validation: `poetry run pytest tests/test_hugging_face_models.py -q`
   - Evidence: contract and filter tests pass without live network calls.
+  - GREEN: `poetry run pytest tests/test_hugging_face_models.py -q` passed
+    with `4 passed`.
 
-- [ ] T2.2 [implementation] Add `HuggingFaceModelSearchError` to
+- [x] T2.2 [implementation] Add `HuggingFaceModelSearchError` to
       `src/dynamic_agent_runner/errors.py` and wire search failure translation.
   - Spec: FR-4
   - Plan: Planning Decisions; Slice 2
@@ -86,8 +88,10 @@ Status: actionable task list; implementation not started
   - Validation: `poetry run pytest tests/test_hugging_face_models.py -q`
   - Evidence: missing SDK and fake upstream failures surface as the package-owned
     search error.
+  - GREEN: `poetry run pytest tests/test_hugging_face_models.py -q` passed
+    with `4 passed`.
 
-- [ ] T2.3 [implementation] Export the public discovery surface from
+- [x] T2.3 [implementation] Export the public discovery surface from
       `src/dynamic_agent_runner/__init__.py`.
   - Spec: FR-1
   - Plan: Public Contract; Slice 2
@@ -99,6 +103,8 @@ Status: actionable task list; implementation not started
   - Evidence: callers can import `search_hugging_face_models`,
     `HuggingFaceModelSearchResult`, and `HuggingFaceModelSearchError` from the
     package root.
+  - GREEN: `poetry run pytest tests/test_import.py
+    tests/test_hugging_face_models.py -q` passed with `5 passed`.
 
 ## Slice 3 — Documentation and Final Validation
 
