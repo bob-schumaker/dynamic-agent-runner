@@ -10,6 +10,9 @@ dynamic = ["dependencies", "requires-python"]
 [project.scripts]
 dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
 
+[project.optional-dependencies]
+huggingface = ["huggingface-hub>=1.18.0,<2.0.0"]
+
 [tool.poetry]
 packages = [
     { include = "dynamic_agent_runner", from = "src" },
@@ -25,7 +28,7 @@ tenacity = ">=9.0.0"
 tiktoken = ">=0.12.0"
 openai-model-registry = "^1.0.5"
 llama-cpp-python = {extras = ["server"], version = "^0.3.26"}
-huggingface-hub = "^1.18.0"
+huggingface-hub = {version = "^1.18.0", optional = true}
 
 [tool.poetry.group.dev]
 optional = true

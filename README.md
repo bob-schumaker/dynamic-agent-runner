@@ -63,8 +63,9 @@ Known configuration:
   OpenAI-compatible endpoint helpers, and context-pipeline graph-mutation helpers
   are implemented behind package-owned interfaces
 - local model asset and endpoint support is represented through
-  package-owned local-model helpers; `llama-cpp-python` and `huggingface-hub`
-  are available dependencies, but the runner does not start model servers
+  package-owned local-model helpers; `llama-cpp-python` is a runtime dependency
+  and `huggingface-hub` is available through the `huggingface` extra, but the
+  runner does not start model servers
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
 - the initial implementation targets the OpenAI Python SDK behind a small adapter
@@ -190,7 +191,8 @@ result = run_agent_workflow(
 The MLX helper is macOS-only, lazily imports `mlx-lm` for the default
 in-process backend, and expects a caller-controlled converted MLX model
 directory or explicit Hugging Face reference. It does not start a server or wrap
-MLX as hosted OpenAI.
+MLX as hosted OpenAI. Install with the `huggingface` extra before using
+Hugging Face-backed model discovery or asset downloads.
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls.

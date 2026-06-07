@@ -135,7 +135,8 @@ Local model asset resolution is available through the package-owned helpers in
 ``dynamic_agent_runner.local_models``. Those helpers resolve explicit paths,
 configured cache roots, default local cache roots, and optional Hugging Face file
 or snapshot references; they keep downloading and server supervision caller
-controlled.
+controlled. Install with the ``huggingface`` extra before using Hugging
+Face-backed discovery or downloads.
 
 .. header2:: macOS MLX local models
 
@@ -198,7 +199,8 @@ such as ``repo_id``, ``display_name``, ``task``, ``tags``, ``likes``,
 matching model is not automatically downloadable, runnable by a local endpoint,
 or compatible with a workflow. Search failures raise
 ``HuggingFaceModelSearchError`` instead of exposing raw Hub SDK exceptions as
-the public contract.
+the public contract. Install with the ``huggingface`` extra before using this
+Hub-backed search path.
 
 .. header2:: Reusable execution contexts
 

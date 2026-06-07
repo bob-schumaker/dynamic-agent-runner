@@ -191,6 +191,8 @@ the OpenAI-compatible endpoint helpers.
 
 `search_hugging_face_models(...)` is read-only discovery. A matching result does
 not mean the model is downloaded, runnable, or compatible with the workflow.
+Install the package with the `huggingface` extra before using Hub-backed model
+discovery or Hub-backed local asset downloads.
 
 ## Runtime Metadata the Client Should Not Overinterpret
 
