@@ -57,11 +57,17 @@
   local-only routing removal, focused tests, client-facing docs, and
   repository-local skill guidance for default OpenAI and local llama.cpp adapter
   usage.
+- The macOS MLX local-model adapter spec is now implementation-ready with
+  `specs/mlx-local-model-adapter/spec.md`, `plan.md`, and `tasks.md`; no runtime
+  implementation has started.
 
 ## Remaining
 
 - Optional llama.cpp Slice 3: separate local embedding configuration, if
   explicitly scheduled.
+- Active MLX next work: execute Slice 1 in
+  `specs/mlx-local-model-adapter/tasks.md` to add public contract and failure
+  tests before runtime implementation.
 - Future richer Hugging Face Hub behavior beyond read-only model discovery; this
   requires a separate feature spec.
 - Ongoing docs hygiene: keep `README.md` and authored Sphinx files under

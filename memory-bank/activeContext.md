@@ -18,6 +18,13 @@
   coverage, `local_only` metadata no longer filters adapter selection, and the
   repository-local client skill now calls out default OpenAI and local
   llama.cpp adapter usage.
+- The active authoritative change spec for the current session is
+  `specs/mlx-local-model-adapter/spec.md`. It defines a macOS-only in-process
+  MLX local-model adapter direction, local asset/reference boundaries, strict
+  local-only coverage guidance, and the distinction from caller-provided
+  OpenAI-compatible local endpoints. Implementation plan/tasks are prepared in
+  `specs/mlx-local-model-adapter/plan.md` and
+  `specs/mlx-local-model-adapter/tasks.md`.
 - The repo has a top-level spec index at `specs/README.md` that identifies the
   primary runtime spec, all feature-spec packages, and the completion matrix.
 - The primary runtime spec remains `specs/dynamic-agent-runner/spec.md`.
@@ -36,6 +43,8 @@
   - `specs/hugging-face-model-search/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
   - `specs/model-adapter-coverage/spec.md`
+- Active next-change spec:
+  - `specs/mlx-local-model-adapter/spec.md`
 - Future investigation or future-feature specs:
   - `specs/llm-step-interpreter-middleware/spec.md`
   - `specs/approval-interruption-resume/spec.md`
@@ -75,11 +84,15 @@
   and Power-Marimo host automation.
 - The active llama.cpp gate remains optional Slice 3: separate local embedding
   configuration, only if explicitly scheduled.
+- The active MLX gate is ready for implementation from
+  `specs/mlx-local-model-adapter/tasks.md`; start with Slice 1 public contract
+  and failure tests.
 
 ## Next Steps
 
-- For implementation: select a scoped feature spec or create/update a task
-  breakdown before editing code.
+- For implementation: continue from
+  `specs/mlx-local-model-adapter/tasks.md` and commit after each selected
+  implementation slice if the user asks to execute the plan.
 - For documentation: keep `README.md`, `docs/files/`, `specs/README.md`,
   `specs/dynamic-agent-runner/tasks.md`, and feature spec statuses synchronized
   when new slices are selected or closed.
