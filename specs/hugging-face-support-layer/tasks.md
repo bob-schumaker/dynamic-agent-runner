@@ -16,7 +16,7 @@ offline policy, cache roots, package-root exports, or live network behavior.
 
 ## Slice 1 — Internal Support Module and Search Routing
 
-- [ ] T1.1 [tests] Add support-layer tests for lazy import and list-models
+- [x] T1.1 [tests] Add support-layer tests for lazy import and list-models
       call failures using fake Hub modules.
   - Spec: FR-1, FR-4
   - Plan: Slice 1
@@ -24,8 +24,13 @@ offline policy, cache roots, package-root exports, or live network behavior.
     `src/dynamic_agent_runner/hugging_face_support.py`
   - Validation:
     `poetry run pytest tests/test_hugging_face_support.py -q`
+  - RED: support-layer tests failed because `hugging_face_support.py` did not
+    exist.
+  - GREEN: `poetry run pytest tests/test_hugging_face_support.py
+    tests/test_hugging_face_models.py tests/test_import.py -q` passed with
+    10 tests.
 
-- [ ] T1.2 [implementation] Add `hugging_face_support.py` with internal
+- [x] T1.2 [implementation] Add `hugging_face_support.py` with internal
       read-only Hub helpers.
   - Spec: FR-1, FR-4
   - Plan: Planning Decisions
@@ -33,8 +38,11 @@ offline policy, cache roots, package-root exports, or live network behavior.
   - Depends on: T1.1
   - Validation:
     `poetry run pytest tests/test_hugging_face_support.py -q`
+  - GREEN: `poetry run pytest tests/test_hugging_face_support.py
+    tests/test_hugging_face_models.py tests/test_import.py -q` passed with
+    10 tests.
 
-- [ ] T1.3 [implementation] Route model search through support-layer
+- [x] T1.3 [implementation] Route model search through support-layer
       `list_hub_models(...)`.
   - Spec: FR-2, FR-3
   - Plan: Slice 1
@@ -44,6 +52,9 @@ offline policy, cache roots, package-root exports, or live network behavior.
   - Validation:
     `poetry run pytest tests/test_hugging_face_support.py
     tests/test_hugging_face_models.py tests/test_import.py -q`
+  - GREEN: `poetry run pytest tests/test_hugging_face_support.py
+    tests/test_hugging_face_models.py tests/test_import.py -q` passed with
+    10 tests.
 
 ## Slice 2 — Local Download Routing
 

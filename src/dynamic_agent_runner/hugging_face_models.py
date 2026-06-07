@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from dynamic_agent_runner.errors import HuggingFaceModelSearchError
+from dynamic_agent_runner.hugging_face_support import (
+    HuggingFaceSupportError,
+    list_hub_models,
+)
 
 
 SearchAdapter = Callable[..., Iterable[object]]
@@ -67,22 +71,14 @@ def _default_hub_search(
     direction: str | None,
 ) -> Iterable[object]:
     try:
-        from huggingface_hub import HfApi
-    except Exception as exc:
-        raise HuggingFaceModelSearchError(
-            f"Hugging Face model discovery failed: huggingface_hub is unavailable: "
-            f"{exc}"
-        ) from exc
-
-    try:
-        return HfApi().list_models(
-            search=query,
+        return list_hub_models(
+            query=query,
             limit=limit,
-            pipeline_tag=task,
-            filter=tuple(tags) or None,
+            task=task,
+            tags=tags,
             sort=_hub_sort_value(sort=sort, direction=direction),
         )
-    except Exception as exc:
+    except HuggingFaceSupportError as exc:
         raise HuggingFaceModelSearchError(
             f"Hugging Face model discovery failed: {exc}"
         ) from exc
