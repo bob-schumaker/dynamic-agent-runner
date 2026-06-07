@@ -5,11 +5,11 @@
 - Feature slug: `hugging-face-model-search`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: future feature spec
+- Status: actionable feature spec; implementation not started
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of public Hugging Face
   discovery support
-- Next gate: planning approval before any implementation begins
+- Next gate: T1.1 in `specs/hugging-face-model-search/tasks.md`
 - Approval state: user-directed authoritative feature spec for public Hugging
   Face model discovery
 - Related artifacts:
@@ -264,15 +264,20 @@ Acceptance criteria:
   compatible with existing local-model helpers; documentation must separate
   discovery from execution compatibility.
 
-## Open Questions for Planning
+## Planning Resolution
 
-- Which exact public entry point shape should be canonical: a function, a small
-  client object, or both?
-- Which result fields are the minimum stable set for useful model discovery in
-  this repository?
-- Which limited filter parameters should the repository support in the first
-  slice?
-- Should the package add a dedicated Hugging Face discovery error hierarchy or
-  reuse existing model/runtime error types with clearer messages?
-- Should a separate lightweight module own public discovery behavior, or should
-  it live alongside `local_models.py` while keeping download internals private?
+The actionable implementation plan at
+`specs/hugging-face-model-search/plan.md` resolves the planning questions for
+the first implementation pass:
+
+- canonical public entry point:
+  `search_hugging_face_models(...)`
+- result contract: `HuggingFaceModelSearchResult`
+- limited first-slice filters: `query`, `limit`, `task`, `tags`, `sort`, and
+  `direction`
+- error boundary: `HuggingFaceModelSearchError`
+- module boundary: `src/dynamic_agent_runner/hugging_face_models.py`
+
+The executable task list is
+`specs/hugging-face-model-search/tasks.md`. Any change to these planning
+decisions should update the plan and task list before implementation proceeds.
