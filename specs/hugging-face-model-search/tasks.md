@@ -11,15 +11,15 @@ Status: actionable task list; implementation not started
 
 ## Status
 
-- State: authoritative spec and actionable implementation plan exist.
-- Current execution gate: T1.1 is the next pending step.
+- State: Slice 1 RED contract tests are complete.
+- Current execution gate: T2.1 is the next pending step.
 - Scope rule: keep this feature limited to read-only public model discovery.
   Do not merge model download, endpoint startup, workflow schema, or write-side
   Hugging Face operations into these tasks.
 
 ## Slice 1 — Public Contract and Deterministic Tests
 
-- [ ] T1.1 [tests] Add RED tests for the public search entry point and result
+- [x] T1.1 [tests] Add RED tests for the public search entry point and result
       contract in `tests/test_hugging_face_models.py`.
   - Spec: FR-1, FR-2, FR-6
   - Plan: Public Contract; Slice 1
@@ -31,8 +31,11 @@ Status: actionable task list; implementation not started
   - Validation: `poetry run pytest tests/test_hugging_face_models.py -q`
   - Evidence: tests fail before `search_hugging_face_models(...)` and
     `HuggingFaceModelSearchResult` exist.
+  - RED: `poetry run pytest tests/test_hugging_face_models.py -q` failed with
+    `ModuleNotFoundError: No module named
+    'dynamic_agent_runner.hugging_face_models'`.
 
-- [ ] T1.2 [tests] Add RED tests for limited filter shaping with a fake Hub
+- [x] T1.2 [tests] Add RED tests for limited filter shaping with a fake Hub
       search adapter.
   - Spec: FR-3, FR-6
   - Plan: Planning Decisions; Public Contract
@@ -43,8 +46,10 @@ Status: actionable task list; implementation not started
   - Validation: `poetry run pytest tests/test_hugging_face_models.py -q`
   - Evidence: tests assert the exact repository-approved filter set sent to the
     fake adapter.
+  - RED: covered by `test_search_hugging_face_models_shapes_limited_filter_set`;
+    it fails before the public discovery module exists.
 
-- [ ] T1.3 [tests] Add RED tests for package-owned discovery error translation.
+- [x] T1.3 [tests] Add RED tests for package-owned discovery error translation.
   - Spec: FR-4, FR-6
   - Plan: Planning Decisions; Validation Plan
   - Files/components: `tests/test_hugging_face_models.py`,
@@ -54,6 +59,9 @@ Status: actionable task list; implementation not started
   - Depends on: T1.1
   - Validation: `poetry run pytest tests/test_hugging_face_models.py -q`
   - Evidence: tests fail before repository-owned error translation exists.
+  - RED: covered by
+    `test_search_hugging_face_models_translates_discovery_failures`; it fails
+    before `HuggingFaceModelSearchError` is exported.
 
 ## Slice 2 — Implementation and Exports
 
