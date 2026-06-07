@@ -168,20 +168,20 @@
   surgery.
 - For the llama.cpp local-model slice specifically, preserve these boundaries:
   do not launch local servers in the runtime; use the OpenAI-compatible provider
-  seam only when the caller already supplies a local server; support future
-  direct in-process `llama_cpp.Llama` execution without requiring server
-  dependencies; use runtime-owned Hugging Face download/caching for missing
-  referenced model assets; and default the adapter model-cache path to
-  `~/.ollama/models` unless the caller provides an explicit cache folder.
-- Preserve the executor boundary during llama.cpp follow-up: adapters should
+  seam only when the caller already supplies a local server; direct in-process
+  `llama_cpp.Llama` execution now exists without requiring server dependencies;
+  use runtime-owned Hugging Face download/caching for missing referenced model
+  assets; and default the adapter model-cache path to `~/.ollama/models` unless
+  the caller provides an explicit cache folder.
+- Preserve the executor boundary during llama.cpp follow-up: direct adapters
   advertise `models` and `is_local=True`, and client intent should be expressed
   with `model_adapter_coverage="strict"` rather than revived `local_only`
   routing semantics.
 - Expected validation surfaces for llama.cpp work are now explicit:
-  `tests/test_openai_client.py` for provider/helper behavior,
-  `tests/test_executor.py` for strict/augmented adapter coverage, and a future
-  `tests/test_local_models.py` for local-model helper, resolution, and failure
-  taxonomy coverage.
+  `tests/test_local_models.py` for direct adapters, local-model helper,
+  resolution, and failure taxonomy coverage; `tests/test_openai_client.py` for
+  provider/helper behavior; and `tests/test_executor.py` for strict/augmented
+  adapter coverage.
 - Keep offline or no-network download policy runtime-owned above the portable
   workflow package, and treat model-identity mismatch checks as driven by
   runtime-owned adapter configuration such as declared alias, explicit local

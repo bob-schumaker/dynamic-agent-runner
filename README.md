@@ -62,10 +62,10 @@ Known configuration:
 - async execution, lifecycle hooks, prompt-cache observation, local
   OpenAI-compatible endpoint helpers, and context-pipeline graph-mutation helpers
   are implemented behind package-owned interfaces
-- local model asset and endpoint support is represented through
-  package-owned local-model helpers; `llama-cpp-python` is a runtime dependency
-  and `huggingface-hub` is available through the `huggingface` extra, but the
-  runner does not start model servers
+- local model asset, endpoint, and direct in-process llama.cpp support is
+  represented through package-owned local-model helpers; `llama-cpp-python` is a
+  runtime dependency and `huggingface-hub` is available through the
+  `huggingface` extra, but the runner does not start model servers
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
 - the initial implementation targets the OpenAI Python SDK behind a small adapter

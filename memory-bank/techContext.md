@@ -58,8 +58,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   API and normalized result/error contracts; callers need the `huggingface`
   extra for Hub-backed discovery or downloads
 - keep caller-owned OpenAI-compatible llama.cpp servers on the local endpoint
-  helper path, while allowing future direct in-process llama.cpp support without
-  server dependencies
+  helper path, while direct in-process llama.cpp support uses
+  `llama-cpp-python` without server dependencies
 
 ## Development and Test Dependencies
 

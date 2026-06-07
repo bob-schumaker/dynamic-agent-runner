@@ -36,8 +36,8 @@ Current tests cover:
 - callable registry lookup, schema conversion, and invocation
 - runtime tool overrides and behavior overrides
 - OpenAI request construction and fake-client adapter execution
-- local model path resolution, offline policy, identity checks, and local endpoint
-  error classification
+- local model path resolution, offline policy, identity checks, direct
+  in-process llama.cpp adapters, and local endpoint error classification
 - Hugging Face model discovery normalization and error wrapping
 - async model, tool, and hook dispatch
 - workflow execution, retries, output contracts, route validation, token budgets,

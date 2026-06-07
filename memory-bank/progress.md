@@ -12,10 +12,11 @@
   overrides, prompt preparation, and package-owned validation.
 - Provider-wrapper support is implemented through Slices 1-6 and exposes
   package-level provider configuration for OpenAI-compatible endpoints.
-- llama.cpp local-model support is implemented through Slice 2: endpoint helper
-  construction, provider-seam wiring, package exports, model-resolution
-  precedence, Hugging Face download wiring, local endpoint failure taxonomy, and
-  authoritative model-identity mismatch reporting.
+- llama.cpp local-model support is implemented through Slice 3: endpoint helper
+  construction, direct in-process sync/async adapters, provider-seam wiring,
+  package exports, model-resolution precedence, Hugging Face download wiring,
+  local failure taxonomy, response normalization, strict/augmented executor
+  coverage, and authoritative model-identity mismatch reporting.
 - Internal graph mutation has a complete first checkpoint: typed mutation
   datamodels, context-pruning mutation, fail-closed attachment validation,
   prepared-input integration, and mutation diagnostics.
@@ -35,10 +36,10 @@
   local-only execution, validate converted MLX model directories, resolve
   explicit Hub file/snapshot references through injected download functions, and
   receive normalized text responses.
-- `llama-cpp-python` is a direct dependency without the `server` extra. Existing
-  local server use remains available through the OpenAI-compatible endpoint
-  helpers, while future direct llama.cpp support should run without requiring a
-  local server.
+- `llama-cpp-python` is a direct dependency without the `server` extra. Direct
+  llama.cpp local execution now runs through `LlamaCppLocalModelConfig` and
+  sync/async adapter factories without requiring a local server. Existing local
+  server use remains available through the OpenAI-compatible endpoint helpers.
 - Async-session support is currently metadata-only and documented as host-managed
   continuity for first-customer use cases.
 
@@ -80,11 +81,17 @@
 - Commit `c92728f` removed the `llama-cpp-python` server extra and clarified the
   client skill distinction between direct llama.cpp support and caller-owned
   OpenAI-compatible server wrappers.
+- Commit `58136d9` implemented direct in-process llama.cpp chat adapters with
+  lazy dependency loading, local asset resolution, response normalization,
+  identity checks, strict/augmented executor coverage, docs, and Slice 3 task
+  evidence.
+- Commit `b745b4c` refreshed README, validation docs, and the spec index to mark
+  direct llama.cpp chat adapters as implemented.
 
 ## Remaining
 
-- Optional llama.cpp Slice 3: separate local embedding configuration, if
-  explicitly scheduled.
+- Optional llama.cpp embedding follow-up: separate local embedding
+  configuration, if explicitly scheduled.
 - Future richer Hugging Face Hub behavior beyond read-only model discovery; this
   requires a separate feature spec.
 - Ongoing docs hygiene: keep `README.md` and authored Sphinx files under

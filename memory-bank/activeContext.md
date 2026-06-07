@@ -2,14 +2,16 @@
 
 ## Current Focus
 
-- The latest completed work is local-model dependency policy:
-  - `c6ba109` (`chore(deps): add huggingface extra`) moved
-    `huggingface-hub` behind the `huggingface` optional dependency extra and
-    documented that Hub-backed discovery/downloads require it.
-  - `c92728f` (`chore(deps): remove llama cpp server extra`) removed the
-    `server` extra from `llama-cpp-python` so future direct in-process
-    llama.cpp support is not tied to server dependencies.
+- The latest completed work is direct in-process llama.cpp local-model support:
+  - `58136d9` (`feat(local-models): add direct llama cpp adapter`) added
+    sync/async direct llama.cpp adapters, lazy `llama-cpp-python` loading, local
+    asset resolution, response normalization, identity validation, strict/
+    augmented executor coverage, docs, and Slice 3 task evidence.
+  - `b745b4c` (`docs: refresh llama cpp adapter status`) refreshed README,
+    validation docs, and the spec index to mark direct llama.cpp chat complete.
 - Recent completed local-model/runtime milestones also include:
+  - `c6ba109` (`chore(deps): add huggingface extra`)
+  - `c92728f` (`chore(deps): remove llama cpp server extra`)
   - `137342b` (`feat(hugging-face): add support layer search helper`)
   - `0df7b53` (`refactor(hugging-face): share hub download helpers`)
   - `2cecfe5` (`feat(mlx): add local model asset resolution`)
@@ -20,13 +22,10 @@
   coverage, `local_only` metadata no longer filters adapter selection, and the
   repository-local client skill now calls out default OpenAI and local
   llama.cpp adapter usage.
-- The active authoritative change spec for the current session is
-  `specs/mlx-local-model-adapter/spec.md`. It defines a macOS-only in-process
-  MLX local-model adapter direction, local asset/reference boundaries, strict
-  local-only coverage guidance, and the distinction from caller-provided
-  OpenAI-compatible local endpoints. Implementation plan/tasks are prepared in
-  `specs/mlx-local-model-adapter/plan.md` and
-  `specs/mlx-local-model-adapter/tasks.md`.
+- No implementation slice is currently active. The latest completed feature
+  slice was llama.cpp local-model Slice 3 in
+  `specs/llama-cpp-local-model/tasks.md`; optional embedding follow-up remains
+  unscheduled.
 - The macOS MLX local-model adapter is implemented through Slices 1-4:
   package-root helpers, lazy dependency/platform failures, converted directory
   preflight, injected Hub file/snapshot resolution, identity validation,
@@ -65,7 +64,7 @@
 
 - Core runtime implementation is complete through package-alignment P5, E14
   async-first execution, OA11 portable `tool_type` alignment, prompt-cache
-  metadata, provider-wrapper Slices 1-6, llama.cpp local-model Slices 1-2, and
+  metadata, provider-wrapper Slices 1-6, llama.cpp local-model Slices 1-3, and
   the first internal graph-mutation checkpoint.
 - Public Hugging Face model discovery is implemented with a repository-owned
   search API, normalized result type, package-owned error boundary, exports,
@@ -82,10 +81,13 @@
   `MLXLocalModelConfig`, `create_mlx_local_adapter(...)`,
   `create_mlx_local_async_adapter(...)`, local model preflight, package-owned
   errors, normalized text responses, and strict/augmented executor coverage.
-- Dependency policy now treats `llama-cpp-python` as a direct runtime dependency
-  without its `server` extra. Caller-owned OpenAI-compatible llama.cpp servers
-  remain supported through `LocalOpenAIEndpointConfig`; future direct llama.cpp
-  model execution should not depend on server availability.
+- Direct llama.cpp local-model adapter support is implemented with
+  `LlamaCppLocalModelConfig`, `create_llama_cpp_local_adapter(...)`,
+  `create_llama_cpp_local_async_adapter(...)`, lazy `llama-cpp-python`
+  dependency loading, local asset resolution, package-owned response
+  normalization, identity validation, and strict/augmented executor coverage.
+  Caller-owned OpenAI-compatible llama.cpp servers remain supported separately
+  through `LocalOpenAIEndpointConfig`.
 - User-facing docs now document the current mise/Poetry setup, package-owned
   local-model helper boundary, Hugging Face discovery test coverage, adapter
   coverage modes, default OpenAI fallback behavior, and dependency direction.
@@ -96,7 +98,7 @@
   sandbox/workspace execution, live MCP discovery/invocation, live guardrail
   enforcement, arbitrary `SKILL.md` source loading, iterative model/tool loops,
   and Power-Marimo host automation.
-- The active llama.cpp gate remains optional Slice 3: separate local embedding
+- The only remaining llama.cpp gate is optional separate local embedding
   configuration, only if explicitly scheduled.
 - The MLX implementation gate is closed through Slice 4; deferred MLX work
   includes GGUF, embeddings, multimodal behavior, streaming, tool calling,
