@@ -35,6 +35,9 @@
 - Commit `3f5b51f` synchronized the primary spec, feature-spec statuses,
   `specs/README.md`, and the completion matrix after the Hugging Face feature
   landed.
+- Commit `2425a4e` added `specs/hugging-face-support-layer/spec.md` and indexed
+  it in `specs/README.md` as a future internal refactor for shared
+  `huggingface_hub` import/call/error mechanics.
 - Future-feature specs still capture known requirements, non-goals, design
   constraints, validation checklists, and clarification items. They do not
   authorize implementation by themselves.
@@ -45,6 +48,9 @@
   explicitly scheduled.
 - Future richer Hugging Face Hub behavior beyond read-only model discovery; this
   requires a separate feature spec.
+- Internal Hugging Face support-layer refactor: centralize lazy Hub import,
+  read-only SDK calls, and domain-specific error translation while preserving
+  separate discovery and local-model download contracts.
 - Live approval interruption/resume engine and serialized resume state.
 - Writable sandbox/workspace runtime, write/patch/shell tools, and command
   approval policy.

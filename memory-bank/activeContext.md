@@ -2,8 +2,9 @@
 
 ## Current Focus
 
-- The latest completed work is the Hugging Face model-search feature and a spec
-  consistency refresh:
+- The latest completed work is the Hugging Face support-layer feature spec in
+  `2425a4e` (`docs(specs): add hugging face support layer spec`).
+- Recent completed Hugging Face/spec milestones also include:
   - `191f722` (`docs(hugging-face): document model search api`)
   - `3f5b51f` (`docs(specs): align feature status matrix`)
 - The repo has a top-level spec index at `specs/README.md` that identifies the
@@ -34,6 +35,7 @@
   - `specs/skill-source-resolution/spec.md`
   - `specs/iterative-agent-loop-runtime/spec.md`
   - `specs/power-marimo-host-automation/spec.md`
+  - `specs/hugging-face-support-layer/spec.md`
 
 ## Current Status
 
@@ -44,6 +46,9 @@
 - Public Hugging Face model discovery is implemented with a repository-owned
   search API, normalized result type, package-owned error boundary, exports,
   deterministic tests, and Python API docs.
+- The Hugging Face support-layer spec is future internal infrastructure only:
+  it would centralize lazy Hub import, read-only SDK calls, and low-level error
+  mechanics without merging search and local-model asset resolution.
 - Metadata-only runtime surfaces are implemented for guardrails, MCP registry
   sources/lifecycle diagnostics, approval interruption, async session policy,
   sandbox runtime policy, and tool-use completion policy.
