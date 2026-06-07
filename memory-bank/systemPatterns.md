@@ -167,33 +167,19 @@
   transformation on `llm_step` nodes before any true node or edge graph
   surgery.
 - For the llama.cpp local-model slice specifically, preserve these boundaries:
-  consume caller/deployer-provided OpenAI-compatible local endpoints through
-  the existing provider seam rather than launching local servers in the runtime;
-  use runtime-owned Hugging Face download/caching for missing referenced model
-  assets; and default the adapter model-cache path to `~/.ollama/models` unless
-  the caller provides an explicit cache folder.
-- The current preferred first implementation path for llama.cpp is endpoint-
-  backed rather than in-process: prefer caller/deployer-provided
-  OpenAI-compatible local endpoints first, keep in-process `llama_cpp.Llama`
-  integration as a later allowed path, and preserve explicit model-resolution
-  precedence plus separate error boundaries for model resolution versus endpoint
-  connectivity/protocol failures.
-- Treat that first llama.cpp slice as a reuse of the existing OpenAI-compatible
-  adapter/provider seam with runtime-owned provider config and normal adapter
-  metadata such as `models` and `is_local=True`; a llama-specific helper may be
-  added later but is not required for the first slice.
-- The current llama.cpp SDD plan/tasks package now narrows that into a concrete
-  first implementation shape: prefer a dedicated runtime-owned local-model
-  helper module (planned at `src/dynamic_agent_runner/local_models.py`) that
-  constructs `OpenAIClientAdapter` / `AsyncOpenAIClientAdapter` instances for
-  caller/deployer-owned local endpoints instead of adding a new executor branch.
-- Preserve the current executor boundary during that work: `executor.py` already
-  selects adapters through advertised `models` and filters on `is_local` for
-  `local_only`, so local-model follow-up should extend helper/config seams and
-  tests rather than widening executor control flow.
-- Expected first-slice validation surfaces for llama.cpp work are now explicit:
+  do not launch local servers in the runtime; use the OpenAI-compatible provider
+  seam only when the caller already supplies a local server; support future
+  direct in-process `llama_cpp.Llama` execution without requiring server
+  dependencies; use runtime-owned Hugging Face download/caching for missing
+  referenced model assets; and default the adapter model-cache path to
+  `~/.ollama/models` unless the caller provides an explicit cache folder.
+- Preserve the executor boundary during llama.cpp follow-up: adapters should
+  advertise `models` and `is_local=True`, and client intent should be expressed
+  with `model_adapter_coverage="strict"` rather than revived `local_only`
+  routing semantics.
+- Expected validation surfaces for llama.cpp work are now explicit:
   `tests/test_openai_client.py` for provider/helper behavior,
-  `tests/test_executor.py` for `local_only` routing, and a future
+  `tests/test_executor.py` for strict/augmented adapter coverage, and a future
   `tests/test_local_models.py` for local-model helper, resolution, and failure
   taxonomy coverage.
 - Keep offline or no-network download policy runtime-owned above the portable

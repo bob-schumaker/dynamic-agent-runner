@@ -25,7 +25,8 @@
   `HuggingFaceModelSearchError` failure translation.
 - The Hugging Face support layer is implemented: shared internal Hub helpers
   now back model search and local-model default downloads while preserving
-  separate public error contracts.
+  separate public error contracts. `huggingface-hub` is now optional via the
+  `huggingface` extra.
 - Model adapter coverage policy is implemented: callers can choose
   `model_adapter_coverage="strict"` for authoritative supplied adapters or rely
   on default augmented behavior for eligible default OpenAI coverage.
@@ -34,6 +35,10 @@
   local-only execution, validate converted MLX model directories, resolve
   explicit Hub file/snapshot references through injected download functions, and
   receive normalized text responses.
+- `llama-cpp-python` is a direct dependency without the `server` extra. Existing
+  local server use remains available through the OpenAI-compatible endpoint
+  helpers, while future direct llama.cpp support should run without requiring a
+  local server.
 - Async-session support is currently metadata-only and documented as host-managed
   continuity for first-customer use cases.
 
@@ -70,6 +75,11 @@
   validation, executor coverage, docs, and focused regression validation.
 - The Hugging Face support-layer implementation is complete and satisfies the
   MLX Hub-reference dependency for T3.5/T3.6.
+- Commit `c6ba109` added the `huggingface` optional dependency extra and
+  documented that Hub-backed discovery/downloads require it.
+- Commit `c92728f` removed the `llama-cpp-python` server extra and clarified the
+  client skill distinction between direct llama.cpp support and caller-owned
+  OpenAI-compatible server wrappers.
 
 ## Remaining
 

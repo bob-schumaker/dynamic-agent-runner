@@ -31,8 +31,8 @@ Current committed dependency context includes:
 - `tenacity >=9.0.0`
 - `tiktoken >=0.12.0`
 - `openai-model-registry ^1.0.5`
-- `llama-cpp-python ^0.3.26` with the `server` extra
-- `huggingface-hub ^1.18.0`
+- `llama-cpp-python ^0.3.26` without the `server` extra
+- optional extra `huggingface`, which installs `huggingface-hub >=1.18.0,<2.0.0`
 
 Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 
@@ -55,7 +55,11 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - support runtime behavior overrides for prompt patches and inline skill
   bindings without adding new external dependencies
 - expose read-only public Hugging Face model discovery through a package-owned
-  API and normalized result/error contracts
+  API and normalized result/error contracts; callers need the `huggingface`
+  extra for Hub-backed discovery or downloads
+- keep caller-owned OpenAI-compatible llama.cpp servers on the local endpoint
+  helper path, while allowing future direct in-process llama.cpp support without
+  server dependencies
 
 ## Development and Test Dependencies
 

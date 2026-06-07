@@ -2,16 +2,18 @@
 
 ## Current Focus
 
-- The latest completed work is adapter-coverage client documentation:
-  - `2429727` (`docs(adapter-coverage): document coverage policy`) documented
-    `model_adapter_coverage` in README, Python API docs, specs, and memory.
-  - `cb52cd0` (`docs(skill): clarify adapter coverage modes`) refined
-    `docs/skills/dynamic-agent-runner/SKILL.md` with default OpenAI behavior,
-    strict vs augmented adapter coverage, and local llama.cpp adapter usage.
-- Recent completed Hugging Face/spec milestones also include:
-  - `2425a4e` (`docs(specs): add hugging face support layer spec`)
-  - `191f722` (`docs(hugging-face): document model search api`)
-  - `3f5b51f` (`docs(specs): align feature status matrix`)
+- The latest completed work is local-model dependency policy:
+  - `c6ba109` (`chore(deps): add huggingface extra`) moved
+    `huggingface-hub` behind the `huggingface` optional dependency extra and
+    documented that Hub-backed discovery/downloads require it.
+  - `c92728f` (`chore(deps): remove llama cpp server extra`) removed the
+    `server` extra from `llama-cpp-python` so future direct in-process
+    llama.cpp support is not tied to server dependencies.
+- Recent completed local-model/runtime milestones also include:
+  - `137342b` (`feat(hugging-face): add support layer search helper`)
+  - `0df7b53` (`refactor(hugging-face): share hub download helpers`)
+  - `2cecfe5` (`feat(mlx): add local model asset resolution`)
+  - `b96298d` (`docs(mlx): document local adapter completion`)
 - Model adapter coverage is implemented through Slices 1-4: public APIs and
   `WorkflowExecutionContext` accept `model_adapter_coverage`, strict mode keeps
   supplied adapters authoritative, augmented mode preserves default OpenAI
@@ -70,7 +72,8 @@
   deterministic tests, and Python API docs.
 - The Hugging Face support layer is implemented: model search and local-model
   default downloads now share internal Hub import/call helpers while preserving
-  their existing public error boundaries.
+  their existing public error boundaries. Hub-backed features now require
+  installing the `huggingface` extra.
 - Model adapter coverage policy is implemented with the public
   `model_adapter_coverage` argument on high-level and lower-level execution
   APIs, strict missing-coverage failures, augmented default OpenAI coverage, and
@@ -79,6 +82,10 @@
   `MLXLocalModelConfig`, `create_mlx_local_adapter(...)`,
   `create_mlx_local_async_adapter(...)`, local model preflight, package-owned
   errors, normalized text responses, and strict/augmented executor coverage.
+- Dependency policy now treats `llama-cpp-python` as a direct runtime dependency
+  without its `server` extra. Caller-owned OpenAI-compatible llama.cpp servers
+  remain supported through `LocalOpenAIEndpointConfig`; future direct llama.cpp
+  model execution should not depend on server availability.
 - User-facing docs now document the current mise/Poetry setup, package-owned
   local-model helper boundary, Hugging Face discovery test coverage, adapter
   coverage modes, default OpenAI fallback behavior, and dependency direction.
