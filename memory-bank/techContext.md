@@ -61,7 +61,8 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 
 - Dev: `icecream`, `pipdeptree`, `tqdm >=4.66`, `ruff ^0.15.10`,
   `pre-commit ^4.5.1`, `isort ^8.0.1`
-- Docs: `sphinxcontrib-confluencebuilder`, `myst-parser`
+- Docs: `sphinxcontrib-confluencebuilder`, `myst-parser`,
+  `sphinx-markdown-builder`
 - Test: `pytest-cov ^7.1.0`, `pytest-parallel ^0.1.1`
 
 ## Tooling Configuration
@@ -72,8 +73,17 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - flake8 max line length: `80`; ignores `E501`, `W503`, `B950`.
 - isort uses Black-compatible multiline output with trailing commas and line
   length `88`.
-- pre-commit hooks include YAML checks, JSON formatting, isort, flake8,
-  TOML syntax checks, Black, and repository Markdown checks when available.
+- pre-commit hooks include YAML checks, JSON formatting, TOML syntax checks,
+  Ruff check/fix, Ruff format, and `rumdl` Markdown checks/formatting.
+
+## Documentation Tooling
+
+- Authored Sphinx documentation lives under `docs/files/`.
+- Generated Sphinx source lives under `docs/source/` and is produced by
+  `vaguely-literate` through `docs/Makefile`.
+- Use `make -C docs html` for the standard local docs validation pass.
+- Do not hand-edit generated `docs/source/*.rst` pages when updating authored
+  documentation.
 
 ## Environment Setup
 

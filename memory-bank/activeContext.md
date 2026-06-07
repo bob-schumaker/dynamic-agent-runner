@@ -2,16 +2,21 @@
 
 ## Current Focus
 
-- The latest completed work is the Hugging Face support-layer feature spec in
-  `2425a4e` (`docs(specs): add hugging face support layer spec`).
+- The latest completed work is docs alignment in `9354d24`
+  (`docs: align docs with current repo state`).
+- That docs refresh updated `README.md` and authored Sphinx files under
+  `docs/files/` to match current setup, public API, local-model, and Hugging
+  Face discovery state.
 - Recent completed Hugging Face/spec milestones also include:
+  - `2425a4e` (`docs(specs): add hugging face support layer spec`)
   - `191f722` (`docs(hugging-face): document model search api`)
   - `3f5b51f` (`docs(specs): align feature status matrix`)
 - The repo has a top-level spec index at `specs/README.md` that identifies the
   primary runtime spec, all feature-spec packages, and the completion matrix.
 - The primary runtime spec remains `specs/dynamic-agent-runner/spec.md`.
-- There is no active implementation slice currently scheduled. Future code work
-  should start from an explicit feature spec, plan, or task update.
+- There is no active implementation slice currently scheduled. Future code or
+  docs work should start from an explicit feature spec, plan, task update, or
+  documentation-refresh request.
 
 ## Current Spec Authority Map
 
@@ -46,6 +51,9 @@
 - Public Hugging Face model discovery is implemented with a repository-owned
   search API, normalized result type, package-owned error boundary, exports,
   deterministic tests, and Python API docs.
+- User-facing docs now document the current mise/Poetry setup, package-owned
+  local-model helper boundary, Hugging Face discovery test coverage, and
+  dependency direction.
 - The Hugging Face support-layer spec is future internal infrastructure only:
   it would centralize lazy Hub import, read-only SDK calls, and low-level error
   mechanics without merging search and local-model asset resolution.
@@ -63,7 +71,8 @@
 
 - For implementation: select one future-feature spec or optional follow-up and
   create or approve a concrete plan/task slice before editing code.
-- For documentation: keep `specs/README.md`, `specs/dynamic-agent-runner/tasks.md`,
-  and feature spec statuses synchronized when new slices are selected or closed.
+- For documentation: keep `README.md`, `docs/files/`, `specs/README.md`,
+  `specs/dynamic-agent-runner/tasks.md`, and feature spec statuses synchronized
+  when new slices are selected or closed.
 - For validation: continue using fake clients/tools for unit tests and avoid live
   OpenAI, MCP, Marimo, or local-model infrastructure in core unit validation.

@@ -28,6 +28,10 @@
 
 ## Latest Documentation and Spec Milestones
 
+- Commit `9354d24` aligned `README.md` and authored Sphinx docs with the current
+  repo setup, local-model helper boundary, Hugging Face discovery coverage, and
+  package dependency direction. Validation for that docs slice included
+  `make -C docs html` and targeted pre-commit on the tracked docs files.
 - Commit `8216ca7` added the authoritative Hugging Face model-search spec.
 - Commits `4c83c2b`, `b343a9c`, `af8b2a0`, and `191f722` made that spec
   actionable, added RED contract tests, implemented the public discovery API,
@@ -48,6 +52,10 @@
   explicitly scheduled.
 - Future richer Hugging Face Hub behavior beyond read-only model discovery; this
   requires a separate feature spec.
+- Ongoing docs hygiene: keep `README.md` and authored Sphinx files under
+  `docs/files/` aligned with the current package surface and regenerate
+  `docs/source/*.rst` through the docs Makefile instead of hand-editing generated
+  pages.
 - Internal Hugging Face support-layer refactor: centralize lazy Hub import,
   read-only SDK calls, and domain-specific error translation while preserving
   separate discovery and local-model download contracts.
