@@ -122,8 +122,9 @@ discovery are available.
 
 ## Supplying Models
 
-Default clients can rely on the package-owned OpenAI adapter path when normal
-OpenAI SDK configuration and credentials are available.
+Default hosted OpenAI clients can omit `model_adapter`. With normal OpenAI SDK
+configuration and credentials, the runner creates the package-owned default
+OpenAI adapter for eligible OpenAI models.
 
 For tests, examples, and deterministic automation, inject fake model adapters
 instead of making live model calls.
@@ -131,15 +132,16 @@ instead of making live model calls.
 Choose adapter coverage explicitly when the client's adapter boundary matters:
 
 - Use `model_adapter_coverage="augmented"` or omit the argument when supplied
-  adapters should be tried first but the default OpenAI adapter may fill eligible
-  missing coverage.
+  adapters should be tried first and the default OpenAI adapter may fill
+  eligible missing coverage.
 - Use `model_adapter_coverage="strict"` when the supplied adapter list is
   authoritative. `model_adapter=None`, `model_adapter=[]`, or nonmatching
   adapters fail before a default OpenAI adapter is created.
 - For local-only client intent, pass only local adapters and set strict
   coverage. Do not rely on workflow `local_only` metadata to filter adapters.
 
-For caller-owned OpenAI-compatible local endpoints:
+For caller-owned local llama.cpp servers, use the OpenAI-compatible adapter
+helpers against the already-running server:
 
 ```python
 from dynamic_agent_runner import (
@@ -149,16 +151,22 @@ from dynamic_agent_runner import (
 
 adapter = create_local_async_openai_adapter(
     LocalOpenAIEndpointConfig(
-        base_url="http://localhost:11434/v1",
+        base_url="http://localhost:8080/v1",
         model_aliases=("local-chat",),
-        provider_name="local-openai-compatible",
+        provider_name="llama-cpp-local",
         expected_model_id="local-chat",
     )
 )
 ```
 
-Local endpoint helpers wrap an already-running compatible server. They do not
-start, stop, or supervise model-server processes.
+Pass that adapter with `model_adapter_coverage="strict"` when the workflow must
+stay within the local llama.cpp boundary. Use augmented coverage only when it is
+acceptable for missing eligible coverage to fall back to the default OpenAI
+adapter.
+
+Local endpoint helpers wrap an already-running compatible server, including
+llama.cpp servers exposing an OpenAI-compatible API. They do not start, stop, or
+supervise model-server processes.
 
 `search_hugging_face_models(...)` is read-only discovery. A matching result does
 not mean the model is downloaded, runnable, or compatible with the workflow.
