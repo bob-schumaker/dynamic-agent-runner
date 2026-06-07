@@ -155,6 +155,7 @@ async def execute_workflow_async(
     trace_sink: TraceSink | None = None,
     prompt_cache: bool | None = None,
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
+    model_adapter_coverage: str | None = None,
     run_id: str | None = None,
 ) -> WorkflowResult:
     """Execute a validated workflow from a user prompt asynchronously."""
@@ -169,6 +170,7 @@ async def execute_workflow_async(
         trace_sink=trace_sink,
         prompt_cache=prompt_cache,
         lifecycle_hooks=lifecycle_hooks,
+        model_adapter_coverage=model_adapter_coverage,
     )
     plan = prepare_execution_plan(context.workflow)
     nodes = plan.nodes_by_id
@@ -232,6 +234,7 @@ async def execute_workflow_async(
                     tracer,
                     context.prompt_cache,
                     hooks,
+                    context.model_adapter_coverage,
                 )
             except Exception as exc:
                 tracer.emit(
@@ -296,6 +299,7 @@ def execute_workflow(
     trace_sink: TraceSink | None = None,
     prompt_cache: bool | None = None,
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
+    model_adapter_coverage: str | None = None,
     run_id: str | None = None,
 ) -> WorkflowResult:
     """Execute a validated workflow from a user prompt."""
@@ -310,6 +314,7 @@ def execute_workflow(
             trace_sink=trace_sink,
             prompt_cache=prompt_cache,
             lifecycle_hooks=lifecycle_hooks,
+            model_adapter_coverage=model_adapter_coverage,
             run_id=run_id,
         )
     )
@@ -323,6 +328,7 @@ def prepare_model_input(
     model_adapters: Sequence[ModelAdapter] | None = None,
     tracer: WorkflowTracer | None = None,
     prompt_cache: bool | None = None,
+    model_adapter_coverage: str = "augmented",
 ) -> PreparedModelInput:
     """Prepare rendered model input for an ``llm_step`` node."""
 
@@ -332,6 +338,7 @@ def prepare_model_input(
         node,
         model_adapters or (),
         _execution_policy_model_map(plan.execution_policy),
+        model_adapter_coverage=model_adapter_coverage,
     )
     render_context, mutation_preparation = _prepare_model_input_render_context(
         node, state
@@ -410,6 +417,7 @@ def _normalize_execution_context(
     trace_sink: TraceSink | None,
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
+    model_adapter_coverage: str | None,
 ) -> WorkflowExecutionContext:
     if isinstance(workflow, WorkflowExecutionContext):
         if any(
@@ -421,12 +429,15 @@ def _normalize_execution_context(
                 trace_sink,
                 prompt_cache,
                 lifecycle_hooks,
+                model_adapter_coverage,
             )
         ):
             raise WorkflowExecutionError(
                 "execution context cannot be combined with runtime keyword arguments"
             )
+        _normalize_model_adapter_coverage(workflow.model_adapter_coverage)
         return workflow
+    normalized_coverage = _normalize_model_adapter_coverage(model_adapter_coverage)
     return WorkflowExecutionContext(
         workflow=workflow,
         tool_registry=tool_registry,
@@ -435,6 +446,7 @@ def _normalize_execution_context(
         trace_sink=trace_sink,
         prompt_cache=prompt_cache,
         lifecycle_hooks=lifecycle_hooks,
+        model_adapter_coverage=normalized_coverage,
     )
 
 
@@ -447,6 +459,7 @@ async def _execute_node_async(
     tracer: WorkflowTracer,
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
+    model_adapter_coverage: str,
 ) -> Any:
     if node.kind == "llm_step":
         return await _execute_llm_step_async(
@@ -458,6 +471,7 @@ async def _execute_node_async(
             tracer,
             prompt_cache,
             lifecycle_hooks,
+            model_adapter_coverage,
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
@@ -481,6 +495,7 @@ async def _execute_llm_step_async(
     tracer: WorkflowTracer,
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
+    model_adapter_coverage: str,
 ) -> ModelResponse:
     prepared_input = prepare_model_input(
         node,
@@ -489,6 +504,7 @@ async def _execute_llm_step_async(
         model_adapters=model_adapters,
         tracer=tracer,
         prompt_cache=prompt_cache,
+        model_adapter_coverage=model_adapter_coverage,
     )
     tools: list[dict[str, Any]] = []
     exposed_tools: tuple[RegisteredTool, ...] = ()
@@ -1454,6 +1470,16 @@ def _normalize_model_adapters(
     return tuple(value)
 
 
+def _normalize_model_adapter_coverage(value: str | None) -> str:
+    if value is None:
+        return "augmented"
+    if value in {"augmented", "strict"}:
+        return value
+    raise WorkflowExecutionError(
+        f"model_adapter_coverage must be 'augmented' or 'strict'; got {value!r}"
+    )
+
+
 def _execution_policy_model_map(
     execution_policy: Mapping[str, Any],
 ) -> Mapping[str, Any]:
@@ -1465,20 +1491,21 @@ def _select_model_and_adapter(
     node: PreparedNode,
     adapters: Sequence[ModelAdapter],
     model_map: Mapping[str, Any],
+    *,
+    model_adapter_coverage: str = "augmented",
 ) -> tuple[str, ModelAdapter]:
     requested_model = _model_name(node)
     normalized_adapters = tuple(adapters)
     required_features = _required_model_features(node)
-    requires_local_only = _requires_local_only(node)
+    coverage = _normalize_model_adapter_coverage(model_adapter_coverage)
 
-    if not normalized_adapters and (not required_features or not model_map):
+    if not normalized_adapters and coverage == "augmented" and not required_features:
         return requested_model, AsyncOpenAIClientAdapter(models=(requested_model,))
 
     matches, preferred_matches = _matching_model_adapters(
         normalized_adapters,
         requested_model=requested_model,
         required_features=required_features,
-        requires_local_only=requires_local_only,
         model_map=model_map,
     )
 
@@ -1486,21 +1513,84 @@ def _select_model_and_adapter(
         return preferred_matches[0]
     if matches:
         return matches[0]
-    if normalized_adapters and not required_features and not requires_local_only:
-        return requested_model, normalized_adapters[0]
+
+    if coverage == "strict":
+        raise _strict_model_adapter_coverage_error(
+            node,
+            requested_model=requested_model,
+            required_features=required_features,
+        )
+
+    if not required_features:
+        wildcard_adapter = _first_wildcard_model_adapter(normalized_adapters)
+        if wildcard_adapter is not None:
+            return requested_model, wildcard_adapter
+        return requested_model, AsyncOpenAIClientAdapter(models=(requested_model,))
 
     fallback_model = _fallback_model_name(requested_model, required_features, model_map)
+    if _default_openai_adapter_allowed(fallback_model, model_map):
+        return fallback_model, AsyncOpenAIClientAdapter(models=(fallback_model,))
+
     if fallback_model != requested_model:
-        raise WorkflowExecutionError(
-            f"llm_step node {node.id!r} requires capabilities {sorted(required_features)!r} "
-            f"but no provided model adapter advertises support for fallback model "
-            f"{fallback_model!r}"
+        return _raise_missing_capability_adapter_error(
+            node,
+            model_label="fallback model",
+            model_name=fallback_model,
+            required_features=required_features,
         )
+    return _raise_missing_capability_adapter_error(
+        node,
+        model_label="requested model",
+        model_name=requested_model,
+        required_features=required_features,
+    )
+
+
+def _first_wildcard_model_adapter(
+    adapters: Sequence[ModelAdapter],
+) -> ModelAdapter | None:
+    return next(
+        (adapter for adapter in adapters if not getattr(adapter, "models", ())), None
+    )
+
+
+def _strict_model_adapter_coverage_error(
+    node: PreparedNode,
+    *,
+    requested_model: str,
+    required_features: frozenset[str],
+) -> WorkflowExecutionError:
+    feature_text = (
+        f" and capabilities {sorted(required_features)!r}" if required_features else ""
+    )
+    return WorkflowExecutionError(
+        "model_adapter_coverage 'strict' requires a provided model adapter that "
+        f"advertises support for llm_step node {node.id!r} model "
+        f"{requested_model!r}{feature_text}"
+    )
+
+
+def _raise_missing_capability_adapter_error(
+    node: PreparedNode,
+    *,
+    model_label: str,
+    model_name: str,
+    required_features: frozenset[str],
+) -> tuple[str, ModelAdapter]:
     raise WorkflowExecutionError(
         f"llm_step node {node.id!r} requires capabilities {sorted(required_features)!r} "
-        f"but no provided model adapter advertises support for requested model "
-        f"{requested_model!r}"
+        f"but no provided model adapter advertises support for {model_label} "
+        f"{model_name!r}"
     )
+
+
+def _default_openai_adapter_allowed(
+    model_name: str,
+    model_map: Mapping[str, Any],
+) -> bool:
+    if model_name not in model_map:
+        return True
+    return bool(_registry_model_features_for_name(model_name))
 
 
 def _matching_model_adapters(
@@ -1508,16 +1598,15 @@ def _matching_model_adapters(
     *,
     requested_model: str,
     required_features: frozenset[str],
-    requires_local_only: bool,
     model_map: Mapping[str, Any],
 ) -> tuple[list[tuple[str, ModelAdapter]], list[tuple[str, ModelAdapter]]]:
     matches: list[tuple[str, ModelAdapter]] = []
     preferred_matches: list[tuple[str, ModelAdapter]] = []
     for adapter in adapters:
-        if requires_local_only and not getattr(adapter, "is_local", False):
-            continue
         for model_name in getattr(adapter, "models", ()):
             features = _model_features_for_name(model_name, model_map)
+            if not required_features and model_name != requested_model:
+                continue
             if required_features and not required_features.issubset(features):
                 continue
             candidate = (model_name, adapter)
@@ -1542,16 +1631,6 @@ def _required_model_features(node: PreparedNode) -> frozenset[str]:
         ):
             features.update(str(item) for item in raw_value)
     return frozenset(features)
-
-
-def _requires_local_only(node: PreparedNode) -> bool:
-    requirements = _mapping_or_none(node.model_requirements) or {}
-    operational_preferences = _mapping_or_none(
-        requirements.get("operational_preferences")
-    )
-    if not operational_preferences:
-        return False
-    return operational_preferences.get("data_boundary") == "local_only"
 
 
 def _model_features_for_name(
@@ -1611,7 +1690,7 @@ def _get_openai_model_capabilities(model_name: str) -> Any | None:
     try:
         registry = ModelRegistry.get_default()
         return registry.get_capabilities(model_name)
-    except (ModelNotSupportedError, AttributeError, ImportError, ValueError):
+    except (ModelNotSupportedError, AttributeError, ImportError, OSError, ValueError):
         return None
 
 

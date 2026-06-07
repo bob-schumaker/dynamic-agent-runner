@@ -36,6 +36,7 @@ class WorkflowExecutionContext:
     trace_sink: TraceSink | None = None
     prompt_cache: bool | None = None
     lifecycle_hooks: WorkflowLifecycleHooks | None = None
+    model_adapter_coverage: str = "augmented"
 
 
 RunContext = WorkflowExecutionContext

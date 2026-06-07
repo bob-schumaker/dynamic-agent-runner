@@ -17,15 +17,18 @@ download behavior, or workflow-manifest schema fields.
 
 ## Slice 1 — Public Contract Tests
 
-- [ ] T1.1 [tests] Add RED tests that high-level sync and async APIs accept
+- [x] T1.1 [tests] Add RED tests that high-level sync and async APIs accept
       `model_adapter_coverage`.
   - Spec: FR-1, FR-2, FR-6
   - Plan: Implementation Shape
   - Files/components: `tests/test_executor.py`, `src/dynamic_agent_runner/api.py`
   - Validation: `poetry run pytest tests/test_executor.py -q`
   - Expected RED: keyword is not accepted or ignored before implementation.
+  - RED: targeted executor tests failed with unexpected-keyword errors before
+    API wiring.
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
-- [ ] T1.2 [tests] Add RED tests that lower-level executor APIs and
+- [x] T1.2 [tests] Add RED tests that lower-level executor APIs and
       `WorkflowExecutionContext` accept and apply `model_adapter_coverage`.
   - Spec: FR-1, FR-2, FR-6
   - Plan: Implementation Shape
@@ -34,8 +37,11 @@ download behavior, or workflow-manifest schema fields.
     `src/dynamic_agent_runner/executor.py`
   - Validation: `poetry run pytest tests/test_executor.py -q`
   - Expected RED: context or executor does not carry the policy.
+  - RED: targeted executor tests failed because executor/context constructors
+    did not accept `model_adapter_coverage`.
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
-- [ ] T1.3 [tests] Add RED tests for strict missing-coverage failures.
+- [x] T1.3 [tests] Add RED tests for strict missing-coverage failures.
   - Spec: FR-2, FR-3
   - Plan: Error Contract
   - Files/components: `tests/test_executor.py`
@@ -46,8 +52,10 @@ download behavior, or workflow-manifest schema fields.
     - required capabilities unavailable from supplied adapters, strict
   - Validation: `poetry run pytest tests/test_executor.py -q`
   - Expected RED: default OpenAI adapter or first supplied adapter is still used.
+  - RED: targeted executor tests failed before strict coverage was implemented.
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
-- [ ] T1.4 [tests] Add RED tests for augmented default OpenAI coverage.
+- [x] T1.4 [tests] Add RED tests for augmented default OpenAI coverage.
   - Spec: FR-1, FR-5
   - Plan: Planning Decisions
   - Files/components: `tests/test_executor.py`
@@ -58,72 +66,86 @@ download behavior, or workflow-manifest schema fields.
     - supplied nonmatching adapter plus omitted policy behaves as augmented
   - Validation: `poetry run pytest tests/test_executor.py -q`
   - Expected RED: provided adapter list remains authoritative.
+  - RED: targeted executor tests failed while provided adapters remained
+    authoritative for missing coverage.
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
-- [ ] T1.5 [tests] Replace local-only routing tests with strict coverage tests.
+- [x] T1.5 [tests] Replace local-only routing tests with strict coverage tests.
   - Spec: FR-4
   - Plan: Existing Implementation Context
   - Files/components: `tests/test_executor.py`
   - Validation: `poetry run pytest tests/test_executor.py -q`
   - Expected RED: current implementation still filters adapters by `is_local`
     for `local_only` metadata.
+  - RED: targeted executor tests failed while `local_only` metadata still drove
+    adapter filtering.
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
 ## Slice 2 — API and Context Wiring
 
-- [ ] T2.1 [implementation] Add `model_adapter_coverage` to
+- [x] T2.1 [implementation] Add `model_adapter_coverage` to
       `WorkflowExecutionContext`.
   - Spec: Proposed Public API, FR-6
   - Plan: Implementation Shape
   - Files/components: `src/dynamic_agent_runner/context.py`
   - Depends on: T1.2
   - Validation: `poetry run pytest tests/test_executor.py -q`
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
-- [ ] T2.2 [implementation] Add `model_adapter_coverage` to high-level run APIs
+- [x] T2.2 [implementation] Add `model_adapter_coverage` to high-level run APIs
       and forward it through to execution.
   - Spec: Proposed Public API, FR-1
   - Plan: Implementation Shape
   - Files/components: `src/dynamic_agent_runner/api.py`
   - Depends on: T2.1
   - Validation: `poetry run pytest tests/test_executor.py -q`
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
-- [ ] T2.3 [implementation] Add `model_adapter_coverage` to sync and async
+- [x] T2.3 [implementation] Add `model_adapter_coverage` to sync and async
       executor APIs and context normalization.
   - Spec: Proposed Public API, FR-1, FR-6
   - Plan: Implementation Shape
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Depends on: T2.1
   - Validation: `poetry run pytest tests/test_executor.py -q`
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
-- [ ] T2.4 [implementation] Validate policy values fail closed.
+- [x] T2.4 [implementation] Validate policy values fail closed.
   - Spec: FR-6
   - Plan: Error Contract
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Depends on: T2.3
   - Validation: `poetry run pytest tests/test_executor.py -q`
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
 ## Slice 3 — Selection Semantics
 
-- [ ] T3.1 [implementation] Implement strict adapter coverage.
+- [x] T3.1 [implementation] Implement strict adapter coverage.
   - Spec: FR-2, FR-3
   - Plan: Selection flow
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Depends on: T2.4
   - Validation: `poetry run pytest tests/test_executor.py -q`
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
-- [ ] T3.2 [implementation] Implement augmented default OpenAI coverage.
+- [x] T3.2 [implementation] Implement augmented default OpenAI coverage.
   - Spec: FR-1, FR-5
   - Plan: Selection flow
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Depends on: T3.1
   - Validation: `poetry run pytest tests/test_executor.py
     tests/test_model_capabilities.py -q`
+  - GREEN: `poetry run pytest tests/test_model_capabilities.py -q` passed with
+    3 tests after `tests/test_executor.py` passed with 65 tests.
 
-- [ ] T3.3 [implementation] Remove `local_only` adapter-routing semantics.
+- [x] T3.3 [implementation] Remove `local_only` adapter-routing semantics.
   - Spec: FR-4
   - Plan: Planning Decisions
   - Files/components: `src/dynamic_agent_runner/executor.py`,
     `tests/test_executor.py`
   - Depends on: T3.1
   - Validation: `poetry run pytest tests/test_executor.py -q`
+  - GREEN: `poetry run pytest tests/test_executor.py -q` passed with 65 tests.
 
 ## Slice 4 — Documentation and Final Validation
 

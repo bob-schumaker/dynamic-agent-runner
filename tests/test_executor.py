@@ -31,6 +31,7 @@ from dynamic_agent_runner.models import (
 )
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
+    ModelResponse,
     OpenAIClientAdapter,
     OpenAIMessage,
 )
@@ -312,6 +313,21 @@ def test_run_agent_workflow_accepts_package_directory() -> None:
     assert result == "package ok"
 
 
+def test_run_agent_workflow_accepts_model_adapter_coverage() -> None:
+    fixture = package_fixture_path()
+
+    result = run_agent_workflow(
+        package_directory=str(fixture),
+        prompt="Say hello from package API.",
+        model_adapter=make_adapter(
+            [{"id": "resp_coverage", "output_text": "coverage ok"}]
+        ),
+        model_adapter_coverage="augmented",
+    )
+
+    assert result == "coverage ok"
+
+
 async def _run_agent_workflow_async_keeps_compatibility_artifact_inputs() -> None:
     fixture = package_fixture_path()
 
@@ -330,6 +346,27 @@ async def _run_agent_workflow_async_keeps_compatibility_artifact_inputs() -> Non
 
 def test_run_agent_workflow_async_keeps_compatibility_artifact_inputs() -> None:
     asyncio.run(_run_agent_workflow_async_keeps_compatibility_artifact_inputs())
+
+
+async def _run_agent_workflow_async_accepts_model_adapter_coverage() -> None:
+    fixture = package_fixture_path()
+
+    result = await run_agent_workflow_async(
+        runtime_manifest=str(fixture / "agent-runtime.yaml"),
+        agent_design=str(fixture / "agent-design.md"),
+        mermaid_graph=str(fixture / "agent-graph.mmd"),
+        prompt="Say hello from compatibility inputs.",
+        model_adapter=make_async_adapter(
+            [{"id": "resp_coverage_async", "output_text": "coverage async ok"}]
+        ),
+        model_adapter_coverage="augmented",
+    )
+
+    assert result == "coverage async ok"
+
+
+def test_run_agent_workflow_async_accepts_model_adapter_coverage() -> None:
+    asyncio.run(_run_agent_workflow_async_accepts_model_adapter_coverage())
 
 
 def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
@@ -1829,6 +1866,294 @@ def test_execute_workflow_fails_when_no_adapter_matches_required_features() -> N
     assert remote.client.responses.calls == []
 
 
+def test_execute_workflow_strict_fails_with_no_adapter() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "strict-empty-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="model_adapter_coverage.*strict"):
+        execute_workflow(
+            workflow,
+            prompt="Hello",
+            model_adapter=None,
+            model_adapter_coverage="strict",
+        )
+
+
+def test_execute_workflow_strict_fails_with_empty_adapter_list() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "strict-empty-list-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="model_adapter_coverage.*strict"):
+        execute_workflow(
+            workflow,
+            prompt="Hello",
+            model_adapter=[],
+            model_adapter_coverage="strict",
+        )
+
+
+def test_execute_workflow_strict_fails_with_nonmatching_adapter() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "strict-nonmatching-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_named_adapter(
+        [{"id": "unused", "output_text": "wrong"}],
+        models=["other-model"],
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="model_adapter_coverage.*strict"):
+        execute_workflow(
+            workflow,
+            prompt="Hello",
+            model_adapter=[adapter],
+            model_adapter_coverage="strict",
+        )
+
+    assert adapter.client.responses.calls == []
+
+
+def test_execute_workflow_strict_fails_when_required_features_are_unavailable() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "strict-feature-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "default_model": "structured-model",
+                    "model_map": {
+                        "basic-model": ["tool_calling"],
+                        "structured-model": ["structured_output"],
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "model_requirements": {
+                        "required_capabilities": ["structured_output"]
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_named_adapter(
+        [{"id": "unused", "output_text": "basic"}],
+        models=["basic-model"],
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="model_adapter_coverage.*strict"):
+        execute_workflow(
+            workflow,
+            prompt="Hello",
+            model_adapter=[adapter],
+            model_adapter_coverage="strict",
+        )
+
+    assert adapter.client.responses.calls == []
+
+
+def test_execute_workflow_augmented_uses_default_openai_for_missing_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "augmented-default-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    supplied = make_named_adapter(
+        [{"id": "unused", "output_text": "wrong"}],
+        models=["other-model"],
+    )
+    seen_adapters: list[object] = []
+
+    async def fake_create_model_response(adapter, request):
+        seen_adapters.append(adapter)
+        return ModelResponse(response_id="resp-default", content="default ok")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.executor._create_model_response_async",
+        fake_create_model_response,
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Hello",
+        model_adapter=[supplied],
+        model_adapter_coverage="augmented",
+    )
+
+    assert result.final_result == "default ok"
+    assert supplied.client.responses.calls == []
+    assert isinstance(seen_adapters[0], AsyncOpenAIClientAdapter)
+    assert seen_adapters[0].models == ("gpt-test",)
+
+
+def test_execute_workflow_omitted_coverage_defaults_to_augmented(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "augmented-default-omitted-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    supplied = make_named_adapter(
+        [{"id": "unused", "output_text": "wrong"}],
+        models=["other-model"],
+    )
+    seen_adapters: list[object] = []
+
+    async def fake_create_model_response(adapter, request):
+        seen_adapters.append(adapter)
+        return ModelResponse(response_id="resp-default", content="default ok")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.executor._create_model_response_async",
+        fake_create_model_response,
+    )
+
+    result = execute_workflow(workflow, prompt="Hello", model_adapter=[supplied])
+
+    assert result.final_result == "default ok"
+    assert supplied.client.responses.calls == []
+    assert isinstance(seen_adapters[0], AsyncOpenAIClientAdapter)
+
+
+def test_execute_workflow_rejects_unknown_model_adapter_coverage() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "invalid-coverage-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="model_adapter_coverage"):
+        execute_workflow(
+            workflow,
+            prompt="Hello",
+            model_adapter_coverage="best_effort",
+        )
+
+
+def test_execution_context_applies_model_adapter_coverage() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "context-strict-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    context = WorkflowExecutionContext(
+        workflow=workflow,
+        model_adapter=[],
+        model_adapter_coverage="strict",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="model_adapter_coverage.*strict"):
+        execute_workflow(context, prompt="Hello")
+
+
 def test_prepare_model_input_uses_openai_model_registry_for_native_features(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1889,9 +2214,7 @@ def test_prepare_model_input_uses_openai_model_registry_for_native_features(
     assert prepared_input.adapter is local
 
 
-def test_prepare_model_input_routes_local_only_requests_to_helper_built_local_adapter() -> (
-    None
-):
+def test_prepare_model_input_does_not_route_by_local_only_metadata() -> None:
     from dynamic_agent_runner.local_models import (
         LocalOpenAIEndpointConfig,
         create_local_openai_adapter,
@@ -1901,7 +2224,7 @@ def test_prepare_model_input_routes_local_only_requests_to_helper_built_local_ad
         {
             "format_version": 1,
             "package_type": "dynamic_agent_design",
-            "package_id": "local-only-helper-routing-agent",
+            "package_id": "local-only-metadata-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
             "runtime": {
@@ -1950,9 +2273,9 @@ def test_prepare_model_input_routes_local_only_requests_to_helper_built_local_ad
     )
 
     assert prepared_input.model == "qwen-local"
-    assert prepared_input.adapter is local
-    assert prepared_input.adapter.is_local is True
-    assert prepared_input.adapter.models == ("qwen-local", "chat-default")
+    assert prepared_input.adapter is remote
+    assert local.is_local is True
+    assert local.models == ("qwen-local", "chat-default")
 
 
 def test_prepare_model_input_uses_default_openai_adapter_without_capability_routing() -> (

@@ -153,6 +153,7 @@ def run_agent_workflow(
     trace_sink: Any | None = None,
     prompt_cache: bool | None = None,
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
+    model_adapter_coverage: str | None = None,
     run_id: str | None = None,
 ) -> Any:
     """Run an agent workflow from generated artifacts and a user prompt.
@@ -179,6 +180,7 @@ def run_agent_workflow(
             trace_sink=trace_sink,
             prompt_cache=prompt_cache,
             lifecycle_hooks=lifecycle_hooks,
+            model_adapter_coverage=model_adapter_coverage,
             run_id=run_id,
         )
     )
@@ -202,6 +204,7 @@ async def run_agent_workflow_async(
     trace_sink: Any | None = None,
     prompt_cache: bool | None = None,
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
+    model_adapter_coverage: str | None = None,
     run_id: str | None = None,
 ) -> Any:
     """Run generated workflow artifacts asynchronously and return final output."""
@@ -224,6 +227,7 @@ async def run_agent_workflow_async(
                 trace_sink,
                 prompt_cache,
                 lifecycle_hooks,
+                model_adapter_coverage,
             )
         ):
             raise TypeError(
@@ -264,6 +268,7 @@ async def run_agent_workflow_async(
         trace_sink=trace_sink,
         prompt_cache=prompt_cache,
         lifecycle_hooks=lifecycle_hooks,
+        model_adapter_coverage=model_adapter_coverage,
         run_id=run_id,
     )
     return result.final_result
