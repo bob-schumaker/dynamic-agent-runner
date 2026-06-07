@@ -21,15 +21,19 @@ fields.
 
 ## Slice 1 — Public Contract and Failure Tests
 
-- [ ] T1.1 [tests] Add RED tests that package import does not require MLX.
+- [x] T1.1 [tests] Add RED tests that package import does not require MLX.
   - Spec: FR-2
   - Plan: Dependency policy
   - Files/components: `tests/test_import.py`,
     `src/dynamic_agent_runner/__init__.py`
   - Validation: `poetry run pytest tests/test_import.py -q`
   - Expected RED: public exports or imports do not exist yet.
+  - RED: targeted import/MLX tests failed because package-root MLX exports did
+    not exist.
+  - GREEN: `poetry run pytest tests/test_import.py tests/test_mlx_models.py -q`
+    passed with 7 tests.
 
-- [ ] T1.2 [tests] Add RED tests for `MLXLocalModelConfig` and sync/async
+- [x] T1.2 [tests] Add RED tests for `MLXLocalModelConfig` and sync/async
       factory exports.
   - Spec: Proposed Public API, FR-1, FR-2
   - Plan: Public exports, New MLX helper module
@@ -38,8 +42,12 @@ fields.
     `src/dynamic_agent_runner/__init__.py`
   - Validation: `poetry run pytest tests/test_mlx_models.py -q`
   - Expected RED: module, config, and factories do not exist.
+  - RED: targeted MLX tests failed with missing `MLXLocalModelConfig` and
+    factory exports.
+  - GREEN: `poetry run pytest tests/test_import.py tests/test_mlx_models.py -q`
+    passed with 7 tests.
 
-- [ ] T1.3 [tests] Add RED tests for unsupported platform and missing MLX
+- [x] T1.3 [tests] Add RED tests for unsupported platform and missing MLX
       dependency failures.
   - Spec: FR-2
   - Plan: Error Contract
@@ -48,8 +56,11 @@ fields.
     `src/dynamic_agent_runner/errors.py`
   - Validation: `poetry run pytest tests/test_mlx_models.py -q`
   - Expected RED: no package-owned MLX platform/dependency errors exist.
+  - RED: targeted MLX tests failed before the adapter existed.
+  - GREEN: `poetry run pytest tests/test_import.py tests/test_mlx_models.py -q`
+    passed with 7 tests.
 
-- [ ] T1.4 [tests] Add RED tests for unsupported request features.
+- [x] T1.4 [tests] Add RED tests for unsupported request features.
   - Spec: FR-5
   - Plan: Planning Decisions, Error Contract
   - Files/components: `tests/test_mlx_models.py`,
@@ -59,10 +70,13 @@ fields.
     - structured response format requested
   - Validation: `poetry run pytest tests/test_mlx_models.py -q`
   - Expected RED: no MLX adapter request validation exists.
+  - RED: targeted MLX tests failed before request validation existed.
+  - GREEN: `poetry run pytest tests/test_import.py tests/test_mlx_models.py -q`
+    passed with 7 tests.
 
 ## Slice 2 — Core MLX Adapter Surface
 
-- [ ] T2.1 [implementation] Add `mlx_models.py` with config, backend protocol,
+- [x] T2.1 [implementation] Add `mlx_models.py` with config, backend protocol,
       lazy checks, and sync adapter factory.
   - Spec: Proposed Public API, FR-1, FR-2, FR-5
   - Plan: New MLX helper module, Error Contract
@@ -70,8 +84,10 @@ fields.
     `src/dynamic_agent_runner/errors.py`
   - Depends on: T1.2, T1.3, T1.4
   - Validation: `poetry run pytest tests/test_mlx_models.py -q`
+  - GREEN: `poetry run pytest tests/test_import.py tests/test_mlx_models.py -q`
+    passed with 7 tests.
 
-- [ ] T2.2 [implementation] Add async MLX adapter factory without blocking the
+- [x] T2.2 [implementation] Add async MLX adapter factory without blocking the
       event loop directly.
   - Spec: Proposed Public API, FR-1, FR-5
   - Plan: Planning Decisions, Implementation Shape
@@ -79,8 +95,10 @@ fields.
     `tests/test_mlx_models.py`
   - Depends on: T2.1
   - Validation: `poetry run pytest tests/test_mlx_models.py -q`
+  - GREEN: `poetry run pytest tests/test_import.py tests/test_mlx_models.py -q`
+    passed with 7 tests.
 
-- [ ] T2.3 [implementation] Export MLX config and factories from package root.
+- [x] T2.3 [implementation] Export MLX config and factories from package root.
   - Spec: Proposed Public API, FR-2
   - Plan: Public exports
   - Files/components: `src/dynamic_agent_runner/__init__.py`,
@@ -88,6 +106,8 @@ fields.
   - Depends on: T2.1, T2.2
   - Validation:
     `poetry run pytest tests/test_import.py tests/test_mlx_models.py -q`
+  - GREEN: `poetry run pytest tests/test_import.py tests/test_mlx_models.py -q`
+    passed with 7 tests.
 
 ## Slice 3 — Model Assets, Identity, and Generation Normalization
 

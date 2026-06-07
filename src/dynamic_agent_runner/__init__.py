@@ -26,6 +26,11 @@ from dynamic_agent_runner.local_models import (
     create_local_async_openai_adapter,
     create_local_openai_adapter,
 )
+from dynamic_agent_runner.mlx_models import (
+    MLXLocalModelConfig,
+    create_mlx_local_adapter,
+    create_mlx_local_async_adapter,
+)
 from dynamic_agent_runner.hugging_face_models import (
     HuggingFaceModelSearchResult,
     search_hugging_face_models,
@@ -118,6 +123,7 @@ __all__ = [
     "HuggingFaceModelSearchError",
     "HuggingFaceModelSearchResult",
     "LocalOpenAIEndpointConfig",
+    "MLXLocalModelConfig",
     "ModelExecutionError",
     "ModelResponse",
     "ModelToolCall",
@@ -143,6 +149,8 @@ __all__ = [
     "search_hugging_face_models",
     "create_local_async_openai_adapter",
     "create_local_openai_adapter",
+    "create_mlx_local_adapter",
+    "create_mlx_local_async_adapter",
     "create_default_async_openai_client",
     "create_default_openai_provider",
     "create_default_openai_client",

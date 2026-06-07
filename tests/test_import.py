@@ -28,6 +28,9 @@ def test_package_imports() -> None:
     assert dynamic_agent_runner.LocalOpenAIEndpointConfig is not None
     assert dynamic_agent_runner.create_local_openai_adapter is not None
     assert dynamic_agent_runner.create_local_async_openai_adapter is not None
+    assert dynamic_agent_runner.MLXLocalModelConfig is not None
+    assert dynamic_agent_runner.create_mlx_local_adapter is not None
+    assert dynamic_agent_runner.create_mlx_local_async_adapter is not None
     assert dynamic_agent_runner.search_hugging_face_models is not None
     assert dynamic_agent_runner.HuggingFaceModelSearchResult is not None
     assert dynamic_agent_runner.HuggingFaceModelSearchError is not None
