@@ -3,18 +3,22 @@
 ## Metadata
 
 - Feature slug: `hugging-face-support-layer`
-- Mode: `light`
-- Artifact type: future internal infrastructure feature specification
-- Status: proposed future internal refactor; current search and local-model
-  download helpers each wrap `huggingface_hub` independently
+- Mode: `guided`
+- Artifact type: authoritative internal infrastructure feature specification
+- Status: ready for implementation; plan and task list prepared; not
+  implemented
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/hugging-face-model-search/spec.md`
   - `specs/llama-cpp-local-model/spec.md`
 - Related implementation surfaces:
+  - `src/dynamic_agent_runner/hugging_face_support.py`
   - `src/dynamic_agent_runner/hugging_face_models.py`
   - `src/dynamic_agent_runner/local_models.py`
   - `src/dynamic_agent_runner/errors.py`
+  - `tests/test_hugging_face_support.py`
+  - `tests/test_hugging_face_models.py`
+  - `tests/test_local_models.py`
 
 ## Objective
 
@@ -158,7 +162,7 @@ Acceptance criteria:
 ## Suggested Implementation Shape
 
 A future implementation may add an internal module such as
-`src/dynamic_agent_runner/hugging_face_support.py` with helpers similar to:
+`src/dynamic_agent_runner/hugging_face_support.py` with helpers:
 
 - `list_hub_models(...)`
 - `download_hub_file(...)`
@@ -166,8 +170,8 @@ A future implementation may add an internal module such as
 - `load_hugging_face_hub(...)`
 
 Domain modules should wrap support-layer failures into their existing public
-errors. The exact function names are intentionally not authoritative until a
-plan/task artifact is approved.
+errors. These helper names are authoritative for the prepared implementation
+pass in `plan.md` and `tasks.md`.
 
 ## Validation Checklist
 

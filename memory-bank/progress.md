@@ -60,6 +60,9 @@
 - The macOS MLX local-model adapter spec is now implementation-ready with
   `specs/mlx-local-model-adapter/spec.md`, `plan.md`, and `tasks.md`; no runtime
   implementation has started.
+- The Hugging Face support-layer spec is also implementation-ready with
+  `specs/hugging-face-support-layer/plan.md` and `tasks.md`; it should land
+  before MLX Hub-reference tasks T3.5/T3.6.
 
 ## Remaining
 
@@ -68,6 +71,8 @@
 - Active MLX next work: execute Slice 1 in
   `specs/mlx-local-model-adapter/tasks.md` to add public contract and failure
   tests before runtime implementation.
+- Active Hugging Face dependency: execute
+  `specs/hugging-face-support-layer/tasks.md` before MLX T3.5/T3.6.
 - Future richer Hugging Face Hub behavior beyond read-only model discovery; this
   requires a separate feature spec.
 - Ongoing docs hygiene: keep `README.md` and authored Sphinx files under

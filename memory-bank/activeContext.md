@@ -87,12 +87,16 @@
 - The active MLX gate is ready for implementation from
   `specs/mlx-local-model-adapter/tasks.md`; start with Slice 1 public contract
   and failure tests.
+- The Hugging Face support-layer spec is now implementation-ready in
+  `specs/hugging-face-support-layer/plan.md` and
+  `specs/hugging-face-support-layer/tasks.md`; implement it before MLX T3.5 and
+  T3.6 so MLX Hub references reuse shared Hub mechanics.
 
 ## Next Steps
 
 - For implementation: continue from
-  `specs/mlx-local-model-adapter/tasks.md` and commit after each selected
-  implementation slice if the user asks to execute the plan.
+  `specs/mlx-local-model-adapter/tasks.md`, but complete
+  `specs/hugging-face-support-layer/tasks.md` before MLX T3.5/T3.6.
 - For documentation: keep `README.md`, `docs/files/`, `specs/README.md`,
   `specs/dynamic-agent-runner/tasks.md`, and feature spec statuses synchronized
   when new slices are selected or closed.
