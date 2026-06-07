@@ -23,6 +23,7 @@ Companion planning artifacts:
 | llama.cpp local-model adapter | [`spec.md`](llama-cpp-local-model/spec.md) | Active implemented baseline | Slices 1-2 complete; optional Slice 3 embedding follow-up unscheduled |
 | Internal graph mutation | [`spec.md`](internal-graph-mutation/spec.md) | Checkpoint complete | T3.2 complete; no additional tasks scheduled |
 | Hugging Face model search | [`spec.md`](hugging-face-model-search/spec.md) | Implemented | Public Hub discovery API, result contract, error translation, exports, tests, and docs complete |
+| Hugging Face support layer | [`spec.md`](hugging-face-support-layer/spec.md) | Future internal refactor | Spec captured; shared Hub import/call/error mechanics not implemented |
 | Async session memory pipeline | [`spec.md`](async-session-memory-pipeline/spec.md) | Metadata baseline plus future analysis | Metadata-only OA8 baseline implemented; no runner-owned session behavior |
 | LLM step interpreter middleware | [`spec.md`](llm-step-interpreter-middleware/spec.md) | Future investigation | Spec captured; backend selection, prototypes, and implementation not started |
 | Approval interruption and resume | [`spec.md`](approval-interruption-resume/spec.md) | Future live-runtime feature | Metadata baseline exists; live pause/resume not implemented |
@@ -42,6 +43,7 @@ Companion planning artifacts:
 | Local endpoint-backed model adapters | `llama-cpp-local-model` | Local endpoint helpers, provider-seam wiring, exports, model-resolution precedence, Hugging Face download wiring, and local failure taxonomy complete | Optional separate local embedding configuration and in-process llama.cpp evaluation |
 | Compile-time graph mutation | `internal-graph-mutation` | Internal typed mutation datamodel, context-pruning mutation, validation, prepared-input integration, and diagnostics complete | Future structural graph surgery or public mutation schema require new approval |
 | Public Hugging Face model discovery | `hugging-face-model-search` | Repository-owned search API, normalized result types, error translation, exports, tests, and docs complete | Future richer Hub capabilities require a separate feature spec |
+| Shared Hugging Face SDK support | `hugging-face-support-layer` | No shared internal support layer exists today; search and local-model download helpers wrap Hub SDK access separately | Internal helper for lazy Hub import, read-only Hub calls, and domain-specific error translation |
 | Async session metadata | `async-session-memory-pipeline` | `runtime.execution_policy.async_session` metadata preservation and fail-closed validation complete | Runner-owned durable storage, replay, summary generation, and pruning are deferred |
 | Interpreter middleware | `llm-step-interpreter-middleware` | Future feature spec and candidate interface expectations captured | Dependency checks, prototypes, benchmark evidence, backend selection, and implementation |
 | Sandbox/workspace runtime | `sandbox-workspace-runtime` | Metadata-only `sandbox_runtime` preservation complete | Write tools, shell tools, workspace grants, and approval policy are specified as future work |
