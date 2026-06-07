@@ -111,7 +111,7 @@ fields.
 
 ## Slice 3 — Model Assets, Identity, and Generation Normalization
 
-- [ ] T3.1 [tests] Add RED tests for converted MLX directory path resolution.
+- [x] T3.1 [tests] Add RED tests for converted MLX directory path resolution.
   - Spec: FR-3
   - Plan: Implementation Shape
   - Files/components: `tests/test_mlx_models.py`,
@@ -119,8 +119,12 @@ fields.
     `src/dynamic_agent_runner/local_models.py`
   - Validation: `poetry run pytest tests/test_mlx_models.py -q`
   - Expected RED: MLX path preflight is not implemented.
+  - RED: targeted MLX tests failed because missing model directories did not
+    raise local-model resolution errors.
+  - GREEN: `poetry run pytest tests/test_mlx_models.py
+    tests/test_local_models.py -q` passed with 26 tests.
 
-- [ ] T3.2 [implementation] Implement converted MLX directory preflight and
+- [x] T3.2 [implementation] Implement converted MLX directory preflight and
       local-model resolution errors.
   - Spec: FR-3
   - Plan: New MLX helper module, Error Contract
@@ -128,16 +132,22 @@ fields.
     `src/dynamic_agent_runner/errors.py`
   - Depends on: T3.1
   - Validation: `poetry run pytest tests/test_mlx_models.py -q`
+  - GREEN: `poetry run pytest tests/test_mlx_models.py
+    tests/test_local_models.py -q` passed with 26 tests.
 
-- [ ] T3.3 [tests] Add RED tests for model identity mismatch reporting.
+- [x] T3.3 [tests] Add RED tests for model identity mismatch reporting.
   - Spec: FR-4
   - Plan: Error Contract
   - Files/components: `tests/test_mlx_models.py`,
     `src/dynamic_agent_runner/mlx_models.py`
   - Validation: `poetry run pytest tests/test_mlx_models.py -q`
   - Expected RED: MLX adapter does not preserve authoritative identity yet.
+  - RED: targeted MLX tests failed because backend model identity was not
+    compared to `expected_model_id`.
+  - GREEN: `poetry run pytest tests/test_mlx_models.py
+    tests/test_local_models.py -q` passed with 26 tests.
 
-- [ ] T3.4 [implementation] Wire identity validation and normalized
+- [x] T3.4 [implementation] Wire identity validation and normalized
       `ModelResponse` output.
   - Spec: FR-4, FR-5
   - Plan: Implementation Shape, Error Contract
@@ -145,8 +155,10 @@ fields.
     `tests/test_mlx_models.py`
   - Depends on: T3.3
   - Validation: `poetry run pytest tests/test_mlx_models.py -q`
+  - GREEN: `poetry run pytest tests/test_mlx_models.py
+    tests/test_local_models.py -q` passed with 26 tests.
 
-- [ ] T3.5 [tests] Add RED tests for injected Hugging Face snapshot/file
+- [x] T3.5 [tests] Add RED tests for injected Hugging Face snapshot/file
       resolution without network.
   - Spec: FR-3
   - Plan: New MLX helper module
@@ -156,8 +168,12 @@ fields.
     `src/dynamic_agent_runner/local_models.py`
   - Validation: `poetry run pytest tests/test_mlx_models.py -q`
   - Expected RED: MLX helper does not accept injected Hub resolution yet.
+  - RED: targeted MLX tests failed because MLX config did not accept Hub
+    reference fields.
+  - GREEN: `poetry run pytest tests/test_mlx_models.py
+    tests/test_local_models.py -q` passed with 26 tests.
 
-- [ ] T3.6 [implementation] Reuse existing local-model Hub reference mechanics
+- [x] T3.6 [implementation] Reuse existing local-model Hub reference mechanics
       for MLX model directories.
   - Spec: FR-3
   - Plan: Existing Implementation Context, Implementation Shape
@@ -166,6 +182,8 @@ fields.
   - Depends on: T3.5 and `hugging-face-support-layer` implemented
   - Validation:
     `poetry run pytest tests/test_mlx_models.py tests/test_local_models.py -q`
+  - GREEN: `poetry run pytest tests/test_mlx_models.py
+    tests/test_local_models.py -q` passed with 26 tests.
 
 ## Slice 4 — Executor Coverage and Public Documentation
 

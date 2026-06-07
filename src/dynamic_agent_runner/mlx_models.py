@@ -9,7 +9,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from dynamic_agent_runner.local_models import (
+    DownloadFileCallable,
+    DownloadSnapshotCallable,
+    HuggingFaceModelFileReference,
+    HuggingFaceSnapshotReference,
+    LocalModelPathConfig,
+    resolve_local_model_path,
+    validate_local_model_identity,
+)
 from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner.errors import LocalModelResolutionError
 from dynamic_agent_runner.openai_client import ModelResponse, OpenAIModelRequest
 
 
@@ -31,6 +41,10 @@ class MLXLocalModelConfig:
 
     model_aliases: tuple[str, ...]
     model_path: Path
+    model_filename: str
+    model_cache_root: Path | None = None
+    huggingface_file: HuggingFaceModelFileReference | None = None
+    huggingface_snapshot: HuggingFaceSnapshotReference | None = None
     expected_model_id: str | None = None
 
     def __init__(
@@ -38,6 +52,10 @@ class MLXLocalModelConfig:
         *,
         model_aliases: Sequence[str],
         model_path: str | Path,
+        model_filename: str = "config.json",
+        model_cache_root: str | Path | None = None,
+        huggingface_file: HuggingFaceModelFileReference | None = None,
+        huggingface_snapshot: HuggingFaceSnapshotReference | None = None,
         expected_model_id: str | None = None,
     ) -> None:
         object.__setattr__(
@@ -46,6 +64,14 @@ class MLXLocalModelConfig:
             tuple(str(model_alias) for model_alias in model_aliases),
         )
         object.__setattr__(self, "model_path", Path(model_path))
+        object.__setattr__(self, "model_filename", model_filename)
+        object.__setattr__(
+            self,
+            "model_cache_root",
+            Path(model_cache_root) if model_cache_root is not None else None,
+        )
+        object.__setattr__(self, "huggingface_file", huggingface_file)
+        object.__setattr__(self, "huggingface_snapshot", huggingface_snapshot)
         object.__setattr__(self, "expected_model_id", expected_model_id)
 
 
@@ -59,18 +85,31 @@ class MLXLocalModelAdapter:
         backend: MLXLocalBackend | None = None,
         dependency_loader: DependencyLoaderCallable | None = None,
         platform_system: PlatformSystemCallable | None = None,
+        download_file: DownloadFileCallable | None = None,
+        download_snapshot: DownloadSnapshotCallable | None = None,
     ) -> None:
         self._config = config
         self._backend = backend
         self._dependency_loader = dependency_loader or _default_dependency_loader
         self._platform_system = platform_system or platform.system
+        self._download_file = download_file
+        self._download_snapshot = download_snapshot
 
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Generate and normalize a local MLX model response."""
 
         _ensure_supported_platform(self._platform_system())
         _validate_supported_request(request)
+        model_path = self._resolve_model_directory()
         backend = self._get_backend()
+        validate_local_model_identity(
+            requested_model=request.model,
+            expected_model_id=self._config.expected_model_id,
+            observed_model_id=_read_backend_model_id(backend),
+            explicit_model_path=model_path,
+            huggingface_file=self._config.huggingface_file,
+            huggingface_snapshot=self._config.huggingface_snapshot,
+        )
         try:
             content = backend.generate(request)
         except ModelExecutionError:
@@ -111,6 +150,37 @@ class MLXLocalModelAdapter:
             self._backend = loaded
         return self._backend
 
+    def _resolve_model_directory(self) -> Path:
+        configured_path = self._config.model_path
+        if configured_path.exists():
+            model_directory = (
+                configured_path if configured_path.is_dir() else configured_path.parent
+            )
+            _validate_converted_mlx_model_directory(model_directory)
+            return model_directory
+
+        if (
+            self._config.huggingface_file is None
+            and self._config.huggingface_snapshot is None
+        ):
+            raise LocalModelResolutionError(
+                f"MLX local model directory {configured_path!s} does not exist"
+            )
+
+        resolved_file = resolve_local_model_path(
+            LocalModelPathConfig(
+                model_filename=self._config.model_filename,
+                model_cache_root=self._config.model_cache_root,
+                huggingface_file=self._config.huggingface_file,
+                huggingface_snapshot=self._config.huggingface_snapshot,
+            ),
+            download_file=self._download_file,
+            download_snapshot=self._download_snapshot,
+        )
+        model_directory = resolved_file.parent
+        _validate_converted_mlx_model_directory(model_directory)
+        return model_directory
+
 
 class AsyncMLXLocalModelAdapter:
     """Async adapter for in-process local MLX text generation."""
@@ -122,12 +192,16 @@ class AsyncMLXLocalModelAdapter:
         backend: MLXLocalBackend | None = None,
         dependency_loader: DependencyLoaderCallable | None = None,
         platform_system: PlatformSystemCallable | None = None,
+        download_file: DownloadFileCallable | None = None,
+        download_snapshot: DownloadSnapshotCallable | None = None,
     ) -> None:
         self._sync_adapter = MLXLocalModelAdapter(
             config,
             backend=backend,
             dependency_loader=dependency_loader,
             platform_system=platform_system,
+            download_file=download_file,
+            download_snapshot=download_snapshot,
         )
 
     async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
@@ -154,6 +228,8 @@ def create_mlx_local_adapter(
     backend: MLXLocalBackend | None = None,
     dependency_loader: DependencyLoaderCallable | None = None,
     platform_system: PlatformSystemCallable | None = None,
+    download_file: DownloadFileCallable | None = None,
+    download_snapshot: DownloadSnapshotCallable | None = None,
 ) -> MLXLocalModelAdapter:
     """Build a sync local MLX adapter."""
 
@@ -162,6 +238,8 @@ def create_mlx_local_adapter(
         backend=backend,
         dependency_loader=dependency_loader,
         platform_system=platform_system,
+        download_file=download_file,
+        download_snapshot=download_snapshot,
     )
 
 
@@ -171,6 +249,8 @@ def create_mlx_local_async_adapter(
     backend: MLXLocalBackend | None = None,
     dependency_loader: DependencyLoaderCallable | None = None,
     platform_system: PlatformSystemCallable | None = None,
+    download_file: DownloadFileCallable | None = None,
+    download_snapshot: DownloadSnapshotCallable | None = None,
 ) -> AsyncMLXLocalModelAdapter:
     """Build an async local MLX adapter."""
 
@@ -179,6 +259,8 @@ def create_mlx_local_async_adapter(
         backend=backend,
         dependency_loader=dependency_loader,
         platform_system=platform_system,
+        download_file=download_file,
+        download_snapshot=download_snapshot,
     )
 
 
@@ -200,6 +282,37 @@ def _validate_supported_request(request: OpenAIModelRequest) -> None:
             "MLX local model adapter does not support structured response "
             f"formats for {request.model!r}"
         )
+
+
+def _validate_converted_mlx_model_directory(model_directory: Path) -> None:
+    if not model_directory.is_dir():
+        raise LocalModelResolutionError(
+            f"MLX local model path {model_directory!s} is not a directory"
+        )
+    missing_files = [
+        filename
+        for filename in ("config.json", "tokenizer.model")
+        if not (model_directory / filename).exists()
+    ]
+    if not (model_directory / "weights.npz").exists() and not list(
+        model_directory.glob("weights.*.npz")
+    ):
+        missing_files.append("weights.npz")
+    if missing_files:
+        raise LocalModelResolutionError(
+            "MLX local model directory "
+            f"{model_directory!s} is missing required file(s): "
+            f"{', '.join(missing_files)}"
+        )
+
+
+def _read_backend_model_id(backend: MLXLocalBackend) -> str | None:
+    model_id = getattr(backend, "model_id", None)
+    if model_id is None:
+        model_id = getattr(backend, "model_name", None)
+    if model_id is None:
+        return None
+    return str(model_id)
 
 
 def _default_dependency_loader() -> object:
