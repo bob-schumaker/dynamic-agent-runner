@@ -43,6 +43,7 @@
   - `specs/hugging-face-model-search/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
   - `specs/model-adapter-coverage/spec.md`
+  - `specs/hugging-face-support-layer/spec.md`
 - Active next-change spec:
   - `specs/mlx-local-model-adapter/spec.md`
 - Future investigation or future-feature specs:
@@ -54,7 +55,6 @@
   - `specs/skill-source-resolution/spec.md`
   - `specs/iterative-agent-loop-runtime/spec.md`
   - `specs/power-marimo-host-automation/spec.md`
-  - `specs/hugging-face-support-layer/spec.md`
 
 ## Current Status
 
@@ -65,6 +65,9 @@
 - Public Hugging Face model discovery is implemented with a repository-owned
   search API, normalized result type, package-owned error boundary, exports,
   deterministic tests, and Python API docs.
+- The Hugging Face support layer is implemented: model search and local-model
+  default downloads now share internal Hub import/call helpers while preserving
+  their existing public error boundaries.
 - Model adapter coverage policy is implemented with the public
   `model_adapter_coverage` argument on high-level and lower-level execution
   APIs, strict missing-coverage failures, augmented default OpenAI coverage, and
@@ -72,9 +75,6 @@
 - User-facing docs now document the current mise/Poetry setup, package-owned
   local-model helper boundary, Hugging Face discovery test coverage, adapter
   coverage modes, default OpenAI fallback behavior, and dependency direction.
-- The Hugging Face support-layer spec is future internal infrastructure only:
-  it would centralize lazy Hub import, read-only SDK calls, and low-level error
-  mechanics without merging search and local-model asset resolution.
 - Metadata-only runtime surfaces are implemented for guardrails, MCP registry
   sources/lifecycle diagnostics, approval interruption, async session policy,
   sandbox runtime policy, and tool-use completion policy.
@@ -84,19 +84,16 @@
   and Power-Marimo host automation.
 - The active llama.cpp gate remains optional Slice 3: separate local embedding
   configuration, only if explicitly scheduled.
-- The active MLX gate is ready for implementation from
-  `specs/mlx-local-model-adapter/tasks.md`; start with Slice 1 public contract
-  and failure tests.
-- The Hugging Face support-layer spec is now implementation-ready in
-  `specs/hugging-face-support-layer/plan.md` and
-  `specs/hugging-face-support-layer/tasks.md`; implement it before MLX T3.5 and
-  T3.6 so MLX Hub references reuse shared Hub mechanics.
+- The active MLX gate is ready to continue from
+  `specs/mlx-local-model-adapter/tasks.md`; Slices 1-2 are implemented and
+  Slice 3 can now proceed because the Hugging Face support-layer dependency for
+  T3.5/T3.6 is satisfied.
 
 ## Next Steps
 
 - For implementation: continue from
-  `specs/mlx-local-model-adapter/tasks.md`, but complete
-  `specs/hugging-face-support-layer/tasks.md` before MLX T3.5/T3.6.
+  `specs/mlx-local-model-adapter/tasks.md`; next unresolved MLX work starts at
+  Slice 3 model assets, identity, and generation normalization.
 - For documentation: keep `README.md`, `docs/files/`, `specs/README.md`,
   `specs/dynamic-agent-runner/tasks.md`, and feature spec statuses synchronized
   when new slices are selected or closed.

@@ -5,8 +5,8 @@
 - Feature slug: `hugging-face-support-layer`
 - Mode: `guided`
 - Artifact type: authoritative internal infrastructure feature specification
-- Status: ready for implementation; plan and task list prepared; not
-  implemented
+- Status: implemented; shared Hub import/call helpers, search routing, local
+  download routing, tests, and focused validation complete
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/hugging-face-model-search/spec.md`
@@ -175,11 +175,11 @@ pass in `plan.md` and `tasks.md`.
 
 ## Validation Checklist
 
-- [ ] `tests/test_hugging_face_models.py` still passes without live network.
-- [ ] `tests/test_local_models.py` still passes without live network.
-- [ ] New support-layer tests cover SDK import failure and SDK call failure.
-- [ ] Package-root exports do not expose the internal support layer.
-- [ ] Documentation continues to describe discovery and local-model loading as
+- [x] `tests/test_hugging_face_models.py` still passes without live network.
+- [x] `tests/test_local_models.py` still passes without live network.
+- [x] New support-layer tests cover SDK import failure and SDK call failure.
+- [x] Package-root exports do not expose the internal support layer.
+- [x] Documentation continues to describe discovery and local-model loading as
       separate contracts.
 
 ## Open Questions

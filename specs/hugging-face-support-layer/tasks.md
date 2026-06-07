@@ -1,6 +1,6 @@
 # Hugging Face Support Layer Task List
 
-Status: ready for implementation
+Status: implemented; Slices 1-3 complete
 
 ## Prerequisites
 
@@ -85,7 +85,7 @@ offline policy, cache roots, package-root exports, or live network behavior.
 
 ## Slice 3 — Spec Maintenance and Regression
 
-- [ ] T3.1 [validation] Run focused Hugging Face regression validation.
+- [x] T3.1 [validation] Run focused Hugging Face regression validation.
   - Spec: Validation Checklist
   - Plan: Slice 3
   - Files/components: implementation changed in Slices 1-2
@@ -93,8 +93,9 @@ offline policy, cache roots, package-root exports, or live network behavior.
   - Validation:
     `poetry run pytest tests/test_hugging_face_support.py
     tests/test_hugging_face_models.py tests/test_local_models.py -q`
+  - GREEN: focused Hugging Face regression validation passed with 27 tests.
 
-- [ ] T3.2 [spec-maintenance] Record implementation evidence and update status.
+- [x] T3.2 [spec-maintenance] Record implementation evidence and update status.
   - Spec: Metadata, Validation Checklist
   - Plan: Slice 3
   - Files/components: `specs/hugging-face-support-layer/spec.md`,
@@ -103,3 +104,5 @@ offline policy, cache roots, package-root exports, or live network behavior.
     `memory-bank/activeContext.md`, `memory-bank/progress.md`
   - Depends on: T3.1
   - Validation: `pre-commit run --files <changed files>`
+  - GREEN: targeted pre-commit passed for support-layer spec, task, index, and
+    memory files.

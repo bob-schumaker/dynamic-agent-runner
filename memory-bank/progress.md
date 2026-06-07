@@ -23,6 +23,9 @@
   `search_hugging_face_models(...)` and receive
   `HuggingFaceModelSearchResult` values with package-owned
   `HuggingFaceModelSearchError` failure translation.
+- The Hugging Face support layer is implemented: shared internal Hub helpers
+  now back model search and local-model default downloads while preserving
+  separate public error contracts.
 - Model adapter coverage policy is implemented: callers can choose
   `model_adapter_coverage="strict"` for authoritative supplied adapters or rely
   on default augmented behavior for eligible default OpenAI coverage.
@@ -60,28 +63,22 @@
 - The macOS MLX local-model adapter spec is now implementation-ready with
   `specs/mlx-local-model-adapter/spec.md`, `plan.md`, and `tasks.md`; no runtime
   implementation has started.
-- The Hugging Face support-layer spec is also implementation-ready with
-  `specs/hugging-face-support-layer/plan.md` and `tasks.md`; it should land
-  before MLX Hub-reference tasks T3.5/T3.6.
+- The Hugging Face support-layer implementation is complete and satisfies the
+  MLX Hub-reference dependency for T3.5/T3.6.
 
 ## Remaining
 
 - Optional llama.cpp Slice 3: separate local embedding configuration, if
   explicitly scheduled.
-- Active MLX next work: execute Slice 1 in
-  `specs/mlx-local-model-adapter/tasks.md` to add public contract and failure
-  tests before runtime implementation.
-- Active Hugging Face dependency: execute
-  `specs/hugging-face-support-layer/tasks.md` before MLX T3.5/T3.6.
+- Active MLX next work: continue from Slice 3 in
+  `specs/mlx-local-model-adapter/tasks.md`; the Hugging Face dependency for
+  T3.5/T3.6 is complete.
 - Future richer Hugging Face Hub behavior beyond read-only model discovery; this
   requires a separate feature spec.
 - Ongoing docs hygiene: keep `README.md` and authored Sphinx files under
   `docs/files/` aligned with the current package surface and regenerate
   `docs/source/*.rst` through the docs Makefile instead of hand-editing generated
   pages.
-- Internal Hugging Face support-layer refactor: centralize lazy Hub import,
-  read-only SDK calls, and domain-specific error translation while preserving
-  separate discovery and local-model download contracts.
 - Live approval interruption/resume engine and serialized resume state.
 - Writable sandbox/workspace runtime, write/patch/shell tools, and command
   approval policy.
