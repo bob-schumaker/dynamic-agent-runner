@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 
@@ -97,3 +98,84 @@ def test_hugging_face_support_layer_is_not_package_root_exported() -> None:
     assert not hasattr(dynamic_agent_runner, "list_hub_models")
     assert not hasattr(dynamic_agent_runner, "download_hub_file")
     assert not hasattr(dynamic_agent_runner, "download_hub_snapshot")
+
+
+def test_download_hub_file_wraps_hub_download_callable(tmp_path: Path) -> None:
+    from dynamic_agent_runner.hugging_face_support import download_hub_file
+
+    calls: list[dict[str, object]] = []
+    downloaded_path = tmp_path / "downloaded.gguf"
+
+    def fake_download(**kwargs: object) -> str:
+        calls.append(kwargs)
+        return str(downloaded_path)
+
+    fake_hub = SimpleNamespace(hf_hub_download=fake_download)
+
+    result = download_hub_file(
+        repo_id="mlx-community/test-model",
+        filename="model.safetensors",
+        revision="main",
+        cache_dir=tmp_path / "cache",
+        hub_loader=lambda: fake_hub,
+    )
+
+    assert result == downloaded_path
+    assert calls == [
+        {
+            "repo_id": "mlx-community/test-model",
+            "filename": "model.safetensors",
+            "revision": "main",
+            "cache_dir": tmp_path / "cache",
+        }
+    ]
+
+
+def test_download_hub_snapshot_wraps_hub_download_callable(tmp_path: Path) -> None:
+    from dynamic_agent_runner.hugging_face_support import download_hub_snapshot
+
+    calls: list[dict[str, object]] = []
+    snapshot_path = tmp_path / "snapshot"
+
+    def fake_snapshot(**kwargs: object) -> str:
+        calls.append(kwargs)
+        return str(snapshot_path)
+
+    fake_hub = SimpleNamespace(snapshot_download=fake_snapshot)
+
+    result = download_hub_snapshot(
+        repo_id="mlx-community/test-model",
+        revision="main",
+        cache_dir=tmp_path / "cache",
+        hub_loader=lambda: fake_hub,
+    )
+
+    assert result == snapshot_path
+    assert calls == [
+        {
+            "repo_id": "mlx-community/test-model",
+            "revision": "main",
+            "cache_dir": tmp_path / "cache",
+        }
+    ]
+
+
+def test_download_hub_file_translates_sdk_failures(tmp_path: Path) -> None:
+    from dynamic_agent_runner.hugging_face_support import (
+        HuggingFaceSupportError,
+        download_hub_file,
+    )
+
+    def fake_download(**_: object) -> str:
+        raise RuntimeError("download failed")
+
+    fake_hub = SimpleNamespace(hf_hub_download=fake_download)
+
+    with pytest.raises(HuggingFaceSupportError, match="download failed"):
+        download_hub_file(
+            repo_id="mlx-community/test-model",
+            filename="model.safetensors",
+            revision=None,
+            cache_dir=tmp_path / "cache",
+            hub_loader=lambda: fake_hub,
+        )

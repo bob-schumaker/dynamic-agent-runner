@@ -14,6 +14,10 @@ from dynamic_agent_runner.errors import (
     LocalModelResolutionError,
     ModelExecutionError,
 )
+from dynamic_agent_runner.hugging_face_support import (
+    download_hub_file,
+    download_hub_snapshot,
+)
 from dynamic_agent_runner.openai_client import (
     OpenAIProviderConfig,
     AsyncOpenAIClientAdapter,
@@ -379,36 +383,25 @@ def _download_model_snapshot(
 def _load_huggingface_download_helpers() -> tuple[
     DownloadFileCallable, DownloadSnapshotCallable
 ]:
-    try:
-        from huggingface_hub import hf_hub_download, snapshot_download
-    except Exception as exc:  # noqa: BLE001 - dependency/import errors vary.
-        raise LocalModelResolutionError(
-            "huggingface_hub is required for default local-model download wiring"
-        ) from exc
-
     def download_file(
         reference: HuggingFaceModelFileReference,
         cache_root: Path,
     ) -> Path:
-        return Path(
-            hf_hub_download(
-                repo_id=reference.repo_id,
-                filename=reference.filename,
-                revision=reference.revision,
-                cache_dir=cache_root,
-            )
+        return download_hub_file(
+            repo_id=reference.repo_id,
+            filename=reference.filename,
+            revision=reference.revision,
+            cache_dir=cache_root,
         )
 
     def download_snapshot(
         reference: HuggingFaceSnapshotReference,
         cache_root: Path,
     ) -> Path:
-        return Path(
-            snapshot_download(
-                repo_id=reference.repo_id,
-                revision=reference.revision,
-                cache_dir=cache_root,
-            )
+        return download_hub_snapshot(
+            repo_id=reference.repo_id,
+            revision=reference.revision,
+            cache_dir=cache_root,
         )
 
     return download_file, download_snapshot

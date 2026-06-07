@@ -58,7 +58,7 @@ offline policy, cache roots, package-root exports, or live network behavior.
 
 ## Slice 2 — Local Download Routing
 
-- [ ] T2.1 [tests] Add support-layer tests for file and snapshot download
+- [x] T2.1 [tests] Add support-layer tests for file and snapshot download
       wrappers using fake Hub callables.
   - Spec: FR-1, FR-4
   - Plan: Slice 2
@@ -66,8 +66,10 @@ offline policy, cache roots, package-root exports, or live network behavior.
     `src/dynamic_agent_runner/hugging_face_support.py`
   - Validation:
     `poetry run pytest tests/test_hugging_face_support.py -q`
+  - GREEN: `poetry run pytest tests/test_hugging_face_support.py -q` passed with
+    8 tests.
 
-- [ ] T2.2 [implementation] Route local-model default Hub downloads through
+- [x] T2.2 [implementation] Route local-model default Hub downloads through
       support-layer helpers.
   - Spec: FR-2, FR-3
   - Plan: Slice 2
@@ -78,6 +80,8 @@ offline policy, cache roots, package-root exports, or live network behavior.
   - Validation:
     `poetry run pytest tests/test_hugging_face_support.py
     tests/test_local_models.py -q`
+  - GREEN: `poetry run pytest tests/test_hugging_face_support.py
+    tests/test_local_models.py -q` passed with 23 tests.
 
 ## Slice 3 — Spec Maintenance and Regression
 
