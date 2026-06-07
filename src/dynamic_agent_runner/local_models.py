@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+import asyncio
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 from dynamic_agent_runner.errors import (
     LocalModelEndpointConnectivityError,
@@ -22,6 +24,7 @@ from dynamic_agent_runner.openai_client import (
     OpenAIProviderConfig,
     AsyncOpenAIClientAdapter,
     ModelResponse,
+    ModelToolCall,
     OpenAIModelRequest,
     OpenAIClientAdapter,
     create_async_openai_adapter_from_provider_config,
@@ -31,6 +34,15 @@ from dynamic_agent_runner.openai_client import (
 
 DownloadFileCallable = Callable[["HuggingFaceModelFileReference", Path], Path]
 DownloadSnapshotCallable = Callable[["HuggingFaceSnapshotReference", Path], Path]
+LlamaCppDependencyLoaderCallable = Callable[[Path, "LlamaCppLocalModelConfig"], object]
+
+
+@runtime_checkable
+class LlamaCppLocalBackend(Protocol):
+    """Minimal backend interface for in-process llama.cpp chat generation."""
+
+    def create_chat_completion(self, **kwargs: object) -> object:
+        """Create a llama.cpp chat completion response."""
 
 
 @dataclass(frozen=True)
@@ -91,6 +103,197 @@ class LocalOpenAIEndpointConfig:
         object.__setattr__(self, "expected_model_id", expected_model_id)
 
 
+@dataclass(frozen=True)
+class LlamaCppLocalModelConfig:
+    """Configuration for a caller-owned direct llama.cpp local model."""
+
+    model_aliases: tuple[str, ...]
+    model_path: Path
+    model_filename: str
+    model_cache_root: Path | None = None
+    huggingface_file: HuggingFaceModelFileReference | None = None
+    huggingface_snapshot: HuggingFaceSnapshotReference | None = None
+    expected_model_id: str | None = None
+    model_kwargs: Mapping[str, object] | None = None
+
+    def __init__(
+        self,
+        *,
+        model_aliases: Sequence[str],
+        model_path: str | Path,
+        model_filename: str | None = None,
+        model_cache_root: str | Path | None = None,
+        huggingface_file: HuggingFaceModelFileReference | None = None,
+        huggingface_snapshot: HuggingFaceSnapshotReference | None = None,
+        expected_model_id: str | None = None,
+        model_kwargs: Mapping[str, object] | None = None,
+    ) -> None:
+        resolved_model_path = Path(model_path)
+        resolved_model_filename = model_filename or (
+            huggingface_file.filename
+            if huggingface_file is not None
+            else resolved_model_path.name
+        )
+        object.__setattr__(
+            self,
+            "model_aliases",
+            tuple(str(model_alias) for model_alias in model_aliases),
+        )
+        object.__setattr__(self, "model_path", resolved_model_path)
+        object.__setattr__(self, "model_filename", resolved_model_filename)
+        object.__setattr__(
+            self,
+            "model_cache_root",
+            Path(model_cache_root) if model_cache_root is not None else None,
+        )
+        object.__setattr__(self, "huggingface_file", huggingface_file)
+        object.__setattr__(self, "huggingface_snapshot", huggingface_snapshot)
+        object.__setattr__(self, "expected_model_id", expected_model_id)
+        object.__setattr__(
+            self,
+            "model_kwargs",
+            dict(model_kwargs) if model_kwargs is not None else None,
+        )
+
+
+class LlamaCppLocalModelAdapter:
+    """Sync adapter for direct in-process llama.cpp chat generation."""
+
+    def __init__(
+        self,
+        config: LlamaCppLocalModelConfig,
+        *,
+        backend: LlamaCppLocalBackend | None = None,
+        dependency_loader: LlamaCppDependencyLoaderCallable | None = None,
+        download_file: DownloadFileCallable | None = None,
+        download_snapshot: DownloadSnapshotCallable | None = None,
+    ) -> None:
+        self._config = config
+        self._backend = backend
+        self._dependency_loader = dependency_loader
+        self._download_file = download_file
+        self._download_snapshot = download_snapshot
+        self._resolved_model_path: Path | None = None
+
+    def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        """Generate and normalize a direct llama.cpp chat response."""
+
+        model_path = self._resolve_model_path()
+        backend = self._get_backend(model_path)
+        validate_local_model_identity(
+            requested_model=request.model,
+            expected_model_id=self._config.expected_model_id,
+            observed_model_id=_read_backend_model_id(backend),
+            explicit_model_path=model_path,
+            huggingface_file=self._config.huggingface_file,
+            huggingface_snapshot=self._config.huggingface_snapshot,
+        )
+        try:
+            raw_response = backend.create_chat_completion(
+                messages=[dict(message) for message in request.messages],
+                tools=[dict(tool) for tool in request.tools] or None,
+                response_format=(
+                    dict(request.response_format)
+                    if request.response_format is not None
+                    else None
+                ),
+            )
+        except ModelExecutionError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - backend errors vary.
+            raise ModelExecutionError(
+                f"llama.cpp local model generation failed for {request.model!r}: {exc}"
+            ) from exc
+        return _normalize_llama_cpp_chat_response(raw_response)
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        """Return advertised model names for adapter selection."""
+
+        return self._config.model_aliases
+
+    @property
+    def is_local(self) -> bool:
+        """Return whether this adapter is local execution."""
+
+        return True
+
+    def _resolve_model_path(self) -> Path:
+        if self._resolved_model_path is None:
+            self._resolved_model_path = resolve_local_model_path(
+                LocalModelPathConfig(
+                    model_filename=self._config.model_filename,
+                    explicit_model_path=self._config.model_path,
+                    model_cache_root=self._config.model_cache_root,
+                    huggingface_file=self._config.huggingface_file,
+                    huggingface_snapshot=self._config.huggingface_snapshot,
+                ),
+                download_file=self._download_file,
+                download_snapshot=self._download_snapshot,
+            )
+        return self._resolved_model_path
+
+    def _get_backend(self, model_path: Path) -> LlamaCppLocalBackend:
+        if self._backend is None:
+            try:
+                loaded = (
+                    self._dependency_loader(model_path, self._config)
+                    if self._dependency_loader is not None
+                    else _load_default_llama_cpp_backend(model_path, self._config)
+                )
+            except ModelExecutionError:
+                raise
+            except ImportError as exc:
+                raise ModelExecutionError(
+                    "llama.cpp dependency unavailable for local model execution; "
+                    "install llama-cpp-python before creating a default backend"
+                ) from exc
+            if not isinstance(loaded, LlamaCppLocalBackend):
+                raise ModelExecutionError(
+                    "llama.cpp dependency loader did not return a local chat backend"
+                )
+            self._backend = loaded
+        return self._backend
+
+
+class AsyncLlamaCppLocalModelAdapter:
+    """Async adapter for direct in-process llama.cpp chat generation."""
+
+    def __init__(
+        self,
+        config: LlamaCppLocalModelConfig,
+        *,
+        backend: LlamaCppLocalBackend | None = None,
+        dependency_loader: LlamaCppDependencyLoaderCallable | None = None,
+        download_file: DownloadFileCallable | None = None,
+        download_snapshot: DownloadSnapshotCallable | None = None,
+    ) -> None:
+        self._sync_adapter = LlamaCppLocalModelAdapter(
+            config,
+            backend=backend,
+            dependency_loader=dependency_loader,
+            download_file=download_file,
+            download_snapshot=download_snapshot,
+        )
+
+    async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        """Generate a llama.cpp response without blocking the event loop directly."""
+
+        return await asyncio.to_thread(self._sync_adapter.create_response, request)
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        """Return advertised model names for adapter selection."""
+
+        return self._sync_adapter.models
+
+    @property
+    def is_local(self) -> bool:
+        """Return whether this adapter is local execution."""
+
+        return True
+
+
 def create_local_openai_adapter(
     config: LocalOpenAIEndpointConfig,
 ) -> OpenAIClientAdapter:
@@ -116,6 +319,44 @@ def create_local_async_openai_adapter(
         is_local=True,
         error_translator=_local_endpoint_error_translator(config),
         response_validator=_local_endpoint_response_validator(config),
+    )
+
+
+def create_llama_cpp_local_adapter(
+    config: LlamaCppLocalModelConfig,
+    *,
+    backend: LlamaCppLocalBackend | None = None,
+    dependency_loader: LlamaCppDependencyLoaderCallable | None = None,
+    download_file: DownloadFileCallable | None = None,
+    download_snapshot: DownloadSnapshotCallable | None = None,
+) -> LlamaCppLocalModelAdapter:
+    """Build a sync direct llama.cpp local adapter."""
+
+    return LlamaCppLocalModelAdapter(
+        config,
+        backend=backend,
+        dependency_loader=dependency_loader,
+        download_file=download_file,
+        download_snapshot=download_snapshot,
+    )
+
+
+def create_llama_cpp_local_async_adapter(
+    config: LlamaCppLocalModelConfig,
+    *,
+    backend: LlamaCppLocalBackend | None = None,
+    dependency_loader: LlamaCppDependencyLoaderCallable | None = None,
+    download_file: DownloadFileCallable | None = None,
+    download_snapshot: DownloadSnapshotCallable | None = None,
+) -> AsyncLlamaCppLocalModelAdapter:
+    """Build an async direct llama.cpp local adapter."""
+
+    return AsyncLlamaCppLocalModelAdapter(
+        config,
+        backend=backend,
+        dependency_loader=dependency_loader,
+        download_file=download_file,
+        download_snapshot=download_snapshot,
     )
 
 
@@ -300,6 +541,115 @@ def _read_observed_model_id(raw_response: object) -> str | None:
     else:
         observed_model_id = getattr(raw_response, "model", None)
     return str(observed_model_id) if observed_model_id is not None else None
+
+
+def _read_backend_model_id(backend: LlamaCppLocalBackend) -> str | None:
+    for attribute_name in ("model_id", "model_name", "model_path"):
+        model_id = getattr(backend, attribute_name, None)
+        if model_id is not None:
+            return str(model_id)
+    return None
+
+
+def _normalize_llama_cpp_chat_response(raw_response: object) -> ModelResponse:
+    if isinstance(raw_response, str):
+        return ModelResponse(content=raw_response, raw=raw_response)
+    if isinstance(raw_response, Mapping):
+        content = _read_llama_cpp_response_content(raw_response)
+        tool_calls = _read_llama_cpp_tool_calls(raw_response)
+        response_id = raw_response.get("id")
+        return ModelResponse(
+            content=content,
+            tool_calls=tool_calls,
+            response_id=str(response_id) if response_id is not None else None,
+            raw=raw_response,
+        )
+    content = getattr(raw_response, "content", None)
+    if content is None:
+        content = getattr(raw_response, "output_text", None)
+    return ModelResponse(
+        content=str(content) if content is not None else str(raw_response),
+        raw=raw_response,
+    )
+
+
+def _read_llama_cpp_response_content(raw_response: Mapping[str, object]) -> str | None:
+    output_text = raw_response.get("output_text")
+    if output_text is not None:
+        return str(output_text)
+    choices = raw_response.get("choices")
+    if not isinstance(choices, Sequence) or isinstance(choices, str):
+        return None
+    for choice in choices:
+        if not isinstance(choice, Mapping):
+            continue
+        text = choice.get("text")
+        if text is not None:
+            return str(text)
+        message = choice.get("message")
+        if isinstance(message, Mapping):
+            content = message.get("content")
+            if content is not None:
+                return str(content)
+    return None
+
+
+def _read_llama_cpp_tool_calls(
+    raw_response: Mapping[str, object],
+) -> tuple[ModelToolCall, ...]:
+    choices = raw_response.get("choices")
+    if not isinstance(choices, Sequence) or isinstance(choices, str):
+        return ()
+    calls: list[ModelToolCall] = []
+    for choice in choices:
+        if not isinstance(choice, Mapping):
+            continue
+        message = choice.get("message")
+        if not isinstance(message, Mapping):
+            continue
+        tool_calls = message.get("tool_calls")
+        if not isinstance(tool_calls, Sequence) or isinstance(tool_calls, str):
+            continue
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, Mapping):
+                continue
+            function = tool_call.get("function")
+            if not isinstance(function, Mapping):
+                continue
+            name = function.get("name")
+            if name is None:
+                continue
+            calls.append(
+                ModelToolCall(
+                    id=(
+                        str(tool_call["id"])
+                        if tool_call.get("id") is not None
+                        else None
+                    ),
+                    name=str(name),
+                    arguments=function.get("arguments", ""),
+                )
+            )
+    return tuple(calls)
+
+
+def _load_default_llama_cpp_backend(
+    model_path: Path,
+    config: LlamaCppLocalModelConfig,
+) -> object:
+    try:
+        from llama_cpp import Llama
+    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+        raise ModelExecutionError(
+            "llama.cpp dependency unavailable for local model execution; install "
+            "llama-cpp-python before using the default llama.cpp backend"
+        ) from exc
+    try:
+        return Llama(model_path=str(model_path), **dict(config.model_kwargs or {}))
+    except Exception as exc:  # noqa: BLE001 - llama.cpp load errors vary.
+        raise ModelExecutionError(
+            f"llama.cpp local model load failed for {model_path!s}: {exc}"
+        ) from exc
 
 
 def _default_local_model_cache_root() -> Path:

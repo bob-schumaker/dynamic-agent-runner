@@ -22,7 +22,10 @@ from dynamic_agent_runner.prompt_cache import (
     prompt_cache_policy_from_value,
 )
 from dynamic_agent_runner.local_models import (
+    LlamaCppLocalModelConfig,
     LocalOpenAIEndpointConfig,
+    create_llama_cpp_local_adapter,
+    create_llama_cpp_local_async_adapter,
     create_local_async_openai_adapter,
     create_local_openai_adapter,
 )
@@ -122,6 +125,7 @@ __all__ = [
     "DynamicAgentRunnerError",
     "HuggingFaceModelSearchError",
     "HuggingFaceModelSearchResult",
+    "LlamaCppLocalModelConfig",
     "LocalOpenAIEndpointConfig",
     "MLXLocalModelConfig",
     "ModelExecutionError",
@@ -147,6 +151,8 @@ __all__ = [
     "create_default_async_openai_provider",
     "build_prompt_cache_observation",
     "search_hugging_face_models",
+    "create_llama_cpp_local_adapter",
+    "create_llama_cpp_local_async_adapter",
     "create_local_async_openai_adapter",
     "create_local_openai_adapter",
     "create_mlx_local_adapter",

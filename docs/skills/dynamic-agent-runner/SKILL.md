@@ -169,6 +169,29 @@ Local endpoint helpers wrap an already-running compatible server, including
 llama.cpp servers exposing an OpenAI-compatible API. They do not start, stop, or
 supervise model-server processes.
 
+For direct in-process llama.cpp local models, use the llama.cpp adapter helpers:
+
+```python
+from dynamic_agent_runner import (
+    LlamaCppLocalModelConfig,
+    create_llama_cpp_local_adapter,
+)
+
+adapter = create_llama_cpp_local_adapter(
+    LlamaCppLocalModelConfig(
+        model_aliases=("llama-local-chat",),
+        model_path="path/to/model.gguf",
+        expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+    )
+)
+```
+
+Pass direct llama.cpp adapters as a list with
+`model_adapter_coverage="strict"` when the run must stay local. The helpers
+lazily use `llama-cpp-python`, resolve local model assets before generation,
+normalize generated text into the runner response contract, and do not require a
+local server.
+
 For macOS in-process MLX local models, use the MLX adapter helpers:
 
 ```python

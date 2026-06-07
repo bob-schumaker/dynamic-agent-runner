@@ -51,6 +51,26 @@ class _StaticClient:
         self.responses = _StaticResponses(response)
 
 
+class _FakeLlamaCppBackend:
+    model_id = "Qwen/Qwen3-4B-Instruct-2507"
+
+    def __init__(self, response: object | None = None) -> None:
+        self.response = response or {
+            "model": self.model_id,
+            "choices": [{"message": {"content": "hello from llama.cpp"}}],
+        }
+        self.calls: list[dict[str, object]] = []
+
+    def create_chat_completion(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.response
+
+
+class _FailingLlamaCppBackend:
+    def create_chat_completion(self, **_: object) -> object:
+        raise RuntimeError("llama.cpp generation failed")
+
+
 def test_resolve_local_model_path_prefers_explicit_local_path_over_cache_and_hub(
     tmp_path: Path,
 ) -> None:
@@ -575,3 +595,202 @@ def test_resolve_local_model_path_uses_default_hub_snapshot_download_helper(
 
     assert resolved_path == expected_path
     assert download_calls == [(hub_reference, _default_cache_root(home_dir))]
+
+
+def test_llama_cpp_local_config_and_factories_are_package_exports() -> None:
+    import dynamic_agent_runner
+
+    assert dynamic_agent_runner.LlamaCppLocalModelConfig is not None
+    assert dynamic_agent_runner.create_llama_cpp_local_adapter is not None
+    assert dynamic_agent_runner.create_llama_cpp_local_async_adapter is not None
+
+
+def test_create_llama_cpp_local_adapter_advertises_aliases_without_loading_dependency(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+    )
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    backend = _FakeLlamaCppBackend()
+
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+            expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+        ),
+        backend=backend,
+    )
+
+    assert adapter.models == ("llama-local-chat",)
+    assert adapter.is_local is True
+
+
+def test_llama_cpp_local_adapter_resolves_model_and_normalizes_chat_response(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    backend = _FakeLlamaCppBackend()
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+            expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+        ),
+        backend=backend,
+    )
+
+    response = adapter.create_response(
+        build_openai_request(
+            model="llama-local-chat",
+            messages=[OpenAIMessage("user", "Hello")],
+        )
+    )
+
+    assert response.content == "hello from llama.cpp"
+    assert response.raw == backend.response
+    assert backend.calls == [
+        {
+            "messages": [{"role": "user", "content": "Hello"}],
+            "tools": None,
+            "response_format": None,
+        }
+    ]
+
+
+def test_llama_cpp_local_adapter_translates_missing_dependency(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import ModelExecutionError
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+
+    def failing_loader(_: Path, __: object) -> object:
+        raise ImportError("missing llama_cpp")
+
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        ),
+        dependency_loader=failing_loader,
+    )
+
+    with pytest.raises(ModelExecutionError, match="llama.cpp dependency unavailable"):
+        adapter.create_response(
+            build_openai_request(
+                model="llama-local-chat",
+                messages=[OpenAIMessage("user", "Hello")],
+            )
+        )
+
+
+def test_llama_cpp_local_adapter_translates_backend_generation_failures(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import ModelExecutionError
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        ),
+        backend=_FailingLlamaCppBackend(),
+    )
+
+    with pytest.raises(ModelExecutionError, match="llama.cpp generation failed"):
+        adapter.create_response(
+            build_openai_request(
+                model="llama-local-chat",
+                messages=[OpenAIMessage("user", "Hello")],
+            )
+        )
+
+
+def test_llama_cpp_local_adapter_validates_backend_identity(tmp_path: Path) -> None:
+    from dynamic_agent_runner.errors import LocalModelIdentityMismatchError
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    backend = _FakeLlamaCppBackend()
+    backend.model_id = "wrong-model"
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+            expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+        ),
+        backend=backend,
+    )
+
+    with pytest.raises(
+        LocalModelIdentityMismatchError,
+        match="llama-local-chat.*Qwen/Qwen3-4B-Instruct-2507.*wrong-model",
+    ):
+        adapter.create_response(
+            build_openai_request(
+                model="llama-local-chat",
+                messages=[OpenAIMessage("user", "Hello")],
+            )
+        )
+
+
+def test_llama_cpp_local_async_adapter_wraps_sync_generation(tmp_path: Path) -> None:
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_async_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    backend = _FakeLlamaCppBackend()
+    adapter = create_llama_cpp_local_async_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        ),
+        backend=backend,
+    )
+
+    response = asyncio.run(
+        adapter.create_response(
+            build_openai_request(
+                model="llama-local-chat",
+                messages=[OpenAIMessage("user", "Hello")],
+            )
+        )
+    )
+
+    assert response.content == "hello from llama.cpp"
+    assert adapter.models == ("llama-local-chat",)
+    assert adapter.is_local is True

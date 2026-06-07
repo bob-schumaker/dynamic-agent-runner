@@ -24,6 +24,10 @@ from dynamic_agent_runner.executor import (
     prepare_model_input,
 )
 from dynamic_agent_runner.hooks import NodeHookContext, WorkflowLifecycleHooks
+from dynamic_agent_runner.local_models import (
+    LlamaCppLocalModelConfig,
+    create_llama_cpp_local_adapter,
+)
 from dynamic_agent_runner.mlx_models import (
     MLXLocalModelConfig,
     create_mlx_local_adapter,
@@ -92,6 +96,16 @@ class FakeMLXBackend:
     def generate(self, request: object) -> str:
         self.requests.append(request)
         return self.content
+
+
+class FakeLlamaCppBackend:
+    def __init__(self, content: str = "llama.cpp local") -> None:
+        self.content = content
+        self.calls: list[dict[str, object]] = []
+
+    def create_chat_completion(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return {"choices": [{"message": {"content": self.content}}]}
 
 
 def package_fixture_path(pattern_id: str = "basic-reasoning-agent") -> Path:
@@ -2161,6 +2175,105 @@ def test_execute_workflow_augmented_with_mlx_adapter_uses_default_openai(
 
     assert result.final_result == "default ok"
     assert backend.requests == []
+    assert isinstance(seen_adapters[0], AsyncOpenAIClientAdapter)
+    assert seen_adapters[0].models == ("gpt-test",)
+
+
+def test_execute_workflow_strict_with_llama_cpp_adapter_prevents_default_openai(
+    tmp_path: Path,
+) -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "strict-llama-cpp-nonmatching-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    backend = FakeLlamaCppBackend()
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        ),
+        backend=backend,
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="model_adapter_coverage.*strict"):
+        execute_workflow(
+            workflow,
+            prompt="Hello",
+            model_adapter=[adapter],
+            model_adapter_coverage="strict",
+        )
+
+    assert backend.calls == []
+
+
+def test_execute_workflow_augmented_with_llama_cpp_adapter_uses_default_openai(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "augmented-llama-cpp-default-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    backend = FakeLlamaCppBackend("wrong")
+    supplied = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        ),
+        backend=backend,
+    )
+    seen_adapters: list[object] = []
+
+    async def fake_create_model_response(adapter, request):
+        seen_adapters.append(adapter)
+        return ModelResponse(response_id="resp-default", content="default ok")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.executor._create_model_response_async",
+        fake_create_model_response,
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Hello",
+        model_adapter=[supplied],
+        model_adapter_coverage="augmented",
+    )
+
+    assert result.final_result == "default ok"
+    assert backend.calls == []
     assert isinstance(seen_adapters[0], AsyncOpenAIClientAdapter)
     assert seen_adapters[0].models == ("gpt-test",)
 

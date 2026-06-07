@@ -138,6 +138,39 @@ or snapshot references; they keep downloading and server supervision caller
 controlled. Install with the ``huggingface`` extra before using Hugging
 Face-backed discovery or downloads.
 
+.. header2:: Direct llama.cpp local models
+
+Use ``LlamaCppLocalModelConfig`` when a caller owns a GGUF model and wants
+direct in-process llama.cpp text generation through the normal adapter contract:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       LlamaCppLocalModelConfig,
+       create_llama_cpp_local_async_adapter,
+   )
+
+   adapter = create_llama_cpp_local_async_adapter(
+       LlamaCppLocalModelConfig(
+           model_aliases=("llama-local-chat",),
+           model_path="path/to/model.gguf",
+           expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+       )
+   )
+
+   result = await run_agent_workflow_async(
+       prompt="Run locally on llama.cpp.",
+       package_directory="path/to/agent-package",
+       model_adapter=[adapter],
+       model_adapter_coverage="strict",
+   )
+
+The direct llama.cpp helpers lazily import ``llama-cpp-python`` for the default
+in-process backend, resolve local model assets before generation, normalize
+generated text into the package ``ModelResponse`` contract, and do not require a
+local server. If a caller already exposes llama.cpp through an
+OpenAI-compatible local server, use ``LocalOpenAIEndpointConfig`` instead.
+
 .. header2:: macOS MLX local models
 
 Use ``MLXLocalModelConfig`` when a macOS caller owns a converted MLX model

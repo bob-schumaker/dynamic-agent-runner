@@ -163,6 +163,36 @@ result = run_agent_workflow(
 If the compatible provider requires authentication, set `api_key` on
 `LocalOpenAIEndpointConfig`. If it does not, the key may be omitted.
 
+For direct in-process llama.cpp local models, provide a llama.cpp adapter and
+strict coverage when the workflow must stay local:
+
+```python
+from dynamic_agent_runner import (
+    LlamaCppLocalModelConfig,
+    create_llama_cpp_local_adapter,
+)
+
+llama_adapter = create_llama_cpp_local_adapter(
+    LlamaCppLocalModelConfig(
+        model_aliases=("llama-local-chat",),
+        model_path="path/to/model.gguf",
+        expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+    )
+)
+
+result = run_agent_workflow(
+    package_directory="path/to/agent-package",
+    prompt="Run locally on llama.cpp.",
+    model_adapter=[llama_adapter],
+    model_adapter_coverage="strict",
+)
+```
+
+The direct llama.cpp helper lazily imports `llama-cpp-python`, resolves local
+model assets through the package-owned local-model path rules, and does not
+require a local server. If a caller already exposes llama.cpp through an
+OpenAI-compatible server, use `LocalOpenAIEndpointConfig` instead.
+
 For macOS in-process MLX local models, provide an MLX adapter and strict
 coverage when the workflow must stay local:
 

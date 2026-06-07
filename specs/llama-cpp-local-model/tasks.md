@@ -1,6 +1,7 @@
 # llama.cpp Local-Model Adapter Task List
 
-Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
+Status: active feature record; Slices 1-3 complete, optional embedding follow-up
+unscheduled
 
 ## Prerequisites
 
@@ -35,9 +36,8 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
   (`feat(local-models): preserve authoritative model identity`); the Slice 2
   validation checkpoint is complete through T4.4 and the first validation pass
   remains complete through T4.5
-- Current execution gate: T3.1 is the next pending step — add RED tests for
-  separate local embedding configuration only if that optional Slice 3 follow-up
-  is explicitly scheduled
+- Current execution gate: direct in-process llama.cpp chat is implemented
+  through T3.5; optional embedding follow-up remains unscheduled
 - Scope rule: keep completed endpoint-wrapper work separate from the next direct
   in-process llama.cpp chat slice; do not merge graph-mutation or
   runtime-managed server work into these tasks
@@ -264,7 +264,7 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
 
 ## Slice 3 — Direct in-process llama.cpp chat
 
-- [ ] T3.1 [tests] Add RED tests for direct llama.cpp config and package-root
+- [x] T3.1 [tests] Add RED tests for direct llama.cpp config and package-root
       factory exports without importing `llama_cpp` at package import time.
   - Spec: FR-1, FR-2, FR-6
   - Plan: Slice 3 — Direct in-process llama.cpp chat
@@ -275,8 +275,16 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
   - Expected RED: direct llama.cpp config/factories do not exist yet.
   - Evidence: package import remains lightweight and direct llama.cpp helpers
     are caller-visible.
+  - RED:
+    - `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+      — failed with missing `LlamaCppLocalModelConfig`,
+      `create_llama_cpp_local_adapter(...)`, and
+      `create_llama_cpp_local_async_adapter(...)`
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+      — `23 passed in 0.15s`
 
-- [ ] T3.2 [tests] Add RED tests for direct in-process model resolution,
+- [x] T3.2 [tests] Add RED tests for direct in-process model resolution,
       dependency loading, and local backend failure translation.
   - Spec: FR-2, FR-5, FR-5b, FR-5c, FR-6
   - Plan: Slice 3 — Direct in-process llama.cpp chat
@@ -288,8 +296,14 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
     assets or translates backend failures.
   - Evidence: missing `llama_cpp`, model-load failures, and generation failures
     fail through package-owned errors without trying to start a server.
+  - RED:
+    - Covered by the same T3.1 RED run because the direct adapter surface did not
+      exist yet.
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+      — `23 passed in 0.15s`
 
-- [ ] T3.3 [implementation] Add direct sync llama.cpp adapter construction using
+- [x] T3.3 [implementation] Add direct sync llama.cpp adapter construction using
       documented `llama_cpp.Llama` chat APIs and existing model-resolution
       helpers.
   - Spec: FR-1, FR-2, FR-4, FR-5, FR-5b, FR-5c, FR-6
@@ -301,8 +315,11 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
   - Evidence: direct local chat works through fake llama.cpp backends, advertises
     model aliases, resolves assets, and normalizes generated text into the
     runtime response contract.
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+      — `23 passed in 0.15s`
 
-- [ ] T3.4 [implementation] Add async direct llama.cpp adapter wrapper without
+- [x] T3.4 [implementation] Add async direct llama.cpp adapter wrapper without
       requiring an undocumented native async llama.cpp API.
   - Spec: FR-1, FR-2, FR-4
   - Plan: Slice 3 — Direct in-process llama.cpp chat
@@ -313,8 +330,11 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
     `poetry run pytest tests/test_local_models.py tests/test_executor.py -q`
   - Evidence: async workflows can use direct llama.cpp adapters without blocking
     the event loop directly in adapter code.
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py tests/test_executor.py
+      tests/test_import.py -q` — `92 passed in 0.45s`
 
-- [ ] T3.5 [tests/implementation] Prove strict and augmented adapter coverage
+- [x] T3.5 [tests/implementation] Prove strict and augmented adapter coverage
       behavior with direct llama.cpp adapters.
   - Spec: FR-1
   - Plan: Slice 3 — Direct in-process llama.cpp chat
@@ -324,6 +344,9 @@ Status: active feature record; Slices 1-2 complete, optional Slice 3 unscheduled
   - Validation: `poetry run pytest tests/test_executor.py -q`
   - Evidence: strict mode keeps direct llama.cpp adapters authoritative, while
     augmented mode may still use default OpenAI coverage for eligible misses.
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py tests/test_executor.py
+      tests/test_import.py -q` — `92 passed in 0.45s`
 
 ## Slice 5 — Optional embedding follow-up
 
