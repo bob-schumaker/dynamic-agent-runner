@@ -2,11 +2,12 @@
 
 ## Current Focus
 
-- The latest completed work is docs alignment in `9354d24`
-  (`docs: align docs with current repo state`).
-- That docs refresh updated `README.md` and authored Sphinx files under
-  `docs/files/` to match current setup, public API, local-model, and Hugging
-  Face discovery state.
+- The latest completed work is adapter-coverage client documentation:
+  - `2429727` (`docs(adapter-coverage): document coverage policy`) documented
+    `model_adapter_coverage` in README, Python API docs, specs, and memory.
+  - `cb52cd0` (`docs(skill): clarify adapter coverage modes`) refined
+    `docs/skills/dynamic-agent-runner/SKILL.md` with default OpenAI behavior,
+    strict vs augmented adapter coverage, and local llama.cpp adapter usage.
 - Recent completed Hugging Face/spec milestones also include:
   - `2425a4e` (`docs(specs): add hugging face support layer spec`)
   - `191f722` (`docs(hugging-face): document model search api`)
@@ -14,7 +15,9 @@
 - Model adapter coverage is implemented through Slices 1-4: public APIs and
   `WorkflowExecutionContext` accept `model_adapter_coverage`, strict mode keeps
   supplied adapters authoritative, augmented mode preserves default OpenAI
-  coverage, and `local_only` metadata no longer filters adapter selection.
+  coverage, `local_only` metadata no longer filters adapter selection, and the
+  repository-local client skill now calls out default OpenAI and local
+  llama.cpp adapter usage.
 - The repo has a top-level spec index at `specs/README.md` that identifies the
   primary runtime spec, all feature-spec packages, and the completion matrix.
 - The primary runtime spec remains `specs/dynamic-agent-runner/spec.md`.
@@ -58,8 +61,8 @@
   APIs, strict missing-coverage failures, augmented default OpenAI coverage, and
   no `local_only` adapter-routing semantics.
 - User-facing docs now document the current mise/Poetry setup, package-owned
-  local-model helper boundary, Hugging Face discovery test coverage, and
-  dependency direction.
+  local-model helper boundary, Hugging Face discovery test coverage, adapter
+  coverage modes, default OpenAI fallback behavior, and dependency direction.
 - The Hugging Face support-layer spec is future internal infrastructure only:
   it would centralize lazy Hub import, read-only SDK calls, and low-level error
   mechanics without merging search and local-model asset resolution.

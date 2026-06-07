@@ -35,6 +35,10 @@
   repo setup, local-model helper boundary, Hugging Face discovery coverage, and
   package dependency direction. Validation for that docs slice included
   `make -C docs html` and targeted pre-commit on the tracked docs files.
+- Commit `2429727` documented the implemented model adapter coverage policy in
+  README, Python API docs, specs, and memory. Commit `cb52cd0` then clarified
+  the repository-local dynamic-agent-runner skill with default OpenAI behavior,
+  strict vs augmented adapter coverage, and local llama.cpp adapter usage.
 - Commit `8216ca7` added the authoritative Hugging Face model-search spec.
 - Commits `4c83c2b`, `b343a9c`, `af8b2a0`, and `191f722` made that spec
   actionable, added RED contract tests, implemented the public discovery API,
@@ -50,7 +54,9 @@
   authorize implementation by themselves.
 - The model adapter coverage policy landed with public API/context wiring,
   strict supplied-adapter failure behavior, augmented default OpenAI coverage,
-  local-only routing removal, focused tests, and client-facing docs.
+  local-only routing removal, focused tests, client-facing docs, and
+  repository-local skill guidance for default OpenAI and local llama.cpp adapter
+  usage.
 
 ## Remaining
 
