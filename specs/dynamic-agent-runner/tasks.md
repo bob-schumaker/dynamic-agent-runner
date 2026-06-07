@@ -33,6 +33,9 @@
 - `specs/internal-graph-mutation/` — first implementation checkpoint complete;
   no additional graph-mutation tasks are currently scheduled in that artifact
   set.
+- `specs/hugging-face-model-search/` — implemented feature; public Hub model
+  discovery API, normalized result contract, package-owned error boundary,
+  exports, tests, and docs are complete.
 - `specs/async-session-memory-pipeline/` — implemented metadata-only OA8
   baseline plus future expansion analysis; no runner-owned session behavior is
   implemented.

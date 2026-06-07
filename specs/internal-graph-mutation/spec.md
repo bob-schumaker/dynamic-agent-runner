@@ -5,7 +5,7 @@
 - Feature slug: `internal-graph-mutation`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: authoritative current follow-up feature spec
+- Status: first implementation checkpoint complete through T3.2
   - initial internal graph-mutation datamodel implementation now exists in
     `src/dynamic_agent_runner/graph_mutation.py`
   - T3.2 spec-artifact refresh evidence now exists in

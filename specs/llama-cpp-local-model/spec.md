@@ -5,7 +5,8 @@
 - Feature slug: `llama-cpp-local-model`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: approved-for-planning future-feature spec
+- Status: active feature record; Slices 1-2 complete, optional Slice 3
+  unscheduled
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model support
 - Next gate: optional Slice 3 follow-up may begin with T3.1 if separate local

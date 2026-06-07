@@ -1572,11 +1572,16 @@ Before implementation is considered complete, add validation covering:
   approval interruption/resume state, small session protocols, optional
   callable-to-tool helpers, and sandbox/workspace runtime separation. These are
   reference-backed future design inputs, not current implementation scope.
-- The earlier combined local-model and graph-mutation future-work area is now
-  split into two feature-spec packages with separate authority boundaries:
-  `specs/llama-cpp-local-model/spec.md` owns future llama.cpp adapter direction,
-  while `specs/internal-graph-mutation/spec.md` owns future compile-time
-  workflow-mutation direction.
+- The earlier combined local-model and graph-mutation work area is now split
+  into feature-spec packages with separate authority boundaries:
+  `specs/llama-cpp-local-model/spec.md` owns llama.cpp adapter direction and is
+  complete through Slices 1-2 with only optional Slice 3 unscheduled, while
+  `specs/internal-graph-mutation/spec.md` owns compile-time workflow-mutation
+  direction and has no additional tasks scheduled after its first checkpoint.
+- Public Hugging Face model discovery is implemented as its own feature package
+  in `specs/hugging-face-model-search/spec.md`. It owns the package-level
+  search API, normalized result contract, and discovery error boundary; richer
+  Hub behavior remains future scoped work.
 - Deferred live-runtime areas now have separate future-feature authority
   boundaries: `specs/approval-interruption-resume/spec.md`,
   `specs/sandbox-workspace-runtime/spec.md`,
