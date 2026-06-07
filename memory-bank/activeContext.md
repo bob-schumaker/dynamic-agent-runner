@@ -11,13 +11,13 @@
   - `2425a4e` (`docs(specs): add hugging face support layer spec`)
   - `191f722` (`docs(hugging-face): document model search api`)
   - `3f5b51f` (`docs(specs): align feature status matrix`)
+- Model adapter coverage is implemented through Slices 1-4: public APIs and
+  `WorkflowExecutionContext` accept `model_adapter_coverage`, strict mode keeps
+  supplied adapters authoritative, augmented mode preserves default OpenAI
+  coverage, and `local_only` metadata no longer filters adapter selection.
 - The repo has a top-level spec index at `specs/README.md` that identifies the
   primary runtime spec, all feature-spec packages, and the completion matrix.
 - The primary runtime spec remains `specs/dynamic-agent-runner/spec.md`.
-- The active continuation point is `specs/model-adapter-coverage/spec.md`.
-  Continuing implementation work should treat that spec as authoritative for
-  adding `model_adapter_coverage`, defaulting to `augmented`, supporting
-  `strict`, and removing `local_only` adapter routing.
 
 ## Current Spec Authority Map
 
@@ -32,7 +32,6 @@
   - `specs/internal-graph-mutation/spec.md`
   - `specs/hugging-face-model-search/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
-- Active next-change spec:
   - `specs/model-adapter-coverage/spec.md`
 - Future investigation or future-feature specs:
   - `specs/llm-step-interpreter-middleware/spec.md`
@@ -54,6 +53,10 @@
 - Public Hugging Face model discovery is implemented with a repository-owned
   search API, normalized result type, package-owned error boundary, exports,
   deterministic tests, and Python API docs.
+- Model adapter coverage policy is implemented with the public
+  `model_adapter_coverage` argument on high-level and lower-level execution
+  APIs, strict missing-coverage failures, augmented default OpenAI coverage, and
+  no `local_only` adapter-routing semantics.
 - User-facing docs now document the current mise/Poetry setup, package-owned
   local-model helper boundary, Hugging Face discovery test coverage, and
   dependency direction.
@@ -69,16 +72,11 @@
   and Power-Marimo host automation.
 - The active llama.cpp gate remains optional Slice 3: separate local embedding
   configuration, only if explicitly scheduled.
-- The active adapter-coverage gate is to implement
-  `model_adapter_coverage="strict" | "augmented"` across public execution APIs
-  and `WorkflowExecutionContext`, default to `augmented`, and remove the
-  `local_only` selection branch without backward compatibility.
 
 ## Next Steps
 
-- For implementation: continue from
-  `specs/model-adapter-coverage/spec.md`; create any needed task breakdown from
-  that spec before editing code.
+- For implementation: select a scoped feature spec or create/update a task
+  breakdown before editing code.
 - For documentation: keep `README.md`, `docs/files/`, `specs/README.md`,
   `specs/dynamic-agent-runner/tasks.md`, and feature spec statuses synchronized
   when new slices are selected or closed.

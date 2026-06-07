@@ -123,6 +123,16 @@ Use `run_agent_workflow_async(...)` in async applications, or construct a
 `WorkflowExecutionContext` when several runs share the same loaded workflow and
 runtime collaborators.
 
+Model adapter coverage defaults to augmented behavior. With
+`model_adapter_coverage="augmented"` or an omitted coverage policy, supplied
+adapters are tried first and the runtime may create the default OpenAI adapter
+when eligible model coverage is missing. With
+`model_adapter_coverage="strict"`, the supplied adapter list is authoritative:
+`model_adapter=None`, `model_adapter=[]`, or a nonmatching adapter fails before
+any default OpenAI adapter is created. Clients that require local-only execution
+should pass only local adapters and use strict coverage; `local_only` runtime
+metadata no longer filters adapter selection.
+
 To target an OpenAI-compatible endpoint without changing executor logic, provide
 an adapter that uses the public provider-configuration boundary. For
 caller-owned local endpoints, the package exposes explicit local helper types:

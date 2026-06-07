@@ -5,7 +5,8 @@
 - Feature slug: `model-adapter-coverage`
 - Mode: `light`
 - Artifact type: public API behavior change specification
-- Status: ready for implementation; plan and task list prepared; not implemented
+- Status: implemented; public API, executor behavior, docs, and focused
+  validation complete
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/openai-compatible-provider-wrapper/spec.md`
@@ -206,29 +207,29 @@ Acceptance criteria:
 
 ## Validation Checklist
 
-- [ ] `model_adapter_coverage` is accepted by sync and async high-level APIs.
-- [ ] `model_adapter_coverage` is accepted by sync and async lower-level
+- [x] `model_adapter_coverage` is accepted by sync and async high-level APIs.
+- [x] `model_adapter_coverage` is accepted by sync and async lower-level
       executor APIs.
-- [ ] `WorkflowExecutionContext` stores and applies the coverage policy.
-- [ ] Omitting the policy preserves augmented/default OpenAI behavior.
-- [ ] Strict mode with `model_adapter=None` fails before default adapter
+- [x] `WorkflowExecutionContext` stores and applies the coverage policy.
+- [x] Omitting the policy preserves augmented/default OpenAI behavior.
+- [x] Strict mode with `model_adapter=None` fails before default adapter
       construction.
-- [ ] Strict mode with `model_adapter=[]` fails before default adapter
+- [x] Strict mode with `model_adapter=[]` fails before default adapter
       construction.
-- [ ] Strict mode with a nonmatching adapter fails before model request.
-- [ ] Augmented mode with a nonmatching adapter can use the default OpenAI
+- [x] Strict mode with a nonmatching adapter fails before model request.
+- [x] Augmented mode with a nonmatching adapter can use the default OpenAI
       adapter for eligible non-local OpenAI coverage.
-- [ ] `local_only` metadata no longer filters adapter selection.
-- [ ] Tests that previously asserted `local_only` routing are removed or
+- [x] `local_only` metadata no longer filters adapter selection.
+- [x] Tests that previously asserted `local_only` routing are removed or
       rewritten to assert strict coverage behavior.
-- [ ] Unknown coverage-policy values fail clearly.
-- [ ] Existing model capability routing tests continue to pass.
+- [x] Unknown coverage-policy values fail clearly.
+- [x] Existing model capability routing tests continue to pass.
 
 ## Open Questions
 
-- Should augmented mode append a default adapter to the candidate list, or should
-  selection create a default adapter only after provided adapters fail to match?
-- Should the coverage policy be represented internally as a string literal,
-  enum, or small dataclass?
-- Which hosted/default OpenAI eligibility check should be used for fallback
-  models from `model_map` that are not recognized by `openai-model-registry`?
+- Resolved: augmented mode creates a default adapter only after provided
+  adapters fail to match eligible OpenAI-default coverage.
+- Resolved: the public policy is represented as string values validated at the
+  execution boundary.
+- Resolved: fallback models are eligible for default OpenAI coverage only when
+  recognized by the existing OpenAI model-capability path.

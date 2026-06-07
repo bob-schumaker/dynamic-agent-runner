@@ -65,6 +65,46 @@ The async path awaits async model adapters, async tool handlers, and async
 lifecycle hooks. Synchronous tool handlers are dispatched without blocking the
 event loop.
 
+.. header2:: Model adapter coverage
+
+Execution APIs accept ``model_adapter_coverage`` to define whether caller
+provided adapters are authoritative or may be augmented by the package's default
+OpenAI adapter.
+
+``"augmented"`` is the default. Supplied adapters are tried first, and the
+runtime may create a default OpenAI adapter when eligible model coverage is
+missing:
+
+.. code-block:: python
+
+   result = run_agent_workflow(
+       prompt="Run this workflow.",
+       package_directory="path/to/agent-package",
+       model_adapter=[local_adapter],
+       model_adapter_coverage="augmented",
+   )
+
+``"strict"`` means the supplied adapter list must cover the selected model or
+capability requirements. ``model_adapter=None``, ``model_adapter=[]``, or a
+nonmatching supplied adapter raises ``WorkflowExecutionError`` before any
+default OpenAI adapter is created:
+
+.. code-block:: python
+
+   result = run_agent_workflow(
+       prompt="Run this workflow.",
+       package_directory="path/to/agent-package",
+       model_adapter=[local_adapter],
+       model_adapter_coverage="strict",
+   )
+
+The same keyword is accepted by ``run_agent_workflow(...)``,
+``run_agent_workflow_async(...)``, ``execute_workflow(...)``,
+``execute_workflow_async(...)``, and ``WorkflowExecutionContext``. Clients that
+require local-only execution should supply only local adapters with strict
+coverage. ``llm_step.model_requirements`` metadata such as ``local_only`` no
+longer filters adapter selection.
+
 .. header2:: Local OpenAI-compatible endpoints
 
 Use ``LocalOpenAIEndpointConfig`` when a caller owns a local server that exposes
@@ -140,6 +180,7 @@ share a loaded workflow and runtime collaborators:
        workflow=workflow,
        tool_registry=my_tool_registry,
        model_adapter=my_model_adapter,
+       model_adapter_coverage="strict",
        max_steps=20,
        trace_sink=my_trace_sink,
    )

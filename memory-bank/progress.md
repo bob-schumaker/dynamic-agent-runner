@@ -23,6 +23,9 @@
   `search_hugging_face_models(...)` and receive
   `HuggingFaceModelSearchResult` values with package-owned
   `HuggingFaceModelSearchError` failure translation.
+- Model adapter coverage policy is implemented: callers can choose
+  `model_adapter_coverage="strict"` for authoritative supplied adapters or rely
+  on default augmented behavior for eligible default OpenAI coverage.
 - Async-session support is currently metadata-only and documented as host-managed
   continuity for first-customer use cases.
 
@@ -45,18 +48,12 @@
 - Future-feature specs still capture known requirements, non-goals, design
   constraints, validation checklists, and clarification items. They do not
   authorize implementation by themselves.
-- The model adapter coverage policy spec is the active authoritative
-  continuation point for the next implementation slice. It defines
-  `model_adapter_coverage="strict" | "augmented"`, default `augmented`
-  behavior, strict failure for missing supplied-adapter coverage, and removal of
-  `local_only` adapter routing.
+- The model adapter coverage policy landed with public API/context wiring,
+  strict supplied-adapter failure behavior, augmented default OpenAI coverage,
+  local-only routing removal, focused tests, and client-facing docs.
 
 ## Remaining
 
-- Active next work: implement `specs/model-adapter-coverage/spec.md`, including
-  the public API/context argument, executor selection behavior, strict empty-list
-  failures, augmented default OpenAI coverage, and removal of `local_only`
-  routing semantics.
 - Optional llama.cpp Slice 3: separate local embedding configuration, if
   explicitly scheduled.
 - Future richer Hugging Face Hub behavior beyond read-only model discovery; this

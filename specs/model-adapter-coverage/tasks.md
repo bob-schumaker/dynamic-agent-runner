@@ -1,6 +1,6 @@
 # Model Adapter Coverage Task List
 
-Status: ready for implementation
+Status: implemented; Slices 1-4 complete
 
 ## Prerequisites
 
@@ -149,15 +149,16 @@ download behavior, or workflow-manifest schema fields.
 
 ## Slice 4 — Documentation and Final Validation
 
-- [ ] T4.1 [docs] Document client-facing `model_adapter_coverage` behavior.
+- [x] T4.1 [docs] Document client-facing `model_adapter_coverage` behavior.
   - Spec: Proposed Public API, FR-1, FR-2, FR-5
   - Plan: Public contract
   - Files/components: `README.md`, `docs/files/python-api.rst`,
     `docs/skills/dynamic-agent-runner/SKILL.md`
   - Depends on: T3.3
   - Validation: `make -C docs html`
+  - GREEN: `make -C docs html` passed.
 
-- [ ] T4.2 [validation] Run focused regression validation.
+- [x] T4.2 [validation] Run focused regression validation.
   - Spec: Validation Checklist
   - Plan: Validation Plan
   - Files/components: implementation and docs changed in Slices 1-4
@@ -165,8 +166,9 @@ download behavior, or workflow-manifest schema fields.
   - Validation:
     `poetry run pytest tests/test_cli.py tests/test_executor.py
     tests/test_model_capabilities.py tests/test_import.py -q`
+  - GREEN: focused regression validation passed with 87 tests.
 
-- [ ] T4.3 [spec-maintenance] Record implementation evidence and update status.
+- [x] T4.3 [spec-maintenance] Record implementation evidence and update status.
   - Spec: Metadata, Validation Checklist
   - Plan: Delivery completion
   - Files/components: `specs/model-adapter-coverage/spec.md`,
@@ -174,3 +176,5 @@ download behavior, or workflow-manifest schema fields.
     `memory-bank/activeContext.md`, `memory-bank/progress.md`
   - Depends on: T4.2
   - Validation: `pre-commit run --files <changed files>`
+  - GREEN: targeted pre-commit passed for the Slice 4 docs, spec, and memory
+    files.
