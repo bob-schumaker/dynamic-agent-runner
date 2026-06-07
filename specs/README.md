@@ -31,7 +31,7 @@ Companion planning artifacts:
 | SKILL.md source resolution | [`spec.md`](skill-source-resolution/spec.md) | Future feature spec | Skill metadata and refs exist; arbitrary source loading not implemented |
 | Iterative agent-loop runtime | [`spec.md`](iterative-agent-loop-runtime/spec.md) | Future feature spec | Tool-use completion metadata exists; live iterative loop not implemented |
 | Power-Marimo host automation | [`spec.md`](power-marimo-host-automation/spec.md) | Future downstream integration spec | Placeholder-safe fixture exists; live Marimo/PyQt automation not implemented |
-| Hugging Face model search | [`spec.md`](hugging-face-model-search/spec.md) | Actionable feature spec | Plan and tasks exist; public Hub discovery API, result contract, and validation not implemented |
+| Hugging Face model search | [`spec.md`](hugging-face-model-search/spec.md) | Implemented feature | Public Hub discovery API, result contract, error translation, exports, tests, and docs complete |
 
 ## Completion Matrix
 
@@ -50,7 +50,7 @@ Companion planning artifacts:
 | SKILL.md source resolution | `skill-source-resolution` | Package-local skill metadata and `skill_refs` preservation complete | Source loading, trust, precedence, and prompt injection are specified as future work |
 | Iterative agent-loop runtime | `iterative-agent-loop-runtime` | Metadata-only tool-use completion policy preservation complete | ReAct-style loop execution, stop policy, and loop trace behavior are specified as future work |
 | Power-Marimo host automation | `power-marimo-host-automation` | Placeholder-safe fixture and fake-tool execution coverage complete | Live Marimo-session tools, domain adapters, PyQt-widget automation, and host safety policy are specified as future work |
-| Public Hugging Face model discovery | `hugging-face-model-search` | No public Hub discovery surface exists today | Repository-owned search API, normalized result types, error translation, exports, tests, and docs |
+| Public Hugging Face model discovery | `hugging-face-model-search` | Repository-owned search API, normalized result types, error translation, exports, tests, and docs complete | Future richer Hub capabilities require a separate feature spec |
 
 ## Reading Order
 

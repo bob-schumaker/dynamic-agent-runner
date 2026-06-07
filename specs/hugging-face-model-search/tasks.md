@@ -1,6 +1,6 @@
 # Hugging Face Model Search Task List
 
-Status: actionable task list; implementation not started
+Status: complete through Slice 3
 
 ## Prerequisites
 
@@ -11,8 +11,8 @@ Status: actionable task list; implementation not started
 
 ## Status
 
-- State: Slices 1-2 are complete.
-- Current execution gate: T3.1 is the next pending step.
+- State: Slices 1-3 are complete.
+- Current execution gate: none; implementation complete.
 - Scope rule: keep this feature limited to read-only public model discovery.
   Do not merge model download, endpoint startup, workflow schema, or write-side
   Hugging Face operations into these tasks.
@@ -108,7 +108,7 @@ Status: actionable task list; implementation not started
 
 ## Slice 3 — Documentation and Final Validation
 
-- [ ] T3.1 [docs] Document the public discovery API and read-only boundary in
+- [x] T3.1 [docs] Document the public discovery API and read-only boundary in
       the Python API docs.
   - Spec: FR-1, FR-5
   - Plan: Slice 3; Non-Implementation Notes
@@ -119,8 +119,12 @@ Status: actionable task list; implementation not started
     docs/files/python-api.rst`
   - Evidence: docs identify the canonical entry point and warn that discovery
     does not imply runtime compatibility or download support.
+  - GREEN: `rg -n
+    "search_hugging_face_models|HuggingFaceModelSearchResult|read-only"
+    docs/files/python-api.rst` found the documented entry point, result type,
+    and read-only boundary.
 
-- [ ] T3.2 [validation] Run focused regression tests for discovery, imports,
+- [x] T3.2 [validation] Run focused regression tests for discovery, imports,
       local-model helpers, and OpenAI provider seams.
   - Spec: FR-6
   - Plan: Validation Plan
@@ -133,8 +137,11 @@ Status: actionable task list; implementation not started
     tests/test_openai_client.py tests/test_hugging_face_models.py -q`
   - Evidence: focused regression suite passes without live Hugging Face network
     access.
+  - GREEN: `poetry run pytest tests/test_import.py tests/test_local_models.py
+    tests/test_openai_client.py tests/test_hugging_face_models.py -q` passed
+    with `49 passed`.
 
-- [ ] T3.3 [spec-maintenance] Record implementation evidence in this task list
+- [x] T3.3 [spec-maintenance] Record implementation evidence in this task list
       and update the specs index if the feature status changes.
   - Spec: Authoritative Boundary
   - Plan: Delivery Strategy
@@ -145,3 +152,7 @@ Status: actionable task list; implementation not started
     "Hugging Face model search|Public Hugging Face model discovery"
     specs/README.md specs/hugging-face-model-search/tasks.md`
   - Evidence: status and completion wording match the implemented state.
+  - GREEN: `rg -n
+    "Hugging Face model search|Public Hugging Face model discovery"
+    specs/README.md specs/hugging-face-model-search/tasks.md` confirmed the
+    implemented status and completion evidence.

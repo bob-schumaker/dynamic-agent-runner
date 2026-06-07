@@ -5,11 +5,11 @@
 - Feature slug: `hugging-face-model-search`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: actionable feature spec; implementation not started
+- Status: implemented feature spec
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of public Hugging Face
   discovery support
-- Next gate: T1.1 in `specs/hugging-face-model-search/tasks.md`
+- Next gate: none; implementation complete through T3.3
 - Approval state: user-directed authoritative feature spec for public Hugging
   Face model discovery
 - Related artifacts:

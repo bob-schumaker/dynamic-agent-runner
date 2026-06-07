@@ -91,6 +91,34 @@ as local for capability routing, and translate local endpoint connectivity,
 protocol, and model-identity failures into package-owned errors. They do not
 start or supervise a local model server.
 
+.. header2:: Hugging Face model discovery
+
+Use ``search_hugging_face_models(...)`` to search Hugging Face models through a
+read-only, repository-owned result contract:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import search_hugging_face_models
+
+   results = search_hugging_face_models(
+       "qwen gguf",
+       limit=5,
+       task="text-generation",
+       tags=("gguf",),
+       sort="downloads",
+       direction="desc",
+   )
+
+   first_repo_id = results[0].repo_id
+
+Each result is a ``HuggingFaceModelSearchResult`` with normalized summary fields
+such as ``repo_id``, ``display_name``, ``task``, ``tags``, ``likes``,
+``downloads``, and ``last_modified``. Discovery is separate from execution: a
+matching model is not automatically downloadable, runnable by a local endpoint,
+or compatible with a workflow. Search failures raise
+``HuggingFaceModelSearchError`` instead of exposing raw Hub SDK exceptions as
+the public contract.
+
 .. header2:: Reusable execution contexts
 
 Use ``WorkflowExecutionContext`` or its alias ``RunContext`` when several runs
