@@ -775,13 +775,26 @@ def _read_codex_auth_defaults(codex_home: Path) -> _CodexAuthDefaults:
     if not isinstance(auth, Mapping):
         raise ModelExecutionError(f"Codex auth file {auth_file} must contain an object")
 
+    declared_mode = _resolve_declared_codex_auth_mode(auth)
+    unsupported_mode = _resolve_unsupported_codex_auth_mode(auth)
+    if unsupported_mode is not None:
+        return _CodexAuthDefaults(unsupported_mode=unsupported_mode)
+
+    if declared_mode == "api_key":
+        return _CodexAuthDefaults(api_key=_read_codex_api_key_value(auth, auth_file))
+    if declared_mode == "chatgpt":
+        chatgpt_token = _read_codex_chatgpt_token(auth)
+        if chatgpt_token is None:
+            raise ModelExecutionError(
+                f"Codex auth file {auth_file} uses ChatGPT auth but has no token"
+            )
+        return _CodexAuthDefaults(chatgpt_token=chatgpt_token)
+
     api_key = _read_codex_api_key_value(auth, auth_file)
     chatgpt_token = _read_codex_chatgpt_token(auth)
-    unsupported_mode = _resolve_unsupported_codex_auth_mode(auth)
     return _CodexAuthDefaults(
         api_key=api_key,
         chatgpt_token=chatgpt_token,
-        unsupported_mode=unsupported_mode,
     )
 
 
@@ -789,7 +802,7 @@ def _read_codex_api_key_value(
     auth: Mapping[str, Any],
     auth_file: Path,
 ) -> str | None:
-    if _auth_mode_is(auth, "api_key") and not isinstance(
+    if _declared_auth_mode_is(auth, "api_key") and not isinstance(
         auth.get("OPENAI_API_KEY"), str
     ):
         raise ModelExecutionError(
@@ -800,7 +813,7 @@ def _read_codex_api_key_value(
     if not isinstance(value, str):
         return None
     if not value.strip():
-        if _auth_mode_is(auth, "api_key"):
+        if _declared_auth_mode_is(auth, "api_key"):
             raise ModelExecutionError(
                 f"Codex auth file {auth_file} uses API-key auth but has no key"
             )
@@ -842,22 +855,31 @@ def _select_codex_auth(
 
 
 def _resolve_unsupported_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
-    if auth.get("personal_access_token") is not None:
-        return "personal_access_token"
-    if auth.get("agent_identity") is not None:
-        return "agent_identity"
-    mode = _resolve_codex_auth_mode(auth)
+    mode = _resolve_declared_codex_auth_mode(auth)
+    if mode is None:
+        if auth.get("personal_access_token") is not None:
+            return "personal_access_token"
+        if auth.get("agent_identity") is not None:
+            return "agent_identity"
+        mode = _resolve_codex_auth_mode(auth)
     if mode not in {None, "api_key", "chatgpt"}:
         return mode
     return None
 
 
-def _resolve_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
+def _resolve_declared_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
     raw_mode = auth.get("auth_mode")
     if isinstance(raw_mode, str) and raw_mode.strip():
         mode = raw_mode.strip().replace("-", "_").lower()
         if mode in {"api", "apikey"}:
             return "api_key"
+        return mode
+    return None
+
+
+def _resolve_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
+    mode = _resolve_declared_codex_auth_mode(auth)
+    if mode is not None:
         return mode
 
     if isinstance(auth.get("OPENAI_API_KEY"), str):
@@ -871,8 +893,8 @@ def _resolve_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _auth_mode_is(auth: Mapping[str, Any], expected: str) -> bool:
-    return _resolve_codex_auth_mode(auth) == expected
+def _declared_auth_mode_is(auth: Mapping[str, Any], expected: str) -> bool:
+    return _resolve_declared_codex_auth_mode(auth) == expected
 
 
 def _provider_config_to_client_kwargs(config: OpenAIProviderConfig) -> dict[str, Any]:
