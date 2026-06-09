@@ -724,18 +724,41 @@ def _read_codex_openai_base_url(codex_home: Path) -> str | None:
     config_file = codex_home / "config.toml"
     if not config_file.exists():
         return None
+    text = config_file.read_text(encoding="utf-8")
     try:
-        with config_file.open("rb") as handle:
-            config = tomllib.load(handle)
-    except tomllib.TOMLDecodeError as exc:
-        raise ModelExecutionError(
-            f"failed to parse Codex config file {config_file}"
-        ) from exc
+        config = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return _read_codex_openai_base_url_from_top_level_text(config_file, text)
     value = config.get("openai_base_url")
     if not isinstance(value, str):
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _read_codex_openai_base_url_from_top_level_text(
+    config_file: Path,
+    text: str,
+) -> str | None:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("["):
+            return None
+        key, separator, _value = stripped.partition("=")
+        if key.strip() != "openai_base_url" or not separator:
+            continue
+        try:
+            value = tomllib.loads(line).get("openai_base_url")
+        except tomllib.TOMLDecodeError as exc:
+            raise ModelExecutionError(
+                f"failed to parse Codex config file {config_file}"
+            ) from exc
+        if not isinstance(value, str):
+            return None
+        return value.strip() or None
+    return None
 
 
 def _read_codex_auth_defaults(codex_home: Path) -> _CodexAuthDefaults:

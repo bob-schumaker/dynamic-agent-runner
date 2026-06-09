@@ -223,6 +223,58 @@ def test_malformed_codex_config_fails_without_secret_values(
     assert "secret-url" not in message
 
 
+def test_unrelated_malformed_codex_config_does_not_block_auth_discovery(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    _write_codex_auth(
+        codex_home, {"auth_mode": "api_key", "OPENAI_API_KEY": "codex-key"}
+    )
+    (codex_home / "config.toml").write_text(
+        """
+[otel]
+exporter = { otlp-http = {
+  endpoint = "https://telemetry.example/path"
+}}
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    config = _resolve_default_openai_provider_config(OpenAIProviderConfig())
+
+    assert config.api_key == "codex-key"
+    assert config.base_url is None
+
+
+def test_openai_base_url_is_read_when_later_codex_config_is_not_tomllib_compatible(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "config.toml").write_text(
+        """
+openai_base_url = "https://api.example/v1"
+
+[otel]
+exporter = { otlp-http = {
+  endpoint = "https://telemetry.example/path"
+}}
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    config = _resolve_default_openai_provider_config(OpenAIProviderConfig())
+
+    assert config.base_url == "https://api.example/v1"
+
+
 def test_project_local_codex_config_is_not_read(
     monkeypatch,
     tmp_path,
