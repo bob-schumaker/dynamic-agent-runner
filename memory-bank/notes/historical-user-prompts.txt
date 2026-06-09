@@ -304,3 +304,23 @@ the local repo for that package is at /Users/roschuma/Repos/github/huggingface_h
 ---
 
 the adapter should take an optional model cache folder path, if not specified use `~/.ollama/models`
+
+---
+
+once we've authenticated, we need to list the available models
+
+```text
+CRITICAL:PowerMarimo:Error: Function call (name: send_prompt, args: {'request_id': 'f1bebdfa-fc76-43f8-94ca-27876953b272', 'messages': [{'id': 'JVKGlGuUMsve3wVS', 'role': 'user', 'content': 'find the sld for room jnb1.1 and run a local analysis', 'parts': [{'type': 'text', 'text': 'find the sld for room jnb1.1 and run a local analysis'}]}], 'config': {'max_tokens': 4096, 'temperature': 0.5, 'top_p': 1, 'top_k': 40, 'frequency_penalty': 0, 'presence_penalty': 0}}) failed with exception OpenAI model request failed: Error code: 400 - {'detail': "The 'gpt-4.1' model is not supported when using Codex with a ChatGPT account."}
+```
+
+---
+
+test the end-to-end openai path with a real agent llm workflow
+
+```text
+CRITICAL:PowerMarimo:Error: Function call (name: send_prompt, args: {'request_id': 'd484349c-97d8-4c54-9bec-c077004aed33', 'messages': [{'id': 'NCA4BFxjZDVeoXJk', 'role': 'user', 'content': 'find the sld for room jnb1.1 and run a local analysis', 'parts': [{'type': 'text', 'text': 'find the sld for room jnb1.1 and run a local analysis'}]}], 'config': {'max_tokens': 4096, 'temperature': 0.5, 'top_p': 1, 'top_k': 40, 'frequency_penalty': 0, 'presence_penalty': 0}}) failed with exception OpenAI available model listing failed
+```
+
+---
+
+examine ~/Repos/github/llmfit for ways to evaluate models before fetching them from huggingface_hub

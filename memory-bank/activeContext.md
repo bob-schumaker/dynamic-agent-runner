@@ -2,59 +2,57 @@
 
 ## Current Focus
 
-- The latest completed work is default OpenAI/Codex auth discovery through
-  Slice 5:
-  - `78d6ee7`, `b989052`, `19a6ae4`, and `2009a11` implemented adapter-owned
-    default auth discovery, Codex API-key auth, integration coverage, docs, and
-    Slices 1-4 evidence.
-  - `9a889e9` updated the authoritative spec with ordered Codex auth selection:
-    use the only supported method when only one exists, prefer
-    API-key/auth-token auth by default when both API-key and ChatGPT auth exist,
-    and allow ChatGPT-first selection.
-  - `f13c3fa`, `c9142dd`, and `e01fed4` added RED tests, implemented ordered
-    ChatGPT/Codex backend auth support in `openai_client.py`, added
-    provider/adapter/executor regression coverage, refreshed README/spec
-    artifacts, and marked Slice 5 complete.
-- Recent completed local-model/runtime milestones include direct in-process
-  llama.cpp local-model support:
-  - `58136d9` (`feat(local-models): add direct llama cpp adapter`) added
-    sync/async direct llama.cpp adapters, lazy `llama-cpp-python` loading, local
-    asset resolution, response normalization, identity validation, strict/
-    augmented executor coverage, docs, and Slice 3 task evidence.
-  - `b745b4c` (`docs: refresh llama cpp adapter status`) refreshed README,
-    validation docs, and the spec index to mark direct llama.cpp chat complete.
-- Recent completed local-model/runtime milestones also include:
-  - `c6ba109` (`chore(deps): add huggingface extra`)
-  - `c92728f` (`chore(deps): remove llama cpp server extra`)
-  - `137342b` (`feat(hugging-face): add support layer search helper`)
-  - `0df7b53` (`refactor(hugging-face): share hub download helpers`)
-  - `2cecfe5` (`feat(mlx): add local model asset resolution`)
-  - `b96298d` (`docs(mlx): document local adapter completion`)
-- Model adapter coverage is implemented through Slices 1-4: public APIs and
-  `WorkflowExecutionContext` accept `model_adapter_coverage`, strict mode keeps
-  supplied adapters authoritative, augmented mode preserves default OpenAI
-  coverage, `local_only` metadata no longer filters adapter selection, and the
-  repository-local client skill now calls out default OpenAI and local
-  llama.cpp adapter usage.
-- No implementation slice is currently active. The latest completed feature
-  slice was default OpenAI/Codex auth discovery Slice 5 in
-  `specs/default-openai-codex-auth/tasks.md`.
-- The macOS MLX local-model adapter is implemented through Slices 1-4:
-  package-root helpers, lazy dependency/platform failures, converted directory
-  preflight, injected Hub file/snapshot resolution, identity validation,
-  executor coverage, and client docs are complete.
-- The repo has a top-level spec index at `specs/README.md` that identifies the
-  primary runtime spec, all feature-spec packages, and the completion matrix.
-- The primary runtime spec remains `specs/dynamic-agent-runner/spec.md`.
+- No implementation slice is currently active.
+- The latest completed repository work focused on making the OpenAI adapter work
+  with default OpenAI/Codex auth, ChatGPT/Codex backend auth, authenticated model
+  discovery, and omitted-model defaults.
+- The latest documentation work added a ReAct/tool workflow guide under
+  `docs/files/react-tool-workflow.rst` and used it to drive upstream
+  `agent-development-skill` improvements.
+
+## Recent Completed Work
+
+- Default OpenAI/Codex auth is implemented through the OpenAI adapter default
+  provider path:
+  - caller overrides remain authoritative
+  - `OPENAI_API_KEY` is supported
+  - trusted user-level Codex API-key/auth-token defaults are supported
+  - ChatGPT/Codex token auth is supported through an explicit
+    `chatgpt-codex` provider boundary in `openai_client.py`
+  - `auth.json` `auth_mode` constrains eligible auth methods
+  - `codex_auth_preference="chatgpt_first"` can prefer ChatGPT auth when both
+    API-key/auth-token and ChatGPT auth exist
+- ChatGPT/Codex live-backend compatibility is implemented:
+  - model listing sends `client_version` from `${CODEX_HOME}/version.json`
+  - Codex model catalogs using `models[].slug` are normalized
+  - unsupported requested models fail before `responses.create`
+  - system/developer prompt messages are translated into `instructions`
+  - ChatGPT/Codex requests force `store=false` and `stream=true`
+  - streamed response text is normalized into `ModelResponse`
+- Upstream callers can now inspect model availability through:
+  - `OpenAIClientAdapter.list_supported_models(...)`
+  - `AsyncOpenAIClientAdapter.list_supported_models(...)`
+  - `default_model(...)` on both adapters
+- When no model is configured on the adapter or workflow, the runtime can choose
+  the lowest versioned authenticated OpenAI model as the initial model.
+- A live OpenAI/ChatGPT Codex smoke path was verified with the user's local
+  Codex auth: model listing returned `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, and
+  `codex-auto-review`; an in-memory workflow using `gpt-5.4-mini` returned
+  `pong`.
+- ReAct/tool workflow guidance was added and validated:
+  - `docs/files/react-tool-workflow.rst`
+  - `make -C docs html`
+  - in-memory runtime smoke of the documented route-gated graph
+- Upstream `agent-development-skill` was checked after reinstallation:
+  - it now has a conceptual external-runtime ReAct host example
+  - stale `dynamic_agent_runner`-specific runner references were removed
+  - the installed ReAct runtime example validates with the skill validator
 
 ## Current Spec Authority Map
 
 - Primary runtime contract:
   - `specs/dynamic-agent-runner/spec.md`
-  - package-directory-first loading/execution, async-first runtime, tool
-    registry, OpenAI-compatible adapter/provider boundary, validation, tracing,
-    prompt preparation, runtime-policy metadata, and public API direction
-- Implemented or checkpoint-complete feature specs:
+- Current feature/spec packages with implemented or checkpoint-complete work:
   - `specs/openai-compatible-provider-wrapper/spec.md`
   - `specs/default-openai-codex-auth/spec.md`
   - `specs/llama-cpp-local-model/spec.md`
@@ -76,63 +74,25 @@
 
 ## Current Status
 
-- Core runtime implementation is complete through package-alignment P5, E14
-  async-first execution, OA11 portable `tool_type` alignment, prompt-cache
-  metadata, provider-wrapper Slices 1-6, llama.cpp local-model Slices 1-3, and
-  the first internal graph-mutation checkpoint.
-- Public Hugging Face model discovery is implemented with a repository-owned
-  search API, normalized result type, package-owned error boundary, exports,
-  deterministic tests, and Python API docs.
-- The Hugging Face support layer is implemented: model search and local-model
-  default downloads now share internal Hub import/call helpers while preserving
-  their existing public error boundaries. Hub-backed features now require
-  installing the `huggingface` extra.
-- Model adapter coverage policy is implemented with the public
-  `model_adapter_coverage` argument on high-level and lower-level execution
-  APIs, strict missing-coverage failures, augmented default OpenAI coverage, and
-  no `local_only` adapter-routing semantics.
-- macOS MLX local-model adapter support is implemented with
-  `MLXLocalModelConfig`, `create_mlx_local_adapter(...)`,
-  `create_mlx_local_async_adapter(...)`, local model preflight, package-owned
-  errors, normalized text responses, and strict/augmented executor coverage.
-- Direct llama.cpp local-model adapter support is implemented with
-  `LlamaCppLocalModelConfig`, `create_llama_cpp_local_adapter(...)`,
-  `create_llama_cpp_local_async_adapter(...)`, lazy `llama-cpp-python`
-  dependency loading, local asset resolution, package-owned response
-  normalization, identity validation, and strict/augmented executor coverage.
-  Caller-owned OpenAI-compatible llama.cpp servers remain supported separately
-  through `LocalOpenAIEndpointConfig`.
-- Default OpenAI/Codex auth discovery is implemented in the OpenAI adapter
-  default-provider path. It honors caller-provided auth/base URL, supports
-  `OPENAI_API_KEY`, Codex user-level API-key/auth-token defaults, ordered
-  ChatGPT/Codex backend auth selection, and `codex_auth_preference` for
-  ChatGPT-first ordering. Project-local `.codex/config.toml` and workflow
-  packages do not select or redirect auth endpoints.
-- User-facing docs now document the current mise/Poetry setup, package-owned
-  local-model helper boundary, Hugging Face discovery test coverage, adapter
-  coverage modes, default OpenAI fallback behavior, and dependency direction.
-- Metadata-only runtime surfaces are implemented for guardrails, MCP registry
-  sources/lifecycle diagnostics, approval interruption, async session policy,
-  sandbox runtime policy, and tool-use completion policy.
+- Core runtime implementation is complete through package-alignment P5, async-
+  first execution, portable tool type alignment, prompt-cache metadata,
+  provider-wrapper work, local-model adapters, graph-mutation checkpoint, model
+  adapter coverage, and default OpenAI/Codex auth.
+- Default OpenAI/Codex auth follow-ups are limited to separately specified
+  personal-access-token or agent-identity support.
 - Live runtime behavior is still deferred for approval pause/resume, writable
   sandbox/workspace execution, live MCP discovery/invocation, live guardrail
-  enforcement, arbitrary `SKILL.md` source loading, iterative model/tool loops,
+  enforcement, arbitrary `SKILL.md` loading, iterative model/tool loop runtime,
   and Power-Marimo host automation.
-- Remaining default OpenAI/Codex auth follow-ups are limited to separately
-  specified PAT or agent-identity support; ChatGPT token auth is complete
-  through the explicit `openai_client.py` provider boundary.
-- The only remaining llama.cpp gate is optional separate local embedding
-  configuration, only if explicitly scheduled.
-- The MLX implementation gate is closed through Slice 4; deferred MLX work
-  includes GGUF, embeddings, multimodal behavior, streaming, tool calling,
-  structured output, model conversion, and any MLX server helper.
 
 ## Next Steps
 
-- For implementation: select the next scoped feature spec or create a new task
-  breakdown before editing runtime code.
-- For documentation: keep `README.md`, `docs/files/`, `specs/README.md`,
-  `specs/dynamic-agent-runner/tasks.md`, and feature spec statuses synchronized
-  when new slices are selected or closed.
-- For validation: continue using fake clients/tools for unit tests and avoid live
-  OpenAI, MCP, Marimo, or local-model infrastructure in core unit validation.
+- For implementation: select the next scoped feature spec or create a new
+  task breakdown before editing runtime code.
+- For OpenAI/Codex auth: only add PAT or agent-identity support after a separate
+  provider/base-url/signing design is specified and tested.
+- For ReAct/tool workflows: if runtime support is selected, consider resolving
+  the current mismatch where `react_loop` validation expects a `loopback` edge
+  but execution follows `sequential`/`branch` traversal.
+- For validation: continue using fake clients/tools in unit tests; do not add
+  live OpenAI, MCP, Marimo, Hugging Face, or local-model calls to core tests.

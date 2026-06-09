@@ -28,3 +28,8 @@ The memory bank is background project memory. It is not a replacement for:
 - Update `activeContext.md` and `progress.md` after meaningful milestones.
 - Add supporting notes under `memory-bank/notes/` only when they capture durable
   decisions, risks, or domain context that would clutter the core files.
+- Treat `memory-bank/notes/historical-user-prompts.txt` as a durable
+  prompt-history note. Append only substantive user prompts that are not already
+  represented elsewhere in the note.
+- Keep prompt-history entries verbatim enough to preserve diagnostic context,
+  especially error snippets that drove feature work.
