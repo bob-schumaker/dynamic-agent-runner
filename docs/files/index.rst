@@ -15,6 +15,7 @@ manifest, registry, and operations pages for deeper integration details.
 
    quickstart
    artifact-package
+   react-tool-workflow
    python-api
    cli
    tool-registry
