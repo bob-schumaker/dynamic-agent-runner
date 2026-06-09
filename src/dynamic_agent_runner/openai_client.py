@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+import os
 from threading import RLock
 from typing import Any, Protocol
 
@@ -45,8 +46,9 @@ class OpenAIProviderConfig:
     """Repository-owned configuration for an OpenAI-compatible provider."""
 
     base_url: str | None = None
-    api_key: str | None = None
+    api_key: str | None = field(default=None, repr=False)
     provider_name: str | None = None
+    discover_default_auth: bool = True
 
 
 class OpenAIClientProvider(Protocol):
@@ -292,7 +294,10 @@ def create_default_openai_provider(
 ) -> OpenAIClientProvider:
     """Construct the default sync SDK-backed provider facade."""
 
-    return SDKBackedOpenAIClientProvider(config or OpenAIProviderConfig())
+    resolved_config = _resolve_default_openai_provider_config(
+        config or OpenAIProviderConfig()
+    )
+    return SDKBackedOpenAIClientProvider(resolved_config)
 
 
 def create_default_openai_client(
@@ -348,7 +353,10 @@ def create_default_async_openai_provider(
 ) -> AsyncOpenAIClientProvider:
     """Construct the default async SDK-backed provider facade."""
 
-    return SDKBackedAsyncOpenAIClientProvider(config or OpenAIProviderConfig())
+    resolved_config = _resolve_default_openai_provider_config(
+        config or OpenAIProviderConfig()
+    )
+    return SDKBackedAsyncOpenAIClientProvider(resolved_config)
 
 
 def create_default_async_openai_client(
@@ -528,6 +536,39 @@ def _as_sequence(value: Any) -> Sequence[Any]:
 
 def _optional_str(value: Any) -> str | None:
     return str(value) if value is not None else None
+
+
+def _resolve_default_openai_provider_config(
+    config: OpenAIProviderConfig,
+) -> OpenAIProviderConfig:
+    """Resolve host-owned defaults for the SDK-backed OpenAI provider."""
+
+    if not config.discover_default_auth:
+        return OpenAIProviderConfig(
+            base_url=config.base_url,
+            api_key=config.api_key,
+            provider_name=config.provider_name,
+            discover_default_auth=config.discover_default_auth,
+        )
+
+    api_key = config.api_key
+    if api_key is None:
+        api_key = _read_non_empty_env("OPENAI_API_KEY")
+
+    return OpenAIProviderConfig(
+        base_url=config.base_url,
+        api_key=api_key,
+        provider_name=config.provider_name,
+        discover_default_auth=config.discover_default_auth,
+    )
+
+
+def _read_non_empty_env(name: str) -> str | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _provider_config_to_client_kwargs(config: OpenAIProviderConfig) -> dict[str, Any]:

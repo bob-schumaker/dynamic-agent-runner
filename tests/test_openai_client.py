@@ -594,6 +594,7 @@ def test_create_default_openai_client_uses_official_client(
 ) -> None:
     created: list[object] = []
     created_kwargs: list[dict[str, object]] = []
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     class FakeOfficialOpenAI:
         def __init__(self, **kwargs: object) -> None:
@@ -641,6 +642,7 @@ def test_create_default_openai_client_omits_api_key_when_not_provided(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     created_kwargs: list[dict[str, object]] = []
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     class FakeOfficialOpenAI:
         def __init__(self, **kwargs: object) -> None:
@@ -661,6 +663,7 @@ def test_create_default_async_openai_client_uses_official_async_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     created: list[object] = []
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     class FakeOfficialAsyncOpenAI:
         def __init__(self) -> None:
@@ -706,6 +709,7 @@ def test_create_default_async_openai_client_omits_api_key_when_not_provided(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     created_kwargs: list[dict[str, object]] = []
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     class FakeOfficialAsyncOpenAI:
         def __init__(self, **kwargs: object) -> None:

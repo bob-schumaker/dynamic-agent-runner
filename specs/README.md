@@ -20,6 +20,7 @@ Companion planning artifacts:
 | Feature | Spec | Status | Completion |
 | --- | --- | --- | --- |
 | OpenAI-compatible provider wrapper | [`spec.md`](openai-compatible-provider-wrapper/spec.md) | Implemented | Slices 1-6 complete; optional compatibility polish only |
+| Default OpenAI/Codex auth discovery | [`spec.md`](default-openai-codex-auth/spec.md) | Ready for implementation | OpenAI adapter default-provider fallback behavior specified; [`plan.md`](default-openai-codex-auth/plan.md) and [`tasks.md`](default-openai-codex-auth/tasks.md) prepared |
 | llama.cpp local-model adapter | [`spec.md`](llama-cpp-local-model/spec.md) | Implemented | Slices 1-3 complete; direct in-process llama.cpp chat, endpoint helpers, local asset resolution, tests, and docs complete; optional embedding follow-up unscheduled |
 | macOS MLX local-model adapter | [`spec.md`](mlx-local-model-adapter/spec.md) | Implemented | Public macOS-only in-process MLX adapter helpers, local path/Hub resolution, identity validation, executor coverage, tests, and docs complete |
 | Model adapter coverage policy | [`spec.md`](model-adapter-coverage/spec.md) | Implemented | Public `model_adapter_coverage` policy, strict supplied-adapter failures, augmented default OpenAI coverage, local-only routing removal, tests, and docs complete |
@@ -42,6 +43,7 @@ Companion planning artifacts:
 | --- | --- | --- | --- |
 | Package-directory workflow loading and execution | `dynamic-agent-runner` | Complete through package alignment, async-first execution, tracing, hooks, prompt-cache metadata, and portable `tool_type` preservation | Future scoped expansions only |
 | OpenAI-compatible provider facade | `openai-compatible-provider-wrapper` | Sync/async provider facade, provider config, SDK-backed defaults, package exports, and README example complete | Optional compatibility polish for provider-specific behavior |
+| Default OpenAI/Codex auth discovery | `default-openai-codex-auth` | Spec, plan, and task list are ready for OpenAI adapter default-provider auth fallback work | Begin T1.1 RED tests, then implement adapter-owned discovery, Codex home/config/auth parsing, unsupported-auth handling, opt-out behavior, and redaction |
 | llama.cpp local-model adapters | `llama-cpp-local-model` | Local endpoint helpers, direct in-process llama.cpp chat adapters, provider-seam wiring, exports, model-resolution precedence, Hugging Face download wiring, local failure taxonomy, tests, and docs complete | Optional separate local embedding configuration remains later |
 | macOS MLX local-model adapters | `mlx-local-model-adapter` | Public adapter helpers, converted-directory preflight, injected Hub reference resolution, identity validation, executor coverage, tests, and docs complete | GGUF, embeddings, multimodal, streaming, tool calling, structured output, model conversion, and MLX server helpers remain deferred |
 | Model adapter coverage policy | `model-adapter-coverage` | Public API/context argument, executor selection behavior, strict empty-list and nonmatching-adapter failures, augmented default OpenAI coverage, local-only routing removal, tests, and docs complete | Future coverage modes or provider discovery require a separate feature spec |
@@ -63,11 +65,12 @@ Companion planning artifacts:
 1. Start with the primary [`dynamic-agent-runner/spec.md`](dynamic-agent-runner/spec.md).
 2. Read [`dynamic-agent-runner/tasks.md`](dynamic-agent-runner/tasks.md) for the
    implementation history and feature roadmap index.
-3. For current-session MLX local-model adapter work, read
-   [`mlx-local-model-adapter/spec.md`](mlx-local-model-adapter/spec.md); it is
-   the active authoritative change spec, with implementation order in
-   [`mlx-local-model-adapter/plan.md`](mlx-local-model-adapter/plan.md) and
-   [`mlx-local-model-adapter/tasks.md`](mlx-local-model-adapter/tasks.md).
+3. For continuing OpenAI adapter default-auth discovery work, read
+   [`default-openai-codex-auth/spec.md`](default-openai-codex-auth/spec.md);
+   it is the active authoritative change spec for that feature. Use
+   [`default-openai-codex-auth/plan.md`](default-openai-codex-auth/plan.md) and
+   [`default-openai-codex-auth/tasks.md`](default-openai-codex-auth/tasks.md)
+   for implementation order.
 4. Read a feature package when working in that specific area; each feature spec
    owns its own scope boundary and completion evidence.
 
