@@ -16,6 +16,10 @@ from dynamic_agent_runner.errors import ModelExecutionError
 
 ErrorTranslator = Callable[[ModelExecutionError], ModelExecutionError]
 ResponseValidator = Callable[["OpenAIModelRequest", "ModelResponse"], None]
+CHATGPT_CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api/codex"
+CHATGPT_CODEX_PROVIDER_NAME = "chatgpt-codex"
+CODEX_AUTH_API_KEY_FIRST = "api_key_first"
+CODEX_AUTH_CHATGPT_FIRST = "chatgpt_first"
 
 
 class OpenAIResponsesResource(Protocol):
@@ -52,6 +56,7 @@ class OpenAIProviderConfig:
     api_key: str | None = field(default=None, repr=False)
     provider_name: str | None = None
     discover_default_auth: bool = True
+    codex_auth_preference: str = "api_key_first"
 
 
 class OpenAIClientProvider(Protocol):
@@ -102,6 +107,44 @@ class SDKBackedAsyncOpenAIClientProvider:
                 "official openai package is not available"
             ) from exc
         return AsyncOpenAI(**_provider_config_to_client_kwargs(self.config))
+
+
+@dataclass(frozen=True)
+class ChatGPTCodexBackendOpenAIClientProvider:
+    """SDK-backed sync provider for Codex backend auth."""
+
+    config: OpenAIProviderConfig
+    token: str = field(repr=False)
+
+    def get_client(self) -> OpenAIClientProtocol:
+        try:
+            from openai import OpenAI
+        except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+            raise ModelExecutionError(
+                "official openai package is not available"
+            ) from exc
+        return OpenAI(
+            **_chatgpt_provider_config_to_client_kwargs(self.config, self.token)
+        )
+
+
+@dataclass(frozen=True)
+class ChatGPTCodexBackendAsyncOpenAIClientProvider:
+    """SDK-backed async provider for Codex backend auth."""
+
+    config: OpenAIProviderConfig
+    token: str = field(repr=False)
+
+    def get_client(self) -> AsyncOpenAIClientProtocol:
+        try:
+            from openai import AsyncOpenAI
+        except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+            raise ModelExecutionError(
+                "official openai package is not available"
+            ) from exc
+        return AsyncOpenAI(
+            **_chatgpt_provider_config_to_client_kwargs(self.config, self.token)
+        )
 
 
 @dataclass(frozen=True)
@@ -162,6 +205,19 @@ class ModelResponse:
     tool_calls: tuple[ModelToolCall, ...] = ()
     response_id: str | None = None
     raw: Any = None
+
+
+@dataclass(frozen=True)
+class _ResolvedDefaultOpenAIProvider:
+    config: OpenAIProviderConfig
+    chatgpt_token: str | None = field(default=None, repr=False)
+
+
+@dataclass(frozen=True)
+class _CodexAuthDefaults:
+    api_key: str | None = field(default=None, repr=False)
+    chatgpt_token: str | None = field(default=None, repr=False)
+    unsupported_mode: str | None = None
 
 
 class OpenAIClientAdapter:
@@ -297,10 +353,15 @@ def create_default_openai_provider(
 ) -> OpenAIClientProvider:
     """Construct the default sync SDK-backed provider facade."""
 
-    resolved_config = _resolve_default_openai_provider_config(
+    resolved = _resolve_default_openai_provider_defaults(
         config or OpenAIProviderConfig()
     )
-    return SDKBackedOpenAIClientProvider(resolved_config)
+    if resolved.chatgpt_token is not None:
+        return ChatGPTCodexBackendOpenAIClientProvider(
+            config=resolved.config,
+            token=resolved.chatgpt_token,
+        )
+    return SDKBackedOpenAIClientProvider(resolved.config)
 
 
 def create_default_openai_client(
@@ -356,10 +417,15 @@ def create_default_async_openai_provider(
 ) -> AsyncOpenAIClientProvider:
     """Construct the default async SDK-backed provider facade."""
 
-    resolved_config = _resolve_default_openai_provider_config(
+    resolved = _resolve_default_openai_provider_defaults(
         config or OpenAIProviderConfig()
     )
-    return SDKBackedAsyncOpenAIClientProvider(resolved_config)
+    if resolved.chatgpt_token is not None:
+        return ChatGPTCodexBackendAsyncOpenAIClientProvider(
+            config=resolved.config,
+            token=resolved.chatgpt_token,
+        )
+    return SDKBackedAsyncOpenAIClientProvider(resolved.config)
 
 
 def create_default_async_openai_client(
@@ -546,16 +612,29 @@ def _resolve_default_openai_provider_config(
 ) -> OpenAIProviderConfig:
     """Resolve host-owned defaults for the SDK-backed OpenAI provider."""
 
+    return _resolve_default_openai_provider_defaults(config).config
+
+
+def _resolve_default_openai_provider_defaults(
+    config: OpenAIProviderConfig,
+) -> _ResolvedDefaultOpenAIProvider:
+    _validate_codex_auth_preference(config.codex_auth_preference)
+
     if not config.discover_default_auth:
-        return OpenAIProviderConfig(
-            base_url=config.base_url,
-            api_key=config.api_key,
-            provider_name=config.provider_name,
-            discover_default_auth=config.discover_default_auth,
+        return _ResolvedDefaultOpenAIProvider(
+            OpenAIProviderConfig(
+                base_url=config.base_url,
+                api_key=config.api_key,
+                provider_name=config.provider_name,
+                discover_default_auth=config.discover_default_auth,
+                codex_auth_preference=config.codex_auth_preference,
+            )
         )
 
     base_url = config.base_url
     api_key = config.api_key
+    provider_name = config.provider_name
+    chatgpt_token: str | None = None
     codex_home: Path | None = None
 
     if api_key is None:
@@ -563,20 +642,54 @@ def _resolve_default_openai_provider_config(
         if api_key is None:
             codex_home = _resolve_codex_home()
             if codex_home is not None:
-                api_key = _read_codex_api_key_auth(codex_home)
+                selected_codex_auth = _resolve_selected_codex_auth(
+                    codex_home, config.codex_auth_preference
+                )
+                api_key = selected_codex_auth.api_key
+                chatgpt_token = selected_codex_auth.chatgpt_token
+                if chatgpt_token is not None:
+                    provider_name = provider_name or CHATGPT_CODEX_PROVIDER_NAME
 
     if base_url is None:
-        if codex_home is None:
-            codex_home = _resolve_codex_home()
-        if codex_home is not None:
-            base_url = _read_codex_openai_base_url(codex_home)
+        if chatgpt_token is not None:
+            base_url = CHATGPT_CODEX_BACKEND_BASE_URL
+        else:
+            if codex_home is None:
+                codex_home = _resolve_codex_home()
+            if codex_home is not None:
+                base_url = _read_codex_openai_base_url(codex_home)
 
-    return OpenAIProviderConfig(
-        base_url=base_url,
-        api_key=api_key,
-        provider_name=config.provider_name,
-        discover_default_auth=config.discover_default_auth,
+    return _ResolvedDefaultOpenAIProvider(
+        OpenAIProviderConfig(
+            base_url=base_url,
+            api_key=api_key,
+            provider_name=provider_name,
+            discover_default_auth=config.discover_default_auth,
+            codex_auth_preference=config.codex_auth_preference,
+        ),
+        chatgpt_token=chatgpt_token,
     )
+
+
+def _validate_codex_auth_preference(value: str) -> None:
+    if value not in {CODEX_AUTH_API_KEY_FIRST, CODEX_AUTH_CHATGPT_FIRST}:
+        raise ModelExecutionError(
+            "OpenAIProviderConfig.codex_auth_preference must be "
+            "'api_key_first' or 'chatgpt_first'"
+        )
+
+
+def _resolve_selected_codex_auth(
+    codex_home: Path,
+    preference: str,
+) -> _CodexAuthDefaults:
+    codex_auth = _read_codex_auth_defaults(codex_home)
+    selected_auth = _select_codex_auth(codex_auth, preference)
+    if selected_auth == "api_key":
+        return _CodexAuthDefaults(api_key=codex_auth.api_key)
+    if selected_auth == "chatgpt":
+        return _CodexAuthDefaults(chatgpt_token=codex_auth.chatgpt_token)
+    return _CodexAuthDefaults()
 
 
 def _read_non_empty_env(name: str) -> str | None:
@@ -625,10 +738,10 @@ def _read_codex_openai_base_url(codex_home: Path) -> str | None:
     return stripped or None
 
 
-def _read_codex_api_key_auth(codex_home: Path) -> str | None:
+def _read_codex_auth_defaults(codex_home: Path) -> _CodexAuthDefaults:
     auth_file = codex_home / "auth.json"
     if not auth_file.exists():
-        return None
+        return _CodexAuthDefaults()
     try:
         with auth_file.open(encoding="utf-8") as handle:
             auth = json.load(handle)
@@ -639,20 +752,81 @@ def _read_codex_api_key_auth(codex_home: Path) -> str | None:
     if not isinstance(auth, Mapping):
         raise ModelExecutionError(f"Codex auth file {auth_file} must contain an object")
 
-    mode = _resolve_codex_auth_mode(auth)
-    if mode is None:
-        return None
-    if mode != "api_key":
-        raise ModelExecutionError(
-            f"unsupported Codex auth mode {mode!r}; provide an OpenAI API key"
-        )
+    api_key = _read_codex_api_key_value(auth, auth_file)
+    chatgpt_token = _read_codex_chatgpt_token(auth)
+    unsupported_mode = _resolve_unsupported_codex_auth_mode(auth)
+    return _CodexAuthDefaults(
+        api_key=api_key,
+        chatgpt_token=chatgpt_token,
+        unsupported_mode=unsupported_mode,
+    )
 
-    value = auth.get("OPENAI_API_KEY")
-    if not isinstance(value, str) or not value.strip():
+
+def _read_codex_api_key_value(
+    auth: Mapping[str, Any],
+    auth_file: Path,
+) -> str | None:
+    if _auth_mode_is(auth, "api_key") and not isinstance(
+        auth.get("OPENAI_API_KEY"), str
+    ):
         raise ModelExecutionError(
             f"Codex auth file {auth_file} uses API-key auth but has no key"
         )
+
+    value = auth.get("OPENAI_API_KEY")
+    if not isinstance(value, str):
+        return None
+    if not value.strip():
+        if _auth_mode_is(auth, "api_key"):
+            raise ModelExecutionError(
+                f"Codex auth file {auth_file} uses API-key auth but has no key"
+            )
+        return None
     return value.strip()
+
+
+def _read_codex_chatgpt_token(auth: Mapping[str, Any]) -> str | None:
+    tokens = auth.get("tokens")
+    if isinstance(tokens, Mapping):
+        for key in ("access_token", "id_token"):
+            value = tokens.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _select_codex_auth(
+    auth: _CodexAuthDefaults,
+    preference: str,
+) -> str | None:
+    if preference == CODEX_AUTH_CHATGPT_FIRST:
+        if auth.chatgpt_token is not None:
+            return "chatgpt"
+        if auth.api_key is not None:
+            return "api_key"
+    else:
+        if auth.api_key is not None:
+            return "api_key"
+        if auth.chatgpt_token is not None:
+            return "chatgpt"
+
+    if auth.unsupported_mode is not None:
+        raise ModelExecutionError(
+            f"unsupported Codex auth mode {auth.unsupported_mode!r}; provide an "
+            "OpenAI API key or supported ChatGPT auth"
+        )
+    return None
+
+
+def _resolve_unsupported_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
+    if auth.get("personal_access_token") is not None:
+        return "personal_access_token"
+    if auth.get("agent_identity") is not None:
+        return "agent_identity"
+    mode = _resolve_codex_auth_mode(auth)
+    if mode not in {None, "api_key", "chatgpt"}:
+        return mode
+    return None
 
 
 def _resolve_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
@@ -674,10 +848,23 @@ def _resolve_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
     return None
 
 
+def _auth_mode_is(auth: Mapping[str, Any], expected: str) -> bool:
+    return _resolve_codex_auth_mode(auth) == expected
+
+
 def _provider_config_to_client_kwargs(config: OpenAIProviderConfig) -> dict[str, Any]:
     kwargs: dict[str, Any] = {}
     if config.base_url is not None:
         kwargs["base_url"] = config.base_url
     if config.api_key is not None:
         kwargs["api_key"] = config.api_key
+    return kwargs
+
+
+def _chatgpt_provider_config_to_client_kwargs(
+    config: OpenAIProviderConfig,
+    token: str,
+) -> dict[str, Any]:
+    kwargs = _provider_config_to_client_kwargs(config)
+    kwargs["api_key"] = token
     return kwargs
