@@ -149,8 +149,10 @@ copied into `OpenAIProviderConfig.api_key`. Without an explicit base URL, the
 API-key/auth-token path may use `openai_base_url` from
 `${CODEX_HOME}/config.toml` or `~/.codex/config.toml`. Workflow packages and
 project-local `.codex/config.toml` files are not used for auth or endpoint
-discovery. Codex personal-access-token and agent-identity auth modes are not
-treated as OpenAI API keys in this path.
+discovery. Before a ChatGPT/Codex model request is sent, the adapter lists
+authenticated available models and fails early if the requested model is not
+advertised by that account. Codex personal-access-token and agent-identity auth
+modes are not treated as OpenAI API keys in this path.
 
 To disable ambient discovery for a default OpenAI-compatible provider, set
 `discover_default_auth=False`:

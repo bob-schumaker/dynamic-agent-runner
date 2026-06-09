@@ -1,6 +1,6 @@
 # Default OpenAI/Codex Auth Discovery Implementation Plan
 
-Status: implemented; Slices 1-6 complete
+Status: implemented; Slices 1-7 complete
 
 ## Goal
 
@@ -32,6 +32,10 @@ Slice 6 maintenance status: complete. The resolver now tolerates unrelated
 Codex config TOML incompatibilities when only top-level `openai_base_url`
 discovery is needed, and it treats an explicit `auth_mode` in `auth.json` as
 authoritative before applying auth ordering.
+
+Slice 7 implementation status: complete. ChatGPT/Codex adapters now list
+authenticated available models before request dispatch and reject unadvertised
+models before `responses.create`.
 
 ## Spec Trace
 
@@ -159,13 +163,16 @@ The implementation shape is:
 7. Couple ChatGPT token auth to the ChatGPT/Codex backend model-call endpoint,
    defaulting to the Codex backend endpoint shape captured in the supporting
    analysis.
-8. Preserve caller-supplied provider precedence; injected clients/providers must
+8. List authenticated available models before dispatching ChatGPT/Codex model
+   requests. If the requested model is not advertised, fail before
+   `responses.create` with the requested model and available ids.
+9. Preserve caller-supplied provider precedence; injected clients/providers must
    stay authoritative.
-9. Keep workflow packages and project-local `.codex/config.toml` unable to
-   select or redirect the provider.
-10. Leave personal access token support to a later slice after bearer behavior
+10. Keep workflow packages and project-local `.codex/config.toml` unable to
+    select or redirect the provider.
+11. Leave personal access token support to a later slice after bearer behavior
     and endpoint compatibility are verified.
-11. Leave agent identity support to a later signing-provider design.
+12. Leave agent identity support to a later signing-provider design.
 
 This provider remains part of the OpenAI auth/client module for now, but
 it should not be named or modeled as an OpenAI API-key provider even if some

@@ -6,10 +6,10 @@
 - Mode: `light`
 - Artifact type: authoritative feature specification
 - Status: implemented authoritative feature spec
-- Version: `1.3`
+- Version: `1.4`
 - Owner: repository maintainers and future implementers of the OpenAI adapter
   default-provider path
-- Next gate: none; Slices 1-6 are complete
+- Next gate: none; Slices 1-7 are complete
 - Approval state: user-directed promotion of this spec as the authoritative
   continuation source for default OpenAI/Codex auth discovery
 - Related artifacts:
@@ -352,6 +352,13 @@ Acceptance criteria:
   model-call endpoint, then it must use the ChatGPT/Codex backend endpoint
   shape documented by Codex analysis, not the public `https://api.openai.com/v1`
   default.
+- Given ChatGPT token auth is selected, when a model request is about to be
+  sent, then the adapter must list available models through the authenticated
+  ChatGPT/Codex client before dispatching the request.
+- Given the requested model is not advertised by the authenticated
+  ChatGPT/Codex model list, when the adapter handles the request, then it must
+  fail before calling `responses.create` and include the requested model and
+  available model ids in the error without exposing credential material.
 - Given personal-access-token auth is considered later, when implementation is
   planned, then bearer behavior and model-call base URL compatibility must be
   verified before support is enabled.
@@ -446,6 +453,8 @@ factory helpers.
   discovery or a parseable top-level `openai_base_url`.
 - Cover redaction or non-exposure of fake credential values in errors.
 - Cover ChatGPT token selection without treating it as a public OpenAI API key.
+- Cover ChatGPT/Codex model listing before request dispatch.
+- Cover ChatGPT/Codex unsupported-model rejection before `responses.create`.
 - Cover the rejection path for personal-access-token and agent-identity auth so
   future changes cannot accidentally treat them as public OpenAI API keys.
 - Run targeted tests:

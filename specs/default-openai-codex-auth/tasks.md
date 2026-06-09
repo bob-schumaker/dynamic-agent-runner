@@ -1,6 +1,6 @@
 # Default OpenAI/Codex Auth Discovery Task List
 
-Status: implemented; Slices 1-6 complete
+Status: implemented; Slices 1-7 complete
 
 ## Prerequisites
 
@@ -542,3 +542,68 @@ Status: implemented
       specs/default-openai-codex-auth/tasks.md`
   - GREEN: focused auth tests passed with `31 passed in 0.17s`.
   - GREEN: pre-commit passed on the refreshed spec artifacts.
+
+## Slice 7 — ChatGPT/Codex Available Model Preflight
+
+Status: implemented
+
+- [x] T7.1 [tests] Add RED tests for ChatGPT/Codex model listing before request
+      dispatch.
+  - Spec: FR-10
+  - Plan: ChatGPT/Codex Backend Provider Shape
+  - Files/components: `tests/test_openai_client.py`,
+    `src/dynamic_agent_runner/openai_client.py`
+  - Cases:
+    - ChatGPT/Codex sync adapter lists authenticated models before
+      `responses.create`
+    - listed requested model proceeds to `responses.create`
+    - unlisted requested model fails before `responses.create` and reports the
+      requested model plus available model ids
+    - async ChatGPT/Codex adapter follows the same rejection behavior
+  - Validation:
+
+    ```bash
+    poetry run pytest tests/test_openai_client.py \
+      -k "chatgpt_codex_adapter" -q
+    ```
+
+  - RED: focused tests failed because no model listing occurred and the
+    unsupported model reached the request path.
+  - GREEN: focused tests passed after implementation.
+
+- [x] T7.2 [implementation] Add ChatGPT/Codex available-model preflight.
+  - Spec: FR-10
+  - Plan: ChatGPT/Codex Backend Provider Shape
+  - Files/components: `src/dynamic_agent_runner/openai_client.py`
+  - Required behavior:
+    - apply the preflight only to providers whose resolved provider name is
+      `chatgpt-codex`
+    - call the authenticated client's `models.list()` before dispatching a
+      ChatGPT/Codex request
+    - cache listed model ids on the adapter for subsequent requests
+    - fail before `responses.create` when the requested model is not advertised
+    - keep credentials out of listing and unsupported-model errors
+  - Validation:
+    - `poetry run pytest tests/test_openai_client.py -q`
+    - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+      tests/test_openai_client.py`
+  - GREEN: OpenAI client tests passed with `41 passed in 0.21s`.
+
+- [x] T7.3 [docs/spec] Document ChatGPT/Codex available-model preflight.
+  - Spec: FR-10, Validation Checklist
+  - Plan: ChatGPT/Codex Backend Provider Shape
+  - Files/components: `README.md`,
+    `specs/default-openai-codex-auth/spec.md`,
+    `specs/default-openai-codex-auth/plan.md`,
+    `specs/default-openai-codex-auth/tasks.md`
+  - Required updates:
+    - record Slice 7 completion
+    - document that authenticated ChatGPT/Codex models are listed before model
+      request dispatch
+    - document early unsupported-model failure before `responses.create`
+  - Validation:
+    - `poetry run pytest tests/test_openai_client.py
+      tests/test_default_openai_auth.py -q`
+    - `pre-commit run --files README.md specs/default-openai-codex-auth/spec.md
+      specs/default-openai-codex-auth/plan.md
+      specs/default-openai-codex-auth/tasks.md`
