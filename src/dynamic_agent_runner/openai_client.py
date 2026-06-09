@@ -284,6 +284,16 @@ class OpenAIClientAdapter:
 
         return self._models
 
+    def list_supported_models(self, *, refresh: bool = False) -> tuple[str, ...]:
+        """Return model ids supported by this adapter's configured provider."""
+
+        if self._models and not refresh:
+            return self._models
+        if self._available_model_ids is not None and not refresh:
+            return self._available_model_ids
+        self._available_model_ids = self._list_client_model_ids(self.client)
+        return self._available_model_ids
+
     @property
     def is_local(self) -> bool:
         """Return whether this adapter should be treated as local-only."""
@@ -297,15 +307,27 @@ class OpenAIClientAdapter:
     ) -> None:
         if not _provider_uses_chatgpt_codex(self._provider):
             return
-        if self._available_model_ids is None:
-            self._available_model_ids = list_openai_model_ids(
-                client,
-                extra_query=_chatgpt_codex_models_extra_query(),
-            )
+        available_model_ids = self._available_model_ids
+        if available_model_ids is None:
+            available_model_ids = self._list_client_model_ids(client)
+            self._available_model_ids = available_model_ids
         _raise_if_model_is_unavailable(
             request.model,
-            self._available_model_ids,
+            available_model_ids,
             provider_label="ChatGPT/Codex",
+        )
+
+    def _list_client_model_ids(
+        self,
+        client: OpenAIClientProtocol,
+    ) -> tuple[str, ...]:
+        return list_openai_model_ids(
+            client,
+            extra_query=(
+                _chatgpt_codex_models_extra_query()
+                if _provider_uses_chatgpt_codex(self._provider)
+                else None
+            ),
         )
 
 
@@ -373,6 +395,16 @@ class AsyncOpenAIClientAdapter:
 
         return self._models
 
+    async def list_supported_models(self, *, refresh: bool = False) -> tuple[str, ...]:
+        """Return model ids supported by this adapter's configured provider."""
+
+        if self._models and not refresh:
+            return self._models
+        if self._available_model_ids is not None and not refresh:
+            return self._available_model_ids
+        self._available_model_ids = await self._list_client_model_ids(self.client)
+        return self._available_model_ids
+
     @property
     def is_local(self) -> bool:
         """Return whether this adapter should be treated as local-only."""
@@ -386,15 +418,27 @@ class AsyncOpenAIClientAdapter:
     ) -> None:
         if not _provider_uses_chatgpt_codex(self._provider):
             return
-        if self._available_model_ids is None:
-            self._available_model_ids = await list_async_openai_model_ids(
-                client,
-                extra_query=_chatgpt_codex_models_extra_query(),
-            )
+        available_model_ids = self._available_model_ids
+        if available_model_ids is None:
+            available_model_ids = await self._list_client_model_ids(client)
+            self._available_model_ids = available_model_ids
         _raise_if_model_is_unavailable(
             request.model,
-            self._available_model_ids,
+            available_model_ids,
             provider_label="ChatGPT/Codex",
+        )
+
+    async def _list_client_model_ids(
+        self,
+        client: AsyncOpenAIClientProtocol,
+    ) -> tuple[str, ...]:
+        return await list_async_openai_model_ids(
+            client,
+            extra_query=(
+                _chatgpt_codex_models_extra_query()
+                if _provider_uses_chatgpt_codex(self._provider)
+                else None
+            ),
         )
 
 
