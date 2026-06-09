@@ -13,8 +13,14 @@ Status: implemented; Slices 1-4 complete
 
 Keep this change limited to the OpenAI adapter/default-provider path. Do not add
 executor-owned auth discovery, workflow-package auth settings, project-local
-endpoint overlays, live network calls, keyring-backed Codex auth, or non-API-key
-Codex backend auth support.
+endpoint overlays, live network calls, keyring-backed Codex auth, or unsupported
+Codex auth modes.
+
+Follow-on rule: ChatGPT token, personal-access-token, and agent-identity support
+must not be added by treating those credentials as `OpenAIProviderConfig.api_key`
+values. ChatGPT support requires an explicit ChatGPT/Codex backend provider
+slice in `openai_client.py`; personal-access-token and agent-identity support
+remain deferred until separately specified.
 
 ## Slice 1 — Resolver Contract and Caller Precedence
 
@@ -321,3 +327,94 @@ Codex backend auth support.
   - Validation: `pre-commit run --files <changed files>`
   - GREEN: feature spec, plan, task list, and spec index updated with
     implemented status and validation evidence.
+
+## Future Slice 5 — Ordered ChatGPT/Codex Backend Auth Support
+
+Status: specified follow-up; not implemented by Slices 1-4
+
+- [ ] T5.1 [spec] Finalize the explicit ChatGPT/Codex backend auth contract.
+  - Spec: FR-7, FR-10
+  - Plan: Future ChatGPT/Codex Backend Provider Shape
+  - Files/components: `specs/default-openai-codex-auth/spec.md`,
+    `src/dynamic_agent_runner/openai_client.py`
+  - Required decisions:
+    - provider name and public API surface
+    - exact placement within `openai_client.py`
+    - `OpenAIProviderConfig` option name for auth ordering, expected shape:
+      API-key/auth-token first by default, ChatGPT first when requested
+    - whether ChatGPT-first means "prefer ChatGPT if present, otherwise
+      fallback" or whether a later stricter ChatGPT-only mode is needed
+    - endpoint default and `chatgpt_base_url` handling
+    - secret-redaction and trace behavior
+  - Validation: spec review only; no code changes.
+
+- [ ] T5.2 [tests] Add RED tests for ordered supported Codex auth selection.
+  - Spec: FR-7, FR-10
+  - Plan: Resolver Flow; Future ChatGPT/Codex Backend Provider Shape
+  - Files/components: `tests/test_default_openai_auth.py`,
+    `src/dynamic_agent_runner/openai_client.py`
+  - Cases:
+    - only API-key/auth-token auth exists, so API-key/auth-token auth is used
+    - only ChatGPT `tokens` auth exists, so ChatGPT/Codex backend auth is used
+    - both API-key/auth-token auth and ChatGPT auth exist, so
+      API-key/auth-token auth wins by default
+    - both auth methods exist and ChatGPT-first ordering is selected, so
+      ChatGPT auth wins
+    - ChatGPT-first ordering is selected but ChatGPT auth is absent, so
+      API-key/auth-token auth may be used unless a stricter ChatGPT-only mode is
+      later specified
+    - ChatGPT `tokens` are never passed as `OpenAIProviderConfig.api_key`
+    - unsupported-mode errors do not expose token material
+  - Validation:
+    `poetry run pytest tests/test_default_openai_auth.py -q`
+
+- [ ] T5.3 [implementation] Add the explicit ChatGPT/Codex backend provider
+      boundary in `openai_client.py`.
+  - Spec: FR-10
+  - Plan: Future ChatGPT/Codex Backend Provider Shape
+  - Files/components: `src/dynamic_agent_runner/openai_client.py`, tests,
+    README
+  - Required behavior:
+    - ChatGPT auth selected when it is the only supported Codex auth method
+    - API-key/auth-token auth selected before ChatGPT auth by default when both
+      exist
+    - ChatGPT-first option selects ChatGPT auth when it exists
+    - ChatGPT token material is never copied into `OpenAIProviderConfig.api_key`
+    - ChatGPT auth selects the ChatGPT/Codex backend endpoint path
+    - no workflow-package or project-local endpoint/auth selection
+    - endpoint and auth mode resolved together
+    - fake-client unit tests only
+    - no live ChatGPT, OpenAI, Codex backend, or network calls
+  - Validation:
+    `poetry run pytest tests/test_default_openai_auth.py
+    tests/test_openai_client.py -q`
+
+- [ ] T5.4 [tests] Add adapter and augmented-default regression coverage.
+  - Spec: FR-10
+  - Plan: Future ChatGPT/Codex Backend Provider Shape
+  - Files/components: `tests/test_openai_client.py`, `tests/test_executor.py`,
+    `src/dynamic_agent_runner/openai_client.py`
+  - Cases:
+    - sync and async default providers construct the ChatGPT/Codex backend
+      provider when ordered selection chooses ChatGPT auth
+    - augmented default OpenAI adapter uses the same ordered selection
+    - strict supplied-adapter behavior still does not create a default provider
+  - Depends on: T5.2, T5.3
+  - Validation:
+    - focused fake-client provider tests
+    - current default OpenAI auth discovery regression tests
+    - `poetry run ruff check src tests`
+
+- [ ] T5.5 [docs] Document ChatGPT/Codex backend provider opt-in and boundaries.
+  - Spec: FR-7, FR-10
+  - Plan: Future ChatGPT/Codex Backend Provider Shape
+  - Files/components: `README.md`, provider spec artifacts
+  - Required documentation:
+    - ChatGPT auth is an OpenAI auth pattern but not public OpenAI API-key auth
+    - if only one supported Codex auth method exists, that method is used
+    - default ordering is API-key/auth-token auth before ChatGPT auth
+    - caller option can prefer ChatGPT auth when it exists
+    - supported and unsupported credential modes
+    - endpoint trust boundary
+    - no project-local endpoint redirection
+  - Validation: `pre-commit run --files <changed files>`

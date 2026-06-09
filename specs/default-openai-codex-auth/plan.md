@@ -14,6 +14,14 @@ Codex user-level config/auth parsing, unsupported-auth handling, opt-out
 behavior, documentation, and feature validation evidence are recorded in
 `specs/default-openai-codex-auth/tasks.md`.
 
+Follow-on evaluation status: ChatGPT token auth should be supported as an
+OpenAI auth pattern through an explicit ChatGPT/Codex backend provider boundary
+in `openai_client.py`, not as `OpenAIProviderConfig.api_key`. If only one
+supported Codex auth method exists, the resolver should use it. If both
+API-key/auth-token auth and ChatGPT auth exist, the default order should prefer
+API-key/auth-token auth, with a caller option to prefer ChatGPT auth when it
+exists.
+
 ## Spec Trace
 
 - Spec: `specs/default-openai-codex-auth/spec.md`
@@ -61,8 +69,19 @@ behavior, documentation, and feature validation evidence are recorded in
 - Use structured parsers:
   - `tomllib` for `${CODEX_HOME}/config.toml`
   - `json` for `${CODEX_HOME}/auth.json`
-- Support file-backed Codex API-key auth first. Non-API-key Codex auth modes are
-  explicitly unsupported in the first implementation slice.
+- Support file-backed Codex API-key/auth-token auth first by default.
+- Support ChatGPT token auth through an explicit ChatGPT/Codex backend provider
+  boundary in `openai_client.py`.
+- If only one supported Codex auth method exists, use that method.
+- If both API-key/auth-token auth and ChatGPT auth exist, prefer
+  API-key/auth-token auth by default.
+- Add a caller option to reverse that order so ChatGPT auth is selected when it
+  exists.
+- Do not treat ChatGPT tokens, personal access tokens, or agent identity
+  credentials as `OpenAIProviderConfig.api_key` values.
+- ChatGPT auth support must keep provider selection, endpoint selection, and
+  auth selection coupled in a dedicated provider boundary inside
+  `openai_client.py`.
 - Do not read project-local `.codex/config.toml`, package-local `config.toml`,
   or workflow artifact metadata for endpoint/auth fallback.
 - Redact secret-bearing fields in ordinary representation and errors. At
@@ -79,18 +98,60 @@ The default-provider resolver should follow this shape:
 2. Return the input config unchanged when `discover_default_auth` is false.
 3. Copy caller-specified `api_key`, `base_url`, and `provider_name` into a
    mutable resolved configuration.
-4. If `api_key` is missing, resolve auth fallback:
+4. If caller auth is missing, resolve supported auth fallbacks:
    - prefer explicit SDK-compatible environment handling for `OPENAI_API_KEY`
      according to the implementation decision made in tests
-   - otherwise read supported Codex API-key auth from `${CODEX_HOME}/auth.json`
+   - otherwise read supported Codex auth from `${CODEX_HOME}/auth.json`
+   - if exactly one supported Codex auth method is present, use it
+   - if API-key/auth-token and ChatGPT auth are both present, use
+     API-key/auth-token auth unless the caller selected ChatGPT-first ordering
+   - if ChatGPT-first ordering is selected and ChatGPT auth exists, use ChatGPT
+     auth
 5. If `base_url` is missing, resolve endpoint fallback:
    - read `${CODEX_HOME}/config.toml`
-   - use `openai_base_url` when present and non-empty
+   - use `openai_base_url` for API-key/auth-token auth when present and
+     non-empty
+   - use the ChatGPT/Codex backend endpoint for ChatGPT auth, with trusted
+     `chatgpt_base_url` handling defined by the provider boundary
 6. Return a new `OpenAIProviderConfig` without mutating caller input.
 
 The resolver may also parse `chatgpt_base_url` for future unsupported-auth
-diagnostics, but the first implementation should not route ChatGPT/PAT/agent
-identity auth through the public OpenAI API provider as if it were API-key auth.
+diagnostics and ChatGPT provider construction, but it must not route ChatGPT/PAT
+or agent identity auth through the public OpenAI API provider as if it were
+API-key auth.
+
+### Future ChatGPT/Codex Backend Provider Shape
+
+ChatGPT auth should be planned as an explicit provider boundary inside
+`openai_client.py`, integrated with the default OpenAI auth resolver's supported
+auth-method ordering.
+
+The likely minimal implementation shape is:
+
+1. Add an explicit provider or adapter boundary in `openai_client.py` for
+   ChatGPT/Codex backend model calls.
+2. Resolve only trusted host-level Codex config and auth inputs:
+   `${CODEX_HOME}/config.toml` and `${CODEX_HOME}/auth.json`.
+3. Support file-backed ChatGPT `tokens` first, using fake-file unit tests.
+4. Use ChatGPT auth when it is the only supported Codex auth method available.
+5. Prefer API-key/auth-token auth over ChatGPT auth by default when both exist.
+6. Add an `OpenAIProviderConfig` option, name to be finalized during
+   implementation, that reverses discovery ordering so ChatGPT auth is selected
+   when it exists.
+7. Couple ChatGPT token auth to the ChatGPT/Codex backend model-call endpoint,
+   defaulting to the Codex backend endpoint shape captured in the supporting
+   analysis.
+8. Preserve caller-supplied provider precedence; injected clients/providers must
+   stay authoritative.
+9. Keep workflow packages and project-local `.codex/config.toml` unable to
+   select or redirect the provider.
+10. Leave personal access token support to a later slice after bearer behavior
+    and endpoint compatibility are verified.
+11. Leave agent identity support to a later signing-provider design.
+
+This provider should remain part of the OpenAI auth/client module for now, but
+it should not be named or modeled as an OpenAI API-key provider even if some
+request/response wire details are OpenAI-compatible.
 
 ### Default Provider Integration
 
@@ -140,6 +201,15 @@ Error messages must not include:
   `specs/default-openai-codex-auth/tasks.md`, and `specs/README.md` — status and
   evidence updates after implementation
 
+Future ChatGPT/Codex backend provider work would likely affect:
+
+- `src/dynamic_agent_runner/openai_client.py` for an explicit ChatGPT/Codex
+  backend provider boundary
+- `tests/test_default_openai_auth.py` or a new dedicated test file for fake
+  ChatGPT token auth fixtures
+- `README.md` for explicit host opt-in and unsupported-mode guidance
+- a new or amended spec/plan/tasks slice before implementation
+
 ## Validation Plan
 
 Targeted tests during implementation:
@@ -173,6 +243,11 @@ poetry run ruff check src tests
 - Do not make workflow packages a source of auth or endpoint settings.
 - Do not add live calls to OpenAI, ChatGPT, Codex, or local model servers.
 - Do not implement keyring-backed Codex auth in the first slice.
-- Do not support ChatGPT token, personal access token, or agent identity auth
-  until a dedicated provider/base-url/signing design is specified and tested.
+- Do not support ChatGPT token auth through `OpenAIProviderConfig.api_key`; use
+  the explicit ChatGPT/Codex backend provider boundary in `openai_client.py`.
+- Do not add ChatGPT token support by passing ChatGPT tokens as
+  `OpenAIProviderConfig.api_key`.
+- Do not support personal access token auth until bearer behavior and endpoint
+  compatibility are specified and tested.
+- Do not support agent identity until a signing provider exists.
 - Do not add a broad multi-provider router.
