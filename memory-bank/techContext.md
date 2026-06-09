@@ -60,6 +60,10 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - keep caller-owned OpenAI-compatible llama.cpp servers on the local endpoint
   helper path, while direct in-process llama.cpp support uses
   `llama-cpp-python` without server dependencies
+- keep default OpenAI/Codex auth discovery inside
+  `src/dynamic_agent_runner/openai_client.py`; support `OPENAI_API_KEY`, trusted
+  Codex user-level API-key/auth-token auth, and ordered ChatGPT/Codex backend
+  token auth without treating ChatGPT tokens as `OpenAIProviderConfig.api_key`
 
 ## Development and Test Dependencies
 
@@ -163,6 +167,13 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `openai_client.py`, `tests/test_openai_client.py`, public OpenAI adapter
   exports, fake-client-compatible request construction, response normalization,
   lazy official OpenAI client construction, and `ModelExecutionError` wrapping.
+- Default OpenAI/Codex auth discovery was implemented through Slices 1-5 in
+  `specs/default-openai-codex-auth/tasks.md`. Recent commits include `78d6ee7`
+  for the resolver skeleton, `b989052` for Codex API-key defaults, `19a6ae4`
+  for adapter integration coverage, `2009a11` for docs, `9a889e9` for ordered
+  auth-selection spec updates, `f13c3fa` for RED ordered-auth tests, `c9142dd`
+  for ordered ChatGPT/Codex backend auth support, and `e01fed4` for integration
+  coverage/docs.
 - Slice 6 implementation was committed in `4ce8c67`. It added `executor.py`,
   `tests/test_executor.py`, public executor exports, a working
   `run_agent_workflow(...)` API, execution state tracking, `llm_step`,

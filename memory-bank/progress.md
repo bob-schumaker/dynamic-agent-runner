@@ -12,6 +12,12 @@
   overrides, prompt preparation, and package-owned validation.
 - Provider-wrapper support is implemented through Slices 1-6 and exposes
   package-level provider configuration for OpenAI-compatible endpoints.
+- Default OpenAI/Codex auth discovery is implemented through Slices 1-5. The
+  OpenAI adapter default-provider path resolves caller overrides first, then
+  `OPENAI_API_KEY`, then trusted Codex user-level defaults. Codex
+  API-key/auth-token auth wins by default when both API-key and ChatGPT auth
+  exist, while `codex_auth_preference="chatgpt_first"` chooses ChatGPT auth when
+  available.
 - llama.cpp local-model support is implemented through Slice 3: endpoint helper
   construction, direct in-process sync/async adapters, provider-seam wiring,
   package exports, model-resolution precedence, Hugging Face download wiring,
@@ -87,11 +93,20 @@
   evidence.
 - Commit `b745b4c` refreshed README, validation docs, and the spec index to mark
   direct llama.cpp chat adapters as implemented.
+- Commits `78d6ee7`, `b989052`, `19a6ae4`, `2009a11`, `9a889e9`, `f13c3fa`,
+  `c9142dd`, and `e01fed4` implemented and documented default OpenAI/Codex auth
+  discovery through ordered ChatGPT/Codex backend auth selection. Focused
+  validation for the final slice passed with `67 passed`; full `ruff check src
+  tests` passed. Full `pytest -q` still has unrelated token-budget/tiktoken
+  network-fetch and tracing expectation failures.
 
 ## Remaining
 
 - Optional llama.cpp embedding follow-up: separate local embedding
   configuration, if explicitly scheduled.
+- Default OpenAI/Codex auth follow-ups: personal-access-token and
+  agent-identity auth remain deferred until a separate provider/base-url/signing
+  design is specified and tested.
 - Future richer Hugging Face Hub behavior beyond read-only model discovery; this
   requires a separate feature spec.
 - Ongoing docs hygiene: keep `README.md` and authored Sphinx files under

@@ -85,6 +85,19 @@
   `local_workspace` pack is read-only and not an ambient global capability.
 - `openai_client.py` defines a protocol around `client.responses.create(...)`,
   so unit tests can inject fake clients without live OpenAI API calls.
+- The OpenAI adapter default-provider path owns host-level OpenAI/Codex auth
+  discovery. Caller-supplied clients, providers, provider config, `api_key`, and
+  `base_url` stay authoritative. Ambient discovery is limited to trusted
+  process/user sources such as `OPENAI_API_KEY` and `${CODEX_HOME}`.
+- Codex user-level auth discovery supports ordered API-key/auth-token and
+  ChatGPT auth selection. API-key/auth-token auth maps to the public
+  OpenAI-compatible provider path; ChatGPT token auth maps to an explicit
+  ChatGPT/Codex backend provider boundary in `openai_client.py` and is never
+  copied into `OpenAIProviderConfig.api_key`.
+- `OpenAIProviderConfig.codex_auth_preference` controls supported Codex auth
+  ordering. The default is API-key/auth-token first; `chatgpt_first` chooses
+  ChatGPT auth when it exists and falls back to API-key/auth-token auth when it
+  does not.
 - OpenAI request construction uses `input` messages plus optional `tools`,
   `tool_choice`, `response_format`, and extra model parameters.
 - OpenAI response normalization extracts text and function calls into internal
@@ -158,6 +171,10 @@
   a later scoped slice implements them.
 - Defer LiteLLM, Watchfiles, Rich, and Diskcache until a future scoped requirement
   justifies them; the current OpenAI-first adapter boundary remains in force.
+- Preserve the OpenAI auth boundary: project-local `.codex/config.toml`,
+  workflow packages, and generated artifacts must not choose auth sources or
+  redirect user credentials. Future PAT or agent-identity support needs a
+  separate provider/base-url/signing spec before implementation.
 - If local-model support returns, follow the split authoritative specs:
   `specs/llama-cpp-local-model/spec.md` for local adapter design and
   `specs/internal-graph-mutation/spec.md` for mutation design. Fit llama.cpp

@@ -2,7 +2,21 @@
 
 ## Current Focus
 
-- The latest completed work is direct in-process llama.cpp local-model support:
+- The latest completed work is default OpenAI/Codex auth discovery through
+  Slice 5:
+  - `78d6ee7`, `b989052`, `19a6ae4`, and `2009a11` implemented adapter-owned
+    default auth discovery, Codex API-key auth, integration coverage, docs, and
+    Slices 1-4 evidence.
+  - `9a889e9` updated the authoritative spec with ordered Codex auth selection:
+    use the only supported method when only one exists, prefer
+    API-key/auth-token auth by default when both API-key and ChatGPT auth exist,
+    and allow ChatGPT-first selection.
+  - `f13c3fa`, `c9142dd`, and `e01fed4` added RED tests, implemented ordered
+    ChatGPT/Codex backend auth support in `openai_client.py`, added
+    provider/adapter/executor regression coverage, refreshed README/spec
+    artifacts, and marked Slice 5 complete.
+- Recent completed local-model/runtime milestones include direct in-process
+  llama.cpp local-model support:
   - `58136d9` (`feat(local-models): add direct llama cpp adapter`) added
     sync/async direct llama.cpp adapters, lazy `llama-cpp-python` loading, local
     asset resolution, response normalization, identity validation, strict/
@@ -23,9 +37,8 @@
   repository-local client skill now calls out default OpenAI and local
   llama.cpp adapter usage.
 - No implementation slice is currently active. The latest completed feature
-  slice was llama.cpp local-model Slice 3 in
-  `specs/llama-cpp-local-model/tasks.md`; optional embedding follow-up remains
-  unscheduled.
+  slice was default OpenAI/Codex auth discovery Slice 5 in
+  `specs/default-openai-codex-auth/tasks.md`.
 - The macOS MLX local-model adapter is implemented through Slices 1-4:
   package-root helpers, lazy dependency/platform failures, converted directory
   preflight, injected Hub file/snapshot resolution, identity validation,
@@ -43,6 +56,7 @@
     prompt preparation, runtime-policy metadata, and public API direction
 - Implemented or checkpoint-complete feature specs:
   - `specs/openai-compatible-provider-wrapper/spec.md`
+  - `specs/default-openai-codex-auth/spec.md`
   - `specs/llama-cpp-local-model/spec.md`
   - `specs/internal-graph-mutation/spec.md`
   - `specs/hugging-face-model-search/spec.md`
@@ -88,6 +102,12 @@
   normalization, identity validation, and strict/augmented executor coverage.
   Caller-owned OpenAI-compatible llama.cpp servers remain supported separately
   through `LocalOpenAIEndpointConfig`.
+- Default OpenAI/Codex auth discovery is implemented in the OpenAI adapter
+  default-provider path. It honors caller-provided auth/base URL, supports
+  `OPENAI_API_KEY`, Codex user-level API-key/auth-token defaults, ordered
+  ChatGPT/Codex backend auth selection, and `codex_auth_preference` for
+  ChatGPT-first ordering. Project-local `.codex/config.toml` and workflow
+  packages do not select or redirect auth endpoints.
 - User-facing docs now document the current mise/Poetry setup, package-owned
   local-model helper boundary, Hugging Face discovery test coverage, adapter
   coverage modes, default OpenAI fallback behavior, and dependency direction.
@@ -98,6 +118,9 @@
   sandbox/workspace execution, live MCP discovery/invocation, live guardrail
   enforcement, arbitrary `SKILL.md` source loading, iterative model/tool loops,
   and Power-Marimo host automation.
+- Remaining default OpenAI/Codex auth follow-ups are limited to separately
+  specified PAT or agent-identity support; ChatGPT token auth is complete
+  through the explicit `openai_client.py` provider boundary.
 - The only remaining llama.cpp gate is optional separate local embedding
   configuration, only if explicitly scheduled.
 - The MLX implementation gate is closed through Slice 4; deferred MLX work
