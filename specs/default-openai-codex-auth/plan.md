@@ -37,6 +37,12 @@ Slice 7 implementation status: complete. ChatGPT/Codex adapters now list
 authenticated available models before request dispatch and reject unadvertised
 models before `responses.create`.
 
+Slice 8 implementation status: complete. ChatGPT/Codex adapters now pass the
+Codex client version from `${CODEX_HOME}/version.json` to model listing, accept
+Codex backend model slugs, translate prompt instructions into the backend's
+required `instructions` field, force `store=false` and `stream=true`, and
+normalize streamed response text.
+
 ## Spec Trace
 
 - Spec: `specs/default-openai-codex-auth/spec.md`
@@ -166,13 +172,19 @@ The implementation shape is:
 8. List authenticated available models before dispatching ChatGPT/Codex model
    requests. If the requested model is not advertised, fail before
    `responses.create` with the requested model and available ids.
-9. Preserve caller-supplied provider precedence; injected clients/providers must
-   stay authoritative.
-10. Keep workflow packages and project-local `.codex/config.toml` unable to
+9. Pass `client_version` for ChatGPT/Codex model listing, using
+   `${CODEX_HOME}/version.json` `latest_version` when present, and normalize
+   Codex backend model catalog slugs as model ids.
+10. Translate ChatGPT/Codex Responses requests to the backend-required shape:
+    request-level `instructions`, `store=false`, `stream=true`, and streamed
+    text normalization back to `ModelResponse`.
+11. Preserve caller-supplied provider precedence; injected clients/providers must
+    stay authoritative.
+12. Keep workflow packages and project-local `.codex/config.toml` unable to
     select or redirect the provider.
-11. Leave personal access token support to a later slice after bearer behavior
+13. Leave personal access token support to a later slice after bearer behavior
     and endpoint compatibility are verified.
-12. Leave agent identity support to a later signing-provider design.
+14. Leave agent identity support to a later signing-provider design.
 
 This provider remains part of the OpenAI auth/client module for now, but
 it should not be named or modeled as an OpenAI API-key provider even if some

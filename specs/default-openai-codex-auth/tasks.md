@@ -607,3 +607,64 @@ Status: implemented
     - `pre-commit run --files README.md specs/default-openai-codex-auth/spec.md
       specs/default-openai-codex-auth/plan.md
       specs/default-openai-codex-auth/tasks.md`
+
+## Slice 8 — ChatGPT/Codex Live Backend Request Compatibility
+
+Status: implemented
+
+- [x] T8.1 [implementation] Send Codex client version during model listing.
+  - Spec: FR-10
+  - Plan: ChatGPT/Codex Backend Provider Shape
+  - Files/components: `src/dynamic_agent_runner/openai_client.py`
+  - Required behavior:
+    - read `${CODEX_HOME}/version.json` `latest_version` when available
+    - send the whole version as model-listing `client_version`
+    - allow environment overrides for integration troubleshooting
+    - fall back to an implementation-owned compatible version only when the
+      version file is unavailable or malformed
+    - normalize Codex backend catalog slugs from `models[].slug` as available
+      model ids
+  - Validation:
+    - `poetry run pytest tests/test_openai_client.py -q`
+    - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+      tests/test_openai_client.py`
+  - GREEN: OpenAI client tests passed with `44 passed in 0.22s`.
+  - LIVE: authenticated model listing returned `gpt-5.5`, `gpt-5.4`,
+    `gpt-5.4-mini`, and `codex-auto-review`.
+
+- [x] T8.2 [implementation] Shape ChatGPT/Codex Responses requests for the
+      live backend.
+  - Spec: FR-10
+  - Plan: ChatGPT/Codex Backend Provider Shape
+  - Files/components: `src/dynamic_agent_runner/openai_client.py`
+  - Required behavior:
+    - move rendered `system` and `developer` messages to request-level
+      `instructions`
+    - leave user/assistant/tool conversation messages in `input`
+    - set `store=false`
+    - set `stream=true`
+    - normalize streamed text events into `ModelResponse`
+  - Validation:
+    - `poetry run pytest tests/test_openai_client.py -q`
+    - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+      tests/test_openai_client.py`
+  - GREEN: OpenAI client tests passed with `44 passed in 0.22s`.
+  - LIVE: real in-memory agent workflow using `gpt-5.4-mini` returned
+    `RESULT: pong`.
+
+- [x] T8.3 [tests] Cover ChatGPT/Codex backend compatibility without live unit
+      dependencies.
+  - Spec: FR-10, Validation Checklist
+  - Plan: ChatGPT/Codex Backend Provider Shape
+  - Files/components: `tests/test_openai_client.py`
+  - Cases:
+    - model listing sends `client_version` from fake `version.json`
+    - Codex model `slug` values are accepted as available model ids
+    - ChatGPT/Codex prompt messages are translated to `instructions`
+    - ChatGPT/Codex request calls include `store=false` and `stream=true`
+    - sync and async streamed response text is normalized
+  - Validation:
+    - `poetry run pytest tests/test_openai_client.py -q`
+    - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+      tests/test_openai_client.py`
+  - GREEN: OpenAI client tests passed with `44 passed in 0.22s`.

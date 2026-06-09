@@ -355,10 +355,24 @@ Acceptance criteria:
 - Given ChatGPT token auth is selected, when a model request is about to be
   sent, then the adapter must list available models through the authenticated
   ChatGPT/Codex client before dispatching the request.
+- Given ChatGPT token auth is selected, when the adapter lists available
+  models, then it must provide the Codex client version as `client_version`,
+  using `${CODEX_HOME}/version.json` field `latest_version` when available and
+  falling back to an implementation-owned compatible version only when the file
+  is unavailable or malformed.
+- Given ChatGPT/Codex returns its model catalog in Codex backend shape, when
+  available models are normalized, then the adapter must accept model slugs from
+  `models[].slug` or equivalent SDK extra fields as available model ids.
 - Given the requested model is not advertised by the authenticated
   ChatGPT/Codex model list, when the adapter handles the request, then it must
   fail before calling `responses.create` and include the requested model and
   available model ids in the error without exposing credential material.
+- Given ChatGPT token auth is selected, when the adapter sends a Responses API
+  request through the ChatGPT/Codex backend, then it must translate rendered
+  `system` and `developer` messages into the request-level `instructions`
+  field, keep user/assistant/tool messages in `input`, set `store=false`, set
+  `stream=true`, and normalize streamed response text back into
+  `ModelResponse`.
 - Given personal-access-token auth is considered later, when implementation is
   planned, then bearer behavior and model-call base URL compatibility must be
   verified before support is enabled.
