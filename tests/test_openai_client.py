@@ -49,8 +49,20 @@ class FakeResponses:
 
 
 class FakeClient:
-    def __init__(self, responses: FakeResponses):
+    def __init__(self, responses: FakeResponses, models: object | None = None):
         self.responses = responses
+        if models is not None:
+            self.models = models
+
+
+class FakeModels:
+    def __init__(self, models: object):
+        self.models = models
+        self.calls = 0
+
+    def list(self) -> object:
+        self.calls += 1
+        return self.models
 
 
 class FakeAsyncResponses:
@@ -67,8 +79,20 @@ class FakeAsyncResponses:
 
 
 class FakeAsyncClient:
-    def __init__(self, responses: FakeAsyncResponses):
+    def __init__(self, responses: FakeAsyncResponses, models: object | None = None):
         self.responses = responses
+        if models is not None:
+            self.models = models
+
+
+class FakeAsyncModels:
+    def __init__(self, models: object):
+        self.models = models
+        self.calls = 0
+
+    async def list(self) -> object:
+        self.calls += 1
+        return self.models
 
 
 class FakeProvider:
@@ -76,11 +100,12 @@ class FakeProvider:
         self,
         responses: FakeResponses,
         config: OpenAIProviderConfig | None = None,
+        models: object | None = None,
     ):
         self.responses = responses
         self.config = config or OpenAIProviderConfig()
         self.calls = 0
-        self.client = FakeClient(responses)
+        self.client = FakeClient(responses, models=models)
 
     def get_client(self) -> FakeClient:
         self.calls += 1
@@ -92,11 +117,12 @@ class FakeAsyncProvider:
         self,
         responses: FakeAsyncResponses,
         config: OpenAIProviderConfig | None = None,
+        models: object | None = None,
     ):
         self.responses = responses
         self.config = config or OpenAIProviderConfig()
         self.calls = 0
-        self.client = FakeAsyncClient(responses)
+        self.client = FakeAsyncClient(responses, models=models)
 
     def get_client(self) -> FakeAsyncClient:
         self.calls += 1
@@ -356,6 +382,57 @@ def test_adapter_can_use_repository_owned_provider_facade() -> None:
     assert result.content == "via provider"
 
 
+def test_chatgpt_codex_adapter_lists_models_before_request() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels({"data": [{"id": "codex-mini-latest"}]})
+    provider = FakeProvider(
+        responses,
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=models,
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+    request = build_openai_request(
+        model="codex-mini-latest",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    result = adapter.create_response(request)
+
+    assert models.calls == 1
+    assert responses.calls == [
+        {
+            "model": "codex-mini-latest",
+            "input": [{"role": "user", "content": "Hello"}],
+        }
+    ]
+    assert result.content == "via provider"
+
+
+def test_chatgpt_codex_adapter_rejects_unlisted_model_before_request() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels({"data": [{"id": "codex-mini-latest"}]})
+    provider = FakeProvider(
+        responses,
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=models,
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+    request = build_openai_request(
+        model="gpt-4.1",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    with pytest.raises(ModelExecutionError) as exc_info:
+        adapter.create_response(request)
+
+    message = str(exc_info.value)
+    assert "gpt-4.1" in message
+    assert "codex-mini-latest" in message
+    assert "ChatGPT/Codex" in message
+    assert models.calls == 1
+    assert responses.calls == []
+
+
 def test_adapter_default_path_constructs_through_default_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -469,6 +546,33 @@ def test_async_adapter_can_use_repository_owned_provider_facade() -> None:
     assert provider.config.base_url == "http://localhost:11434/v1"
     assert result.response_id == "resp_async_provider"
     assert result.content == "via async provider"
+
+
+def test_async_chatgpt_codex_adapter_rejects_unlisted_model_before_request() -> None:
+    responses = FakeAsyncResponses(
+        {"id": "resp_async_provider", "output_text": "via async provider"}
+    )
+    models = FakeAsyncModels({"data": [{"id": "codex-mini-latest"}]})
+    provider = FakeAsyncProvider(
+        responses,
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=models,
+    )
+    adapter = AsyncOpenAIClientAdapter(provider=provider)
+    request = build_openai_request(
+        model="gpt-4.1",
+        messages=[OpenAIMessage("user", "Hello async")],
+    )
+
+    with pytest.raises(ModelExecutionError) as exc_info:
+        asyncio.run(adapter.create_response(request))
+
+    message = str(exc_info.value)
+    assert "gpt-4.1" in message
+    assert "codex-mini-latest" in message
+    assert "ChatGPT/Codex" in message
+    assert models.calls == 1
+    assert responses.calls == []
 
 
 def test_async_adapter_default_path_constructs_through_default_provider(
