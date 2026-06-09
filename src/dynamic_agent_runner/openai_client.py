@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+import inspect
 import json
 import os
 from pathlib import Path
@@ -242,6 +243,7 @@ class OpenAIClientAdapter:
         self._is_local = is_local
         self._error_translator = error_translator
         self._response_validator = response_validator
+        self._available_model_ids: tuple[str, ...] | None = None
 
     @property
     def client(self) -> OpenAIClientProtocol:
@@ -257,8 +259,10 @@ class OpenAIClientAdapter:
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Send a request and normalize the returned model response."""
 
+        client = self.client
         try:
-            response = create_openai_response(self.client, request)
+            self._validate_request_model_available(client, request)
+            response = create_openai_response(client, request)
         except ModelExecutionError as exc:
             if self._error_translator is None:
                 raise
@@ -281,6 +285,21 @@ class OpenAIClientAdapter:
         """Return whether this adapter should be treated as local-only."""
 
         return self._is_local
+
+    def _validate_request_model_available(
+        self,
+        client: OpenAIClientProtocol,
+        request: OpenAIModelRequest,
+    ) -> None:
+        if not _provider_uses_chatgpt_codex(self._provider):
+            return
+        if self._available_model_ids is None:
+            self._available_model_ids = list_openai_model_ids(client)
+        _raise_if_model_is_unavailable(
+            request.model,
+            self._available_model_ids,
+            provider_label="ChatGPT/Codex",
+        )
 
 
 class AsyncOpenAIClientAdapter:
@@ -307,6 +326,7 @@ class AsyncOpenAIClientAdapter:
         self._is_local = is_local
         self._error_translator = error_translator
         self._response_validator = response_validator
+        self._available_model_ids: tuple[str, ...] | None = None
 
     @property
     def client(self) -> AsyncOpenAIClientProtocol:
@@ -322,8 +342,10 @@ class AsyncOpenAIClientAdapter:
     async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Send a request asynchronously and normalize the model response."""
 
+        client = self.client
         try:
-            response = await create_async_openai_response(self.client, request)
+            await self._validate_request_model_available(client, request)
+            response = await create_async_openai_response(client, request)
         except ModelExecutionError as exc:
             if self._error_translator is None:
                 raise
@@ -346,6 +368,21 @@ class AsyncOpenAIClientAdapter:
         """Return whether this adapter should be treated as local-only."""
 
         return self._is_local
+
+    async def _validate_request_model_available(
+        self,
+        client: AsyncOpenAIClientProtocol,
+        request: OpenAIModelRequest,
+    ) -> None:
+        if not _provider_uses_chatgpt_codex(self._provider):
+            return
+        if self._available_model_ids is None:
+            self._available_model_ids = await list_async_openai_model_ids(client)
+        _raise_if_model_is_unavailable(
+            request.model,
+            self._available_model_ids,
+            provider_label="ChatGPT/Codex",
+        )
 
 
 def create_default_openai_provider(
@@ -540,6 +577,73 @@ async def create_async_openai_response(
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
         raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
     return normalize_openai_response(raw_response)
+
+
+def list_openai_model_ids(client: OpenAIClientProtocol) -> tuple[str, ...]:
+    """List available model ids from an authenticated OpenAI-compatible client."""
+
+    models_resource = getattr(client, "models", None)
+    list_method = getattr(models_resource, "list", None)
+    if not callable(list_method):
+        raise ModelExecutionError(
+            "OpenAI provider does not expose available model listing"
+        )
+    try:
+        raw_models = list_method()
+    except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
+        raise ModelExecutionError("OpenAI available model listing failed") from exc
+    return _extract_model_ids(raw_models)
+
+
+async def list_async_openai_model_ids(
+    client: AsyncOpenAIClientProtocol,
+) -> tuple[str, ...]:
+    """List available model ids from an authenticated async OpenAI-compatible client."""
+
+    models_resource = getattr(client, "models", None)
+    list_method = getattr(models_resource, "list", None)
+    if not callable(list_method):
+        raise ModelExecutionError(
+            "OpenAI provider does not expose available model listing"
+        )
+    try:
+        raw_models = list_method()
+        if inspect.isawaitable(raw_models):
+            raw_models = await raw_models
+    except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
+        raise ModelExecutionError("OpenAI available model listing failed") from exc
+    return _extract_model_ids(raw_models)
+
+
+def _extract_model_ids(raw_models: Any) -> tuple[str, ...]:
+    data = _read_value(raw_models, "data")
+    items = data if data is not None else raw_models
+    model_ids: list[str] = []
+    for item in _as_sequence(items):
+        model_id = item if isinstance(item, str) else _read_value(item, "id")
+        if isinstance(model_id, str) and model_id.strip():
+            model_ids.append(model_id.strip())
+    return tuple(dict.fromkeys(model_ids))
+
+
+def _provider_uses_chatgpt_codex(provider: Any) -> bool:
+    config = getattr(provider, "config", None)
+    return getattr(config, "provider_name", None) == CHATGPT_CODEX_PROVIDER_NAME
+
+
+def _raise_if_model_is_unavailable(
+    model: str,
+    available_model_ids: Sequence[str],
+    *,
+    provider_label: str,
+) -> None:
+    if model in available_model_ids:
+        return
+    available = ", ".join(available_model_ids) if available_model_ids else "none"
+    raise ModelExecutionError(
+        f"{provider_label} provider does not advertise model {model!r}; "
+        f"available models: {available}"
+    )
 
 
 def _message_to_mapping(
