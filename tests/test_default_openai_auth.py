@@ -265,6 +265,94 @@ def test_codex_auth_json_api_key_fills_missing_api_key(
     assert config.api_key == "codex-key"
 
 
+def test_only_chatgpt_codex_auth_selects_chatgpt_backend_provider(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    _write_codex_auth(
+        codex_home,
+        {"auth_mode": "chatgpt", "tokens": {"access_token": "secret-token"}},
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    config = _resolve_default_openai_provider_config(OpenAIProviderConfig())
+
+    assert config.api_key is None
+    assert config.provider_name == "chatgpt-codex"
+    assert config.base_url == "https://chatgpt.com/backend-api/codex"
+    assert "secret-token" not in repr(config)
+
+
+def test_codex_auth_json_prefers_api_key_when_api_key_and_chatgpt_auth_exist(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    _write_codex_auth(
+        codex_home,
+        {
+            "OPENAI_API_KEY": "codex-key",
+            "tokens": {"access_token": "secret-token"},
+        },
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    config = _resolve_default_openai_provider_config(OpenAIProviderConfig())
+
+    assert config.api_key == "codex-key"
+    assert config.provider_name is None
+
+
+def test_codex_auth_json_can_prefer_chatgpt_when_api_key_and_chatgpt_auth_exist(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    _write_codex_auth(
+        codex_home,
+        {
+            "OPENAI_API_KEY": "codex-key",
+            "tokens": {"access_token": "secret-token"},
+        },
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    config = _resolve_default_openai_provider_config(
+        OpenAIProviderConfig(codex_auth_preference="chatgpt_first")
+    )
+
+    assert config.api_key is None
+    assert config.provider_name == "chatgpt-codex"
+    assert config.base_url == "https://chatgpt.com/backend-api/codex"
+
+
+def test_chatgpt_first_falls_back_to_api_key_when_chatgpt_auth_is_absent(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    _write_codex_auth(
+        codex_home, {"auth_mode": "api_key", "OPENAI_API_KEY": "codex-key"}
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    config = _resolve_default_openai_provider_config(
+        OpenAIProviderConfig(codex_auth_preference="chatgpt_first")
+    )
+
+    assert config.api_key == "codex-key"
+    assert config.provider_name is None
+
+
 def test_caller_api_key_wins_over_codex_auth(
     monkeypatch,
     tmp_path,
@@ -322,7 +410,6 @@ def test_malformed_codex_auth_json_fails_without_secret_values(
 @pytest.mark.parametrize(
     "auth_payload",
     [
-        {"auth_mode": "chatgpt", "tokens": {"access_token": "secret-token"}},
         {"auth_mode": "personal_access_token", "personal_access_token": "secret-pat"},
         {"auth_mode": "agent_identity", "agent_identity": "secret-agent-jwt"},
     ],
