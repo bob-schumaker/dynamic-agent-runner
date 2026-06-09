@@ -551,11 +551,9 @@ def openai_tool_schema(definition: ToolDefinition) -> dict[str, Any]:
     parameters = _normalized_input_schema(definition)
     return {
         "type": "function",
-        "function": {
-            "name": definition.id,
-            "description": str(description),
-            "parameters": parameters,
-        },
+        "name": definition.id,
+        "description": str(description),
+        "parameters": parameters,
     }
 
 
