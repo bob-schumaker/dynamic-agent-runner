@@ -707,3 +707,53 @@ Status: implemented
     - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
       tests/test_openai_client.py`
   - GREEN: OpenAI client tests passed with `50 passed in 0.25s`.
+
+## Slice 10 — Missing Model Default Selection
+
+Status: implemented
+
+- [x] T10.1 [implementation] Choose an initial OpenAI model when none is
+      configured.
+  - Spec: FR-10
+  - Plan: ChatGPT/Codex Backend Provider Shape
+  - Files/components: `src/dynamic_agent_runner/openai_client.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Required behavior:
+    - authenticated supported model listings are ordered by lowest detected
+      version first
+    - `OpenAIClientAdapter.default_model()` returns the first supported model
+    - `AsyncOpenAIClientAdapter.default_model()` provides the async equivalent
+    - workflows without node/default model use a provided sync OpenAI adapter's
+      default model when available
+    - workflows without node/default model and without provided adapters create
+      a default OpenAI adapter, discover the initial model, and then use the
+      async OpenAI adapter for execution
+    - caller-configured adapter model order remains authoritative
+  - Validation:
+    - `poetry run pytest tests/test_openai_client.py -q`
+    - `poetry run pytest tests/test_openai_client.py tests/test_executor.py -q
+      -k "lowest_version or default_model or workflow_omits_model"`
+    - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+      src/dynamic_agent_runner/executor.py tests/test_openai_client.py
+      tests/test_executor.py`
+  - GREEN: OpenAI client tests passed with `52 passed in 0.18s`.
+  - GREEN: focused missing-model/default-model tests passed with
+    `4 passed, 120 deselected in 0.11s`.
+
+- [x] T10.2 [tests] Cover missing workflow model fallback.
+  - Spec: FR-10, Validation Checklist
+  - Plan: ChatGPT/Codex Backend Provider Shape
+  - Files/components: `tests/test_openai_client.py`, `tests/test_executor.py`
+  - Cases:
+    - sync adapter supported-model list puts `gpt-5.4` before `gpt-5.5`
+    - sync adapter `default_model()` returns the lowest versioned model
+    - async adapter `default_model()` returns the lowest versioned model
+    - workflow without a model uses a provided unconfigured sync OpenAI
+      adapter's discovered default
+    - workflow without a model and without adapters uses an auto-created
+      default OpenAI model
+  - Validation:
+    - `poetry run pytest tests/test_openai_client.py tests/test_executor.py -q
+      -k "lowest_version or default_model or workflow_omits_model"`
+  - GREEN: focused missing-model/default-model tests passed with
+    `4 passed, 120 deselected in 0.11s`.

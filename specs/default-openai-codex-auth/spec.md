@@ -364,6 +364,10 @@ Acceptance criteria:
   asks the OpenAI adapter for supported models, then the adapter must expose the
   authenticated model ids it would use for request preflight without requiring
   callers to invoke the raw SDK client.
+- Given no model is provided during OpenAI adapter setup or in the workflow
+  specification, when authenticated provider model ids are available, then the
+  runtime must choose the lowest versioned advertised model as the initial
+  model rather than failing only because a model name was omitted.
 - Given ChatGPT/Codex returns its model catalog in Codex backend shape, when
   available models are normalized, then the adapter must accept model slugs from
   `models[].slug` or equivalent SDK extra fields as available model ids.

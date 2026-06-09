@@ -47,6 +47,10 @@ Slice 9 implementation status: complete. OpenAI adapters now expose
 `list_supported_models()` so upstream callers can inspect configured or
 authenticated model ids without reaching into the raw SDK client.
 
+Slice 10 implementation status: complete. When no model is configured on the
+adapter or workflow, the runtime can select the lowest versioned authenticated
+OpenAI model as the initial model.
+
 ## Spec Trace
 
 - Spec: `specs/default-openai-codex-auth/spec.md`
@@ -185,13 +189,16 @@ The implementation shape is:
 11. Expose supported models through the adapter boundary:
     `OpenAIClientAdapter.list_supported_models()` for sync callers and
     `AsyncOpenAIClientAdapter.list_supported_models()` for async callers.
-12. Preserve caller-supplied provider precedence; injected clients/providers must
+12. When neither adapter setup nor workflow specification provides a model,
+    choose the lowest versioned authenticated OpenAI model as the initial
+    model.
+13. Preserve caller-supplied provider precedence; injected clients/providers must
     stay authoritative.
-13. Keep workflow packages and project-local `.codex/config.toml` unable to
+14. Keep workflow packages and project-local `.codex/config.toml` unable to
     select or redirect the provider.
-14. Leave personal access token support to a later slice after bearer behavior
+15. Leave personal access token support to a later slice after bearer behavior
     and endpoint compatibility are verified.
-15. Leave agent identity support to a later signing-provider design.
+16. Leave agent identity support to a later signing-provider design.
 
 This provider remains part of the OpenAI auth/client module for now, but
 it should not be named or modeled as an OpenAI API-key provider even if some
