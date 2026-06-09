@@ -407,6 +407,29 @@ def test_adapter_lists_supported_models_from_authenticated_client() -> None:
     assert models.calls == [{}]
 
 
+def test_adapter_lists_lowest_version_supported_model_first() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels(
+        {
+            "data": [
+                {"id": "gpt-5.5"},
+                {"id": "gpt-5.4"},
+                {"id": "gpt-5.4-mini"},
+                {"id": "codex-auto-review"},
+            ]
+        }
+    )
+    adapter = OpenAIClientAdapter(FakeClient(responses, models=models))
+
+    assert adapter.list_supported_models() == (
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.5",
+        "codex-auto-review",
+    )
+    assert adapter.default_model() == "gpt-5.4"
+
+
 def test_adapter_refreshes_supported_models_when_requested() -> None:
     responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
     models = FakeModels({"data": [{"id": "gpt-a"}]})
@@ -683,6 +706,24 @@ def test_async_adapter_lists_supported_models_from_authenticated_client() -> Non
     assert first == ("gpt-a", "gpt-b")
     assert second == ("gpt-a", "gpt-b")
     assert models.calls == [{}]
+
+
+def test_async_adapter_uses_lowest_version_default_model() -> None:
+    responses = FakeAsyncResponses(
+        {"id": "resp_async_provider", "output_text": "via async provider"}
+    )
+    models = FakeAsyncModels(
+        {
+            "data": [
+                {"id": "gpt-5.5"},
+                {"id": "gpt-5.4"},
+                {"id": "codex-auto-review"},
+            ]
+        }
+    )
+    adapter = AsyncOpenAIClientAdapter(FakeAsyncClient(responses, models=models))
+
+    assert asyncio.run(adapter.default_model()) == "gpt-5.4"
 
 
 def test_async_chatgpt_codex_adapter_rejects_unlisted_model_before_request() -> None:

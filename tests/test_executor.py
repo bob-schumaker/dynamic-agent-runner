@@ -67,8 +67,20 @@ class FakeResponses:
 
 
 class FakeClient:
-    def __init__(self, responses: list[object]):
+    def __init__(self, responses: list[object], models: object | None = None):
         self.responses = FakeResponses(responses)
+        if models is not None:
+            self.models = models
+
+
+class FakeModels:
+    def __init__(self, models: object):
+        self.models = models
+        self.calls: list[dict[str, object]] = []
+
+    def list(self, **kwargs: object) -> object:
+        self.calls.append(dict(kwargs))
+        return self.models
 
 
 class AsyncFakeResponses:
@@ -2641,6 +2653,95 @@ def test_prepare_model_input_uses_default_openai_adapter_without_capability_rout
     assert prepared_input.model == "gpt-4o-mini"
     assert isinstance(prepared_input.adapter, AsyncOpenAIClientAdapter)
     assert prepared_input.adapter.models == ("gpt-4o-mini",)
+
+
+def test_prepare_model_input_uses_lowest_supported_model_when_workflow_omits_model() -> (
+    None
+):
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "missing-model-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="Hi")
+    models = FakeModels(
+        {
+            "data": [
+                {"id": "gpt-5.5"},
+                {"id": "gpt-5.4"},
+                {"id": "codex-auto-review"},
+            ]
+        }
+    )
+    adapter = OpenAIClientAdapter(FakeClient([{"id": "unused"}], models=models))
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=[adapter],
+    )
+
+    assert prepared_input.model == "gpt-5.4"
+    assert prepared_input.adapter is adapter
+    assert models.calls == [{}]
+
+
+def test_prepare_model_input_auto_creates_default_adapter_when_workflow_omits_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "missing-model-default-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="Hi")
+
+    class FakeDefaultOpenAIClientAdapter:
+        def default_model(self) -> str:
+            return "gpt-5.4"
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.executor.OpenAIClientAdapter",
+        FakeDefaultOpenAIClientAdapter,
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(),
+    )
+
+    assert prepared_input.model == "gpt-5.4"
+    assert isinstance(prepared_input.adapter, AsyncOpenAIClientAdapter)
+    assert prepared_input.adapter.models == ("gpt-5.4",)
 
 
 def test_execute_workflow_applies_skill_only_remove_and_node_isolation() -> None:
