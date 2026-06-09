@@ -16,9 +16,11 @@ from dynamic_agent_runner.openai_client import (
     OpenAIMessage,
     OpenAIProviderConfig,
     build_openai_request,
+    create_default_async_openai_provider,
     create_async_openai_adapter_from_provider_config,
     create_default_async_openai_client,
     create_default_openai_client,
+    create_default_openai_provider,
     create_openai_adapter_from_provider_config,
     normalize_openai_response,
 )
@@ -618,6 +620,38 @@ def test_create_default_openai_client_uses_official_client(
     assert created_kwargs == [{}]
 
 
+def test_create_default_openai_provider_resolves_discovered_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
+
+    provider = create_default_openai_provider()
+
+    assert provider.config.api_key == "ambient-key"
+
+
+def test_create_default_async_openai_provider_resolves_discovered_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
+
+    provider = create_default_async_openai_provider()
+
+    assert provider.config.api_key == "ambient-key"
+
+
+def test_create_default_openai_provider_discovery_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
+
+    provider = create_default_openai_provider(
+        OpenAIProviderConfig(discover_default_auth=False)
+    )
+
+    assert provider.config.api_key is None
+
+
 def test_create_default_openai_client_applies_provider_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -643,6 +677,26 @@ def test_create_default_openai_client_applies_provider_config(
         {"base_url": "http://localhost:11434/v1", "api_key": "test-key"}
     ]
     assert client is not None
+
+
+def test_adapter_lazy_default_provider_uses_discovered_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_kwargs: list[dict[str, object]] = []
+    monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
+
+    class FakeOfficialOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
+    )
+
+    adapter = OpenAIClientAdapter()
+
+    assert adapter.client is not None
+    assert created_kwargs == [{"api_key": "ambient-key"}]
 
 
 def test_create_default_openai_client_omits_api_key_when_not_provided(
@@ -710,6 +764,28 @@ def test_create_default_async_openai_client_applies_provider_config(
         {"base_url": "http://localhost:11434/v1", "api_key": "test-key"}
     ]
     assert client is not None
+
+
+def test_async_adapter_lazy_default_provider_uses_discovered_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_kwargs: list[dict[str, object]] = []
+    monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
+
+    class FakeOfficialAsyncOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules,
+        "openai",
+        SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
+    )
+
+    adapter = AsyncOpenAIClientAdapter()
+
+    assert adapter.client is not None
+    assert created_kwargs == [{"api_key": "ambient-key"}]
 
 
 def test_create_default_async_openai_client_omits_api_key_when_not_provided(

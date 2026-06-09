@@ -10,7 +10,7 @@
 - Version: `0.1`
 - Owner: repository maintainers and future implementers of the OpenAI adapter
   default-provider path
-- Next gate: begin T3.1 RED tests from
+- Next gate: begin T4.1 documentation from
   `specs/default-openai-codex-auth/tasks.md`
 - Approval state: user-directed promotion of this spec as the authoritative
   continuation source for default OpenAI/Codex auth discovery

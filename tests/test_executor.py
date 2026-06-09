@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -1894,7 +1896,9 @@ def test_execute_workflow_fails_when_no_adapter_matches_required_features() -> N
     assert remote.client.responses.calls == []
 
 
-def test_execute_workflow_strict_fails_with_no_adapter() -> None:
+def test_execute_workflow_strict_fails_with_no_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     workflow = workflow_from(
         {
             "format_version": 1,
@@ -1912,6 +1916,14 @@ def test_execute_workflow_strict_fails_with_no_adapter() -> None:
             ],
             "edges": [],
         }
+    )
+
+    def fail_default_adapter(*args, **kwargs):
+        raise AssertionError("strict coverage must not create a default adapter")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.executor.AsyncOpenAIClientAdapter",
+        fail_default_adapter,
     )
 
     with pytest.raises(WorkflowExecutionError, match="model_adapter_coverage.*strict"):
@@ -2076,6 +2088,7 @@ def test_execute_workflow_strict_fails_when_required_features_are_unavailable() 
 
 
 def test_execute_workflow_augmented_uses_default_openai_for_missing_coverage(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workflow = workflow_from(
@@ -2101,9 +2114,23 @@ def test_execute_workflow_augmented_uses_default_openai_for_missing_coverage(
         models=["other-model"],
     )
     seen_adapters: list[object] = []
+    created_kwargs: list[dict[str, object]] = []
+    monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    class FakeOfficialAsyncOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules,
+        "openai",
+        SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
+    )
 
     async def fake_create_model_response(adapter, request):
         seen_adapters.append(adapter)
+        _client = adapter.client
         return ModelResponse(response_id="resp-default", content="default ok")
 
     monkeypatch.setattr(
@@ -2122,6 +2149,7 @@ def test_execute_workflow_augmented_uses_default_openai_for_missing_coverage(
     assert supplied.client.responses.calls == []
     assert isinstance(seen_adapters[0], AsyncOpenAIClientAdapter)
     assert seen_adapters[0].models == ("gpt-test",)
+    assert created_kwargs == [{"api_key": "ambient-key"}]
 
 
 def test_execute_workflow_augmented_with_mlx_adapter_uses_default_openai(

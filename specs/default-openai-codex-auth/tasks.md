@@ -1,6 +1,6 @@
 # Default OpenAI/Codex Auth Discovery Task List
 
-Status: active implementation; Slices 1-2 complete
+Status: active implementation; Slices 1-3 complete
 
 ## Prerequisites
 
@@ -171,7 +171,7 @@ Codex backend auth support.
 
 ## Slice 3 — Adapter Integration, Opt-Out, and Regression
 
-- [ ] T3.1 [tests] Add RED tests for default provider factory integration.
+- [x] T3.1 [tests] Add RED tests for default provider factory integration.
   - Spec: FR-1, FR-2, FR-8
   - Plan: Default Provider Integration
   - Files/components: `tests/test_openai_client.py`,
@@ -184,8 +184,11 @@ Codex backend auth support.
   - Validation:
     `poetry run pytest tests/test_openai_client.py -q`
   - Expected RED: default provider factories do not call the resolver yet.
+  - RED: not observed separately because Slice 1 had already wired the resolver
+    into default provider factories.
+  - GREEN: focused Slice 3 validation passed with `36 passed in 0.20s`.
 
-- [ ] T3.2 [implementation] Wire resolver into sync and async default provider
+- [x] T3.2 [implementation] Wire resolver into sync and async default provider
       factories.
   - Spec: FR-1, FR-2, FR-8
   - Plan: Default Provider Integration
@@ -193,8 +196,10 @@ Codex backend auth support.
   - Depends on: T3.1
   - Validation:
     `poetry run pytest tests/test_openai_client.py -q`
+  - GREEN: behavior was already present from Slice 1 resolver wiring; focused
+    Slice 3 validation passed with `36 passed in 0.20s`.
 
-- [ ] T3.3 [tests] Add RED tests for adapter lazy default-provider discovery.
+- [x] T3.3 [tests] Add RED tests for adapter lazy default-provider discovery.
   - Spec: FR-1, FR-2, FR-8
   - Plan: Default Provider Integration
   - Files/components: `tests/test_openai_client.py`,
@@ -208,8 +213,11 @@ Codex backend auth support.
   - Validation:
     `poetry run pytest tests/test_openai_client.py -q`
   - Expected RED: adapter lazy path does not yet observe resolver behavior.
+  - RED: not observed separately because Slice 1 default-provider wiring already
+    made the adapter lazy path use resolved provider config.
+  - GREEN: focused Slice 3 validation passed with `36 passed in 0.20s`.
 
-- [ ] T3.4 [implementation] Ensure adapter lazy default-provider paths use the
+- [x] T3.4 [implementation] Ensure adapter lazy default-provider paths use the
       resolved default provider behavior.
   - Spec: FR-1, FR-2
   - Plan: Default Provider Integration
@@ -217,8 +225,10 @@ Codex backend auth support.
   - Depends on: T3.3
   - Validation:
     `poetry run pytest tests/test_openai_client.py -q`
+  - GREEN: behavior was already present from Slice 1 resolver wiring; focused
+    Slice 3 validation passed with `36 passed in 0.20s`.
 
-- [ ] T3.5 [tests] Add augmented default OpenAI adapter regression coverage.
+- [x] T3.5 [tests] Add augmented default OpenAI adapter regression coverage.
   - Spec: FR-1, FR-2, FR-8
   - Plan: Current Repository State; Default Provider Integration
   - Files/components: `tests/test_executor.py`,
@@ -232,8 +242,15 @@ Codex backend auth support.
   - Validation:
     `poetry run pytest tests/test_executor.py -q`
   - Expected RED: existing executor tests do not prove discovery integration.
+  - RED: not observed separately because default-provider wiring was already in
+    place before the regression assertion was added.
+  - GREEN: focused Slice 3 validation passed with `36 passed in 0.20s`.
+  - Note: full `poetry run pytest tests/test_executor.py -q` currently fails in
+    unrelated token-budget tests because tiktoken attempts to fetch encoding data
+    from `openaipublic.blob.core.windows.net` in this network-restricted
+    environment.
 
-- [ ] T3.6 [implementation] Preserve executor behavior while relying on adapter
+- [x] T3.6 [implementation] Preserve executor behavior while relying on adapter
       default-provider integration.
   - Spec: FR-1, FR-2, FR-8
   - Plan: Default Provider Integration; Non-Implementation Notes
@@ -242,6 +259,8 @@ Codex backend auth support.
   - Depends on: T3.5
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_openai_client.py -q`
+  - GREEN: no executor implementation change was needed; focused Slice 3
+    validation passed with `36 passed in 0.20s`.
 
 ## Slice 4 — Documentation, Spec Maintenance, and Final Validation
 
