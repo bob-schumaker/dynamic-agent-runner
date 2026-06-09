@@ -18,10 +18,12 @@ from dynamic_agent_runner.openai_client import (
     build_openai_request,
     create_default_async_openai_provider,
     create_async_openai_adapter_from_provider_config,
+    create_async_openai_response,
     create_default_async_openai_client,
     create_default_openai_client,
     create_default_openai_provider,
     create_openai_adapter_from_provider_config,
+    create_openai_response,
     normalize_openai_response,
 )
 from dynamic_agent_runner.registry import openai_tool_schema
@@ -58,10 +60,10 @@ class FakeClient:
 class FakeModels:
     def __init__(self, models: object):
         self.models = models
-        self.calls = 0
+        self.calls: list[dict[str, object]] = []
 
-    def list(self) -> object:
-        self.calls += 1
+    def list(self, **kwargs: object) -> object:
+        self.calls.append(dict(kwargs))
         return self.models
 
 
@@ -88,10 +90,10 @@ class FakeAsyncClient:
 class FakeAsyncModels:
     def __init__(self, models: object):
         self.models = models
-        self.calls = 0
+        self.calls: list[dict[str, object]] = []
 
-    async def list(self) -> object:
-        self.calls += 1
+    async def list(self, **kwargs: object) -> object:
+        self.calls.append(dict(kwargs))
         return self.models
 
 
@@ -382,9 +384,19 @@ def test_adapter_can_use_repository_owned_provider_facade() -> None:
     assert result.content == "via provider"
 
 
-def test_chatgpt_codex_adapter_lists_models_before_request() -> None:
+def test_chatgpt_codex_adapter_lists_models_before_request(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
     responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
-    models = FakeModels({"data": [{"id": "codex-mini-latest"}]})
+    models = FakeModels({"models": [{"slug": "codex-mini-latest"}]})
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "version.json").write_text(
+        '{"latest_version": "9.8.7-beta.1"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
     provider = FakeProvider(
         responses,
         OpenAIProviderConfig(provider_name="chatgpt-codex"),
@@ -398,11 +410,46 @@ def test_chatgpt_codex_adapter_lists_models_before_request() -> None:
 
     result = adapter.create_response(request)
 
-    assert models.calls == 1
+    assert models.calls == [{"extra_query": {"client_version": "9.8.7"}}]
     assert responses.calls == [
         {
             "model": "codex-mini-latest",
             "input": [{"role": "user", "content": "Hello"}],
+            "instructions": "You are a helpful assistant.",
+            "store": False,
+            "stream": True,
+        }
+    ]
+    assert result.content == "via provider"
+
+
+def test_chatgpt_codex_adapter_moves_prompt_messages_to_instructions() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels({"models": [{"slug": "codex-mini-latest"}]})
+    provider = FakeProvider(
+        responses,
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=models,
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+    request = build_openai_request(
+        model="codex-mini-latest",
+        messages=[
+            OpenAIMessage("system", "System rules."),
+            OpenAIMessage("developer", "Developer rules."),
+            OpenAIMessage("user", "Hello"),
+        ],
+    )
+
+    result = adapter.create_response(request)
+
+    assert responses.calls == [
+        {
+            "model": "codex-mini-latest",
+            "input": [{"role": "user", "content": "Hello"}],
+            "instructions": "System rules.\n\nDeveloper rules.",
+            "store": False,
+            "stream": True,
         }
     ]
     assert result.content == "via provider"
@@ -429,7 +476,7 @@ def test_chatgpt_codex_adapter_rejects_unlisted_model_before_request() -> None:
     assert "gpt-4.1" in message
     assert "codex-mini-latest" in message
     assert "ChatGPT/Codex" in message
-    assert models.calls == 1
+    assert len(models.calls) == 1
     assert responses.calls == []
 
 
@@ -571,7 +618,7 @@ def test_async_chatgpt_codex_adapter_rejects_unlisted_model_before_request() -> 
     assert "gpt-4.1" in message
     assert "codex-mini-latest" in message
     assert "ChatGPT/Codex" in message
-    assert models.calls == 1
+    assert len(models.calls) == 1
     assert responses.calls == []
 
 
@@ -676,6 +723,72 @@ def test_normalize_openai_response_extracts_message_text_and_tool_calls() -> Non
     assert response.tool_calls[0].id == "call_1"
     assert response.tool_calls[0].name == "search_repo"
     assert response.tool_calls[0].arguments == '{"query":"adapter"}'
+
+
+def test_create_openai_response_normalizes_streaming_text() -> None:
+    responses = FakeResponses(
+        [
+            SimpleNamespace(type="response.created", response={"id": "resp_stream"}),
+            SimpleNamespace(type="response.output_text.delta", delta="hel"),
+            SimpleNamespace(type="response.output_text.delta", delta="lo"),
+            SimpleNamespace(type="response.completed", response={"id": "resp_stream"}),
+        ]
+    )
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+        stream=True,
+    )
+
+    result = create_openai_response(FakeClient(responses), request)
+
+    assert responses.calls == [
+        {
+            "model": "gpt-test",
+            "input": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+    ]
+    assert result.response_id == "resp_stream"
+    assert result.content == "hello"
+
+
+def test_create_async_openai_response_normalizes_streaming_text() -> None:
+    class FakeAsyncStream:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self) -> object:
+            if not events:
+                raise StopAsyncIteration
+            return events.pop(0)
+
+    events = [
+        SimpleNamespace(type="response.created", response={"id": "resp_stream"}),
+        SimpleNamespace(type="response.output_text.delta", delta="hel"),
+        SimpleNamespace(type="response.output_text.delta", delta="lo"),
+        SimpleNamespace(type="response.completed", response={"id": "resp_stream"}),
+    ]
+    responses = FakeAsyncResponses(FakeAsyncStream())
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+        stream=True,
+    )
+
+    result = asyncio.run(
+        create_async_openai_response(FakeAsyncClient(responses), request)
+    )
+
+    assert responses.calls == [
+        {
+            "model": "gpt-test",
+            "input": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+    ]
+    assert result.response_id == "resp_stream"
+    assert result.content == "hello"
 
 
 def test_adapter_wraps_model_failures() -> None:
