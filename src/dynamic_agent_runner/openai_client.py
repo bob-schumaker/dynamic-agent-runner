@@ -8,6 +8,7 @@ import inspect
 import json
 import os
 from pathlib import Path
+import re
 from threading import RLock
 import tomllib
 from typing import Any, Protocol
@@ -294,6 +295,14 @@ class OpenAIClientAdapter:
         self._available_model_ids = self._list_client_model_ids(self.client)
         return self._available_model_ids
 
+    def default_model(self, *, refresh: bool = False) -> str:
+        """Return the first supported model to use when callers did not choose one."""
+
+        models = self.list_supported_models(refresh=refresh)
+        if not models:
+            raise ModelExecutionError("OpenAI provider did not advertise any models")
+        return models[0]
+
     @property
     def is_local(self) -> bool:
         """Return whether this adapter should be treated as local-only."""
@@ -404,6 +413,14 @@ class AsyncOpenAIClientAdapter:
             return self._available_model_ids
         self._available_model_ids = await self._list_client_model_ids(self.client)
         return self._available_model_ids
+
+    async def default_model(self, *, refresh: bool = False) -> str:
+        """Return the first supported model to use when callers did not choose one."""
+
+        models = await self.list_supported_models(refresh=refresh)
+        if not models:
+            raise ModelExecutionError("OpenAI provider did not advertise any models")
+        return models[0]
 
     @property
     def is_local(self) -> bool:
@@ -709,7 +726,22 @@ def _extract_model_ids(raw_models: Any) -> tuple[str, ...]:
         model_id = item if isinstance(item, str) else _read_model_id(item)
         if isinstance(model_id, str) and model_id.strip():
             model_ids.append(model_id.strip())
-    return tuple(dict.fromkeys(model_ids))
+    return _sort_model_ids_by_version(tuple(dict.fromkeys(model_ids)))
+
+
+_MODEL_VERSION_PATTERN = re.compile(r"(?<!\d)(\d+(?:\.\d+)*)(?!\d)")
+
+
+def _sort_model_ids_by_version(model_ids: Sequence[str]) -> tuple[str, ...]:
+    return tuple(sorted(model_ids, key=_model_id_version_sort_key))
+
+
+def _model_id_version_sort_key(model_id: str) -> tuple[int, tuple[int, ...], str]:
+    match = _MODEL_VERSION_PATTERN.search(model_id)
+    if match is None:
+        return (1, (), model_id)
+    version = tuple(int(part) for part in match.group(1).split("."))
+    return (0, version, model_id)
 
 
 def _normalize_openai_stream(raw_stream: Any) -> ModelResponse:

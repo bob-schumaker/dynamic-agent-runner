@@ -1454,9 +1454,7 @@ def _next_node_id(
     )
 
 
-def _model_name(node: PreparedNode) -> str:
-    if node.model is None:
-        raise WorkflowExecutionError(f"llm_step node {node.id!r} is missing model")
+def _optional_model_name(node: PreparedNode) -> str | None:
     return node.model
 
 
@@ -1494,10 +1492,18 @@ def _select_model_and_adapter(
     *,
     model_adapter_coverage: str = "augmented",
 ) -> tuple[str, ModelAdapter]:
-    requested_model = _model_name(node)
+    requested_model = _optional_model_name(node)
     normalized_adapters = tuple(adapters)
     required_features = _required_model_features(node)
     coverage = _normalize_model_adapter_coverage(model_adapter_coverage)
+
+    if requested_model is None:
+        return _select_default_model_and_adapter_for_missing_model(
+            node,
+            normalized_adapters,
+            required_features=required_features,
+            coverage=coverage,
+        )
 
     if not normalized_adapters and coverage == "augmented" and not required_features:
         return requested_model, AsyncOpenAIClientAdapter(models=(requested_model,))
@@ -1544,6 +1550,40 @@ def _select_model_and_adapter(
         model_name=requested_model,
         required_features=required_features,
     )
+
+
+def _select_default_model_and_adapter_for_missing_model(
+    node: PreparedNode,
+    adapters: Sequence[ModelAdapter],
+    *,
+    required_features: frozenset[str],
+    coverage: str,
+) -> tuple[str, ModelAdapter]:
+    if required_features:
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} is missing model and requires "
+            f"capabilities {sorted(required_features)!r}"
+        )
+    for adapter in adapters:
+        configured_models = tuple(getattr(adapter, "models", ()))
+        if configured_models:
+            return configured_models[0], adapter
+        if isinstance(adapter, OpenAIClientAdapter):
+            try:
+                return adapter.default_model(), adapter
+            except ModelExecutionError as exc:
+                raise WorkflowExecutionError(str(exc)) from exc
+    if coverage == "strict":
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} is missing model and "
+            "model_adapter_coverage 'strict' requires a provided model adapter"
+        )
+    adapter = OpenAIClientAdapter()
+    try:
+        model = adapter.default_model()
+    except ModelExecutionError as exc:
+        raise WorkflowExecutionError(str(exc)) from exc
+    return model, AsyncOpenAIClientAdapter(models=(model,))
 
 
 def _first_wildcard_model_adapter(
