@@ -1,6 +1,6 @@
 # Default OpenAI/Codex Auth Discovery Task List
 
-Status: implemented; Slices 1-5 complete
+Status: implemented; Slices 1-6 complete
 
 ## Prerequisites
 
@@ -18,9 +18,9 @@ Codex auth modes.
 
 Follow-on rule: ChatGPT token, personal-access-token, and agent-identity support
 must not be added by treating those credentials as `OpenAIProviderConfig.api_key`
-values. ChatGPT support requires an explicit ChatGPT/Codex backend provider
-slice in `openai_client.py`; personal-access-token and agent-identity support
-remain deferred until separately specified.
+values. ChatGPT support is implemented through an explicit ChatGPT/Codex backend
+provider path in `openai_client.py`; personal-access-token and agent-identity
+support remain deferred until separately specified.
 
 ## Slice 1 — Resolver Contract and Caller Precedence
 
@@ -125,7 +125,9 @@ remain deferred until separately specified.
   - Cases:
     - `${CODEX_HOME}/config.toml` `openai_base_url` fills missing `base_url`
     - caller `base_url` wins over Codex config
-    - malformed Codex TOML fails without exposing secrets
+    - malformed `openai_base_url` fails without exposing secrets
+    - unrelated Codex config TOML incompatibilities do not block auth discovery
+      or a parseable top-level `openai_base_url`
     - package-local `.codex/config.toml` and `config.toml` are not read
   - Validation:
     `poetry run pytest tests/test_default_openai_auth.py
@@ -334,7 +336,7 @@ Status: implemented
 
 - [x] T5.1 [spec] Finalize the explicit ChatGPT/Codex backend auth contract.
   - Spec: FR-7, FR-10
-  - Plan: Future ChatGPT/Codex Backend Provider Shape
+  - Plan: ChatGPT/Codex Backend Provider Shape
   - Files/components: `specs/default-openai-codex-auth/spec.md`,
     `src/dynamic_agent_runner/openai_client.py`
   - Required decisions:
@@ -352,7 +354,7 @@ Status: implemented
 
 - [x] T5.2 [tests] Add RED tests for ordered supported Codex auth selection.
   - Spec: FR-7, FR-10
-  - Plan: Resolver Flow; Future ChatGPT/Codex Backend Provider Shape
+  - Plan: Resolver Flow; ChatGPT/Codex Backend Provider Shape
   - Files/components: `tests/test_default_openai_auth.py`,
     `src/dynamic_agent_runner/openai_client.py`
   - Cases:
@@ -377,7 +379,7 @@ Status: implemented
 - [x] T5.3 [implementation] Add the explicit ChatGPT/Codex backend provider
       boundary in `openai_client.py`.
   - Spec: FR-10
-  - Plan: Future ChatGPT/Codex Backend Provider Shape
+  - Plan: ChatGPT/Codex Backend Provider Shape
   - Files/components: `src/dynamic_agent_runner/openai_client.py`, tests,
     README
   - Required behavior:
@@ -401,7 +403,7 @@ Status: implemented
 
 - [x] T5.4 [tests] Add adapter and augmented-default regression coverage.
   - Spec: FR-10
-  - Plan: Future ChatGPT/Codex Backend Provider Shape
+  - Plan: ChatGPT/Codex Backend Provider Shape
   - Files/components: `tests/test_openai_client.py`, `tests/test_executor.py`,
     `src/dynamic_agent_runner/openai_client.py`
   - Cases:
@@ -420,7 +422,7 @@ Status: implemented
 
 - [x] T5.5 [docs] Document ChatGPT/Codex backend provider opt-in and boundaries.
   - Spec: FR-7, FR-10
-  - Plan: Future ChatGPT/Codex Backend Provider Shape
+  - Plan: ChatGPT/Codex Backend Provider Shape
   - Files/components: `README.md`, provider spec artifacts
   - Required documentation:
     - ChatGPT auth is an OpenAI auth pattern but not public OpenAI API-key auth
@@ -433,3 +435,110 @@ Status: implemented
   - Validation: `pre-commit run --files <changed files>`
   - GREEN: README documents ordered Codex auth selection, ChatGPT backend auth,
     `codex_auth_preference="chatgpt_first"`, and endpoint trust boundaries.
+
+## Slice 6 — Current-State Spec Alignment and Auth-Mode Maintenance
+
+Status: implemented
+
+- [x] T6.1 [tests] Add regression tests for tolerant Codex config parsing.
+  - Spec: FR-5, FR-9
+  - Plan: Resolver Flow; Planning Decisions
+  - Files/components: `tests/test_default_openai_auth.py`,
+    `src/dynamic_agent_runner/openai_client.py`
+  - Cases:
+    - unrelated Codex config TOML incompatibility under a later table does not
+      block auth discovery
+    - top-level `openai_base_url` is still read when later config content is not
+      compatible with Python `tomllib`
+    - malformed top-level `openai_base_url` still fails without exposing secret
+      values
+  - Validation:
+    `poetry run pytest tests/test_default_openai_auth.py -q`
+  - GREEN: targeted tests passed with `28 passed in 0.15s` before the later
+    auth-mode regressions were added.
+  - Commit: `86c287c fix(openai): tolerate unrelated codex config parse issues`.
+
+- [x] T6.2 [implementation] Tolerate unrelated Codex config parse issues while
+      preserving strict parsing for `openai_base_url`.
+  - Spec: FR-5, FR-9
+  - Plan: Resolver Flow; Planning Decisions
+  - Files/components: `src/dynamic_agent_runner/openai_client.py`
+  - Required behavior:
+    - use full-file `tomllib` parsing when possible
+    - if full-file parsing fails, scan only top-level lines before the first
+      table header for the exact `openai_base_url` key
+    - parse the discovered `openai_base_url` line with `tomllib`
+    - keep malformed `openai_base_url` errors non-secret
+  - Validation:
+    - `poetry run pytest tests/test_default_openai_auth.py -q`
+    - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+      tests/test_default_openai_auth.py`
+    - smoke check against the real `/Users/roschuma/.codex/config.toml`
+    - `pre-commit run --files src/dynamic_agent_runner/openai_client.py
+      tests/test_default_openai_auth.py`
+  - GREEN: all targeted checks passed before commit
+    `86c287c fix(openai): tolerate unrelated codex config parse issues`.
+
+- [x] T6.3 [implementation] Treat explicit Codex `auth_mode` as authoritative.
+  - Spec: FR-6, FR-7, FR-10
+  - Plan: Resolver Flow; ChatGPT/Codex Backend Provider Shape
+  - Files/components: `src/dynamic_agent_runner/openai_client.py`
+  - Required behavior:
+    - normalize declared `auth_mode` independently from inferred auth mode
+    - when `auth_mode` resolves to `api_key`, only API-key auth is eligible
+    - when `auth_mode` resolves to `chatgpt`, only ChatGPT token auth is
+      eligible
+    - when `auth_mode` resolves to an unsupported mode, report unsupported auth
+      without exposing credential material
+    - when `auth_mode` is absent, preserve availability-based auth inference and
+      `codex_auth_preference` ordering
+  - Validation:
+    - `poetry run pytest tests/test_default_openai_auth.py -q`
+    - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+      tests/test_default_openai_auth.py`
+    - `pre-commit run --files src/dynamic_agent_runner/openai_client.py
+      tests/test_default_openai_auth.py`
+  - GREEN: focused tests passed with `31 passed in 0.16s`.
+  - Commit: `f50262f fix(openai): honor declared codex auth mode`.
+
+- [x] T6.4 [tests] Cover declared Codex `auth_mode` precedence.
+  - Spec: FR-6, FR-7, FR-10
+  - Plan: Resolver Flow; ChatGPT/Codex Backend Provider Shape
+  - Files/components: `tests/test_default_openai_auth.py`
+  - Cases:
+    - `auth_mode="chatgpt"` wins over an `OPENAI_API_KEY` field in the same
+      file
+    - `auth_mode="api_key"` wins over
+      `codex_auth_preference="chatgpt_first"` when ChatGPT token fields are also
+      present
+    - `auth_mode="chatgpt"` with no usable token fails without falling through
+      to an API-key field or exposing secret values
+  - Validation:
+    - `poetry run pytest tests/test_default_openai_auth.py -q`
+    - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+      tests/test_default_openai_auth.py`
+    - `pre-commit run --files src/dynamic_agent_runner/openai_client.py
+      tests/test_default_openai_auth.py`
+  - GREEN: focused tests passed with `31 passed in 0.16s`.
+  - Commit: `1764bc2 test(openai): cover declared codex auth mode`.
+
+- [x] T6.5 [spec-maintenance] Refresh spec artifacts for current repo state.
+  - Spec: Metadata, FR-5, FR-6, FR-7, FR-10, Validation Checklist
+  - Plan: Planning Decisions; Resolver Flow; Affected Areas
+  - Files/components: `specs/default-openai-codex-auth/spec.md`,
+    `specs/default-openai-codex-auth/plan.md`,
+    `specs/default-openai-codex-auth/tasks.md`
+  - Required updates:
+    - record Slice 6 completion
+    - make ChatGPT/Codex backend support current-state language, not future-only
+      language
+    - document tolerant top-level `openai_base_url` parsing after unrelated
+      Codex config parse failures
+    - document `auth_mode` as authoritative before auth ordering
+  - Validation:
+    - `poetry run pytest tests/test_default_openai_auth.py -q`
+    - `pre-commit run --files specs/default-openai-codex-auth/spec.md
+      specs/default-openai-codex-auth/plan.md
+      specs/default-openai-codex-auth/tasks.md`
+  - GREEN: focused auth tests passed with `31 passed in 0.17s`.
+  - GREEN: pre-commit passed on the refreshed spec artifacts.

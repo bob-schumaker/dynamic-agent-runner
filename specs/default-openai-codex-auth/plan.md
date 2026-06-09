@@ -1,6 +1,6 @@
 # Default OpenAI/Codex Auth Discovery Implementation Plan
 
-Status: implemented; Slices 1-5 complete
+Status: implemented; Slices 1-6 complete
 
 ## Goal
 
@@ -10,8 +10,9 @@ discovery part of the OpenAI adapter's lazy default-provider path, triggered
 only when no overriding caller auth is supplied.
 
 Implementation status: complete. The OpenAI adapter default-provider resolver,
-Codex user-level config/auth parsing, unsupported-auth handling, opt-out
-behavior, documentation, and feature validation evidence are recorded in
+Codex user-level config/auth parsing, ordered ChatGPT/Codex backend auth,
+unsupported-auth handling, opt-out behavior, documentation, and feature
+validation evidence are recorded in
 `specs/default-openai-codex-auth/tasks.md`.
 
 Follow-on evaluation status: ChatGPT token auth should be supported as an
@@ -26,6 +27,11 @@ Slice 5 implementation status: complete. The resolver now supports ordered
 Codex auth selection, including ChatGPT/Codex backend auth when it is the only
 supported Codex auth method or when `codex_auth_preference="chatgpt_first"` is
 set and ChatGPT auth exists.
+
+Slice 6 maintenance status: complete. The resolver now tolerates unrelated
+Codex config TOML incompatibilities when only top-level `openai_base_url`
+discovery is needed, and it treats an explicit `auth_mode` in `auth.json` as
+authoritative before applying auth ordering.
 
 ## Spec Trace
 
@@ -43,9 +49,9 @@ set and ChatGPT auth exists.
   - `OpenAIClientAdapter` and `AsyncOpenAIClientAdapter`
   - default provider factories
   - request dispatch and response normalization
-- The default adapter path currently constructs SDK-backed OpenAI clients with
-  only caller-provided `OpenAIProviderConfig` values and the official SDK's own
-  environment behavior.
+- The default adapter path resolves caller-provided `OpenAIProviderConfig`
+  values, `OPENAI_API_KEY`, trusted Codex user config/auth, and ordered
+  ChatGPT/Codex backend auth before constructing the selected provider.
 - `model_adapter_coverage="augmented"` can create a default async OpenAI
   adapter when supplied adapters do not cover a requested model. That synthetic
   adapter must use the same default-provider discovery behavior as direct
@@ -72,8 +78,14 @@ set and ChatGPT auth exists.
 - Preserve official SDK environment behavior for `OPENAI_ORGANIZATION` and
   `OPENAI_PROJECT` by not intercepting or clearing those values.
 - Use structured parsers:
-  - `tomllib` for `${CODEX_HOME}/config.toml`
+  - `tomllib` for `${CODEX_HOME}/config.toml`; if full-file parsing fails,
+    fall back only to a narrow top-level `openai_base_url` scan whose value is
+    still parsed with `tomllib`
   - `json` for `${CODEX_HOME}/auth.json`
+- Treat explicit `auth_mode` in `${CODEX_HOME}/auth.json` as authoritative
+  when it resolves to a supported or unsupported mode. If it declares
+  `api_key`, only the API-key field is eligible. If it declares `chatgpt`, only
+  ChatGPT token fields are eligible.
 - Support file-backed Codex API-key/auth-token auth first by default.
 - Support ChatGPT token auth through an explicit ChatGPT/Codex backend provider
   boundary in `openai_client.py`.
@@ -107,6 +119,8 @@ The default-provider resolver should follow this shape:
    - prefer explicit SDK-compatible environment handling for `OPENAI_API_KEY`
      according to the implementation decision made in tests
    - otherwise read supported Codex auth from `${CODEX_HOME}/auth.json`
+   - if `auth_mode` declares a supported mode, consider only credentials for
+     that mode and fail if the declared mode's required credential is absent
    - if exactly one supported Codex auth method is present, use it
    - if API-key/auth-token and ChatGPT auth are both present, use
      API-key/auth-token auth unless the caller selected ChatGPT-first ordering
@@ -125,24 +139,23 @@ diagnostics and ChatGPT provider construction, but it must not route ChatGPT/PAT
 or agent identity auth through the public OpenAI API provider as if it were
 API-key auth.
 
-### Future ChatGPT/Codex Backend Provider Shape
+### ChatGPT/Codex Backend Provider Shape
 
-ChatGPT auth should be planned as an explicit provider boundary inside
+ChatGPT auth is implemented as an explicit provider boundary inside
 `openai_client.py`, integrated with the default OpenAI auth resolver's supported
 auth-method ordering.
 
-The likely minimal implementation shape is:
+The implementation shape is:
 
-1. Add an explicit provider or adapter boundary in `openai_client.py` for
+1. Use an explicit provider or adapter boundary in `openai_client.py` for
    ChatGPT/Codex backend model calls.
 2. Resolve only trusted host-level Codex config and auth inputs:
    `${CODEX_HOME}/config.toml` and `${CODEX_HOME}/auth.json`.
 3. Support file-backed ChatGPT `tokens` first, using fake-file unit tests.
 4. Use ChatGPT auth when it is the only supported Codex auth method available.
 5. Prefer API-key/auth-token auth over ChatGPT auth by default when both exist.
-6. Add an `OpenAIProviderConfig` option, name to be finalized during
-   implementation, that reverses discovery ordering so ChatGPT auth is selected
-   when it exists.
+6. Use `OpenAIProviderConfig.codex_auth_preference="chatgpt_first"` to reverse
+   discovery ordering so ChatGPT auth is selected when it exists.
 7. Couple ChatGPT token auth to the ChatGPT/Codex backend model-call endpoint,
    defaulting to the Codex backend endpoint shape captured in the supporting
    analysis.
@@ -154,7 +167,7 @@ The likely minimal implementation shape is:
     and endpoint compatibility are verified.
 11. Leave agent identity support to a later signing-provider design.
 
-This provider should remain part of the OpenAI auth/client module for now, but
+This provider remains part of the OpenAI auth/client module for now, but
 it should not be named or modeled as an OpenAI API-key provider even if some
 request/response wire details are OpenAI-compatible.
 
@@ -206,14 +219,13 @@ Error messages must not include:
   `specs/default-openai-codex-auth/tasks.md`, and `specs/README.md` — status and
   evidence updates after implementation
 
-Future ChatGPT/Codex backend provider work would likely affect:
+Implemented ChatGPT/Codex backend provider work affects:
 
-- `src/dynamic_agent_runner/openai_client.py` for an explicit ChatGPT/Codex
-  backend provider boundary
-- `tests/test_default_openai_auth.py` or a new dedicated test file for fake
-  ChatGPT token auth fixtures
-- `README.md` for explicit host opt-in and unsupported-mode guidance
-- a new or amended spec/plan/tasks slice before implementation
+- `src/dynamic_agent_runner/openai_client.py` for the explicit ChatGPT/Codex
+  backend provider boundary and resolver selection
+- `tests/test_default_openai_auth.py` and `tests/test_openai_client.py` for fake
+  ChatGPT token auth fixtures and provider construction coverage
+- `README.md` for ordered auth selection and unsupported-mode guidance
 
 ## Validation Plan
 
