@@ -630,6 +630,25 @@ def test_create_default_openai_provider_resolves_discovered_api_key(
     assert provider.config.api_key == "ambient-key"
 
 
+def test_create_default_openai_provider_uses_chatgpt_codex_auth_when_only_available(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "auth.json").write_text(
+        '{"auth_mode": "chatgpt", "tokens": {"access_token": "secret-token"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    provider = create_default_openai_provider()
+
+    assert provider.config.provider_name == "chatgpt-codex"
+    assert provider.config.api_key is None
+    assert "secret-token" not in repr(provider)
+
+
 def test_create_default_async_openai_provider_resolves_discovered_api_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -638,6 +657,27 @@ def test_create_default_async_openai_provider_resolves_discovered_api_key(
     provider = create_default_async_openai_provider()
 
     assert provider.config.api_key == "ambient-key"
+
+
+def test_create_default_async_openai_provider_uses_chatgpt_codex_auth_when_preferred(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "auth.json").write_text(
+        '{"OPENAI_API_KEY": "codex-key", "tokens": {"access_token": "secret-token"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    provider = create_default_async_openai_provider(
+        OpenAIProviderConfig(codex_auth_preference="chatgpt_first")
+    )
+
+    assert provider.config.provider_name == "chatgpt-codex"
+    assert provider.config.api_key is None
+    assert "secret-token" not in repr(provider)
 
 
 def test_create_default_openai_provider_discovery_can_be_disabled(
@@ -697,6 +737,38 @@ def test_adapter_lazy_default_provider_uses_discovered_api_key(
 
     assert adapter.client is not None
     assert created_kwargs == [{"api_key": "ambient-key"}]
+
+
+def test_adapter_lazy_default_provider_uses_discovered_chatgpt_codex_auth(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    created_kwargs: list[dict[str, object]] = []
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "auth.json").write_text(
+        '{"auth_mode": "chatgpt", "tokens": {"access_token": "secret-token"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    class FakeOfficialOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
+    )
+
+    adapter = OpenAIClientAdapter()
+
+    assert adapter.client is not None
+    assert created_kwargs == [
+        {
+            "base_url": "https://chatgpt.com/backend-api/codex",
+            "api_key": "secret-token",
+        }
+    ]
 
 
 def test_create_default_openai_client_omits_api_key_when_not_provided(
@@ -786,6 +858,40 @@ def test_async_adapter_lazy_default_provider_uses_discovered_api_key(
 
     assert adapter.client is not None
     assert created_kwargs == [{"api_key": "ambient-key"}]
+
+
+def test_async_adapter_lazy_default_provider_uses_discovered_chatgpt_codex_auth(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    created_kwargs: list[dict[str, object]] = []
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "auth.json").write_text(
+        '{"auth_mode": "chatgpt", "tokens": {"access_token": "secret-token"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    class FakeOfficialAsyncOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules,
+        "openai",
+        SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
+    )
+
+    adapter = AsyncOpenAIClientAdapter()
+
+    assert adapter.client is not None
+    assert created_kwargs == [
+        {
+            "base_url": "https://chatgpt.com/backend-api/codex",
+            "api_key": "secret-token",
+        }
+    ]
 
 
 def test_create_default_async_openai_client_omits_api_key_when_not_provided(

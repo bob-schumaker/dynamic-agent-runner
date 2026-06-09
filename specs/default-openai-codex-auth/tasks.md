@@ -1,6 +1,6 @@
 # Default OpenAI/Codex Auth Discovery Task List
 
-Status: implemented; Slices 1-4 complete
+Status: implemented; Slices 1-5 complete
 
 ## Prerequisites
 
@@ -328,11 +328,11 @@ remain deferred until separately specified.
   - GREEN: feature spec, plan, task list, and spec index updated with
     implemented status and validation evidence.
 
-## Future Slice 5 — Ordered ChatGPT/Codex Backend Auth Support
+## Slice 5 — Ordered ChatGPT/Codex Backend Auth Support
 
-Status: specified follow-up; not implemented by Slices 1-4
+Status: implemented
 
-- [ ] T5.1 [spec] Finalize the explicit ChatGPT/Codex backend auth contract.
+- [x] T5.1 [spec] Finalize the explicit ChatGPT/Codex backend auth contract.
   - Spec: FR-7, FR-10
   - Plan: Future ChatGPT/Codex Backend Provider Shape
   - Files/components: `specs/default-openai-codex-auth/spec.md`,
@@ -347,8 +347,10 @@ Status: specified follow-up; not implemented by Slices 1-4
     - endpoint default and `chatgpt_base_url` handling
     - secret-redaction and trace behavior
   - Validation: spec review only; no code changes.
+  - GREEN: contract finalized in spec/plan artifacts with
+    `codex_auth_preference="chatgpt_first"` as the caller ordering option.
 
-- [ ] T5.2 [tests] Add RED tests for ordered supported Codex auth selection.
+- [x] T5.2 [tests] Add RED tests for ordered supported Codex auth selection.
   - Spec: FR-7, FR-10
   - Plan: Resolver Flow; Future ChatGPT/Codex Backend Provider Shape
   - Files/components: `tests/test_default_openai_auth.py`,
@@ -367,8 +369,12 @@ Status: specified follow-up; not implemented by Slices 1-4
     - unsupported-mode errors do not expose token material
   - Validation:
     `poetry run pytest tests/test_default_openai_auth.py -q`
+  - RED: focused auth tests failed before implementation because ChatGPT auth
+    was still unsupported and `OpenAIProviderConfig.codex_auth_preference` did
+    not exist.
+  - GREEN: focused Slice 5 validation passed with `67 passed in 0.32s`.
 
-- [ ] T5.3 [implementation] Add the explicit ChatGPT/Codex backend provider
+- [x] T5.3 [implementation] Add the explicit ChatGPT/Codex backend provider
       boundary in `openai_client.py`.
   - Spec: FR-10
   - Plan: Future ChatGPT/Codex Backend Provider Shape
@@ -388,8 +394,12 @@ Status: specified follow-up; not implemented by Slices 1-4
   - Validation:
     `poetry run pytest tests/test_default_openai_auth.py
     tests/test_openai_client.py -q`
+  - GREEN: `poetry run pytest tests/test_default_openai_auth.py
+    tests/test_openai_client.py -q` passed with `60 passed in 0.21s`.
+  - GREEN: `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+    tests/test_default_openai_auth.py tests/test_openai_client.py` passed.
 
-- [ ] T5.4 [tests] Add adapter and augmented-default regression coverage.
+- [x] T5.4 [tests] Add adapter and augmented-default regression coverage.
   - Spec: FR-10
   - Plan: Future ChatGPT/Codex Backend Provider Shape
   - Files/components: `tests/test_openai_client.py`, `tests/test_executor.py`,
@@ -404,8 +414,11 @@ Status: specified follow-up; not implemented by Slices 1-4
     - focused fake-client provider tests
     - current default OpenAI auth discovery regression tests
     - `poetry run ruff check src tests`
+  - GREEN: focused Slice 5 validation passed with `67 passed in 0.32s`.
+  - GREEN: `poetry run ruff check src tests/test_default_openai_auth.py
+    tests/test_openai_client.py tests/test_executor.py` passed.
 
-- [ ] T5.5 [docs] Document ChatGPT/Codex backend provider opt-in and boundaries.
+- [x] T5.5 [docs] Document ChatGPT/Codex backend provider opt-in and boundaries.
   - Spec: FR-7, FR-10
   - Plan: Future ChatGPT/Codex Backend Provider Shape
   - Files/components: `README.md`, provider spec artifacts
@@ -418,3 +431,5 @@ Status: specified follow-up; not implemented by Slices 1-4
     - endpoint trust boundary
     - no project-local endpoint redirection
   - Validation: `pre-commit run --files <changed files>`
+  - GREEN: README documents ordered Codex auth selection, ChatGPT backend auth,
+    `codex_auth_preference="chatgpt_first"`, and endpoint trust boundaries.

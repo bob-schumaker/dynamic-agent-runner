@@ -139,12 +139,18 @@ discovers host-owned auth defaults only if the caller has not supplied
 overriding auth. Explicit `OpenAIProviderConfig(api_key=...)` and
 `OpenAIProviderConfig(base_url=...)` values win over ambient defaults. Without
 an explicit key, the default provider uses `OPENAI_API_KEY` when present, then
-falls back to file-backed Codex API-key auth at `${CODEX_HOME}/auth.json` or
-`~/.codex/auth.json`. Without an explicit base URL, it may use
-`openai_base_url` from `${CODEX_HOME}/config.toml` or `~/.codex/config.toml`.
-Workflow packages and project-local `.codex/config.toml` files are not used for
-auth or endpoint discovery. Codex ChatGPT token, personal-access-token, and
-agent-identity auth modes are not treated as OpenAI API keys in this path.
+falls back to file-backed Codex auth at `${CODEX_HOME}/auth.json` or
+`~/.codex/auth.json`. If only one supported Codex auth method exists, that
+method is used. If both Codex API-key/auth-token auth and ChatGPT auth exist,
+API-key/auth-token auth wins by default; use
+`codex_auth_preference="chatgpt_first"` to prefer ChatGPT auth when it is
+available. ChatGPT auth uses the ChatGPT/Codex backend provider path and is not
+copied into `OpenAIProviderConfig.api_key`. Without an explicit base URL, the
+API-key/auth-token path may use `openai_base_url` from
+`${CODEX_HOME}/config.toml` or `~/.codex/config.toml`. Workflow packages and
+project-local `.codex/config.toml` files are not used for auth or endpoint
+discovery. Codex personal-access-token and agent-identity auth modes are not
+treated as OpenAI API keys in this path.
 
 To disable ambient discovery for a default OpenAI-compatible provider, set
 `discover_default_auth=False`:

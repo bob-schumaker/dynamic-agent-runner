@@ -9,7 +9,7 @@
 - Version: `1.2`
 - Owner: repository maintainers and future implementers of the OpenAI adapter
   default-provider path
-- Next gate: none; Slices 1-4 are complete
+- Next gate: none; Slices 1-5 are complete
 - Approval state: user-directed promotion of this spec as the authoritative
   continuation source for default OpenAI/Codex auth discovery
 - Related artifacts:

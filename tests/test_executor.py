@@ -2152,6 +2152,81 @@ def test_execute_workflow_augmented_uses_default_openai_for_missing_coverage(
     assert created_kwargs == [{"api_key": "ambient-key"}]
 
 
+def test_execute_workflow_augmented_default_openai_uses_chatgpt_codex_auth(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "augmented-chatgpt-default-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"default_model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    supplied = make_named_adapter(
+        [{"id": "unused", "output_text": "wrong"}],
+        models=["other-model"],
+    )
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "auth.json").write_text(
+        '{"auth_mode": "chatgpt", "tokens": {"access_token": "secret-token"}}',
+        encoding="utf-8",
+    )
+    seen_adapters: list[object] = []
+    created_kwargs: list[dict[str, object]] = []
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    class FakeOfficialAsyncOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules,
+        "openai",
+        SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
+    )
+
+    async def fake_create_model_response(adapter, request):
+        seen_adapters.append(adapter)
+        _client = adapter.client
+        return ModelResponse(response_id="resp-default", content="default ok")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.executor._create_model_response_async",
+        fake_create_model_response,
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Hello",
+        model_adapter=[supplied],
+        model_adapter_coverage="augmented",
+    )
+
+    assert result.final_result == "default ok"
+    assert supplied.client.responses.calls == []
+    assert isinstance(seen_adapters[0], AsyncOpenAIClientAdapter)
+    assert created_kwargs == [
+        {
+            "base_url": "https://chatgpt.com/backend-api/codex",
+            "api_key": "secret-token",
+        }
+    ]
+
+
 def test_execute_workflow_augmented_with_mlx_adapter_uses_default_openai(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

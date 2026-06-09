@@ -1,6 +1,6 @@
 # Default OpenAI/Codex Auth Discovery Implementation Plan
 
-Status: implemented; Slices 1-4 complete
+Status: implemented; Slices 1-5 complete
 
 ## Goal
 
@@ -21,6 +21,11 @@ supported Codex auth method exists, the resolver should use it. If both
 API-key/auth-token auth and ChatGPT auth exist, the default order should prefer
 API-key/auth-token auth, with a caller option to prefer ChatGPT auth when it
 exists.
+
+Slice 5 implementation status: complete. The resolver now supports ordered
+Codex auth selection, including ChatGPT/Codex backend auth when it is the only
+supported Codex auth method or when `codex_auth_preference="chatgpt_first"` is
+set and ChatGPT auth exists.
 
 ## Spec Trace
 
