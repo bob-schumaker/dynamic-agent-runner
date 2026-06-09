@@ -43,6 +43,10 @@ Codex backend model slugs, translate prompt instructions into the backend's
 required `instructions` field, force `store=false` and `stream=true`, and
 normalize streamed response text.
 
+Slice 9 implementation status: complete. OpenAI adapters now expose
+`list_supported_models()` so upstream callers can inspect configured or
+authenticated model ids without reaching into the raw SDK client.
+
 ## Spec Trace
 
 - Spec: `specs/default-openai-codex-auth/spec.md`
@@ -178,13 +182,16 @@ The implementation shape is:
 10. Translate ChatGPT/Codex Responses requests to the backend-required shape:
     request-level `instructions`, `store=false`, `stream=true`, and streamed
     text normalization back to `ModelResponse`.
-11. Preserve caller-supplied provider precedence; injected clients/providers must
+11. Expose supported models through the adapter boundary:
+    `OpenAIClientAdapter.list_supported_models()` for sync callers and
+    `AsyncOpenAIClientAdapter.list_supported_models()` for async callers.
+12. Preserve caller-supplied provider precedence; injected clients/providers must
     stay authoritative.
-12. Keep workflow packages and project-local `.codex/config.toml` unable to
+13. Keep workflow packages and project-local `.codex/config.toml` unable to
     select or redirect the provider.
-13. Leave personal access token support to a later slice after bearer behavior
+14. Leave personal access token support to a later slice after bearer behavior
     and endpoint compatibility are verified.
-14. Leave agent identity support to a later signing-provider design.
+15. Leave agent identity support to a later signing-provider design.
 
 This provider remains part of the OpenAI auth/client module for now, but
 it should not be named or modeled as an OpenAI API-key provider even if some

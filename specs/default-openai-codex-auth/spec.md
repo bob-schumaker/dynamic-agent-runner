@@ -360,6 +360,10 @@ Acceptance criteria:
   using `${CODEX_HOME}/version.json` field `latest_version` when available and
   falling back to an implementation-owned compatible version only when the file
   is unavailable or malformed.
+- Given an upstream caller needs to choose a model after authentication, when it
+  asks the OpenAI adapter for supported models, then the adapter must expose the
+  authenticated model ids it would use for request preflight without requiring
+  callers to invoke the raw SDK client.
 - Given ChatGPT/Codex returns its model catalog in Codex backend shape, when
   available models are normalized, then the adapter must accept model slugs from
   `models[].slug` or equivalent SDK extra fields as available model ids.

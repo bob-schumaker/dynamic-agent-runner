@@ -668,3 +668,42 @@ Status: implemented
     - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
       tests/test_openai_client.py`
   - GREEN: OpenAI client tests passed with `44 passed in 0.22s`.
+
+## Slice 9 — OpenAI Adapter Supported Model Exposure
+
+Status: implemented
+
+- [x] T9.1 [implementation] Expose supported models on OpenAI adapters.
+  - Spec: FR-10
+  - Plan: ChatGPT/Codex Backend Provider Shape
+  - Files/components: `src/dynamic_agent_runner/openai_client.py`
+  - Required behavior:
+    - sync callers can use `OpenAIClientAdapter.list_supported_models()`
+    - async callers can use `AsyncOpenAIClientAdapter.list_supported_models()`
+    - configured adapter models are returned without a live listing call
+    - authenticated provider model ids are listed and cached when no configured
+      model list exists
+    - `refresh=True` forces a new authenticated listing
+    - ChatGPT/Codex listings reuse the same `client_version` and slug
+      normalization behavior as request preflight
+  - Validation:
+    - `poetry run pytest tests/test_openai_client.py -q`
+    - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+      tests/test_openai_client.py`
+  - GREEN: OpenAI client tests passed with `50 passed in 0.25s`.
+
+- [x] T9.2 [tests] Cover upstream supported-model discovery behavior.
+  - Spec: FR-10, Validation Checklist
+  - Plan: ChatGPT/Codex Backend Provider Shape
+  - Files/components: `tests/test_openai_client.py`
+  - Cases:
+    - configured sync adapter models are returned directly
+    - authenticated sync model listing is cached and can be refreshed
+    - ChatGPT/Codex sync listing exposes Codex slug ids with `client_version`
+    - configured async adapter models are returned directly
+    - authenticated async model listing is cached
+  - Validation:
+    - `poetry run pytest tests/test_openai_client.py -q`
+    - `poetry run ruff check src/dynamic_agent_runner/openai_client.py
+      tests/test_openai_client.py`
+  - GREEN: OpenAI client tests passed with `50 passed in 0.25s`.
