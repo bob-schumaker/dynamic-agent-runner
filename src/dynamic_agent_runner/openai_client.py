@@ -19,6 +19,7 @@ ErrorTranslator = Callable[[ModelExecutionError], ModelExecutionError]
 ResponseValidator = Callable[["OpenAIModelRequest", "ModelResponse"], None]
 CHATGPT_CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api/codex"
 CHATGPT_CODEX_PROVIDER_NAME = "chatgpt-codex"
+CHATGPT_CODEX_FALLBACK_CLIENT_VERSION = "0.137.0"
 CODEX_AUTH_API_KEY_FIRST = "api_key_first"
 CODEX_AUTH_CHATGPT_FIRST = "chatgpt_first"
 
@@ -262,7 +263,10 @@ class OpenAIClientAdapter:
         client = self.client
         try:
             self._validate_request_model_available(client, request)
-            response = create_openai_response(client, request)
+            response = create_openai_response(
+                client,
+                _prepare_chatgpt_codex_request(self._provider, request),
+            )
         except ModelExecutionError as exc:
             if self._error_translator is None:
                 raise
@@ -294,7 +298,10 @@ class OpenAIClientAdapter:
         if not _provider_uses_chatgpt_codex(self._provider):
             return
         if self._available_model_ids is None:
-            self._available_model_ids = list_openai_model_ids(client)
+            self._available_model_ids = list_openai_model_ids(
+                client,
+                extra_query=_chatgpt_codex_models_extra_query(),
+            )
         _raise_if_model_is_unavailable(
             request.model,
             self._available_model_ids,
@@ -345,7 +352,10 @@ class AsyncOpenAIClientAdapter:
         client = self.client
         try:
             await self._validate_request_model_available(client, request)
-            response = await create_async_openai_response(client, request)
+            response = await create_async_openai_response(
+                client,
+                _prepare_chatgpt_codex_request(self._provider, request),
+            )
         except ModelExecutionError as exc:
             if self._error_translator is None:
                 raise
@@ -377,7 +387,10 @@ class AsyncOpenAIClientAdapter:
         if not _provider_uses_chatgpt_codex(self._provider):
             return
         if self._available_model_ids is None:
-            self._available_model_ids = await list_async_openai_model_ids(client)
+            self._available_model_ids = await list_async_openai_model_ids(
+                client,
+                extra_query=_chatgpt_codex_models_extra_query(),
+            )
         _raise_if_model_is_unavailable(
             request.model,
             self._available_model_ids,
@@ -560,9 +573,12 @@ def create_openai_response(
     """Dispatch a sync OpenAI-compatible request through repo-owned helpers."""
 
     try:
-        raw_response = client.responses.create(**request.to_kwargs())
+        kwargs = request.to_kwargs()
+        raw_response = client.responses.create(**kwargs)
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
         raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+    if kwargs.get("stream") and not isinstance(raw_response, Mapping):
+        return _normalize_openai_stream(raw_response)
     return normalize_openai_response(raw_response)
 
 
@@ -573,13 +589,20 @@ async def create_async_openai_response(
     """Dispatch an async OpenAI-compatible request through repo-owned helpers."""
 
     try:
-        raw_response = await client.responses.create(**request.to_kwargs())
+        kwargs = request.to_kwargs()
+        raw_response = await client.responses.create(**kwargs)
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
         raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+    if kwargs.get("stream") and not isinstance(raw_response, Mapping):
+        return await _normalize_async_openai_stream(raw_response)
     return normalize_openai_response(raw_response)
 
 
-def list_openai_model_ids(client: OpenAIClientProtocol) -> tuple[str, ...]:
+def list_openai_model_ids(
+    client: OpenAIClientProtocol,
+    *,
+    extra_query: Mapping[str, object] | None = None,
+) -> tuple[str, ...]:
     """List available model ids from an authenticated OpenAI-compatible client."""
 
     models_resource = getattr(client, "models", None)
@@ -589,7 +612,11 @@ def list_openai_model_ids(client: OpenAIClientProtocol) -> tuple[str, ...]:
             "OpenAI provider does not expose available model listing"
         )
     try:
-        raw_models = list_method()
+        raw_models = (
+            list_method(extra_query=dict(extra_query))
+            if extra_query is not None
+            else list_method()
+        )
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
         raise ModelExecutionError("OpenAI available model listing failed") from exc
     return _extract_model_ids(raw_models)
@@ -597,6 +624,8 @@ def list_openai_model_ids(client: OpenAIClientProtocol) -> tuple[str, ...]:
 
 async def list_async_openai_model_ids(
     client: AsyncOpenAIClientProtocol,
+    *,
+    extra_query: Mapping[str, object] | None = None,
 ) -> tuple[str, ...]:
     """List available model ids from an authenticated async OpenAI-compatible client."""
 
@@ -607,7 +636,11 @@ async def list_async_openai_model_ids(
             "OpenAI provider does not expose available model listing"
         )
     try:
-        raw_models = list_method()
+        raw_models = (
+            list_method(extra_query=dict(extra_query))
+            if extra_query is not None
+            else list_method()
+        )
         if inspect.isawaitable(raw_models):
             raw_models = await raw_models
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
@@ -617,18 +650,159 @@ async def list_async_openai_model_ids(
 
 def _extract_model_ids(raw_models: Any) -> tuple[str, ...]:
     data = _read_value(raw_models, "data")
-    items = data if data is not None else raw_models
+    models = _read_value(raw_models, "models")
+    extra_models = _read_value(_read_value(raw_models, "model_extra"), "models")
+    if data is not None:
+        items = data
+    elif models is not None:
+        items = models
+    elif extra_models is not None:
+        items = extra_models
+    else:
+        items = raw_models
     model_ids: list[str] = []
     for item in _as_sequence(items):
-        model_id = item if isinstance(item, str) else _read_value(item, "id")
+        model_id = item if isinstance(item, str) else _read_model_id(item)
         if isinstance(model_id, str) and model_id.strip():
             model_ids.append(model_id.strip())
     return tuple(dict.fromkeys(model_ids))
 
 
+def _normalize_openai_stream(raw_stream: Any) -> ModelResponse:
+    events: list[Any] = []
+    for event in raw_stream:
+        events.append(event)
+    return _normalize_openai_stream_events(events)
+
+
+async def _normalize_async_openai_stream(raw_stream: Any) -> ModelResponse:
+    events: list[Any] = []
+    if hasattr(raw_stream, "__aiter__"):
+        async for event in raw_stream:
+            events.append(event)
+    else:
+        for event in raw_stream:
+            events.append(event)
+    return _normalize_openai_stream_events(events)
+
+
+def _normalize_openai_stream_events(events: Sequence[Any]) -> ModelResponse:
+    deltas: list[str] = []
+    response_id: str | None = None
+    completed_response: Any = None
+    for event in events:
+        event_type = _read_value(event, "type")
+        if event_type == "response.output_text.delta":
+            delta = _read_value(event, "delta")
+            if delta is not None:
+                deltas.append(str(delta))
+            continue
+        response = _read_value(event, "response")
+        if response is not None:
+            response_id = _optional_str(_read_value(response, "id")) or response_id
+            if event_type == "response.completed":
+                completed_response = response
+
+    if completed_response is not None:
+        normalized = normalize_openai_response(completed_response)
+        return ModelResponse(
+            content=normalized.content or ("".join(deltas) if deltas else None),
+            tool_calls=normalized.tool_calls,
+            response_id=normalized.response_id or response_id,
+            raw=completed_response,
+        )
+    return ModelResponse(
+        content="".join(deltas) if deltas else None,
+        response_id=response_id,
+        raw=tuple(events),
+    )
+
+
+def _read_model_id(item: Any) -> Any:
+    return (
+        _read_value(item, "id")
+        or _read_value(item, "slug")
+        or _read_value(_read_value(item, "model_extra"), "slug")
+    )
+
+
 def _provider_uses_chatgpt_codex(provider: Any) -> bool:
     config = getattr(provider, "config", None)
     return getattr(config, "provider_name", None) == CHATGPT_CODEX_PROVIDER_NAME
+
+
+def _prepare_chatgpt_codex_request(
+    provider: Any,
+    request: OpenAIModelRequest,
+) -> OpenAIModelRequest:
+    if not _provider_uses_chatgpt_codex(provider):
+        return request
+
+    input_messages: list[Mapping[str, Any]] = []
+    instruction_parts: list[str] = []
+    for message in request.messages:
+        role = str(message.get("role") or "")
+        content = message.get("content")
+        if role in {"system", "developer"}:
+            if content is not None and str(content).strip():
+                instruction_parts.append(str(content).strip())
+        else:
+            input_messages.append(message)
+
+    extra = dict(request.extra)
+    existing_instructions = extra.get("instructions")
+    if existing_instructions is not None and str(existing_instructions).strip():
+        instruction_parts.insert(0, str(existing_instructions).strip())
+    extra["instructions"] = (
+        "\n\n".join(instruction_parts)
+        if instruction_parts
+        else "You are a helpful assistant."
+    )
+    extra["store"] = False
+    extra["stream"] = True
+
+    return OpenAIModelRequest(
+        model=request.model,
+        messages=tuple(input_messages or request.messages),
+        tools=request.tools,
+        tool_choice=request.tool_choice,
+        response_format=request.response_format,
+        extra=extra,
+    )
+
+
+def _chatgpt_codex_models_extra_query() -> dict[str, str]:
+    client_version = (
+        os.environ.get("DYNAMIC_AGENT_RUNNER_CODEX_CLIENT_VERSION")
+        or os.environ.get("CODEX_CLIENT_VERSION")
+        or _read_codex_client_version()
+        or CHATGPT_CODEX_FALLBACK_CLIENT_VERSION
+    )
+    return {"client_version": client_version}
+
+
+def _read_codex_client_version() -> str | None:
+    try:
+        codex_home = _resolve_codex_home()
+    except ModelExecutionError:
+        return None
+    if codex_home is None:
+        return None
+    version_file = codex_home / "version.json"
+    if not version_file.exists():
+        return None
+    try:
+        with version_file.open(encoding="utf-8") as handle:
+            version = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(version, Mapping):
+        return None
+    latest_version = version.get("latest_version")
+    if not isinstance(latest_version, str):
+        return None
+    whole_version = latest_version.strip().partition("-")[0]
+    return whole_version or None
 
 
 def _raise_if_model_is_unavailable(
