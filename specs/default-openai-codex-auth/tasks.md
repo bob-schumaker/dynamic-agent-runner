@@ -1,6 +1,6 @@
 # Default OpenAI/Codex Auth Discovery Task List
 
-Status: active implementation; Slice 1 complete
+Status: active implementation; Slices 1-2 complete
 
 ## Prerequisites
 
@@ -82,7 +82,7 @@ Codex backend auth support.
 
 ## Slice 2 — Codex Home, Config, and API-Key Auth
 
-- [ ] T2.1 [tests] Add RED tests for `CODEX_HOME` resolution.
+- [x] T2.1 [tests] Add RED tests for `CODEX_HOME` resolution.
   - Spec: FR-4, FR-9
   - Plan: Resolver Flow; Error Contract
   - Files/components: `tests/test_default_openai_auth.py`,
@@ -96,8 +96,11 @@ Codex backend auth support.
     `poetry run pytest tests/test_default_openai_auth.py
     tests/test_openai_client.py -q`
   - Expected RED: Codex home resolution does not exist yet.
+  - RED: targeted tests failed because Codex home resolution and auth/config
+    parsing were not implemented.
+  - GREEN: targeted tests passed with `52 passed in 0.21s`.
 
-- [ ] T2.2 [implementation] Implement Codex home resolution helpers.
+- [x] T2.2 [implementation] Implement Codex home resolution helpers.
   - Spec: FR-4, FR-9
   - Plan: Resolver Flow; Error Contract
   - Files/components: `src/dynamic_agent_runner/openai_client.py`
@@ -105,8 +108,9 @@ Codex backend auth support.
   - Validation:
     `poetry run pytest tests/test_default_openai_auth.py
     tests/test_openai_client.py -q`
+  - GREEN: targeted tests passed with `52 passed in 0.21s`.
 
-- [ ] T2.3 [tests] Add RED tests for trusted Codex user config endpoint
+- [x] T2.3 [tests] Add RED tests for trusted Codex user config endpoint
       discovery.
   - Spec: FR-5, FR-9
   - Plan: Resolver Flow; Planning Decisions
@@ -121,8 +125,10 @@ Codex backend auth support.
     `poetry run pytest tests/test_default_openai_auth.py
     tests/test_openai_client.py -q`
   - Expected RED: Codex config parsing does not exist yet.
+  - RED: targeted tests failed because Codex config parsing was not implemented.
+  - GREEN: targeted tests passed with `52 passed in 0.21s`.
 
-- [ ] T2.4 [implementation] Implement trusted Codex user config parsing.
+- [x] T2.4 [implementation] Implement trusted Codex user config parsing.
   - Spec: FR-5, FR-9
   - Plan: Resolver Flow; Error Contract
   - Files/components: `src/dynamic_agent_runner/openai_client.py`
@@ -130,8 +136,9 @@ Codex backend auth support.
   - Validation:
     `poetry run pytest tests/test_default_openai_auth.py
     tests/test_openai_client.py -q`
+  - GREEN: targeted tests passed with `52 passed in 0.21s`.
 
-- [ ] T2.5 [tests] Add RED tests for file-backed Codex API-key auth.
+- [x] T2.5 [tests] Add RED tests for file-backed Codex API-key auth.
   - Spec: FR-6, FR-7, FR-9
   - Plan: Resolver Flow; Planning Decisions; Error Contract
   - Files/components: `tests/test_default_openai_auth.py`,
@@ -147,8 +154,11 @@ Codex backend auth support.
     `poetry run pytest tests/test_default_openai_auth.py
     tests/test_openai_client.py -q`
   - Expected RED: Codex auth parsing does not exist yet.
+  - RED: targeted tests failed because Codex auth parsing and unsupported-mode
+    handling were not implemented.
+  - GREEN: targeted tests passed with `52 passed in 0.21s`.
 
-- [ ] T2.6 [implementation] Implement file-backed Codex API-key auth parsing
+- [x] T2.6 [implementation] Implement file-backed Codex API-key auth parsing
       and unsupported-mode handling.
   - Spec: FR-6, FR-7, FR-9
   - Plan: Resolver Flow; Error Contract; Non-Implementation Notes
@@ -157,6 +167,7 @@ Codex backend auth support.
   - Validation:
     `poetry run pytest tests/test_default_openai_auth.py
     tests/test_openai_client.py -q`
+  - GREEN: targeted tests passed with `52 passed in 0.21s`.
 
 ## Slice 3 — Adapter Integration, Opt-Out, and Regression
 

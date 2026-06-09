@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+import json
 import os
+from pathlib import Path
 from threading import RLock
+import tomllib
 from typing import Any, Protocol
 
 from dynamic_agent_runner.errors import ModelExecutionError
@@ -551,12 +554,25 @@ def _resolve_default_openai_provider_config(
             discover_default_auth=config.discover_default_auth,
         )
 
+    base_url = config.base_url
     api_key = config.api_key
+    codex_home: Path | None = None
+
     if api_key is None:
         api_key = _read_non_empty_env("OPENAI_API_KEY")
+        if api_key is None:
+            codex_home = _resolve_codex_home()
+            if codex_home is not None:
+                api_key = _read_codex_api_key_auth(codex_home)
+
+    if base_url is None:
+        if codex_home is None:
+            codex_home = _resolve_codex_home()
+        if codex_home is not None:
+            base_url = _read_codex_openai_base_url(codex_home)
 
     return OpenAIProviderConfig(
-        base_url=config.base_url,
+        base_url=base_url,
         api_key=api_key,
         provider_name=config.provider_name,
         discover_default_auth=config.discover_default_auth,
@@ -569,6 +585,93 @@ def _read_non_empty_env(name: str) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _resolve_codex_home() -> Path | None:
+    raw_codex_home = os.environ.get("CODEX_HOME")
+    if raw_codex_home is not None and raw_codex_home.strip():
+        codex_home = Path(raw_codex_home.strip()).expanduser()
+        if not codex_home.is_dir():
+            raise ModelExecutionError(
+                f"CODEX_HOME must point to an existing directory: {codex_home}"
+            )
+        return codex_home
+
+    codex_home = Path.home() / ".codex"
+    if not codex_home.exists():
+        return None
+    if not codex_home.is_dir():
+        raise ModelExecutionError(
+            f"default Codex home must be a directory: {codex_home}"
+        )
+    return codex_home
+
+
+def _read_codex_openai_base_url(codex_home: Path) -> str | None:
+    config_file = codex_home / "config.toml"
+    if not config_file.exists():
+        return None
+    try:
+        with config_file.open("rb") as handle:
+            config = tomllib.load(handle)
+    except tomllib.TOMLDecodeError as exc:
+        raise ModelExecutionError(
+            f"failed to parse Codex config file {config_file}"
+        ) from exc
+    value = config.get("openai_base_url")
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _read_codex_api_key_auth(codex_home: Path) -> str | None:
+    auth_file = codex_home / "auth.json"
+    if not auth_file.exists():
+        return None
+    try:
+        with auth_file.open(encoding="utf-8") as handle:
+            auth = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise ModelExecutionError(
+            f"failed to parse Codex auth file {auth_file}"
+        ) from exc
+    if not isinstance(auth, Mapping):
+        raise ModelExecutionError(f"Codex auth file {auth_file} must contain an object")
+
+    mode = _resolve_codex_auth_mode(auth)
+    if mode is None:
+        return None
+    if mode != "api_key":
+        raise ModelExecutionError(
+            f"unsupported Codex auth mode {mode!r}; provide an OpenAI API key"
+        )
+
+    value = auth.get("OPENAI_API_KEY")
+    if not isinstance(value, str) or not value.strip():
+        raise ModelExecutionError(
+            f"Codex auth file {auth_file} uses API-key auth but has no key"
+        )
+    return value.strip()
+
+
+def _resolve_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
+    raw_mode = auth.get("auth_mode")
+    if isinstance(raw_mode, str) and raw_mode.strip():
+        mode = raw_mode.strip().replace("-", "_").lower()
+        if mode in {"api", "apikey"}:
+            return "api_key"
+        return mode
+
+    if isinstance(auth.get("OPENAI_API_KEY"), str):
+        return "api_key"
+    if auth.get("personal_access_token") is not None:
+        return "personal_access_token"
+    if auth.get("agent_identity") is not None:
+        return "agent_identity"
+    if auth.get("tokens") is not None:
+        return "chatgpt"
+    return None
 
 
 def _provider_config_to_client_kwargs(config: OpenAIProviderConfig) -> dict[str, Any]:

@@ -26,6 +26,13 @@ from dynamic_agent_runner.registry import openai_tool_schema
 from dynamic_agent_runner.models import ToolDefinition
 
 
+@pytest.fixture(autouse=True)
+def isolate_ambient_auth(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+
 class FakeResponses:
     def __init__(self, response: object | None = None, error: Exception | None = None):
         self.response = response or {"id": "resp_1", "output_text": "hello"}
