@@ -1294,7 +1294,7 @@ def test_execute_workflow_runs_llm_tool_and_final_llm_steps() -> None:
     ]
     assert result.state.tool_results["lookup"].output == {"answer": "42"}
     first_call = adapter.client.responses.calls[0]
-    assert first_call["tools"][0]["function"]["name"] == "search_repo"
+    assert first_call["tools"][0]["name"] == "search_repo"
 
 
 def test_execute_workflow_uses_model_facing_tool_output_in_context_and_trace() -> None:

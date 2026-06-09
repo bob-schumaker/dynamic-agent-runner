@@ -95,7 +95,7 @@ def test_registry_lookup_schema_conversion_and_invocation() -> None:
     )
     schema = registry.to_openai_tools(["search_repo"])
     assert schema == [openai_tool_schema(registry.get_tool("search_repo").definition)]
-    assert schema[0]["function"]["name"] == "search_repo"
+    assert schema[0]["name"] == "search_repo"
 
     result = registry.invoke_tool("search_repo", {"query": "agents"})
 
@@ -312,7 +312,7 @@ def test_openai_tool_schema_strips_schema_metadata_for_model_output() -> None:
 
     schema = openai_tool_schema(definition)
 
-    assert schema["function"]["parameters"] == {
+    assert schema["parameters"] == {
         "type": "object",
         "properties": {"query": {"type": "string"}},
         "required": ["query"],
@@ -515,10 +515,10 @@ def test_tool_exposure_states_control_model_visibility_and_invocation() -> None:
         "direct_tool",
         "model_only_tool",
     ]
-    assert registry.to_openai_tools(["model_only_tool"])[0]["function"]["name"] == (
+    assert registry.to_openai_tools(["model_only_tool"])[0]["name"] == (
         "model_only_tool"
     )
-    assert [tool["function"]["name"] for tool in registry.to_openai_tools()] == [
+    assert [tool["name"] for tool in registry.to_openai_tools()] == [
         "direct_tool",
         "model_only_tool",
     ]
@@ -564,7 +564,7 @@ def test_local_workspace_tool_pack_is_opt_in_and_path_restricted(
     assert registry.get_tool("list_files").definition.tool_type is ToolType.FILE_READ
     assert registry.get_tool("search_files").definition.tool_type is ToolType.FILE_READ
     assert registry.get_tool("inspect_path").definition.tool_type is ToolType.FILE_READ
-    assert [tool["function"]["name"] for tool in registry.to_openai_tools()] == [
+    assert [tool["name"] for tool in registry.to_openai_tools()] == [
         "read_file",
         "list_files",
         "search_files",
