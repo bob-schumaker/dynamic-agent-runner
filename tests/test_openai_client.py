@@ -384,6 +384,41 @@ def test_adapter_can_use_repository_owned_provider_facade() -> None:
     assert result.content == "via provider"
 
 
+def test_adapter_lists_supported_models_from_configured_models() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    adapter = OpenAIClientAdapter(
+        FakeClient(responses),
+        models=["local-chat", "fallback-chat"],
+    )
+
+    assert adapter.list_supported_models() == ("local-chat", "fallback-chat")
+
+
+def test_adapter_lists_supported_models_from_authenticated_client() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels({"data": [{"id": "gpt-a"}, {"id": "gpt-b"}]})
+    adapter = OpenAIClientAdapter(FakeClient(responses, models=models))
+
+    first = adapter.list_supported_models()
+    second = adapter.list_supported_models()
+
+    assert first == ("gpt-a", "gpt-b")
+    assert second == ("gpt-a", "gpt-b")
+    assert models.calls == [{}]
+
+
+def test_adapter_refreshes_supported_models_when_requested() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels({"data": [{"id": "gpt-a"}]})
+    adapter = OpenAIClientAdapter(FakeClient(responses, models=models))
+
+    assert adapter.list_supported_models() == ("gpt-a",)
+    models.models = {"data": [{"id": "gpt-b"}]}
+
+    assert adapter.list_supported_models(refresh=True) == ("gpt-b",)
+    assert models.calls == [{}, {}]
+
+
 def test_chatgpt_codex_adapter_lists_models_before_request(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -421,6 +456,31 @@ def test_chatgpt_codex_adapter_lists_models_before_request(
         }
     ]
     assert result.content == "via provider"
+
+
+def test_chatgpt_codex_adapter_exposes_supported_models(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels({"models": [{"slug": "codex-mini-latest"}]})
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "version.json").write_text(
+        '{"latest_version": "9.8.7"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    provider = FakeProvider(
+        responses,
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=models,
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+
+    assert adapter.list_supported_models() == ("codex-mini-latest",)
+    assert adapter.list_supported_models() == ("codex-mini-latest",)
+    assert models.calls == [{"extra_query": {"client_version": "9.8.7"}}]
 
 
 def test_chatgpt_codex_adapter_moves_prompt_messages_to_instructions() -> None:
@@ -593,6 +653,36 @@ def test_async_adapter_can_use_repository_owned_provider_facade() -> None:
     assert provider.config.base_url == "http://localhost:11434/v1"
     assert result.response_id == "resp_async_provider"
     assert result.content == "via async provider"
+
+
+def test_async_adapter_lists_supported_models_from_configured_models() -> None:
+    responses = FakeAsyncResponses(
+        {"id": "resp_async_provider", "output_text": "via async provider"}
+    )
+    adapter = AsyncOpenAIClientAdapter(
+        FakeAsyncClient(responses),
+        models=["local-chat", "fallback-chat"],
+    )
+
+    assert asyncio.run(adapter.list_supported_models()) == (
+        "local-chat",
+        "fallback-chat",
+    )
+
+
+def test_async_adapter_lists_supported_models_from_authenticated_client() -> None:
+    responses = FakeAsyncResponses(
+        {"id": "resp_async_provider", "output_text": "via async provider"}
+    )
+    models = FakeAsyncModels({"data": [{"id": "gpt-a"}, {"id": "gpt-b"}]})
+    adapter = AsyncOpenAIClientAdapter(FakeAsyncClient(responses, models=models))
+
+    first = asyncio.run(adapter.list_supported_models())
+    second = asyncio.run(adapter.list_supported_models())
+
+    assert first == ("gpt-a", "gpt-b")
+    assert second == ("gpt-a", "gpt-b")
+    assert models.calls == [{}]
 
 
 def test_async_chatgpt_codex_adapter_rejects_unlisted_model_before_request() -> None:
