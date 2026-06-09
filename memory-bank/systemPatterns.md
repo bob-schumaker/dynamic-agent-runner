@@ -100,6 +100,9 @@
   does not.
 - OpenAI request construction uses `input` messages plus optional `tools`,
   `tool_choice`, `response_format`, and extra model parameters.
+- Tool schema conversion is currently aligned to `client.responses.create(...)`:
+  function tools use top-level `type`, `name`, `description`, and `parameters`,
+  not Chat Completions-style nested `function.name` payloads.
 - OpenAI response normalization extracts text and function calls into internal
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 - `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,

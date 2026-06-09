@@ -3,9 +3,11 @@
 ## Current Focus
 
 - No implementation slice is currently active.
-- The latest completed repository work focused on making the OpenAI adapter work
-  with default OpenAI/Codex auth, ChatGPT/Codex backend auth, authenticated model
-  discovery, and omitted-model defaults.
+- The latest completed repository work fixed OpenAI Responses API function-tool
+  schema generation after PowerMarimo surfaced a live
+  `Missing required parameter: 'tools[0].name'` error.
+- Earlier OpenAI adapter work made default OpenAI/Codex auth, ChatGPT/Codex
+  backend auth, authenticated model discovery, and omitted-model defaults work.
 - The latest documentation work added a ReAct/tool workflow guide under
   `docs/files/react-tool-workflow.rst` and used it to drive upstream
   `agent-development-skill` improvements.
@@ -47,6 +49,12 @@
   - it now has a conceptual external-runtime ReAct host example
   - stale `dynamic_agent_runner`-specific runner references were removed
   - the installed ReAct runtime example validates with the skill validator
+- OpenAI tool schema compatibility was corrected:
+  - `registry.openai_tool_schema(...)` now emits Responses API function tools
+    with top-level `type`, `name`, `description`, and `parameters`
+  - tests now assert the request shape sent through executor and registry paths
+  - the production fix and test updates were committed separately as `ca6b065`
+    and `6b9fe0c`
 
 ## Current Spec Authority Map
 
@@ -77,7 +85,8 @@
 - Core runtime implementation is complete through package-alignment P5, async-
   first execution, portable tool type alignment, prompt-cache metadata,
   provider-wrapper work, local-model adapters, graph-mutation checkpoint, model
-  adapter coverage, and default OpenAI/Codex auth.
+  adapter coverage, default OpenAI/Codex auth, and Responses API function-tool
+  schema compatibility.
 - Default OpenAI/Codex auth follow-ups are limited to separately specified
   personal-access-token or agent-identity support.
 - Live runtime behavior is still deferred for approval pause/resume, writable
@@ -96,3 +105,5 @@
   but execution follows `sequential`/`branch` traversal.
 - For validation: continue using fake clients/tools in unit tests; do not add
   live OpenAI, MCP, Marimo, Hugging Face, or local-model calls to core tests.
+- For OpenAI tool work: preserve Responses API request shape unless a separate
+  adapter boundary explicitly targets another OpenAI-compatible API.

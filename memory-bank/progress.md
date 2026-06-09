@@ -13,6 +13,9 @@
   unsupported models fail before request dispatch.
 - ChatGPT/Codex Responses calls use backend-required `instructions`,
   `store=false`, and streaming normalization.
+- Registry-provided model tools now use OpenAI Responses API function-tool
+  shape with top-level `name`, avoiding the previous Chat Completions-style
+  nested `function.name` payload.
 - OpenAI adapters expose supported model listing and default-model selection;
   missing workflow models can use the lowest versioned authenticated model.
 - ReAct/tool workflow guidance exists in authored docs and documents
@@ -36,6 +39,10 @@
   ReAct external-runtime examples. Installed-skill checks showed the stale
   dynamic-agent-runner-specific runner removed and the conceptual pseudocode
   reference clean.
+- `ca6b065` fixed `registry.openai_tool_schema(...)` to emit Responses API
+  function tools with top-level `name`, `description`, and `parameters`.
+- `6b9fe0c` updated registry and executor tests to expect the Responses API
+  tool schema.
 
 ## Remaining
 
@@ -69,5 +76,8 @@
 - ReAct runtime currently uses `sequential` executable return edges plus
   `loopback` metadata; direct executable `loopback` traversal remains a
   potential runtime cleanup.
+- OpenAI-compatible local endpoints or future adapters may not all accept the
+  same tool schema; keep schema conversion owned by the adapter/request boundary
+  if another API shape is needed.
 - Full executor-suite validation may require avoiding or pre-caching `tiktoken`
   network downloads in sandboxed environments.
