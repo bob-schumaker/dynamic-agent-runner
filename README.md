@@ -134,6 +134,27 @@ any default OpenAI adapter is created. Clients that require local-only execution
 should pass only local adapters and use strict coverage; `local_only` runtime
 metadata no longer filters adapter selection.
 
+When the runtime creates the default OpenAI adapter, its SDK-backed provider
+discovers host-owned auth defaults only if the caller has not supplied
+overriding auth. Explicit `OpenAIProviderConfig(api_key=...)` and
+`OpenAIProviderConfig(base_url=...)` values win over ambient defaults. Without
+an explicit key, the default provider uses `OPENAI_API_KEY` when present, then
+falls back to file-backed Codex API-key auth at `${CODEX_HOME}/auth.json` or
+`~/.codex/auth.json`. Without an explicit base URL, it may use
+`openai_base_url` from `${CODEX_HOME}/config.toml` or `~/.codex/config.toml`.
+Workflow packages and project-local `.codex/config.toml` files are not used for
+auth or endpoint discovery. Codex ChatGPT token, personal-access-token, and
+agent-identity auth modes are not treated as OpenAI API keys in this path.
+
+To disable ambient discovery for a default OpenAI-compatible provider, set
+`discover_default_auth=False`:
+
+```python
+from dynamic_agent_runner import OpenAIProviderConfig
+
+provider_config = OpenAIProviderConfig(discover_default_auth=False)
+```
+
 To target an OpenAI-compatible endpoint without changing executor logic, provide
 an adapter that uses the public provider-configuration boundary. For
 caller-owned local endpoints, the package exposes explicit local helper types:

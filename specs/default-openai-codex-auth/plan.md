@@ -1,6 +1,6 @@
 # Default OpenAI/Codex Auth Discovery Implementation Plan
 
-Status: ready for implementation
+Status: implemented; Slices 1-4 complete
 
 ## Goal
 
@@ -8,6 +8,11 @@ Implement the authoritative behavior in
 `specs/default-openai-codex-auth/spec.md`: make default OpenAI/Codex auth
 discovery part of the OpenAI adapter's lazy default-provider path, triggered
 only when no overriding caller auth is supplied.
+
+Implementation status: complete. The OpenAI adapter default-provider resolver,
+Codex user-level config/auth parsing, unsupported-auth handling, opt-out
+behavior, documentation, and feature validation evidence are recorded in
+`specs/default-openai-codex-auth/tasks.md`.
 
 ## Spec Trace
 

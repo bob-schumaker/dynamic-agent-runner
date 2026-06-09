@@ -5,13 +5,11 @@
 - Feature slug: `default-openai-codex-auth`
 - Mode: `light`
 - Artifact type: authoritative feature specification
-- Status: active authoritative change spec for continuing OpenAI adapter default
-  auth discovery work
-- Version: `0.1`
+- Status: implemented authoritative feature spec
+- Version: `1.0`
 - Owner: repository maintainers and future implementers of the OpenAI adapter
   default-provider path
-- Next gate: begin T4.1 documentation from
-  `specs/default-openai-codex-auth/tasks.md`
+- Next gate: none; Slices 1-4 are complete
 - Approval state: user-directed promotion of this spec as the authoritative
   continuation source for default OpenAI/Codex auth discovery
 - Related artifacts:
@@ -364,13 +362,13 @@ poetry run ruff check src tests
 
 ## Open Questions
 
-- Should default auth discovery be enabled by default for all OpenAI adapter
-  default-provider construction, or only when callers opt in through a
-  host-level setting?
-- Should `OPENAI_API_KEY` be copied into `OpenAIProviderConfig`, or should the
-  resolver intentionally leave it to the official SDK environment handling?
-- Should ChatGPT token or personal-access-token auth be supported in a later
-  slice through a dedicated provider/base-url path, or should this package stay
-  limited to public OpenAI API-key semantics?
-- Should this feature introduce a package-specific home directory for future
-  auth/cache state, or only read existing OpenAI/Codex state?
+- Resolved for this implementation: default auth discovery is enabled by
+  default only through the OpenAI adapter default-provider path and can be
+  disabled with `OpenAIProviderConfig(discover_default_auth=False)`.
+- Resolved for this implementation: `OPENAI_API_KEY` is copied into the resolved
+  provider config when caller auth is absent; SDK-supported organization and
+  project environment behavior is left intact.
+- Deferred: ChatGPT token, personal-access-token, and agent-identity auth modes
+  require a dedicated provider/base-url/signing design before support.
+- Resolved for this implementation: this feature reads existing OpenAI/Codex
+  host state only and does not introduce package-owned auth/cache state.

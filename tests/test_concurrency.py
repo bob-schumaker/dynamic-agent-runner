@@ -42,6 +42,14 @@ class FakeClient:
         self.responses = FakeResponses()
 
 
+class FakeProvider:
+    def __init__(self, client: FakeClient) -> None:
+        self.client = client
+
+    def get_client(self) -> FakeClient:
+        return self.client
+
+
 class BlockingAsyncResponses:
     def __init__(self) -> None:
         self.started = asyncio.Event()
@@ -375,17 +383,19 @@ def test_openai_client_adapter_initializes_default_client_once_across_threads(
     created_lock = Lock()
     barrier = Barrier(8)
 
-    def create_client() -> FakeClient:
+    def create_provider() -> FakeProvider:
         with created_lock:
             client = FakeClient()
             created_clients.append(client)
-            return client
+            return FakeProvider(client)
 
     def read_client(_index: int) -> FakeClient:
         barrier.wait(timeout=5)
         return adapter.client
 
-    monkeypatch.setattr(openai_client, "create_default_openai_client", create_client)
+    monkeypatch.setattr(
+        openai_client, "create_default_openai_provider", create_provider
+    )
     adapter = OpenAIClientAdapter()
 
     with ThreadPoolExecutor(max_workers=8) as pool:

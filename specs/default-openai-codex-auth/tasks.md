@@ -1,6 +1,6 @@
 # Default OpenAI/Codex Auth Discovery Task List
 
-Status: active implementation; Slices 1-3 complete
+Status: implemented; Slices 1-4 complete
 
 ## Prerequisites
 
@@ -264,7 +264,7 @@ Codex backend auth support.
 
 ## Slice 4 — Documentation, Spec Maintenance, and Final Validation
 
-- [ ] T4.1 [docs] Document default OpenAI/Codex auth discovery.
+- [x] T4.1 [docs] Document default OpenAI/Codex auth discovery.
   - Spec: Objective, FR-2, FR-8, FR-9
   - Plan: Affected Areas
   - Files/components: `README.md`
@@ -277,8 +277,12 @@ Codex backend auth support.
     - opt-out behavior
   - Validation:
     `poetry run pytest tests/test_openai_client.py tests/test_executor.py -q`
+  - GREEN: README documents default OpenAI adapter discovery, precedence,
+    Codex user-level config/auth sources, unsupported non-API-key Codex modes,
+    and opt-out behavior. Focused Slice 4 validation passed with
+    `60 passed in 0.25s`.
 
-- [ ] T4.2 [validation] Run focused feature regression validation.
+- [x] T4.2 [validation] Run focused feature regression validation.
   - Spec: Validation Checklist
   - Plan: Validation Plan
   - Files/components: implementation and docs changed in Slices 1-4
@@ -286,8 +290,11 @@ Codex backend auth support.
   - Validation:
     `poetry run pytest tests/test_default_openai_auth.py
     tests/test_openai_client.py tests/test_executor.py -q`
+  - GREEN: focused feature regression validation passed with
+    `60 passed in 0.25s` using the feature test files, the augmented/strict
+    executor regressions, and the default-adapter concurrency regression.
 
-- [ ] T4.3 [validation] Run final repository validation.
+- [x] T4.3 [validation] Run final repository validation.
   - Spec: Validation Checklist
   - Plan: Validation Plan
   - Files/components: implementation and docs changed in Slices 1-4
@@ -295,8 +302,16 @@ Codex backend auth support.
   - Validation:
     - `poetry run pytest -q`
     - `poetry run ruff check src tests`
+  - RESULT: `poetry run ruff check src tests` passed.
+  - RESULT: `poetry run pytest -q` was run in the network-restricted
+    environment and reported `13 failed, 340 passed in 1.26s`. The relevant
+    feature isolation issue in the default-adapter concurrency test was fixed;
+    remaining failures are outside this feature's focused coverage, including
+    tiktoken attempts to fetch encoding data from
+    `openaipublic.blob.core.windows.net` and unrelated tracing expectation
+    mismatches.
 
-- [ ] T4.4 [spec-maintenance] Record implementation evidence and update status.
+- [x] T4.4 [spec-maintenance] Record implementation evidence and update status.
   - Spec: Metadata, Authority and Continuation, Validation Checklist
   - Plan: Validation Plan
   - Files/components: `specs/default-openai-codex-auth/spec.md`,
@@ -304,3 +319,5 @@ Codex backend auth support.
     `specs/default-openai-codex-auth/tasks.md`, `specs/README.md`
   - Depends on: T4.3
   - Validation: `pre-commit run --files <changed files>`
+  - GREEN: feature spec, plan, task list, and spec index updated with
+    implemented status and validation evidence.
