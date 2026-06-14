@@ -5,8 +5,8 @@
 - Feature slug: `mcp-runtime-integration`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: proposed future feature; metadata diagnostics baseline exists, live MCP
-  discovery/injection/lifecycle is not implemented
+- Status: planned next implementation focus; metadata diagnostics baseline
+  exists, v1 explicit registry injection planned first
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `extensions.mcp_registry_sources`
@@ -47,6 +47,32 @@ the first live-action slice. MCP should wait until approval interruption,
 sandbox/workspace policy, and capability/status reporting are clear enough that
 write, shell, network, browser, and external-mutation MCP tools cannot bypass
 policy or appear live when only metadata is preserved.
+
+## V1 Slice Boundary
+
+The first MCP implementation slice does not launch servers, open transports,
+scan local config, or invoke live MCP infrastructure. It adds a repository-owned
+normalization layer for caller-supplied MCP tool descriptors and handlers so MCP
+tools enter execution only through the existing `ToolRegistry`.
+
+V1 includes:
+
+- public MCP tool source/config dataclasses
+- conversion of caller-supplied MCP tool descriptors into `RegisteredTool`
+  instances
+- MCP provenance with origin `mcp`
+- conservative default exposure and policy metadata
+- optional registry construction from explicit MCP tool bindings
+- capability status that distinguishes metadata-only MCP declarations from live
+  caller-supplied MCP registry entries
+
+V1 defers:
+
+- stdio, SSE, streamable HTTP, or other transports
+- process launch and cleanup
+- schema discovery from a live server
+- reconnect, cache refresh, and lifecycle diagnostics beyond metadata
+- live MCP progress/log event mapping
 
 ## Functional Requirements
 
@@ -155,19 +181,22 @@ Acceptance criteria:
 
 ## NEEDS CLARIFICATION
 
-- Which MCP transports should v1 support: stdio, SSE, streamable HTTP, or a
-  caller-provided client abstraction only?
-- Should the runtime launch MCP server processes or only consume already-running
-  clients?
-- What is the exact source configuration format?
-- How should tool id namespacing and collision resolution work?
-- What cache policy is acceptable for discovered schemas?
+- RESOLVED for v1: support caller-provided descriptors/handlers only; no
+  transport implementation.
+- RESOLVED for v1: do not launch MCP server processes.
+- RESOLVED for v1: source configuration is an explicit Python API, not package
+  metadata or environment discovery.
+- RESOLVED for v1: callers must provide final tool ids; duplicate ids fail
+  through existing registry behavior.
+- RESOLVED for v1: no schema cache is implemented because schemas are
+  caller-supplied.
 - Which MCP errors are retryable?
 - How should credentials and environment variables be supplied to MCP clients?
 - Should degraded MCP sources allow workflow execution when a required tool is
   missing?
 - How should MCP progress/log messages map to trace events?
-- What approval defaults apply to MCP tools whose side effects are unknown?
+- RESOLVED for v1: MCP tools default to hidden exposure and approval required
+  unless the caller supplies more specific trusted policy metadata.
 
 ## Validation Checklist
 
