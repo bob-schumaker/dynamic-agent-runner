@@ -5,8 +5,8 @@
 - Feature slug: `live-guardrail-execution`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: proposed future feature; guardrail metadata baseline exists, live
-  guardrail execution is not implemented
+- Status: planned next implementation focus; guardrail metadata baseline exists,
+  v1 input guardrail abort planned first
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `extensions.guardrails.declarations`
@@ -46,6 +46,31 @@ adapters and explicit status reporting. Metadata declarations should remain
 visible as metadata-only until the runtime can report required adapters,
 execution phase coverage, redaction policy, and fail-closed behavior before
 workflow execution.
+
+## V1 Slice Boundary
+
+The first implementation slice is intentionally narrow: caller-registered input
+guardrails that can pass or abort before the first model call or tool invocation.
+This creates the live enforcement boundary without introducing tool-output
+redaction, model-visible rejection repair, or external provider dependencies.
+
+V1 includes:
+
+- public guardrail decision/result dataclasses
+- caller-supplied guardrail registry
+- input-phase guardrail execution before the first runtime action
+- fail-closed behavior when a declared input guardrail adapter is missing
+- abort behavior with a package-owned guardrail execution error
+- redacted guardrail trace events
+- capability status for live input guardrail coverage
+
+V1 defers:
+
+- output, tool-input, and tool-output phase enforcement
+- reject-content behavior
+- warning-only behavior
+- retries, timeout policy, and external provider adapters
+- model-assisted repair or rewriting
 
 ## Functional Requirements
 
@@ -147,19 +172,19 @@ Acceptance criteria:
 
 ## NEEDS CLARIFICATION
 
-- What public guardrail adapter protocol should v1 expose?
-- Which phases are required in v1: input, output, tool_input, tool_output?
-- Should guardrail execution be sync, async, or async-canonical like model
-  execution?
-- Should output guardrails run before or after output-contract validation?
-- Who authors model-visible rejection content: manifest, adapter, caller, or
-  runtime default?
-- Are warning-only guardrails supported, or only pass/reject/abort?
+- RESOLVED for v1: expose a small caller-supplied registry of Python guardrail
+  handlers keyed by guardrail id.
+- RESOLVED for v1: implement input phase only.
+- RESOLVED for v1: execution is async-canonical with sync handlers accepted
+  through the same event-loop-safe pattern used for tools.
+- DEFERRED: output guardrail ordering relative to output-contract validation.
+- DEFERRED: model-visible rejection content.
+- RESOLVED for v1: support pass and abort only.
 - What retry policy applies to guardrail adapter failures?
 - What timeout defaults apply per phase?
 - How should multiple guardrails at the same phase compose?
-- Can guardrails inspect raw tool output, sensitive trace fields, or only
-  model-facing output?
+- RESOLVED for v1: input guardrails inspect the initial user prompt only; raw
+  tool output and sensitive trace fields remain out of scope.
 
 ## Validation Checklist
 
