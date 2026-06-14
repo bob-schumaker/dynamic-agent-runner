@@ -5,13 +5,14 @@
 - Feature slug: `llama-cpp-local-model`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: active feature record; Slices 1-2 complete; direct in-process
-  llama.cpp chat is the next planned follow-up
+- Status: implemented feature record; Slices 1-3 complete; optional embedding
+  follow-up remains unscheduled
 - Version: `1.0`
-- Owner: repository maintainers and future implementers of local-model support
-- Next gate: Slice 3 follow-up may begin with direct in-process
-  `llama_cpp.Llama` chat adapter tests, while `validation.md` remains the source
-  of truth for fresh execution evidence
+- Owner: repository maintainers and future implementers of local-model follow-up
+  work
+- Next gate: optional embedding follow-up or a separate advisory feature such as
+  `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md` remains the
+  source of truth for fresh execution evidence
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
   - first-slice local endpoint helper implementation landed in commit `6d269ad`
@@ -32,9 +33,11 @@
     (`feat(local-models): wire default hub downloads`)
   - Slice 2 authoritative model-identity preservation landed in commit
     `9b7078f` (`feat(local-models): preserve authoritative model identity`)
-  - fresh T1.1, T1.2, T2.1, and T2.2 RED checkpoints plus targeted T1.3, T1.4,
-    T1.5, T2.3, T2.4, T2.5, and T2.6 GREEN validation now exist; Slice 2 is now
-    complete and any next follow-up is an optional Slice 3 step
+  - Slice 3 direct in-process llama.cpp adapter implementation landed in commit
+    `58136d9` (`feat(local-models): add direct llama cpp adapter`)
+  - fresh T1.1, T1.2, T2.1, T2.2, T3.1, and T3.2 RED checkpoints plus targeted
+    T1.3, T1.4, T1.5, T2.3, T2.4, T2.5, T2.6, T3.3, T3.4, and T3.5 GREEN
+    validation now exist; Slices 1-3 are complete
   - any earlier prototype work is non-authoritative historical context only
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
@@ -68,11 +71,11 @@ contract instead of introducing a parallel local-model execution family.
 - the provider-wrapper direction preserves repository-owned request and response
   boundaries around OpenAI-compatible transports
 
-The repository does not yet have an authoritative feature-level source of truth
-for how llama.cpp local execution should fit those seams. Earlier prototype work
-was intentionally reverted, so future work must not reintroduce an ad hoc local
-execution path that bypasses the established adapter contract or requires a
-local server when the caller wants direct in-process execution.
+The repository has an authoritative local-model source of truth for how
+llama.cpp local execution fits those seams. Completed implementation work must
+not regress into an ad hoc local execution path that bypasses the established
+adapter contract or requires a local server when the caller wants direct
+in-process execution.
 
 ## Users
 
@@ -159,10 +162,10 @@ This feature specification covers:
 
 ## Current Status and Boundary
 
-- The repository now contains an initial local-model helper module at
+- The repository contains the local-model helper module at
   `src/dynamic_agent_runner/local_models.py`, added in commit `6d269ad`
   (`feat(local-models): add local openai endpoint helpers`).
-- Fresh test-first execution has progressed through T2.6 GREEN: T1.1 RED
+- Fresh test-first execution has progressed through T3.5 GREEN: T1.1 RED
   helper-contract tests landed in commit `a5798cc`
   (`test(local-models): add RED tests for local endpoint helpers`), T1.2 RED
   executor-routing tests landed in commit `b79f124`
@@ -176,15 +179,19 @@ This feature specification covers:
   endpoint-failure translation implementation landed in commit `f4bcb0e`, and
   the T2.5 default Hugging Face download wiring landed in commit `d5857dd`, and
   the T2.6 authoritative model-identity preservation implementation landed in
-  commit `9b7078f`,
+  commit `9b7078f`, and the Slice 3 direct in-process llama.cpp implementation
+  landed in commit `58136d9`,
   keeping local helper construction on the repository-owned adapter/provider
-  path while establishing the approved Slice 2 resolution surface in
+  path while establishing the approved Slice 2 resolution surface and Slice 3
+  direct adapter surface in
   `local_models.py`, the minimal local-model error taxonomy it depends on, the
   local-endpoint-specific translation seam for connectivity and protocol
   failures, the default `huggingface_hub` wiring for explicit file and snapshot
-  references, and runtime-owned mismatch reporting that preserves authoritative
+  references, runtime-owned mismatch reporting that preserves authoritative
   identity metadata across expected model IDs, explicit local paths, explicit
-  Hub file references, and endpoint-observed model names.
+  Hub file references, and endpoint-observed model names, plus sync and async
+  direct llama.cpp adapters backed by lazy dependency loading and package-owned
+  response normalization.
 - Any earlier prototype code or prior test results are historical context only
   and do not count as current implementation or validation evidence.
 - This artifact is authoritative for feature intent and design boundaries;
@@ -193,18 +200,19 @@ This feature specification covers:
   exists. Future implementation work must derive technical approach, execution
   order, and validation commands from companion SDD artifacts rather than coding
   directly from this spec alone.
-- Implementation for this feature now proceeds from the approved `plan.md` and
-  `tasks.md`; future validation evidence should be recorded in `validation.md`.
+- Implementation for Slices 1-3 is complete. Optional follow-up work should
+  proceed from refreshed companion artifacts, and future validation evidence
+  should be recorded in `validation.md`.
 
 ## Primary Implementation Path
 
-- Slices 1-2 already delivered caller-owned OpenAI-compatible endpoint helpers
-  and local model asset resolution. That path remains available when the caller
-  already provides a llama.cpp server or another OpenAI-compatible wrapper.
-- The next implementation path should add a direct in-process llama.cpp chat
-  adapter backed by documented `llama_cpp.Llama` APIs. Direct local execution
-  must not require the `llama_cpp.server` package extra, a reachable local
-  server, or runtime-managed server lifecycle.
+- Slices 1-2 delivered caller-owned OpenAI-compatible endpoint helpers and local
+  model asset resolution. That path remains available when the caller already
+  provides a llama.cpp server or another OpenAI-compatible wrapper.
+- Slice 3 delivered a direct in-process llama.cpp chat adapter backed by
+  documented `llama_cpp.Llama` APIs. Direct local execution does not require the
+  `llama_cpp.server` package extra, a reachable local server, or
+  runtime-managed server lifecycle.
 - The expected runtime surface is still the normal model adapter contract:
   advertised model names, `is_local=True`, `create_response(...)` /
   async-wrapper behavior, package-owned request/response normalization, and
@@ -591,15 +599,15 @@ this specification.
   server wrappers.
 - `specs/internal-graph-mutation/spec.md` remains the authoritative future spec
   for graph mutation and context pruning rather than this feature.
-- Future implementation planning may depend on accepted runtime integration with
+- Future follow-up planning may depend on accepted runtime integration with
   `llama-cpp-python` and the optional `huggingface` extra, but this spec does
   not by itself authorize additional dependency changes or packaging decisions.
 
 ### Assumptions
 
-- The repository now has an initial local endpoint helper implementation, but
-  broader llama.cpp follow-up work still requires fresh validation as each slice
-  lands.
+- The repository now has local endpoint helpers, local model asset resolution,
+  and direct in-process llama.cpp chat adapters. Broader llama.cpp follow-up
+  work still requires fresh validation as each slice lands.
 - Direct llama.cpp execution should use the installed `llama-cpp-python`
   dependency without the `server` extra.
 - The caller or deployer can own endpoint provisioning, credentials, readiness,
@@ -609,11 +617,11 @@ this specification.
 
 ## Open Questions and Next Planning Decisions
 
-- No blocking `NEEDS CLARIFICATION` items remain for this spec-level approval.
-- The next SDD gate may begin Slice 3 planning with direct in-process
-  `llama_cpp.Llama` chat adapter tests.
-- `tasks.md` should decompose direct in-process local chat separately from later
-  optional embedding work.
+- No blocking `NEEDS CLARIFICATION` items remain for completed Slices 1-3.
+- The next SDD gate may plan the optional embedding follow-up or a separate
+  advisory feature such as llama.cpp memory-fit profiling.
+- `tasks.md` should keep optional embedding or advisory profiling work separate
+  from completed direct in-process local chat.
 
 ## Design Constraints
 
@@ -648,12 +656,14 @@ this specification.
 
 ## Validation Status
 
-- This spec is authoritative for intended future behavior and boundaries.
-- Fresh validation evidence now includes T1.1, T1.2, T2.1, and T2.2 RED
-  checkpoints plus the targeted T1.3, T1.4, T1.5, T2.3, T2.4, T2.5, and T2.6
-  GREEN implementation checks, recorded in commits `a5798cc`, `b79f124`,
+- This spec is authoritative for implemented behavior and remaining optional
+  follow-up boundaries.
+- Fresh validation evidence now includes T1.1, T1.2, T2.1, T2.2, T3.1, and T3.2
+  RED checkpoints plus the targeted T1.3, T1.4, T1.5, T2.3, T2.4, T2.5, T2.6,
+  T3.3, T3.4, and T3.5 GREEN implementation checks, recorded in commits
+  `a5798cc`, `b79f124`,
   `6d269ad`, `ee0bf33`, `dd37c62`, `f564caa`, `cdc1b00`, `7a11464`, `f4bcb0e`,
-  `d5857dd`, `9b7078f`, and
+  `d5857dd`, `9b7078f`, `58136d9`, and
   `specs/llama-cpp-local-model/validation.md`.
   - Command: `poetry run pytest tests/test_openai_client.py -q 2>&1`
   - Observed outcome: `3 failed, 24 passed`

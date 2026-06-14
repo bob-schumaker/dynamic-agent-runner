@@ -450,7 +450,7 @@ unscheduled
   surface is implemented.
 - Slice 2 should not begin until the endpoint-backed local chat checkpoint is
   stable.
-- Slice 3 is the next direct in-process llama.cpp chat slice.
+- Slice 3 direct in-process llama.cpp chat is complete through T3.5.
 - Slice 5 embedding follow-up remains optional and should not block direct local
   chat delivery.
 

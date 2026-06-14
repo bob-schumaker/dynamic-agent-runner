@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Implementation Plan
 
-Status: active implementation record; Slices 1-2 complete, direct in-process
-Slice 3 pending
+Status: active implementation record; Slices 1-3 complete, optional embedding
+follow-up unscheduled
 
 ## Goal
 
@@ -21,12 +21,12 @@ the existing OpenAI-compatible endpoint path when callers already provide one.
 
 ## Technical Summary
 
-- Slices 1-2 already added caller-facing local endpoint helpers, model asset
-  resolution, and local failure taxonomy.
-- Slice 3 should add a caller-facing direct in-process llama.cpp chat adapter
-  backed by documented `llama_cpp.Llama` APIs without requiring a local server
-  or the `llama-cpp-python[server]` extra.
-- Slice 3 must keep executor behavior unchanged by continuing to rely on
+- Slices 1-2 added caller-facing local endpoint helpers, model asset resolution,
+  and local failure taxonomy.
+- Slice 3 added caller-facing direct in-process llama.cpp chat adapters backed
+  by documented `llama_cpp.Llama` APIs without requiring a local server or the
+  `llama-cpp-python[server]` extra.
+- Slice 3 kept executor behavior unchanged by continuing to rely on
   advertised adapter `models`, `is_local=True`, and strict/augmented
   `model_adapter_coverage` behavior.
 - Local-model-specific configuration, reference parsing, and future asset
@@ -73,8 +73,9 @@ the existing OpenAI-compatible endpoint path when callers already provide one.
   `huggingface_hub` file/snapshot wiring for the runtime-owned resolution path,
   plus authoritative model-identity preservation across endpoint aliases,
   explicit local paths, explicit Hub references, and observed provider model
-  names; Slice 2 is now complete and direct in-process llama.cpp chat is the
-  next pending follow-up.
+  names, plus direct in-process llama.cpp sync and async adapters backed by lazy
+  dependency loading and package-owned response normalization; Slices 1-3 are
+  now complete.
 - Existing tests already exercise fake-client adapter behavior and executor
   routing, so the new feature can extend current test surfaces without live
   infrastructure.
@@ -185,7 +186,7 @@ direct `llama_cpp.Llama` adapter for in-process execution.
 - Server ownership would add deployment-specific behavior to a portable runtime
   library and would not improve the existing adapter-routing seam.
 
-### Why direct in-process llama.cpp is now the next slice
+### Why direct in-process llama.cpp became Slice 3
 
 - The endpoint-backed helper path and model-resolution support already exist.
 - The package dependency now uses `llama-cpp-python` without the `server` extra.
@@ -442,8 +443,9 @@ Initial recorded evidence:
   T2.4 execution, producing implementation commit `f4bcb0e`. The user later
   directed T2.5 execution, producing implementation commit `d5857dd`. The user
   later directed T2.6 execution, producing implementation commit `9b7078f`.
-  Slice 1 is now complete through its export and focused-validation checkpoint,
-  and Slice 2 now has committed precedence and failure-taxonomy RED tests plus
-  runtime-owned resolution, endpoint-failure translation, default Hub download
-  wiring, and authoritative mismatch-identity preservation. Any next work is an
-  optional Slice 3 follow-up rather than an unfinished Slice 2 gate.
+  The user later directed Slice 3 execution, producing implementation commit
+  `58136d9`. Slices 1-3 are now complete through endpoint helpers, model asset
+  resolution, failure taxonomy, default Hub download wiring, authoritative
+  mismatch-identity preservation, and direct in-process llama.cpp sync/async
+  adapters. Any next work is optional embedding or advisory profiling follow-up
+  rather than an unfinished direct-chat gate.

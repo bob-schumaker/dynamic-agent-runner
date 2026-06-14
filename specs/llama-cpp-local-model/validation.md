@@ -1,6 +1,6 @@
 # llama.cpp Local-Model Adapter Validation Log
 
-Status: complete through Slice 2; optional Slice 3 validation not started
+Status: complete through Slice 3; optional embedding follow-up not started
 
 ## Scope
 
@@ -14,9 +14,10 @@ Status: complete through Slice 2; optional Slice 3 validation not started
   committed in `f564caa`, T2.2 RED failure-taxonomy tests are now committed in
   `cdc1b00`, T2.3 resolution helpers are now implemented in `7a11464`, T2.4
   endpoint-failure translation is now implemented in `f4bcb0e`, T2.5 default
-  Hub download wiring is now implemented in `d5857dd`, and T2.6 authoritative
-  model-identity preservation is now implemented in `9b7078f`; the Slice 2
-  checkpoint is complete through T4.4
+  Hub download wiring is now implemented in `d5857dd`, T2.6 authoritative
+  model-identity preservation is now implemented in `9b7078f`, and Slice 3
+  direct in-process llama.cpp chat is implemented in `58136d9`; the feature is
+  complete through T3.5 and T4.5, with optional embedding follow-up unscheduled
 
 ## Executed Checks
 
@@ -254,7 +255,23 @@ Status: complete through Slice 2; optional Slice 3 validation not started
   endpoint-backed adapters can reject mismatched observed model names while
   keeping the generic OpenAI-compatible adapter seam intact.
 
+### T3.1-T3.5 GREEN — direct in-process llama.cpp chat
+
+- Commit: `58136d9` (`feat(local-models): add direct llama cpp adapter`)
+- Command: `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+- Observed result: `23 passed in 0.15s`
+- Command:
+  `poetry run pytest tests/test_local_models.py tests/test_executor.py`
+  `tests/test_import.py -q`
+- Observed result: `92 passed in 0.45s`
+- Interpretation: direct sync and async llama.cpp adapters are package-visible,
+  resolve model assets through existing local-model helpers, lazily load
+  llama.cpp dependencies, translate backend failures through package-owned
+  errors, normalize chat responses, and preserve strict/augmented adapter
+  coverage behavior without requiring live GGUF models or a llama.cpp server.
+
 ## Pending Follow-up
 
-- T3.1 — add RED tests for separate local embedding configuration only if the
-  optional Slice 3 follow-up is explicitly scheduled
+- T5.0 — add RED tests and a focused task breakdown for separate local embedding
+  configuration only if the optional embedding follow-up is explicitly
+  scheduled.
