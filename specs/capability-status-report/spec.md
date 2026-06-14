@@ -5,7 +5,7 @@
 - Feature slug: `capability-status-report`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: planned next implementation focus; no implementation committed yet
+- Status: implemented v1 baseline
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - runtime manifest metadata preservation
@@ -145,10 +145,9 @@ Acceptance criteria:
 - Unit tests can construct reports with fake packages, fake registries, fake
   adapters, and no live network or model calls.
 
-## Suggested Public API Shape
+## Public API Shape
 
-The exact names are not authoritative. A future implementation may expose a
-small API such as:
+The v1 implementation exposes:
 
 ```python
 from dynamic_agent_runner import inspect_agent_package_capabilities
@@ -181,7 +180,25 @@ wide gap between implemented runtime behavior and future metadata. This report i
 the smallest product-facing way to keep that boundary visible while deeper live
 features are implemented in separate slices.
 
-## NEEDS CLARIFICATION
+## Implementation Status
+
+- Implemented package-root public entry point:
+  `inspect_agent_package_capabilities(...)`.
+- Implemented package-owned status contract:
+  `CapabilityState`, `CapabilityStatusItem`, `CapabilityStatusSummary`, and
+  `CapabilityStatusReport`.
+- Implemented advisory validation behavior for invalid packages, with strict
+  mode preserving existing validation exceptions.
+- Implemented metadata-only reporting for approval interruption, async session,
+  sandbox runtime, tool-use completion policy, handoffs, guardrails, MCP
+  registry sources, and skill refs.
+- Implemented collaborator coverage reporting for strict model adapter
+  coverage, missing/disabled/registered tool registry entries, and built-in
+  `local_workspace` pack status.
+- Deferred CLI rendering and future collaborator types until a concrete caller
+  needs them.
+
+## Clarifications
 
 - RESOLVED for v1: expose a package-root public entry point and a lower-level
   module function; defer CLI output until the structured report object exists.
@@ -194,16 +211,16 @@ features are implemented in separate slices.
   items, not warnings; the summary counts them separately.
 - RESOLVED for v1: report owning feature slugs as stable strings, not local spec
   file paths.
-- DEFERRED: CLI shape remains open until the core API and report dataclasses are
-  implemented.
+- DEFERRED: CLI shape remains open until there is a concrete command-line caller
+  for the structured report.
 
 ## Validation Checklist
 
-- [ ] Metadata-only approval, sandbox, MCP, guardrail, skill, loop, and session
+- [x] Metadata-only approval, sandbox, MCP, guardrail, skill, loop, and session
       declarations are reported as metadata-only when live behavior is absent.
-- [ ] Missing model coverage is reported consistently with
+- [x] Missing model coverage is reported consistently with
       `model_adapter_coverage`.
-- [ ] Missing registered tools are reported without invoking tools.
-- [ ] Enabled built-in read-only tool packs are distinguished from disabled packs.
-- [ ] Report output is deterministic and redacted.
-- [ ] Invalid package artifacts still fail closed.
+- [x] Missing registered tools are reported without invoking tools.
+- [x] Enabled built-in read-only tool packs are distinguished from disabled packs.
+- [x] Report output is deterministic and redacted.
+- [x] Invalid package artifacts still fail closed.

@@ -1,6 +1,6 @@
 # Capability Status Report Validation Log
 
-Status: Slice 3 collaborator coverage implemented
+Status: v1 baseline complete
 
 ## Scope
 
@@ -78,3 +78,32 @@ Status: Slice 3 collaborator coverage implemented
 - Interpretation: capability inspection now reports strict model adapter
   coverage, missing tool registries, disabled tools, registered tools, and
   built-in local workspace pack status without invoking models or tools.
+
+### T4.1 Focused Capability Tests
+
+- Command: `poetry run pytest tests/test_capabilities.py -q`
+- Observed result: `5 passed in 0.11s`
+- Interpretation: v1 capability-status report behavior remains green after the
+  collaborator coverage slice.
+
+### T4.2 Affected Package Tests
+
+- Command:
+  `poetry run pytest tests/test_capabilities.py tests/test_validation.py`
+  `tests/test_executor.py tests/test_import.py -q`
+- Observed result: `133 passed in 0.48s`
+- Interpretation: capability-status inspection composes with validation,
+  executor, and package import behavior.
+
+### T4.3 Focused Pre-Commit
+
+- Command:
+  `pre-commit run --files src/dynamic_agent_runner/capabilities.py`
+  `src/dynamic_agent_runner/__init__.py tests/test_capabilities.py`
+  `specs/capability-status-report/spec.md`
+  `specs/capability-status-report/plan.md`
+  `specs/capability-status-report/tasks.md`
+  `specs/capability-status-report/validation.md`
+- Observed result: passed
+- Interpretation: formatting, linting, and Markdown checks passed for the v1
+  implementation and completion evidence.

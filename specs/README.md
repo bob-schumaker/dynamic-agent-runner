@@ -29,7 +29,7 @@ Companion planning artifacts:
 | Hugging Face support layer | [`spec.md`](hugging-face-support-layer/spec.md) | Implemented | Internal shared Hub import/call/error mechanics, search routing, local download routing, tests, and validation complete |
 | llmfit model-fit filter | [`spec.md`](llmfit-model-fit-filter/spec.md) | Future optional advisory feature | Proposed optional `llmfit`-on-`PATH` pre-download filter; keep recommended plus unknown models without bundling or installing llmfit |
 | llama.cpp memory fit profile | [`spec.md`](llama-cpp-memory-fit-profile/spec.md) | Future optional advisory feature | Proposed optional post-resolution memory-fit profiler for concrete local GGUF assets; estimate safe context without changing adapter execution |
-| Capability status report | [`spec.md`](capability-status-report/spec.md) | Next implementation focus | Planned preflight report that distinguishes live, metadata-only, unavailable, disabled, and invalid runtime capabilities |
+| Capability status report | [`spec.md`](capability-status-report/spec.md) | Implemented | Public preflight report distinguishes live, metadata-only, missing-collaborator, disabled, and invalid runtime capabilities; CLI rendering and future collaborator types remain deferred |
 | Async session memory pipeline | [`spec.md`](async-session-memory-pipeline/spec.md) | Metadata baseline plus future analysis | Metadata-only OA8 baseline implemented; no runner-owned session behavior |
 | LLM step interpreter middleware | [`spec.md`](llm-step-interpreter-middleware/spec.md) | Future investigation | Spec captured; backend selection, prototypes, and implementation not started |
 | Approval interruption and resume | [`spec.md`](approval-interruption-resume/spec.md) | Future live-runtime feature | Metadata baseline exists; live pause/resume not implemented |
@@ -55,7 +55,7 @@ Companion planning artifacts:
 | Shared Hugging Face SDK support | `hugging-face-support-layer` | Internal helper for lazy Hub import, read-only Hub calls, and domain-specific error translation complete | Future Hub behavior beyond search and local-model downloads requires a separate feature spec |
 | Optional local model fit filtering | `llmfit-model-fit-filter` | None | Future optional `llmfit` CLI JSON advisory layer to preserve recommended and unknown models before explicit Hub asset downloads |
 | Optional llama.cpp memory fit profiling | `llama-cpp-memory-fit-profile` | None | Future optional profiler for resolved local GGUF assets to estimate resident memory, context growth, supported context tiers, and suggested effective context |
-| Capability/status reporting | `capability-status-report` | Planning checkpoint | Future preflight/public report to prevent metadata-only declarations from being mistaken for live runtime behavior |
+| Capability/status reporting | `capability-status-report` | Public report contract, package inspection, metadata-only declarations, model adapter coverage, tool registry coverage, built-in tool-pack status, invalid package reporting, tests, and completion evidence complete | Future CLI rendering and additional collaborator types remain deferred until there is a concrete caller |
 | Async session metadata | `async-session-memory-pipeline` | `runtime.execution_policy.async_session` metadata preservation and fail-closed validation complete | Runner-owned durable storage, replay, summary generation, and pruning are deferred |
 | Interpreter middleware | `llm-step-interpreter-middleware` | Future feature spec and candidate interface expectations captured | Dependency checks, prototypes, benchmark evidence, backend selection, and implementation |
 | Sandbox/workspace runtime | `sandbox-workspace-runtime` | Metadata-only `sandbox_runtime` preservation complete | Write tools, shell tools, workspace grants, and approval policy are specified as future work |
@@ -89,10 +89,10 @@ dependency order. This is roadmap memory, not implementation authorization; each
 item still needs a scoped plan and task slice before code changes begin.
 
 1. Keep the spec portfolio status text consistent before new work.
-2. Implement `capability-status-report` so callers can distinguish live,
-   metadata-only, missing-collaborator, disabled, unsupported, and invalid
+2. Complete: implement `capability-status-report` so callers can distinguish
+   live, metadata-only, missing-collaborator, disabled, unsupported, and invalid
    capabilities.
-3. Ship a narrow live-action vertical slice pairing
+3. Next: ship a narrow live-action vertical slice pairing
    `approval-interruption-resume` with `sandbox-workspace-runtime`.
 4. Expand capability/status reporting for the new approval/sandbox capabilities.
 5. Add policy-bound `mcp-runtime-integration`.

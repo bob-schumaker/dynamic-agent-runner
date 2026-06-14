@@ -1,6 +1,6 @@
 # Capability Status Report Task List
 
-Status: ready for first implementation slice
+Status: v1 baseline complete
 
 ## Slice 0 — Planning Checkpoint
 
@@ -80,15 +80,17 @@ Status: ready for first implementation slice
 
 ## Slice 4 — Validation and Completion Evidence
 
-- [ ] T4.1 [validation] Run focused capability tests.
+- [x] T4.1 [validation] Run focused capability tests.
   - Command: `poetry run pytest tests/test_capabilities.py -q`
+  - Result: `5 passed in 0.11s`
 
-- [ ] T4.2 [validation] Run affected package tests.
+- [x] T4.2 [validation] Run affected package tests.
   - Command:
     `poetry run pytest tests/test_capabilities.py tests/test_validation.py`
     `tests/test_executor.py tests/test_import.py -q`
+  - Result: `133 passed in 0.48s`
 
-- [ ] T4.3 [validation] Run focused pre-commit.
+- [x] T4.3 [validation] Run focused pre-commit.
   - Command:
     `pre-commit run --files src/dynamic_agent_runner/capabilities.py`
     `src/dynamic_agent_runner/__init__.py tests/test_capabilities.py`
@@ -96,6 +98,7 @@ Status: ready for first implementation slice
     `specs/capability-status-report/plan.md`
     `specs/capability-status-report/tasks.md`
     `specs/capability-status-report/validation.md`
+  - Result: passed
 
-- [ ] T4.4 [docs] Record validation evidence in
+- [x] T4.4 [docs] Record validation evidence in
       `specs/capability-status-report/validation.md`.
