@@ -5,8 +5,8 @@
 - Feature slug: `sandbox-workspace-runtime`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: proposed future feature; metadata baseline exists, write/shell runtime
-  is not implemented
+- Status: paired with approval-interruption v1 planning; metadata baseline
+  exists, write/shell runtime is not implemented
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `runtime.execution_policy.sandbox_runtime`
@@ -49,6 +49,18 @@ The council review recommends pairing this feature with
 The first useful slice should not attempt a full sandbox platform. It should
 start with explicit path grants, one or two mutating workspace tools, approval
 interruption before side effects, and a redacted changed-path summary.
+
+## V1 Paired Slice Boundary
+
+The first paired implementation slice does not add write, patch, delete, shell,
+package-install, or mounted-workspace tools. It contributes the approval policy
+side of sandbox safety by proving that approval-required direct tool actions
+pause before any side effect.
+
+This keeps the first slice small enough to validate without introducing a host
+sandbox backend. Later sandbox slices can add explicit workspace grants and
+mutating tools behind the approval boundary created by
+`approval-interruption-resume`.
 
 ## Functional Requirements
 
