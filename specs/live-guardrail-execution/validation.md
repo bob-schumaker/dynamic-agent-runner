@@ -1,6 +1,6 @@
 # Live Guardrail Execution V1 Validation Log
 
-Status: Slice 3 input guardrail capability status implemented
+Status: v1 input-guardrail baseline complete
 
 ## Scope
 
@@ -89,3 +89,30 @@ Status: Slice 3 input guardrail capability status implemented
 - Interpretation: capability status now reports input guardrails as missing a
   guardrail registry collaborator or live when a matching adapter is supplied,
   while preserving guardrail declarations as metadata.
+
+### T4.1 Focused Affected Tests
+
+- Command:
+  `poetry run pytest tests/test_guardrails.py tests/test_executor.py`
+  `tests/test_tracing.py tests/test_capabilities.py tests/test_import.py -q`
+- Observed result: `99 passed in 0.46s`
+- Interpretation: guardrail contracts, input enforcement, tracing, capability
+  status, and public imports are green together.
+
+### T4.2 Focused Pre-Commit
+
+- Command:
+  `pre-commit run --files src/dynamic_agent_runner/guardrails.py`
+  `src/dynamic_agent_runner/executor.py`
+  `src/dynamic_agent_runner/context.py`
+  `src/dynamic_agent_runner/capabilities.py`
+  `src/dynamic_agent_runner/__init__.py tests/test_guardrails.py`
+  `tests/test_executor.py tests/test_tracing.py`
+  `tests/test_capabilities.py tests/test_import.py`
+  `specs/live-guardrail-execution/spec.md`
+  `specs/live-guardrail-execution/plan.md`
+  `specs/live-guardrail-execution/tasks.md`
+  `specs/live-guardrail-execution/validation.md specs/README.md`
+- Observed result: passed
+- Interpretation: lint, formatting, and Markdown checks passed for the completed
+  v1 input-guardrail baseline.

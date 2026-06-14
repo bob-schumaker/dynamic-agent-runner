@@ -86,12 +86,13 @@ Status: planned next implementation slice
 
 ## Slice 4 — Completion Evidence
 
-- [ ] T4.1 [validation] Run focused affected tests.
+- [x] T4.1 [validation] Run focused affected tests.
   - Command:
     `poetry run pytest tests/test_guardrails.py tests/test_executor.py`
     `tests/test_tracing.py tests/test_capabilities.py tests/test_import.py -q`
+  - Result: `99 passed in 0.46s`
 
-- [ ] T4.2 [validation] Run focused pre-commit.
+- [x] T4.2 [validation] Run focused pre-commit.
   - Command:
     `pre-commit run --files src/dynamic_agent_runner/guardrails.py`
     `src/dynamic_agent_runner/executor.py`
@@ -104,6 +105,7 @@ Status: planned next implementation slice
     `specs/live-guardrail-execution/plan.md`
     `specs/live-guardrail-execution/tasks.md`
     `specs/live-guardrail-execution/validation.md specs/README.md`
+  - Result: passed
 
-- [ ] T4.3 [docs] Record completion evidence and update spec status before the
+- [x] T4.3 [docs] Record completion evidence and update spec status before the
       next focus area.

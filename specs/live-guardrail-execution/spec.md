@@ -5,8 +5,8 @@
 - Feature slug: `live-guardrail-execution`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: planned next implementation focus; guardrail metadata baseline exists,
-  v1 input guardrail abort planned first
+- Status: implemented v1 input-guardrail baseline; output/tool phases remain
+  deferred
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `extensions.guardrails.declarations`
@@ -71,6 +71,20 @@ V1 defers:
 - warning-only behavior
 - retries, timeout policy, and external provider adapters
 - model-assisted repair or rewriting
+
+## Implementation Status
+
+- Implemented `GuardrailDecision`, `GuardrailResult`, and
+  `InMemoryGuardrailRegistry`.
+- Implemented input guardrail execution before the first model call or tool
+  invocation.
+- Implemented fail-closed behavior for missing input guardrail adapters.
+- Implemented abort behavior through `GuardrailExecutionError`.
+- Implemented redacted guardrail trace events.
+- Implemented capability-status reporting for missing and live input guardrail
+  adapter coverage.
+- Deferred output, tool-input, tool-output, reject-content, warning-only,
+  retries, timeouts, and external guardrail provider adapters.
 
 ## Functional Requirements
 
@@ -188,10 +202,10 @@ Acceptance criteria:
 
 ## Validation Checklist
 
-- [ ] Missing required guardrail adapter fails during preparation.
-- [ ] Input guardrail abort prevents model/tool execution.
+- [x] Missing required input guardrail adapter fails before execution.
+- [x] Input guardrail abort prevents model/tool execution.
 - [ ] Tool-input guardrail rejection prevents callable invocation.
 - [ ] Tool-output guardrail rejection prevents model-visible leakage.
 - [ ] Output guardrail composes with output-contract validation.
 - [ ] Multiple guardrails compose deterministically.
-- [ ] Trace payloads are redacted by default.
+- [x] Input guardrail trace payloads are redacted by default.
