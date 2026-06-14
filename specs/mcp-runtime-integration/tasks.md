@@ -82,12 +82,13 @@ Status: planned next implementation slice
 
 ## Slice 4 — Completion Evidence
 
-- [ ] T4.1 [validation] Run focused affected tests.
+- [x] T4.1 [validation] Run focused affected tests.
   - Command:
     `poetry run pytest tests/test_mcp.py tests/test_registry.py`
     `tests/test_capabilities.py tests/test_import.py -q`
+  - Result: `46 passed in 0.17s`
 
-- [ ] T4.2 [validation] Run focused pre-commit.
+- [x] T4.2 [validation] Run focused pre-commit.
   - Command:
     `pre-commit run --files src/dynamic_agent_runner/mcp.py`
     `src/dynamic_agent_runner/registry.py`
@@ -98,6 +99,7 @@ Status: planned next implementation slice
     `specs/mcp-runtime-integration/plan.md`
     `specs/mcp-runtime-integration/tasks.md`
     `specs/mcp-runtime-integration/validation.md specs/README.md`
+  - Result: passed
 
-- [ ] T4.3 [docs] Record completion evidence and update spec status before the
+- [x] T4.3 [docs] Record completion evidence and update spec status before the
       next focus area.

@@ -1,6 +1,6 @@
 # MCP Runtime Integration V1 Validation Log
 
-Status: Slice 3 MCP capability status implemented
+Status: v1 explicit registry-injection baseline complete
 
 ## Scope
 
@@ -79,3 +79,28 @@ Status: Slice 3 MCP capability status implemented
 - Interpretation: capability status now distinguishes declarative MCP metadata
   from live caller-supplied MCP-origin registry entries without launching,
   discovering, or invoking MCP infrastructure.
+
+### T4.1 Focused Affected Tests
+
+- Command:
+  `poetry run pytest tests/test_mcp.py tests/test_registry.py`
+  `tests/test_capabilities.py tests/test_import.py -q`
+- Observed result: `46 passed in 0.17s`
+- Interpretation: MCP binding, registry behavior, capability status, and package
+  exports are green together.
+
+### T4.2 Focused Pre-Commit
+
+- Command:
+  `pre-commit run --files src/dynamic_agent_runner/mcp.py`
+  `src/dynamic_agent_runner/registry.py`
+  `src/dynamic_agent_runner/capabilities.py`
+  `src/dynamic_agent_runner/__init__.py tests/test_mcp.py`
+  `tests/test_registry.py tests/test_capabilities.py tests/test_import.py`
+  `specs/mcp-runtime-integration/spec.md`
+  `specs/mcp-runtime-integration/plan.md`
+  `specs/mcp-runtime-integration/tasks.md`
+  `specs/mcp-runtime-integration/validation.md specs/README.md`
+- Observed result: passed
+- Interpretation: lint, formatting, and Markdown checks passed for the completed
+  v1 MCP registry-injection baseline.

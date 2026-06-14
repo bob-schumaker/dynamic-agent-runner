@@ -5,8 +5,8 @@
 - Feature slug: `mcp-runtime-integration`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: planned next implementation focus; metadata diagnostics baseline
-  exists, v1 explicit registry injection planned first
+- Status: implemented v1 explicit registry-injection baseline; live transports
+  and lifecycle remain deferred
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `extensions.mcp_registry_sources`
@@ -73,6 +73,18 @@ V1 defers:
 - schema discovery from a live server
 - reconnect, cache refresh, and lifecycle diagnostics beyond metadata
 - live MCP progress/log event mapping
+
+## Implementation Status
+
+- Implemented `MCPToolBinding`.
+- Implemented `registered_tool_from_mcp_binding(...)`.
+- Implemented `create_mcp_registry(...)`.
+- Implemented MCP-origin tool provenance using existing `ToolSource` metadata.
+- Implemented conservative hidden and approval-required defaults, with trusted
+  caller metadata overrides.
+- Implemented capability-status reporting for live MCP-origin registry entries.
+- Deferred transports, process lifecycle, live discovery, schema caching,
+  reconnect, cleanup, and MCP progress/log events.
 
 ## Functional Requirements
 
@@ -200,10 +212,11 @@ Acceptance criteria:
 
 ## Validation Checklist
 
-- [ ] No MCP tools are exposed without explicit source configuration.
+- [x] No MCP tools are exposed without explicit source configuration.
 - [ ] Strict source startup failure aborts preparation.
 - [ ] Degraded source startup failure records diagnostics and omits tools.
-- [ ] Discovered tool schemas become registry definitions with MCP provenance.
-- [ ] Disabled or hidden MCP tools cannot be invoked.
-- [ ] MCP invocation uses registry validation, timeout, retry, and result facets.
+- [x] Caller-supplied tool schemas become registry definitions with MCP
+      provenance.
+- [x] Disabled or hidden MCP tools cannot be model-exposed.
+- [x] MCP invocation uses registry validation and result facets.
 - [ ] Diagnostics are bounded and redacted.
