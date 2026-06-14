@@ -1,6 +1,6 @@
 # MCP Runtime Integration V1 Validation Log
 
-Status: Slice 1 public MCP registry injection contract implemented
+Status: Slice 2 MCP policy defaults and registry behavior covered
 
 ## Scope
 
@@ -50,3 +50,14 @@ Status: Slice 1 public MCP registry injection contract implemented
 - Interpretation: callers can construct explicit MCP tool bindings, convert
   them into registered tools, and build an in-memory registry without live MCP
   infrastructure.
+
+### T2.1/T2.2 Policy Defaults and Registry Behavior
+
+- Command: `poetry run pytest tests/test_mcp.py tests/test_registry.py -q`
+- Observed result: `38 passed in 0.17s`
+- Interpretation: explicit MCP bindings now preserve MCP provenance, default to
+  hidden exposure and approval required, allow trusted caller policy overrides,
+  reject duplicate tool ids through existing registry behavior, and invoke
+  through `InMemoryToolRegistry`.
+- Note: these checks passed without code changes after Slice 1 because the
+  initial helper implementation already normalized this metadata.

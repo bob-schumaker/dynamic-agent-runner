@@ -37,18 +37,26 @@ Status: planned next implementation slice
 
 ## Slice 2 — Policy Defaults and Registry Behavior
 
-- [ ] T2.1 [tests] Add RED tests for MCP provenance, hidden exposure,
+- [x] T2.1 [tests] Add coverage for MCP provenance, hidden exposure,
       approval-required defaults, duplicate id failure, and registry invocation.
   - Spec: FR-3, FR-4, FR-5
   - Files/components: `tests/test_mcp.py`, `tests/test_registry.py`
   - Validation: `poetry run pytest tests/test_mcp.py tests/test_registry.py -q`
+  - Result:
+    - `poetry run pytest tests/test_mcp.py tests/test_registry.py -q` —
+      `38 passed in 0.17s`
+  - Note: these checks were already satisfied by the Slice 1 implementation, so
+    no RED failure was produced.
 
-- [ ] T2.2 [implementation] Normalize MCP binding metadata into existing
+- [x] T2.2 [implementation] Normalize MCP binding metadata into existing
       `ToolDefinition`, `ToolSource`, and `InMemoryToolRegistry` behavior.
   - Spec: FR-3, FR-4, FR-5
   - Files/components: `src/dynamic_agent_runner/mcp.py`,
     `src/dynamic_agent_runner/registry.py`
   - Validation: `poetry run pytest tests/test_mcp.py tests/test_registry.py -q`
+  - Result:
+    - No additional code change was required after explicit tests; behavior was
+      implemented in `dae1b8a`.
 
 ## Slice 3 — Capability Status
 
