@@ -399,3 +399,57 @@ def test_inspect_agent_package_capabilities_reports_live_mcp_registry_entries(
         "source_id": "repo-tools",
         "detail": "repo-mcp:echo",
     }
+
+
+def test_inspect_agent_package_capabilities_reports_input_guardrail_coverage(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import (
+        CapabilityState,
+        GuardrailResult,
+        InMemoryGuardrailRegistry,
+        inspect_agent_package_capabilities,
+    )
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: guardrail-capability-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        extensions:
+          guardrails:
+            declarations:
+              - id: no_secrets
+                phase: input
+                behavior_on_tripwire: abort
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+        edges: []
+        """,
+    )
+
+    missing_report = inspect_agent_package_capabilities(package_directory=package_dir)
+    missing_items = {item.id: item for item in missing_report.items}
+    assert missing_items["metadata.guardrails"].state == CapabilityState.METADATA_ONLY
+    assert (
+        missing_items["guardrail.input.no_secrets"].state
+        == CapabilityState.MISSING_COLLABORATOR
+    )
+
+    registry = InMemoryGuardrailRegistry(
+        {"no_secrets": lambda _subject: GuardrailResult(guardrail_id="no_secrets")}
+    )
+    live_report = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        guardrail_registry=registry,
+    )
+    live_items = {item.id: item for item in live_report.items}
+
+    assert live_items["guardrail.input.no_secrets"].state == CapabilityState.LIVE

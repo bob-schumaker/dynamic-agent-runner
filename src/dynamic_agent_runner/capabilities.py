@@ -117,6 +117,7 @@ def inspect_agent_package_capabilities(
     package_directory: str | Path,
     runtime_overrides: Any | None = None,
     tool_registry: Any | None = None,
+    guardrail_registry: Any | None = None,
     model_adapter: Any | None = None,
     model_adapter_coverage: str | None = None,
     built_in_tool_packs: Iterable[str] | None = None,
@@ -142,6 +143,7 @@ def inspect_agent_package_capabilities(
             plan=plan,
             has_skill_refs=_has_skill_refs(plan),
             tool_registry=tool_registry,
+            guardrail_registry=guardrail_registry,
             model_adapter=model_adapter,
             model_adapter_coverage=model_adapter_coverage,
             built_in_tool_packs=built_in_tool_packs,
@@ -173,6 +175,7 @@ def _capability_items(
     plan: object,
     has_skill_refs: bool,
     tool_registry: object | None,
+    guardrail_registry: object | None,
     model_adapter: object | None,
     model_adapter_coverage: str | None,
     built_in_tool_packs: Iterable[str] | None,
@@ -243,6 +246,12 @@ def _capability_items(
                 "Guardrail declarations",
                 _OWNER_GUARDRAILS,
                 "Guardrail declarations are preserved but not executed.",
+            )
+        )
+        items.extend(
+            _guardrail_coverage_items(
+                manifest.guardrails,
+                guardrail_registry=guardrail_registry,
             )
         )
     if manifest.mcp_registry_sources:
@@ -333,6 +342,44 @@ def _tool_requires_approval(tool: object) -> bool:
         definition, "approval_required", None
     )
     return str(value).strip().lower() in {"1", "true", "yes", "required"}
+
+
+def _guardrail_coverage_items(
+    declarations: Iterable[object],
+    *,
+    guardrail_registry: object | None,
+) -> tuple[CapabilityStatusItem, ...]:
+    items: list[CapabilityStatusItem] = []
+    for declaration in declarations:
+        if getattr(declaration, "phase", None) != "input":
+            continue
+        guardrail_id = str(getattr(declaration, "id", ""))
+        if not guardrail_id:
+            continue
+        has_guardrail = (
+            guardrail_registry is not None
+            and guardrail_registry.has_guardrail(guardrail_id)
+        )
+        items.append(
+            CapabilityStatusItem(
+                id=f"guardrail.input.{guardrail_id}",
+                label=f"Input guardrail {guardrail_id}",
+                state=(
+                    CapabilityState.LIVE
+                    if has_guardrail
+                    else CapabilityState.MISSING_COLLABORATOR
+                ),
+                category="guardrail",
+                summary=(
+                    "Input guardrail has a registered adapter."
+                    if has_guardrail
+                    else "Input guardrail requires a registered adapter."
+                ),
+                owner=_OWNER_GUARDRAILS,
+                required_collaborator=None if has_guardrail else "guardrail_registry",
+            )
+        )
+    return tuple(items)
 
 
 def _has_skill_refs(plan: object) -> bool:

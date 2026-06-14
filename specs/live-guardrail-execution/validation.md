@@ -1,6 +1,6 @@
 # Live Guardrail Execution V1 Validation Log
 
-Status: Slice 2 input guardrail enforcement implemented
+Status: Slice 3 input guardrail capability status implemented
 
 ## Scope
 
@@ -69,3 +69,23 @@ Status: Slice 2 input guardrail enforcement implemented
 - Interpretation: input guardrails fail closed when adapters are missing, abort
   before model/tool execution when a tripwire is returned, and emit redacted
   guardrail trace events.
+
+### T3.1 RED — input guardrail capability status
+
+- Command:
+  `poetry run pytest tests/test_capabilities.py tests/test_guardrails.py -q`
+- Expected result: fail before capability status reports input guardrail adapter
+  coverage
+- Observed result: `1 failed, 10 passed in 0.16s`
+- Failure boundary:
+  - guardrail metadata remained visible as metadata-only
+  - missing/live input guardrail adapter coverage was not reported
+
+### T3.2 GREEN — input guardrail capability status
+
+- Command:
+  `poetry run pytest tests/test_capabilities.py tests/test_guardrails.py -q`
+- Observed result: `11 passed in 0.13s`
+- Interpretation: capability status now reports input guardrails as missing a
+  guardrail registry collaborator or live when a matching adapter is supplied,
+  while preserving guardrail declarations as metadata.

@@ -62,19 +62,27 @@ Status: planned next implementation slice
 
 ## Slice 3 — Capability Status
 
-- [ ] T3.1 [tests] Add RED tests for live input guardrail coverage and missing
+- [x] T3.1 [tests] Add RED tests for live input guardrail coverage and missing
       guardrail collaborator reporting.
   - Spec: FR-2, FR-6
   - Files/components: `tests/test_capabilities.py`
   - Validation:
     `poetry run pytest tests/test_capabilities.py tests/test_guardrails.py -q`
+  - RED:
+    - `poetry run pytest tests/test_capabilities.py`
+      `tests/test_guardrails.py -q` —
+      failed because `guardrail.input.no_secrets` was not reported
 
-- [ ] T3.2 [implementation] Report guardrail metadata separately from live
+- [x] T3.2 [implementation] Report guardrail metadata separately from live
       input guardrail adapter coverage.
   - Spec: FR-2, FR-6
   - Files/components: `src/dynamic_agent_runner/capabilities.py`
   - Validation:
     `poetry run pytest tests/test_capabilities.py tests/test_guardrails.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_capabilities.py`
+      `tests/test_guardrails.py -q` —
+      `11 passed in 0.13s`
 
 ## Slice 4 — Completion Evidence
 
