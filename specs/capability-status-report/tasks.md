@@ -7,25 +7,34 @@ Status: ready for first implementation slice
 - [x] T0.1 Resolve v1 public API, validation path, state vocabulary, and CLI
       deferral decisions in `spec.md`.
 - [x] T0.2 Add `plan.md`, `tasks.md`, and `validation.md` before implementation.
-- [ ] T0.3 Commit the planning checkpoint before code changes.
+- [x] T0.3 Commit the planning checkpoint before code changes.
+  - Completed in commit `0367f84`
+    (`docs(specs): plan capability status report`)
 
 ## Slice 1 — Public Report Contract
 
-- [ ] T1.1 [tests] Add RED tests for package-root exports and report dataclass
+- [x] T1.1 [tests] Add RED tests for package-root exports and report dataclass
       shape.
   - Spec: FR-1, FR-4, FR-5
   - Files/components: `tests/test_capabilities.py`,
     `src/dynamic_agent_runner/__init__.py`,
     `src/dynamic_agent_runner/capabilities.py`
   - Validation: `poetry run pytest tests/test_capabilities.py -q`
+  - RED:
+    - `poetry run pytest tests/test_capabilities.py -q` — failed with missing
+      `CapabilityState` package export and missing
+      `dynamic_agent_runner.capabilities` module
 
-- [ ] T1.2 [implementation] Add `CapabilityState`,
+- [x] T1.2 [implementation] Add `CapabilityState`,
       `CapabilityStatusItem`, `CapabilityStatusSummary`, and
       `CapabilityStatusReport`.
   - Spec: FR-1, FR-4, FR-5
   - Files/components: `src/dynamic_agent_runner/capabilities.py`,
     `src/dynamic_agent_runner/__init__.py`
   - Validation: `poetry run pytest tests/test_capabilities.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_capabilities.py tests/test_import.py -q` —
+      `3 passed in 0.12s`
 
 ## Slice 2 — Package Inspection and Metadata-Only Reporting
 

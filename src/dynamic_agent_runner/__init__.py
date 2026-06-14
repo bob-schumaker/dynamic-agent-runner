@@ -7,6 +7,13 @@ from dynamic_agent_runner.api import (
     run_agent_workflow,
     run_agent_workflow_async,
 )
+from dynamic_agent_runner.capabilities import (
+    CapabilityState,
+    CapabilityStatusItem,
+    CapabilityStatusReport,
+    CapabilityStatusSummary,
+    inspect_agent_package_capabilities,
+)
 from dynamic_agent_runner.context import RunContext, WorkflowExecutionContext
 from dynamic_agent_runner.executor import (
     NodeExecution,
@@ -120,6 +127,10 @@ __all__ = [
     "AsyncOpenAIClientAdapter",
     "AsyncOpenAIClientProtocol",
     "AsyncOpenAIResponsesResource",
+    "CapabilityState",
+    "CapabilityStatusItem",
+    "CapabilityStatusReport",
+    "CapabilityStatusSummary",
     "CompiledAgentWorkflow",
     "compile_agent_workflow",
     "DynamicAgentRunnerError",
@@ -189,6 +200,7 @@ __all__ = [
     "InMemoryToolRegistry",
     "InMemoryTraceSink",
     "estimate_messages_tokens",
+    "inspect_agent_package_capabilities",
     "invoke_lifecycle_hook_async",
     "retry_policy_from_value",
     "run_with_retry_async",
