@@ -61,3 +61,14 @@ Status: planning checkpoint prepared
 - Interpretation: executor behavior remains unchanged when no loop policy is
   present, including model-emitted tool calls that are preserved but not
   dispatched.
+
+### Slice 2 — Serial Model Tool Dispatch
+
+- Command: `poetry run pytest tests/test_executor.py -q`
+- RED observed result: failed because the runtime returned after the first model
+  response instead of dispatching the model-emitted tool and re-calling the
+  model.
+- GREEN observed result: `80 passed in 0.41s`
+- Interpretation: an opt-in `llm_step` loop can dispatch a model-emitted tool
+  through `ToolRegistry`, append model-facing tool output, and use the second
+  model response as the final output.

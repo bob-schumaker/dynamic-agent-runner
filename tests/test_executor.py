@@ -1409,6 +1409,89 @@ def test_execute_workflow_does_not_loop_model_tool_calls_without_policy() -> Non
     assert result.state.node_outputs["analyze"].tool_calls[0].name == "search_repo"
 
 
+def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "loop-tool-agent",
+            "entrypoint": "analyze",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "tool_use_completion": {
+                        "run_again": "required",
+                        "stop_on_tool": "disabled",
+                        "final_output": "default",
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "analyze",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Question: {prompt}"},
+                    "available_tools": ["search_repo"],
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry(
+        [
+            make_tool(
+                "search_repo",
+                output=ToolResult(
+                    tool_id="search_repo",
+                    success=True,
+                    output={"raw": "secret raw"},
+                    model_output={"summary": "agents found"},
+                ),
+            )
+        ]
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    assert len(adapter.client.responses.calls) == 2
+    second_input = adapter.client.responses.calls[1]["input"]
+    assert second_input[-2]["role"] == "assistant"
+    assert second_input[-2]["content"] == "Tool call call_1: search_repo"
+    assert second_input[-1] == {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "name": "search_repo",
+        "content": '{"summary": "agents found"}',
+    }
+    assert result.state.tool_results["analyze.call_1"].model_facing_output == {
+        "summary": "agents found"
+    }
+
+
 def test_execute_workflow_uses_model_facing_tool_output_in_context_and_trace() -> None:
     workflow = workflow_from(
         {

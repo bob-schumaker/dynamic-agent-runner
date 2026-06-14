@@ -29,18 +29,24 @@ Status: prepared for implementation
 
 ## Slice 2 — Serial Model Tool Dispatch
 
-- [ ] T2.1 [tests] Add RED coverage for one model-emitted tool call followed by
+- [x] T2.1 [tests] Add RED coverage for one model-emitted tool call followed by
       a second model turn that sees the tool result.
   - Spec: FR-2, FR-3, FR-4, FR-6
   - Files/components: `tests/test_executor.py`
   - Validation: `poetry run pytest tests/test_executor.py -q`
+  - RED:
+    - `poetry run pytest tests/test_executor.py -q` — failed because the
+      workflow returned after the first model tool call instead of dispatching
+      the tool and issuing a second model request.
 
-- [ ] T2.2 [implementation] Dispatch serial model tool calls through
+- [x] T2.2 [implementation] Dispatch serial model tool calls through
       `ToolRegistry`, append model-facing tool result messages, and re-call the
       same model until final/no-tool response.
   - Spec: FR-2, FR-3, FR-4, FR-6
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Validation: `poetry run pytest tests/test_executor.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_executor.py -q` — `80 passed in 0.41s`
 
 ## Slice 3 — Safety and Failure Boundaries
 

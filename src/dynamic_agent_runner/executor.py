@@ -42,6 +42,7 @@ from dynamic_agent_runner.models import (
 )
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
+    ModelToolCall,
     ModelResponse,
     OpenAIClientAdapter,
     OpenAIMessage,
@@ -728,6 +729,18 @@ async def _execute_llm_step_async(
     if not _iterative_loop_enabled(plan):
         _validate_model_output_contract(node, plan, response, prepared_input.prompt)
         return response
+    response = await _execute_model_tool_loop_async(
+        node,
+        plan,
+        state,
+        registry,
+        prepared_input,
+        response,
+        tools,
+        exposed_tools,
+        tracer,
+        lifecycle_hooks,
+    )
     _validate_model_output_contract(node, plan, response, prepared_input.prompt)
     return response
 
@@ -735,6 +748,260 @@ async def _execute_llm_step_async(
 def _iterative_loop_enabled(plan: ExecutionPlan) -> bool:
     policy = plan.tool_use_completion_policy
     return bool(policy is not None and policy.run_again == "required")
+
+
+async def _execute_model_tool_loop_async(
+    node: PreparedNode,
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+    registry: ToolRegistry | None,
+    prepared_input: PreparedModelInput,
+    initial_response: ModelResponse,
+    tools: Sequence[Mapping[str, Any]],
+    exposed_tools: Sequence[RegisteredTool],
+    tracer: WorkflowTracer,
+    lifecycle_hooks: WorkflowLifecycleHooks | None,
+) -> ModelResponse:
+    if registry is None or not exposed_tools:
+        return initial_response
+
+    response = initial_response
+    transcript: list[Mapping[str, Any]] = []
+    max_iterations = plan.max_steps or 8
+    for iteration in range(1, max_iterations + 1):
+        if not response.tool_calls:
+            return response
+        for tool_call in response.tool_calls:
+            tool_call_id = _model_tool_call_id(tool_call, iteration)
+            result = await _invoke_model_tool_call_async(
+                node,
+                tool_call,
+                tool_call_id,
+                registry,
+                exposed_tools,
+                state,
+                tracer,
+                lifecycle_hooks,
+            )
+            transcript.extend(
+                _model_tool_result_messages(tool_call, tool_call_id, result)
+            )
+        if _stop_on_tool_enabled(plan):
+            return response
+        response = await _request_loop_model_response_async(
+            node,
+            plan,
+            state,
+            prepared_input,
+            tuple(tools),
+            tuple(transcript),
+            tracer,
+            lifecycle_hooks,
+        )
+    raise WorkflowExecutionError(
+        f"llm_step node {node.id!r} exceeded iterative tool loop limit {max_iterations}"
+    )
+
+
+async def _request_loop_model_response_async(
+    node: PreparedNode,
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+    prepared_input: PreparedModelInput,
+    tools: Sequence[Mapping[str, Any]],
+    transcript: Sequence[Mapping[str, Any]],
+    tracer: WorkflowTracer,
+    lifecycle_hooks: WorkflowLifecycleHooks | None,
+) -> ModelResponse:
+    messages = (*prepared_input.messages, *transcript)
+    request = build_openai_request(
+        model=prepared_input.model,
+        messages=messages,
+        tools=tools,
+        tool_choice=prepared_input.tool_choice,
+        response_format=prepared_input.response_format,
+        **prepared_input.model_parameters,
+    )
+    state.node_inputs[str(node.id)] = request.to_kwargs()
+    tracer.emit(
+        "model_request",
+        node_id=str(node.id),
+        payload={
+            "model": prepared_input.model,
+            "message_count": len(messages),
+            "tool_count": len(tools),
+            "request": request.to_kwargs(),
+        },
+        sensitive_fields=("request",),
+    )
+    await invoke_lifecycle_hook_async(
+        lifecycle_hooks.registered_hook("before_model") if lifecycle_hooks else None,
+        ModelHookContext(
+            node_id=str(node.id),
+            model=prepared_input.model,
+            request=request.to_kwargs(),
+            run_id=state.run_id,
+        ),
+    )
+    policy = _model_retry_policy(node, plan)
+    try:
+        response, attempts = await run_with_retry_async(
+            lambda: _create_model_response_async(prepared_input.adapter, request),
+            policy=_exception_retry_policy(policy, "model_error"),
+            retry_exceptions=(ModelExecutionError,),
+        )
+    except ModelExecutionError as exc:
+        _record_retry(
+            state,
+            node,
+            "model",
+            attempts=policy.max_attempts if _retries_exceptions(policy) else 1,
+            outcome="failure",
+            final_error=str(exc),
+            tracer=tracer,
+        )
+        raise
+    _record_retry(
+        state, node, "model", attempts=attempts, outcome="success", tracer=tracer
+    )
+    tracer.emit(
+        "model_response",
+        node_id=str(node.id),
+        payload={"response_id": response.response_id, "content": response.content},
+        sensitive_fields=("content",),
+    )
+    await invoke_lifecycle_hook_async(
+        lifecycle_hooks.registered_hook("after_model") if lifecycle_hooks else None,
+        ModelHookContext(
+            node_id=str(node.id),
+            model=prepared_input.model,
+            request=request.to_kwargs(),
+            response=response,
+            run_id=state.run_id,
+        ),
+    )
+    _record_prompt_cache_provider_telemetry(response, node, tracer)
+    return response
+
+
+async def _invoke_model_tool_call_async(
+    node: PreparedNode,
+    tool_call: ModelToolCall,
+    tool_call_id: str,
+    registry: ToolRegistry,
+    exposed_tools: Sequence[RegisteredTool],
+    state: WorkflowExecutionState,
+    tracer: WorkflowTracer,
+    lifecycle_hooks: WorkflowLifecycleHooks | None,
+) -> ToolResult:
+    tool = _exposed_model_tool(tool_call, exposed_tools)
+    arguments = _model_tool_arguments(tool_call)
+    tracer.emit(
+        "tool_started",
+        node_id=str(node.id),
+        payload={
+            "tool_id": tool.id,
+            "tool_call_id": tool_call_id,
+            "arguments": arguments,
+        },
+        sensitive_fields=("arguments",),
+    )
+    await invoke_lifecycle_hook_async(
+        lifecycle_hooks.registered_hook("before_tool") if lifecycle_hooks else None,
+        ToolHookContext(
+            node_id=str(node.id),
+            tool_id=tool.id,
+            arguments=arguments,
+            run_id=state.run_id,
+        ),
+    )
+    result = await registry.invoke_tool_async(tool.id, arguments)
+    state.tool_results[f"{node.id}.{tool_call_id}"] = result
+    tracer.emit(
+        "tool_result",
+        node_id=str(node.id),
+        payload={"tool_call_id": tool_call_id, **result.trace_payload()},
+        sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
+    )
+    tracer.emit(
+        "tool_finished",
+        node_id=str(node.id),
+        payload={
+            "tool_id": tool.id,
+            "tool_call_id": tool_call_id,
+            "success": result.success,
+            "error": result.error,
+        },
+    )
+    await invoke_lifecycle_hook_async(
+        lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
+        ToolHookContext(
+            node_id=str(node.id),
+            tool_id=tool.id,
+            arguments=arguments,
+            result=result,
+            error=result.error,
+            run_id=state.run_id,
+        ),
+    )
+    if not result.success:
+        raise WorkflowExecutionError(result.error or f"tool {tool.id!r} failed")
+    return result
+
+
+def _exposed_model_tool(
+    tool_call: ModelToolCall, exposed_tools: Sequence[RegisteredTool]
+) -> RegisteredTool:
+    for tool in exposed_tools:
+        if tool.id == tool_call.name:
+            return tool
+    raise WorkflowExecutionError(f"model requested unavailable tool {tool_call.name!r}")
+
+
+def _model_tool_arguments(tool_call: ModelToolCall) -> dict[str, Any]:
+    arguments = tool_call.arguments
+    if isinstance(arguments, Mapping):
+        return dict(arguments)
+    if isinstance(arguments, str):
+        try:
+            parsed = json.loads(arguments)
+        except json.JSONDecodeError as exc:
+            raise WorkflowExecutionError(
+                f"model tool call {tool_call.name!r} arguments must be JSON"
+            ) from exc
+        if isinstance(parsed, Mapping):
+            return dict(parsed)
+    raise WorkflowExecutionError(
+        f"model tool call {tool_call.name!r} arguments must be an object"
+    )
+
+
+def _model_tool_call_id(tool_call: ModelToolCall, iteration: int) -> str:
+    if tool_call.id:
+        return tool_call.id
+    return f"turn_{iteration}_{tool_call.name}"
+
+
+def _model_tool_result_messages(
+    tool_call: ModelToolCall, tool_call_id: str, result: ToolResult
+) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+    return (
+        {
+            "role": "assistant",
+            "content": f"Tool call {tool_call_id}: {tool_call.name}",
+        },
+        {
+            "role": "tool",
+            "tool_call_id": tool_call_id,
+            "name": tool_call.name,
+            "content": json.dumps(result.model_facing_output),
+        },
+    )
+
+
+def _stop_on_tool_enabled(plan: ExecutionPlan) -> bool:
+    policy = plan.tool_use_completion_policy
+    return bool(policy is not None and policy.stop_on_tool == "enabled")
 
 
 def _tool_sources_payload(tools: Sequence[RegisteredTool]) -> dict[str, Any]:
