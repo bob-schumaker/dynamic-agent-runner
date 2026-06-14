@@ -178,6 +178,10 @@
 - `specs/capability-status-report/spec.md` owns the future preflight reporting
   direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.
+- The current high-ROI dependency order is status visibility first, then
+  approval/sandbox mutation policy, then MCP/guardrails, then loops/skills, then
+  host integrations, then durable memory, and finally interpreter middleware.
+  Do not treat later items as ready just because their metadata seams exist.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
@@ -231,7 +235,9 @@
   implemented directly from the primary spec alone: capability status reporting,
   approval interruption/resume, sandbox/workspace runtime, MCP runtime
   integration, live guardrail execution, `SKILL.md` source resolution,
-  iterative agent-loop runtime, and Power-Marimo host automation.
+  iterative agent-loop runtime, local-model advisory fit features,
+  Power-Marimo host automation, async session memory, and interpreter
+  middleware.
 - Repository-local reference packaging is now being used for external guidance
   that should remain available inside this repo. The OpenAI Model Registry notes
   under `cline-tasks/references/openai-model-registry/` are supporting

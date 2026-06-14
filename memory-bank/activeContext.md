@@ -3,13 +3,13 @@
 ## Current Focus
 
 - No implementation slice is currently active.
-- The latest completed repository work added the optional
-  `llama-cpp-memory-fit-profile` feature spec, refreshed stale
-  `llama-cpp-local-model` SDD artifacts to mark direct in-process llama.cpp as
-  implemented through Slice 3, and committed the spec changes as `11916b7`.
-- The council roadmap promotes a narrow approval/sandbox live-action vertical
-  slice plus a capability/status report before broader MCP, guardrail, loop, or
-  interpreter runtime work.
+- The latest completed repository work recorded the high-ROI remaining spec
+  work order in `specs/README.md` and `specs/dynamic-agent-runner/tasks.md`,
+  and committed it as `4c1d5cd`.
+- The current roadmap starts with capability/status visibility, then a narrow
+  approval/sandbox live-action vertical slice, then policy-bound MCP and
+  guardrail work before loops, skills, host integrations, durable memory, or
+  interpreter middleware.
 - Earlier OpenAI adapter work made default OpenAI/Codex auth, ChatGPT/Codex
   backend auth, authenticated model discovery, and omitted-model defaults work.
 - Earlier documentation work added a ReAct/tool workflow guide under
@@ -80,6 +80,12 @@
   - `specs/llama-cpp-local-model/spec.md`, `plan.md`, `tasks.md`, and
     `validation.md` now reflect that direct in-process llama.cpp support already
     landed in `58136d9`
+- Remaining spec work is now ordered by dependency and ROI:
+  - status visibility first
+  - approval/sandbox mutation policy second
+  - MCP and guardrails after policy boundaries
+  - loops and skill source loading after tool safety is proven
+  - host integrations, durable memory, and interpreter middleware later
 
 ## Current Spec Authority Map
 
@@ -118,9 +124,10 @@
 - llama.cpp local-model support is implemented through Slice 3: endpoint
   helpers, local asset resolution, default Hub download wiring, identity
   validation, direct in-process sync/async adapters, and adapter coverage tests.
-- Current spec roadmap recommendation is approval/sandbox live-action first,
-  capability/status reporting second, then policy-bound MCP and guardrail work;
-  loop and interpreter work remain prototype/benchmark-led.
+- Current spec roadmap recommendation is capability/status reporting first,
+  approval/sandbox live-action second, then policy-bound MCP and guardrail work;
+  loop, skill-source, host automation, durable memory, and interpreter work
+  remain dependent follow-ups.
 - Default OpenAI/Codex auth follow-ups are limited to separately specified
   personal-access-token or agent-identity support.
 - Live runtime behavior is still deferred for approval pause/resume, writable
@@ -130,10 +137,10 @@
 
 ## Next Steps
 
-- For implementation: if following the council roadmap, create a scoped plan for
-  the approval-interruption plus sandbox/workspace live-action vertical slice.
-- For product visibility: plan `capability-status-report` before promoting broad
-  live MCP, guardrail, loop, or interpreter behavior.
+- For implementation: create a scoped plan for `capability-status-report` before
+  promoting broader live behavior.
+- After status visibility exists, create the approval-interruption plus
+  sandbox/workspace live-action vertical slice.
 - For OpenAI/Codex auth: only add PAT or agent-identity support after a separate
   provider/base-url/signing design is specified and tested.
 - For ReAct/tool workflows: if runtime support is selected, consider resolving

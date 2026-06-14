@@ -32,6 +32,11 @@
 - `11916b7` added `specs/llama-cpp-memory-fit-profile/spec.md`, indexed it in
   `specs/README.md`, and refreshed `specs/llama-cpp-local-model/` artifacts so
   direct in-process llama.cpp support is no longer described as pending.
+- `4c1d5cd` recorded the high-ROI remaining spec work order in
+  `specs/README.md` and `specs/dynamic-agent-runner/tasks.md`, putting
+  capability/status reporting before the approval/sandbox live-action slice and
+  deferring MCP, guardrails, loops, skills, host automation, durable memory, and
+  interpreter middleware behind those foundations.
 - `86c287c`, `f50262f`, `1764bc2`, and `d782279` refined Codex config/auth
   parsing and spec alignment.
 - `d2c9805`, `6981b60`, and `9ba5c24` added ChatGPT/Codex authenticated model
@@ -55,12 +60,12 @@
 
 ## Remaining
 
-- Council-recommended next slice: a narrow approval/sandbox live-action vertical
-  slice with explicit workspace grants, approval interruption records, redacted
-  traces, and one safe mutating workspace capability.
-- Capability/status reporting: future preflight/public report to distinguish
-  live, metadata-only, missing-collaborator, disabled, unsupported, and invalid
-  runtime capabilities.
+- Highest-ROI next slice: `capability-status-report`, a future preflight/public
+  report to distinguish live, metadata-only, missing-collaborator, disabled,
+  unsupported, and invalid runtime capabilities.
+- Next live-action slice after status visibility: a narrow approval/sandbox
+  vertical slice with explicit workspace grants, approval interruption records,
+  redacted traces, and one safe mutating workspace capability.
 - Optional llama.cpp embedding follow-up: separate local embedding
   configuration, if explicitly scheduled.
 - Optional llama.cpp memory-fit profiling: post-resolution advisory evaluation
@@ -91,9 +96,10 @@
 - Keep `llmfit-model-fit-filter` and `llama-cpp-memory-fit-profile` separate:
   the former filters Hugging Face search candidates before download, while the
   latter profiles an already-resolved local llama.cpp model asset.
-- Do not promote live MCP, guardrail execution, iterative loops, or interpreter
-  middleware before approval/sandbox/status boundaries are clear enough to
-  prevent high-risk tools from bypassing policy.
+- Do not promote live MCP, guardrail execution, iterative loops, skill source
+  loading, host automation, durable memory, or interpreter middleware before
+  status and approval/sandbox boundaries are clear enough to prevent high-risk
+  tools from bypassing policy.
 - Keep Power-Marimo continuity host-managed until a concrete workflow justifies
   runner-owned durable session memory.
 - Keep ChatGPT/Codex token auth separate from public OpenAI API-key provider
