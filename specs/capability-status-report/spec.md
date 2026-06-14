@@ -5,7 +5,7 @@
 - Feature slug: `capability-status-report`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: proposed future usefulness feature; no implementation started
+- Status: planned next implementation focus; no implementation committed yet
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - runtime manifest metadata preservation
@@ -183,17 +183,19 @@ features are implemented in separate slices.
 
 ## NEEDS CLARIFICATION
 
-- Should the first public entry point live at package root, lower-level executor
-  APIs, CLI, or all three?
-- Should status reporting run full package preparation or a lighter validation
-  path?
-- What exact enum values should represent capability state?
-- Should metadata-only declarations be warnings, informational diagnostics, or a
-  separate report section?
-- How should report output reference owning specs without coupling runtime code
-  to repository-local spec paths?
-- Should the CLI expose this as `validate --capabilities`, a new `inspect`
-  command, or an option on the existing command?
+- RESOLVED for v1: expose a package-root public entry point and a lower-level
+  module function; defer CLI output until the structured report object exists.
+- RESOLVED for v1: run the existing load/compile/validation path and report
+  validation failures as invalid rather than building a separate lightweight
+  parser.
+- RESOLVED for v1: use package-owned string enum values `live`, `metadata_only`,
+  `missing_collaborator`, `disabled`, `unsupported`, and `invalid`.
+- RESOLVED for v1: metadata-only declarations should be first-class report
+  items, not warnings; the summary counts them separately.
+- RESOLVED for v1: report owning feature slugs as stable strings, not local spec
+  file paths.
+- DEFERRED: CLI shape remains open until the core API and report dataclasses are
+  implemented.
 
 ## Validation Checklist
 
