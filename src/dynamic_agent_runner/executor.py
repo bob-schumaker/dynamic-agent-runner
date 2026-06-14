@@ -17,10 +17,12 @@ from openai_model_registry.errors import ModelNotSupportedError
 from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import (
+    GuardrailExecutionError,
     ModelExecutionError,
     ToolRegistryError,
     WorkflowExecutionError,
 )
+from dynamic_agent_runner.guardrails import GuardrailDecision, InMemoryGuardrailRegistry
 from dynamic_agent_runner.graph_mutation import ContextPruningMutation
 from dynamic_agent_runner.hooks import (
     ModelHookContext,
@@ -188,6 +190,7 @@ async def execute_workflow_async(
     *,
     prompt: str,
     tool_registry: ToolRegistry | None = None,
+    guardrail_registry: InMemoryGuardrailRegistry | None = None,
     model_adapter: ModelAdapter | Sequence[ModelAdapter] | None = None,
     max_steps: int | None = None,
     trace_sink: TraceSink | None = None,
@@ -203,6 +206,7 @@ async def execute_workflow_async(
     context = _normalize_execution_context(
         workflow,
         tool_registry=tool_registry,
+        guardrail_registry=guardrail_registry,
         model_adapter=model_adapter,
         max_steps=max_steps,
         trace_sink=trace_sink,
@@ -230,6 +234,7 @@ async def execute_workflow_async(
     )
 
     try:
+        _run_input_guardrails(plan, state, context.guardrail_registry, tracer)
         for _step_index in range(limit):
             if current_node_id is None:
                 state.final_result = _last_output(state)
@@ -334,6 +339,7 @@ def execute_workflow(
     *,
     prompt: str,
     tool_registry: ToolRegistry | None = None,
+    guardrail_registry: InMemoryGuardrailRegistry | None = None,
     model_adapter: ModelAdapter | Sequence[ModelAdapter] | None = None,
     max_steps: int | None = None,
     trace_sink: TraceSink | None = None,
@@ -349,6 +355,7 @@ def execute_workflow(
             workflow,
             prompt=prompt,
             tool_registry=tool_registry,
+            guardrail_registry=guardrail_registry,
             model_adapter=model_adapter,
             max_steps=max_steps,
             trace_sink=trace_sink,
@@ -452,6 +459,7 @@ def _normalize_execution_context(
     workflow: LoadedAgentWorkflow | CompiledAgentWorkflow | WorkflowExecutionContext,
     *,
     tool_registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     model_adapter: ModelAdapter | Sequence[ModelAdapter] | None,
     max_steps: int | None,
     trace_sink: TraceSink | None,
@@ -464,6 +472,7 @@ def _normalize_execution_context(
             value is not None
             for value in (
                 tool_registry,
+                guardrail_registry,
                 model_adapter,
                 max_steps,
                 trace_sink,
@@ -481,6 +490,7 @@ def _normalize_execution_context(
     return WorkflowExecutionContext(
         workflow=workflow,
         tool_registry=tool_registry,
+        guardrail_registry=guardrail_registry,
         model_adapter=model_adapter,
         max_steps=max_steps,
         trace_sink=trace_sink,
@@ -551,6 +561,71 @@ def _tool_policy_payload(tool: RegisteredTool) -> dict[str, str]:
         if value is not None:
             payload[key] = str(value)
     return payload
+
+
+def _run_input_guardrails(
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
+    tracer: WorkflowTracer,
+) -> None:
+    for declaration in plan.workflow.runtime_manifest.guardrails:
+        if declaration.phase != "input":
+            continue
+        guardrail_id = str(declaration.id)
+        if guardrail_registry is None or not guardrail_registry.has_guardrail(
+            guardrail_id
+        ):
+            error = f"input guardrail {guardrail_id!r} has no registered adapter"
+            tracer.emit(
+                "workflow_error",
+                payload={"error": error, "guardrail_id": guardrail_id},
+            )
+            raise GuardrailExecutionError(error)
+        tracer.emit(
+            "guardrail_started",
+            payload={
+                "guardrail_id": guardrail_id,
+                "phase": "input",
+                "subject": state.prompt,
+            },
+            sensitive_fields=("subject",),
+        )
+        result = guardrail_registry.run(guardrail_id, state.prompt)
+        if result.decision is GuardrailDecision.PASS:
+            tracer.emit(
+                "guardrail_passed",
+                payload={
+                    "guardrail_id": guardrail_id,
+                    "phase": result.phase,
+                    "reason_code": result.reason_code,
+                },
+            )
+            continue
+        if result.decision is GuardrailDecision.ABORT:
+            error = f"input guardrail {guardrail_id!r} aborted workflow" + (
+                f": {result.reason_code}" if result.reason_code else ""
+            )
+            tracer.emit(
+                "guardrail_aborted",
+                payload={
+                    "guardrail_id": guardrail_id,
+                    "phase": result.phase,
+                    "reason_code": result.reason_code,
+                    "message": result.message,
+                },
+            )
+            tracer.emit(
+                "workflow_error",
+                payload={"error": error, "guardrail_id": guardrail_id},
+            )
+            raise GuardrailExecutionError(error)
+        error = f"input guardrail {guardrail_id!r} returned unsupported decision"
+        tracer.emit(
+            "workflow_error",
+            payload={"error": error, "guardrail_id": guardrail_id},
+        )
+        raise GuardrailExecutionError(error)
 
 
 async def _execute_llm_step_async(

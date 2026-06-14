@@ -128,6 +128,7 @@ from dynamic_agent_runner.tracing import (
 from dynamic_agent_runner.errors import (
     ArtifactLoadError,
     DynamicAgentRunnerError,
+    GuardrailExecutionError,
     HuggingFaceModelSearchError,
     ModelExecutionError,
     ToolRegistryError,
@@ -150,6 +151,7 @@ __all__ = [
     "compile_agent_workflow",
     "DynamicAgentRunnerError",
     "GuardrailDecision",
+    "GuardrailExecutionError",
     "GuardrailResult",
     "HuggingFaceModelSearchError",
     "HuggingFaceModelSearchResult",

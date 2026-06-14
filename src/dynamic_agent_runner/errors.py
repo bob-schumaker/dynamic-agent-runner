@@ -21,6 +21,10 @@ class ModelExecutionError(DynamicAgentRunnerError):
     """Raised when model execution fails."""
 
 
+class GuardrailExecutionError(DynamicAgentRunnerError):
+    """Raised when guardrail execution blocks or fails a workflow."""
+
+
 class HuggingFaceModelSearchError(DynamicAgentRunnerError):
     """Raised when Hugging Face model discovery fails."""
 

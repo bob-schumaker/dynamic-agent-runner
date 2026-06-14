@@ -39,20 +39,26 @@ Status: planned next implementation slice
 
 ## Slice 2 — Input Guardrail Enforcement
 
-- [ ] T2.1 [tests] Add RED tests for missing input guardrail adapters and abort
+- [x] T2.1 [tests] Add RED tests for missing input guardrail adapters and abort
       decisions before model/tool execution.
   - Spec: FR-1, FR-2, FR-4, FR-6
   - Files/components: `tests/test_executor.py`, `tests/test_tracing.py`
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_tracing.py -q`
+  - RED:
+    - `poetry run pytest tests/test_executor.py tests/test_tracing.py -q` —
+      failed during collection because `GuardrailExecutionError` was missing
 
-- [ ] T2.2 [implementation] Execute input guardrails before the first node and
+- [x] T2.2 [implementation] Execute input guardrails before the first node and
       abort fail-closed before any model/tool action.
   - Spec: FR-1, FR-2, FR-4, FR-6
   - Files/components: `src/dynamic_agent_runner/executor.py`,
     `src/dynamic_agent_runner/context.py`
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_tracing.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_executor.py tests/test_tracing.py -q` —
+      `87 passed in 0.47s`
 
 ## Slice 3 — Capability Status
 

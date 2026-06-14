@@ -5,8 +5,17 @@ from __future__ import annotations
 import pytest
 
 from dynamic_agent_runner.artifacts import load_runtime_manifest
-from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
+from dynamic_agent_runner.errors import (
+    GuardrailExecutionError,
+    ModelExecutionError,
+    WorkflowExecutionError,
+)
 from dynamic_agent_runner.executor import execute_workflow
+from dynamic_agent_runner.guardrails import (
+    GuardrailDecision,
+    GuardrailResult,
+    InMemoryGuardrailRegistry,
+)
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
     ToolDefinition,
@@ -339,6 +348,69 @@ def test_execute_workflow_traces_approval_pause_without_invocation() -> None:
         "content": "hello",
     }
     assert approval_requested.sensitive_fields == ("arguments",)
+
+
+def test_execute_workflow_traces_input_guardrail_abort() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "trace-input-guardrail-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "extensions": {
+                "guardrails": {
+                    "declarations": [
+                        {
+                            "id": "no_secrets",
+                            "phase": "input",
+                            "behavior_on_tripwire": "abort",
+                        }
+                    ]
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    guardrails = InMemoryGuardrailRegistry(
+        {
+            "no_secrets": lambda _subject: GuardrailResult(
+                guardrail_id="no_secrets",
+                decision=GuardrailDecision.ABORT,
+                reason_code="secret_detected",
+            )
+        }
+    )
+    sink = InMemoryTraceSink()
+
+    with pytest.raises(GuardrailExecutionError):
+        execute_workflow(
+            workflow,
+            prompt="secret prompt",
+            model_adapter=make_adapter([{"id": "resp", "output_text": "done"}]),
+            guardrail_registry=guardrails,
+            trace_sink=sink,
+        )
+
+    event_types = [event.event_type for event in sink.events]
+    assert event_types == [
+        "workflow_started",
+        "guardrail_started",
+        "guardrail_aborted",
+        "workflow_error",
+    ]
+    assert sink.events[1].payload["guardrail_id"] == "no_secrets"
+    assert sink.events[1].payload["subject"] == "secret prompt"
+    assert sink.events[1].sensitive_fields == ("subject",)
+    assert sink.events[2].payload["reason_code"] == "secret_detected"
 
 
 def test_execute_workflow_emits_status_notice_for_fallback_tool_failure() -> None:

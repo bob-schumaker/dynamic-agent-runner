@@ -1,6 +1,6 @@
 # Live Guardrail Execution V1 Validation Log
 
-Status: Slice 1 public guardrail contract implemented
+Status: Slice 2 input guardrail enforcement implemented
 
 ## Scope
 
@@ -52,3 +52,20 @@ Status: Slice 1 public guardrail contract implemented
 - Interpretation: callers can construct guardrail results and register
   in-memory guardrail handlers keyed by guardrail id. Live executor enforcement
   remains Slice 2.
+
+### T2.1 RED — input guardrail enforcement
+
+- Command: `poetry run pytest tests/test_executor.py tests/test_tracing.py -q`
+- Expected result: fail before input guardrail enforcement exists
+- Observed result: collection failed with 2 errors
+- Failure boundary:
+  - missing `GuardrailExecutionError`
+  - executor accepted no `guardrail_registry` collaborator
+
+### T2.2 GREEN — input guardrail enforcement
+
+- Command: `poetry run pytest tests/test_executor.py tests/test_tracing.py -q`
+- Observed result: `87 passed in 0.47s`
+- Interpretation: input guardrails fail closed when adapters are missing, abort
+  before model/tool execution when a tripwire is returned, and emit redacted
+  guardrail trace events.

@@ -12,6 +12,7 @@ from dynamic_agent_runner.openai_client import (
 from dynamic_agent_runner.registry import ToolRegistry
 from dynamic_agent_runner.tracing import TraceSink
 from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
+from dynamic_agent_runner.guardrails import InMemoryGuardrailRegistry
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class WorkflowExecutionContext:
 
     workflow: LoadedAgentWorkflow | CompiledAgentWorkflow
     tool_registry: ToolRegistry | None = None
+    guardrail_registry: InMemoryGuardrailRegistry | None = None
     model_adapter: (
         OpenAIClientAdapter
         | AsyncOpenAIClientAdapter

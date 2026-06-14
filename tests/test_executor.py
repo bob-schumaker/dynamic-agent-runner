@@ -18,7 +18,11 @@ from dynamic_agent_runner.api import (
 )
 from dynamic_agent_runner.artifacts import load_runtime_manifest
 from dynamic_agent_runner.context import WorkflowExecutionContext
-from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
+from dynamic_agent_runner.errors import (
+    GuardrailExecutionError,
+    ModelExecutionError,
+    WorkflowExecutionError,
+)
 from dynamic_agent_runner.executor import (
     ApprovalInterruption,
     ApprovalInterruptionState,
@@ -27,6 +31,11 @@ from dynamic_agent_runner.executor import (
     WorkflowInterruptedResult,
     WorkflowExecutionState,
     prepare_model_input,
+)
+from dynamic_agent_runner.guardrails import (
+    GuardrailDecision,
+    GuardrailResult,
+    InMemoryGuardrailRegistry,
 )
 from dynamic_agent_runner.hooks import NodeHookContext, WorkflowLifecycleHooks
 from dynamic_agent_runner.local_models import (
@@ -3016,6 +3025,75 @@ def test_execute_workflow_pauses_approval_required_tool_before_invocation() -> N
     assert result.interruption.policy["approval_required"] == "yes"
     assert result.state.tool_results == {}
     assert result.state.executions == []
+
+
+def input_guardrail_workflow() -> LoadedAgentWorkflow:
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "input-guardrail-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "extensions": {
+                "guardrails": {
+                    "declarations": [
+                        {
+                            "id": "no_secrets",
+                            "phase": "input",
+                            "behavior_on_tripwire": "abort",
+                        }
+                    ]
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+
+def test_execute_workflow_fails_closed_for_missing_input_guardrail_adapter() -> None:
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+
+    with pytest.raises(GuardrailExecutionError, match="no_secrets"):
+        execute_workflow(
+            input_guardrail_workflow(),
+            prompt="hello",
+            model_adapter=adapter,
+        )
+
+    assert adapter.client.responses.calls == []
+
+
+def test_execute_workflow_aborts_on_input_guardrail_tripwire() -> None:
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+    guardrails = InMemoryGuardrailRegistry(
+        {
+            "no_secrets": lambda _subject: GuardrailResult(
+                guardrail_id="no_secrets",
+                decision=GuardrailDecision.ABORT,
+                reason_code="secret_detected",
+                message="Secret content is not allowed.",
+            )
+        }
+    )
+
+    with pytest.raises(GuardrailExecutionError, match="secret_detected"):
+        execute_workflow(
+            input_guardrail_workflow(),
+            prompt="secret",
+            model_adapter=adapter,
+            guardrail_registry=guardrails,
+        )
+
+    assert adapter.client.responses.calls == []
 
 
 def test_run_agent_workflow_returns_final_result() -> None:
