@@ -14,6 +14,14 @@
     skill behavior without mutating generated artifacts
   - `src/dynamic_agent_runner/validation.py` validates loaded artifact
     relationships and supported `format_version: 1` enum values
+  - `src/dynamic_agent_runner/capabilities.py` owns preflight capability/status
+    reporting for live, metadata-only, missing-collaborator, disabled, and
+    invalid runtime surfaces
+  - `src/dynamic_agent_runner/mcp.py` owns explicit caller-supplied MCP tool
+    binding normalization into existing registry entries; it does not own live
+    MCP transports or process lifecycle
+  - `src/dynamic_agent_runner/guardrails.py` owns caller-registered guardrail
+    result and registry primitives
   - `src/dynamic_agent_runner/openai_client.py` isolates the official OpenAI
     client behind a small fake-client-compatible adapter boundary
   - `src/dynamic_agent_runner/executor.py` composes loaded workflows, registry
@@ -29,7 +37,7 @@
   - `src/dynamic_agent_runner/cli.py` exposes an injectable CLI implementation
     and console-script entry point for artifact-path workflow execution
   - `src/dynamic_agent_runner/errors.py` defines project-specific exception
-    types
+    types, including guardrail execution errors
 - Tests currently contain an import smoke test at `tests/test_import.py`,
   artifact loader tests at `tests/test_artifacts.py`, validation tests at
   `tests/test_validation.py`, registry tests at `tests/test_registry.py`, OpenAI
@@ -41,8 +49,9 @@
   for each documented supported agent pattern. Each fixture package has
   `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`.
 - Current repository structure has loader/model/validation/registry/adapter/
-  executor/retry/output-contract/token-budget/tracing/behavior-override/CLI
-  behavior; follow-on runtime expansion should be planned as a new scoped slice.
+  executor/retry/output-contract/token-budget/tracing/behavior-override/
+  capability-status/approval/MCP/guardrail/CLI behavior; follow-on runtime
+  expansion should be planned as a new scoped slice.
 
 ## Observed Patterns
 
@@ -83,6 +92,26 @@
   generated artifacts.
 - Built-in default tools are explicit opt-in registry packs; the current
   `local_workspace` pack is read-only and not an ambient global capability.
+- Capability/status reporting is a public preflight surface. It reports live
+  behavior separately from preserved metadata, missing collaborators, disabled
+  collaborators, and invalid packages. Metadata-only features should not be
+  described as enabled.
+- Approval interruption is implemented for direct `tool_use_step` actions whose
+  effective registered tool policy requires approval. The executor returns a
+  `WorkflowInterruptedResult` before lifecycle hooks, retry, registry
+  invocation, output recording, or edge traversal, so no handler side effect
+  occurs before approval.
+- The high-level `run_agent_workflow*` APIs still represent completed workflows;
+  they raise `WorkflowExecutionError` when execution pauses for approval. Use
+  `execute_workflow*` to inspect structured interruption state.
+- MCP v1 is explicit registry injection only. Caller-supplied `MCPToolBinding`
+  values become `RegisteredTool` entries with MCP origin provenance and
+  conservative hidden/approval-required defaults. There is no implicit
+  discovery, process launch, transport, reconnect, or live schema cache.
+- Guardrail v1 is input-only. Caller-registered input guardrails run once after
+  `workflow_started` and before the first node starts. Missing adapters fail
+  closed, abort decisions raise `GuardrailExecutionError`, and trace payloads
+  mark inspected prompt content as sensitive.
 - `openai_client.py` defines a protocol around `client.responses.create(...)`,
   so unit tests can inject fake clients without live OpenAI API calls.
 - The OpenAI adapter default-provider path owns host-level OpenAI/Codex auth
@@ -136,6 +165,10 @@
 - Async execution supports async model adapters, async tool handlers, async
   lifecycle hooks, cancellation propagation, and concurrent shared-context runs
   while preserving per-run execution state isolation.
+- Runtime collaborator pattern now includes model adapters, tool registries,
+  guardrail registries, trace sinks, lifecycle hooks, and opt-in built-in packs.
+  Future live features should fit this collaborator model instead of reading
+  ambient host configuration from portable workflow packages.
 - Local model support now has two distinct advisory fit layers in the specs:
   `llmfit-model-fit-filter` is pre-download Hugging Face candidate filtering,
   while `llama-cpp-memory-fit-profile` is post-resolution profiling for a
@@ -164,24 +197,24 @@
 
 ## Guidance for Future Work
 
-- Await follow-up direction for the next scoped runtime slice; no next active
-  implementation slice is currently defined in
-  `specs/dynamic-agent-runner/tasks.md`.
+- Next scoped runtime slice in the ROI queue is bounded
+  `iterative-agent-loop-runtime`; create a plan/task/validation checkpoint
+  before code changes.
 - Use `specs/README.md` as the current spec inventory and completion matrix.
   Future live-runtime work should start from the relevant feature spec under
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
-- The current council roadmap in `specs/README.md` and
-  `specs/dynamic-agent-runner/tasks.md` recommends approval/sandbox live-action
-  first, capability/status reporting second, then MCP and guardrails behind
-  those policy boundaries. Treat loop and interpreter work as later
-  prototype/benchmark-led slices.
-- `specs/capability-status-report/spec.md` owns the future preflight reporting
-  direction for live, metadata-only, missing-collaborator, disabled,
+- The current council roadmap in `specs/README.md` now has capability status,
+  approval/sandbox v1, MCP v1, and guardrail v1 complete. Treat loop and skill
+  source work as the next dependent slices, with host integrations, durable
+  memory, and interpreter middleware later.
+- `specs/capability-status-report/spec.md` owns the implemented preflight
+  reporting direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.
-- The current high-ROI dependency order is status visibility first, then
-  approval/sandbox mutation policy, then MCP/guardrails, then loops/skills, then
-  host integrations, then durable memory, and finally interpreter middleware.
-  Do not treat later items as ready just because their metadata seams exist.
+- The current high-ROI dependency order has completed status visibility,
+  approval/sandbox mutation policy v1, MCP registry injection v1, and input
+  guardrails v1. Next is loops, then skills, then host integrations, durable
+  memory, and interpreter middleware. Do not treat later items as ready just
+  because their metadata seams exist.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and

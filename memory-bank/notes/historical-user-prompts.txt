@@ -330,3 +330,7 @@ examine ~/Repos/github/llmfit for ways to evaluate models before fetching them f
 ```text
 CRITICAL:PowerMarimo:An error occurred: Error: Function call (name: send_prompt, args: {'request_id': '07a7850c-a4f3-47eb-89c3-08723536ded6', 'messages': [{'id': 'msQl3hHC0xsy7QoN', 'role': 'user', 'content': 'find the SLD for room jnb1.1 and run a local analysis', 'parts': [{'type': 'text', 'text': 'find the SLD for room jnb1.1 and run a local analysis'}]}], 'config': {'max_tokens': 4096, 'temperature': 0.5, 'top_p': 1, 'top_k': 40, 'frequency_penalty': 0, 'presence_penalty': 0}}) failed with exception OpenAI model request failed: Error code: 400 - {'error': {'message': "Missing required parameter: 'tools[0].name'.", 'type': 'invalid_request_error', 'param': 'tools[0].name', 'code': 'missing_required_parameter'}}
 ```
+
+---
+
+execute the ROI queue, commit after each slice. before starting a significanlty different focus area, update the specs with current state and commit.
