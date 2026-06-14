@@ -82,18 +82,41 @@ Do not treat future-analysis specs as implementation authorization. Feature
 packages marked future investigation or optional follow-up require an explicit
 scheduled task before code changes begin.
 
-## Council Roadmap Recommendation
+## High-ROI Remaining Work Order
 
-The June 2026 council review recommended the next useful runtime direction:
+The June 2026 council review plus the remaining-spec evaluation recommends this
+dependency order. This is roadmap memory, not implementation authorization; each
+item still needs a scoped plan and task slice before code changes begin.
 
-1. Ship a narrow live-action vertical slice that pairs
-   `approval-interruption-resume` with `sandbox-workspace-runtime`, starting with
-   explicit grants, approval interruption records, and one or two safe mutating
-   workspace actions.
-2. Add `capability-status-report` so callers can see which declarations are live,
-   metadata-only, unavailable, disabled, or invalid before execution.
-3. Defer live MCP invocation, guardrail execution, iterative loops, and
-   interpreter middleware until the approval/sandbox/status boundaries are clear
-   enough to keep high-risk tools from bypassing policy.
-4. Keep `async-session-memory-pipeline` host-managed in v1; do not promote
-   runner-owned durable memory before a concrete workflow needs it.
+1. Keep the spec portfolio status text consistent before new work.
+2. Implement `capability-status-report` so callers can distinguish live,
+   metadata-only, missing-collaborator, disabled, unsupported, and invalid
+   capabilities.
+3. Ship a narrow live-action vertical slice pairing
+   `approval-interruption-resume` with `sandbox-workspace-runtime`.
+4. Expand capability/status reporting for the new approval/sandbox capabilities.
+5. Add policy-bound `mcp-runtime-integration`.
+6. Add `live-guardrail-execution`.
+7. Add bounded `iterative-agent-loop-runtime`.
+8. Add opt-in package-local `skill-source-resolution`.
+9. Implement local-model advisory features only when local-model ergonomics is
+   the immediate driver: `llmfit-model-fit-filter` for pre-download filtering and
+   `llama-cpp-memory-fit-profile` for post-resolution GGUF profiling.
+10. Add `power-marimo-host-automation` after approval/sandbox and host-managed
+    continuity boundaries are clear.
+11. Keep `async-session-memory-pipeline` host-managed in v1; add runner-owned
+    durable session storage only after a concrete workflow proves the need.
+12. Defer `llm-step-interpreter-middleware` until sandbox, approval, guardrails,
+    tracing, redaction, and capability reporting are stable.
+
+Clean dependency chain:
+
+```text
+status visibility
+→ approval/sandbox mutation policy
+→ MCP/guardrails
+→ loops/skills
+→ host integrations
+→ durable memory
+→ interpreter
+```

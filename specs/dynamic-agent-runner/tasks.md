@@ -30,10 +30,10 @@
 - `specs/openai-compatible-provider-wrapper/` — implemented follow-up; Slices
   1-6 complete, with any remaining work treated as optional compatibility
   polish.
-- `specs/llama-cpp-local-model/` — active feature record; endpoint-backed local
-  chat and model-resolution Slices 1-2 are complete, while optional Slice 3
-  separate local embedding configuration is pending only if explicitly
-  scheduled.
+- `specs/llama-cpp-local-model/` — implemented feature record; Slices 1-3 are
+  complete, including endpoint-backed local chat, model resolution, direct
+  in-process llama.cpp chat, tests, and docs. Optional separate local embedding
+  configuration remains pending only if explicitly scheduled.
 - `specs/internal-graph-mutation/` — first implementation checkpoint complete;
   no additional graph-mutation tasks are currently scheduled in that artifact
   set.
@@ -49,6 +49,11 @@
   implementation is started, but it should be considered before broad live
   MCP/guardrail/loop/interpreter work so callers can distinguish live behavior
   from metadata-only declarations.
+- `specs/llmfit-model-fit-filter/` — future optional advisory feature for
+  pre-download Hugging Face candidate filtering through an already-installed
+  `llmfit` executable.
+- `specs/llama-cpp-memory-fit-profile/` — future optional advisory feature for
+  post-resolution memory/context profiling of concrete local GGUF assets.
 - `specs/approval-interruption-resume/` — future feature spec for live approval
   pause/resume, serialized run state, and approval outcomes; metadata baseline
   only is currently implemented.
@@ -76,27 +81,65 @@
 1. **Completed:** OA11 landed the upstream portable `tool_type` seam, so the
    original OA follow-up sequence has no remaining active slices.
 
-## Council-recommended next implementation order
+## High-ROI Remaining Spec Work Order
 
-This order records a June 2026 council review of the current spec set. It is not
-implementation approval by itself; each item still needs a scoped plan and task
-slice before code changes begin.
+This order records the June 2026 council review plus the follow-up remaining
+spec evaluation. It is not implementation approval by itself; each item still
+needs a scoped plan and task slice before code changes begin.
 
-1. **Live-action vertical slice:** pair `approval-interruption-resume` and
-   `sandbox-workspace-runtime` around one safe mutating workspace capability,
-   explicit path grants, approval interruption records, redacted traces, and a
-   resumable or clearly interrupted public result.
+1. **Spec portfolio hygiene:** keep `specs/README.md`,
+   `specs/dynamic-agent-runner/tasks.md`, and each feature package's status
+   consistent before starting new implementation slices. Stale status text can
+   mislead future agents into re-planning completed work.
 2. **Capability/status report:** add a read-only preflight surface from
    `capability-status-report` so callers can see live, metadata-only, missing
    collaborator, disabled, unsupported, and invalid capabilities before runtime.
-3. **Policy-bound live integrations:** only then promote MCP invocation and live
-   guardrail execution, keeping MCP tools and guardrails behind registry,
-   approval, sandbox, provenance, timeout, and redaction policy.
-4. **Loop and interpreter experiments:** keep iterative loops and interpreter
-   middleware behind prototypes and benchmarks until the live-action and status
-   surfaces prove the safety and observability story.
-5. **Host-managed session examples:** document and test host-managed continuity
-   patterns before adding runner-owned durable session storage or replay.
+   This is the highest-ROI first implementation because it makes the current
+   metadata/live gap visible without enabling new high-risk behavior.
+3. **Approval/sandbox live-action vertical slice:** pair
+   `approval-interruption-resume` and `sandbox-workspace-runtime` around one
+   safe mutating workspace capability, explicit path grants, approval
+   interruption records, redacted traces, and a resumable or clearly interrupted
+   public result.
+4. **Capability/status expansion:** update the report to classify any new live
+   approval/sandbox capabilities, including approval engines, sandbox adapters,
+   workspace grants, and mutating tool packs.
+5. **Policy-bound MCP integration:** only then promote live MCP source
+   discovery/invocation, keeping MCP tools behind registry, approval, sandbox,
+   provenance, timeout, retry, and redaction policy.
+6. **Live guardrail execution:** add input/output guardrail execution first,
+   then tool-input/tool-output phases once mutating tool policy and trace
+   redaction are proven.
+7. **Iterative agent-loop runtime:** implement bounded model/tool loops only
+   after registry, approval, sandbox, status, and guardrail boundaries are real.
+8. **SKILL.md source resolution:** start package-local and opt-in; defer
+   external roots until prompt-injection, precedence, size, and trace-redaction
+   rules are settled.
+9. **Local model advisory features:** implement `llmfit-model-fit-filter` for
+   pre-download Hugging Face candidate filtering and
+   `llama-cpp-memory-fit-profile` for post-resolution GGUF profiling only when
+   local-model ergonomics becomes the immediate product driver.
+10. **Power-Marimo host automation:** build live host automation only after
+    approval/sandbox and host-managed continuity boundaries are clear; keep app
+    lifecycle ownership in Power-Marimo or caller tools.
+11. **Async session memory pipeline:** keep v1 host-managed. Add runner-owned
+    durable session storage only after a concrete workflow proves host-managed
+    continuity is insufficient.
+12. **LLM step interpreter middleware:** defer until sandbox, approval,
+    guardrails, tracing, redaction, and capability reporting are stable enough
+    to contain a general-purpose interpreter surface.
+
+Clean dependency chain:
+
+```text
+status visibility
+→ approval/sandbox mutation policy
+→ MCP/guardrails
+→ loops/skills
+→ host integrations
+→ durable memory
+→ interpreter
+```
 
 ### Active follow-up ordering rationale
 
