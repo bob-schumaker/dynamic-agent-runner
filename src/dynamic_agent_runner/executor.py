@@ -195,7 +195,7 @@ async def execute_workflow_async(
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
-) -> WorkflowResult:
+) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt asynchronously."""
 
     if not prompt:
@@ -281,6 +281,8 @@ async def execute_workflow_async(
                     payload={"kind": node.kind, "error": str(exc)},
                 )
                 raise
+            if isinstance(output, WorkflowInterruptedResult):
+                return output
             state.node_outputs[current_node_id] = output
             state.executions.append(
                 NodeExecution(
@@ -339,7 +341,7 @@ def execute_workflow(
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
-) -> WorkflowResult:
+) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt."""
 
     return _run_async_from_sync(
@@ -513,7 +515,7 @@ async def _execute_node_async(
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
-            node, state, registry, tracer, lifecycle_hooks
+            node, plan, state, registry, tracer, lifecycle_hooks
         )
     if node.kind == "decision_step":
         return _execute_decision_step(node, state, tracer)
@@ -522,6 +524,33 @@ async def _execute_node_async(
 
 def _new_run_id() -> str:
     return str(uuid4())
+
+
+def _new_approval_id() -> str:
+    return str(uuid4())
+
+
+def _approval_required(tool: RegisteredTool) -> bool:
+    value = (
+        tool.definition.policy.approval_required or tool.definition.approval_required
+    )
+    return str(value).strip().lower() in {"1", "true", "yes", "required"}
+
+
+def _tool_policy_payload(tool: RegisteredTool) -> dict[str, str]:
+    policy = tool.definition.policy
+    payload: dict[str, str] = {}
+    for key, value in (
+        ("approval_required", policy.approval_required),
+        ("side_effect", policy.side_effect),
+        ("sandbox", policy.sandbox),
+        ("timeout", policy.timeout),
+        ("retry_policy", policy.retry_policy),
+        ("failure_behavior", policy.failure_behavior),
+    ):
+        if value is not None:
+            payload[key] = str(value)
+    return payload
 
 
 async def _execute_llm_step_async(
@@ -676,11 +705,12 @@ def _read_path(value: Any, path: Sequence[str]) -> Any:
 
 async def _execute_tool_step_async(
     node: PreparedNode,
+    plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
-) -> ToolResult:
+) -> ToolResult | WorkflowInterruptedResult:
     if registry is None:
         raise WorkflowExecutionError(
             f"tool_use_step node {node.id!r} requires a tool registry"
@@ -691,6 +721,44 @@ async def _execute_tool_step_async(
         )
     arguments = _tool_arguments(node, state)
     state.node_inputs[str(node.id)] = arguments
+    tool = registry.get_tool(str(node.tool_id))
+    if _approval_required(tool):
+        interruption = ApprovalInterruption(
+            interruption_id=_new_approval_id(),
+            run_id=str(state.run_id),
+            workflow_id=str(plan.workflow.runtime_manifest.package_id),
+            node_id=str(node.id),
+            tool_id=str(node.tool_id),
+            arguments=arguments,
+            policy=_tool_policy_payload(tool),
+            reason=f"tool {node.tool_id!r} requires approval",
+        )
+        tracer.emit(
+            "approval_requested",
+            node_id=str(node.id),
+            payload={
+                "interruption_id": interruption.interruption_id,
+                "tool_id": node.tool_id,
+                "arguments": arguments,
+                "policy": interruption.policy,
+                "reason": interruption.reason,
+            },
+            sensitive_fields=("arguments",),
+        )
+        tracer.emit(
+            "approval_paused",
+            node_id=str(node.id),
+            payload={
+                "interruption_id": interruption.interruption_id,
+                "tool_id": node.tool_id,
+                "state": interruption.state.value,
+            },
+        )
+        return WorkflowInterruptedResult(
+            final_result=None,
+            state=state,
+            interruption=interruption,
+        )
     tracer.emit(
         "tool_started",
         node_id=str(node.id),

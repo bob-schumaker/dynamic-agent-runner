@@ -2962,6 +2962,62 @@ def test_execute_workflow_errors_on_tool_failure_by_default() -> None:
         execute_workflow(workflow, prompt="Run", tool_registry=registry)
 
 
+def test_execute_workflow_pauses_approval_required_tool_before_invocation() -> None:
+    calls: list[object] = []
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "approval-pause-agent",
+            "entrypoint": "write",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "write",
+                    "kind": "tool_use_step",
+                    "tool_id": "workspace_write",
+                    "inputs": {"path": "notes.txt", "content": "hello"},
+                }
+            ],
+            "edges": [],
+            "tools": [
+                {
+                    "id": "workspace_write",
+                    "approval_required": "yes",
+                    "side_effect": "write",
+                    "sandbox": "workspace",
+                }
+            ],
+        }
+    )
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "workspace_write",
+                "approval_required": "yes",
+                "side_effect": "write",
+                "sandbox": "workspace",
+            }
+        ),
+        lambda args: calls.append(args) or {"ok": True},
+    )
+    registry = InMemoryToolRegistry([tool])
+
+    result = execute_workflow(workflow, prompt="Run", tool_registry=registry)
+
+    assert isinstance(result, WorkflowInterruptedResult)
+    assert calls == []
+    assert result.final_result is None
+    assert result.interruption.run_id == result.state.run_id
+    assert result.interruption.workflow_id == "approval-pause-agent"
+    assert result.interruption.node_id == "write"
+    assert result.interruption.tool_id == "workspace_write"
+    assert result.interruption.arguments == {"path": "notes.txt", "content": "hello"}
+    assert result.interruption.policy["approval_required"] == "yes"
+    assert result.state.tool_results == {}
+    assert result.state.executions == []
+
+
 def test_run_agent_workflow_returns_final_result() -> None:
     manifest = {
         "format_version": 1,

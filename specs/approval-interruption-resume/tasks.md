@@ -38,15 +38,19 @@ Status: planned next implementation slice
 
 ## Slice 2 — Direct Tool Pause Before Invocation
 
-- [ ] T2.1 [tests] Add RED test proving an approval-required direct
+- [x] T2.1 [tests] Add RED test proving an approval-required direct
       `tool_use_step` must not invoke its handler.
   - Spec: approval-interruption-resume FR-1, FR-2, FR-6;
     sandbox-workspace-runtime FR-3
   - Files/components: `tests/test_executor.py`, `tests/test_tracing.py`
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_tracing.py -q`
+  - RED:
+    - `poetry run pytest tests/test_executor.py tests/test_tracing.py -q` —
+      failed because approval-required direct tool steps still invoked handlers
+      and returned `WorkflowResult`
 
-- [ ] T2.2 [implementation] Pause direct approval-required tool steps before
+- [x] T2.2 [implementation] Pause direct approval-required tool steps before
       lifecycle hooks, retry, registry invocation, output recording, or edge
       traversal.
   - Spec: approval-interruption-resume FR-1, FR-2, FR-5, FR-6;
@@ -54,6 +58,9 @@ Status: planned next implementation slice
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_tracing.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_executor.py tests/test_tracing.py -q` —
+      `82 passed in 0.44s`
 
 ## Slice 3 — High-Level API Boundary and Capability Status
 

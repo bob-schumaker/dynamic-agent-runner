@@ -10,7 +10,6 @@ from dynamic_agent_runner.executor import execute_workflow
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
     ToolDefinition,
-    ToolSource,
     ToolSourceKind,
 )
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
@@ -102,6 +101,7 @@ def test_execute_workflow_emits_success_trace_events_in_order() -> None:
     assert event_types == [
         "workflow_started",
         "node_started",
+        "model_input_prepared",
         "token_budget_checked",
         "model_request",
         "retry_recorded",
@@ -109,7 +109,7 @@ def test_execute_workflow_emits_success_trace_events_in_order() -> None:
         "node_completed",
         "workflow_completed",
     ]
-    assert [event.sequence for event in result.state.trace_events] == list(range(1, 9))
+    assert [event.sequence for event in result.state.trace_events] == list(range(1, 10))
     assert sink.events == result.state.trace_events
     assert result.state.trace_events[0].redacted_payload()["prompt"] == "[REDACTED]"
     assert (
@@ -166,11 +166,12 @@ def test_model_request_trace_includes_model_exposed_tool_sources() -> None:
         if event.event_type == "model_request"
     )
     assert model_request.payload["tool_sources"] == {
-        "search_repo": ToolSource(
-            kind=ToolSourceKind.CALLER_REGISTERED,
-            source_id="test-suite",
-            detail="fixture",
-        ).to_mapping()
+        "search_repo": {
+            "kind": ToolSourceKind.CALLER_REGISTERED.value,
+            "origin": "registered",
+            "source_id": "test-suite",
+            "detail": "fixture",
+        }
     }
 
 
@@ -280,6 +281,66 @@ def test_execute_workflow_emits_tool_lifecycle_trace_events() -> None:
     }
 
 
+def test_execute_workflow_traces_approval_pause_without_invocation() -> None:
+    calls: list[object] = []
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "trace-approval-pause-agent",
+            "entrypoint": "write",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "write",
+                    "kind": "tool_use_step",
+                    "tool_id": "workspace_write",
+                    "inputs": {"path": "notes.txt", "content": "hello"},
+                }
+            ],
+            "edges": [],
+            "tools": [
+                {
+                    "id": "workspace_write",
+                    "approval_required": "yes",
+                    "side_effect": "write",
+                    "sandbox": "workspace",
+                }
+            ],
+        }
+    )
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "workspace_write",
+                "approval_required": "yes",
+                "side_effect": "write",
+                "sandbox": "workspace",
+            }
+        ),
+        lambda args: calls.append(args) or {"ok": True},
+    )
+    registry = InMemoryToolRegistry([tool])
+
+    result = execute_workflow(workflow, prompt="Run", tool_registry=registry)
+
+    assert calls == []
+    event_types = [event.event_type for event in result.state.trace_events]
+    assert event_types == [
+        "workflow_started",
+        "node_started",
+        "approval_requested",
+        "approval_paused",
+    ]
+    approval_requested = result.state.trace_events[2]
+    assert approval_requested.payload["tool_id"] == "workspace_write"
+    assert approval_requested.payload["arguments"] == {
+        "path": "notes.txt",
+        "content": "hello",
+    }
+    assert approval_requested.sensitive_fields == ("arguments",)
+
+
 def test_execute_workflow_emits_status_notice_for_fallback_tool_failure() -> None:
     workflow = workflow_from(
         {
@@ -356,6 +417,7 @@ def test_execute_workflow_traces_model_failure() -> None:
     assert event_types == [
         "workflow_started",
         "node_started",
+        "model_input_prepared",
         "model_request",
         "retry_recorded",
         "node_error",
