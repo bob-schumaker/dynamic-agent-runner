@@ -3,12 +3,14 @@
 ## Current Focus
 
 - No implementation slice is currently active.
-- The latest completed repository work fixed OpenAI Responses API function-tool
-  schema generation after PowerMarimo surfaced a live
-  `Missing required parameter: 'tools[0].name'` error.
+- The latest completed repository work updated the future-feature specs with a
+  council-recommended roadmap and committed it as `29bbe19`.
+- The council roadmap promotes a narrow approval/sandbox live-action vertical
+  slice plus a capability/status report before broader MCP, guardrail, loop, or
+  interpreter runtime work.
 - Earlier OpenAI adapter work made default OpenAI/Codex auth, ChatGPT/Codex
   backend auth, authenticated model discovery, and omitted-model defaults work.
-- The latest documentation work added a ReAct/tool workflow guide under
+- Earlier documentation work added a ReAct/tool workflow guide under
   `docs/files/react-tool-workflow.rst` and used it to drive upstream
   `agent-development-skill` improvements.
 
@@ -55,6 +57,15 @@
   - tests now assert the request shape sent through executor and registry paths
   - the production fix and test updates were committed separately as `ca6b065`
     and `6b9fe0c`
+- Council roadmap/spec refresh completed:
+  - `specs/capability-status-report/spec.md` now defines a future preflight
+    report for live, metadata-only, missing-collaborator, disabled,
+    unsupported, and invalid capabilities
+  - `specs/README.md` and `specs/dynamic-agent-runner/tasks.md` now record the
+    council-recommended implementation order
+  - future-feature specs now include roadmap notes for approval, sandbox, MCP,
+    guardrails, loops, interpreter middleware, sessions, llmfit, and
+    Power-Marimo
 
 ## Current Spec Authority Map
 
@@ -71,6 +82,7 @@
   - `specs/hugging-face-support-layer/spec.md`
   - `specs/mlx-local-model-adapter/spec.md`
 - Future investigation or future-feature specs:
+  - `specs/capability-status-report/spec.md`
   - `specs/llm-step-interpreter-middleware/spec.md`
   - `specs/approval-interruption-resume/spec.md`
   - `specs/sandbox-workspace-runtime/spec.md`
@@ -87,6 +99,9 @@
   provider-wrapper work, local-model adapters, graph-mutation checkpoint, model
   adapter coverage, default OpenAI/Codex auth, and Responses API function-tool
   schema compatibility.
+- Current spec roadmap recommendation is approval/sandbox live-action first,
+  capability/status reporting second, then policy-bound MCP and guardrail work;
+  loop and interpreter work remain prototype/benchmark-led.
 - Default OpenAI/Codex auth follow-ups are limited to separately specified
   personal-access-token or agent-identity support.
 - Live runtime behavior is still deferred for approval pause/resume, writable
@@ -96,8 +111,10 @@
 
 ## Next Steps
 
-- For implementation: select the next scoped feature spec or create a new
-  task breakdown before editing runtime code.
+- For implementation: if following the council roadmap, create a scoped plan for
+  the approval-interruption plus sandbox/workspace live-action vertical slice.
+- For product visibility: plan `capability-status-report` before promoting broad
+  live MCP, guardrail, loop, or interpreter behavior.
 - For OpenAI/Codex auth: only add PAT or agent-identity support after a separate
   provider/base-url/signing design is specified and tested.
 - For ReAct/tool workflows: if runtime support is selected, consider resolving

@@ -164,6 +164,14 @@
 - Use `specs/README.md` as the current spec inventory and completion matrix.
   Future live-runtime work should start from the relevant feature spec under
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
+- The current council roadmap in `specs/README.md` and
+  `specs/dynamic-agent-runner/tasks.md` recommends approval/sandbox live-action
+  first, capability/status reporting second, then MCP and guardrails behind
+  those policy boundaries. Treat loop and interpreter work as later
+  prototype/benchmark-led slices.
+- `specs/capability-status-report/spec.md` owns the future preflight reporting
+  direction for live, metadata-only, missing-collaborator, disabled,
+  unsupported, and invalid capabilities.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
@@ -210,10 +218,10 @@
   execution, while preserving the later embedding contract and keeping that
   deferred embedding work separate from first-slice graph-mutation delivery.
 - The following areas now have dedicated future-feature specs and should not be
-  implemented directly from the primary spec alone: approval interruption/resume,
-  sandbox/workspace runtime, MCP runtime integration, live guardrail execution,
-  `SKILL.md` source resolution, iterative agent-loop runtime, and Power-Marimo
-  host automation.
+  implemented directly from the primary spec alone: capability status reporting,
+  approval interruption/resume, sandbox/workspace runtime, MCP runtime
+  integration, live guardrail execution, `SKILL.md` source resolution,
+  iterative agent-loop runtime, and Power-Marimo host automation.
 - Repository-local reference packaging is now being used for external guidance
   that should remain available inside this repo. The OpenAI Model Registry notes
   under `cline-tasks/references/openai-model-registry/` are supporting

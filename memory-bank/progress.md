@@ -23,6 +23,9 @@
 
 ## Latest Milestones
 
+- `29bbe19` recorded the council roadmap in specs, added
+  `specs/capability-status-report/spec.md`, and annotated future-feature specs
+  with the recommended sequencing.
 - `86c287c`, `f50262f`, `1764bc2`, and `d782279` refined Codex config/auth
   parsing and spec alignment.
 - `d2c9805`, `6981b60`, and `9ba5c24` added ChatGPT/Codex authenticated model
@@ -46,6 +49,12 @@
 
 ## Remaining
 
+- Council-recommended next slice: a narrow approval/sandbox live-action vertical
+  slice with explicit workspace grants, approval interruption records, redacted
+  traces, and one safe mutating workspace capability.
+- Capability/status reporting: future preflight/public report to distinguish
+  live, metadata-only, missing-collaborator, disabled, unsupported, and invalid
+  runtime capabilities.
 - Optional llama.cpp embedding follow-up: separate local embedding
   configuration, if explicitly scheduled.
 - Personal-access-token and agent-identity Codex auth remain deferred until a
@@ -54,9 +63,11 @@
   requires a separate feature spec.
 - Future richer Hugging Face Hub behavior and local-model evaluation workflows
   require scoped specs/tasks.
-- Live approval interruption/resume engine and serialized resume state.
+- Live approval interruption/resume engine and serialized resume state,
+  preferably first as part of the approval/sandbox vertical slice.
 - Writable sandbox/workspace runtime, write/patch/shell tools, and command
-  approval policy.
+  approval policy, preferably first as part of the approval/sandbox vertical
+  slice.
 - Live MCP source discovery, lifecycle management, registry injection, and tool
   invocation.
 - Live guardrail adapter execution and abort/reject behavior.
@@ -69,6 +80,11 @@
 
 - Do not treat future-feature specs as implementation approval; create a scoped
   plan/task slice first.
+- Do not promote live MCP, guardrail execution, iterative loops, or interpreter
+  middleware before approval/sandbox/status boundaries are clear enough to
+  prevent high-risk tools from bypassing policy.
+- Keep Power-Marimo continuity host-managed until a concrete workflow justifies
+  runner-owned durable session memory.
 - Keep ChatGPT/Codex token auth separate from public OpenAI API-key provider
   semantics.
 - Preserve caller-configured model order when adapters explicitly provide

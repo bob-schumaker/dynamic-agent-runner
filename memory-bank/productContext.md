@@ -32,11 +32,18 @@
 - Deferred live-runtime areas now have separate future-feature specs under
   `specs/`; those specs capture known requirements and open decisions but do not
   authorize implementation by themselves.
+- A June 2026 council roadmap now recommends making one safe live-action path
+  real before broadening the platform: approval interruption plus sandboxed
+  workspace mutation first, capability/status reporting second, then MCP and
+  guardrails behind policy.
 - Treat source code and tests as the authority for concrete API behavior.
 
 ## Open Product Questions
 
-- Which future-feature spec should become the next active implementation slice?
+- Should the next active implementation slice be the council-recommended
+  approval/sandbox live-action vertical slice?
+- What exact capability/status report shape should help callers distinguish live
+  behavior from metadata-only declarations?
 - Which `NEEDS CLARIFICATION` items must be resolved before implementing live
   approval/resume, sandbox/workspace, MCP, guardrail, skill-source, loop, or
   Power-Marimo automation behavior?
