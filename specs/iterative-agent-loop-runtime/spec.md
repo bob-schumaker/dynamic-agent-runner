@@ -3,10 +3,10 @@
 ## Metadata
 
 - Feature slug: `iterative-agent-loop-runtime`
-- Mode: `light`
-- Artifact type: future feature specification
-- Status: proposed future feature; tool-use completion metadata baseline exists,
-  live iterative loop execution is not implemented
+- Mode: `guided`
+- Artifact type: planned feature specification
+- Status: prepared for v1 implementation; tool-use completion metadata baseline
+  exists, live iterative loop execution is not implemented
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `runtime.execution_policy.tool_use_completion`
@@ -29,6 +29,51 @@ The current runtime executes finite workflow graph nodes and preserves
 `runtime.execution_policy.tool_use_completion` metadata. It supports model tool
 calls and direct tool steps, but it does not implement an open-ended ReAct-style
 loop, automatic run-again behavior, or loop-specific final-output selection.
+
+Current implementation facts that shape v1:
+
+- `ModelResponse.tool_calls` is normalized by model adapters.
+- `llm_step` already exposes registry tools to model requests when
+  `available_tools` is configured.
+- Direct `tool_use_step` execution can pause before approval-required tools.
+- Input guardrails are live before the first runtime action; output and
+  tool-phase guardrails remain deferred.
+- `runtime.execution_policy.tool_use_completion` validates and preserves
+  `run_again`, `stop_on_tool`, `final_output`, and
+  `final_output_state_key`.
+
+## V1 Slice Boundary
+
+The next implementation slice is a bounded single-node loop for eligible
+`llm_step` nodes. It turns model-emitted tool calls into serial registry
+invocations, appends model-facing tool results to the loop transcript, and
+re-calls the same model until the stop policy resolves.
+
+V1 includes:
+
+1. opt-in activation through existing
+   `runtime.execution_policy.tool_use_completion`
+2. serial handling of model-emitted tool calls from one `llm_step`
+3. registry-authorized tool lookup and invocation only for tools exposed to the
+   node
+4. JSON-object argument parsing for model tool calls
+5. model-facing tool result messages built from `ToolResult.model_output`
+6. deterministic stop reasons for final model output, no tool calls,
+   `stop_on_tool`, max iterations, tool failure, model failure, and approval
+   interruption
+7. trace events for loop start, model turn, tool call, tool result, stop reason,
+   and final output selection
+8. output-contract validation against the selected final output
+
+V1 intentionally defers:
+
+- parallel model tool-call execution
+- approval resume for model-emitted tool calls
+- output, tool-input, and tool-output guardrail phases
+- token-budget aggregation beyond existing per-request accounting
+- durable loop transcript persistence
+- node-local policy overrides
+- multi-node graph mutation or self-directed graph traversal
 
 ## Scope
 
@@ -60,10 +105,10 @@ Acceptance criteria:
 
 - Given no loop policy, `llm_step` behavior remains single model call plus
   current tool-call handling semantics.
-- Given loop policy is enabled for a node or workflow, preparation validates max
-  iterations, allowed tools, final-output policy, and stop conditions.
-- Loop policy can be workflow-level default with node-level overrides only when
-  precedence is explicit.
+- Given loop policy is enabled for a workflow, preparation validates the
+  existing metadata fields and execution validates v1 runtime constraints before
+  entering the loop.
+- Node-level overrides are deferred until precedence is specified.
 
 ### FR-2: Dispatch model-requested tools iteratively
 
@@ -77,6 +122,9 @@ Acceptance criteria:
 - Tool results are normalized into model-facing messages before the next model
   call.
 - Hidden or disabled tools cannot be invoked by the loop.
+- Approval-required model-emitted tool calls pause before invocation or fail
+  closed if the current interruption contract cannot represent them without
+  losing correlation metadata.
 
 ### FR-3: Stop deterministically
 
@@ -84,11 +132,13 @@ Loop completion must be bounded and explainable.
 
 Acceptance criteria:
 
-- Supported stop reasons include final model output, no tool call, explicit
-  stop-on-tool policy, max iterations, max tokens, timeout, tool failure, model
-  failure, approval interruption, guardrail rejection, and cancellation.
-- Final output selection follows declared policy: last model output, specific
-  tool result, state field, structured output, or error.
+- Supported v1 stop reasons include final model output, no tool call, explicit
+  stop-on-tool policy, max iterations, tool failure, model failure, and approval
+  interruption.
+- Future stop reasons include max tokens, timeout, guardrail rejection, and
+  cancellation.
+- Final output selection follows declared policy: last model output, state
+  field, or error.
 - Max iteration exhaustion fails clearly unless policy explicitly allows partial
   output.
 
@@ -109,9 +159,10 @@ Loops must not bypass approval, guardrails, or sandbox policy.
 
 Acceptance criteria:
 
-- Approval-required tools produce approval interruptions before invocation.
-- Guardrails, when implemented, run at configured input, output, tool-input, and
-  tool-output phases.
+- Approval-required tools produce approval interruptions before invocation, or
+  fail closed until model-tool approval resume state is supported.
+- Input guardrails keep running before the first runtime action; output,
+  tool-input, and tool-output guardrails remain deferred for v1.
 - Sandbox/write/shell tools require the same grants and approvals as direct
   tool steps.
 - Interpreter middleware, if present, cannot expose loop tools beyond effective
@@ -145,21 +196,34 @@ Acceptance criteria:
 - Stop policy must be explicit enough to test with fake clients and tools.
 - Unit validation must not require live model calls.
 
+## V1 Decisions
+
+- Policy location: use existing workflow-level
+  `runtime.execution_policy.tool_use_completion`; node-local overrides are
+  deferred.
+- Activation: `run_again: required` enables loop execution for `llm_step` nodes
+  with exposed tools.
+- Stop-on-tool: `stop_on_tool: enabled` stops after the first successful model
+  tool invocation and selects output through `final_output`.
+- Tool-call mode: serial only; parallel tool calls are deferred.
+- Tool-call ids: preserve model ids when present and generate deterministic
+  per-turn fallback ids for trace correlation.
+- Final output v1: support last model response content and existing
+  `state_field`; richer final selectors are deferred.
+- Loop state: record final node output as today, with loop transcript details in
+  trace events rather than durable public state.
+- Tool failures: follow existing tool failure behavior where available; abort by
+  default for model-emitted calls without explicit continuation behavior.
+- Redaction: mark model request/response content, tool arguments, and tool output
+  as sensitive in loop trace events.
+
 ## NEEDS CLARIFICATION
 
-- Should loop policy live only under `runtime.execution_policy.tool_use_completion`
-  or also as node-local metadata?
-- What exact stop policy vocabulary should v1 support?
-- Should parallel model tool calls be supported in v1?
-- How should tool-call ids be generated and correlated across turns?
-- What final-output policies are required initially?
-- Should loop state be visible in `WorkflowExecutionState` or hidden inside node
-  execution records?
-- How should token budgets apply: per turn, per node loop, or whole workflow?
-- How do loops interact with approval-resume serialized state?
-- Should tool failures be model-visible by default, abort by default, or follow
-  per-tool failure behavior?
-- How should loop transcripts be redacted in traces?
+- How should token budgets apply after v1: per turn, per node loop, or whole
+  workflow?
+- What serialized state is required to resume approval-required model tool calls?
+- Should future loop transcripts become public state, exported artifacts, or
+  trace-only diagnostics?
 
 ## Validation Checklist
 

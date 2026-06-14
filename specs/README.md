@@ -37,7 +37,7 @@ Companion planning artifacts:
 | MCP runtime integration | [`spec.md`](mcp-runtime-integration/spec.md) | Implemented v1 baseline | Explicit caller-supplied MCP registry injection, MCP provenance, conservative policy defaults, capability status, tests, and evidence complete; live transports, process lifecycle, and discovery remain deferred |
 | Live guardrail execution | [`spec.md`](live-guardrail-execution/spec.md) | Implemented v1 baseline | Caller-registered input guardrail pass/abort, fail-closed missing adapters, redacted traces, capability status, tests, and evidence complete; output/tool phases remain deferred |
 | SKILL.md source resolution | [`spec.md`](skill-source-resolution/spec.md) | Future source-loading feature | Skill metadata and refs exist; arbitrary source loading not implemented |
-| Iterative agent-loop runtime | [`spec.md`](iterative-agent-loop-runtime/spec.md) | Future live-runtime feature | Tool-use completion metadata exists; live iterative loop not implemented |
+| Iterative agent-loop runtime | [`spec.md`](iterative-agent-loop-runtime/spec.md) | Prepared for v1 implementation | Tool-use completion metadata exists; bounded opt-in `llm_step` loop plan, tasks, and validation scaffold are ready; live iterative loop not implemented |
 | Power-Marimo host automation | [`spec.md`](power-marimo-host-automation/spec.md) | Future downstream integration | Placeholder-safe fixture exists; live Marimo/PyQt automation not implemented |
 
 ## Completion Matrix
@@ -63,7 +63,7 @@ Companion planning artifacts:
 | MCP runtime integration | `mcp-runtime-integration` | Metadata-only MCP registry-source and lifecycle diagnostics preservation plus explicit caller-supplied MCP registry injection complete | Live server discovery, process lifecycle, transports, reconnect, schema cache, and diagnostics beyond metadata remain deferred |
 | Live guardrail execution | `live-guardrail-execution` | Metadata-only guardrail declaration preservation plus caller-registered input guardrail aborts before first runtime action complete | Output guardrails, tool guardrails, reject-content behavior, retries, timeouts, and external adapters remain deferred |
 | SKILL.md source resolution | `skill-source-resolution` | Package-local skill metadata and `skill_refs` preservation complete | Source loading, trust, precedence, and prompt injection are specified as future work |
-| Iterative agent-loop runtime | `iterative-agent-loop-runtime` | Metadata-only tool-use completion policy preservation complete | ReAct-style loop execution, stop policy, and loop trace behavior are specified as future work |
+| Iterative agent-loop runtime | `iterative-agent-loop-runtime` | Metadata-only tool-use completion policy preservation complete | V1 implementation plan prepared for bounded opt-in serial model-tool loops inside eligible `llm_step` nodes; live execution remains next |
 | Power-Marimo host automation | `power-marimo-host-automation` | Placeholder-safe fixture and fake-tool execution coverage complete | Live Marimo-session tools, domain adapters, PyQt-widget automation, and host safety policy are specified as future work |
 
 ## Reading Order
@@ -98,7 +98,7 @@ item still needs a scoped plan and task slice before code changes begin.
    approval/sandbox capabilities.
 5. Complete: add policy-bound `mcp-runtime-integration`.
 6. Complete: add `live-guardrail-execution`.
-7. Next: add bounded `iterative-agent-loop-runtime`.
+7. Next: implement the prepared bounded `iterative-agent-loop-runtime` v1 slice.
 8. Add opt-in package-local `skill-source-resolution`.
 9. Implement local-model advisory features only when local-model ergonomics is
    the immediate driver: `llmfit-model-fit-filter` for pre-download filtering and
