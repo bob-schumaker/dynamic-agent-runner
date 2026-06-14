@@ -725,8 +725,16 @@ async def _execute_llm_step_async(
         ),
     )
     _record_prompt_cache_provider_telemetry(response, node, tracer)
+    if not _iterative_loop_enabled(plan):
+        _validate_model_output_contract(node, plan, response, prepared_input.prompt)
+        return response
     _validate_model_output_contract(node, plan, response, prepared_input.prompt)
     return response
+
+
+def _iterative_loop_enabled(plan: ExecutionPlan) -> bool:
+    policy = plan.tool_use_completion_policy
+    return bool(policy is not None and policy.run_again == "required")
 
 
 def _tool_sources_payload(tools: Sequence[RegisteredTool]) -> dict[str, Any]:

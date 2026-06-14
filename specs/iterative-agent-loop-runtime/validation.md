@@ -53,3 +53,11 @@ Status: planning checkpoint prepared
 - Observed result: passed
 - Interpretation: Markdown checks passed for the planning artifacts and spec
   index.
+
+### Slice 1 — Activation and No-Drift Baseline
+
+- Command: `poetry run pytest tests/test_executor.py -q`
+- Observed result: `79 passed in 0.54s`
+- Interpretation: executor behavior remains unchanged when no loop policy is
+  present, including model-emitted tool calls that are preserved but not
+  dispatched.

@@ -11,17 +11,21 @@ Status: prepared for implementation
 
 ## Slice 1 — Activation and No-Drift Baseline
 
-- [ ] T1.1 [tests] Add executor coverage proving existing `llm_step` behavior is
+- [x] T1.1 [tests] Add executor coverage proving existing `llm_step` behavior is
       unchanged when `tool_use_completion.run_again` is absent.
   - Spec: FR-1
   - Files/components: `tests/test_executor.py`
   - Validation: `poetry run pytest tests/test_executor.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_executor.py -q` — `79 passed in 0.54s`
 
-- [ ] T1.2 [implementation] Add an internal policy check that only enters loop
+- [x] T1.2 [implementation] Add an internal policy check that only enters loop
       execution when `run_again` is `required`.
   - Spec: FR-1
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Validation: `poetry run pytest tests/test_executor.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_executor.py -q` — `79 passed in 0.54s`
 
 ## Slice 2 — Serial Model Tool Dispatch
 
