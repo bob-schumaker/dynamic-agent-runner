@@ -38,18 +38,25 @@ Status: ready for first implementation slice
 
 ## Slice 2 — Package Inspection and Metadata-Only Reporting
 
-- [ ] T2.1 [tests] Add RED tests for metadata-only approval, sandbox, MCP,
+- [x] T2.1 [tests] Add RED tests for metadata-only approval, sandbox, MCP,
       guardrail, skill, loop, async session, and handoff declarations.
   - Spec: FR-1, FR-2, FR-4
   - Files/components: `tests/test_capabilities.py`
   - Validation: `poetry run pytest tests/test_capabilities.py -q`
+  - RED:
+    - `poetry run pytest tests/test_capabilities.py -q` — failed because
+      `inspect_agent_package_capabilities(...)` still raised the Slice 1
+      placeholder `NotImplementedError`
 
-- [ ] T2.2 [implementation] Add `inspect_agent_package_capabilities(...)` using
+- [x] T2.2 [implementation] Add `inspect_agent_package_capabilities(...)` using
       existing package loading, validation, and execution-plan preparation.
   - Spec: FR-1, FR-2, FR-4, FR-5
   - Files/components: `src/dynamic_agent_runner/capabilities.py`,
     `src/dynamic_agent_runner/__init__.py`
   - Validation: `poetry run pytest tests/test_capabilities.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_capabilities.py -q` —
+      `4 passed in 0.12s`
 
 ## Slice 3 — Collaborator Coverage
 

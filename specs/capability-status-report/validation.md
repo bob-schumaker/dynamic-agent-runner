@@ -1,6 +1,6 @@
 # Capability Status Report Validation Log
 
-Status: Slice 1 public report contract implemented
+Status: Slice 2 package inspection and metadata-only reporting implemented
 
 ## Scope
 
@@ -43,3 +43,22 @@ Status: Slice 1 public report contract implemented
 - Interpretation: the package now exposes the capability-status state enum,
   report item, summary, report dataclasses, and public inspection entry-point
   name. Full package inspection remains Slice 2.
+
+### T2.1 RED — package inspection and metadata-only reporting
+
+- Command: `poetry run pytest tests/test_capabilities.py -q`
+- Expected result: fail before package inspection exists
+- Observed result: `2 failed, 2 passed in 0.13s`
+- Failure boundary:
+  - `inspect_agent_package_capabilities(...)` still raised the Slice 1
+    placeholder `NotImplementedError`
+
+### T2.2 GREEN — package inspection and metadata-only reporting
+
+- Command: `poetry run pytest tests/test_capabilities.py -q`
+- Observed result: `4 passed in 0.12s`
+- Interpretation: capability inspection now loads and validates package
+  directories, returns invalid reports for invalid packages by default,
+  preserves strict validation behavior when requested, and reports existing
+  metadata-only declarations without executing models, tools, MCP, guardrails,
+  approvals, sandbox behavior, sessions, loops, or skill-source loading.
