@@ -1,6 +1,6 @@
 # Live Guardrail Execution V1 Validation Log
 
-Status: planning checkpoint
+Status: Slice 1 public guardrail contract implemented
 
 ## Scope
 
@@ -32,3 +32,23 @@ Status: planning checkpoint
 - Planning checkpoint resolves v1 as caller-registered input guardrails only:
   pass/abort decisions, no output/tool phases, no reject-content behavior, no
   external provider adapters, and no live service calls in tests.
+- Planning checkpoint committed in `eb6eb98`
+  (`docs(specs): plan input guardrail slice`).
+
+### T1.1 RED — public guardrail contract
+
+- Command: `poetry run pytest tests/test_guardrails.py tests/test_import.py -q`
+- Expected result: fail before guardrail contract exports exist
+- Observed result: `4 failed in 0.13s`
+- Failure boundary:
+  - missing `GuardrailDecision`
+  - missing `GuardrailResult`
+  - missing `InMemoryGuardrailRegistry`
+
+### T1.2 GREEN — public guardrail contract
+
+- Command: `poetry run pytest tests/test_guardrails.py tests/test_import.py -q`
+- Observed result: `4 passed in 0.11s`
+- Interpretation: callers can construct guardrail results and register
+  in-memory guardrail handlers keyed by guardrail id. Live executor enforcement
+  remains Slice 2.

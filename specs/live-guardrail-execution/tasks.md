@@ -8,11 +8,13 @@ Status: planned next implementation slice
       decisions in `spec.md`.
 - [x] T0.2 Add `plan.md`, `tasks.md`, and `validation.md` before
       implementation.
-- [ ] T0.3 Commit the planning checkpoint before code changes.
+- [x] T0.3 Commit the planning checkpoint before code changes.
+  - Completed in commit `eb6eb98`
+    (`docs(specs): plan input guardrail slice`)
 
 ## Slice 1 — Public Guardrail Contract
 
-- [ ] T1.1 [tests] Add RED import/shape tests for guardrail decisions, results,
+- [x] T1.1 [tests] Add RED import/shape tests for guardrail decisions, results,
       and registry helpers.
   - Spec: FR-2, FR-3
   - Files/components: `tests/test_guardrails.py`,
@@ -20,14 +22,20 @@ Status: planned next implementation slice
     `src/dynamic_agent_runner/__init__.py`
   - Validation:
     `poetry run pytest tests/test_guardrails.py tests/test_import.py -q`
+  - RED:
+    - `poetry run pytest tests/test_guardrails.py tests/test_import.py -q` —
+      failed because guardrail contract exports were missing
 
-- [ ] T1.2 [implementation] Add public guardrail result types and a simple
+- [x] T1.2 [implementation] Add public guardrail result types and a simple
       caller-owned guardrail registry.
   - Spec: FR-2, FR-3
   - Files/components: `src/dynamic_agent_runner/guardrails.py`,
     `src/dynamic_agent_runner/__init__.py`
   - Validation:
     `poetry run pytest tests/test_guardrails.py tests/test_import.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_guardrails.py tests/test_import.py -q` —
+      `4 passed in 0.11s`
 
 ## Slice 2 — Input Guardrail Enforcement
 

@@ -49,6 +49,11 @@ from dynamic_agent_runner.mcp import (
     create_mcp_registry,
     registered_tool_from_mcp_binding,
 )
+from dynamic_agent_runner.guardrails import (
+    GuardrailDecision,
+    GuardrailResult,
+    InMemoryGuardrailRegistry,
+)
 from dynamic_agent_runner.hugging_face_models import (
     HuggingFaceModelSearchResult,
     search_hugging_face_models,
@@ -144,6 +149,8 @@ __all__ = [
     "CompiledAgentWorkflow",
     "compile_agent_workflow",
     "DynamicAgentRunnerError",
+    "GuardrailDecision",
+    "GuardrailResult",
     "HuggingFaceModelSearchError",
     "HuggingFaceModelSearchResult",
     "LlamaCppLocalModelConfig",
@@ -211,6 +218,7 @@ __all__ = [
     "TokenEstimate",
     "TokenUsageRecord",
     "InMemoryToolRegistry",
+    "InMemoryGuardrailRegistry",
     "InMemoryTraceSink",
     "estimate_messages_tokens",
     "inspect_agent_package_capabilities",
