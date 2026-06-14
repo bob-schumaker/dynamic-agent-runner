@@ -60,17 +60,23 @@ Status: ready for first implementation slice
 
 ## Slice 3 — Collaborator Coverage
 
-- [ ] T3.1 [tests] Add RED tests for model adapter coverage, missing tools,
+- [x] T3.1 [tests] Add RED tests for model adapter coverage, missing tools,
       disabled tools, and built-in tool-pack status.
   - Spec: FR-3, FR-5
   - Files/components: `tests/test_capabilities.py`
   - Validation: `poetry run pytest tests/test_capabilities.py -q`
+  - RED:
+    - `poetry run pytest tests/test_capabilities.py -q` — failed because
+      model/tool/built-in collaborator status items were not reported
 
-- [ ] T3.2 [implementation] Report model adapter and tool registry coverage
+- [x] T3.2 [implementation] Report model adapter and tool registry coverage
       without invoking models or tools.
   - Spec: FR-3, FR-5
   - Files/components: `src/dynamic_agent_runner/capabilities.py`
   - Validation: `poetry run pytest tests/test_capabilities.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_capabilities.py -q` —
+      `5 passed in 0.11s`
 
 ## Slice 4 — Validation and Completion Evidence
 

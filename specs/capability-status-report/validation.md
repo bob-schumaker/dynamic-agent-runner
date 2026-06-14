@@ -1,6 +1,6 @@
 # Capability Status Report Validation Log
 
-Status: Slice 2 package inspection and metadata-only reporting implemented
+Status: Slice 3 collaborator coverage implemented
 
 ## Scope
 
@@ -62,3 +62,19 @@ Status: Slice 2 package inspection and metadata-only reporting implemented
   preserves strict validation behavior when requested, and reports existing
   metadata-only declarations without executing models, tools, MCP, guardrails,
   approvals, sandbox behavior, sessions, loops, or skill-source loading.
+
+### T3.1 RED — collaborator coverage reporting
+
+- Command: `poetry run pytest tests/test_capabilities.py -q`
+- Expected result: fail before collaborator status items exist
+- Observed result: `1 failed, 4 passed in 0.13s`
+- Failure boundary:
+  - report did not include `model.answer` coverage diagnostics
+
+### T3.2 GREEN — collaborator coverage reporting
+
+- Command: `poetry run pytest tests/test_capabilities.py -q`
+- Observed result: `5 passed in 0.11s`
+- Interpretation: capability inspection now reports strict model adapter
+  coverage, missing tool registries, disabled tools, registered tools, and
+  built-in local workspace pack status without invoking models or tools.

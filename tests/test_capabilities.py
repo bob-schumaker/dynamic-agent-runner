@@ -8,6 +8,8 @@ from textwrap import dedent
 import pytest
 
 from dynamic_agent_runner.errors import ArtifactLoadError
+from dynamic_agent_runner.models import ToolDefinition
+from dynamic_agent_runner.registry import InMemoryToolRegistry, RegisteredTool
 
 
 def write_agent_package(tmp_path: Path, runtime_yaml: str) -> Path:
@@ -191,3 +193,75 @@ def test_inspect_agent_package_capabilities_reports_invalid_packages(
 
     with pytest.raises(ArtifactLoadError):
         inspect_agent_package_capabilities(package_directory=package_dir, strict=True)
+
+
+def test_inspect_agent_package_capabilities_reports_collaborator_coverage(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    class FakeAdapter:
+        models = ("covered-model",)
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: collaborator-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        nodes:
+          - id: answer
+            kind: llm_step
+            model: missing-model
+            prompt:
+              user_template: "Answer {prompt}"
+            available_tools:
+              - search_repo
+          - id: search
+            kind: tool_use_step
+            tool_id: search_repo
+        edges:
+          - source: answer
+            target: search
+            edge_kind: sequential
+        tools:
+          - id: search_repo
+            adapter: runtime.search_repo
+        """,
+    )
+    missing_report = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        model_adapter=[FakeAdapter()],
+        model_adapter_coverage="strict",
+    )
+    missing_items = {item.id: item for item in missing_report.items}
+
+    assert missing_items["model.answer"].state == CapabilityState.MISSING_COLLABORATOR
+    assert (
+        missing_items["tool.search_repo"].state == CapabilityState.MISSING_COLLABORATOR
+    )
+    assert missing_items["built_in.local_workspace"].state == CapabilityState.DISABLED
+
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {"id": "search_repo", "input_schema": {"type": "object"}}
+                ),
+                lambda _args: {"ok": True},
+            )
+        ],
+        disabled_tools=("search_repo",),
+    )
+    disabled_report = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        tool_registry=registry,
+        built_in_tool_packs=("local_workspace",),
+    )
+    disabled_items = {item.id: item for item in disabled_report.items}
+
+    assert disabled_items["tool.search_repo"].state == CapabilityState.DISABLED
+    assert disabled_items["built_in.local_workspace"].state == CapabilityState.LIVE
