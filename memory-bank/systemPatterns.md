@@ -136,6 +136,12 @@
 - Async execution supports async model adapters, async tool handlers, async
   lifecycle hooks, cancellation propagation, and concurrent shared-context runs
   while preserving per-run execution state isolation.
+- Local model support now has two distinct advisory fit layers in the specs:
+  `llmfit-model-fit-filter` is pre-download Hugging Face candidate filtering,
+  while `llama-cpp-memory-fit-profile` is post-resolution profiling for a
+  concrete local GGUF model asset. Neither layer should replace the existing
+  llama.cpp adapter contract or take ownership of model downloads, server
+  lifecycle, or execution.
 
 ## Boundaries and Unknowns
 
@@ -201,6 +207,10 @@
   use runtime-owned Hugging Face download/caching for missing referenced model
   assets; and default the adapter model-cache path to `~/.ollama/models` unless
   the caller provides an explicit cache folder.
+- For llama.cpp memory-fit profiling, treat the profile as optional,
+  read-only, and fail-open by default. It should operate on a resolved local
+  model path, normalize profiler output into package-owned records, and suggest
+  effective context settings without mutating `LlamaCppLocalModelConfig`.
 - Preserve the executor boundary during llama.cpp follow-up: direct adapters
   advertise `models` and `is_local=True`, and client intent should be expressed
   with `model_adapter_coverage="strict"` rather than revived `local_only`

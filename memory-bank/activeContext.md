@@ -3,8 +3,10 @@
 ## Current Focus
 
 - No implementation slice is currently active.
-- The latest completed repository work updated the future-feature specs with a
-  council-recommended roadmap and committed it as `29bbe19`.
+- The latest completed repository work added the optional
+  `llama-cpp-memory-fit-profile` feature spec, refreshed stale
+  `llama-cpp-local-model` SDD artifacts to mark direct in-process llama.cpp as
+  implemented through Slice 3, and committed the spec changes as `11916b7`.
 - The council roadmap promotes a narrow approval/sandbox live-action vertical
   slice plus a capability/status report before broader MCP, guardrail, loop, or
   interpreter runtime work.
@@ -66,6 +68,18 @@
   - future-feature specs now include roadmap notes for approval, sandbox, MCP,
     guardrails, loops, interpreter middleware, sessions, llmfit, and
     Power-Marimo
+- LlamaBarn local-model fit evaluation was reviewed for a possible package
+  feature:
+  - LlamaBarn's useful pattern is post-install/post-resolution memory
+    feasibility profiling for concrete local GGUF assets, not generic model
+    quality ranking
+  - `specs/llama-cpp-memory-fit-profile/spec.md` now defines the future
+    optional advisory profile surface for resident memory, context-growth cost,
+    supported context tiers, maximum usable context, suggested kwargs, and
+    fail-open diagnostics
+  - `specs/llama-cpp-local-model/spec.md`, `plan.md`, `tasks.md`, and
+    `validation.md` now reflect that direct in-process llama.cpp support already
+    landed in `58136d9`
 
 ## Current Spec Authority Map
 
@@ -82,7 +96,9 @@
   - `specs/hugging-face-support-layer/spec.md`
   - `specs/mlx-local-model-adapter/spec.md`
 - Future investigation or future-feature specs:
+  - `specs/llama-cpp-memory-fit-profile/spec.md`
   - `specs/capability-status-report/spec.md`
+  - `specs/llmfit-model-fit-filter/spec.md`
   - `specs/llm-step-interpreter-middleware/spec.md`
   - `specs/approval-interruption-resume/spec.md`
   - `specs/sandbox-workspace-runtime/spec.md`
@@ -99,6 +115,9 @@
   provider-wrapper work, local-model adapters, graph-mutation checkpoint, model
   adapter coverage, default OpenAI/Codex auth, and Responses API function-tool
   schema compatibility.
+- llama.cpp local-model support is implemented through Slice 3: endpoint
+  helpers, local asset resolution, default Hub download wiring, identity
+  validation, direct in-process sync/async adapters, and adapter coverage tests.
 - Current spec roadmap recommendation is approval/sandbox live-action first,
   capability/status reporting second, then policy-bound MCP and guardrail work;
   loop and interpreter work remain prototype/benchmark-led.
@@ -124,3 +143,6 @@
   live OpenAI, MCP, Marimo, Hugging Face, or local-model calls to core tests.
 - For OpenAI tool work: preserve Responses API request shape unless a separate
   adapter boundary explicitly targets another OpenAI-compatible API.
+- For local-model fit work: keep `llmfit-model-fit-filter` as pre-download
+  Hugging Face candidate filtering and `llama-cpp-memory-fit-profile` as
+  post-resolution profiling for concrete local GGUF assets.

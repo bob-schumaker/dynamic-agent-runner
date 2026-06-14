@@ -16,6 +16,9 @@
 - Registry-provided model tools now use OpenAI Responses API function-tool
   shape with top-level `name`, avoiding the previous Chat Completions-style
   nested `function.name` payload.
+- llama.cpp local-model support is implemented through direct in-process
+  sync/async adapters, local model asset resolution, default Hugging Face
+  download wiring, identity validation, and strict/augmented adapter coverage.
 - OpenAI adapters expose supported model listing and default-model selection;
   missing workflow models can use the lowest versioned authenticated model.
 - ReAct/tool workflow guidance exists in authored docs and documents
@@ -26,6 +29,9 @@
 - `29bbe19` recorded the council roadmap in specs, added
   `specs/capability-status-report/spec.md`, and annotated future-feature specs
   with the recommended sequencing.
+- `11916b7` added `specs/llama-cpp-memory-fit-profile/spec.md`, indexed it in
+  `specs/README.md`, and refreshed `specs/llama-cpp-local-model/` artifacts so
+  direct in-process llama.cpp support is no longer described as pending.
 - `86c287c`, `f50262f`, `1764bc2`, and `d782279` refined Codex config/auth
   parsing and spec alignment.
 - `d2c9805`, `6981b60`, and `9ba5c24` added ChatGPT/Codex authenticated model
@@ -57,6 +63,8 @@
   runtime capabilities.
 - Optional llama.cpp embedding follow-up: separate local embedding
   configuration, if explicitly scheduled.
+- Optional llama.cpp memory-fit profiling: post-resolution advisory evaluation
+  for concrete local GGUF assets, distinct from pre-download `llmfit` filtering.
 - Personal-access-token and agent-identity Codex auth remain deferred until a
   separate provider/base-url/signing design is specified and tested.
 - Future richer Hugging Face Hub behavior beyond read-only model discovery; this
@@ -80,6 +88,9 @@
 
 - Do not treat future-feature specs as implementation approval; create a scoped
   plan/task slice first.
+- Keep `llmfit-model-fit-filter` and `llama-cpp-memory-fit-profile` separate:
+  the former filters Hugging Face search candidates before download, while the
+  latter profiles an already-resolved local llama.cpp model asset.
 - Do not promote live MCP, guardrail execution, iterative loops, or interpreter
   middleware before approval/sandbox/status boundaries are clear enough to
   prevent high-risk tools from bypassing policy.
