@@ -729,7 +729,7 @@ async def _execute_llm_step_async(
     if not _iterative_loop_enabled(plan):
         _validate_model_output_contract(node, plan, response, prepared_input.prompt)
         return response
-    response = await _execute_model_tool_loop_async(
+    loop_output = await _execute_model_tool_loop_async(
         node,
         plan,
         state,
@@ -741,6 +741,9 @@ async def _execute_llm_step_async(
         tracer,
         lifecycle_hooks,
     )
+    if isinstance(loop_output, WorkflowInterruptedResult):
+        return loop_output
+    response = loop_output
     _validate_model_output_contract(node, plan, response, prepared_input.prompt)
     return response
 
@@ -761,9 +764,13 @@ async def _execute_model_tool_loop_async(
     exposed_tools: Sequence[RegisteredTool],
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
-) -> ModelResponse:
-    if registry is None or not exposed_tools:
+) -> ModelResponse | WorkflowInterruptedResult:
+    if not initial_response.tool_calls:
         return initial_response
+    if registry is None:
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} requested tools but no registry was provided"
+        )
 
     response = initial_response
     transcript: list[Mapping[str, Any]] = []
@@ -775,6 +782,7 @@ async def _execute_model_tool_loop_async(
             tool_call_id = _model_tool_call_id(tool_call, iteration)
             result = await _invoke_model_tool_call_async(
                 node,
+                plan,
                 tool_call,
                 tool_call_id,
                 registry,
@@ -783,6 +791,8 @@ async def _execute_model_tool_loop_async(
                 tracer,
                 lifecycle_hooks,
             )
+            if isinstance(result, WorkflowInterruptedResult):
+                return result
             transcript.extend(
                 _model_tool_result_messages(tool_call, tool_call_id, result)
             )
@@ -886,6 +896,7 @@ async def _request_loop_model_response_async(
 
 async def _invoke_model_tool_call_async(
     node: PreparedNode,
+    plan: ExecutionPlan,
     tool_call: ModelToolCall,
     tool_call_id: str,
     registry: ToolRegistry,
@@ -893,9 +904,49 @@ async def _invoke_model_tool_call_async(
     state: WorkflowExecutionState,
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
-) -> ToolResult:
+) -> ToolResult | WorkflowInterruptedResult:
     tool = _exposed_model_tool(tool_call, exposed_tools)
     arguments = _model_tool_arguments(tool_call)
+    if _approval_required(tool):
+        interruption = ApprovalInterruption(
+            interruption_id=_new_approval_id(),
+            run_id=str(state.run_id),
+            workflow_id=str(plan.workflow.runtime_manifest.package_id),
+            node_id=str(node.id),
+            tool_id=tool.id,
+            action_id=tool_call_id,
+            arguments=arguments,
+            policy=_tool_policy_payload(tool),
+            reason=f"model tool {tool.id!r} requires approval",
+        )
+        tracer.emit(
+            "approval_requested",
+            node_id=str(node.id),
+            payload={
+                "interruption_id": interruption.interruption_id,
+                "tool_id": tool.id,
+                "tool_call_id": tool_call_id,
+                "arguments": arguments,
+                "policy": interruption.policy,
+                "reason": interruption.reason,
+            },
+            sensitive_fields=("arguments",),
+        )
+        tracer.emit(
+            "approval_paused",
+            node_id=str(node.id),
+            payload={
+                "interruption_id": interruption.interruption_id,
+                "tool_id": tool.id,
+                "tool_call_id": tool_call_id,
+                "state": interruption.state.value,
+            },
+        )
+        return WorkflowInterruptedResult(
+            final_result=None,
+            state=state,
+            interruption=interruption,
+        )
     tracer.emit(
         "tool_started",
         node_id=str(node.id),

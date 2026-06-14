@@ -72,3 +72,23 @@ Status: planning checkpoint prepared
 - Interpretation: an opt-in `llm_step` loop can dispatch a model-emitted tool
   through `ToolRegistry`, append model-facing tool output, and use the second
   model response as the final output.
+
+### Slice 3 — Safety and Failure Boundaries
+
+#### Executor RED/GREEN
+
+- Command: `poetry run pytest tests/test_executor.py -q`
+- RED observed result: failed because hidden model tools were silently ignored
+  and approval-required model tools were invoked instead of pausing.
+- GREEN observed result: `86 passed in 0.42s`
+- Interpretation: the loop now fails closed for unavailable, hidden, malformed,
+  failed, and over-limit model tool calls, and approval-required model tool
+  calls return an approval interruption before invocation.
+
+#### Executor Plus Registry
+
+- Command:
+  `poetry run pytest tests/test_executor.py tests/test_registry.py -q`
+- Observed result: `118 passed in 0.45s`
+- Interpretation: executor loop hardening remains compatible with existing
+  registry exposure and invocation behavior.

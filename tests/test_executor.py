@@ -1410,35 +1410,7 @@ def test_execute_workflow_does_not_loop_model_tool_calls_without_policy() -> Non
 
 
 def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
-    workflow = workflow_from(
-        {
-            "format_version": 1,
-            "package_type": "dynamic_agent_design",
-            "package_id": "loop-tool-agent",
-            "entrypoint": "analyze",
-            "packaging": {"mode": "hybrid_bundle"},
-            "runtime": {
-                "execution_policy": {
-                    "model": "gpt-test",
-                    "tool_use_completion": {
-                        "run_again": "required",
-                        "stop_on_tool": "disabled",
-                        "final_output": "default",
-                    },
-                }
-            },
-            "nodes": [
-                {
-                    "id": "analyze",
-                    "kind": "llm_step",
-                    "prompt": {"user_template": "Question: {prompt}"},
-                    "available_tools": ["search_repo"],
-                }
-            ],
-            "edges": [],
-            "tools": [{"id": "search_repo"}],
-        }
-    )
+    workflow = loop_tool_workflow()
     registry = InMemoryToolRegistry(
         [
             make_tool(
@@ -1490,6 +1462,280 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     assert result.state.tool_results["analyze.call_1"].model_facing_output == {
         "summary": "agents found"
     }
+
+
+def test_execute_workflow_rejects_unavailable_model_tool_call() -> None:
+    workflow = loop_tool_workflow(available_tools=["search_repo"])
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "write_file",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            }
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="unavailable tool 'write_file'"):
+        execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=InMemoryToolRegistry([make_tool("search_repo")]),
+            model_adapter=adapter,
+        )
+
+
+def test_execute_workflow_rejects_hidden_model_tool_call() -> None:
+    workflow = loop_tool_workflow(
+        available_tools=["hidden_search"],
+        tools=[{"id": "hidden_search", "exposure": "hidden"}],
+    )
+    calls: list[object] = []
+    hidden_tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "hidden_search",
+                "exposure": "hidden",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            }
+        ),
+        lambda args: calls.append(args) or {"answer": "hidden"},
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "hidden_search",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            }
+        ]
+    )
+
+    with pytest.raises(
+        WorkflowExecutionError, match="unavailable tool 'hidden_search'"
+    ):
+        execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=InMemoryToolRegistry([hidden_tool]),
+            model_adapter=adapter,
+        )
+
+    assert calls == []
+
+
+def test_execute_workflow_rejects_malformed_model_tool_arguments() -> None:
+    workflow = loop_tool_workflow()
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": "not json",
+                    }
+                ],
+            }
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="arguments must be JSON"):
+        execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=InMemoryToolRegistry([make_tool("search_repo")]),
+            model_adapter=adapter,
+        )
+
+
+def test_execute_workflow_aborts_failed_model_tool_call() -> None:
+    workflow = loop_tool_workflow()
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            }
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="search unavailable"):
+        execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=InMemoryToolRegistry(
+                [make_flaky_tool("search_repo", [RuntimeError("search unavailable")])]
+            ),
+            model_adapter=adapter,
+        )
+
+
+def test_execute_workflow_stops_at_model_tool_loop_limit() -> None:
+    workflow = loop_tool_workflow(max_steps=1)
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {
+                "id": "resp_2",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_2",
+                        "name": "search_repo",
+                        "arguments": '{"query":"more"}',
+                    }
+                ],
+            },
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="tool loop limit 1"):
+        execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=InMemoryToolRegistry([make_tool("search_repo")]),
+            model_adapter=adapter,
+        )
+
+
+def test_execute_workflow_pauses_approval_required_model_tool_before_invocation() -> (
+    None
+):
+    calls: list[object] = []
+    workflow = loop_tool_workflow(
+        tools=[
+            {
+                "id": "workspace_write",
+                "approval_required": "yes",
+                "side_effect": "write",
+            }
+        ],
+        available_tools=["workspace_write"],
+    )
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "workspace_write",
+                "approval_required": "yes",
+                "side_effect": "write",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            }
+        ),
+        lambda args: calls.append(args) or {"ok": True},
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "workspace_write",
+                        "arguments": '{"query":"notes"}',
+                    }
+                ],
+            }
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=InMemoryToolRegistry([tool]),
+        model_adapter=adapter,
+    )
+
+    assert isinstance(result, WorkflowInterruptedResult)
+    assert calls == []
+    assert result.interruption.node_id == "analyze"
+    assert result.interruption.tool_id == "workspace_write"
+    assert result.interruption.action_id == "call_1"
+    assert result.interruption.arguments == {"query": "notes"}
+    assert result.state.tool_results == {}
+
+
+def loop_tool_workflow(
+    *,
+    tools: list[dict[str, object]] | None = None,
+    available_tools: list[str] | None = None,
+    max_steps: int | None = None,
+) -> LoadedAgentWorkflow:
+    execution_policy: dict[str, object] = {
+        "model": "gpt-test",
+        "tool_use_completion": {
+            "run_again": "required",
+            "stop_on_tool": "disabled",
+            "final_output": "default",
+        },
+    }
+    if max_steps is not None:
+        execution_policy["max_steps"] = max_steps
+    tool_entries = tools or [{"id": "search_repo"}]
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "loop-tool-agent",
+            "entrypoint": "analyze",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": execution_policy},
+            "nodes": [
+                {
+                    "id": "analyze",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Question: {prompt}"},
+                    "available_tools": (
+                        available_tools
+                        if available_tools is not None
+                        else ["search_repo"]
+                    ),
+                }
+            ],
+            "edges": [],
+            "tools": tool_entries,
+        }
+    )
 
 
 def test_execute_workflow_uses_model_facing_tool_output_in_context_and_trace() -> None:

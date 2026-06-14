@@ -50,21 +50,29 @@ Status: prepared for implementation
 
 ## Slice 3 — Safety and Failure Boundaries
 
-- [ ] T3.1 [tests] Add RED coverage for unexposed tools, hidden tools, malformed
+- [x] T3.1 [tests] Add RED coverage for unexposed tools, hidden tools, malformed
       arguments, tool failures, max iteration exhaustion, and
       approval-required model tool calls.
   - Spec: FR-2, FR-3, FR-5
   - Files/components: `tests/test_executor.py`, `tests/test_registry.py`
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_registry.py -q`
+  - RED:
+    - `poetry run pytest tests/test_executor.py -q` — failed because hidden
+      model tools were silently ignored and approval-required model tools did
+      not pause before invocation.
 
-- [ ] T3.2 [implementation] Fail closed for unauthorized or malformed model tool
+- [x] T3.2 [implementation] Fail closed for unauthorized or malformed model tool
       calls, apply bounded max iterations, preserve direct tool approval
       semantics, and stop before approval-required model tool invocation.
   - Spec: FR-2, FR-3, FR-5
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_registry.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_executor.py -q` — `86 passed in 0.42s`
+    - `poetry run pytest tests/test_executor.py tests/test_registry.py -q` —
+      `118 passed in 0.45s`
 
 ## Slice 4 — Trace, Status, and Completion Evidence
 
