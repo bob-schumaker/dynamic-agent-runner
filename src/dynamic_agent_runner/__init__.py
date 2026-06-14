@@ -44,6 +44,11 @@ from dynamic_agent_runner.mlx_models import (
     create_mlx_local_adapter,
     create_mlx_local_async_adapter,
 )
+from dynamic_agent_runner.mcp import (
+    MCPToolBinding,
+    create_mcp_registry,
+    registered_tool_from_mcp_binding,
+)
 from dynamic_agent_runner.hugging_face_models import (
     HuggingFaceModelSearchResult,
     search_hugging_face_models,
@@ -144,6 +149,7 @@ __all__ = [
     "LlamaCppLocalModelConfig",
     "LocalOpenAIEndpointConfig",
     "MLXLocalModelConfig",
+    "MCPToolBinding",
     "ModelExecutionError",
     "ModelResponse",
     "ModelToolCall",
@@ -174,6 +180,7 @@ __all__ = [
     "create_local_openai_adapter",
     "create_mlx_local_adapter",
     "create_mlx_local_async_adapter",
+    "create_mcp_registry",
     "create_default_async_openai_client",
     "create_default_openai_provider",
     "create_default_openai_client",
@@ -210,6 +217,7 @@ __all__ = [
     "invoke_lifecycle_hook_async",
     "retry_policy_from_value",
     "run_with_retry_async",
+    "registered_tool_from_mcp_binding",
     "token_budget_policy_from_value",
     "prompt_cache_policy_from_value",
     "WorkflowExecutionError",

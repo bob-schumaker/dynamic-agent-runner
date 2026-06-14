@@ -8,24 +8,32 @@ Status: planned next implementation slice
       namespacing, cache, and default policy decisions in `spec.md`.
 - [x] T0.2 Add `plan.md`, `tasks.md`, and `validation.md` before
       implementation.
-- [ ] T0.3 Commit the planning checkpoint before code changes.
+- [x] T0.3 Commit the planning checkpoint before code changes.
+  - Completed in commit `12b9862`
+    (`docs(specs): plan mcp registry injection`)
 
 ## Slice 1 — Public MCP Registry Injection Contract
 
-- [ ] T1.1 [tests] Add RED import/shape tests for MCP tool binding and registry
+- [x] T1.1 [tests] Add RED import/shape tests for MCP tool binding and registry
       construction helpers.
   - Spec: FR-1, FR-3, FR-4
   - Files/components: `tests/test_mcp.py`,
     `src/dynamic_agent_runner/mcp.py`,
     `src/dynamic_agent_runner/__init__.py`
   - Validation: `poetry run pytest tests/test_mcp.py tests/test_import.py -q`
+  - RED:
+    - `poetry run pytest tests/test_mcp.py tests/test_import.py -q` —
+      failed because `MCPToolBinding` and helper exports were missing
 
-- [ ] T1.2 [implementation] Add `MCPToolBinding`,
+- [x] T1.2 [implementation] Add `MCPToolBinding`,
       `registered_tool_from_mcp_binding(...)`, and `create_mcp_registry(...)`.
   - Spec: FR-1, FR-3, FR-4, FR-5
   - Files/components: `src/dynamic_agent_runner/mcp.py`,
     `src/dynamic_agent_runner/__init__.py`
   - Validation: `poetry run pytest tests/test_mcp.py tests/test_import.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_mcp.py tests/test_import.py -q` —
+      `4 passed in 0.15s`
 
 ## Slice 2 — Policy Defaults and Registry Behavior
 

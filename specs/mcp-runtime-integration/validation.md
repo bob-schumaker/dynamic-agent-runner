@@ -1,6 +1,6 @@
 # MCP Runtime Integration V1 Validation Log
 
-Status: planning checkpoint
+Status: Slice 1 public MCP registry injection contract implemented
 
 ## Scope
 
@@ -30,3 +30,23 @@ Status: planning checkpoint
 - Planning checkpoint resolves v1 as explicit caller-supplied MCP registry
   injection only: no transports, process launch, implicit discovery, schema
   cache, or live MCP infrastructure in tests.
+- Planning checkpoint committed in `12b9862`
+  (`docs(specs): plan mcp registry injection`).
+
+### T1.1 RED — public MCP registry injection contract
+
+- Command: `poetry run pytest tests/test_mcp.py tests/test_import.py -q`
+- Expected result: fail before MCP registry injection exports exist
+- Observed result: `4 failed in 0.16s`
+- Failure boundary:
+  - missing `MCPToolBinding`
+  - missing `registered_tool_from_mcp_binding(...)`
+  - missing `create_mcp_registry(...)`
+
+### T1.2 GREEN — public MCP registry injection contract
+
+- Command: `poetry run pytest tests/test_mcp.py tests/test_import.py -q`
+- Observed result: `4 passed in 0.15s`
+- Interpretation: callers can construct explicit MCP tool bindings, convert
+  them into registered tools, and build an in-memory registry without live MCP
+  infrastructure.
