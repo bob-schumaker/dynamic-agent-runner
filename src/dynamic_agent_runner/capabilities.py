@@ -11,7 +11,11 @@ from typing import Any
 
 from dynamic_agent_runner.api import load_agent_package_workflow
 from dynamic_agent_runner.errors import DynamicAgentRunnerError
-from dynamic_agent_runner.models import LoadedAgentWorkflow, prepare_execution_plan
+from dynamic_agent_runner.models import (
+    LoadedAgentWorkflow,
+    ToolOriginKind,
+    prepare_execution_plan,
+)
 from dynamic_agent_runner.registry import ToolRegistryError
 
 
@@ -267,6 +271,7 @@ def _capability_items(
         )
     )
     items.extend(_tool_coverage_items(plan, tool_registry=tool_registry))
+    items.extend(_mcp_registry_items(plan, tool_registry=tool_registry))
     items.append(_local_workspace_pack_item(built_in_tool_packs))
     return tuple(items)
 
@@ -417,6 +422,39 @@ def _tool_coverage_items(
                 summary=summary,
                 owner=_OWNER_DYNAMIC_AGENT_RUNNER,
                 required_collaborator=required_collaborator,
+            )
+        )
+    return tuple(items)
+
+
+def _mcp_registry_items(
+    plan: object,
+    *,
+    tool_registry: object | None,
+) -> tuple[CapabilityStatusItem, ...]:
+    if tool_registry is None:
+        return ()
+    items: list[CapabilityStatusItem] = []
+    for tool_id in _referenced_tool_ids(plan):
+        try:
+            tool = tool_registry.get_tool(tool_id)
+        except ToolRegistryError:
+            continue
+        source = getattr(getattr(tool, "definition", None), "source", None)
+        if getattr(source, "origin", None) is not ToolOriginKind.MCP:
+            continue
+        items.append(
+            CapabilityStatusItem(
+                id=f"mcp.tool.{tool_id}",
+                label=f"MCP tool {tool_id}",
+                state=CapabilityState.LIVE,
+                category="mcp",
+                summary="Caller-supplied MCP-origin registry entry is live.",
+                owner=_OWNER_MCP,
+                details={
+                    "source_id": str(getattr(source, "source_id", "")),
+                    "detail": str(getattr(source, "detail", "")),
+                },
             )
         )
     return tuple(items)

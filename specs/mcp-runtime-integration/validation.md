@@ -1,6 +1,6 @@
 # MCP Runtime Integration V1 Validation Log
 
-Status: Slice 2 MCP policy defaults and registry behavior covered
+Status: Slice 3 MCP capability status implemented
 
 ## Scope
 
@@ -61,3 +61,21 @@ Status: Slice 2 MCP policy defaults and registry behavior covered
   through `InMemoryToolRegistry`.
 - Note: these checks passed without code changes after Slice 1 because the
   initial helper implementation already normalized this metadata.
+
+### T3.1 RED — MCP capability status
+
+- Command: `poetry run pytest tests/test_capabilities.py tests/test_mcp.py -q`
+- Expected result: fail before capability status reports live MCP-origin
+  registry entries
+- Observed result: `1 failed, 12 passed in 0.17s`
+- Failure boundary:
+  - package MCP metadata remained visible as metadata-only
+  - caller-supplied MCP-origin registry entry `mcp.echo` was not reported live
+
+### T3.2 GREEN — MCP capability status
+
+- Command: `poetry run pytest tests/test_capabilities.py tests/test_mcp.py -q`
+- Observed result: `13 passed in 0.12s`
+- Interpretation: capability status now distinguishes declarative MCP metadata
+  from live caller-supplied MCP-origin registry entries without launching,
+  discovering, or invoking MCP infrastructure.

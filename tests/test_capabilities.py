@@ -333,3 +333,69 @@ def test_inspect_agent_package_capabilities_reports_live_approval_interruption(
         "node_id": "write",
         "tool_id": "workspace_write",
     }
+
+
+def test_inspect_agent_package_capabilities_reports_live_mcp_registry_entries(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import (
+        CapabilityState,
+        MCPToolBinding,
+        create_mcp_registry,
+        inspect_agent_package_capabilities,
+    )
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: mcp-capability-agent
+        entrypoint: echo
+        packaging:
+          mode: hybrid_bundle
+        extensions:
+          mcp_registry_sources:
+            sources:
+              - id: repo-tools
+                server: repo-mcp
+                status: active
+                tool_cache: enabled
+                disabled: false
+                operation_locking: per_server
+                memory_pollution: low
+        nodes:
+          - id: echo
+            kind: tool_use_step
+            tool_id: mcp.echo
+            inputs:
+              text: hello
+        edges: []
+        tools:
+          - id: mcp.echo
+        """,
+    )
+    registry = create_mcp_registry(
+        [
+            MCPToolBinding(
+                tool_id="mcp.echo",
+                source_id="repo-tools",
+                server_id="repo-mcp",
+                mcp_tool_name="echo",
+                handler=lambda _args: {"ok": True},
+            )
+        ]
+    )
+
+    report = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        tool_registry=registry,
+    )
+    items = {item.id: item for item in report.items}
+
+    assert items["metadata.mcp_registry_sources"].state == CapabilityState.METADATA_ONLY
+    assert items["mcp.tool.mcp.echo"].state == CapabilityState.LIVE
+    assert items["mcp.tool.mcp.echo"].details == {
+        "source_id": "repo-tools",
+        "detail": "repo-mcp:echo",
+    }

@@ -60,19 +60,25 @@ Status: planned next implementation slice
 
 ## Slice 3 — Capability Status
 
-- [ ] T3.1 [tests] Add RED tests that capability status reports MCP metadata as
+- [x] T3.1 [tests] Add RED tests that capability status reports MCP metadata as
       metadata-only and caller-supplied MCP-origin registry entries as live.
   - Spec: FR-1, FR-3, FR-6
   - Files/components: `tests/test_capabilities.py`
   - Validation:
     `poetry run pytest tests/test_capabilities.py tests/test_mcp.py -q`
+  - RED:
+    - `poetry run pytest tests/test_capabilities.py tests/test_mcp.py -q` —
+      failed because `mcp.tool.mcp.echo` was not reported
 
-- [ ] T3.2 [implementation] Add live MCP registry-entry status reporting without
+- [x] T3.2 [implementation] Add live MCP registry-entry status reporting without
       launching or invoking MCP infrastructure.
   - Spec: FR-1, FR-3, FR-6
   - Files/components: `src/dynamic_agent_runner/capabilities.py`
   - Validation:
     `poetry run pytest tests/test_capabilities.py tests/test_mcp.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_capabilities.py tests/test_mcp.py -q` —
+      `13 passed in 0.12s`
 
 ## Slice 4 — Completion Evidence
 
