@@ -8,24 +8,33 @@ Status: planned next implementation slice
       `spec.md`.
 - [x] T0.2 Add `plan.md`, `tasks.md`, and `validation.md` before
       implementation.
-- [ ] T0.3 Commit the planning checkpoint before code changes.
+- [x] T0.3 Commit the planning checkpoint before code changes.
+  - Completed in commit `2fe5b94`
+    (`docs(specs): plan approval interruption slice`)
 
 ## Slice 1 — Public Interruption Contract
 
-- [ ] T1.1 [tests] Add RED import/shape tests for approval interruption result
+- [x] T1.1 [tests] Add RED import/shape tests for approval interruption result
       types.
   - Spec: approval-interruption-resume FR-2, FR-5
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`,
     `src/dynamic_agent_runner/__init__.py`
   - Validation: `poetry run pytest tests/test_import.py tests/test_executor.py -q`
+  - RED:
+    - `poetry run pytest tests/test_import.py tests/test_executor.py -q` —
+      failed during collection because `ApprovalInterruption` was not exported
+      from `dynamic_agent_runner.executor`
 
-- [ ] T1.2 [implementation] Add public approval interruption dataclasses and
+- [x] T1.2 [implementation] Add public approval interruption dataclasses and
       package exports.
   - Spec: approval-interruption-resume FR-2, FR-5
   - Files/components: `src/dynamic_agent_runner/executor.py`,
     `src/dynamic_agent_runner/__init__.py`
   - Validation: `poetry run pytest tests/test_import.py tests/test_executor.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_import.py tests/test_executor.py -q` —
+      `74 passed in 0.45s`
 
 ## Slice 2 — Direct Tool Pause Before Invocation
 

@@ -1,6 +1,6 @@
 # Approval Interruption and Sandbox V1 Validation Log
 
-Status: planning checkpoint
+Status: Slice 1 public interruption contract implemented
 
 ## Scope
 
@@ -31,3 +31,21 @@ Status: planning checkpoint
 - Planning checkpoint resolves the v1 boundary: direct `tool_use_step`
   interruption only, no durable resume, no model-emitted tool-call pause, and no
   new write/shell workspace tools.
+- Planning checkpoint committed in `2fe5b94`
+  (`docs(specs): plan approval interruption slice`).
+
+### T1.1 RED — public interruption contract imports
+
+- Command: `poetry run pytest tests/test_import.py tests/test_executor.py -q`
+- Expected result: fail before approval interruption contract types exist
+- Observed result: collection failed with `ImportError`
+- Failure boundary:
+  - missing `dynamic_agent_runner.executor.ApprovalInterruption`
+
+### T1.2 GREEN — public interruption contract dataclasses
+
+- Command: `poetry run pytest tests/test_import.py tests/test_executor.py -q`
+- Observed result: `74 passed in 0.45s`
+- Interpretation: the package now exposes the approval interruption state enum,
+  interruption record, and interrupted workflow result shape. Live pause behavior
+  remains Slice 2.

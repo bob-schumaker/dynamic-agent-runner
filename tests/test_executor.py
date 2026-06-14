@@ -20,8 +20,11 @@ from dynamic_agent_runner.artifacts import load_runtime_manifest
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
 from dynamic_agent_runner.executor import (
+    ApprovalInterruption,
+    ApprovalInterruptionState,
     execute_workflow,
     execute_workflow_async,
+    WorkflowInterruptedResult,
     WorkflowExecutionState,
     prepare_model_input,
 )
@@ -120,6 +123,32 @@ class FakeLlamaCppBackend:
     def create_chat_completion(self, **kwargs: object) -> object:
         self.calls.append(kwargs)
         return {"choices": [{"message": {"content": self.content}}]}
+
+
+def test_approval_interruption_contract_shape() -> None:
+    """Approval interruptions expose stable, inspectable pause metadata."""
+
+    state = WorkflowExecutionState(prompt="Run", run_id="run-1")
+    interruption = ApprovalInterruption(
+        interruption_id="approval-1",
+        run_id="run-1",
+        workflow_id="approval-agent",
+        node_id="write",
+        tool_id="workspace_write",
+        arguments={"path": "notes.txt", "content": "hello"},
+        policy={"approval_required": "yes", "side_effect": "write"},
+        reason="tool requires approval",
+    )
+    result = WorkflowInterruptedResult(
+        final_result=None,
+        state=state,
+        interruption=interruption,
+    )
+
+    assert interruption.schema_version == 1
+    assert interruption.state is ApprovalInterruptionState.PENDING
+    assert result.final_result is None
+    assert result.interruption.tool_id == "workspace_write"
 
 
 def package_fixture_path(pattern_id: str = "basic-reasoning-agent") -> Path:

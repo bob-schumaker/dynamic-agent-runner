@@ -16,7 +16,10 @@ from dynamic_agent_runner.capabilities import (
 )
 from dynamic_agent_runner.context import RunContext, WorkflowExecutionContext
 from dynamic_agent_runner.executor import (
+    ApprovalInterruption,
+    ApprovalInterruptionState,
     NodeExecution,
+    WorkflowInterruptedResult,
     WorkflowExecutionState,
     WorkflowResult,
     execute_workflow,
@@ -127,6 +130,8 @@ __all__ = [
     "AsyncOpenAIClientAdapter",
     "AsyncOpenAIClientProtocol",
     "AsyncOpenAIResponsesResource",
+    "ApprovalInterruption",
+    "ApprovalInterruptionState",
     "CapabilityState",
     "CapabilityStatusItem",
     "CapabilityStatusReport",
@@ -155,6 +160,7 @@ __all__ = [
     "ToolHookContext",
     "TraceEvent",
     "TraceSink",
+    "WorkflowInterruptedResult",
     "WorkflowExecutionState",
     "WorkflowHookContext",
     "WorkflowTracer",

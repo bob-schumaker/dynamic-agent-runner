@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, TypeVar
 from uuid import uuid4
 
@@ -78,6 +79,34 @@ class NodeExecution:
     error: str | None = None
 
 
+class ApprovalInterruptionState(str, Enum):
+    """Lifecycle state for an approval interruption."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class ApprovalInterruption:
+    """Structured pause record for an approval-required runtime action."""
+
+    interruption_id: str
+    run_id: str
+    workflow_id: str
+    node_id: str
+    tool_id: str | None = None
+    action_id: str | None = None
+    arguments: Mapping[str, Any] = field(default_factory=dict)
+    policy: Mapping[str, Any] = field(default_factory=dict)
+    reason: str = ""
+    state: ApprovalInterruptionState = ApprovalInterruptionState.PENDING
+    schema_version: int = 1
+
+
 @dataclass
 class WorkflowExecutionState:
     """Mutable execution state accumulated while a workflow runs."""
@@ -102,6 +131,15 @@ class WorkflowResult:
 
     final_result: Any
     state: WorkflowExecutionState
+
+
+@dataclass(frozen=True)
+class WorkflowInterruptedResult:
+    """Workflow execution result returned when approval pauses execution."""
+
+    final_result: None
+    state: WorkflowExecutionState
+    interruption: ApprovalInterruption
 
 
 @dataclass(frozen=True)
