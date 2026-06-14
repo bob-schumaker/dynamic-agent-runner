@@ -5,8 +5,8 @@
 - Feature slug: `iterative-agent-loop-runtime`
 - Mode: `guided`
 - Artifact type: planned feature specification
-- Status: prepared for v1 implementation; tool-use completion metadata baseline
-  exists, live iterative loop execution is not implemented
+- Status: implemented v1 baseline; bounded opt-in `llm_step` model-tool loops
+  execute through the registry with safety checks and trace events
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `runtime.execution_policy.tool_use_completion`
@@ -26,9 +26,11 @@ executor's package and safety boundaries.
 ## Existing Baseline
 
 The current runtime executes finite workflow graph nodes and preserves
-`runtime.execution_policy.tool_use_completion` metadata. It supports model tool
-calls and direct tool steps, but it does not implement an open-ended ReAct-style
-loop, automatic run-again behavior, or loop-specific final-output selection.
+`runtime.execution_policy.tool_use_completion` metadata. It supports bounded
+opt-in model-tool loops for eligible `llm_step` nodes, model tool calls, and
+direct tool steps. It does not implement an open-ended ReAct-style loop,
+automatic run-again behavior outside explicit policy, durable approval resume,
+or loop `state_field` final-output selection.
 
 Current implementation facts that shape v1:
 
@@ -208,8 +210,9 @@ Acceptance criteria:
 - Tool-call mode: serial only; parallel tool calls are deferred.
 - Tool-call ids: preserve model ids when present and generate deterministic
   per-turn fallback ids for trace correlation.
-- Final output v1: support last model response content and existing
-  `state_field`; richer final selectors are deferred.
+- Final output v1: support last model response content. Loop `state_field`,
+  tool-result, and richer final selectors remain metadata-only until a separate
+  slice defines the exact state key behavior.
 - Loop state: record final node output as today, with loop transcript details in
   trace events rather than durable public state.
 - Tool failures: follow existing tool failure behavior where available; abort by
@@ -227,11 +230,11 @@ Acceptance criteria:
 
 ## Validation Checklist
 
-- [ ] Ordinary `llm_step` behavior is unchanged without loop policy.
-- [ ] Loop policy validates max iterations, tools, and stop behavior.
-- [ ] Iterative tool calls dispatch through the registry.
-- [ ] Disabled/hidden tools cannot be invoked.
-- [ ] Max iteration exhaustion fails or returns partial output according to
+- [x] Ordinary `llm_step` behavior is unchanged without loop policy.
+- [x] Loop policy validates max iterations, tools, and stop behavior.
+- [x] Iterative tool calls dispatch through the registry.
+- [x] Disabled/hidden tools cannot be invoked.
+- [x] Max iteration exhaustion fails or returns partial output according to
       explicit policy.
-- [ ] Final output is selected and output-contract validated.
-- [ ] Trace events expose iteration count and stop reason.
+- [x] Final model output is selected and output-contract validated.
+- [x] Trace events expose iteration count and stop reason.

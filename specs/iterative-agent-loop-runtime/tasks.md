@@ -1,6 +1,6 @@
 # Iterative Agent-Loop Runtime V1 Tasks
 
-Status: prepared for implementation
+Status: v1 baseline complete
 
 ## Slice 0 — Planning Checkpoint
 
@@ -76,26 +76,33 @@ Status: prepared for implementation
 
 ## Slice 4 — Trace, Status, and Completion Evidence
 
-- [ ] T4.1 [tests] Add trace assertions for loop lifecycle and final output
+- [x] T4.1 [tests] Add trace assertions for loop lifecycle and final output
       selection.
   - Spec: FR-6
   - Files/components: `tests/test_executor.py`, `tests/test_tracing.py`
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_tracing.py -q`
+  - RED:
+    - `poetry run pytest tests/test_executor.py -q` — failed because the loop
+      emitted no dedicated lifecycle or final-output trace events.
 
-- [ ] T4.2 [implementation] Emit loop trace events with redacted content,
+- [x] T4.2 [implementation] Emit loop trace events with redacted content,
       arguments, and outputs.
   - Spec: FR-6
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_tracing.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_executor.py tests/test_tracing.py -q` —
+      `96 passed in 0.42s`
 
-- [ ] T4.3 [validation] Run focused affected tests.
+- [x] T4.3 [validation] Run focused affected tests.
   - Command:
     `poetry run pytest tests/test_executor.py tests/test_registry.py`
     `tests/test_tracing.py tests/test_capabilities.py tests/test_import.py -q`
+  - Result: `137 passed in 0.48s`
 
-- [ ] T4.4 [validation] Run focused pre-commit.
+- [x] T4.4 [validation] Run focused pre-commit.
   - Command:
     `pre-commit run --files src/dynamic_agent_runner/executor.py`
     `tests/test_executor.py tests/test_registry.py tests/test_tracing.py`
@@ -104,6 +111,7 @@ Status: prepared for implementation
     `specs/iterative-agent-loop-runtime/plan.md`
     `specs/iterative-agent-loop-runtime/tasks.md`
     `specs/iterative-agent-loop-runtime/validation.md specs/README.md`
+  - Result: passed
 
-- [ ] T4.5 [docs] Record completion evidence and update spec status before the
+- [x] T4.5 [docs] Record completion evidence and update spec status before the
       next focus area.

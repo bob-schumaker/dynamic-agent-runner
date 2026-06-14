@@ -1464,6 +1464,76 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     }
 
 
+def test_execute_workflow_traces_iterative_model_tool_loop() -> None:
+    workflow = loop_tool_workflow()
+    registry = InMemoryToolRegistry(
+        [make_tool("search_repo", output={"summary": "agents found"})]
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+        run_id="loop-run-1",
+    )
+
+    loop_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type.startswith("model_tool_loop")
+    ]
+    assert [event.event_type for event in loop_events] == [
+        "model_tool_loop_started",
+        "model_tool_loop_turn_started",
+        "model_tool_loop_tool_call",
+        "model_tool_loop_stopped",
+        "model_tool_loop_final_output",
+    ]
+    assert {event.run_id for event in loop_events} == {"loop-run-1"}
+    assert loop_events[0].payload == {
+        "max_iterations": 8,
+        "tool_count": 1,
+    }
+    assert loop_events[1].payload == {
+        "iteration": 1,
+        "tool_call_count": 1,
+    }
+    assert loop_events[2].payload == {
+        "iteration": 1,
+        "tool_call_id": "call_1",
+        "tool_id": "search_repo",
+        "arguments": {"query": "agents"},
+    }
+    assert "arguments" in loop_events[2].sensitive_fields
+    assert loop_events[3].payload == {
+        "iteration": 2,
+        "stop_reason": "final_model_output",
+    }
+    assert loop_events[4].payload == {
+        "final_output": "final answer",
+        "final_output_policy": "default",
+        "stop_reason": "final_model_output",
+    }
+    assert "final_output" in loop_events[4].sensitive_fields
+
+
 def test_execute_workflow_rejects_unavailable_model_tool_call() -> None:
     workflow = loop_tool_workflow(available_tools=["search_repo"])
     adapter = make_adapter(

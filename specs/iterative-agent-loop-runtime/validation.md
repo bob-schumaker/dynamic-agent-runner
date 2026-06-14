@@ -1,6 +1,6 @@
 # Iterative Agent-Loop Runtime V1 Validation Log
 
-Status: planning checkpoint prepared
+Status: v1 baseline complete
 
 ## Scope
 
@@ -92,3 +92,51 @@ Status: planning checkpoint prepared
 - Observed result: `118 passed in 0.45s`
 - Interpretation: executor loop hardening remains compatible with existing
   registry exposure and invocation behavior.
+
+### Slice 4 — Trace and Completion Evidence
+
+#### Trace RED
+
+- Command: `poetry run pytest tests/test_executor.py -q`
+- RED observed result: failed because the loop emitted no dedicated lifecycle or
+  final-output trace events.
+
+#### Trace GREEN
+
+- Command:
+  `poetry run pytest tests/test_executor.py tests/test_tracing.py -q`
+- GREEN observed result: `96 passed in 0.42s`
+- Interpretation: loop trace events now identify loop start, turn start, model
+  tool calls, stop reason, and final output selection with sensitive arguments
+  and final output marked.
+
+#### Final Affected Tests
+
+- Command:
+  `poetry run pytest tests/test_executor.py tests/test_registry.py`
+  `tests/test_tracing.py tests/test_capabilities.py tests/test_import.py -q`
+- Observed result: `137 passed in 0.58s`
+- Interpretation: iterative-loop runtime behavior, registry exposure, tracing,
+  capability reporting, and public imports are green together.
+
+#### Final Focused Pre-Commit
+
+- Command:
+  `pre-commit run --files src/dynamic_agent_runner/executor.py`
+  `tests/test_executor.py tests/test_registry.py tests/test_tracing.py`
+  `tests/test_capabilities.py tests/test_import.py`
+  `specs/iterative-agent-loop-runtime/spec.md`
+  `specs/iterative-agent-loop-runtime/plan.md`
+  `specs/iterative-agent-loop-runtime/tasks.md`
+  `specs/iterative-agent-loop-runtime/validation.md specs/README.md`
+- Observed result: passed
+- Interpretation: lint, formatting, and Markdown checks passed for the completed
+  v1 iterative-loop baseline.
+
+## Deferred From V1
+
+- Loop `state_field` and `tool_result` final-output selectors remain
+  metadata-only; v1 selects the final no-tool model response.
+- Durable approval resume for model-emitted tool calls remains deferred.
+- Output, tool-input, and tool-output guardrail phases remain deferred.
+- Parallel model tool calls remain deferred.

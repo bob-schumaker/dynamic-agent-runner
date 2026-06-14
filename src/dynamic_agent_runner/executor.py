@@ -775,28 +775,77 @@ async def _execute_model_tool_loop_async(
     response = initial_response
     transcript: list[Mapping[str, Any]] = []
     max_iterations = plan.max_steps or 8
+    tracer.emit(
+        "model_tool_loop_started",
+        node_id=str(node.id),
+        payload={"max_iterations": max_iterations, "tool_count": len(exposed_tools)},
+    )
     for iteration in range(1, max_iterations + 1):
         if not response.tool_calls:
-            return response
-        for tool_call in response.tool_calls:
-            tool_call_id = _model_tool_call_id(tool_call, iteration)
-            result = await _invoke_model_tool_call_async(
+            _emit_model_tool_loop_stop(
                 node,
                 plan,
-                tool_call,
-                tool_call_id,
-                registry,
-                exposed_tools,
-                state,
+                response,
                 tracer,
-                lifecycle_hooks,
+                iteration=iteration,
+                stop_reason="final_model_output",
             )
+            return response
+        tracer.emit(
+            "model_tool_loop_turn_started",
+            node_id=str(node.id),
+            payload={
+                "iteration": iteration,
+                "tool_call_count": len(response.tool_calls),
+            },
+        )
+        for tool_call in response.tool_calls:
+            tool_call_id = _model_tool_call_id(tool_call, iteration)
+            try:
+                result = await _invoke_model_tool_call_async(
+                    node,
+                    plan,
+                    tool_call,
+                    tool_call_id,
+                    iteration,
+                    registry,
+                    exposed_tools,
+                    state,
+                    tracer,
+                    lifecycle_hooks,
+                )
+            except WorkflowExecutionError:
+                tracer.emit(
+                    "model_tool_loop_stopped",
+                    node_id=str(node.id),
+                    payload={
+                        "iteration": iteration,
+                        "stop_reason": "tool_failure",
+                    },
+                )
+                raise
             if isinstance(result, WorkflowInterruptedResult):
+                tracer.emit(
+                    "model_tool_loop_stopped",
+                    node_id=str(node.id),
+                    payload={
+                        "iteration": iteration,
+                        "stop_reason": "approval_interruption",
+                    },
+                )
                 return result
             transcript.extend(
                 _model_tool_result_messages(tool_call, tool_call_id, result)
             )
         if _stop_on_tool_enabled(plan):
+            _emit_model_tool_loop_stop(
+                node,
+                plan,
+                response,
+                tracer,
+                iteration=iteration,
+                stop_reason="stop_on_tool",
+            )
             return response
         response = await _request_loop_model_response_async(
             node,
@@ -808,6 +857,11 @@ async def _execute_model_tool_loop_async(
             tracer,
             lifecycle_hooks,
         )
+    tracer.emit(
+        "model_tool_loop_stopped",
+        node_id=str(node.id),
+        payload={"iteration": max_iterations, "stop_reason": "max_iterations"},
+    )
     raise WorkflowExecutionError(
         f"llm_step node {node.id!r} exceeded iterative tool loop limit {max_iterations}"
     )
@@ -899,6 +953,7 @@ async def _invoke_model_tool_call_async(
     plan: ExecutionPlan,
     tool_call: ModelToolCall,
     tool_call_id: str,
+    iteration: int,
     registry: ToolRegistry,
     exposed_tools: Sequence[RegisteredTool],
     state: WorkflowExecutionState,
@@ -907,6 +962,17 @@ async def _invoke_model_tool_call_async(
 ) -> ToolResult | WorkflowInterruptedResult:
     tool = _exposed_model_tool(tool_call, exposed_tools)
     arguments = _model_tool_arguments(tool_call)
+    tracer.emit(
+        "model_tool_loop_tool_call",
+        node_id=str(node.id),
+        payload={
+            "iteration": iteration,
+            "tool_call_id": tool_call_id,
+            "tool_id": tool.id,
+            "arguments": arguments,
+        },
+        sensitive_fields=("arguments",),
+    )
     if _approval_required(tool):
         interruption = ApprovalInterruption(
             interruption_id=_new_approval_id(),
@@ -998,6 +1064,33 @@ async def _invoke_model_tool_call_async(
     if not result.success:
         raise WorkflowExecutionError(result.error or f"tool {tool.id!r} failed")
     return result
+
+
+def _emit_model_tool_loop_stop(
+    node: PreparedNode,
+    plan: ExecutionPlan,
+    response: ModelResponse,
+    tracer: WorkflowTracer,
+    *,
+    iteration: int,
+    stop_reason: str,
+) -> None:
+    tracer.emit(
+        "model_tool_loop_stopped",
+        node_id=str(node.id),
+        payload={"iteration": iteration, "stop_reason": stop_reason},
+    )
+    policy = plan.tool_use_completion_policy
+    tracer.emit(
+        "model_tool_loop_final_output",
+        node_id=str(node.id),
+        payload={
+            "final_output": response.content,
+            "final_output_policy": policy.final_output if policy else "default",
+            "stop_reason": stop_reason,
+        },
+        sensitive_fields=("final_output",),
+    )
 
 
 def _exposed_model_tool(
