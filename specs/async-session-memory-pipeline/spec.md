@@ -321,3 +321,6 @@ machine-specific paths.
 3. Document host-managed continuity as the v1 multi-turn pattern.
 4. Prioritize safe tool adapters and, if needed, OA7 before treating OA8 as a
    customer-facing requirement.
+5. Use `capability-status-report` before promoting runner-owned session behavior
+   so callers can distinguish host-managed continuity, metadata-only session
+   declarations, and any future live session store.

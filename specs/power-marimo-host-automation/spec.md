@@ -33,6 +33,13 @@ model input, and run fake tools. It does not implement live Marimo server
 discovery, notebook session control, PyQt widget automation, domain SDK adapters,
 or direct manipulation of running notebooks.
 
+Council roadmap note: keep the first Power-Marimo story host-managed. The
+current runner can be useful for bounded workflow execution if Power-Marimo
+supplies live tools, continuity state, and approval policy. Do not make
+Power-Marimo the reason to add runner-owned durable memory, unrestricted desktop
+automation, or broad sandbox behavior before the approval/sandbox/status slices
+are proven.
+
 ## Scope
 
 This feature covers:

@@ -20,6 +20,10 @@
 - Current focus: all planned implementation slices through OA11 are complete;
   the active remaining work is now the promoted Codex/Cline evaluation
   follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
+- Council recommendation: the next useful runtime work should prioritize a
+  narrow live-action vertical slice that pairs approval interruption with
+  sandbox/workspace grants, plus a capability/status report that makes
+  metadata-only declarations visible before execution.
 
 ## Feature-spec roadmap index
 
@@ -41,6 +45,10 @@
   implemented.
 - `specs/llm-step-interpreter-middleware/` — future investigation spec; no
   interpreter backend is selected and no implementation is authorized yet.
+- `specs/capability-status-report/` — future usefulness feature; no
+  implementation is started, but it should be considered before broad live
+  MCP/guardrail/loop/interpreter work so callers can distinguish live behavior
+  from metadata-only declarations.
 - `specs/approval-interruption-resume/` — future feature spec for live approval
   pause/resume, serialized run state, and approval outcomes; metadata baseline
   only is currently implemented.
@@ -67,6 +75,28 @@
 
 1. **Completed:** OA11 landed the upstream portable `tool_type` seam, so the
    original OA follow-up sequence has no remaining active slices.
+
+## Council-recommended next implementation order
+
+This order records a June 2026 council review of the current spec set. It is not
+implementation approval by itself; each item still needs a scoped plan and task
+slice before code changes begin.
+
+1. **Live-action vertical slice:** pair `approval-interruption-resume` and
+   `sandbox-workspace-runtime` around one safe mutating workspace capability,
+   explicit path grants, approval interruption records, redacted traces, and a
+   resumable or clearly interrupted public result.
+2. **Capability/status report:** add a read-only preflight surface from
+   `capability-status-report` so callers can see live, metadata-only, missing
+   collaborator, disabled, unsupported, and invalid capabilities before runtime.
+3. **Policy-bound live integrations:** only then promote MCP invocation and live
+   guardrail execution, keeping MCP tools and guardrails behind registry,
+   approval, sandbox, provenance, timeout, and redaction policy.
+4. **Loop and interpreter experiments:** keep iterative loops and interpreter
+   middleware behind prototypes and benchmarks until the live-action and status
+   surfaces prove the safety and observability story.
+5. **Host-managed session examples:** document and test host-managed continuity
+   patterns before adding runner-owned durable session storage or replay.
 
 ### Active follow-up ordering rationale
 

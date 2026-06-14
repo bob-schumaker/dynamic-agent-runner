@@ -45,6 +45,14 @@ This feature covers:
 5. trace and lifecycle behavior for approval pauses and outcomes
 6. validation rules for approval-capable workflows
 
+## Council Roadmap Note
+
+The council review recommends treating this feature and
+`sandbox-workspace-runtime` as the next live-action vertical slice. A first slice
+should be intentionally narrow: pause before one approved mutating action, expose
+a stable interruption/result shape, redact arguments in traces, and prove that no
+side effect occurs before approval.
+
 ## Functional Requirements
 
 ### FR-1: Pause before approval-required actions

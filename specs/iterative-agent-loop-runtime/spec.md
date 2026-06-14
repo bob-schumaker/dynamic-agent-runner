@@ -42,6 +42,13 @@ This feature covers:
 6. trace vocabulary for loop turns
 7. interaction with approval, guardrails, and sandbox policy
 
+## Council Roadmap Note
+
+The council review recommends deferring live iterative loops until approval,
+sandbox, guardrail, and capability/status reporting boundaries are ready. Loops
+multiply tool-use risk and observability needs; they should not be the first
+feature to make deferred tool policy live.
+
 ## Functional Requirements
 
 ### FR-1: Enable loops only through explicit policy

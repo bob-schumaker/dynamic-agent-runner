@@ -39,6 +39,11 @@ repository should support that preflight without embedding llmfit's model
 database, installing llmfit for the user, or making model search automatically
 drive downloads.
 
+Council roadmap note: this is a useful but lower-risk local-model ergonomics
+feature. It should remain small, optional, read-only, and advisory rather than
+competing with the approval/sandbox/status vertical slice for core runtime
+priority.
+
 ## Discovery Summary
 
 `~/Repos/github/llmfit` provides a Rust CLI/TUI that detects local hardware,

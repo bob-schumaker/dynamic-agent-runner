@@ -39,6 +39,12 @@ This specification records the future feature idea only. It does **not**
 choose an interpreter implementation and does **not** authorize implementation
 yet.
 
+Council roadmap note: keep this lower priority than the first approval/sandbox
+live-action slice and the capability/status report. Interpreter middleware can be
+useful, but it should remain prototype- and benchmark-driven until the package
+can clearly report what bridged tools are live, approved, sandboxed, and
+observable.
+
 ## Local Deep Agents Reference Observations
 
 The referenced Deep Agents repository is available locally at

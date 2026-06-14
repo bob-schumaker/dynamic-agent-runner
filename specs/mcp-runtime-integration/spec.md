@@ -40,6 +40,14 @@ This feature covers:
 7. degraded versus strict startup behavior
 8. diagnostics and trace events
 
+## Council Roadmap Note
+
+The council review treats live MCP invocation as a high-value follow-up, but not
+the first live-action slice. MCP should wait until approval interruption,
+sandbox/workspace policy, and capability/status reporting are clear enough that
+write, shell, network, browser, and external-mutation MCP tools cannot bypass
+policy or appear live when only metadata is preserved.
+
 ## Functional Requirements
 
 ### FR-1: Configure MCP sources explicitly

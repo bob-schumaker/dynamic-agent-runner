@@ -39,6 +39,14 @@ This feature covers:
 6. trace, redaction, and diagnostics
 7. retry and timeout policy for guardrail checks
 
+## Council Roadmap Note
+
+The council review recommends keeping live guardrails behind caller-registered
+adapters and explicit status reporting. Metadata declarations should remain
+visible as metadata-only until the runtime can report required adapters,
+execution phase coverage, redaction policy, and fail-closed behavior before
+workflow execution.
+
 ## Functional Requirements
 
 ### FR-1: Execute guardrails at declared phases

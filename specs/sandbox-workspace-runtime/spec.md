@@ -42,6 +42,14 @@ This feature covers:
 7. approval-aware execution for mutating actions
 8. trace and audit records for sandboxed actions
 
+## Council Roadmap Note
+
+The council review recommends pairing this feature with
+`approval-interruption-resume` before broad MCP, loop, or interpreter execution.
+The first useful slice should not attempt a full sandbox platform. It should
+start with explicit path grants, one or two mutating workspace tools, approval
+interruption before side effects, and a redacted changed-path summary.
+
 ## Functional Requirements
 
 ### FR-1: Require explicit workspace grants

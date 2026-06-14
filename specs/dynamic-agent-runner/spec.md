@@ -1252,6 +1252,11 @@ local tool packs. Write, shell, apply-patch, mounted-workspace, and resumable
 workspace state should require explicit workspace manifests, path grants,
 resource limits, backend/client selection, and approval-aware command policies.
 
+Future capability/status reporting should give callers a preflight view of which
+declared package features are live, metadata-only, missing a runtime
+collaborator, disabled, unsupported, or invalid. This should be a reporting and
+diagnostic layer, not an implicit authorization to execute deferred metadata.
+
 ## In Scope
 
 - Defining the Python library behavior for loading, validating, and executing
@@ -1409,6 +1414,9 @@ resource limits, backend/client selection, and approval-aware command policies.
   enabling write or command tools. NEEDS CLARIFICATION for workspace manifests,
   path grants, resource limits, and approval policy before write, shell,
   apply-patch, or sandbox execution tools can be added.
+- NEEDS CLARIFICATION: What public capability/status report should expose the
+  difference between live behavior, metadata-only declarations, missing runtime
+  collaborators, disabled features, unsupported features, and invalid packages?
 
 ## Suggested Public API Shape
 
