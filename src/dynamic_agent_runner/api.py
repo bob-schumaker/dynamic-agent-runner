@@ -14,9 +14,11 @@ from dynamic_agent_runner.artifacts import (
 )
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.executor import (
+    WorkflowInterruptedResult,
     _run_async_from_sync,
     execute_workflow_async,
 )
+from dynamic_agent_runner.errors import WorkflowExecutionError
 from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
 from dynamic_agent_runner.models import CompiledAgentWorkflow, LoadedAgentWorkflow
 from dynamic_agent_runner.openai_client import (
@@ -237,7 +239,7 @@ async def run_agent_workflow_async(
         result = await execute_workflow_async(
             execution_context, prompt=prompt, run_id=run_id
         )
-        return result.final_result
+        return _final_result_or_error(result)
 
     if package_directory is not None:
         workflow = load_agent_package_workflow(
@@ -271,4 +273,15 @@ async def run_agent_workflow_async(
         model_adapter_coverage=model_adapter_coverage,
         run_id=run_id,
     )
+    return _final_result_or_error(result)
+
+
+def _final_result_or_error(result: Any) -> Any:
+    if isinstance(result, WorkflowInterruptedResult):
+        interruption = result.interruption
+        raise WorkflowExecutionError(
+            "workflow interrupted for approval at "
+            f"node {interruption.node_id!r} tool {interruption.tool_id!r}; "
+            "use execute_workflow to inspect the interruption"
+        )
     return result.final_result

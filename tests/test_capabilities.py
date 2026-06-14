@@ -265,3 +265,71 @@ def test_inspect_agent_package_capabilities_reports_collaborator_coverage(
 
     assert disabled_items["tool.search_repo"].state == CapabilityState.DISABLED
     assert disabled_items["built_in.local_workspace"].state == CapabilityState.LIVE
+
+
+def test_inspect_agent_package_capabilities_reports_live_approval_interruption(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: approval-capability-agent
+        entrypoint: write
+        packaging:
+          mode: hybrid_bundle
+        runtime:
+          execution_policy:
+            approval_interruption:
+              mode: pause_on_approval
+              persist: in_memory
+              resume_from: approval_decision
+              pending_tool_calls_state_key: pending_tools
+              pending_approvals_state_key: pending_approvals
+              interruption_state_key: interruption
+              resume_token_state_key: resume_token
+        nodes:
+          - id: write
+            kind: tool_use_step
+            tool_id: workspace_write
+            inputs:
+              path: notes.txt
+              content: hello
+        edges: []
+        tools:
+          - id: workspace_write
+            approval_required: yes
+            side_effect: write
+            sandbox: workspace
+        """,
+    )
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {
+                        "id": "workspace_write",
+                        "approval_required": "yes",
+                        "side_effect": "write",
+                        "sandbox": "workspace",
+                    }
+                ),
+                lambda _args: {"ok": True},
+            )
+        ]
+    )
+
+    report = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        tool_registry=registry,
+    )
+    items = {item.id: item for item in report.items}
+
+    assert items["runtime.approval_interruption"].state == CapabilityState.LIVE
+    assert items["runtime.approval_interruption"].details == {
+        "node_id": "write",
+        "tool_id": "workspace_write",
+    }

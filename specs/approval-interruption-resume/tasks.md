@@ -64,7 +64,7 @@ Status: planned next implementation slice
 
 ## Slice 3 — High-Level API Boundary and Capability Status
 
-- [ ] T3.1 [tests] Add RED tests that `run_agent_workflow*` fail clearly on an
+- [x] T3.1 [tests] Add RED tests that `run_agent_workflow*` fail clearly on an
       interrupted workflow and capability status reports live approval
       interruption when v1 prerequisites are present.
   - Spec: approval-interruption-resume FR-2, FR-5;
@@ -72,8 +72,12 @@ Status: planned next implementation slice
   - Files/components: `tests/test_executor.py`, `tests/test_capabilities.py`
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_capabilities.py -q`
+  - RED:
+    - `poetry run pytest tests/test_executor.py tests/test_capabilities.py -q` —
+      failed because high-level APIs did not raise on interruption and
+      capability status omitted `runtime.approval_interruption`
 
-- [ ] T3.2 [implementation] Add high-level API guardrails and update capability
+- [x] T3.2 [implementation] Add high-level API guardrails and update capability
       status reporting for v1 approval interruption.
   - Spec: approval-interruption-resume FR-2, FR-5;
     capability-status-report FR-3
@@ -81,6 +85,9 @@ Status: planned next implementation slice
     `src/dynamic_agent_runner/capabilities.py`
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_capabilities.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_executor.py tests/test_capabilities.py -q` —
+      `82 passed in 0.44s`
 
 ## Slice 4 — Completion Evidence
 

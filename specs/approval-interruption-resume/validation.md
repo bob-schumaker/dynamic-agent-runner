@@ -1,6 +1,6 @@
 # Approval Interruption and Sandbox V1 Validation Log
 
-Status: Slice 2 direct tool approval pause implemented
+Status: Slice 3 high-level API and capability status boundary implemented
 
 ## Scope
 
@@ -69,3 +69,24 @@ Status: Slice 2 direct tool approval pause implemented
 - Interpretation: direct approval-required `tool_use_step` execution now returns
   `WorkflowInterruptedResult`, emits redacted approval trace events, and does not
   invoke the registered tool handler before approval.
+
+### T3.1 RED — high-level API and capability status boundary
+
+- Command:
+  `poetry run pytest tests/test_executor.py tests/test_capabilities.py -q`
+- Expected result: fail before high-level APIs reject interrupted workflows and
+  capability status reports the v1 live approval boundary
+- Observed result: `3 failed, 79 passed in 0.58s`
+- Failure boundary:
+  - `run_agent_workflow*` did not raise when execution returned an interrupted
+    result
+  - capability status omitted `runtime.approval_interruption`
+
+### T3.2 GREEN — high-level API and capability status boundary
+
+- Command:
+  `poetry run pytest tests/test_executor.py tests/test_capabilities.py -q`
+- Observed result: `82 passed in 0.44s`
+- Interpretation: high-level run APIs now fail clearly for interrupted workflows
+  and capability status reports the direct tool approval interruption boundary
+  as live when a registered approval-required direct tool is present.

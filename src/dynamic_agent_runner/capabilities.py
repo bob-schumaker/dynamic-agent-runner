@@ -193,6 +193,9 @@ def _capability_items(
                 "Approval interruption declarations are preserved but not executed.",
             )
         )
+        approval_item = _approval_interruption_item(plan, tool_registry=tool_registry)
+        if approval_item is not None:
+            items.append(approval_item)
     if manifest.async_session_policy is not None:
         items.append(
             _metadata_only_item(
@@ -282,6 +285,49 @@ def _metadata_only_item(
         summary=summary,
         owner=owner,
     )
+
+
+def _approval_interruption_item(
+    plan: object,
+    *,
+    tool_registry: object | None,
+) -> CapabilityStatusItem | None:
+    if tool_registry is None:
+        return None
+    for node in _nodes(plan):
+        if getattr(node, "kind", None) != "tool_use_step":
+            continue
+        tool_id = getattr(node, "tool_id", None)
+        if not tool_id:
+            continue
+        try:
+            tool = tool_registry.get_tool(str(tool_id))
+        except ToolRegistryError:
+            continue
+        if not _tool_requires_approval(tool):
+            continue
+        return CapabilityStatusItem(
+            id="runtime.approval_interruption",
+            label="Direct tool approval interruption",
+            state=CapabilityState.LIVE,
+            category="runtime",
+            summary=("Direct approval-required tool steps pause before invocation."),
+            owner=_OWNER_APPROVAL_INTERRUPTION,
+            details={
+                "node_id": str(getattr(node, "id", "")),
+                "tool_id": str(tool_id),
+            },
+        )
+    return None
+
+
+def _tool_requires_approval(tool: object) -> bool:
+    definition = getattr(tool, "definition", None)
+    policy = getattr(definition, "policy", None)
+    value = getattr(policy, "approval_required", None) or getattr(
+        definition, "approval_required", None
+    )
+    return str(value).strip().lower() in {"1", "true", "yes", "required"}
 
 
 def _has_skill_refs(plan: object) -> bool:

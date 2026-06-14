@@ -3045,6 +3045,61 @@ def test_run_agent_workflow_returns_final_result() -> None:
     assert final_result == "done"
 
 
+def approval_required_tool_manifest() -> dict[str, object]:
+    return {
+        "format_version": 1,
+        "package_type": "dynamic_agent_design",
+        "package_id": "approval-api-agent",
+        "entrypoint": "write",
+        "packaging": {"mode": "hybrid_bundle"},
+        "nodes": [
+            {
+                "id": "write",
+                "kind": "tool_use_step",
+                "tool_id": "workspace_write",
+                "inputs": {"path": "notes.txt", "content": "hello"},
+            }
+        ],
+        "edges": [],
+        "tools": [{"id": "workspace_write", "approval_required": "yes"}],
+    }
+
+
+def approval_required_tool_registry() -> InMemoryToolRegistry:
+    return InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {"id": "workspace_write", "approval_required": "yes"}
+                ),
+                lambda _args: {"ok": True},
+            )
+        ]
+    )
+
+
+def test_run_agent_workflow_errors_when_workflow_is_interrupted() -> None:
+    with pytest.raises(WorkflowExecutionError, match="interrupted for approval"):
+        run_agent_workflow(
+            prompt="Run",
+            runtime_manifest=approval_required_tool_manifest(),
+            tool_registry=approval_required_tool_registry(),
+        )
+
+
+async def _run_agent_workflow_async_errors_when_workflow_is_interrupted() -> None:
+    with pytest.raises(WorkflowExecutionError, match="interrupted for approval"):
+        await run_agent_workflow_async(
+            prompt="Run",
+            runtime_manifest=approval_required_tool_manifest(),
+            tool_registry=approval_required_tool_registry(),
+        )
+
+
+def test_run_agent_workflow_async_errors_when_workflow_is_interrupted() -> None:
+    asyncio.run(_run_agent_workflow_async_errors_when_workflow_is_interrupted())
+
+
 def test_run_agent_workflow_async_returns_final_result() -> None:
     manifest = {
         "format_version": 1,
