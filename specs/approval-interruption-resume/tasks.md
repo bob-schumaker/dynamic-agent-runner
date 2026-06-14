@@ -91,12 +91,13 @@ Status: planned next implementation slice
 
 ## Slice 4 — Completion Evidence
 
-- [ ] T4.1 [validation] Run focused affected tests.
+- [x] T4.1 [validation] Run focused affected tests.
   - Command:
     `poetry run pytest tests/test_executor.py tests/test_tracing.py`
     `tests/test_capabilities.py tests/test_import.py -q`
+  - Result: `91 passed in 0.46s`
 
-- [ ] T4.2 [validation] Run focused pre-commit.
+- [x] T4.2 [validation] Run focused pre-commit.
   - Command:
     `pre-commit run --files src/dynamic_agent_runner/executor.py`
     `src/dynamic_agent_runner/api.py src/dynamic_agent_runner/capabilities.py`
@@ -107,6 +108,7 @@ Status: planned next implementation slice
     `specs/approval-interruption-resume/tasks.md`
     `specs/approval-interruption-resume/validation.md`
     `specs/sandbox-workspace-runtime/spec.md specs/README.md`
+  - Result: passed
 
-- [ ] T4.3 [docs] Record completion evidence and update spec status before the
+- [x] T4.3 [docs] Record completion evidence and update spec status before the
       next focus area.

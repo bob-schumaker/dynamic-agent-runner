@@ -32,8 +32,8 @@ Companion planning artifacts:
 | Capability status report | [`spec.md`](capability-status-report/spec.md) | Implemented | Public preflight report distinguishes live, metadata-only, missing-collaborator, disabled, and invalid runtime capabilities; CLI rendering and future collaborator types remain deferred |
 | Async session memory pipeline | [`spec.md`](async-session-memory-pipeline/spec.md) | Metadata baseline plus future analysis | Metadata-only OA8 baseline implemented; no runner-owned session behavior |
 | LLM step interpreter middleware | [`spec.md`](llm-step-interpreter-middleware/spec.md) | Future investigation | Spec captured; backend selection, prototypes, and implementation not started |
-| Approval interruption and resume | [`spec.md`](approval-interruption-resume/spec.md) | Planned next implementation focus | V1 direct `tool_use_step` interruption planned; durable resume and model-emitted tool-call approval remain deferred |
-| Sandbox and workspace runtime | [`spec.md`](sandbox-workspace-runtime/spec.md) | Paired planning focus | Approval-policy boundary participates in the next slice; write/shell runtime remains deferred |
+| Approval interruption and resume | [`spec.md`](approval-interruption-resume/spec.md) | Implemented v1 baseline | Direct approval-required `tool_use_step` interruption, public pause result, redacted approval traces, high-level API guardrails, capability status, tests, and evidence complete; durable resume remains deferred |
+| Sandbox and workspace runtime | [`spec.md`](sandbox-workspace-runtime/spec.md) | Partial approval-policy baseline | Approval-before-side-effect boundary is implemented through approval interruption v1; write/shell runtime, workspace grants, sandbox adapters, and mutation audits remain deferred |
 | MCP runtime integration | [`spec.md`](mcp-runtime-integration/spec.md) | Future live-runtime feature | Metadata diagnostics baseline exists; live MCP discovery/invocation not implemented |
 | Live guardrail execution | [`spec.md`](live-guardrail-execution/spec.md) | Future live-runtime feature | Guardrail metadata baseline exists; live enforcement not implemented |
 | SKILL.md source resolution | [`spec.md`](skill-source-resolution/spec.md) | Future source-loading feature | Skill metadata and refs exist; arbitrary source loading not implemented |
@@ -58,8 +58,8 @@ Companion planning artifacts:
 | Capability/status reporting | `capability-status-report` | Public report contract, package inspection, metadata-only declarations, model adapter coverage, tool registry coverage, built-in tool-pack status, invalid package reporting, tests, and completion evidence complete | Future CLI rendering and additional collaborator types remain deferred until there is a concrete caller |
 | Async session metadata | `async-session-memory-pipeline` | `runtime.execution_policy.async_session` metadata preservation and fail-closed validation complete | Runner-owned durable storage, replay, summary generation, and pruning are deferred |
 | Interpreter middleware | `llm-step-interpreter-middleware` | Future feature spec and candidate interface expectations captured | Dependency checks, prototypes, benchmark evidence, backend selection, and implementation |
-| Sandbox/workspace runtime | `sandbox-workspace-runtime` | Metadata-only `sandbox_runtime` preservation complete; paired v1 planning records approval-before-side-effect boundary | Write tools, shell tools, workspace grants, and sandbox adapters remain deferred |
-| Approval interruption/resume | `approval-interruption-resume` | Metadata-only `approval_interruption` preservation complete; v1 planning targets direct tool interruption before invocation | Durable resume, approval decisions, model-emitted tool-call approval, and serialized resume state remain deferred |
+| Sandbox/workspace runtime | `sandbox-workspace-runtime` | Metadata-only `sandbox_runtime` preservation plus approval-before-side-effect boundary complete | Write tools, shell tools, workspace grants, sandbox adapters, and changed-path audits remain deferred |
+| Approval interruption/resume | `approval-interruption-resume` | Public interruption contract, direct approval-required tool pause, no-side-effect-before-approval behavior, redacted approval traces, high-level API guardrails, capability status, tests, and evidence complete | Durable resume, approval decisions, model-emitted tool-call approval, argument modification, parallel approvals, and serialized resume state remain deferred |
 | MCP runtime integration | `mcp-runtime-integration` | Metadata-only MCP registry-source and lifecycle diagnostics preservation complete | Live server discovery, lifecycle, registry injection, and invocation are specified as future work |
 | Live guardrail execution | `live-guardrail-execution` | Metadata-only guardrail declaration preservation complete | Guardrail adapters, phase execution, abort/reject behavior, and redaction are specified as future work |
 | SKILL.md source resolution | `skill-source-resolution` | Package-local skill metadata and `skill_refs` preservation complete | Source loading, trust, precedence, and prompt injection are specified as future work |
@@ -92,10 +92,11 @@ item still needs a scoped plan and task slice before code changes begin.
 2. Complete: implement `capability-status-report` so callers can distinguish
    live, metadata-only, missing-collaborator, disabled, unsupported, and invalid
    capabilities.
-3. Next: ship a narrow live-action vertical slice pairing
+3. Complete: ship a narrow live-action vertical slice pairing
    `approval-interruption-resume` with `sandbox-workspace-runtime`.
-4. Expand capability/status reporting for the new approval/sandbox capabilities.
-5. Add policy-bound `mcp-runtime-integration`.
+4. Complete for the v1 boundary: expand capability/status reporting for the new
+   approval/sandbox capabilities.
+5. Next: add policy-bound `mcp-runtime-integration`.
 6. Add `live-guardrail-execution`.
 7. Add bounded `iterative-agent-loop-runtime`.
 8. Add opt-in package-local `skill-source-resolution`.

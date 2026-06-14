@@ -1,6 +1,6 @@
 # Approval Interruption and Sandbox V1 Validation Log
 
-Status: Slice 3 high-level API and capability status boundary implemented
+Status: v1 live-action baseline complete
 
 ## Scope
 
@@ -90,3 +90,28 @@ Status: Slice 3 high-level API and capability status boundary implemented
 - Interpretation: high-level run APIs now fail clearly for interrupted workflows
   and capability status reports the direct tool approval interruption boundary
   as live when a registered approval-required direct tool is present.
+
+### T4.1 Focused Affected Tests
+
+- Command:
+  `poetry run pytest tests/test_executor.py tests/test_tracing.py`
+  `tests/test_capabilities.py tests/test_import.py -q`
+- Observed result: `91 passed in 0.46s`
+- Interpretation: approval interruption, tracing, capability status, and public
+  imports are green together.
+
+### T4.2 Focused Pre-Commit
+
+- Command:
+  `pre-commit run --files src/dynamic_agent_runner/executor.py`
+  `src/dynamic_agent_runner/api.py src/dynamic_agent_runner/capabilities.py`
+  `src/dynamic_agent_runner/__init__.py tests/test_executor.py`
+  `tests/test_tracing.py tests/test_capabilities.py tests/test_import.py`
+  `specs/approval-interruption-resume/spec.md`
+  `specs/approval-interruption-resume/plan.md`
+  `specs/approval-interruption-resume/tasks.md`
+  `specs/approval-interruption-resume/validation.md`
+  `specs/sandbox-workspace-runtime/spec.md specs/README.md`
+- Observed result: passed
+- Interpretation: lint, formatting, and Markdown checks passed for the completed
+  v1 approval/sandbox boundary.

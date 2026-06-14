@@ -5,8 +5,8 @@
 - Feature slug: `sandbox-workspace-runtime`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: paired with approval-interruption v1 planning; metadata baseline
-  exists, write/shell runtime is not implemented
+- Status: approval-policy boundary implemented through approval-interruption v1;
+  write/shell runtime remains deferred
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `runtime.execution_policy.sandbox_runtime`
@@ -61,6 +61,20 @@ This keeps the first slice small enough to validate without introducing a host
 sandbox backend. Later sandbox slices can add explicit workspace grants and
 mutating tools behind the approval boundary created by
 `approval-interruption-resume`.
+
+Implemented from this paired slice:
+
+- direct approval-required tool steps pause before invocation
+- no registered handler side effect occurs before approval
+- approval pause traces mark requested arguments as sensitive
+- capability status can report the live approval boundary
+
+Still deferred:
+
+- write, patch, delete, shell, package-install, and mounted-workspace built-ins
+- explicit writable workspace grants and path authorization
+- sandbox adapters and resource enforcement
+- changed-path audit records for real workspace mutations
 
 ## Functional Requirements
 

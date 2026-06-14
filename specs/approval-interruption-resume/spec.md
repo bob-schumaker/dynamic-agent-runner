@@ -5,8 +5,7 @@
 - Feature slug: `approval-interruption-resume`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: planned v1 live-action slice; metadata baseline exists, direct tool
-  interruption planned first
+- Status: implemented v1 live-action baseline; durable resume remains deferred
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `runtime.execution_policy.approval_interruption`
@@ -78,6 +77,20 @@ V1 defers:
 - argument modification
 - parallel or multi-approval handling
 - built-in write, patch, delete, shell, or package-install workspace tools
+
+## Implementation Status
+
+- Implemented `ApprovalInterruptionState`, `ApprovalInterruption`, and
+  `WorkflowInterruptedResult`.
+- Implemented direct `tool_use_step` interruption before lifecycle hooks, retry,
+  registry invocation, output recording, or edge traversal.
+- Implemented redacted `approval_requested` and `approval_paused` trace events.
+- Implemented high-level `run_agent_workflow*` guardrails that raise
+  `WorkflowExecutionError` when a workflow pauses for approval.
+- Implemented capability-status reporting for the live direct-tool approval
+  boundary when an approval-required registered tool is present.
+- Deferred durable resume, approval decisions, model-emitted tool-call
+  interruption, argument modification, and parallel approvals.
 
 ## Functional Requirements
 
@@ -218,7 +231,7 @@ Acceptance criteria:
 
 ## Validation Checklist
 
-- [ ] Approval-required direct tool step pauses before invocation.
+- [x] Approval-required direct tool step pauses before invocation.
 - [ ] Approval-required model-emitted tool call pauses before invocation.
 - [ ] Serialized state excludes live process resources.
 - [ ] Resume with approval invokes exactly the pending action once.
