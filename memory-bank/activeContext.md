@@ -14,6 +14,10 @@
   direct llama.cpp docs now point callers to the `llamacpp` extra, missing
   default `llama_cpp` imports are covered by regression tests, and MLX adapter
   tests verify non-macOS use fails before model resolution or `mlx_lm` loading.
+- Current packaging maintenance added package-owned PyInstaller hook files for
+  `openai-model-registry`; the `pyproject.toml` entry point that advertises the
+  hook directory is intentionally being committed separately so downstream build
+  automation sees a metadata-only final commit.
 - The next recorded ROI focus in `specs/README.md` is opt-in package-local
   `skill-source-resolution`; local-model advisory implementation should happen
   when local-model ergonomics is the immediate driver.
@@ -78,6 +82,14 @@
   - MLX helpers remain constructible on non-macOS, advertise their model aliases,
     and fail with the macOS-only `ModelExecutionError` before resolving model
     paths or loading dependencies when generation is attempted off macOS
+- PyInstaller packaging support for `openai-model-registry` is in progress:
+  - `8f63fb9` added a package-owned hook provider module, bundled
+    `hook-openai_model_registry.py`, and regression coverage for the advertised
+    hook directory
+  - the hook collects `openai_model_registry` data files and
+    `openai-model-registry` distribution metadata
+  - the `pyproject.toml` `pyinstaller40` entry point is intentionally reserved
+    for a final separate build-triggering commit
 
 ## Current Spec Authority Map
 

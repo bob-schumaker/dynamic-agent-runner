@@ -10,6 +10,9 @@ dynamic = ["dependencies", "requires-python"]
 [project.scripts]
 dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
 
+[project.entry-points.pyinstaller40]
+hook-dirs = "dynamic_agent_runner._pyinstaller:get_hook_dirs"
+
 [project.optional-dependencies]
 huggingface = ["huggingface-hub>=1.18.0,<2.0.0"]
 llamacpp = ["llama-cpp-python>=0.3.29,<0.4.0"]

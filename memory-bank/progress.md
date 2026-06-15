@@ -52,6 +52,9 @@
   - loop lifecycle/final-output trace events
 - Registry-provided model tools use OpenAI Responses API function-tool shape
   with top-level `name`.
+- Package-owned PyInstaller support now includes a hook provider and bundled
+  `openai_model_registry` hook that collects registry data files and
+  distribution metadata for frozen downstream clients.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -69,6 +72,10 @@
 - `89ace5e` documented the optional direct llama.cpp extra in README/API docs.
 - `8c83492` added MLX unsupported-platform coverage proving non-macOS execution
   fails before model resolution or dependency loading.
+- `8f63fb9` added package-owned PyInstaller hook files and regression coverage
+  for `openai-model-registry` data/metadata collection. The package metadata
+  entry point is intentionally being committed separately to trigger downstream
+  build automation.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -89,6 +96,9 @@
 - Pending working-tree package metadata edits currently make
   `llama-cpp-python` optional behind a `llamacpp` extra; decide whether to keep,
   revise, or discard those changes before the next commit bundle.
+- Pending working-tree package metadata also advertises the package-owned
+  PyInstaller hook directory through the `pyinstaller40` entry point and should
+  remain isolated in the final build-triggering commit.
 - Power-Marimo host automation remains deferred until approval/sandbox and
   host-managed continuity boundaries are clear.
 - Runner-owned durable session storage remains deferred until a concrete

@@ -32,6 +32,10 @@
     redaction, and in-memory tracing primitives
   - `src/dynamic_agent_runner/token_budget.py` owns `tiktoken`-backed prompt
     estimation and token-budget policy parsing
+  - `src/dynamic_agent_runner/_pyinstaller.py` advertises package-owned
+    PyInstaller hook directories, while
+    `src/dynamic_agent_runner/_pyinstaller_hooks/` stores bundled freeze hooks
+    such as `hook-openai_model_registry.py`
   - `src/dynamic_agent_runner/retry.py` owns retry policy parsing and
     Tenacity-backed bounded retry helpers
   - `src/dynamic_agent_runner/cli.py` exposes an injectable CLI implementation
@@ -186,6 +190,10 @@
   guardrail registries, trace sinks, lifecycle hooks, and opt-in built-in packs.
   Future live features should fit this collaborator model instead of reading
   ambient host configuration from portable workflow packages.
+- Freeze-time packaging support is isolated from runtime execution. PyInstaller
+  hooks live under the package and are exposed through installed distribution
+  entry points so downstream frozen clients collect required third-party data
+  files and metadata automatically.
 - Local model support now has two distinct advisory fit layers in the specs:
   `llmfit-model-fit-filter` is pre-download Hugging Face candidate filtering,
   while `llama-cpp-memory-fit-profile` is post-resolution profiling for a
