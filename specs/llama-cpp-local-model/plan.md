@@ -189,7 +189,8 @@ direct `llama_cpp.Llama` adapter for in-process execution.
 ### Why direct in-process llama.cpp became Slice 3
 
 - The endpoint-backed helper path and model-resolution support already exist.
-- The package dependency now uses `llama-cpp-python` without the `server` extra.
+- The direct backend lazily imports `llama-cpp-python` and does not require the
+  `server` extra.
 - Direct local execution is needed so callers can run GGUF models without an
   installed or reachable OpenAI-compatible local server.
 
@@ -207,8 +208,9 @@ direct `llama_cpp.Llama` adapter for in-process execution.
   config and resolution logic
 - `tests/test_openai_client.py` — provider-seam and adapter-behavior coverage
 - `tests/test_executor.py` — strict/augmented adapter-selection coverage
-- `pyproject.toml` and `poetry.lock` — dependency policy already uses direct
-  `llama-cpp-python` without the `server` extra and optional `huggingface`
+- `pyproject.toml` and `poetry.lock` — dependency policy should keep direct
+  llama.cpp support outside server extras, preserve lazy runtime imports, and
+  keep optional Hub access behind the `huggingface` extra
 
 ## Architecture and Data Flow
 
@@ -408,8 +410,9 @@ Initial recorded evidence:
   - Mitigation: add explicit local-model failure translation in the later
     resolution slice.
 - Risk: dependency churn obscures the direct-execution boundary.
-  - Mitigation: keep `llama-cpp-python` as the direct dependency without the
-    `server` extra and keep Hub access behind the optional `huggingface` extra.
+  - Mitigation: keep direct llama.cpp execution independent of the `server`
+    extra, load `llama-cpp-python` lazily, and keep Hub access behind the
+    optional `huggingface` extra.
 
 ## Rejected Alternatives
 

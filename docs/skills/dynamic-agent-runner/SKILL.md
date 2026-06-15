@@ -188,9 +188,10 @@ adapter = create_llama_cpp_local_adapter(
 
 Pass direct llama.cpp adapters as a list with
 `model_adapter_coverage="strict"` when the run must stay local. The helpers
-lazily use `llama-cpp-python`, resolve local model assets before generation,
-normalize generated text into the runner response contract, and do not require a
-local server.
+lazily use `llama-cpp-python`; install `dynamic-agent-runner[llamacpp]` before
+using the default in-process backend. They resolve local model assets before
+generation, normalize generated text into the runner response contract, and do
+not require a local server.
 
 For macOS in-process MLX local models, use the MLX adapter helpers:
 
@@ -207,11 +208,13 @@ adapter = create_mlx_local_adapter(
 ```
 
 Pass MLX adapters as a list with `model_adapter_coverage="strict"` when the run
-must stay local. MLX helpers validate converted model directories and normalize
-plain generated text into the runner response contract. The default in-process
-backend lazily uses `mlx-lm` when installed; tests and hosts can inject a fake or
-custom backend. The helpers do not start a server, and they are distinct from
-the OpenAI-compatible endpoint helpers.
+must stay local. MLX helpers are macOS-only, but importing the package and
+constructing adapters remain safe on other platforms; generation on non-macOS
+fails before model resolution or dependency loading. They validate converted
+model directories and normalize plain generated text into the runner response
+contract. The default in-process backend lazily uses `mlx-lm` when installed;
+tests and hosts can inject a fake or custom backend. The helpers do not start a
+server, and they are distinct from the OpenAI-compatible endpoint helpers.
 
 `search_hugging_face_models(...)` is read-only discovery. A matching result does
 not mean the model is downloaded, runnable, or compatible with the workflow.

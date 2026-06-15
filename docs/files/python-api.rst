@@ -166,10 +166,11 @@ direct in-process llama.cpp text generation through the normal adapter contract:
    )
 
 The direct llama.cpp helpers lazily import ``llama-cpp-python`` for the default
-in-process backend, resolve local model assets before generation, normalize
-generated text into the package ``ModelResponse`` contract, and do not require a
-local server. If a caller already exposes llama.cpp through an
-OpenAI-compatible local server, use ``LocalOpenAIEndpointConfig`` instead.
+in-process backend; install ``dynamic-agent-runner[llamacpp]`` before using that
+backend. They resolve local model assets before generation, normalize generated
+text into the package ``ModelResponse`` contract, and do not require a local
+server. If a caller already exposes llama.cpp through an OpenAI-compatible local
+server, use ``LocalOpenAIEndpointConfig`` instead.
 
 .. header2:: macOS MLX local models
 
@@ -199,8 +200,10 @@ contract:
        model_adapter_coverage="strict",
    )
 
-MLX helpers are macOS-only and lazily import ``mlx-lm`` for the default
-in-process backend. They validate converted model directories before generation,
+MLX helpers are macOS-only, but importing the package and constructing an adapter
+remain safe on other platforms. Generation on non-macOS fails before model
+resolution or dependency loading. The default in-process backend lazily imports
+``mlx-lm``. MLX helpers validate converted model directories before generation,
 normalize generated text into the package ``ModelResponse`` contract, and reject
 unsupported tool-call or structured-output requests. Use strict coverage for
 local-only execution. If a caller already exposes an MLX model through an

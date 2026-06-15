@@ -80,11 +80,13 @@ lifecycle behavior.
 
 The first implementation can keep the backend small:
 
-1. resolve or validate the configured local model path
-2. lazy-load a backend model/generator on first request
-3. convert the runtime's `OpenAIModelRequest`-style input or adapter request
+1. fail clearly before model resolution when generation is attempted on a
+   non-macOS platform
+2. resolve or validate the configured local model path on supported platforms
+3. lazy-load a backend model/generator on first request
+4. convert the runtime's `OpenAIModelRequest`-style input or adapter request
    fields into the backend prompt text and generation parameters
-4. return `ModelResponse(content=...)`
+5. return `ModelResponse(content=...)`
 
 ### Public exports
 

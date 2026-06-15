@@ -26,12 +26,14 @@ Current committed dependency context includes:
 - `docopt-ng >=0.9.0`
 - `roschumalib ^0.3.386` with extras: `application`, `graphics`,
   `spreadsheets`
-- `openai ^2.38.0`
-- `PyYAML >=6.0`
-- `tenacity >=9.0.0`
-- `tiktoken >=0.12.0`
+- `openai ^2.41.1`
+- `PyYAML >=6.0.3`
+- `tenacity >=9.1.4`
+- `tiktoken >=0.13.0`
 - `openai-model-registry ^1.0.5`
-- `llama-cpp-python ^0.3.26` without the `server` extra
+- `llama-cpp-python ^0.3.29` without the `server` extra in the baseline
+  dependency state; pending package metadata edits move it behind a `llamacpp`
+  optional extra
 - optional extra `huggingface`, which installs `huggingface-hub >=1.18.0,<2.0.0`
 
 Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
@@ -58,8 +60,13 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   API and normalized result/error contracts; callers need the `huggingface`
   extra for Hub-backed discovery or downloads
 - keep caller-owned OpenAI-compatible llama.cpp servers on the local endpoint
-  helper path, while direct in-process llama.cpp support uses
-  `llama-cpp-python` without server dependencies
+  helper path, while direct in-process llama.cpp support lazily uses
+  `llama-cpp-python` without server dependencies and reports package-owned
+  execution errors when the default dependency is absent
+- keep MLX in-process local-model support macOS-only and lazy: public config and
+  adapter construction remain import-safe on other platforms, while generation
+  fails before model resolution or dependency loading when `platform.system()`
+  is not `Darwin`
 - keep default OpenAI/Codex auth discovery inside
   `src/dynamic_agent_runner/openai_client.py`; support `OPENAI_API_KEY`, trusted
   Codex user-level API-key/auth-token auth, and ordered ChatGPT/Codex backend

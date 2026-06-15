@@ -242,6 +242,34 @@ def test_mlx_adapter_fails_clearly_on_unsupported_platform(tmp_path: Path) -> No
         adapter.create_response(make_request())
 
 
+def test_mlx_adapter_does_not_load_model_on_unsupported_platform(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    dependency_loader_called = False
+
+    def dependency_loader() -> object:
+        nonlocal dependency_loader_called
+        dependency_loader_called = True
+        raise AssertionError("dependency loader should not run on non-macOS")
+
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=tmp_path / "missing-model",
+        ),
+        dependency_loader=dependency_loader,
+        platform_system=lambda: "Linux",
+    )
+
+    assert adapter.models == ("mlx-local-chat",)
+    assert adapter.is_local is True
+    with pytest.raises(ModelExecutionError, match="MLX.*macOS"):
+        adapter.create_response(make_request())
+    assert dependency_loader_called is False
+
+
 def test_mlx_adapter_fails_clearly_when_dependency_is_missing(
     tmp_path: Path,
 ) -> None:

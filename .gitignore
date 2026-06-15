@@ -53,6 +53,7 @@ docs/source/index.rst
 docs/source/power-marimo-fixture.rst
 docs/source/python-api.rst
 docs/source/quickstart.rst
+docs/source/react-tool-workflow.rst
 docs/source/runtime-policies.rst
 docs/source/tool-registry.rst
 docs/source/tracing-and-observability.rst

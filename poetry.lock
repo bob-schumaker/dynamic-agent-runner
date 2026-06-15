@@ -468,9 +468,10 @@ reference = "global-release-pypi"
 name = "diskcache"
 version = "5.6.3"
 description = "Disk Cache -- Disk and file backed persistent cache."
-optional = false
+optional = true
 python-versions = ">=3"
 groups = ["main"]
+markers = "extra == \"llamacpp\""
 files = [
     {file = "diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19"},
     {file = "diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc"},
@@ -862,6 +863,7 @@ files = [
     {file = "jinja2-3.1.6-py3-none-any.whl", hash = "sha256:0847b9fd31ba17808c1381246a95fd0d7f1d3fb97b5e4f69f254363d3988e724"},
     {file = "jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d"},
 ]
+markers = {main = "extra == \"llamacpp\""}
 
 [package.dependencies]
 MarkupSafe = ">=2.0"
@@ -1002,9 +1004,10 @@ reference = "global-release-pypi"
 name = "llama-cpp-python"
 version = "0.3.29"
 description = "Python bindings for the llama.cpp library"
-optional = false
+optional = true
 python-versions = ">=3.8"
 groups = ["main"]
+markers = "extra == \"llamacpp\""
 files = [
     {file = "llama_cpp_python-0.3.29.tar.gz", hash = "sha256:21122165951bdc25ba27c0483a2f44082c860d89422945548c64df08b6029ce4"},
 ]
@@ -1154,6 +1157,7 @@ files = [
     {file = "markupsafe-3.0.3-cp39-cp39-win_arm64.whl", hash = "sha256:38664109c14ffc9e7437e86b4dceb442b0096dfe3541d7864d9cbe1da4cf36c8"},
     {file = "markupsafe-3.0.3.tar.gz", hash = "sha256:722695808f4b6457b320fdc131280796bdceb04ab50fe1795cd540799ebe1698"},
 ]
+markers = {main = "extra == \"llamacpp\""}
 
 [package.source]
 type = "legacy"
@@ -1256,9 +1260,10 @@ reference = "global-release-pypi"
 name = "numpy"
 version = "2.4.6"
 description = "Fundamental package for array computing in Python"
-optional = false
+optional = true
 python-versions = ">=3.11"
 groups = ["main"]
+markers = "extra == \"llamacpp\""
 files = [
     {file = "numpy-2.4.6-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:0280e0356c0829a18d9de1cb7eee50ec22ca639878d7240307ca0943d73cd2c4"},
     {file = "numpy-2.4.6-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:110f8b71aacb688ec69062bb7f6938a0f8acb01b7c1c4beb453c65b6d234584d"},
@@ -2680,8 +2685,9 @@ reference = "global-release-pypi"
 
 [extras]
 huggingface = ["huggingface-hub"]
+llamacpp = ["llama-cpp-python"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13,<3.14.1 || >3.14.1,<3.15"
-content-hash = "ed1558a5e944be303e83a55cadec44936bf3b4145dc0ef43e5ea7d686e621dda"
+content-hash = "b609f20ffcca38c89e4c60072f530613bb7e1acbfffff5b771246332d72a2af3"

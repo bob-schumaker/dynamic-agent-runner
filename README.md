@@ -64,8 +64,8 @@ Known configuration:
   are implemented behind package-owned interfaces
 - local model asset, endpoint, and direct in-process llama.cpp support is
   represented through package-owned local-model helpers; `llama-cpp-python` is a
-  runtime dependency and `huggingface-hub` is available through the
-  `huggingface` extra, but the runner does not start model servers
+  `llamacpp` extra and `huggingface-hub` is available through the `huggingface`
+  extra, but the runner does not start model servers
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
 - the initial implementation targets the OpenAI Python SDK behind a small adapter
@@ -217,10 +217,11 @@ result = run_agent_workflow(
 )
 ```
 
-The direct llama.cpp helper lazily imports `llama-cpp-python`, resolves local
-model assets through the package-owned local-model path rules, and does not
-require a local server. If a caller already exposes llama.cpp through an
-OpenAI-compatible server, use `LocalOpenAIEndpointConfig` instead.
+The direct llama.cpp helper lazily imports `llama-cpp-python`; install
+`dynamic-agent-runner[llamacpp]` before using the default in-process backend.
+It resolves local model assets through the package-owned local-model path rules
+and does not require a local server. If a caller already exposes llama.cpp
+through an OpenAI-compatible server, use `LocalOpenAIEndpointConfig` instead.
 
 For macOS in-process MLX local models, provide an MLX adapter and strict
 coverage when the workflow must stay local:
@@ -247,10 +248,12 @@ result = run_agent_workflow(
 )
 ```
 
-The MLX helper is macOS-only, lazily imports `mlx-lm` for the default
-in-process backend, and expects a caller-controlled converted MLX model
-directory or explicit Hugging Face reference. It does not start a server or wrap
-MLX as hosted OpenAI. Install with the `huggingface` extra before using
+The MLX helper is macOS-only, but importing the package and constructing an
+adapter remain safe on other platforms. Generation on non-macOS fails before
+model resolution or dependency loading. The default in-process backend lazily
+imports `mlx-lm`, expects a caller-controlled converted MLX model directory or
+explicit Hugging Face reference, and does not start a server or wrap MLX as
+hosted OpenAI. Install with the `huggingface` extra before using
 Hugging Face-backed model discovery or asset downloads.
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
