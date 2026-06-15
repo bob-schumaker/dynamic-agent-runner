@@ -26,8 +26,8 @@
     client behind a small fake-client-compatible adapter boundary
   - `src/dynamic_agent_runner/executor.py` composes loaded workflows, registry
     tools, retry policy, output validation, route validation, token-budget
-    preflight, tracing hooks, and the OpenAI adapter into executable workflow
-    runs through the async-first executor core
+    preflight, tracing hooks, opt-in iterative model-tool loops, and the OpenAI
+    adapter into executable workflow runs through the async-first executor core
   - `src/dynamic_agent_runner/tracing.py` owns package trace event, trace sink,
     redaction, and in-memory tracing primitives
   - `src/dynamic_agent_runner/token_budget.py` owns `tiktoken`-backed prompt
@@ -112,6 +112,23 @@
   `workflow_started` and before the first node starts. Missing adapters fail
   closed, abort decisions raise `GuardrailExecutionError`, and trace payloads
   mark inspected prompt content as sensitive.
+- Iterative model-tool loops are opt-in only through
+  `runtime.execution_policy.tool_use_completion.run_again: required`. Without
+  that policy, model-emitted tool calls remain preserved metadata on
+  `ModelResponse` and are not dispatched.
+- Iterative loop v1 dispatches serial model-emitted tool calls through the
+  existing `ToolRegistry`, appends model-facing `ToolResult` output to the next
+  model request transcript, and stops on a final no-tool model response,
+  `stop_on_tool`, max iteration exhaustion, tool failure, model failure, or
+  approval interruption.
+- Iterative loop v1 preserves safety boundaries: hidden/unavailable tools and
+  malformed arguments fail closed, tool failures raise package-owned workflow
+  errors, and approval-required model tools return `WorkflowInterruptedResult`
+  before invocation. Durable approval resume for model tool calls remains
+  deferred.
+- Loop traces use `model_tool_loop_*` events for start, turn start, tool call,
+  stop reason, and final output selection, with arguments and final output
+  marked sensitive.
 - `openai_client.py` defines a protocol around `client.responses.create(...)`,
   so unit tests can inject fake clients without live OpenAI API calls.
 - The OpenAI adapter default-provider path owns host-level OpenAI/Codex auth
@@ -197,24 +214,24 @@
 
 ## Guidance for Future Work
 
-- Next scoped runtime slice in the ROI queue is bounded
-  `iterative-agent-loop-runtime`; create a plan/task/validation checkpoint
-  before code changes.
+- The bounded `iterative-agent-loop-runtime` v1 slice is complete. Next scoped
+  ROI work is `skill-source-resolution`, unless local-model ergonomics makes
+  the prepared `llama-cpp-memory-fit-profile` v1 slice the immediate driver.
 - Use `specs/README.md` as the current spec inventory and completion matrix.
   Future live-runtime work should start from the relevant feature spec under
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
 - The current council roadmap in `specs/README.md` now has capability status,
-  approval/sandbox v1, MCP v1, and guardrail v1 complete. Treat loop and skill
-  source work as the next dependent slices, with host integrations, durable
-  memory, and interpreter middleware later.
+  approval/sandbox v1, MCP v1, guardrail v1, and iterative loop v1 complete.
+  Treat skill source work as the next dependent slice, with host integrations,
+  durable memory, and interpreter middleware later.
 - `specs/capability-status-report/spec.md` owns the implemented preflight
   reporting direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.
 - The current high-ROI dependency order has completed status visibility,
-  approval/sandbox mutation policy v1, MCP registry injection v1, and input
-  guardrails v1. Next is loops, then skills, then host integrations, durable
-  memory, and interpreter middleware. Do not treat later items as ready just
-  because their metadata seams exist.
+  approval/sandbox mutation policy v1, MCP registry injection v1, input
+  guardrails v1, and bounded loops v1. Next is skills, then host integrations,
+  durable memory, and interpreter middleware. Do not treat later items as ready
+  just because their metadata seams exist.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
@@ -247,7 +264,10 @@
 - For llama.cpp memory-fit profiling, treat the profile as optional,
   read-only, and fail-open by default. It should operate on a resolved local
   model path, normalize profiler output into package-owned records, and suggest
-  effective context settings without mutating `LlamaCppLocalModelConfig`.
+  effective context settings without mutating `LlamaCppLocalModelConfig`. The
+  prepared v1 boundary is injected evaluators only, no subprocesses, no cache,
+  no automatic memory-budget discovery, and suggested kwargs limited to
+  `{"n_ctx": value}`.
 - Preserve the executor boundary during llama.cpp follow-up: direct adapters
   advertise `models` and `is_local=True`, and client intent should be expressed
   with `model_adapter_coverage="strict"` rather than revived `local_only`

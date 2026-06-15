@@ -41,10 +41,20 @@
   - abort before first model/tool action
   - redacted guardrail traces
   - capability status for input guardrail coverage
+- Iterative agent-loop runtime v1 is implemented:
+  - opt-in bounded loops for eligible `llm_step` nodes
+  - serial model-emitted tool calls dispatched through `ToolRegistry`
+  - model-facing tool output fed into follow-up model turns
+  - approval pause before approval-required model tool invocation
+  - fail-closed behavior for unavailable/hidden tools, malformed arguments,
+    tool failures, and loop exhaustion
+  - loop lifecycle/final-output trace events
 - Registry-provided model tools use OpenAI Responses API function-tool shape
   with top-level `name`.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
+- `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
+  optional injected-evaluator advisory profile for resolved GGUF assets.
 
 ## Latest Milestones
 
@@ -52,21 +62,25 @@
 - `6ee9d43` recorded approval/sandbox v1 completion.
 - `2786e52` recorded MCP explicit registry-injection v1 completion.
 - `633cbe3` recorded live input-guardrail v1 completion.
+- `4d60fb1` recorded iterative agent-loop runtime v1 completion.
+- `987915a` prepared the llama.cpp memory-fit profile v1 implementation plan.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
   - approval interruption result contract and direct tool pause enforcement
   - explicit MCP tool binding and registry construction helpers
   - input guardrail contract and executor enforcement
+  - opt-in iterative model-tool loops, safety hardening, and loop trace events
 
 ## Remaining
 
-- Next highest-ROI slice: bounded `iterative-agent-loop-runtime`.
-- After loops: opt-in package-local `skill-source-resolution`.
+- Next highest-ROI slice in the roadmap: opt-in package-local
+  `skill-source-resolution`.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering
-  - `llama-cpp-memory-fit-profile` for post-resolution GGUF profiling
+  - prepared `llama-cpp-memory-fit-profile` v1 for post-resolution GGUF
+    profiling
 - Power-Marimo host automation remains deferred until approval/sandbox and
   host-managed continuity boundaries are clear.
 - Runner-owned durable session storage remains deferred until a concrete
@@ -89,7 +103,13 @@
 - Guardrails are v1 only: output phases, tool phases, reject-content behavior,
   warning-only behavior, retries, timeouts, and external adapters remain
   deferred.
+- Iterative loops are v1 only: loop `state_field`/`tool_result` final selectors,
+  durable approval resume, output/tool guardrails, parallel tool calls, and
+  durable transcripts remain deferred.
+- llama.cpp memory-fit profiling is only prepared, not implemented. V1 should
+  use fake evaluators in tests and must not run live llama.cpp binaries or load
+  real GGUF models.
 - Keep high-risk execution surfaces behind registry, approval, sandbox,
   capability-status, and guardrail boundaries.
 - Keep core tests fake-only; do not add live OpenAI, MCP, Hugging Face, Marimo,
-  or local-model calls to unit tests.
+  llama.cpp, or local-model calls to unit tests.
