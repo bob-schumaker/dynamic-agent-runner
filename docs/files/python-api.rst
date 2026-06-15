@@ -200,8 +200,10 @@ contract:
        model_adapter_coverage="strict",
    )
 
-MLX helpers are macOS-only and lazily import ``mlx-lm`` for the default
-in-process backend. They validate converted model directories before generation,
+MLX helpers are macOS-only, but importing the package and constructing an adapter
+remain safe on other platforms. Generation on non-macOS fails before model
+resolution or dependency loading. The default in-process backend lazily imports
+``mlx-lm``. MLX helpers validate converted model directories before generation,
 normalize generated text into the package ``ModelResponse`` contract, and reject
 unsupported tool-call or structured-output requests. Use strict coverage for
 local-only execution. If a caller already exposes an MLX model through an

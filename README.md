@@ -248,10 +248,12 @@ result = run_agent_workflow(
 )
 ```
 
-The MLX helper is macOS-only, lazily imports `mlx-lm` for the default
-in-process backend, and expects a caller-controlled converted MLX model
-directory or explicit Hugging Face reference. It does not start a server or wrap
-MLX as hosted OpenAI. Install with the `huggingface` extra before using
+The MLX helper is macOS-only, but importing the package and constructing an
+adapter remain safe on other platforms. Generation on non-macOS fails before
+model resolution or dependency loading. The default in-process backend lazily
+imports `mlx-lm`, expects a caller-controlled converted MLX model directory or
+explicit Hugging Face reference, and does not start a server or wrap MLX as
+hosted OpenAI. Install with the `huggingface` extra before using
 Hugging Face-backed model discovery or asset downloads.
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
