@@ -5,7 +5,9 @@
 - Feature slug: `llama-cpp-memory-fit-profile`
 - Mode: `guided`
 - Artifact type: planned feature specification
-- Status: prepared for v1 implementation; no implementation started
+- Status: implemented v1 baseline; optional injected-evaluator profiling,
+  fail-open advisory results, strict-mode profiling errors, fit math, and
+  package exports are complete
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/llama-cpp-local-model/spec.md`
@@ -87,9 +89,9 @@ This feature does not cover:
 
 ## V1 Slice Boundary
 
-The first implementation slice should be a small, read-only advisory API backed
-only by caller-injected profiler/evaluator behavior. It must not discover or run
-real llama.cpp binaries, load GGUF files, infer machine memory automatically, or
+The first implementation slice is a small, read-only advisory API backed only by
+caller-injected profiler/evaluator behavior. It does not discover or run real
+llama.cpp binaries, load GGUF files, infer machine memory automatically, or
 mutate adapter configuration.
 
 V1 includes:
@@ -320,14 +322,14 @@ No v1-blocking clarifications remain. Decisions:
 
 ## Validation Checklist
 
-- [ ] Existing llama.cpp adapter construction and execution remain unchanged
+- [x] Existing llama.cpp adapter construction and execution remain unchanged
       when profiling is not requested.
-- [ ] Missing profiler returns an unavailable advisory result in fail-open mode.
-- [ ] Fake profiler output normalizes to resident bytes, context slope, fit
+- [x] Missing profiler returns an unavailable advisory result in fail-open mode.
+- [x] Fake profiler output normalizes to resident bytes, context slope, fit
       status, supported tiers, and maximum usable context.
-- [ ] Requested context sizes above budget produce a lower effective context
+- [x] Requested context sizes above budget produce a lower effective context
       recommendation.
-- [ ] Strict mode raises a package-owned error for unavailable or failed
+- [x] Strict mode raises a package-owned error for unavailable or failed
       profiling.
-- [ ] Tests use fake evaluators or fake command outputs only; no live llama.cpp,
+- [x] Tests use fake evaluators or fake command outputs only; no live llama.cpp,
       Hugging Face, server, or model-runtime dependency is required.

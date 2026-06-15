@@ -1,6 +1,6 @@
 # llama.cpp Memory Fit Profile V1 Tasks
 
-Status: prepared for implementation
+Status: v1 baseline complete
 
 ## Slice 0 — Planning Checkpoint
 
@@ -82,11 +82,12 @@ Status: prepared for implementation
 
 ## Slice 4 — Completion Evidence
 
-- [ ] T4.1 [validation] Run focused affected tests.
+- [x] T4.1 [validation] Run focused affected tests.
   - Command:
     `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+  - Result: `30 passed in 0.24s`
 
-- [ ] T4.2 [validation] Run focused pre-commit.
+- [x] T4.2 [validation] Run focused pre-commit.
   - Command:
     `pre-commit run --files src/dynamic_agent_runner/local_models.py`
     `src/dynamic_agent_runner/errors.py src/dynamic_agent_runner/__init__.py`
@@ -95,6 +96,7 @@ Status: prepared for implementation
     `specs/llama-cpp-memory-fit-profile/plan.md`
     `specs/llama-cpp-memory-fit-profile/tasks.md`
     `specs/llama-cpp-memory-fit-profile/validation.md specs/README.md`
+  - Result: passed
 
-- [ ] T4.3 [docs] Record completion evidence and update spec status before the
+- [x] T4.3 [docs] Record completion evidence and update spec status before the
       next focus area.

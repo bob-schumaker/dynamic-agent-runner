@@ -1,6 +1,6 @@
 # llama.cpp Memory Fit Profile V1 Validation Log
 
-Status: planning checkpoint prepared
+Status: v1 baseline complete
 
 ## Scope
 
@@ -81,3 +81,37 @@ Status: planning checkpoint prepared
 - Interpretation: fake evaluator measurements now normalize into deterministic
   requested-context fit status, estimated memory by context tier, supported
   tiers, maximum usable context, diagnostics, and suggested `n_ctx`.
+
+### Slice 4 — Completion Evidence
+
+#### Final Affected Tests
+
+- Command:
+  `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+- Observed result: `30 passed in 0.24s`
+- Interpretation: local-model memory-fit profiling behavior and package exports
+  are green together.
+
+#### Final Focused Pre-Commit
+
+- Command:
+  `pre-commit run --files src/dynamic_agent_runner/local_models.py`
+  `src/dynamic_agent_runner/errors.py src/dynamic_agent_runner/__init__.py`
+  `tests/test_local_models.py tests/test_import.py`
+  `specs/llama-cpp-memory-fit-profile/spec.md`
+  `specs/llama-cpp-memory-fit-profile/plan.md`
+  `specs/llama-cpp-memory-fit-profile/tasks.md`
+  `specs/llama-cpp-memory-fit-profile/validation.md specs/README.md`
+- Observed result: passed
+- Interpretation: lint, formatting, and Markdown checks passed for the completed
+  v1 memory-fit profiling baseline.
+
+## Deferred From V1
+
+- Concrete subprocess integration with `llama fit-params` or other llama.cpp
+  commands remains deferred.
+- `llama-cpp-python` metadata probing and real model loading remain deferred.
+- Automatic memory-budget discovery remains deferred.
+- Cache persistence remains deferred.
+- GPU layer/offload recommendations remain deferred.
+- Adapter-construction or execution gating remains caller-owned.
