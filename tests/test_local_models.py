@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 from pathlib import Path
 
 import pytest
@@ -937,6 +938,49 @@ def test_llama_cpp_local_adapter_translates_missing_dependency(
             model_path=model_path,
         ),
         dependency_loader=failing_loader,
+    )
+
+    with pytest.raises(ModelExecutionError, match="llama.cpp dependency unavailable"):
+        adapter.create_response(
+            build_openai_request(
+                model="llama-local-chat",
+                messages=[OpenAIMessage("user", "Hello")],
+            )
+        )
+
+
+def test_llama_cpp_local_adapter_handles_missing_default_dependency(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.errors import ModelExecutionError
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+    )
+    from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    real_import = builtins.__import__
+
+    def missing_llama_cpp_import(
+        name: str,
+        globals_: object | None = None,
+        locals_: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "llama_cpp":
+            raise ModuleNotFoundError("No module named 'llama_cpp'")
+        return real_import(name, globals_, locals_, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", missing_llama_cpp_import)
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        ),
     )
 
     with pytest.raises(ModelExecutionError, match="llama.cpp dependency unavailable"):
