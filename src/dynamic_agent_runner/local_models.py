@@ -255,16 +255,27 @@ def profile_llama_cpp_model_memory_fit(
         if memory_budget_bytes is not None
         else measurement.memory_budget_bytes
     )
+    partial = _measurement_is_partial(measurement, effective_budget)
+    fit = _llama_cpp_memory_fit_calculation(
+        measurement=measurement,
+        memory_budget_bytes=effective_budget,
+        requested_context_tokens=requested_context_tokens,
+        context_tiers=tiers,
+    )
     return LlamaCppMemoryFitProfileResult(
         model_path=model_path,
-        status=LlamaCppMemoryFitStatus.UNKNOWN,
+        status=fit["status"],
         resident_bytes=measurement.resident_bytes,
         context_bytes_per_1k_tokens=measurement.context_bytes_per_1k_tokens,
         requested_context_tokens=requested_context_tokens,
         memory_budget_bytes=effective_budget,
-        supported_context_tiers=tiers,
+        requested_context_fits=fit["requested_context_fits"],
+        maximum_usable_context_tokens=fit["maximum_usable_context_tokens"],
+        supported_context_tiers=fit["supported_context_tiers"],
+        estimated_memory_by_context_tier=fit["estimated_memory_by_context_tier"],
+        suggested_model_kwargs=fit["suggested_model_kwargs"],
         diagnostics=tuple(measurement.diagnostics),
-        partial=_measurement_is_partial(measurement, effective_budget),
+        partial=partial,
     )
 
 
@@ -277,6 +288,85 @@ def _measurement_is_partial(
         or measurement.context_bytes_per_1k_tokens is None
         or memory_budget_bytes is None
     )
+
+
+def _llama_cpp_memory_fit_calculation(
+    *,
+    measurement: LlamaCppMemoryFitMeasurement,
+    memory_budget_bytes: int | None,
+    requested_context_tokens: int | None,
+    context_tiers: Sequence[int],
+) -> dict[str, object]:
+    resident_bytes = measurement.resident_bytes
+    context_bytes_per_1k = measurement.context_bytes_per_1k_tokens
+    if (
+        resident_bytes is None
+        or context_bytes_per_1k is None
+        or context_bytes_per_1k <= 0
+        or memory_budget_bytes is None
+    ):
+        return {
+            "status": LlamaCppMemoryFitStatus.UNKNOWN,
+            "requested_context_fits": None,
+            "maximum_usable_context_tokens": None,
+            "supported_context_tiers": (),
+            "estimated_memory_by_context_tier": None,
+            "suggested_model_kwargs": None,
+        }
+
+    available_context_bytes = memory_budget_bytes - resident_bytes
+    maximum_context = max(0, (available_context_bytes * 1000) // context_bytes_per_1k)
+    tier_estimates = {
+        int(tier): _estimated_llama_cpp_memory_bytes(
+            resident_bytes=resident_bytes,
+            context_bytes_per_1k=context_bytes_per_1k,
+            context_tokens=int(tier),
+        )
+        for tier in context_tiers
+    }
+    supported_tiers = tuple(
+        tier
+        for tier, estimated_bytes in tier_estimates.items()
+        if estimated_bytes <= memory_budget_bytes
+    )
+    requested_fits: bool | None = None
+    suggested_kwargs: dict[str, int] | None = None
+    status = LlamaCppMemoryFitStatus.UNKNOWN
+    if requested_context_tokens is not None:
+        requested_estimate = _estimated_llama_cpp_memory_bytes(
+            resident_bytes=resident_bytes,
+            context_bytes_per_1k=context_bytes_per_1k,
+            context_tokens=requested_context_tokens,
+        )
+        requested_fits = requested_estimate <= memory_budget_bytes
+        status = (
+            LlamaCppMemoryFitStatus.FITS
+            if requested_fits
+            else LlamaCppMemoryFitStatus.TOO_LARGE
+        )
+        effective_context = (
+            requested_context_tokens if requested_fits else maximum_context
+        )
+        if effective_context > 0:
+            suggested_kwargs = {"n_ctx": effective_context}
+
+    return {
+        "status": status,
+        "requested_context_fits": requested_fits,
+        "maximum_usable_context_tokens": maximum_context,
+        "supported_context_tiers": supported_tiers,
+        "estimated_memory_by_context_tier": tier_estimates,
+        "suggested_model_kwargs": suggested_kwargs,
+    }
+
+
+def _estimated_llama_cpp_memory_bytes(
+    *,
+    resident_bytes: int,
+    context_bytes_per_1k: int,
+    context_tokens: int,
+) -> int:
+    return resident_bytes + ((context_bytes_per_1k * context_tokens + 999) // 1000)
 
 
 class LlamaCppLocalModelAdapter:

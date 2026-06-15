@@ -746,6 +746,111 @@ def test_llama_cpp_memory_fit_missing_profiler_raises_in_strict_mode(
         )
 
 
+def test_llama_cpp_memory_fit_estimates_supported_context_and_kwargs(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        LlamaCppMemoryFitMeasurement,
+        LlamaCppMemoryFitStatus,
+        profile_llama_cpp_model_memory_fit,
+    )
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+
+    result = profile_llama_cpp_model_memory_fit(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        ),
+        requested_context_tokens=4096,
+        context_tiers=(4096, 8192, 16384),
+        profiler=lambda _: LlamaCppMemoryFitMeasurement(
+            resident_bytes=4_000_000_000,
+            context_bytes_per_1k_tokens=250_000_000,
+            memory_budget_bytes=6_000_000_000,
+            diagnostics=("profiled",),
+        ),
+    )
+
+    assert result.status is LlamaCppMemoryFitStatus.FITS
+    assert result.requested_context_fits is True
+    assert result.maximum_usable_context_tokens == 8000
+    assert result.supported_context_tiers == (4096,)
+    assert result.estimated_memory_by_context_tier == {
+        4096: 5_024_000_000,
+        8192: 6_048_000_000,
+        16384: 8_096_000_000,
+    }
+    assert result.suggested_model_kwargs == {"n_ctx": 4096}
+    assert result.partial is False
+
+
+def test_llama_cpp_memory_fit_suggests_lower_context_when_requested_is_too_large(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        LlamaCppMemoryFitMeasurement,
+        LlamaCppMemoryFitStatus,
+        profile_llama_cpp_model_memory_fit,
+    )
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+
+    result = profile_llama_cpp_model_memory_fit(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        ),
+        requested_context_tokens=16_384,
+        memory_budget_bytes=6_000_000_000,
+        profiler=lambda _: LlamaCppMemoryFitMeasurement(
+            resident_bytes=4_000_000_000,
+            context_bytes_per_1k_tokens=250_000_000,
+            memory_budget_bytes=8_000_000_000,
+        ),
+    )
+
+    assert result.status is LlamaCppMemoryFitStatus.TOO_LARGE
+    assert result.requested_context_fits is False
+    assert result.maximum_usable_context_tokens == 8000
+    assert result.suggested_model_kwargs == {"n_ctx": 8000}
+
+
+def test_llama_cpp_memory_fit_without_budget_remains_unknown_and_partial(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        LlamaCppMemoryFitMeasurement,
+        LlamaCppMemoryFitStatus,
+        profile_llama_cpp_model_memory_fit,
+    )
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+
+    result = profile_llama_cpp_model_memory_fit(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        ),
+        profiler=lambda _: LlamaCppMemoryFitMeasurement(
+            resident_bytes=4_000_000_000,
+            context_bytes_per_1k_tokens=250_000_000,
+        ),
+    )
+
+    assert result.status is LlamaCppMemoryFitStatus.UNKNOWN
+    assert result.partial is True
+    assert result.requested_context_fits is None
+    assert result.maximum_usable_context_tokens is None
+    assert result.suggested_model_kwargs is None
+
+
 def test_create_llama_cpp_local_adapter_advertises_aliases_without_loading_dependency(
     tmp_path: Path,
 ) -> None:

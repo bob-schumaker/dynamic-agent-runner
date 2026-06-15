@@ -61,18 +61,24 @@ Status: prepared for implementation
 
 ## Slice 3 — Fit Math and Suggested Context
 
-- [ ] T3.1 [tests] Add RED coverage for fake evaluator normalization, requested
+- [x] T3.1 [tests] Add RED coverage for fake evaluator normalization, requested
       context fit, over-budget effective context, supported tiers, estimated
       memory by tier, diagnostics, and suggested `n_ctx`.
   - Spec: FR-3, FR-4
   - Files/components: `tests/test_local_models.py`
   - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - RED:
+    - `poetry run pytest tests/test_local_models.py -q` — failed because
+      profiler measurements remained `unknown` and did not derive fit status,
+      tiers, maximum context, or suggested kwargs.
 
-- [ ] T3.2 [implementation] Add deterministic fit calculations and result
+- [x] T3.2 [implementation] Add deterministic fit calculations and result
       normalization for complete, partial, unknown, and failed-open profiles.
   - Spec: FR-3, FR-4, FR-6
   - Files/components: `src/dynamic_agent_runner/local_models.py`
   - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py -q` — `29 passed in 0.16s`
 
 ## Slice 4 — Completion Evidence
 

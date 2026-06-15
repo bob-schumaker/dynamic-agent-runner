@@ -70,3 +70,14 @@ Status: planning checkpoint prepared
 - Interpretation: profiling now resolves the local model path through existing
   resolution, invokes an injected evaluator, returns unavailable in fail-open
   mode when no profiler exists, and raises a package-owned error in strict mode.
+
+### Slice 3 — Fit Math and Suggested Context
+
+- Command: `poetry run pytest tests/test_local_models.py -q`
+- RED observed result: failed because profiler measurements remained `unknown`
+  and did not derive fit status, supported tiers, maximum context, or suggested
+  kwargs.
+- GREEN observed result: `29 passed in 0.16s`
+- Interpretation: fake evaluator measurements now normalize into deterministic
+  requested-context fit status, estimated memory by context tier, supported
+  tiers, maximum usable context, diagnostics, and suggested `n_ctx`.
