@@ -18,6 +18,10 @@
   - `test` group
 - Console script: `dynamic-agent-runner` declared under `[project.scripts]` and
   pointing to `dynamic_agent_runner.cli:console_main`.
+- PyInstaller hook discovery uses the standard `pyinstaller40` entry point
+  group. The package-owned provider is
+  `dynamic_agent_runner._pyinstaller:get_hook_dirs`, which returns bundled hook
+  files under `src/dynamic_agent_runner/_pyinstaller_hooks/`.
 
 ## Main Dependencies
 
@@ -90,6 +94,9 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   length `88`.
 - pre-commit hooks include YAML checks, JSON formatting, TOML syntax checks,
   Ruff check/fix, Ruff format, and `rumdl` Markdown checks/formatting.
+- PyInstaller integration should keep freeze hooks inside the package so
+  downstream clients discover them from installed distribution metadata instead
+  of needing `--additional-hooks-dir`.
 
 ## Documentation Tooling
 
