@@ -13,7 +13,7 @@ Status: prepared for implementation
 
 ## Slice 1 — Public Advisory Contract
 
-- [ ] T1.1 [tests] Add RED import/shape tests for memory-fit statuses,
+- [x] T1.1 [tests] Add RED import/shape tests for memory-fit statuses,
       measurement/result dataclasses, strict-mode error, and package exports.
   - Spec: FR-2, FR-3, FR-6
   - Files/components: `tests/test_local_models.py`, `tests/test_import.py`,
@@ -21,14 +21,21 @@ Status: prepared for implementation
     `src/dynamic_agent_runner/errors.py`, `src/dynamic_agent_runner/__init__.py`
   - Validation:
     `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+  - RED:
+    - `poetry run pytest tests/test_local_models.py tests/test_import.py -q` —
+      failed because `LlamaCppMemoryFitProfileError` and the advisory contract
+      were not exported.
 
-- [ ] T1.2 [implementation] Add the public advisory dataclasses, status
+- [x] T1.2 [implementation] Add the public advisory dataclasses, status
       vocabulary, strict-mode error, and exports without invoking real profilers.
   - Spec: FR-2, FR-3, FR-6
   - Files/components: `src/dynamic_agent_runner/local_models.py`,
     `src/dynamic_agent_runner/errors.py`, `src/dynamic_agent_runner/__init__.py`
   - Validation:
     `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py tests/test_import.py -q` —
+      `24 passed in 0.16s`
 
 ## Slice 2 — Fail-Open Profiling and Resolution
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -12,6 +13,7 @@ from dynamic_agent_runner.errors import (
     LocalModelEndpointConnectivityError,
     LocalModelEndpointProtocolError,
     LocalModelIdentityMismatchError,
+    LlamaCppMemoryFitProfileError,
     LocalModelOfflinePolicyError,
     LocalModelResolutionError,
     ModelExecutionError,
@@ -35,6 +37,45 @@ from dynamic_agent_runner.openai_client import (
 DownloadFileCallable = Callable[["HuggingFaceModelFileReference", Path], Path]
 DownloadSnapshotCallable = Callable[["HuggingFaceSnapshotReference", Path], Path]
 LlamaCppDependencyLoaderCallable = Callable[[Path, "LlamaCppLocalModelConfig"], object]
+
+
+class LlamaCppMemoryFitStatus(str, Enum):
+    """Advisory fit status for a resolved llama.cpp local model asset."""
+
+    FITS = "fits"
+    TOO_LARGE = "too_large"
+    UNKNOWN = "unknown"
+    UNAVAILABLE = "unavailable"
+    FAILED_OPEN = "failed_open"
+
+
+@dataclass(frozen=True)
+class LlamaCppMemoryFitMeasurement:
+    """Raw evaluator measurement normalized into package-owned fields."""
+
+    resident_bytes: int | None = None
+    context_bytes_per_1k_tokens: int | None = None
+    memory_budget_bytes: int | None = None
+    diagnostics: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class LlamaCppMemoryFitProfileResult:
+    """Advisory memory-fit profile for one resolved local GGUF asset."""
+
+    model_path: Path
+    status: LlamaCppMemoryFitStatus
+    resident_bytes: int | None = None
+    context_bytes_per_1k_tokens: int | None = None
+    memory_budget_bytes: int | None = None
+    requested_context_tokens: int | None = None
+    requested_context_fits: bool | None = None
+    maximum_usable_context_tokens: int | None = None
+    supported_context_tiers: tuple[int, ...] = ()
+    estimated_memory_by_context_tier: Mapping[int, int] | None = None
+    suggested_model_kwargs: Mapping[str, object] | None = None
+    diagnostics: tuple[str, ...] = ()
+    partial: bool = False
 
 
 @runtime_checkable
@@ -154,6 +195,31 @@ class LlamaCppLocalModelConfig:
             "model_kwargs",
             dict(model_kwargs) if model_kwargs is not None else None,
         )
+
+
+def profile_llama_cpp_model_memory_fit(
+    config: LlamaCppLocalModelConfig,
+    *,
+    requested_context_tokens: int | None = None,
+    context_tiers: Sequence[int] = (4096, 8192, 16384, 32768, 65536, 131072),
+    memory_budget_bytes: int | None = None,
+    mode: str = "fail_open",
+    profiler: Callable[[Path], LlamaCppMemoryFitMeasurement] | None = None,
+) -> LlamaCppMemoryFitProfileResult:
+    """Return a fail-open advisory placeholder for llama.cpp memory fit."""
+
+    if mode == "strict" and profiler is None:
+        raise LlamaCppMemoryFitProfileError(
+            "llama.cpp memory-fit profiler is unavailable"
+        )
+    return LlamaCppMemoryFitProfileResult(
+        model_path=Path(config.model_path),
+        status=LlamaCppMemoryFitStatus.UNAVAILABLE,
+        requested_context_tokens=requested_context_tokens,
+        memory_budget_bytes=memory_budget_bytes,
+        supported_context_tiers=tuple(int(tier) for tier in context_tiers),
+        diagnostics=("llama.cpp memory-fit profiler is unavailable",),
+    )
 
 
 class LlamaCppLocalModelAdapter:

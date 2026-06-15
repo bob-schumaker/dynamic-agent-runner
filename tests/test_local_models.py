@@ -605,6 +605,60 @@ def test_llama_cpp_local_config_and_factories_are_package_exports() -> None:
     assert dynamic_agent_runner.create_llama_cpp_local_async_adapter is not None
 
 
+def test_llama_cpp_memory_fit_contract_and_exports_are_available() -> None:
+    import dynamic_agent_runner
+    from dynamic_agent_runner.errors import LlamaCppMemoryFitProfileError
+    from dynamic_agent_runner.local_models import (
+        LlamaCppMemoryFitMeasurement,
+        LlamaCppMemoryFitProfileResult,
+        LlamaCppMemoryFitStatus,
+        profile_llama_cpp_model_memory_fit,
+    )
+
+    measurement = LlamaCppMemoryFitMeasurement(
+        resident_bytes=4_000_000_000,
+        context_bytes_per_1k_tokens=250_000_000,
+        memory_budget_bytes=6_000_000_000,
+        diagnostics=("fake evaluator",),
+    )
+    result = LlamaCppMemoryFitProfileResult(
+        model_path=Path("model.gguf"),
+        status=LlamaCppMemoryFitStatus.FITS,
+        resident_bytes=measurement.resident_bytes,
+        context_bytes_per_1k_tokens=measurement.context_bytes_per_1k_tokens,
+        memory_budget_bytes=measurement.memory_budget_bytes,
+        requested_context_tokens=4096,
+        requested_context_fits=True,
+        maximum_usable_context_tokens=8000,
+        supported_context_tiers=(4096, 8192),
+        estimated_memory_by_context_tier={4096: 5_024_000_000},
+        suggested_model_kwargs={"n_ctx": 4096},
+        diagnostics=measurement.diagnostics,
+        partial=False,
+    )
+
+    assert LlamaCppMemoryFitStatus.FITS.value == "fits"
+    assert LlamaCppMemoryFitStatus.TOO_LARGE.value == "too_large"
+    assert LlamaCppMemoryFitStatus.UNKNOWN.value == "unknown"
+    assert LlamaCppMemoryFitStatus.UNAVAILABLE.value == "unavailable"
+    assert LlamaCppMemoryFitStatus.FAILED_OPEN.value == "failed_open"
+    assert result.status is LlamaCppMemoryFitStatus.FITS
+    assert profile_llama_cpp_model_memory_fit is not None
+    assert issubclass(
+        LlamaCppMemoryFitProfileError, dynamic_agent_runner.LocalModelError
+    )
+    assert dynamic_agent_runner.LlamaCppMemoryFitMeasurement is (
+        LlamaCppMemoryFitMeasurement
+    )
+    assert dynamic_agent_runner.LlamaCppMemoryFitProfileResult is (
+        LlamaCppMemoryFitProfileResult
+    )
+    assert dynamic_agent_runner.LlamaCppMemoryFitStatus is LlamaCppMemoryFitStatus
+    assert dynamic_agent_runner.profile_llama_cpp_model_memory_fit is (
+        profile_llama_cpp_model_memory_fit
+    )
+
+
 def test_create_llama_cpp_local_adapter_advertises_aliases_without_loading_dependency(
     tmp_path: Path,
 ) -> None:

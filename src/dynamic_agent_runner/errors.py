@@ -45,6 +45,10 @@ class LocalModelIdentityMismatchError(LocalModelError):
     """Raised when the resolved or observed model identity does not match."""
 
 
+class LlamaCppMemoryFitProfileError(LocalModelError):
+    """Raised when strict llama.cpp memory-fit profiling cannot continue."""
+
+
 class LocalModelEndpointError(LocalModelError):
     """Base exception for local endpoint execution failures."""
 

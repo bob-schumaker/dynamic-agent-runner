@@ -49,3 +49,14 @@ Status: planning checkpoint prepared
 - Observed result: passed
 - Interpretation: Markdown checks passed for the planning artifacts and spec
   index.
+
+### Slice 1 — Public Advisory Contract
+
+- Command:
+  `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+- RED observed result: failed because the strict-mode error and public advisory
+  contract were missing.
+- GREEN observed result: `24 passed in 0.16s`
+- Interpretation: memory-fit statuses, measurement/result dataclasses,
+  strict-mode error, placeholder profiling function, and package exports exist
+  without invoking real profilers.
