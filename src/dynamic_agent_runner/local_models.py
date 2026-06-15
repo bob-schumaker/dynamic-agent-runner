@@ -205,20 +205,77 @@ def profile_llama_cpp_model_memory_fit(
     memory_budget_bytes: int | None = None,
     mode: str = "fail_open",
     profiler: Callable[[Path], LlamaCppMemoryFitMeasurement] | None = None,
+    download_file: DownloadFileCallable | None = None,
+    download_snapshot: DownloadSnapshotCallable | None = None,
 ) -> LlamaCppMemoryFitProfileResult:
-    """Return a fail-open advisory placeholder for llama.cpp memory fit."""
+    """Profile llama.cpp memory fit through an injected advisory evaluator."""
 
+    model_path = resolve_local_model_path(
+        LocalModelPathConfig(
+            model_filename=config.model_filename,
+            explicit_model_path=config.model_path,
+            model_cache_root=config.model_cache_root,
+            huggingface_file=config.huggingface_file,
+            huggingface_snapshot=config.huggingface_snapshot,
+        ),
+        download_file=download_file,
+        download_snapshot=download_snapshot,
+    )
     if mode == "strict" and profiler is None:
         raise LlamaCppMemoryFitProfileError(
             "llama.cpp memory-fit profiler is unavailable"
         )
+    tiers = tuple(int(tier) for tier in context_tiers)
+    if profiler is None:
+        return LlamaCppMemoryFitProfileResult(
+            model_path=model_path,
+            status=LlamaCppMemoryFitStatus.UNAVAILABLE,
+            requested_context_tokens=requested_context_tokens,
+            memory_budget_bytes=memory_budget_bytes,
+            supported_context_tiers=tiers,
+            diagnostics=("llama.cpp memory-fit profiler is unavailable",),
+        )
+    try:
+        measurement = profiler(model_path)
+    except Exception as exc:  # noqa: BLE001 - profiler failures vary.
+        if mode == "strict":
+            raise LlamaCppMemoryFitProfileError(
+                f"llama.cpp memory-fit profiling failed: {exc}"
+            ) from exc
+        return LlamaCppMemoryFitProfileResult(
+            model_path=model_path,
+            status=LlamaCppMemoryFitStatus.FAILED_OPEN,
+            requested_context_tokens=requested_context_tokens,
+            memory_budget_bytes=memory_budget_bytes,
+            supported_context_tiers=tiers,
+            diagnostics=(f"llama.cpp memory-fit profiling failed: {exc}",),
+        )
+    effective_budget = (
+        memory_budget_bytes
+        if memory_budget_bytes is not None
+        else measurement.memory_budget_bytes
+    )
     return LlamaCppMemoryFitProfileResult(
-        model_path=Path(config.model_path),
-        status=LlamaCppMemoryFitStatus.UNAVAILABLE,
+        model_path=model_path,
+        status=LlamaCppMemoryFitStatus.UNKNOWN,
+        resident_bytes=measurement.resident_bytes,
+        context_bytes_per_1k_tokens=measurement.context_bytes_per_1k_tokens,
         requested_context_tokens=requested_context_tokens,
-        memory_budget_bytes=memory_budget_bytes,
-        supported_context_tiers=tuple(int(tier) for tier in context_tiers),
-        diagnostics=("llama.cpp memory-fit profiler is unavailable",),
+        memory_budget_bytes=effective_budget,
+        supported_context_tiers=tiers,
+        diagnostics=tuple(measurement.diagnostics),
+        partial=_measurement_is_partial(measurement, effective_budget),
+    )
+
+
+def _measurement_is_partial(
+    measurement: LlamaCppMemoryFitMeasurement,
+    memory_budget_bytes: int | None,
+) -> bool:
+    return (
+        measurement.resident_bytes is None
+        or measurement.context_bytes_per_1k_tokens is None
+        or memory_budget_bytes is None
     )
 
 

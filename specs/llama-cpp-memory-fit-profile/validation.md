@@ -60,3 +60,13 @@ Status: planning checkpoint prepared
 - Interpretation: memory-fit statuses, measurement/result dataclasses,
   strict-mode error, placeholder profiling function, and package exports exist
   without invoking real profilers.
+
+### Slice 2 — Fail-Open Profiling and Resolution
+
+- Command: `poetry run pytest tests/test_local_models.py -q`
+- RED observed result: failed because the placeholder profiling function did not
+  call the injected evaluator.
+- GREEN observed result: `26 passed in 0.15s`
+- Interpretation: profiling now resolves the local model path through existing
+  resolution, invokes an injected evaluator, returns unavailable in fail-open
+  mode when no profiler exists, and raises a package-owned error in strict mode.

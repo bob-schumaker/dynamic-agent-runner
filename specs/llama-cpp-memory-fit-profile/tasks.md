@@ -39,20 +39,25 @@ Status: prepared for implementation
 
 ## Slice 2 — Fail-Open Profiling and Resolution
 
-- [ ] T2.1 [tests] Add RED coverage for existing llama.cpp adapter no-drift,
+- [x] T2.1 [tests] Add RED coverage for existing llama.cpp adapter no-drift,
       resolved local-path profiling, missing profiler fail-open results, and
       strict-mode unavailable errors.
   - Spec: FR-1, FR-2, FR-5, FR-6
   - Files/components: `tests/test_local_models.py`
   - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - RED:
+    - `poetry run pytest tests/test_local_models.py -q` — failed because the
+      placeholder profiling function did not call the injected evaluator.
 
-- [ ] T2.2 [implementation] Implement
+- [x] T2.2 [implementation] Implement
       `profile_llama_cpp_model_memory_fit(...)` with existing path resolution,
       injected evaluator invocation, fail-open unavailable result, and
       strict-mode package-owned errors.
   - Spec: FR-1, FR-2, FR-5, FR-6
   - Files/components: `src/dynamic_agent_runner/local_models.py`
   - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - GREEN:
+    - `poetry run pytest tests/test_local_models.py -q` — `26 passed in 0.15s`
 
 ## Slice 3 — Fit Math and Suggested Context
 

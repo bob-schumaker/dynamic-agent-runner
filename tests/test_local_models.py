@@ -659,6 +659,93 @@ def test_llama_cpp_memory_fit_contract_and_exports_are_available() -> None:
     )
 
 
+def test_llama_cpp_memory_fit_profiles_resolved_local_path(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        LlamaCppMemoryFitMeasurement,
+        LlamaCppMemoryFitStatus,
+        profile_llama_cpp_model_memory_fit,
+    )
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    calls: list[Path] = []
+
+    def fake_profiler(path: Path) -> LlamaCppMemoryFitMeasurement:
+        calls.append(path)
+        return LlamaCppMemoryFitMeasurement(
+            resident_bytes=4_000_000_000,
+            context_bytes_per_1k_tokens=250_000_000,
+            memory_budget_bytes=6_000_000_000,
+            diagnostics=("profiled",),
+        )
+
+    result = profile_llama_cpp_model_memory_fit(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        ),
+        profiler=fake_profiler,
+    )
+
+    assert calls == [model_path]
+    assert result.model_path == model_path
+    assert result.status is LlamaCppMemoryFitStatus.UNKNOWN
+    assert result.resident_bytes == 4_000_000_000
+    assert result.context_bytes_per_1k_tokens == 250_000_000
+    assert result.memory_budget_bytes == 6_000_000_000
+    assert result.diagnostics == ("profiled",)
+
+
+def test_llama_cpp_memory_fit_missing_profiler_is_fail_open(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        LlamaCppMemoryFitStatus,
+        profile_llama_cpp_model_memory_fit,
+    )
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+
+    result = profile_llama_cpp_model_memory_fit(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+        )
+    )
+
+    assert result.model_path == model_path
+    assert result.status is LlamaCppMemoryFitStatus.UNAVAILABLE
+    assert result.suggested_model_kwargs is None
+    assert "unavailable" in " ".join(result.diagnostics)
+
+
+def test_llama_cpp_memory_fit_missing_profiler_raises_in_strict_mode(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import LlamaCppMemoryFitProfileError
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        profile_llama_cpp_model_memory_fit,
+    )
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+
+    with pytest.raises(LlamaCppMemoryFitProfileError, match="unavailable"):
+        profile_llama_cpp_model_memory_fit(
+            LlamaCppLocalModelConfig(
+                model_aliases=("llama-local-chat",),
+                model_path=model_path,
+            ),
+            mode="strict",
+        )
+
+
 def test_create_llama_cpp_local_adapter_advertises_aliases_without_loading_dependency(
     tmp_path: Path,
 ) -> None:
