@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Protocol
+from threading import RLock
+from typing import Any, Protocol, get_args, get_origin, get_type_hints
 
 from dynamic_agent_runner.errors import ToolRegistryError
-from dynamic_agent_runner.models import RuntimeManifest, RuntimeNode, ToolDefinition
+from dynamic_agent_runner.models import (
+    RuntimeManifest,
+    RuntimeNode,
+    ToolDefinition,
+    ToolOriginKind,
+    ToolExposure,
+    ToolSource,
+    ToolSourceKind,
+)
 
 ToolHandler = Callable[[Mapping[str, Any]], Any]
 
@@ -38,6 +49,13 @@ class ToolRegistry(Protocol):
     ) -> ToolResult:
         """Invoke a registered tool and return a structured result."""
 
+    async def invoke_tool_async(
+        self,
+        tool_id: str,
+        arguments: Mapping[str, Any] | None = None,
+    ) -> ToolResult:
+        """Invoke a registered tool through the async dispatch path."""
+
 
 @dataclass(frozen=True)
 class ToolResult:
@@ -47,6 +65,34 @@ class ToolResult:
     success: bool
     output: Any = None
     error: str | None = None
+    model_output: Any | None = None
+    raw_output: Any | None = None
+    log_preview: str | None = None
+    event_payload: Mapping[str, Any] | None = None
+    sensitive_fields: tuple[str, ...] = ()
+
+    @property
+    def model_facing_output(self) -> Any:
+        """Return the output intended for prompts and state references."""
+
+        return self.output if self.model_output is None else self.model_output
+
+    def trace_payload(self) -> dict[str, Any]:
+        """Return the structured payload emitted for tool-result trace events."""
+
+        payload: dict[str, Any] = {
+            "tool_id": self.tool_id,
+            "success": self.success,
+            "error": self.error,
+            "output": self.model_facing_output,
+        }
+        if self.raw_output is not None:
+            payload["raw_output"] = self.raw_output
+        if self.log_preview is not None:
+            payload["log_preview"] = self.log_preview
+        if self.event_payload is not None:
+            payload["event_payload"] = dict(self.event_payload)
+        return payload
 
 
 @dataclass(frozen=True)
@@ -55,6 +101,16 @@ class RegisteredTool:
 
     definition: ToolDefinition
     handler: ToolHandler
+    handler_is_async: bool = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Record handler callable shape at construction time."""
+
+        object.__setattr__(
+            self,
+            "handler_is_async",
+            inspect.iscoroutinefunction(self.handler),
+        )
 
     @property
     def id(self) -> str:
@@ -94,6 +150,7 @@ class InMemoryToolRegistry:
         node_overrides: Mapping[str, ToolExposureOverride] | None = None,
         disabled_tools: Iterable[str] | None = None,
     ) -> None:
+        self._lock = RLock()
         self._tools: dict[str, RegisteredTool] = {}
         self._node_overrides = dict(node_overrides or {})
         self._disabled_tools = set(disabled_tools or ())
@@ -104,9 +161,10 @@ class InMemoryToolRegistry:
         """Register a callable tool."""
 
         tool_id = tool.id
-        if tool_id in self._tools and not replace:
-            raise ToolRegistryError(f"tool {tool_id!r} is already registered")
-        self._tools[tool_id] = tool
+        with self._lock:
+            if tool_id in self._tools and not replace:
+                raise ToolRegistryError(f"tool {tool_id!r} is already registered")
+            self._tools[tool_id] = _tool_with_default_source(tool)
 
     def with_overrides(
         self,
@@ -116,18 +174,37 @@ class InMemoryToolRegistry:
     ) -> InMemoryToolRegistry:
         """Return a new registry with runtime overrides applied."""
 
-        validate_tool_overrides(overrides, self, manifest=manifest)
-        tools = dict(self._tools)
-        for tool in overrides.added_tools:
-            if tool.id in tools:
-                raise ToolRegistryError(f"added tool {tool.id!r} already exists")
-            tools[tool.id] = tool
-        for tool in overrides.replacement_tools:
-            if tool.id not in tools:
-                raise ToolRegistryError(f"replacement tool {tool.id!r} does not exist")
-            tools[tool.id] = tool
-        disabled = self._disabled_tools | set(overrides.disabled_tools)
-        node_overrides = {**self._node_overrides, **overrides.node_overrides}
+        with self._lock:
+            validate_tool_overrides(overrides, self, manifest=manifest)
+            tools = dict(self._tools)
+            for tool in overrides.added_tools:
+                if tool.id in tools:
+                    raise ToolRegistryError(f"added tool {tool.id!r} already exists")
+                tools[tool.id] = _tool_with_source(
+                    tool,
+                    ToolSource(
+                        kind=ToolSourceKind.RUNTIME_OVERRIDE,
+                        origin=ToolOriginKind.OVERRIDE,
+                        source_id="added",
+                        detail="tool_registry_overrides",
+                    ),
+                )
+            for tool in overrides.replacement_tools:
+                if tool.id not in tools:
+                    raise ToolRegistryError(
+                        f"replacement tool {tool.id!r} does not exist"
+                    )
+                tools[tool.id] = _tool_with_source(
+                    tool,
+                    ToolSource(
+                        kind=ToolSourceKind.RUNTIME_OVERRIDE,
+                        origin=ToolOriginKind.OVERRIDE,
+                        source_id="replacement",
+                        detail="tool_registry_overrides",
+                    ),
+                )
+            disabled = self._disabled_tools | set(overrides.disabled_tools)
+            node_overrides = {**self._node_overrides, **overrides.node_overrides}
         return InMemoryToolRegistry(
             tools.values(),
             node_overrides=node_overrides,
@@ -137,17 +214,19 @@ class InMemoryToolRegistry:
     def has_tool(self, tool_id: str) -> bool:
         """Return whether a callable, non-disabled tool exists."""
 
-        return tool_id in self._tools and tool_id not in self._disabled_tools
+        with self._lock:
+            return tool_id in self._tools and tool_id not in self._disabled_tools
 
     def get_tool(self, tool_id: str) -> RegisteredTool:
         """Return a registered tool by id."""
 
-        if tool_id in self._disabled_tools:
-            raise ToolRegistryError(f"tool {tool_id!r} is disabled")
-        try:
-            return self._tools[tool_id]
-        except KeyError as exc:
-            raise ToolRegistryError(f"tool {tool_id!r} is not registered") from exc
+        with self._lock:
+            if tool_id in self._disabled_tools:
+                raise ToolRegistryError(f"tool {tool_id!r} is disabled")
+            try:
+                return self._tools[tool_id]
+            except KeyError as exc:
+                raise ToolRegistryError(f"tool {tool_id!r} is not registered") from exc
 
     def list_tools_for_node(self, node: RuntimeNode) -> tuple[RegisteredTool, ...]:
         """Return callable tools exposed to an LLM node."""
@@ -163,7 +242,11 @@ class InMemoryToolRegistry:
             tool_ids.extend(override.add)
             remove = set(override.remove)
             tool_ids = [tool_id for tool_id in tool_ids if tool_id not in remove]
-        return tuple(self.get_tool(tool_id) for tool_id in _dedupe(tool_ids))
+        return tuple(
+            tool
+            for tool in (self.get_tool(tool_id) for tool_id in _dedupe(tool_ids))
+            if _is_model_exposable(tool.definition)
+        )
 
     def to_openai_tools(
         self,
@@ -171,7 +254,15 @@ class InMemoryToolRegistry:
     ) -> list[dict[str, Any]]:
         """Convert registered tools to OpenAI function tool schema entries."""
 
-        selected_ids = tuple(tool_ids) if tool_ids is not None else tuple(self._tools)
+        if tool_ids is None:
+            with self._lock:
+                selected_ids = tuple(
+                    tool_id
+                    for tool_id, tool in self._tools.items()
+                    if _is_model_exposable(tool.definition)
+                )
+        else:
+            selected_ids = tuple(tool_ids)
         return [
             openai_tool_schema(self.get_tool(tool_id).definition)
             for tool_id in selected_ids
@@ -184,14 +275,269 @@ class InMemoryToolRegistry:
     ) -> ToolResult:
         """Invoke a registered tool with simple input validation."""
 
-        args = dict(arguments or {})
-        tool = self.get_tool(tool_id)
         try:
-            _validate_input_schema(tool.definition, args)
-            output = tool.handler(args)
+            tool, args = self._prepare_tool_invocation(tool_id, arguments)
+            if tool.handler_is_async:
+                output = _run_async_tool_handler_from_sync(tool.handler, args)
+            else:
+                output = tool.handler(args)
         except Exception as exc:  # noqa: BLE001 - convert all tool failures.
             return ToolResult(tool_id=tool_id, success=False, error=str(exc))
-        return ToolResult(tool_id=tool_id, success=True, output=output)
+        return _tool_result_from_output(tool_id, output)
+
+    async def invoke_tool_async(
+        self,
+        tool_id: str,
+        arguments: Mapping[str, Any] | None = None,
+    ) -> ToolResult:
+        """Invoke a registered tool without blocking the event loop."""
+
+        try:
+            tool, args = self._prepare_tool_invocation(tool_id, arguments)
+            if tool.handler_is_async:
+                output = await tool.handler(args)
+            else:
+                output = await asyncio.to_thread(tool.handler, args)
+        except Exception as exc:  # noqa: BLE001 - convert all tool failures.
+            return ToolResult(tool_id=tool_id, success=False, error=str(exc))
+        return _tool_result_from_output(tool_id, output)
+
+    def _prepare_tool_invocation(
+        self,
+        tool_id: str,
+        arguments: Mapping[str, Any] | None,
+    ) -> tuple[RegisteredTool, dict[str, Any]]:
+        args = dict(arguments or {})
+        tool = self.get_tool(tool_id)
+        _require_direct_callable(tool.definition)
+        _validate_input_schema(tool.definition, args)
+        return tool, args
+
+
+def tool_from_function(
+    function: Callable[..., Any],
+    *,
+    metadata: Mapping[str, Any] | None = None,
+    source: ToolSource | None = None,
+) -> RegisteredTool:
+    """Build a registered tool from a Python callable.
+
+    Explicit metadata wins when provided. Missing or incomplete metadata falls
+    back to conservative inference from the callable name, docstring, and
+    signature.
+    """
+
+    raw_metadata = dict(metadata or {})
+    inferred = _infer_tool_metadata(function)
+    merged = _merge_tool_metadata(inferred, raw_metadata)
+    definition = ToolDefinition.from_mapping(merged)
+    if source is not None:
+        definition = replace(definition, source=source)
+    return RegisteredTool(definition, _mapping_handler_for_function(function))
+
+
+def _run_async_tool_handler_from_sync(
+    handler: ToolHandler,
+    args: Mapping[str, Any],
+) -> Any:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(handler(args))
+    raise ToolRegistryError(
+        "cannot invoke async tool handler from synchronous registry path while an "
+        "event loop is running; use invoke_tool_async(...) instead"
+    )
+
+
+def _tool_result_from_output(tool_id: str, output: Any) -> ToolResult:
+    if isinstance(output, ToolResult):
+        return output
+    return ToolResult(tool_id=tool_id, success=True, output=output)
+
+
+def _mapping_handler_for_function(function: Callable[..., Any]) -> ToolHandler:
+    signature = inspect.signature(function)
+    parameters = tuple(signature.parameters.values())
+    _validate_function_signature(function, parameters)
+
+    def handler(arguments: Mapping[str, Any]) -> Any:
+        kwargs = {
+            parameter.name: arguments[parameter.name]
+            for parameter in parameters
+            if parameter.name in arguments
+        }
+        return function(**kwargs)
+
+    return handler
+
+
+def _infer_tool_metadata(function: Callable[..., Any]) -> dict[str, Any]:
+    signature = inspect.signature(function)
+    parameters = tuple(signature.parameters.values())
+    _validate_function_signature(function, parameters)
+    tool_id = _inferred_tool_id(function)
+    return {
+        "id": tool_id,
+        "label": tool_id.replace("_", " ").title(),
+        "description_for_llm": _inferred_tool_description(function, tool_id),
+        "input_schema": _infer_input_schema(function, parameters),
+    }
+
+
+def _validate_function_signature(
+    function: Callable[..., Any],
+    parameters: Sequence[inspect.Parameter],
+) -> None:
+    unsupported = [
+        parameter.name
+        for parameter in parameters
+        if parameter.kind
+        not in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    ]
+    if unsupported:
+        raise ToolRegistryError(
+            "tool_from_function(...) only supports positional-or-keyword and "
+            "keyword-only parameters; unsupported parameters: "
+            + ", ".join(repr(name) for name in unsupported)
+        )
+    if not callable(function):
+        raise ToolRegistryError("tool_from_function(...) requires a callable")
+
+
+def _inferred_tool_id(function: Callable[..., Any]) -> str:
+    raw_name = getattr(function, "__name__", None)
+    if raw_name and raw_name != "<lambda>":
+        return str(raw_name)
+    raise ToolRegistryError(
+        "tool_from_function(...) could not infer a stable tool id; provide "
+        "metadata['id'] for lambdas or anonymous callables"
+    )
+
+
+def _inferred_tool_description(function: Callable[..., Any], tool_id: str) -> str:
+    doc = inspect.getdoc(function)
+    if doc:
+        return doc.strip().splitlines()[0]
+    return f"Use {tool_id}"
+
+
+def _infer_input_schema(
+    function: Callable[..., Any],
+    parameters: Sequence[inspect.Parameter],
+) -> dict[str, Any]:
+    type_hints = get_type_hints(function)
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+    for parameter in parameters:
+        annotation = type_hints.get(parameter.name, parameter.annotation)
+        properties[parameter.name] = _schema_for_annotation(annotation)
+        if parameter.default is inspect._empty:
+            required.append(parameter.name)
+    schema: dict[str, Any] = {"type": "object", "properties": properties}
+    if required:
+        schema["required"] = required
+    return schema
+
+
+def _schema_for_annotation(annotation: Any) -> dict[str, Any]:
+    if annotation is inspect._empty:
+        return {}
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+    if origin is None:
+        return _schema_for_simple_annotation(annotation)
+    if origin in (list, tuple, Sequence):
+        item_schema = _schema_for_annotation(args[0]) if args else {}
+        return {"type": "array", "items": item_schema}
+    if origin in (dict, Mapping):
+        return {"type": "object"}
+    if origin is Callable:
+        return {}
+    if str(origin) in {"typing.Union", "types.UnionType"}:
+        non_none = [arg for arg in args if arg is not type(None)]
+        if len(non_none) == 1:
+            return _schema_for_annotation(non_none[0])
+        return {}
+    return {}
+
+
+def _schema_for_simple_annotation(annotation: Any) -> dict[str, Any]:
+    mapping = {
+        str: {"type": "string"},
+        int: {"type": "integer"},
+        float: {"type": "number"},
+        bool: {"type": "boolean"},
+        dict: {"type": "object"},
+        list: {"type": "array"},
+    }
+    return dict(mapping.get(annotation, {}))
+
+
+def _merge_tool_metadata(
+    inferred: Mapping[str, Any],
+    explicit: Mapping[str, Any],
+) -> dict[str, Any]:
+    merged = dict(inferred)
+    for key, value in explicit.items():
+        if key == "input_schema" and isinstance(value, Mapping):
+            merged[key] = _merge_input_schema(
+                inferred.get("input_schema"),
+                value,
+            )
+            continue
+        if value is not None:
+            merged[key] = value
+    return merged
+
+
+def _merge_input_schema(
+    inferred: Any,
+    explicit: Mapping[str, Any],
+) -> dict[str, Any]:
+    inferred_schema = dict(inferred) if isinstance(inferred, Mapping) else {}
+    merged = dict(inferred_schema)
+    explicit_properties = explicit.get("properties")
+    inferred_properties = inferred_schema.get("properties")
+    if isinstance(inferred_properties, Mapping) or isinstance(
+        explicit_properties, Mapping
+    ):
+        properties = dict(inferred_properties or {})
+        if isinstance(explicit_properties, Mapping):
+            for key, value in explicit_properties.items():
+                properties[str(key)] = value
+        merged["properties"] = properties
+    inferred_required = inferred_schema.get("required")
+    explicit_required = explicit.get("required")
+    if isinstance(inferred_required, list) or isinstance(explicit_required, list):
+        merged["required"] = (
+            list(explicit_required)
+            if isinstance(explicit_required, list)
+            else list(inferred_required or [])
+        )
+    for key, value in explicit.items():
+        if key in {"properties", "required"}:
+            continue
+        merged[key] = value
+    return merged
+
+
+def _tool_with_source(tool: RegisteredTool, source: ToolSource) -> RegisteredTool:
+    if tool.definition.source == source:
+        return tool
+    return RegisteredTool(replace(tool.definition, source=source), tool.handler)
+
+
+def _tool_with_default_source(tool: RegisteredTool) -> RegisteredTool:
+    if tool.definition.source is not None:
+        return tool
+    return _tool_with_source(
+        tool,
+        ToolSource(
+            kind=ToolSourceKind.CALLER_REGISTERED,
+            origin=ToolOriginKind.REGISTERED,
+        ),
+    )
 
 
 def openai_tool_schema(definition: ToolDefinition) -> dict[str, Any]:
@@ -199,20 +545,15 @@ def openai_tool_schema(definition: ToolDefinition) -> dict[str, Any]:
 
     if not definition.id:
         raise ToolRegistryError("cannot convert tool without id to OpenAI schema")
+    _require_model_exposable(definition)
     raw = dict(definition.raw)
     description = raw.get("description_for_llm") or definition.label or definition.id
-    parameters = raw.get("input_schema") or _EMPTY_PARAMETERS
-    if not isinstance(parameters, Mapping):
-        raise ToolRegistryError(
-            f"tool {definition.id!r} input_schema must be a mapping"
-        )
+    parameters = _normalized_input_schema(definition)
     return {
         "type": "function",
-        "function": {
-            "name": definition.id,
-            "description": str(description),
-            "parameters": dict(parameters),
-        },
+        "name": definition.id,
+        "description": str(description),
+        "parameters": parameters,
     }
 
 
@@ -230,7 +571,9 @@ def validate_registry_tool_references(
             errors.append(f"tool_use_step node {node.id!r} is missing tool_id")
             continue
         try:
-            registry.get_tool(node.tool_id)
+            tool = registry.get_tool(node.tool_id)
+            if isinstance(tool.definition, ToolDefinition):
+                _require_direct_callable(tool.definition)
         except ToolRegistryError as exc:
             errors.append(
                 f"tool_use_step node {node.id!r} references unavailable registry "
@@ -251,7 +594,8 @@ def validate_tool_overrides(
     """Validate runtime tool overrides before applying them."""
 
     errors: list[str] = []
-    known_ids = set(registry._tools)
+    with registry._lock:
+        known_ids = set(registry._tools)
     _extend(errors, _override_tool_definition_errors(overrides, known_ids))
     _extend(errors, _disabled_tool_errors(overrides.disabled_tools, known_ids))
     if manifest is not None:
@@ -268,7 +612,8 @@ def _override_tool_definition_errors(
     for tool in (*overrides.added_tools, *overrides.replacement_tools):
         try:
             _require_tool_id(tool)
-            openai_tool_schema(tool.definition)
+            _tool_exposure(tool.definition)
+            _normalized_input_schema(tool.definition)
         except ToolRegistryError as exc:
             errors.append(str(exc))
     for tool in overrides.replacement_tools:
@@ -403,6 +748,7 @@ def _builtin_tool(
         "id": tool_id,
         "label": label,
         "description_for_llm": description,
+        "tool_type": "file_read",
         "input_schema": {
             "type": "object",
             "properties": dict(properties),
@@ -414,7 +760,16 @@ def _builtin_tool(
         "retry_policy": "none",
         "failure_behavior": "error",
     }
-    return RegisteredTool(ToolDefinition.from_mapping(raw), handler)
+    definition = replace(
+        ToolDefinition.from_mapping(raw),
+        source=ToolSource(
+            kind=ToolSourceKind.BUILT_IN,
+            origin=ToolOriginKind.BUILT_IN,
+            source_id="local_workspace",
+            detail=tool_id,
+        ),
+    )
+    return RegisteredTool(definition, handler)
 
 
 class _WorkspaceGuard:
@@ -489,16 +844,80 @@ class _WorkspaceGuard:
 def _validate_input_schema(
     definition: ToolDefinition, arguments: Mapping[str, Any]
 ) -> None:
-    schema = definition.raw.get("input_schema")
+    schema = _normalized_input_schema(definition)
+    required = schema.get("required", [])
+    for field_name in required:
+        if field_name not in arguments:
+            raise ToolRegistryError(
+                f"tool {definition.id!r} missing required input {field_name!r}"
+            )
+
+
+def _normalized_input_schema(definition: ToolDefinition) -> dict[str, Any]:
+    schema = definition.raw.get("input_schema") or _EMPTY_PARAMETERS
     if not isinstance(schema, Mapping):
-        return
-    required = schema.get("required", ())
-    if isinstance(required, list):
-        for field_name in required:
-            if field_name not in arguments:
-                raise ToolRegistryError(
-                    f"tool {definition.id!r} missing required input {field_name!r}"
-                )
+        raise ToolRegistryError(
+            f"tool {definition.id!r} input_schema must be a mapping"
+        )
+    for combinator in ("oneOf", "anyOf", "allOf"):
+        if combinator in schema:
+            raise ToolRegistryError(
+                f"tool {definition.id!r} input_schema must not use top-level "
+                f"{combinator}"
+            )
+    schema_type = schema.get("type")
+    if schema_type is not None and schema_type != "object":
+        raise ToolRegistryError(
+            f"tool {definition.id!r} input_schema must be an object schema"
+        )
+    properties = schema.get("properties")
+    if properties is not None and not isinstance(properties, Mapping):
+        raise ToolRegistryError(
+            f"tool {definition.id!r} input_schema properties must be a mapping"
+        )
+    required = schema.get("required", [])
+    if not isinstance(required, list):
+        raise ToolRegistryError(
+            f"tool {definition.id!r} input_schema required must be a list"
+        )
+    if not all(isinstance(item, str) for item in required):
+        raise ToolRegistryError(
+            f"tool {definition.id!r} input_schema required entries must be strings"
+        )
+    normalized = {key: value for key, value in schema.items() if key != "$schema"}
+    normalized.setdefault("type", "object")
+    return dict(normalized)
+
+
+def _require_model_exposable(definition: ToolDefinition) -> None:
+    exposure = _tool_exposure(definition)
+    if exposure not in (ToolExposure.DIRECT, ToolExposure.DIRECT_MODEL_ONLY):
+        raise ToolRegistryError(
+            f"tool {definition.id!r} exposure {exposure.value!r} is not model-exposable"
+        )
+
+
+def _is_model_exposable(definition: ToolDefinition) -> bool:
+    exposure = _tool_exposure(definition)
+    return exposure in (ToolExposure.DIRECT, ToolExposure.DIRECT_MODEL_ONLY)
+
+
+def _require_direct_callable(definition: ToolDefinition) -> None:
+    exposure = _tool_exposure(definition)
+    if exposure not in (ToolExposure.DIRECT, ToolExposure.HIDDEN):
+        raise ToolRegistryError(
+            f"tool {definition.id!r} exposure {exposure.value!r} is not callable "
+            "for direct execution"
+        )
+
+
+def _tool_exposure(definition: ToolDefinition) -> ToolExposure:
+    exposure = definition.exposure
+    if isinstance(exposure, ToolExposure):
+        return exposure
+    raise ToolRegistryError(
+        f"tool {definition.id!r} has unsupported exposure {exposure!r}"
+    )
 
 
 def _dedupe(values: Iterable[str]) -> tuple[str, ...]:

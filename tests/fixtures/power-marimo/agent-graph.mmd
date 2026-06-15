@@ -1,0 +1,14 @@
+flowchart TD
+    analyze_experiment_request[Analyze experiment request]
+    discover_placeholder_marimo_server[Discover placeholder Marimo server]
+    invoke_marimo_pair[Invoke marimo-pair agent-as-tool]
+    inspect_notebook_state[Inspect notebook state]
+    run_placeholder_power_analysis[Run placeholder power analysis]
+    prepare_notebook_cell_plan[Prepare notebook cell plan]
+    summarize_power_experiment[Summarize power experiment]
+    analyze_experiment_request -->|sequential| discover_placeholder_marimo_server
+    discover_placeholder_marimo_server -->|sequential| invoke_marimo_pair
+    invoke_marimo_pair -->|sequential| inspect_notebook_state
+    inspect_notebook_state -->|sequential| run_placeholder_power_analysis
+    run_placeholder_power_analysis -->|sequential| prepare_notebook_cell_plan
+    prepare_notebook_cell_plan -->|sequential| summarize_power_experiment

@@ -7,6 +7,7 @@ from copy import deepcopy
 import pytest
 
 from dynamic_agent_runner.artifacts import (
+    load_agent_package,
     load_runtime_behavior_overrides,
     load_runtime_manifest,
     load_tool_index,
@@ -48,6 +49,7 @@ def valid_manifest_data() -> dict[str, object]:
         "package_id": "valid-agent",
         "entrypoint": "analyze_request",
         "packaging": {"mode": "hybrid_bundle"},
+        "runtime": {"execution_policy": {"model": "gpt-test"}},
         "nodes": [
             {
                 "id": "analyze_request",
@@ -118,6 +120,147 @@ def test_valid_workflow_with_external_tool_index_passes() -> None:
     validate_agent_workflow(workflow)
 
 
+def test_package_workflow_with_bundled_skill_and_support_files_passes(
+    tmp_path,
+) -> None:
+    """Package validation accepts bundled skill and support files under skill-bundle/."""
+
+    package_dir = tmp_path / "bundled-skill-package"
+    package_dir.mkdir()
+    skill_bundle_dir = package_dir / "skill-bundle"
+    (skill_bundle_dir / "skills" / "demo-skill").mkdir(parents=True)
+    (skill_bundle_dir / "assets").mkdir(parents=True)
+    (skill_bundle_dir / "skills" / "demo-skill" / "SKILL.md").write_text(
+        "# Demo Skill\n",
+        encoding="utf-8",
+    )
+    (skill_bundle_dir / "assets" / "guide.md").write_text(
+        "guide\n",
+        encoding="utf-8",
+    )
+    (package_dir / "agent-design.md").write_text(
+        "Runtime manifest: `agent-runtime.yaml`\nMermaid graph: `agent-graph.mmd`\n",
+        encoding="utf-8",
+    )
+    (package_dir / "agent-graph.mmd").write_text("flowchart TD\n", encoding="utf-8")
+    (package_dir / "agent-runtime.yaml").write_text(
+        """
+format_version: 1
+package_type: dynamic_agent_design
+package_id: bundled-skill-package
+entrypoint: analyze_request
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+skills:
+  - id: demo-skill
+    bundled_path: skills/demo-skill/SKILL.md
+    support_files:
+      - id: guide
+        bundled_path: assets/guide.md
+nodes:
+  - id: analyze_request
+    kind: llm_step
+    prompt:
+      user_template: Analyze {prompt}
+edges: []
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    workflow = load_agent_package(package_dir)
+
+    validate_agent_workflow(workflow)
+
+
+def test_package_workflow_fails_for_missing_bundled_skill_file(tmp_path) -> None:
+    """Package validation fails clearly when a bundled skill file is missing."""
+
+    package_dir = tmp_path / "missing-bundled-skill"
+    package_dir.mkdir()
+    (package_dir / "skill-bundle").mkdir()
+    (package_dir / "agent-design.md").write_text(
+        "Runtime manifest: `agent-runtime.yaml`\nMermaid graph: `agent-graph.mmd`\n",
+        encoding="utf-8",
+    )
+    (package_dir / "agent-graph.mmd").write_text("flowchart TD\n", encoding="utf-8")
+    (package_dir / "agent-runtime.yaml").write_text(
+        """
+format_version: 1
+package_type: dynamic_agent_design
+package_id: missing-bundled-skill
+entrypoint: analyze_request
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+skills:
+  - id: demo-skill
+    bundled_path: skills/demo-skill/SKILL.md
+nodes:
+  - id: analyze_request
+    kind: llm_step
+    prompt:
+      user_template: Analyze {prompt}
+edges: []
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    workflow = load_agent_package(package_dir)
+
+    with pytest.raises(WorkflowValidationError, match="bundled_path not found"):
+        validate_agent_workflow(workflow)
+
+
+def test_package_workflow_fails_for_missing_bundled_support_file(tmp_path) -> None:
+    """Package validation fails clearly when a bundled support file is missing."""
+
+    package_dir = tmp_path / "missing-bundled-support"
+    package_dir.mkdir()
+    skill_dir = package_dir / "skill-bundle" / "skills" / "demo-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Demo Skill\n", encoding="utf-8")
+    (package_dir / "agent-design.md").write_text(
+        "Runtime manifest: `agent-runtime.yaml`\nMermaid graph: `agent-graph.mmd`\n",
+        encoding="utf-8",
+    )
+    (package_dir / "agent-graph.mmd").write_text("flowchart TD\n", encoding="utf-8")
+    (package_dir / "agent-runtime.yaml").write_text(
+        """
+format_version: 1
+package_type: dynamic_agent_design
+package_id: missing-bundled-support
+entrypoint: analyze_request
+packaging:
+  mode: hybrid_bundle
+  skill_bundle_dir: skill-bundle
+skills:
+  - id: demo-skill
+    bundled_path: skills/demo-skill/SKILL.md
+    support_files:
+      - id: guide
+        bundled_path: assets/guide.md
+nodes:
+  - id: analyze_request
+    kind: llm_step
+    prompt:
+      user_template: Analyze {prompt}
+edges: []
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    workflow = load_agent_package(package_dir)
+
+    with pytest.raises(
+        WorkflowValidationError, match="support file 'guide'.*bundled_path not found"
+    ):
+        validate_agent_workflow(workflow)
+
+
 def test_missing_required_runtime_field_fails() -> None:
     """Required runtime manifest fields are validated before execution."""
 
@@ -156,6 +299,148 @@ def test_unsupported_runtime_enums_fail() -> None:
     assert "unsupported kind" in message
     assert "unsupported decision_subtype" in message
     assert "unsupported edge_kind" in message
+
+
+def test_sandbox_runtime_policy_fails_closed_for_bad_values() -> None:
+    """Sandbox runtime metadata rejects unsupported enums and bad state keys."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "sandbox_runtime": {
+                "mode": "always_on",
+                "filesystem": "mutable",
+                "persist_workspace": "forever",
+                "command_policy": "all_commands",
+                "writable_root_state_key": 7,
+                "working_directory_state_key": "   ",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "sandbox_runtime.mode has unsupported value 'always_on'" in message
+    assert "sandbox_runtime.filesystem has unsupported value 'mutable'" in message
+    assert (
+        "sandbox_runtime.persist_workspace has unsupported value 'forever'" in message
+    )
+    assert (
+        "sandbox_runtime.command_policy has unsupported value 'all_commands'" in message
+    )
+    assert "sandbox_runtime.writable_root_state_key must be a string" in message
+    assert "sandbox_runtime.working_directory_state_key must not be blank" in message
+
+
+def test_sandbox_runtime_policy_requires_state_keys_for_persisted_workspace() -> None:
+    """Persisted sandbox workspaces require state keys for resumable location data."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "sandbox_runtime": {
+                "mode": "shared_workspace",
+                "filesystem": "workspace_write",
+                "persist_workspace": "per_run",
+                "command_policy": "caller_controlled",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert (
+        "sandbox_runtime.writable_root_state_key is required when persist_workspace is 'per_run'"
+        in message
+    )
+    assert (
+        "sandbox_runtime.working_directory_state_key is required when persist_workspace is 'per_run'"
+        in message
+    )
+
+
+def test_sandbox_runtime_policy_rejects_state_keys_when_persist_workspace_is_none() -> (
+    None
+):
+    """Non-persisted sandbox metadata must not declare persisted workspace keys."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "sandbox_runtime": {
+                "mode": "metadata_only",
+                "filesystem": "read_only",
+                "persist_workspace": "none",
+                "command_policy": "forbid",
+                "writable_root_state_key": "writable_root",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert (
+        "state-key fields are only allowed when persist_workspace is not 'none'"
+        in str(exc_info.value)
+    )
+
+
+def test_sandbox_runtime_policy_rejects_command_policy_with_read_only_filesystem() -> (
+    None
+):
+    """Command execution metadata must not pair with a read-only filesystem policy."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "sandbox_runtime": {
+                "mode": "per_run_workspace",
+                "filesystem": "read_only",
+                "persist_workspace": "named_session",
+                "command_policy": "allow_list",
+                "writable_root_state_key": "writable_root",
+                "working_directory_state_key": "working_directory",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert (
+        "sandbox_runtime.filesystem must not be 'read_only' when command_policy is not 'forbid'"
+        in str(exc_info.value)
+    )
+
+
+def test_sandbox_runtime_policy_passes_with_supported_metadata() -> None:
+    """Supported sandbox runtime metadata passes validation without enabling execution."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "sandbox_runtime": {
+                "mode": "per_run_workspace",
+                "filesystem": "workspace_write",
+                "persist_workspace": "named_session",
+                "command_policy": "caller_controlled",
+                "writable_root_state_key": "writable_root",
+                "working_directory_state_key": "working_directory",
+            },
+        }
+    }
+
+    validate_mapping(data)
 
 
 def test_duplicate_node_ids_fail() -> None:
@@ -213,6 +498,278 @@ def test_tool_use_step_requires_known_tool() -> None:
         validate_mapping(data)
 
 
+def test_tool_metadata_rejects_unknown_exposure() -> None:
+    """Tool exposure metadata fails closed for manifests and tool indexes."""
+
+    data = valid_manifest_data()
+    data["tools"] = [
+        {
+            "id": "search_repo",
+            "adapter": "runtime.search_files",
+            "exposure": "surprise",
+        }
+    ]
+
+    with pytest.raises(WorkflowValidationError, match="unsupported exposure"):
+        validate_mapping(data)
+
+    tool_index = load_tool_index(
+        {
+            "format_version": 1,
+            "index_type": "agent_runtime_tool_index",
+            "tools": [{"id": "external_search", "exposure": "surprise"}],
+        }
+    )
+    assert tool_index is not None
+
+    with pytest.raises(WorkflowValidationError, match="unsupported exposure"):
+        validate_tool_index(tool_index)
+
+
+def test_tool_metadata_accepts_supported_portable_tool_type() -> None:
+    """Portable tool_type metadata is preserved and validated separately from adapters."""
+
+    data = valid_manifest_data()
+    data["tools"] = [
+        {
+            "id": "search_repo",
+            "tool_type": "external_api",
+            "adapter": "runtime.search_files",
+        }
+    ]
+
+    manifest = load_runtime_manifest(data)
+
+    validate_runtime_manifest(manifest)
+    assert manifest.tools[0].tool_type is not None
+    assert manifest.tools[0].tool_type.value == "external_api"
+
+
+def test_tool_metadata_rejects_unknown_portable_tool_type() -> None:
+    """Unsupported portable tool_type values fail closed for manifests and tool indexes."""
+
+    data = valid_manifest_data()
+    data["tools"] = [
+        {
+            "id": "search_repo",
+            "adapter": "runtime.search_files",
+            "tool_type": "spreadsheet_macro",
+        }
+    ]
+
+    with pytest.raises(WorkflowValidationError, match="unsupported tool_type"):
+        validate_mapping(data)
+
+    tool_index = load_tool_index(
+        {
+            "format_version": 1,
+            "index_type": "agent_runtime_tool_index",
+            "tools": [{"id": "external_search", "tool_type": "spreadsheet_macro"}],
+        }
+    )
+    assert tool_index is not None
+
+    with pytest.raises(WorkflowValidationError, match="unsupported tool_type"):
+        validate_tool_index(tool_index)
+
+
+def test_legacy_root_runtime_fields_fail_validation() -> None:
+    """Legacy flat optional root fields fail instead of acting as compatibility."""
+
+    data = valid_manifest_data()
+    data["execution_policy"] = {"model": "gpt-test"}
+    data["patterns_present"] = ["basic-reasoning-agent"]
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "legacy root field 'execution_policy'" in message
+    assert "legacy root field 'patterns_present'" in message
+
+
+def test_required_extension_fails_closed() -> None:
+    """Unsupported required extension envelopes fail validation."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {"future_feature": {"required": True, "config": {}}}
+
+    with pytest.raises(WorkflowValidationError, match="required unsupported extension"):
+        validate_mapping(data)
+
+
+def test_malformed_extension_envelope_fails_validation() -> None:
+    """Extension envelopes need a mapping with a boolean required flag."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {"bad_extension": {"required": "yes"}}
+
+    with pytest.raises(WorkflowValidationError, match="malformed extension"):
+        validate_mapping(data)
+
+
+def test_guardrail_metadata_is_preserved_and_validated() -> None:
+    """Deferred guardrail declarations preserve supported phase and behavior metadata."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "guardrails": {
+            "declarations": [
+                {
+                    "id": "pii_check",
+                    "phase": "input",
+                    "behavior_on_tripwire": "abort",
+                },
+                {
+                    "id": "safe_tool_args",
+                    "phase": "tool_input",
+                    "behavior_on_tripwire": "reject_content",
+                    "reject_content_message": "Tool arguments were rejected.",
+                },
+            ]
+        }
+    }
+
+    manifest = load_runtime_manifest(data)
+
+    assert [guardrail.id for guardrail in manifest.guardrails] == [
+        "pii_check",
+        "safe_tool_args",
+    ]
+    assert [guardrail.phase for guardrail in manifest.guardrails] == [
+        "input",
+        "tool_input",
+    ]
+    assert manifest.guardrails[1].behavior_on_tripwire == "reject_content"
+    assert manifest.guardrails[1].message == "Tool arguments were rejected."
+
+    validate_runtime_manifest(manifest)
+
+
+def test_guardrail_metadata_fails_closed_for_bad_phase_and_behavior() -> None:
+    """Guardrail metadata rejects unsupported phases and behaviors."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "guardrails": {
+            "declarations": [
+                {
+                    "id": "bad_guardrail",
+                    "phase": "session",
+                    "behavior_on_tripwire": "continue",
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "unsupported phase" in message
+    assert "unsupported behavior_on_tripwire" in message
+
+
+def test_guardrail_reject_content_requires_message() -> None:
+    """Reject-content guardrails need a model-visible message."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "guardrails": {
+            "declarations": [
+                {
+                    "id": "safe_output",
+                    "phase": "output",
+                    "behavior_on_tripwire": "reject_content",
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError, match="must define message"):
+        validate_mapping(data)
+
+
+def test_mcp_extension_metadata_is_preserved_and_validated() -> None:
+    """MCP registry-source and lifecycle diagnostics metadata round-trips and validates."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "mcp_registry_sources": {
+            "sources": [
+                {
+                    "id": "primary_registry",
+                    "server": "demo-mcp",
+                    "status": "active",
+                    "tool_cache": "enabled",
+                    "disabled": False,
+                    "operation_locking": "per_server",
+                    "memory_pollution": "medium",
+                }
+            ]
+        },
+        "mcp_lifecycle_diagnostics": {
+            "startup_mode": "degraded",
+            "reconnect": "automatic",
+            "cleanup_timeout": "30s",
+            "active_servers_state_key": "mcp_active_servers",
+            "failed_servers_state_key": "mcp_failed_servers",
+            "error_map_state_key": "mcp_error_map",
+        },
+    }
+
+    manifest = load_runtime_manifest(data)
+
+    assert [source.id for source in manifest.mcp_registry_sources] == [
+        "primary_registry"
+    ]
+    assert manifest.mcp_registry_sources[0].server == "demo-mcp"
+    assert manifest.mcp_registry_sources[0].status == "active"
+    assert manifest.mcp_lifecycle_diagnostics is not None
+    assert manifest.mcp_lifecycle_diagnostics.startup_mode == "degraded"
+    assert manifest.mcp_lifecycle_diagnostics.reconnect == "automatic"
+
+    validate_runtime_manifest(manifest)
+
+
+def test_mcp_extension_metadata_fails_closed_for_bad_values() -> None:
+    """MCP extension metadata rejects malformed status and lifecycle values."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "mcp_registry_sources": {
+            "sources": [
+                {
+                    "id": "broken_registry",
+                    "server": "demo-mcp",
+                    "status": "warming",
+                    "tool_cache": "sometimes",
+                    "disabled": "no",
+                    "operation_locking": "cluster",
+                    "memory_pollution": "extreme",
+                }
+            ]
+        },
+        "mcp_lifecycle_diagnostics": {
+            "startup_mode": "best_effort",
+            "reconnect": "often",
+        },
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "unsupported status" in message
+    assert "unsupported tool_cache" in message
+    assert "must define disabled as boolean" in message
+    assert "unsupported operation_locking" in message
+    assert "unsupported memory_pollution" in message
+    assert "unsupported startup_mode" in message
+    assert "unsupported reconnect" in message
+    assert "must define cleanup_timeout" in message
+
+
 def test_llm_step_requires_prompt_or_prompt_source() -> None:
     """LLM steps need inline prompt data or a prompt source."""
 
@@ -224,6 +781,746 @@ def test_llm_step_requires_prompt_or_prompt_source() -> None:
 
     with pytest.raises(WorkflowValidationError, match="prompt or prompt_source"):
         validate_mapping(data)
+
+
+def test_context_pipeline_attachment_requires_explicit_sources_and_contract() -> None:
+    """Context-pipeline metadata must fail closed when attachment fields are incomplete."""
+
+    data = valid_manifest_data()
+    nodes = deepcopy(data["nodes"])
+    assert isinstance(nodes, list)
+    nodes[0] = {
+        "id": "analyze_request",
+        "kind": "llm_step",
+        "prompt": {"user_template": "Analyze {prompt} with {prepared_context}"},
+        "context_pipeline": {
+            "enabled": True,
+            "strategy": "semantic_pruning",
+            "profile": "default",
+        },
+        "context_sources": [
+            {"kind": "conversation_history", "source": "state.chat_history"}
+        ],
+    }
+    data["nodes"] = nodes
+
+    with pytest.raises(WorkflowValidationError, match="context_contract"):
+        validate_mapping(data)
+
+
+def test_context_pipeline_attachment_rejects_non_llm_step_nodes() -> None:
+    """Context-pipeline metadata must not attach to non-llm-step nodes."""
+
+    data = valid_manifest_data()
+    nodes = deepcopy(data["nodes"])
+    assert isinstance(nodes, list)
+    nodes[1] = {
+        "id": "lookup_context",
+        "kind": "tool_use_step",
+        "tool_id": "search_repo",
+        "context_pipeline": {
+            "enabled": True,
+            "strategy": "semantic_pruning",
+            "profile": "default",
+        },
+        "context_sources": [
+            {"kind": "conversation_history", "source": "state.chat_history"},
+            {"kind": "latest_user_prompt", "source": "prompt"},
+        ],
+        "context_contract": {
+            "history_input": "state.chat_history",
+            "current_prompt_input": "prompt",
+            "output_slot": "prepared_context",
+        },
+    }
+    data["nodes"] = nodes
+
+    with pytest.raises(
+        WorkflowValidationError, match="non-llm_step node 'lookup_context'"
+    ):
+        validate_mapping(data)
+
+
+def test_rag_manifest_preserves_and_validates_pipeline_and_model_requirements() -> None:
+    """RAG metadata and LLM embedding requirements are accepted as manifest guidance."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "patterns_present": ["memory-augmented-agent", "rag", "embedding_retrieval"],
+        "rag_pipeline": {
+            "retrieval_mode": "embedding_semantic",
+            "embedding_capability": "required",
+            "graph_capability": "not_applicable",
+            "index_owner": "runtime",
+            "graph_store_owner": "unknown",
+            "corpus_boundary": "runtime fixture documents",
+            "chunking_policy": "runtime default",
+            "metadata_filters": ["tenant", "document_type"],
+            "reranking": "vector_score",
+            "freshness_policy": "manual",
+            "provenance_required": True,
+        },
+    }
+    data["nodes"] = [
+        {
+            "id": "analyze_request",
+            "kind": "llm_step",
+            "prompt": {
+                "user_template": "Plan retrieval for {prompt}",
+                "output_schema_ref": "retrieval_plan",
+            },
+            "model_requirements": {
+                "required_capabilities": ["structured_output", "embeddings"],
+                "reasoning_profile": {
+                    "level": "medium",
+                    "task_type": "planning",
+                    "task_subtype": "synthesis",
+                    "uncertainty_handling": "ask_clarification",
+                },
+                "context_requirements": {
+                    "expected_input_size": "medium",
+                    "minimum_context_window": 16000,
+                    "needs_retrieved_context": "conditional",
+                },
+                "output_requirements": {
+                    "format": "schema_ref",
+                    "schema_ref": "retrieval_plan",
+                    "evidence_citations": "preferred",
+                },
+                "operational_preferences": {
+                    "latency_sensitivity": "medium",
+                    "cost_sensitivity": "medium",
+                    "determinism": "balanced",
+                    "data_boundary": "private_runtime",
+                },
+                "fallback_policy": {
+                    "if_unavailable": "escalate",
+                    "minimum_acceptable_level": "low",
+                },
+            },
+        }
+    ]
+    data["edges"] = []
+    data["tools"] = []
+    data["output_contracts"] = [{"id": "retrieval_plan", "required_fields": ["query"]}]
+
+    manifest = load_runtime_manifest(data)
+
+    validate_runtime_manifest(manifest)
+    assert manifest.rag_pipeline["retrieval_mode"] == "embedding_semantic"
+    assert manifest.nodes[0].model_requirements["required_capabilities"] == [
+        "structured_output",
+        "embeddings",
+    ]
+
+
+def test_invalid_rag_pipeline_and_model_requirements_fail_validation() -> None:
+    """RAG and model-requirement metadata fail clearly when generated malformed."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "patterns_present": ["embedding_retrieval", "graphrag"],
+        "rag_pipeline": {
+            "retrieval_mode": "keyword",
+            "embedding_capability": "optional",
+            "graph_capability": "optional",
+            "metadata_filters": ["tenant", 3],
+            "provenance_required": "yes",
+        },
+    }
+    data["nodes"] = [
+        {
+            "id": "analyze_request",
+            "kind": "llm_step",
+            "prompt": {
+                "user_template": "Plan retrieval for {prompt}",
+                "output_schema_ref": "retrieval_plan",
+            },
+            "model_requirements": {
+                "required_capabilities": ["embeddings", "telepathy"],
+                "reasoning_profile": {"level": "heroic"},
+                "context_requirements": {
+                    "expected_input_size": "huge",
+                    "minimum_context_window": 0,
+                    "needs_retrieved_context": "sometimes",
+                },
+                "output_requirements": {
+                    "format": "spreadsheet",
+                    "schema_ref": "other_contract",
+                    "evidence_citations": "always",
+                },
+                "operational_preferences": {"data_boundary": "public_internet"},
+                "fallback_policy": {"if_unavailable": "guess"},
+            },
+        },
+        {
+            "id": "lookup_context",
+            "kind": "tool_use_step",
+            "tool_id": "search_repo",
+            "model_requirements": {"required_capabilities": ["embeddings"]},
+        },
+    ]
+    data["edges"] = [
+        {
+            "source": "analyze_request",
+            "target": "lookup_context",
+            "edge_kind": "sequential",
+        }
+    ]
+    data["output_contracts"] = [{"id": "retrieval_plan", "required_fields": ["query"]}]
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "required_capabilities contains unsupported values" in message
+    assert "reasoning_profile.level has unsupported value 'heroic'" in message
+    assert "minimum_context_window must be a positive integer or 'unknown'" in message
+    assert "prompt output_schema_ref 'retrieval_plan' must match" in message
+    assert (
+        "non-llm_step node 'lookup_context' must not define model_requirements"
+        in message
+    )
+    assert (
+        "embedding_retrieval requires metadata.rag_pipeline.retrieval_mode" in message
+    )
+    assert (
+        "graph retrieval patterns require metadata.rag_pipeline.graph_capability"
+        in message
+    )
+
+
+def test_react_loop_manifest_requires_loopback_iterations_state_and_tool_step() -> None:
+    """ReAct-style manifests fail clearly when loop metadata is incomplete."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {"patterns_present": ["react_loop"]}
+    data["runtime"] = {"execution_policy": {"model": "gpt-test", "max_iterations": 0}}
+    data["nodes"] = [
+        {
+            "id": "reason",
+            "kind": "llm_step",
+            "prompt": {"user_template": "Reason about {prompt}"},
+        }
+    ]
+    data["edges"] = []
+    data["tools"] = []
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "react_loop requires runtime.execution_policy.max_iterations" in message
+    assert "react_loop requires at least one loopback edge" in message
+    assert "react_loop requires runtime.state metadata" in message
+    assert (
+        "react_loop requires at least one llm_step and one tool_use_step node"
+        in message
+    )
+
+
+def test_react_loop_manifest_passes_with_loopback_iterations_state_and_tool_step() -> (
+    None
+):
+    """ReAct-style manifests pass when the minimal loop contract is present."""
+
+    data = valid_manifest_data()
+    data["entrypoint"] = "reason"
+    data["metadata"] = {"patterns_present": ["react_loop", "evidence_loop"]}
+    data["runtime"] = {
+        "execution_policy": {"model": "gpt-test", "max_iterations": 3},
+        "state": {
+            "artifacts": [
+                {"id": "observation_log", "description": "Model-safe observations"}
+            ],
+            "mutable_fields": ["observation_log"],
+        },
+    }
+    data["nodes"] = [
+        {
+            "id": "reason",
+            "kind": "llm_step",
+            "prompt": {"user_template": "Reason about {prompt}"},
+            "model_requirements": {
+                "reasoning_profile": {
+                    "level": "medium",
+                    "task_type": "planning",
+                    "uncertainty_handling": "ask_clarification",
+                },
+                "output_requirements": {
+                    "format": "free_text",
+                    "evidence_citations": "preferred",
+                },
+            },
+        },
+        {"id": "act", "kind": "tool_use_step", "tool_id": "search_repo"},
+        {
+            "id": "assess",
+            "kind": "decision_step",
+            "decision_subtype": "simple_check",
+        },
+    ]
+    data["edges"] = [
+        {"source": "reason", "target": "act", "edge_kind": "sequential"},
+        {"source": "act", "target": "assess", "edge_kind": "sequential"},
+        {"source": "assess", "target": "reason", "edge_kind": "loopback"},
+    ]
+
+    validate_mapping(data)
+
+
+def test_tool_use_completion_policy_fails_closed_for_bad_values() -> None:
+    """Tool-use completion policy rejects malformed loop-completion metadata."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "tool_use_completion": {
+                "run_again": "sometimes",
+                "stop_on_tool": "afterwards",
+                "final_output": "custom",
+                "final_output_state_key": 99,
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".run_again has unsupported value 'sometimes'" in message
+    assert ".stop_on_tool has unsupported value 'afterwards'" in message
+    assert ".final_output has unsupported value 'custom'" in message
+    assert ".final_output_state_key must be a string" in message
+
+
+def test_tool_use_completion_policy_requires_state_key_for_state_field() -> None:
+    """State-field final output requires an explicit state key."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "tool_use_completion": {
+                "run_again": "required",
+                "stop_on_tool": "enabled",
+                "final_output": "state_field",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert "final_output_state_key is required" in str(exc_info.value)
+
+
+def test_tool_use_completion_policy_passes_with_supported_metadata() -> None:
+    """Tool-use completion policy accepts the current metadata-only OA5 shape."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "tool_use_completion": {
+                "run_again": "required",
+                "stop_on_tool": "enabled",
+                "final_output": "state_field",
+                "final_output_state_key": "latest_tool_result",
+            },
+        }
+    }
+
+    validate_mapping(data)
+
+
+def test_async_session_policy_fails_closed_for_bad_values() -> None:
+    """Async session policy rejects malformed deferred session metadata."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "async_session": {
+                "mode": "always_on",
+                "persist": "disk",
+                "history": "all_turns",
+                "session_id_state_key": 9,
+                "session_messages_state_key": "   ",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".mode has unsupported value 'always_on'" in message
+    assert ".persist has unsupported value 'disk'" in message
+    assert ".history has unsupported value 'all_turns'" in message
+    assert ".session_id_state_key must be a string" in message
+    assert ".session_messages_state_key must not be blank" in message
+
+
+def test_async_session_policy_requires_session_id_for_persisted_state() -> None:
+    """Persisted async session metadata requires a stable session id state key."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "async_session": {
+                "mode": "create_or_resume",
+                "persist": "external_checkpoint",
+                "history": "summary",
+                "session_messages_state_key": "session_messages",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert ".session_id_state_key is required" in str(exc_info.value)
+
+
+def test_async_session_policy_rejects_state_keys_when_persist_is_none() -> None:
+    """Non-persisted async session metadata must not declare persisted state keys."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "async_session": {
+                "mode": "metadata_only",
+                "persist": "none",
+                "history": "last_turn",
+                "session_id_state_key": "session_id",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert "state-key fields are only allowed when persist is not 'none'" in str(
+        exc_info.value
+    )
+
+
+def test_async_session_policy_rejects_message_key_when_history_is_none() -> None:
+    """Session-message state keys require history retention beyond 'none'."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "async_session": {
+                "mode": "reuse_existing",
+                "persist": "in_memory",
+                "history": "none",
+                "session_id_state_key": "session_id",
+                "session_messages_state_key": "session_messages",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert (
+        "session_messages_state_key is only allowed when history is not 'none'"
+        in str(exc_info.value)
+    )
+
+
+def test_async_session_policy_passes_with_supported_metadata() -> None:
+    """OA8 async session metadata passes with the supported metadata-only shape."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "async_session": {
+                "mode": "create_or_resume",
+                "persist": "external_checkpoint",
+                "history": "summary",
+                "session_id_state_key": "session_id",
+                "session_messages_state_key": "session_messages",
+            },
+        }
+    }
+
+    validate_mapping(data)
+
+
+def test_approval_interruption_policy_fails_closed_for_bad_values() -> None:
+    """Approval interruption policy rejects malformed pause/resume metadata."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "approval_interruption": {
+                "mode": "sometimes_pause",
+                "persist": "disk",
+                "resume_from": "wherever",
+                "pending_tool_calls_state_key": 99,
+                "pending_approvals_state_key": "   ",
+                "interruption_state_key": False,
+                "resume_token_state_key": [],
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".mode has unsupported value 'sometimes_pause'" in message
+    assert ".persist has unsupported value 'disk'" in message
+    assert ".resume_from has unsupported value 'wherever'" in message
+    assert ".pending_tool_calls_state_key must be a string" in message
+    assert ".pending_approvals_state_key must not be blank" in message
+    assert ".interruption_state_key must be a string" in message
+    assert ".resume_token_state_key must be a string" in message
+
+
+def test_approval_interruption_policy_requires_state_keys_for_persisted_state() -> None:
+    """Persisted interruption metadata requires non-blank resumable state keys."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "approval_interruption": {
+                "mode": "pause_on_approval",
+                "persist": "external_checkpoint",
+                "resume_from": "approval_decision",
+                "resume_token_state_key": "resume_token",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".pending_tool_calls_state_key is required" in message
+    assert ".pending_approvals_state_key is required" in message
+    assert ".interruption_state_key is required" in message
+
+
+def test_approval_interruption_policy_rejects_state_keys_when_persist_is_none() -> None:
+    """Non-persisted interruption metadata must not declare resumable state keys."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "approval_interruption": {
+                "mode": "metadata_only",
+                "persist": "none",
+                "resume_from": "workflow_restart",
+                "pending_tool_calls_state_key": "pending_tool_calls",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert "state-key fields are only allowed when persist is not 'none'" in str(
+        exc_info.value
+    )
+
+
+def test_approval_interruption_policy_passes_with_supported_metadata() -> None:
+    """OA7 approval interruption metadata passes with the supported metadata-only shape."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "approval_interruption": {
+                "mode": "pause_on_approval",
+                "persist": "external_checkpoint",
+                "resume_from": "approval_decision",
+                "pending_tool_calls_state_key": "pending_tool_calls",
+                "pending_approvals_state_key": "pending_approvals",
+                "interruption_state_key": "interruption_state",
+                "resume_token_state_key": "resume_token",
+            },
+        }
+    }
+
+    validate_mapping(data)
+
+
+def test_handoff_metadata_fails_closed_for_bad_values() -> None:
+    """Handoff metadata rejects malformed grouped multi-agent settings."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "handoffs": [
+            {
+                "id": "",
+                "target": "",
+                "on_handoff": "replace_manager",
+                "input_filter": "   ",
+                "nested_history": "sometimes",
+                "enabled_when": "  ",
+            }
+        ]
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "handoff metadata at position 0 is missing id" in message
+    assert "handoff metadata '' must define target" in message
+    assert "has unsupported on_handoff 'replace_manager'" in message
+    assert "input_filter must not be blank" in message
+    assert "has unsupported nested_history 'sometimes'" in message
+    assert "enabled_when must not be blank" in message
+
+
+def test_agent_as_tool_metadata_fails_closed_for_bad_values() -> None:
+    """Agent-as-tool metadata rejects malformed bounded delegation settings."""
+
+    data = valid_manifest_data()
+    data["nodes"] = [
+        {
+            "id": "analyze_request",
+            "kind": "llm_step",
+            "prompt": {"user_template": "Analyze {prompt}"},
+            "agent_as_tool": "not-a-mapping",
+        },
+        {
+            "id": "lookup_context",
+            "kind": "tool_use_step",
+            "tool_id": "search_repo",
+            "agent_as_tool": {
+                "skill_id": "",
+                "task_boundary": "",
+                "output_mode": "custom",
+            },
+        },
+    ]
+    data["entrypoint"] = "analyze_request"
+    data["edges"] = [
+        {
+            "source": "analyze_request",
+            "target": "lookup_context",
+            "edge_kind": "sequential",
+        }
+    ]
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "node 'analyze_request' agent-as-tool metadata must be a mapping" in message
+    assert (
+        "node 'lookup_context' agent-as-tool metadata must define skill_id" in message
+    )
+    assert (
+        "node 'lookup_context' agent-as-tool metadata must define task_boundary"
+        in message
+    )
+    assert (
+        "node 'lookup_context' agent-as-tool metadata has unsupported output_mode 'custom'"
+        in message
+    )
+
+
+def test_handoff_and_agent_as_tool_metadata_pass_with_supported_shapes() -> None:
+    """OA6 metadata passes with grouped handoff and bounded delegation settings."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "handoffs": [
+            {
+                "id": "handoff_to_reviewer",
+                "target": "reviewer",
+                "on_handoff": "switch_active_profile",
+                "input_filter": "latest_request_only",
+                "nested_history": "filtered",
+                "enabled_when": "needs_review",
+            }
+        ]
+    }
+    data["nodes"][1]["agent_as_tool"] = {
+        "skill_id": "reviewer-skill",
+        "skill_path": "skills/reviewer/SKILL.md",
+        "task_boundary": "review a bounded subtask",
+        "output_mode": "tool_result",
+    }
+
+    validate_mapping(data)
+
+
+def test_file_context_policy_fails_for_unbounded_or_non_relative_settings() -> None:
+    """File-backed prompt-context policy fails closed for unsafe settings."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "prepare_model_input": {
+                "file_context": {
+                    "enabled": True,
+                    "roots": ["", "/absolute", "../escape"],
+                    "max_depth": 0,
+                    "max_files": "unknown",
+                    "max_bytes": -1,
+                    "max_tokens": False,
+                    "prompt_role": "user",
+                    "header": 99,
+                }
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".roots must not contain blank paths" in message
+    assert ".roots must use package-relative paths" in message
+    assert ".roots must not escape the package root" in message
+    assert ".max_depth must be a positive integer or 'unknown'" in message
+    assert ".max_bytes must be a positive integer or 'unknown'" in message
+    assert ".max_tokens must be a positive integer or 'unknown'" in message
+    assert ".prompt_role has unsupported value 'user'" in message
+    assert ".header must be a string" in message
+
+
+def test_file_context_policy_passes_with_bounded_relative_settings() -> None:
+    """File-backed prompt-context policy accepts bounded relative configuration."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "prepare_model_input": {
+                "file_context": {
+                    "enabled": True,
+                    "roots": ["docs", "README.md"],
+                    "max_depth": 2,
+                    "max_files": 4,
+                    "max_bytes": 2048,
+                    "max_tokens": 400,
+                    "prompt_role": "developer",
+                    "header": "Project context:",
+                }
+            },
+        }
+    }
+
+    validate_mapping(data)
 
 
 def test_runtime_behavior_overrides_pass_validation() -> None:

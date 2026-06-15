@@ -14,12 +14,20 @@
     skill behavior without mutating generated artifacts
   - `src/dynamic_agent_runner/validation.py` validates loaded artifact
     relationships and supported `format_version: 1` enum values
+  - `src/dynamic_agent_runner/capabilities.py` owns preflight capability/status
+    reporting for live, metadata-only, missing-collaborator, disabled, and
+    invalid runtime surfaces
+  - `src/dynamic_agent_runner/mcp.py` owns explicit caller-supplied MCP tool
+    binding normalization into existing registry entries; it does not own live
+    MCP transports or process lifecycle
+  - `src/dynamic_agent_runner/guardrails.py` owns caller-registered guardrail
+    result and registry primitives
   - `src/dynamic_agent_runner/openai_client.py` isolates the official OpenAI
     client behind a small fake-client-compatible adapter boundary
   - `src/dynamic_agent_runner/executor.py` composes loaded workflows, registry
     tools, retry policy, output validation, route validation, token-budget
-    preflight, tracing hooks, and the OpenAI adapter into executable workflow
-    runs
+    preflight, tracing hooks, opt-in iterative model-tool loops, and the OpenAI
+    adapter into executable workflow runs through the async-first executor core
   - `src/dynamic_agent_runner/tracing.py` owns package trace event, trace sink,
     redaction, and in-memory tracing primitives
   - `src/dynamic_agent_runner/token_budget.py` owns `tiktoken`-backed prompt
@@ -29,7 +37,7 @@
   - `src/dynamic_agent_runner/cli.py` exposes an injectable CLI implementation
     and console-script entry point for artifact-path workflow execution
   - `src/dynamic_agent_runner/errors.py` defines project-specific exception
-    types
+    types, including guardrail execution errors
 - Tests currently contain an import smoke test at `tests/test_import.py`,
   artifact loader tests at `tests/test_artifacts.py`, validation tests at
   `tests/test_validation.py`, registry tests at `tests/test_registry.py`, OpenAI
@@ -41,8 +49,9 @@
   for each documented supported agent pattern. Each fixture package has
   `agent-design.md`, `agent-runtime.yaml`, and `agent-graph.mmd`.
 - Current repository structure has loader/model/validation/registry/adapter/
-  executor/retry/output-contract/token-budget/tracing/behavior-override/CLI
-  behavior; follow-on runtime expansion should be planned as a new scoped slice.
+  executor/retry/output-contract/token-budget/tracing/behavior-override/
+  capability-status/approval/MCP/guardrail/CLI behavior; follow-on runtime
+  expansion should be planned as a new scoped slice.
 
 ## Observed Patterns
 
@@ -55,8 +64,10 @@
 - Ruff, flake8, isort, and pre-commit are configured.
 - `load_agent_workflow(...)` loads generated workflow artifacts without
   executing them, then validates the loaded bundle before returning it.
-- `run_agent_workflow(...)` now loads, validates, executes, and returns the final
-  workflow result; `execute_workflow(...)` exposes detailed execution state.
+- `run_agent_workflow_async(...)` now loads, validates, executes through
+  `execute_workflow_async(...)`, and returns the final workflow result.
+  `run_agent_workflow(...)` and `execute_workflow(...)` remain synchronous
+  compatibility wrappers over the async semantic path.
 - Error taxonomy starts with a base `DynamicAgentRunnerError` and specific
   loading, validation, registry, model, and workflow execution errors.
 - Runtime artifact design preserves documented supported agent-pattern IDs as
@@ -81,10 +92,63 @@
   generated artifacts.
 - Built-in default tools are explicit opt-in registry packs; the current
   `local_workspace` pack is read-only and not an ambient global capability.
+- Capability/status reporting is a public preflight surface. It reports live
+  behavior separately from preserved metadata, missing collaborators, disabled
+  collaborators, and invalid packages. Metadata-only features should not be
+  described as enabled.
+- Approval interruption is implemented for direct `tool_use_step` actions whose
+  effective registered tool policy requires approval. The executor returns a
+  `WorkflowInterruptedResult` before lifecycle hooks, retry, registry
+  invocation, output recording, or edge traversal, so no handler side effect
+  occurs before approval.
+- The high-level `run_agent_workflow*` APIs still represent completed workflows;
+  they raise `WorkflowExecutionError` when execution pauses for approval. Use
+  `execute_workflow*` to inspect structured interruption state.
+- MCP v1 is explicit registry injection only. Caller-supplied `MCPToolBinding`
+  values become `RegisteredTool` entries with MCP origin provenance and
+  conservative hidden/approval-required defaults. There is no implicit
+  discovery, process launch, transport, reconnect, or live schema cache.
+- Guardrail v1 is input-only. Caller-registered input guardrails run once after
+  `workflow_started` and before the first node starts. Missing adapters fail
+  closed, abort decisions raise `GuardrailExecutionError`, and trace payloads
+  mark inspected prompt content as sensitive.
+- Iterative model-tool loops are opt-in only through
+  `runtime.execution_policy.tool_use_completion.run_again: required`. Without
+  that policy, model-emitted tool calls remain preserved metadata on
+  `ModelResponse` and are not dispatched.
+- Iterative loop v1 dispatches serial model-emitted tool calls through the
+  existing `ToolRegistry`, appends model-facing `ToolResult` output to the next
+  model request transcript, and stops on a final no-tool model response,
+  `stop_on_tool`, max iteration exhaustion, tool failure, model failure, or
+  approval interruption.
+- Iterative loop v1 preserves safety boundaries: hidden/unavailable tools and
+  malformed arguments fail closed, tool failures raise package-owned workflow
+  errors, and approval-required model tools return `WorkflowInterruptedResult`
+  before invocation. Durable approval resume for model tool calls remains
+  deferred.
+- Loop traces use `model_tool_loop_*` events for start, turn start, tool call,
+  stop reason, and final output selection, with arguments and final output
+  marked sensitive.
 - `openai_client.py` defines a protocol around `client.responses.create(...)`,
   so unit tests can inject fake clients without live OpenAI API calls.
+- The OpenAI adapter default-provider path owns host-level OpenAI/Codex auth
+  discovery. Caller-supplied clients, providers, provider config, `api_key`, and
+  `base_url` stay authoritative. Ambient discovery is limited to trusted
+  process/user sources such as `OPENAI_API_KEY` and `${CODEX_HOME}`.
+- Codex user-level auth discovery supports ordered API-key/auth-token and
+  ChatGPT auth selection. API-key/auth-token auth maps to the public
+  OpenAI-compatible provider path; ChatGPT token auth maps to an explicit
+  ChatGPT/Codex backend provider boundary in `openai_client.py` and is never
+  copied into `OpenAIProviderConfig.api_key`.
+- `OpenAIProviderConfig.codex_auth_preference` controls supported Codex auth
+  ordering. The default is API-key/auth-token first; `chatgpt_first` chooses
+  ChatGPT auth when it exists and falls back to API-key/auth-token auth when it
+  does not.
 - OpenAI request construction uses `input` messages plus optional `tools`,
   `tool_choice`, `response_format`, and extra model parameters.
+- Tool schema conversion is currently aligned to `client.responses.create(...)`:
+  function tools use top-level `type`, `name`, `description`, and `parameters`,
+  not Chat Completions-style nested `function.name` payloads.
 - OpenAI response normalization extracts text and function calls into internal
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 - `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,
@@ -109,10 +173,25 @@
 - Runtime hardening proceeded through package-owned interfaces rather than broad
   framework adoption. Slice 8 completed retry/resilience, Slice 9 completed
   output-contract and route validation, Slice 10 completed token budgeting, Slice
-  11 completed trace hooks, and Slice 12 completed runtime behavior overrides.
+  11 completed trace hooks, Slice 12 completed runtime behavior overrides, and
+  E14 completed async-first execution APIs plus cancellation/concurrent async
+  validation.
 - Trace events are emitted to `WorkflowExecutionState.trace_events` and an
   optional `TraceSink`; sensitive payload keys can be shallow-redacted before
-  external emission.
+  external emission. Run IDs distinguish concurrent sync and async executions.
+- Async execution supports async model adapters, async tool handlers, async
+  lifecycle hooks, cancellation propagation, and concurrent shared-context runs
+  while preserving per-run execution state isolation.
+- Runtime collaborator pattern now includes model adapters, tool registries,
+  guardrail registries, trace sinks, lifecycle hooks, and opt-in built-in packs.
+  Future live features should fit this collaborator model instead of reading
+  ambient host configuration from portable workflow packages.
+- Local model support now has two distinct advisory fit layers in the specs:
+  `llmfit-model-fit-filter` is pre-download Hugging Face candidate filtering,
+  while `llama-cpp-memory-fit-profile` is post-resolution profiling for a
+  concrete local GGUF model asset. Neither layer should replace the existing
+  llama.cpp adapter contract or take ownership of model downloads, server
+  lifecycle, or execution.
 
 ## Boundaries and Unknowns
 
@@ -130,12 +209,29 @@
 - Execution tracing and observability hooks: implemented for Slice 11 scope.
 - Runtime behavior overrides for prompts and skills: implemented for Slice 12
   scope.
+- Async-first execution APIs and sync wrappers: implemented for E14 scope through
+  Slice I.7 validation.
 
 ## Guidance for Future Work
 
-- Await follow-up direction for the next scoped runtime slice; no next active
-  implementation slice is currently defined in
-  `specs/dynamic-agent-runner/tasks.md`.
+- The bounded `iterative-agent-loop-runtime` v1 slice is complete. Next scoped
+  ROI work is `skill-source-resolution`, unless local-model ergonomics makes
+  the prepared `llama-cpp-memory-fit-profile` v1 slice the immediate driver.
+- Use `specs/README.md` as the current spec inventory and completion matrix.
+  Future live-runtime work should start from the relevant feature spec under
+  `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
+- The current council roadmap in `specs/README.md` now has capability status,
+  approval/sandbox v1, MCP v1, guardrail v1, and iterative loop v1 complete.
+  Treat skill source work as the next dependent slice, with host integrations,
+  durable memory, and interpreter middleware later.
+- `specs/capability-status-report/spec.md` owns the implemented preflight
+  reporting direction for live, metadata-only, missing-collaborator, disabled,
+  unsupported, and invalid capabilities.
+- The current high-ROI dependency order has completed status visibility,
+  approval/sandbox mutation policy v1, MCP registry injection v1, input
+  guardrails v1, and bounded loops v1. Next is skills, then host integrations,
+  durable memory, and interpreter middleware. Do not treat later items as ready
+  just because their metadata seams exist.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
@@ -146,6 +242,59 @@
   a later scoped slice implements them.
 - Defer LiteLLM, Watchfiles, Rich, and Diskcache until a future scoped requirement
   justifies them; the current OpenAI-first adapter boundary remains in force.
+- Preserve the OpenAI auth boundary: project-local `.codex/config.toml`,
+  workflow packages, and generated artifacts must not choose auth sources or
+  redirect user credentials. Future PAT or agent-identity support needs a
+  separate provider/base-url/signing spec before implementation.
+- If local-model support returns, follow the split authoritative specs:
+  `specs/llama-cpp-local-model/spec.md` for local adapter design and
+  `specs/internal-graph-mutation/spec.md` for mutation design. Fit llama.cpp
+  into the existing `model_adapter` contract rather than introducing a parallel
+  runtime model interface, and treat future context-pruning attachment as an
+  internal compile-time graph-mutation layer, ideally starting with input
+  transformation on `llm_step` nodes before any true node or edge graph
+  surgery.
+- For the llama.cpp local-model slice specifically, preserve these boundaries:
+  do not launch local servers in the runtime; use the OpenAI-compatible provider
+  seam only when the caller already supplies a local server; direct in-process
+  `llama_cpp.Llama` execution now exists without requiring server dependencies;
+  use runtime-owned Hugging Face download/caching for missing referenced model
+  assets; and default the adapter model-cache path to `~/.ollama/models` unless
+  the caller provides an explicit cache folder.
+- For llama.cpp memory-fit profiling, treat the profile as optional,
+  read-only, and fail-open by default. It should operate on a resolved local
+  model path, normalize profiler output into package-owned records, and suggest
+  effective context settings without mutating `LlamaCppLocalModelConfig`. The
+  prepared v1 boundary is injected evaluators only, no subprocesses, no cache,
+  no automatic memory-budget discovery, and suggested kwargs limited to
+  `{"n_ctx": value}`.
+- Preserve the executor boundary during llama.cpp follow-up: direct adapters
+  advertise `models` and `is_local=True`, and client intent should be expressed
+  with `model_adapter_coverage="strict"` rather than revived `local_only`
+  routing semantics.
+- Expected validation surfaces for llama.cpp work are now explicit:
+  `tests/test_local_models.py` for direct adapters, local-model helper,
+  resolution, and failure taxonomy coverage; `tests/test_openai_client.py` for
+  provider/helper behavior; and `tests/test_executor.py` for strict/augmented
+  adapter coverage.
+- Keep offline or no-network download policy runtime-owned above the portable
+  workflow package, and treat model-identity mismatch checks as driven by
+  runtime-owned adapter configuration such as declared alias, explicit local
+  path, or explicit Hugging Face reference.
+- Allow endpoint-backed local chat to ship before separate local embedding
+  execution, while preserving the later embedding contract and keeping that
+  deferred embedding work separate from first-slice graph-mutation delivery.
+- The following areas now have dedicated future-feature specs and should not be
+  implemented directly from the primary spec alone: capability status reporting,
+  approval interruption/resume, sandbox/workspace runtime, MCP runtime
+  integration, live guardrail execution, `SKILL.md` source resolution,
+  iterative agent-loop runtime, local-model advisory fit features,
+  Power-Marimo host automation, async session memory, and interpreter
+  middleware.
+- Repository-local reference packaging is now being used for external guidance
+  that should remain available inside this repo. The OpenAI Model Registry notes
+  under `cline-tasks/references/openai-model-registry/` are supporting
+  references, not executable runtime code or canonical spec artifacts.
 - Use `tests/fixtures/agent-patterns/` as a reusable coverage source for future
   loader, executor, and CLI compatibility tests.
 - Update this file as concrete modules, entry points, and architectural

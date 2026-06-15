@@ -5,9 +5,22 @@ from __future__ import annotations
 import pytest
 
 from dynamic_agent_runner.artifacts import load_runtime_manifest
-from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
+from dynamic_agent_runner.errors import (
+    GuardrailExecutionError,
+    ModelExecutionError,
+    WorkflowExecutionError,
+)
 from dynamic_agent_runner.executor import execute_workflow
-from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
+from dynamic_agent_runner.guardrails import (
+    GuardrailDecision,
+    GuardrailResult,
+    InMemoryGuardrailRegistry,
+)
+from dynamic_agent_runner.models import (
+    LoadedAgentWorkflow,
+    ToolDefinition,
+    ToolSourceKind,
+)
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
 from dynamic_agent_runner.registry import InMemoryToolRegistry, RegisteredTool
 from dynamic_agent_runner.tracing import InMemoryTraceSink
@@ -65,12 +78,14 @@ def test_execute_workflow_emits_success_trace_events_in_order() -> None:
             "package_id": "trace-success-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {
-                "model": "gpt-test",
-                "token_budget": {
-                    "model": "gpt-4o-mini",
-                    "max_prompt_tokens": 1000,
-                },
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "token_budget": {
+                        "model": "gpt-4o-mini",
+                        "max_prompt_tokens": 1000,
+                    },
+                }
             },
             "nodes": [
                 {
@@ -95,6 +110,7 @@ def test_execute_workflow_emits_success_trace_events_in_order() -> None:
     assert event_types == [
         "workflow_started",
         "node_started",
+        "model_input_prepared",
         "token_budget_checked",
         "model_request",
         "retry_recorded",
@@ -102,12 +118,70 @@ def test_execute_workflow_emits_success_trace_events_in_order() -> None:
         "node_completed",
         "workflow_completed",
     ]
-    assert [event.sequence for event in result.state.trace_events] == list(range(1, 9))
+    assert [event.sequence for event in result.state.trace_events] == list(range(1, 10))
     assert sink.events == result.state.trace_events
     assert result.state.trace_events[0].redacted_payload()["prompt"] == "[REDACTED]"
     assert (
         result.state.trace_events[-1].redacted_payload()["final_result"] == "[REDACTED]"
     )
+
+
+def test_model_request_trace_includes_model_exposed_tool_sources() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "trace-tool-source-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "available_tools": ["search_repo"],
+                }
+            ],
+            "edges": [],
+        }
+    )
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "search_repo",
+                "description_for_llm": "Search repository files.",
+                "input_schema": {"type": "object", "properties": {}},
+                "source": {
+                    "kind": "caller_registered",
+                    "source_id": "test-suite",
+                    "detail": "fixture",
+                },
+            }
+        ),
+        lambda _args: {"ok": True},
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Run",
+        tool_registry=InMemoryToolRegistry([tool]),
+        model_adapter=make_adapter([{"id": "resp", "output_text": "done"}]),
+    )
+
+    model_request = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "model_request"
+    )
+    assert model_request.payload["tool_sources"] == {
+        "search_repo": {
+            "kind": ToolSourceKind.CALLER_REGISTERED.value,
+            "origin": "registered",
+            "source_id": "test-suite",
+            "detail": "fixture",
+        }
+    }
 
 
 def test_execute_workflow_traces_tool_failure() -> None:
@@ -147,16 +221,239 @@ def test_execute_workflow_traces_tool_failure() -> None:
     assert event_types == [
         "workflow_started",
         "node_started",
+        "tool_started",
         "tool_invocation",
         "retry_recorded",
         "tool_result",
+        "tool_finished",
         "node_error",
     ]
-    assert sink.events[-3].payload["operation"] == "tool"
-    assert sink.events[-3].payload["outcome"] == "success"
-    assert sink.events[-2].payload["success"] is False
-    assert sink.events[-2].payload["error"] == "tool exploded"
+    assert sink.events[-4].payload["operation"] == "tool"
+    assert sink.events[-4].payload["outcome"] == "success"
+    assert sink.events[-3].payload["success"] is False
+    assert sink.events[-3].payload["error"] == "tool exploded"
+    assert sink.events[-2].payload == {
+        "tool_id": "search_repo",
+        "success": False,
+        "error": "tool exploded",
+    }
     assert sink.events[-1].payload["error"] == "tool exploded"
+
+
+def test_execute_workflow_emits_tool_lifecycle_trace_events() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "trace-tool-lifecycle-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry([make_tool("search_repo", [{"answer": "42"}])])
+
+    result = execute_workflow(workflow, prompt="Run", tool_registry=registry)
+
+    event_types = [event.event_type for event in result.state.trace_events]
+    assert event_types == [
+        "workflow_started",
+        "node_started",
+        "tool_started",
+        "tool_invocation",
+        "retry_recorded",
+        "tool_result",
+        "tool_finished",
+        "node_completed",
+        "workflow_completed",
+    ]
+    tool_started = result.state.trace_events[2]
+    tool_finished = result.state.trace_events[6]
+    assert tool_started.payload == {
+        "tool_id": "search_repo",
+        "arguments": {"query": "agents"},
+    }
+    assert tool_started.sensitive_fields == ("arguments",)
+    assert tool_finished.payload == {
+        "tool_id": "search_repo",
+        "success": True,
+        "error": None,
+    }
+
+
+def test_execute_workflow_traces_approval_pause_without_invocation() -> None:
+    calls: list[object] = []
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "trace-approval-pause-agent",
+            "entrypoint": "write",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "write",
+                    "kind": "tool_use_step",
+                    "tool_id": "workspace_write",
+                    "inputs": {"path": "notes.txt", "content": "hello"},
+                }
+            ],
+            "edges": [],
+            "tools": [
+                {
+                    "id": "workspace_write",
+                    "approval_required": "yes",
+                    "side_effect": "write",
+                    "sandbox": "workspace",
+                }
+            ],
+        }
+    )
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "workspace_write",
+                "approval_required": "yes",
+                "side_effect": "write",
+                "sandbox": "workspace",
+            }
+        ),
+        lambda args: calls.append(args) or {"ok": True},
+    )
+    registry = InMemoryToolRegistry([tool])
+
+    result = execute_workflow(workflow, prompt="Run", tool_registry=registry)
+
+    assert calls == []
+    event_types = [event.event_type for event in result.state.trace_events]
+    assert event_types == [
+        "workflow_started",
+        "node_started",
+        "approval_requested",
+        "approval_paused",
+    ]
+    approval_requested = result.state.trace_events[2]
+    assert approval_requested.payload["tool_id"] == "workspace_write"
+    assert approval_requested.payload["arguments"] == {
+        "path": "notes.txt",
+        "content": "hello",
+    }
+    assert approval_requested.sensitive_fields == ("arguments",)
+
+
+def test_execute_workflow_traces_input_guardrail_abort() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "trace-input-guardrail-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "extensions": {
+                "guardrails": {
+                    "declarations": [
+                        {
+                            "id": "no_secrets",
+                            "phase": "input",
+                            "behavior_on_tripwire": "abort",
+                        }
+                    ]
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    guardrails = InMemoryGuardrailRegistry(
+        {
+            "no_secrets": lambda _subject: GuardrailResult(
+                guardrail_id="no_secrets",
+                decision=GuardrailDecision.ABORT,
+                reason_code="secret_detected",
+            )
+        }
+    )
+    sink = InMemoryTraceSink()
+
+    with pytest.raises(GuardrailExecutionError):
+        execute_workflow(
+            workflow,
+            prompt="secret prompt",
+            model_adapter=make_adapter([{"id": "resp", "output_text": "done"}]),
+            guardrail_registry=guardrails,
+            trace_sink=sink,
+        )
+
+    event_types = [event.event_type for event in sink.events]
+    assert event_types == [
+        "workflow_started",
+        "guardrail_started",
+        "guardrail_aborted",
+        "workflow_error",
+    ]
+    assert sink.events[1].payload["guardrail_id"] == "no_secrets"
+    assert sink.events[1].payload["subject"] == "secret prompt"
+    assert sink.events[1].sensitive_fields == ("subject",)
+    assert sink.events[2].payload["reason_code"] == "secret_detected"
+
+
+def test_execute_workflow_emits_status_notice_for_fallback_tool_failure() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "trace-tool-fallback-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                    "failure_behavior": "fallback",
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry(
+        [make_tool("search_repo", [RuntimeError("tool exploded")])]
+    )
+
+    result = execute_workflow(workflow, prompt="Run", tool_registry=registry)
+
+    status_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "status_notice"
+    ]
+    assert len(status_events) == 1
+    assert status_events[0].node_id == "lookup"
+    assert status_events[0].payload == {
+        "severity": "warning",
+        "code": "tool_failure_fallback",
+        "message": "tool 'search_repo' failed; continuing due to fallback behavior",
+        "tool_id": "search_repo",
+        "error": "tool exploded",
+    }
 
 
 def test_execute_workflow_traces_model_failure() -> None:
@@ -167,7 +464,7 @@ def test_execute_workflow_traces_model_failure() -> None:
             "package_id": "trace-model-failure-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {"model": "gpt-test"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
@@ -192,6 +489,7 @@ def test_execute_workflow_traces_model_failure() -> None:
     assert event_types == [
         "workflow_started",
         "node_started",
+        "model_input_prepared",
         "model_request",
         "retry_recorded",
         "node_error",
@@ -209,12 +507,14 @@ def test_execute_workflow_traces_retry_attempt_count() -> None:
             "package_id": "trace-retry-agent",
             "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "execution_policy": {
-                "model": "gpt-test",
-                "model_retry_policy": {
-                    "max_attempts": 3,
-                    "retry_on": ["model_error"],
-                },
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "model_retry_policy": {
+                        "max_attempts": 3,
+                        "retry_on": ["model_error"],
+                    },
+                }
             },
             "nodes": [
                 {

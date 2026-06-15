@@ -2,11 +2,27 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+import inspect
+import json
+import os
+from pathlib import Path
+import re
+from threading import RLock
+import tomllib
 from typing import Any, Protocol
 
 from dynamic_agent_runner.errors import ModelExecutionError
+
+
+ErrorTranslator = Callable[[ModelExecutionError], ModelExecutionError]
+ResponseValidator = Callable[["OpenAIModelRequest", "ModelResponse"], None]
+CHATGPT_CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api/codex"
+CHATGPT_CODEX_PROVIDER_NAME = "chatgpt-codex"
+CHATGPT_CODEX_FALLBACK_CLIENT_VERSION = "0.137.0"
+CODEX_AUTH_API_KEY_FIRST = "api_key_first"
+CODEX_AUTH_CHATGPT_FIRST = "chatgpt_first"
 
 
 class OpenAIResponsesResource(Protocol):
@@ -20,6 +36,118 @@ class OpenAIClientProtocol(Protocol):
     """Protocol-compatible OpenAI client for default and fake clients."""
 
     responses: OpenAIResponsesResource
+
+
+class AsyncOpenAIResponsesResource(Protocol):
+    """Minimal async OpenAI Responses API subset used by the runtime."""
+
+    async def create(self, **kwargs: Any) -> Any:
+        """Create a model response asynchronously."""
+
+
+class AsyncOpenAIClientProtocol(Protocol):
+    """Protocol-compatible async OpenAI client for default and fake clients."""
+
+    responses: AsyncOpenAIResponsesResource
+
+
+@dataclass(frozen=True)
+class OpenAIProviderConfig:
+    """Repository-owned configuration for an OpenAI-compatible provider."""
+
+    base_url: str | None = None
+    api_key: str | None = field(default=None, repr=False)
+    provider_name: str | None = None
+    discover_default_auth: bool = True
+    codex_auth_preference: str = "api_key_first"
+
+
+class OpenAIClientProvider(Protocol):
+    """Repository-owned sync provider facade for constructing model clients."""
+
+    config: OpenAIProviderConfig
+
+    def get_client(self) -> OpenAIClientProtocol:
+        """Return a sync client compatible with the runtime adapter boundary."""
+
+
+class AsyncOpenAIClientProvider(Protocol):
+    """Repository-owned async provider facade for constructing model clients."""
+
+    config: OpenAIProviderConfig
+
+    def get_client(self) -> AsyncOpenAIClientProtocol:
+        """Return an async client compatible with the runtime adapter boundary."""
+
+
+@dataclass(frozen=True)
+class SDKBackedOpenAIClientProvider:
+    """SDK-backed sync provider for hosted OpenAI and compatible endpoints."""
+
+    config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
+
+    def get_client(self) -> OpenAIClientProtocol:
+        try:
+            from openai import OpenAI
+        except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+            raise ModelExecutionError(
+                "official openai package is not available"
+            ) from exc
+        return OpenAI(**_provider_config_to_client_kwargs(self.config))
+
+
+@dataclass(frozen=True)
+class SDKBackedAsyncOpenAIClientProvider:
+    """SDK-backed async provider for hosted OpenAI and compatible endpoints."""
+
+    config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
+
+    def get_client(self) -> AsyncOpenAIClientProtocol:
+        try:
+            from openai import AsyncOpenAI
+        except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+            raise ModelExecutionError(
+                "official openai package is not available"
+            ) from exc
+        return AsyncOpenAI(**_provider_config_to_client_kwargs(self.config))
+
+
+@dataclass(frozen=True)
+class ChatGPTCodexBackendOpenAIClientProvider:
+    """SDK-backed sync provider for Codex backend auth."""
+
+    config: OpenAIProviderConfig
+    token: str = field(repr=False)
+
+    def get_client(self) -> OpenAIClientProtocol:
+        try:
+            from openai import OpenAI
+        except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+            raise ModelExecutionError(
+                "official openai package is not available"
+            ) from exc
+        return OpenAI(
+            **_chatgpt_provider_config_to_client_kwargs(self.config, self.token)
+        )
+
+
+@dataclass(frozen=True)
+class ChatGPTCodexBackendAsyncOpenAIClientProvider:
+    """SDK-backed async provider for Codex backend auth."""
+
+    config: OpenAIProviderConfig
+    token: str = field(repr=False)
+
+    def get_client(self) -> AsyncOpenAIClientProtocol:
+        try:
+            from openai import AsyncOpenAI
+        except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+            raise ModelExecutionError(
+                "official openai package is not available"
+            ) from exc
+        return AsyncOpenAI(
+            **_chatgpt_provider_config_to_client_kwargs(self.config, self.token)
+        )
 
 
 @dataclass(frozen=True)
@@ -82,38 +210,381 @@ class ModelResponse:
     raw: Any = None
 
 
-class OpenAIClientAdapter:
-    """Small adapter around the official OpenAI Python client."""
+@dataclass(frozen=True)
+class _ResolvedDefaultOpenAIProvider:
+    config: OpenAIProviderConfig
+    chatgpt_token: str | None = field(default=None, repr=False)
 
-    def __init__(self, client: OpenAIClientProtocol | None = None) -> None:
+
+@dataclass(frozen=True)
+class _CodexAuthDefaults:
+    api_key: str | None = field(default=None, repr=False)
+    chatgpt_token: str | None = field(default=None, repr=False)
+    unsupported_mode: str | None = None
+
+
+class OpenAIClientAdapter:
+    """Small adapter around a repository-owned OpenAI-compatible client boundary."""
+
+    def __init__(
+        self,
+        client: OpenAIClientProtocol | None = None,
+        *,
+        provider: OpenAIClientProvider | None = None,
+        models: Sequence[str] | None = None,
+        is_local: bool = False,
+        error_translator: ErrorTranslator | None = None,
+        response_validator: ResponseValidator | None = None,
+    ) -> None:
+        if client is not None and provider is not None:
+            raise ValueError("OpenAIClientAdapter accepts either client or provider")
         self._client = client
+        self._provider = provider
+        self._client_lock = RLock()
+        self._models = tuple(str(model) for model in models or ())
+        self._is_local = is_local
+        self._error_translator = error_translator
+        self._response_validator = response_validator
+        self._available_model_ids: tuple[str, ...] | None = None
 
     @property
     def client(self) -> OpenAIClientProtocol:
-        """Return the injected or lazily constructed official OpenAI client."""
+        """Return the injected or lazily constructed OpenAI-compatible client."""
 
-        if self._client is None:
-            self._client = create_default_openai_client()
-        return self._client
+        with self._client_lock:
+            if self._client is None:
+                if self._provider is None:
+                    self._provider = create_default_openai_provider()
+                self._client = self._provider.get_client()
+            return self._client
 
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Send a request and normalize the returned model response."""
 
+        client = self.client
         try:
-            raw_response = self.client.responses.create(**request.to_kwargs())
-        except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
-            raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
-        return normalize_openai_response(raw_response)
+            self._validate_request_model_available(client, request)
+            response = create_openai_response(
+                client,
+                _prepare_chatgpt_codex_request(self._provider, request),
+            )
+        except ModelExecutionError as exc:
+            if self._error_translator is None:
+                raise
+            translated = self._error_translator(exc)
+            if translated is exc:
+                raise
+            raise translated from exc
+        if self._response_validator is not None:
+            self._response_validator(request, response)
+        return response
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        """Return advertised model names for capability-aware selection."""
+
+        return self._models
+
+    def list_supported_models(self, *, refresh: bool = False) -> tuple[str, ...]:
+        """Return model ids supported by this adapter's configured provider."""
+
+        if self._models and not refresh:
+            return self._models
+        if self._available_model_ids is not None and not refresh:
+            return self._available_model_ids
+        self._available_model_ids = self._list_client_model_ids(self.client)
+        return self._available_model_ids
+
+    def default_model(self, *, refresh: bool = False) -> str:
+        """Return the first supported model to use when callers did not choose one."""
+
+        models = self.list_supported_models(refresh=refresh)
+        if not models:
+            raise ModelExecutionError("OpenAI provider did not advertise any models")
+        return models[0]
+
+    @property
+    def is_local(self) -> bool:
+        """Return whether this adapter should be treated as local-only."""
+
+        return self._is_local
+
+    def _validate_request_model_available(
+        self,
+        client: OpenAIClientProtocol,
+        request: OpenAIModelRequest,
+    ) -> None:
+        if not _provider_uses_chatgpt_codex(self._provider):
+            return
+        available_model_ids = self._available_model_ids
+        if available_model_ids is None:
+            available_model_ids = self._list_client_model_ids(client)
+            self._available_model_ids = available_model_ids
+        _raise_if_model_is_unavailable(
+            request.model,
+            available_model_ids,
+            provider_label="ChatGPT/Codex",
+        )
+
+    def _list_client_model_ids(
+        self,
+        client: OpenAIClientProtocol,
+    ) -> tuple[str, ...]:
+        return list_openai_model_ids(
+            client,
+            extra_query=(
+                _chatgpt_codex_models_extra_query()
+                if _provider_uses_chatgpt_codex(self._provider)
+                else None
+            ),
+        )
 
 
-def create_default_openai_client() -> OpenAIClientProtocol:
+class AsyncOpenAIClientAdapter:
+    """Async adapter around a repository-owned OpenAI-compatible client boundary."""
+
+    def __init__(
+        self,
+        client: AsyncOpenAIClientProtocol | None = None,
+        *,
+        provider: AsyncOpenAIClientProvider | None = None,
+        models: Sequence[str] | None = None,
+        is_local: bool = False,
+        error_translator: ErrorTranslator | None = None,
+        response_validator: ResponseValidator | None = None,
+    ) -> None:
+        if client is not None and provider is not None:
+            raise ValueError(
+                "AsyncOpenAIClientAdapter accepts either client or provider"
+            )
+        self._client = client
+        self._provider = provider
+        self._client_lock = RLock()
+        self._models = tuple(str(model) for model in models or ())
+        self._is_local = is_local
+        self._error_translator = error_translator
+        self._response_validator = response_validator
+        self._available_model_ids: tuple[str, ...] | None = None
+
+    @property
+    def client(self) -> AsyncOpenAIClientProtocol:
+        """Return the injected or lazily constructed async OpenAI-compatible client."""
+
+        with self._client_lock:
+            if self._client is None:
+                if self._provider is None:
+                    self._provider = create_default_async_openai_provider()
+                self._client = self._provider.get_client()
+            return self._client
+
+    async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        """Send a request asynchronously and normalize the model response."""
+
+        client = self.client
+        try:
+            await self._validate_request_model_available(client, request)
+            response = await create_async_openai_response(
+                client,
+                _prepare_chatgpt_codex_request(self._provider, request),
+            )
+        except ModelExecutionError as exc:
+            if self._error_translator is None:
+                raise
+            translated = self._error_translator(exc)
+            if translated is exc:
+                raise
+            raise translated from exc
+        if self._response_validator is not None:
+            self._response_validator(request, response)
+        return response
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        """Return advertised model names for capability-aware selection."""
+
+        return self._models
+
+    async def list_supported_models(self, *, refresh: bool = False) -> tuple[str, ...]:
+        """Return model ids supported by this adapter's configured provider."""
+
+        if self._models and not refresh:
+            return self._models
+        if self._available_model_ids is not None and not refresh:
+            return self._available_model_ids
+        self._available_model_ids = await self._list_client_model_ids(self.client)
+        return self._available_model_ids
+
+    async def default_model(self, *, refresh: bool = False) -> str:
+        """Return the first supported model to use when callers did not choose one."""
+
+        models = await self.list_supported_models(refresh=refresh)
+        if not models:
+            raise ModelExecutionError("OpenAI provider did not advertise any models")
+        return models[0]
+
+    @property
+    def is_local(self) -> bool:
+        """Return whether this adapter should be treated as local-only."""
+
+        return self._is_local
+
+    async def _validate_request_model_available(
+        self,
+        client: AsyncOpenAIClientProtocol,
+        request: OpenAIModelRequest,
+    ) -> None:
+        if not _provider_uses_chatgpt_codex(self._provider):
+            return
+        available_model_ids = self._available_model_ids
+        if available_model_ids is None:
+            available_model_ids = await self._list_client_model_ids(client)
+            self._available_model_ids = available_model_ids
+        _raise_if_model_is_unavailable(
+            request.model,
+            available_model_ids,
+            provider_label="ChatGPT/Codex",
+        )
+
+    async def _list_client_model_ids(
+        self,
+        client: AsyncOpenAIClientProtocol,
+    ) -> tuple[str, ...]:
+        return await list_async_openai_model_ids(
+            client,
+            extra_query=(
+                _chatgpt_codex_models_extra_query()
+                if _provider_uses_chatgpt_codex(self._provider)
+                else None
+            ),
+        )
+
+
+def create_default_openai_provider(
+    config: OpenAIProviderConfig | None = None,
+) -> OpenAIClientProvider:
+    """Construct the default sync SDK-backed provider facade."""
+
+    resolved = _resolve_default_openai_provider_defaults(
+        config or OpenAIProviderConfig()
+    )
+    if resolved.chatgpt_token is not None:
+        return ChatGPTCodexBackendOpenAIClientProvider(
+            config=resolved.config,
+            token=resolved.chatgpt_token,
+        )
+    return SDKBackedOpenAIClientProvider(resolved.config)
+
+
+def create_default_openai_client(
+    config: OpenAIProviderConfig | None = None,
+) -> OpenAIClientProtocol:
     """Construct the official OpenAI client from environment/default config."""
 
-    try:
-        from openai import OpenAI
-    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
-        raise ModelExecutionError("official openai package is not available") from exc
-    return OpenAI()
+    return create_default_openai_provider(config).get_client()
+
+
+def create_openai_adapter(
+    *,
+    client: OpenAIClientProtocol | None = None,
+    provider: OpenAIClientProvider | None = None,
+    models: Sequence[str] | None = None,
+    is_local: bool = False,
+    error_translator: ErrorTranslator | None = None,
+    response_validator: ResponseValidator | None = None,
+) -> OpenAIClientAdapter:
+    """Construct a sync adapter through the repository-owned adapter seam."""
+
+    return OpenAIClientAdapter(
+        client=client,
+        provider=provider,
+        models=models,
+        is_local=is_local,
+        error_translator=error_translator,
+        response_validator=response_validator,
+    )
+
+
+def create_openai_adapter_from_provider_config(
+    config: OpenAIProviderConfig,
+    *,
+    models: Sequence[str] | None = None,
+    is_local: bool = False,
+    error_translator: ErrorTranslator | None = None,
+    response_validator: ResponseValidator | None = None,
+) -> OpenAIClientAdapter:
+    """Construct a sync adapter from provider config through repo-owned helpers."""
+
+    return create_openai_adapter(
+        provider=create_default_openai_provider(config),
+        models=models,
+        is_local=is_local,
+        error_translator=error_translator,
+        response_validator=response_validator,
+    )
+
+
+def create_default_async_openai_provider(
+    config: OpenAIProviderConfig | None = None,
+) -> AsyncOpenAIClientProvider:
+    """Construct the default async SDK-backed provider facade."""
+
+    resolved = _resolve_default_openai_provider_defaults(
+        config or OpenAIProviderConfig()
+    )
+    if resolved.chatgpt_token is not None:
+        return ChatGPTCodexBackendAsyncOpenAIClientProvider(
+            config=resolved.config,
+            token=resolved.chatgpt_token,
+        )
+    return SDKBackedAsyncOpenAIClientProvider(resolved.config)
+
+
+def create_default_async_openai_client(
+    config: OpenAIProviderConfig | None = None,
+) -> AsyncOpenAIClientProtocol:
+    """Construct the official async OpenAI client from environment/default config."""
+
+    return create_default_async_openai_provider(config).get_client()
+
+
+def create_async_openai_adapter(
+    *,
+    client: AsyncOpenAIClientProtocol | None = None,
+    provider: AsyncOpenAIClientProvider | None = None,
+    models: Sequence[str] | None = None,
+    is_local: bool = False,
+    error_translator: ErrorTranslator | None = None,
+    response_validator: ResponseValidator | None = None,
+) -> AsyncOpenAIClientAdapter:
+    """Construct an async adapter through the repository-owned adapter seam."""
+
+    return AsyncOpenAIClientAdapter(
+        client=client,
+        provider=provider,
+        models=models,
+        is_local=is_local,
+        error_translator=error_translator,
+        response_validator=response_validator,
+    )
+
+
+def create_async_openai_adapter_from_provider_config(
+    config: OpenAIProviderConfig,
+    *,
+    models: Sequence[str] | None = None,
+    is_local: bool = False,
+    error_translator: ErrorTranslator | None = None,
+    response_validator: ResponseValidator | None = None,
+) -> AsyncOpenAIClientAdapter:
+    """Construct an async adapter from provider config through repo-owned helpers."""
+
+    return create_async_openai_adapter(
+        provider=create_default_async_openai_provider(config),
+        models=models,
+        is_local=is_local,
+        error_translator=error_translator,
+        response_validator=response_validator,
+    )
 
 
 def build_openai_request(
@@ -153,6 +624,275 @@ def normalize_openai_response(raw_response: Any) -> ModelResponse:
         tool_calls=tool_calls,
         response_id=response_id,
         raw=raw_response,
+    )
+
+
+def create_openai_response(
+    client: OpenAIClientProtocol,
+    request: OpenAIModelRequest,
+) -> ModelResponse:
+    """Dispatch a sync OpenAI-compatible request through repo-owned helpers."""
+
+    try:
+        kwargs = request.to_kwargs()
+        raw_response = client.responses.create(**kwargs)
+    except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
+        raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+    if kwargs.get("stream") and not isinstance(raw_response, Mapping):
+        return _normalize_openai_stream(raw_response)
+    return normalize_openai_response(raw_response)
+
+
+async def create_async_openai_response(
+    client: AsyncOpenAIClientProtocol,
+    request: OpenAIModelRequest,
+) -> ModelResponse:
+    """Dispatch an async OpenAI-compatible request through repo-owned helpers."""
+
+    try:
+        kwargs = request.to_kwargs()
+        raw_response = await client.responses.create(**kwargs)
+    except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
+        raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+    if kwargs.get("stream") and not isinstance(raw_response, Mapping):
+        return await _normalize_async_openai_stream(raw_response)
+    return normalize_openai_response(raw_response)
+
+
+def list_openai_model_ids(
+    client: OpenAIClientProtocol,
+    *,
+    extra_query: Mapping[str, object] | None = None,
+) -> tuple[str, ...]:
+    """List available model ids from an authenticated OpenAI-compatible client."""
+
+    models_resource = getattr(client, "models", None)
+    list_method = getattr(models_resource, "list", None)
+    if not callable(list_method):
+        raise ModelExecutionError(
+            "OpenAI provider does not expose available model listing"
+        )
+    try:
+        raw_models = (
+            list_method(extra_query=dict(extra_query))
+            if extra_query is not None
+            else list_method()
+        )
+    except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
+        raise ModelExecutionError("OpenAI available model listing failed") from exc
+    return _extract_model_ids(raw_models)
+
+
+async def list_async_openai_model_ids(
+    client: AsyncOpenAIClientProtocol,
+    *,
+    extra_query: Mapping[str, object] | None = None,
+) -> tuple[str, ...]:
+    """List available model ids from an authenticated async OpenAI-compatible client."""
+
+    models_resource = getattr(client, "models", None)
+    list_method = getattr(models_resource, "list", None)
+    if not callable(list_method):
+        raise ModelExecutionError(
+            "OpenAI provider does not expose available model listing"
+        )
+    try:
+        raw_models = (
+            list_method(extra_query=dict(extra_query))
+            if extra_query is not None
+            else list_method()
+        )
+        if inspect.isawaitable(raw_models):
+            raw_models = await raw_models
+    except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
+        raise ModelExecutionError("OpenAI available model listing failed") from exc
+    return _extract_model_ids(raw_models)
+
+
+def _extract_model_ids(raw_models: Any) -> tuple[str, ...]:
+    data = _read_value(raw_models, "data")
+    models = _read_value(raw_models, "models")
+    extra_models = _read_value(_read_value(raw_models, "model_extra"), "models")
+    if data is not None:
+        items = data
+    elif models is not None:
+        items = models
+    elif extra_models is not None:
+        items = extra_models
+    else:
+        items = raw_models
+    model_ids: list[str] = []
+    for item in _as_sequence(items):
+        model_id = item if isinstance(item, str) else _read_model_id(item)
+        if isinstance(model_id, str) and model_id.strip():
+            model_ids.append(model_id.strip())
+    return _sort_model_ids_by_version(tuple(dict.fromkeys(model_ids)))
+
+
+_MODEL_VERSION_PATTERN = re.compile(r"(?<!\d)(\d+(?:\.\d+)*)(?!\d)")
+
+
+def _sort_model_ids_by_version(model_ids: Sequence[str]) -> tuple[str, ...]:
+    return tuple(sorted(model_ids, key=_model_id_version_sort_key))
+
+
+def _model_id_version_sort_key(model_id: str) -> tuple[int, tuple[int, ...], str]:
+    match = _MODEL_VERSION_PATTERN.search(model_id)
+    if match is None:
+        return (1, (), model_id)
+    version = tuple(int(part) for part in match.group(1).split("."))
+    return (0, version, model_id)
+
+
+def _normalize_openai_stream(raw_stream: Any) -> ModelResponse:
+    events: list[Any] = []
+    for event in raw_stream:
+        events.append(event)
+    return _normalize_openai_stream_events(events)
+
+
+async def _normalize_async_openai_stream(raw_stream: Any) -> ModelResponse:
+    events: list[Any] = []
+    if hasattr(raw_stream, "__aiter__"):
+        async for event in raw_stream:
+            events.append(event)
+    else:
+        for event in raw_stream:
+            events.append(event)
+    return _normalize_openai_stream_events(events)
+
+
+def _normalize_openai_stream_events(events: Sequence[Any]) -> ModelResponse:
+    deltas: list[str] = []
+    response_id: str | None = None
+    completed_response: Any = None
+    for event in events:
+        event_type = _read_value(event, "type")
+        if event_type == "response.output_text.delta":
+            delta = _read_value(event, "delta")
+            if delta is not None:
+                deltas.append(str(delta))
+            continue
+        response = _read_value(event, "response")
+        if response is not None:
+            response_id = _optional_str(_read_value(response, "id")) or response_id
+            if event_type == "response.completed":
+                completed_response = response
+
+    if completed_response is not None:
+        normalized = normalize_openai_response(completed_response)
+        return ModelResponse(
+            content=normalized.content or ("".join(deltas) if deltas else None),
+            tool_calls=normalized.tool_calls,
+            response_id=normalized.response_id or response_id,
+            raw=completed_response,
+        )
+    return ModelResponse(
+        content="".join(deltas) if deltas else None,
+        response_id=response_id,
+        raw=tuple(events),
+    )
+
+
+def _read_model_id(item: Any) -> Any:
+    return (
+        _read_value(item, "id")
+        or _read_value(item, "slug")
+        or _read_value(_read_value(item, "model_extra"), "slug")
+    )
+
+
+def _provider_uses_chatgpt_codex(provider: Any) -> bool:
+    config = getattr(provider, "config", None)
+    return getattr(config, "provider_name", None) == CHATGPT_CODEX_PROVIDER_NAME
+
+
+def _prepare_chatgpt_codex_request(
+    provider: Any,
+    request: OpenAIModelRequest,
+) -> OpenAIModelRequest:
+    if not _provider_uses_chatgpt_codex(provider):
+        return request
+
+    input_messages: list[Mapping[str, Any]] = []
+    instruction_parts: list[str] = []
+    for message in request.messages:
+        role = str(message.get("role") or "")
+        content = message.get("content")
+        if role in {"system", "developer"}:
+            if content is not None and str(content).strip():
+                instruction_parts.append(str(content).strip())
+        else:
+            input_messages.append(message)
+
+    extra = dict(request.extra)
+    existing_instructions = extra.get("instructions")
+    if existing_instructions is not None and str(existing_instructions).strip():
+        instruction_parts.insert(0, str(existing_instructions).strip())
+    extra["instructions"] = (
+        "\n\n".join(instruction_parts)
+        if instruction_parts
+        else "You are a helpful assistant."
+    )
+    extra["store"] = False
+    extra["stream"] = True
+
+    return OpenAIModelRequest(
+        model=request.model,
+        messages=tuple(input_messages or request.messages),
+        tools=request.tools,
+        tool_choice=request.tool_choice,
+        response_format=request.response_format,
+        extra=extra,
+    )
+
+
+def _chatgpt_codex_models_extra_query() -> dict[str, str]:
+    client_version = (
+        os.environ.get("DYNAMIC_AGENT_RUNNER_CODEX_CLIENT_VERSION")
+        or os.environ.get("CODEX_CLIENT_VERSION")
+        or _read_codex_client_version()
+        or CHATGPT_CODEX_FALLBACK_CLIENT_VERSION
+    )
+    return {"client_version": client_version}
+
+
+def _read_codex_client_version() -> str | None:
+    try:
+        codex_home = _resolve_codex_home()
+    except ModelExecutionError:
+        return None
+    if codex_home is None:
+        return None
+    version_file = codex_home / "version.json"
+    if not version_file.exists():
+        return None
+    try:
+        with version_file.open(encoding="utf-8") as handle:
+            version = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(version, Mapping):
+        return None
+    latest_version = version.get("latest_version")
+    if not isinstance(latest_version, str):
+        return None
+    whole_version = latest_version.strip().partition("-")[0]
+    return whole_version or None
+
+
+def _raise_if_model_is_unavailable(
+    model: str,
+    available_model_ids: Sequence[str],
+    *,
+    provider_label: str,
+) -> None:
+    if model in available_model_ids:
+        return
+    available = ", ".join(available_model_ids) if available_model_ids else "none"
+    raise ModelExecutionError(
+        f"{provider_label} provider does not advertise model {model!r}; "
+        f"available models: {available}"
     )
 
 
@@ -219,3 +959,311 @@ def _as_sequence(value: Any) -> Sequence[Any]:
 
 def _optional_str(value: Any) -> str | None:
     return str(value) if value is not None else None
+
+
+def _resolve_default_openai_provider_config(
+    config: OpenAIProviderConfig,
+) -> OpenAIProviderConfig:
+    """Resolve host-owned defaults for the SDK-backed OpenAI provider."""
+
+    return _resolve_default_openai_provider_defaults(config).config
+
+
+def _resolve_default_openai_provider_defaults(
+    config: OpenAIProviderConfig,
+) -> _ResolvedDefaultOpenAIProvider:
+    _validate_codex_auth_preference(config.codex_auth_preference)
+
+    if not config.discover_default_auth:
+        return _ResolvedDefaultOpenAIProvider(
+            OpenAIProviderConfig(
+                base_url=config.base_url,
+                api_key=config.api_key,
+                provider_name=config.provider_name,
+                discover_default_auth=config.discover_default_auth,
+                codex_auth_preference=config.codex_auth_preference,
+            )
+        )
+
+    base_url = config.base_url
+    api_key = config.api_key
+    provider_name = config.provider_name
+    chatgpt_token: str | None = None
+    codex_home: Path | None = None
+
+    if api_key is None:
+        api_key = _read_non_empty_env("OPENAI_API_KEY")
+        if api_key is None:
+            codex_home = _resolve_codex_home()
+            if codex_home is not None:
+                selected_codex_auth = _resolve_selected_codex_auth(
+                    codex_home, config.codex_auth_preference
+                )
+                api_key = selected_codex_auth.api_key
+                chatgpt_token = selected_codex_auth.chatgpt_token
+                if chatgpt_token is not None:
+                    provider_name = provider_name or CHATGPT_CODEX_PROVIDER_NAME
+
+    if base_url is None:
+        if chatgpt_token is not None:
+            base_url = CHATGPT_CODEX_BACKEND_BASE_URL
+        else:
+            if codex_home is None:
+                codex_home = _resolve_codex_home()
+            if codex_home is not None:
+                base_url = _read_codex_openai_base_url(codex_home)
+
+    return _ResolvedDefaultOpenAIProvider(
+        OpenAIProviderConfig(
+            base_url=base_url,
+            api_key=api_key,
+            provider_name=provider_name,
+            discover_default_auth=config.discover_default_auth,
+            codex_auth_preference=config.codex_auth_preference,
+        ),
+        chatgpt_token=chatgpt_token,
+    )
+
+
+def _validate_codex_auth_preference(value: str) -> None:
+    if value not in {CODEX_AUTH_API_KEY_FIRST, CODEX_AUTH_CHATGPT_FIRST}:
+        raise ModelExecutionError(
+            "OpenAIProviderConfig.codex_auth_preference must be "
+            "'api_key_first' or 'chatgpt_first'"
+        )
+
+
+def _resolve_selected_codex_auth(
+    codex_home: Path,
+    preference: str,
+) -> _CodexAuthDefaults:
+    codex_auth = _read_codex_auth_defaults(codex_home)
+    selected_auth = _select_codex_auth(codex_auth, preference)
+    if selected_auth == "api_key":
+        return _CodexAuthDefaults(api_key=codex_auth.api_key)
+    if selected_auth == "chatgpt":
+        return _CodexAuthDefaults(chatgpt_token=codex_auth.chatgpt_token)
+    return _CodexAuthDefaults()
+
+
+def _read_non_empty_env(name: str) -> str | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _resolve_codex_home() -> Path | None:
+    raw_codex_home = os.environ.get("CODEX_HOME")
+    if raw_codex_home is not None and raw_codex_home.strip():
+        codex_home = Path(raw_codex_home.strip()).expanduser()
+        if not codex_home.is_dir():
+            raise ModelExecutionError(
+                f"CODEX_HOME must point to an existing directory: {codex_home}"
+            )
+        return codex_home
+
+    codex_home = Path.home() / ".codex"
+    if not codex_home.exists():
+        return None
+    if not codex_home.is_dir():
+        raise ModelExecutionError(
+            f"default Codex home must be a directory: {codex_home}"
+        )
+    return codex_home
+
+
+def _read_codex_openai_base_url(codex_home: Path) -> str | None:
+    config_file = codex_home / "config.toml"
+    if not config_file.exists():
+        return None
+    text = config_file.read_text(encoding="utf-8")
+    try:
+        config = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return _read_codex_openai_base_url_from_top_level_text(config_file, text)
+    value = config.get("openai_base_url")
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _read_codex_openai_base_url_from_top_level_text(
+    config_file: Path,
+    text: str,
+) -> str | None:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("["):
+            return None
+        key, separator, _value = stripped.partition("=")
+        if key.strip() != "openai_base_url" or not separator:
+            continue
+        try:
+            value = tomllib.loads(line).get("openai_base_url")
+        except tomllib.TOMLDecodeError as exc:
+            raise ModelExecutionError(
+                f"failed to parse Codex config file {config_file}"
+            ) from exc
+        if not isinstance(value, str):
+            return None
+        return value.strip() or None
+    return None
+
+
+def _read_codex_auth_defaults(codex_home: Path) -> _CodexAuthDefaults:
+    auth_file = codex_home / "auth.json"
+    if not auth_file.exists():
+        return _CodexAuthDefaults()
+    try:
+        with auth_file.open(encoding="utf-8") as handle:
+            auth = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise ModelExecutionError(
+            f"failed to parse Codex auth file {auth_file}"
+        ) from exc
+    if not isinstance(auth, Mapping):
+        raise ModelExecutionError(f"Codex auth file {auth_file} must contain an object")
+
+    declared_mode = _resolve_declared_codex_auth_mode(auth)
+    unsupported_mode = _resolve_unsupported_codex_auth_mode(auth)
+    if unsupported_mode is not None:
+        return _CodexAuthDefaults(unsupported_mode=unsupported_mode)
+
+    if declared_mode == "api_key":
+        return _CodexAuthDefaults(api_key=_read_codex_api_key_value(auth, auth_file))
+    if declared_mode == "chatgpt":
+        chatgpt_token = _read_codex_chatgpt_token(auth)
+        if chatgpt_token is None:
+            raise ModelExecutionError(
+                f"Codex auth file {auth_file} uses ChatGPT auth but has no token"
+            )
+        return _CodexAuthDefaults(chatgpt_token=chatgpt_token)
+
+    api_key = _read_codex_api_key_value(auth, auth_file)
+    chatgpt_token = _read_codex_chatgpt_token(auth)
+    return _CodexAuthDefaults(
+        api_key=api_key,
+        chatgpt_token=chatgpt_token,
+    )
+
+
+def _read_codex_api_key_value(
+    auth: Mapping[str, Any],
+    auth_file: Path,
+) -> str | None:
+    if _declared_auth_mode_is(auth, "api_key") and not isinstance(
+        auth.get("OPENAI_API_KEY"), str
+    ):
+        raise ModelExecutionError(
+            f"Codex auth file {auth_file} uses API-key auth but has no key"
+        )
+
+    value = auth.get("OPENAI_API_KEY")
+    if not isinstance(value, str):
+        return None
+    if not value.strip():
+        if _declared_auth_mode_is(auth, "api_key"):
+            raise ModelExecutionError(
+                f"Codex auth file {auth_file} uses API-key auth but has no key"
+            )
+        return None
+    return value.strip()
+
+
+def _read_codex_chatgpt_token(auth: Mapping[str, Any]) -> str | None:
+    tokens = auth.get("tokens")
+    if isinstance(tokens, Mapping):
+        for key in ("access_token", "id_token"):
+            value = tokens.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _select_codex_auth(
+    auth: _CodexAuthDefaults,
+    preference: str,
+) -> str | None:
+    if preference == CODEX_AUTH_CHATGPT_FIRST:
+        if auth.chatgpt_token is not None:
+            return "chatgpt"
+        if auth.api_key is not None:
+            return "api_key"
+    else:
+        if auth.api_key is not None:
+            return "api_key"
+        if auth.chatgpt_token is not None:
+            return "chatgpt"
+
+    if auth.unsupported_mode is not None:
+        raise ModelExecutionError(
+            f"unsupported Codex auth mode {auth.unsupported_mode!r}; provide an "
+            "OpenAI API key or supported ChatGPT auth"
+        )
+    return None
+
+
+def _resolve_unsupported_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
+    mode = _resolve_declared_codex_auth_mode(auth)
+    if mode is None:
+        if auth.get("personal_access_token") is not None:
+            return "personal_access_token"
+        if auth.get("agent_identity") is not None:
+            return "agent_identity"
+        mode = _resolve_codex_auth_mode(auth)
+    if mode not in {None, "api_key", "chatgpt"}:
+        return mode
+    return None
+
+
+def _resolve_declared_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
+    raw_mode = auth.get("auth_mode")
+    if isinstance(raw_mode, str) and raw_mode.strip():
+        mode = raw_mode.strip().replace("-", "_").lower()
+        if mode in {"api", "apikey"}:
+            return "api_key"
+        return mode
+    return None
+
+
+def _resolve_codex_auth_mode(auth: Mapping[str, Any]) -> str | None:
+    mode = _resolve_declared_codex_auth_mode(auth)
+    if mode is not None:
+        return mode
+
+    if isinstance(auth.get("OPENAI_API_KEY"), str):
+        return "api_key"
+    if auth.get("personal_access_token") is not None:
+        return "personal_access_token"
+    if auth.get("agent_identity") is not None:
+        return "agent_identity"
+    if auth.get("tokens") is not None:
+        return "chatgpt"
+    return None
+
+
+def _declared_auth_mode_is(auth: Mapping[str, Any], expected: str) -> bool:
+    return _resolve_declared_codex_auth_mode(auth) == expected
+
+
+def _provider_config_to_client_kwargs(config: OpenAIProviderConfig) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {}
+    if config.base_url is not None:
+        kwargs["base_url"] = config.base_url
+    if config.api_key is not None:
+        kwargs["api_key"] = config.api_key
+    return kwargs
+
+
+def _chatgpt_provider_config_to_client_kwargs(
+    config: OpenAIProviderConfig,
+    token: str,
+) -> dict[str, Any]:
+    kwargs = _provider_config_to_client_kwargs(config)
+    kwargs["api_key"] = token
+    return kwargs

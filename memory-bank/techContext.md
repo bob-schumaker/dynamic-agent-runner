@@ -3,7 +3,7 @@
 ## Language and Runtime
 
 - Python package.
-- Declared Python compatibility: `>=3.11,<3.14`.
+- Declared Python compatibility: `>=3.13,<3.14.1 || >3.14.1,<3.15`.
 - mise-selected local Python version: `3.13`.
 
 ## Package and Dependency Management
@@ -30,6 +30,9 @@ Current committed dependency context includes:
 - `PyYAML >=6.0`
 - `tenacity >=9.0.0`
 - `tiktoken >=0.12.0`
+- `openai-model-registry ^1.0.5`
+- `llama-cpp-python ^0.3.26` without the `server` extra
+- optional extra `huggingface`, which installs `huggingface-hub >=1.18.0,<2.0.0`
 
 Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 
@@ -51,12 +54,23 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   sinks; no external observability dependency is required for Slice 11
 - support runtime behavior overrides for prompt patches and inline skill
   bindings without adding new external dependencies
+- expose read-only public Hugging Face model discovery through a package-owned
+  API and normalized result/error contracts; callers need the `huggingface`
+  extra for Hub-backed discovery or downloads
+- keep caller-owned OpenAI-compatible llama.cpp servers on the local endpoint
+  helper path, while direct in-process llama.cpp support uses
+  `llama-cpp-python` without server dependencies
+- keep default OpenAI/Codex auth discovery inside
+  `src/dynamic_agent_runner/openai_client.py`; support `OPENAI_API_KEY`, trusted
+  Codex user-level API-key/auth-token auth, and ordered ChatGPT/Codex backend
+  token auth without treating ChatGPT tokens as `OpenAIProviderConfig.api_key`
 
 ## Development and Test Dependencies
 
 - Dev: `icecream`, `pipdeptree`, `tqdm >=4.66`, `ruff ^0.15.10`,
   `pre-commit ^4.5.1`, `isort ^8.0.1`
-- Docs: `sphinxcontrib-confluencebuilder`, `myst-parser`
+- Docs: `sphinxcontrib-confluencebuilder`, `myst-parser`,
+  `sphinx-markdown-builder`
 - Test: `pytest-cov ^7.1.0`, `pytest-parallel ^0.1.1`
 
 ## Tooling Configuration
@@ -67,8 +81,17 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - flake8 max line length: `80`; ignores `E501`, `W503`, `B950`.
 - isort uses Black-compatible multiline output with trailing commas and line
   length `88`.
-- pre-commit hooks include YAML checks, JSON formatting, isort, flake8,
-  TOML syntax checks, Black, and repository Markdown checks when available.
+- pre-commit hooks include YAML checks, JSON formatting, TOML syntax checks,
+  Ruff check/fix, Ruff format, and `rumdl` Markdown checks/formatting.
+
+## Documentation Tooling
+
+- Authored Sphinx documentation lives under `docs/files/`.
+- Generated Sphinx source lives under `docs/source/` and is produced by
+  `vaguely-literate` through `docs/Makefile`.
+- Use `make -C docs html` for the standard local docs validation pass.
+- Do not hand-edit generated `docs/source/*.rst` pages when updating authored
+  documentation.
 
 ## Environment Setup
 
@@ -144,6 +167,13 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `openai_client.py`, `tests/test_openai_client.py`, public OpenAI adapter
   exports, fake-client-compatible request construction, response normalization,
   lazy official OpenAI client construction, and `ModelExecutionError` wrapping.
+- Default OpenAI/Codex auth discovery was implemented through Slices 1-5 in
+  `specs/default-openai-codex-auth/tasks.md`. Recent commits include `78d6ee7`
+  for the resolver skeleton, `b989052` for Codex API-key defaults, `19a6ae4`
+  for adapter integration coverage, `2009a11` for docs, `9a889e9` for ordered
+  auth-selection spec updates, `f13c3fa` for RED ordered-auth tests, `c9142dd`
+  for ordered ChatGPT/Codex backend auth support, and `e01fed4` for integration
+  coverage/docs.
 - Slice 6 implementation was committed in `4ce8c67`. It added `executor.py`,
   `tests/test_executor.py`, public executor exports, a working
   `run_agent_workflow(...)` API, execution state tracking, `llm_step`,

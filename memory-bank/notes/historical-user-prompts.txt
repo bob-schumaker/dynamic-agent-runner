@@ -12,6 +12,11 @@ product direction. It intentionally omits routine operational prompts such as
 "commit this", "update memory-bank", "do recommended next step", and repeated
 slice-execution commands unless the wording introduced durable requirements.
 
+Recent routine execution requests were intentionally omitted from durable prompt
+history, including repeated commands to execute slices P1-P5 and update the
+memory bank separately, because they changed task progress but did not add new
+product requirements beyond the existing slice plan.
+
 The entries below may contain outdated, superseded, incomplete, misspelled, or
 one-off instructions. Treat them as historical context only.
 
@@ -125,3 +130,207 @@ integrating logfire with whatever the caller is doing for logging seems like a p
 ---
 
 design a way to override individual node prompts and skills so we don't have to modify the core agent design to change how each node behaves
+---
+
+evaluate /Users/roschuma/Repos/roschuma/dynamic-agent-runner/cline-tasks/give-your-agents-an-interpreter.md as a possible implementation detail for speeding up llm nodes. propose possible interpreters, but do not choose one yet
+
+---
+
+save this analysis as a future feature spec
+
+---
+
+the referenced deepagent repo is available locally at /Users/roschuma/Repos/github/deepagents/
+
+---
+
+add the repo url `https://github.com/langchain-ai/deepagents.git` as part of the context provenance
+
+---
+
+expand the future interpreter spec to have an interface so that the client can specific custom interpreters and attach them to llm nodes
+
+---
+
+move cline-tasks/give-your-agents-an-interpreter.md to specs/llm-step-interpreter-middleware/ as a reference using the appropriate spec structure
+
+---
+
+read cline-tasks/codex-cli-evaluation.md and cline-tasks/cline-evaluation.md and synthesize a combined proposal for acceptable additions to our package
+
+---
+
+save this proposal to cline-tasks/ and add the backlog section to the spec
+
+---
+
+move the deferred section to tasks.md
+
+---
+
+- do we currently support multiple concurrent agents created by the client or will we have low-level crosstalk
+- what are the pros and cons of making the package async
+- should we support both interface styles
+
+---
+
+the repo ../power-marimo/ will be a PySide6 (through qtpy) application and our first customer. should we do E13 since they will be running mulltiple QThreads with agents, and since we have no customers does implementing E14 make sense now as well?
+
+---
+
+1. implement a true async implementation
+2. add `execute_workflow_async(...)` and `run_agent_workflow_async(...)` as first-class public APIs
+3. sync APIs will be wrappers around the async first class APIs
+4 openai supports async, `/Users/roschuma/.vaults/Personal/AI/How make async calls to OpenAI’s API in Python  Medium.md`
+5/6. we should inspect the tools and hooks during setup and call them correctly
+7. if an agent workflow is cancelled, we should attempt to cancel all existing calls with propagation if possible
+8. update E13 for be consistent with E14
+
+---
+
+- sync wrappers should throw an error if they are called from an existing loop
+- async inspection should happen at registration time
+- we will have to find documentation or inspect the openai code to see what's feasible, read `/Users/roschuma/.vaults/Personal/AI/How make async calls to OpenAI’s API in Python  Medium.md` for possible guidance until then
+- use __one async-canonical client protocol__.
+- E14 acceptance should be async model call, async tool, async hook, cancellation, sync wrapper compatibility, and concurrent async run
+
+---
+
+the repo for the openai python package is locally at /Users/roschuma/Repos/github/openai-python/
+
+---
+
+review the codex-cli repo at /Users/roschuma/Repos/github/openai-agents-python and evaluate it for useful general agent patterns and support that would integrate well with our package
+
+---
+
+add the suggested next spec/task additions and update the spec documents as appropriate, then commit
+
+---
+
+now that we have implemented the original agent workflow description concept and compared it to other agent runner packages, do
+an analysis of where the current worflow YAML/mermaid/tool input could be improved to simplify implementing the current and planned features. the
+current agent development design is at /Users/roschuma/Repos/roschuma/clinerules-roschuma/skills/agent-development-skill/references/agent-runtime-package.md
+
+---
+
+write a separate feature request handoff note for the agent development skill repo that captures the upstream changes we would like to have
+---
+
+examine the repo at ../power-marimo and infer the agent support it will need and how well we can implement that at this time
+
+---
+
+save this analysis to spec references and then update the spec doc to make the necessary work the next set of actions
+
+---
+
+add new capability to allow mixing remote and local models
+
+- an optional model map that maps model names to features
+- the model_adapter variable should be a list of adapters
+- if llm_node features are specified llm mappings can be made from the model map to the model lists from the adapter(s)
+- if no models in the model adapter list support the necessary features, create an additional local openai model
+
+---
+
+for the native openai models, use the openai-model-registry package
+
+- local repo is at /Users/roschuma/Repos/github/openai-model-registry/
+- partial local documentation is at cline-tasks/references/openai-model-registry
+
+---
+
+design a llama.cpp-based model interface
+
+- use the llama-cpp-python package (installed)
+- it should expose an OpenAI adapter interface suitable for our additional models parameter
+- the constructor should handle model selection and parameters
+  - embedding model support is required
+  - additional Llama class parameters
+- this should be in a separate files, e.g. llama_cpp.py
+
+for our internal purposes we will want to be able to run our own local models for llm context management in pipelines
+
+- reference: /Users/roschuma/.vaults/Personal/AI/RAG/Building a Context Pruning Pipeline for Long-Running Agents.md
+
+---
+
+design a graph mutation interface
+
+- initially internal only
+- the first implementation will likely be adding our own internal llm context pruning pipeline into the incoming workflow
+- decide if the graph modification is also defined like the agent workflow definition
+- do we need additional information in the agent workflow definition to be able to cleanly hook it to the existing graph
+
+---
+
+compare "Deferred Codex/Cline evaluation follow-ups" tasks and "Deferred OpenAI Agents SDK Python evaluation follow-ups" tasks
+for duplication and overlap. For each E* task that can be merged with an OA* task, mark the E* task as complete and note
+that its completion is in an OA task. For E* tasks that can only be partially merged, remove the duplication and note the
+change and leave the E task unmarked.
+
+---
+
+evaluate the following documents for a potential multi-turn memory pipeline features for slice OA8
+
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Building a Multi‑Turn, Agentic Generative‑AI System (2025 Edition).md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Building an AI agent with Python.md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/How to Build a Multi-Turn AI Agent from Scratch  CloudHedge Blog.md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Multi Turn Goal Based Agents with Large Language Models (with practical use case)  by Nayan Paul  Medium.md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Multi-Agent Debate — AutoGen.md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Multi-turn Conversations with Agents Building Context Across Dialogues  by Sai Nitesh Palamakula  Medium.md`
+- `/Users/roschuma/.vaults/Personal/AI/Agents/Multiturn Agent Scenarios.md`
+- `/Users/roschuma/.vaults/Personal/AI/Building a Context Pruning Pipeline.md`
+- `/Users/roschuma/.vaults/Personal/AI/Evaluation/Demystifying evals for AI agents  Anthropic.md`
+- `/Users/roschuma/.vaults/Personal/AI/Evaluation/Reinforcing Multi-Turn Reasoning in LLM Agents via Turn-Level Reward Design.md`
+- `/Users/roschuma/.vaults/Personal/AI/Prompting/Chapter 11 Multi-Turn Conversation Design  Prompting Handbook.md`
+- `/Users/roschuma/.vaults/Personal/AI/Prompting/How to Create Multi-Turn Prompt Workflows for Agents - Future Skills Academy.md`
+
+---
+
+- add a feature spec for the memory pipeline, including copies of whichever references are most relevant and the decision memo
+- generate concrete host-integration sketch showing how `power-marimo` would manage multi-call continuity with the current API
+
+---
+
+evaluate the repo at /Users/roschuma/Repos/github/omlx/ as a possible future mac-only local model feature
+
+---
+
+the adapter should support downloading referenced models that are not available locally using the `huggingface_hub` package
+the local repo for that package is at /Users/roschuma/Repos/github/huggingface_hub/
+
+---
+
+the adapter should take an optional model cache folder path, if not specified use `~/.ollama/models`
+
+---
+
+once we've authenticated, we need to list the available models
+
+```text
+CRITICAL:PowerMarimo:Error: Function call (name: send_prompt, args: {'request_id': 'f1bebdfa-fc76-43f8-94ca-27876953b272', 'messages': [{'id': 'JVKGlGuUMsve3wVS', 'role': 'user', 'content': 'find the sld for room jnb1.1 and run a local analysis', 'parts': [{'type': 'text', 'text': 'find the sld for room jnb1.1 and run a local analysis'}]}], 'config': {'max_tokens': 4096, 'temperature': 0.5, 'top_p': 1, 'top_k': 40, 'frequency_penalty': 0, 'presence_penalty': 0}}) failed with exception OpenAI model request failed: Error code: 400 - {'detail': "The 'gpt-4.1' model is not supported when using Codex with a ChatGPT account."}
+```
+
+---
+
+test the end-to-end openai path with a real agent llm workflow
+
+```text
+CRITICAL:PowerMarimo:Error: Function call (name: send_prompt, args: {'request_id': 'd484349c-97d8-4c54-9bec-c077004aed33', 'messages': [{'id': 'NCA4BFxjZDVeoXJk', 'role': 'user', 'content': 'find the sld for room jnb1.1 and run a local analysis', 'parts': [{'type': 'text', 'text': 'find the sld for room jnb1.1 and run a local analysis'}]}], 'config': {'max_tokens': 4096, 'temperature': 0.5, 'top_p': 1, 'top_k': 40, 'frequency_penalty': 0, 'presence_penalty': 0}}) failed with exception OpenAI available model listing failed
+```
+
+---
+
+examine ~/Repos/github/llmfit for ways to evaluate models before fetching them from huggingface_hub
+
+---
+
+```text
+CRITICAL:PowerMarimo:An error occurred: Error: Function call (name: send_prompt, args: {'request_id': '07a7850c-a4f3-47eb-89c3-08723536ded6', 'messages': [{'id': 'msQl3hHC0xsy7QoN', 'role': 'user', 'content': 'find the SLD for room jnb1.1 and run a local analysis', 'parts': [{'type': 'text', 'text': 'find the SLD for room jnb1.1 and run a local analysis'}]}], 'config': {'max_tokens': 4096, 'temperature': 0.5, 'top_p': 1, 'top_k': 40, 'frequency_penalty': 0, 'presence_penalty': 0}}) failed with exception OpenAI model request failed: Error code: 400 - {'error': {'message': "Missing required parameter: 'tools[0].name'.", 'type': 'invalid_request_error', 'param': 'tools[0].name', 'code': 'missing_required_parameter'}}
+```
+
+---
+
+execute the ROI queue, commit after each slice. before starting a significanlty different focus area, update the specs with current state and commit.

@@ -35,10 +35,7 @@ def main(
         registry = tool_registry or _build_registry(args)
         final_result = run_agent_workflow(
             prompt=prompt,
-            runtime_manifest=args.runtime_manifest,
-            agent_design=args.agent_design,
-            mermaid_graph=args.mermaid_graph,
-            tool_index=args.tool_index,
+            package_directory=str(args.package),
             runtime_overrides=args.runtime_overrides,
             tool_registry=registry,
             model_adapter=model_adapter,
@@ -60,30 +57,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="dynamic-agent-runner",
-        description="Run a generated dynamic-agent workflow from artifacts.",
+        description="Run a generated dynamic-agent workflow from a package.",
     )
     parser.add_argument(
-        "--runtime-manifest",
+        "--package",
         required=True,
         type=Path,
-        help="Path to agent-runtime.yaml.",
-    )
-    parser.add_argument(
-        "--agent-design",
-        type=Path,
-        help="Path to agent-design.md.",
-    )
-    parser.add_argument(
-        "--mermaid-graph",
-        "--mermaid-diagram",
-        dest="mermaid_graph",
-        type=Path,
-        help="Path to agent-graph.mmd; defaults to the manifest reference.",
-    )
-    parser.add_argument(
-        "--tool-index",
-        type=Path,
-        help="Optional path to reusable tool-index.yaml metadata.",
+        help=(
+            "Path to a canonical agent package directory containing "
+            "agent-runtime.yaml, agent-design.md, and agent-graph.mmd."
+        ),
     )
     parser.add_argument(
         "--runtime-overrides",

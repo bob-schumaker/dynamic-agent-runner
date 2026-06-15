@@ -49,12 +49,23 @@ artifacts.
 Known configuration:
 
 - Python package managed by Poetry
-- Python compatibility: `>=3.11,<3.14`
-- local mise configuration selects Python `3.13`
+- Python compatibility: `>=3.13,<3.14.1 || >3.14.1,<3.15`
+- local mise configuration selects Python `3.13`, uses an in-project `.venv`,
+  and sources `env_setup` on shell entry
 - primary runtime dependencies on `roschumalib` and the official `openai` package
+- CLI parsing uses `argparse` through the package-owned console entry point
 - retry support uses `tenacity` behind package-owned retry policy interfaces
 - token estimation uses `tiktoken` behind package-owned token-budget interfaces
+- model capability metadata uses `openai-model-registry` behind
+  package-owned validation and selection interfaces
 - workflow tracing uses package-owned trace events and optional trace sinks
+- async execution, lifecycle hooks, prompt-cache observation, local
+  OpenAI-compatible endpoint helpers, and context-pipeline graph-mutation helpers
+  are implemented behind package-owned interfaces
+- local model asset, endpoint, and direct in-process llama.cpp support is
+  represented through package-owned local-model helpers; `llama-cpp-python` is a
+  runtime dependency and `huggingface-hub` is available through the
+  `huggingface` extra, but the runner does not start model servers
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
 - the initial implementation targets the OpenAI Python SDK behind a small adapter
@@ -80,12 +91,13 @@ entry point.
 Install dependencies with Poetry:
 
 ```bash
-poetry install --with dev
+poetry install --with dev --with docs
 ```
 
-If using mise, enter the project normally so `.mise.toml` can configure the
-in-project virtual environment. The repository also provides `env_setup`, which
-must be sourced rather than executed directly:
+If using mise, enter the project normally so `.mise.toml` can select Python
+3.13, configure Poetry to use the in-project `.venv`, and source `env_setup`.
+The repository also provides `env_setup` for manual shells; it must be sourced
+rather than executed directly:
 
 ```bash
 source env_setup
@@ -93,25 +105,183 @@ source env_setup
 
 ## Python API Usage
 
-Use `run_agent_workflow(...)` to load generated artifacts, validate them, execute
-the supported workflow graph, and return the final result:
+Use `run_agent_workflow(...)` to load a canonical package directory, validate
+it, execute the supported workflow graph, and return the final result:
 
 ```python
 from dynamic_agent_runner import run_agent_workflow
 
 result = run_agent_workflow(
-    agent_design="path/to/agent-design.md",
-    runtime_manifest="path/to/agent-runtime.yaml",
-    mermaid_diagram="path/to/agent-graph.mmd",
-    tool_index="path/to/tool-index.yaml",
+    package_directory="path/to/agent-package",
     prompt="Run the workflow for this user request.",
+    runtime_overrides="path/to/runtime-overrides.yaml",
     tool_registry=None,
     model_adapter=None,
 )
 ```
 
+Use `run_agent_workflow_async(...)` in async applications, or construct a
+`WorkflowExecutionContext` when several runs share the same loaded workflow and
+runtime collaborators.
+
+Model adapter coverage defaults to augmented behavior. With
+`model_adapter_coverage="augmented"` or an omitted coverage policy, supplied
+adapters are tried first and the runtime may create the default OpenAI adapter
+when eligible model coverage is missing. With
+`model_adapter_coverage="strict"`, the supplied adapter list is authoritative:
+`model_adapter=None`, `model_adapter=[]`, or a nonmatching adapter fails before
+any default OpenAI adapter is created. Clients that require local-only execution
+should pass only local adapters and use strict coverage; `local_only` runtime
+metadata no longer filters adapter selection.
+
+When the runtime creates the default OpenAI adapter, its SDK-backed provider
+discovers host-owned auth defaults only if the caller has not supplied
+overriding auth. Explicit `OpenAIProviderConfig(api_key=...)` and
+`OpenAIProviderConfig(base_url=...)` values win over ambient defaults. Without
+an explicit key, the default provider uses `OPENAI_API_KEY` when present, then
+falls back to file-backed Codex auth at `${CODEX_HOME}/auth.json` or
+`~/.codex/auth.json`. If only one supported Codex auth method exists, that
+method is used. If both Codex API-key/auth-token auth and ChatGPT auth exist,
+API-key/auth-token auth wins by default; use
+`codex_auth_preference="chatgpt_first"` to prefer ChatGPT auth when it is
+available. ChatGPT auth uses the ChatGPT/Codex backend provider path and is not
+copied into `OpenAIProviderConfig.api_key`. Without an explicit base URL, the
+API-key/auth-token path may use `openai_base_url` from
+`${CODEX_HOME}/config.toml` or `~/.codex/config.toml`. Workflow packages and
+project-local `.codex/config.toml` files are not used for auth or endpoint
+discovery. Before a ChatGPT/Codex model request is sent, the adapter lists
+authenticated available models and fails early if the requested model is not
+advertised by that account. Codex personal-access-token and agent-identity auth
+modes are not treated as OpenAI API keys in this path.
+
+To disable ambient discovery for a default OpenAI-compatible provider, set
+`discover_default_auth=False`:
+
+```python
+from dynamic_agent_runner import OpenAIProviderConfig
+
+provider_config = OpenAIProviderConfig(discover_default_auth=False)
+```
+
+To target an OpenAI-compatible endpoint without changing executor logic, provide
+an adapter that uses the public provider-configuration boundary. For
+caller-owned local endpoints, the package exposes explicit local helper types:
+
+```python
+from dynamic_agent_runner import (
+    LocalOpenAIEndpointConfig,
+    create_local_openai_adapter,
+    run_agent_workflow,
+)
+
+local_adapter = create_local_openai_adapter(
+    LocalOpenAIEndpointConfig(
+        base_url="http://localhost:11434/v1",
+        model_aliases=("gpt-4o-mini",),
+        provider_name="local-openai-compatible",
+    )
+)
+
+result = run_agent_workflow(
+    package_directory="path/to/agent-package",
+    prompt="Run the workflow for this user request.",
+    model_adapter=local_adapter,
+)
+```
+
+If the compatible provider requires authentication, set `api_key` on
+`LocalOpenAIEndpointConfig`. If it does not, the key may be omitted.
+
+For direct in-process llama.cpp local models, provide a llama.cpp adapter and
+strict coverage when the workflow must stay local:
+
+```python
+from dynamic_agent_runner import (
+    LlamaCppLocalModelConfig,
+    create_llama_cpp_local_adapter,
+)
+
+llama_adapter = create_llama_cpp_local_adapter(
+    LlamaCppLocalModelConfig(
+        model_aliases=("llama-local-chat",),
+        model_path="path/to/model.gguf",
+        expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+    )
+)
+
+result = run_agent_workflow(
+    package_directory="path/to/agent-package",
+    prompt="Run locally on llama.cpp.",
+    model_adapter=[llama_adapter],
+    model_adapter_coverage="strict",
+)
+```
+
+The direct llama.cpp helper lazily imports `llama-cpp-python`, resolves local
+model assets through the package-owned local-model path rules, and does not
+require a local server. If a caller already exposes llama.cpp through an
+OpenAI-compatible server, use `LocalOpenAIEndpointConfig` instead.
+
+For macOS in-process MLX local models, provide an MLX adapter and strict
+coverage when the workflow must stay local:
+
+```python
+from dynamic_agent_runner import (
+    MLXLocalModelConfig,
+    create_mlx_local_adapter,
+)
+
+mlx_adapter = create_mlx_local_adapter(
+    MLXLocalModelConfig(
+        model_aliases=("mlx-local-chat",),
+        model_path="path/to/mlx-model-directory",
+        expected_model_id="mlx-community/example-model",
+    )
+)
+
+result = run_agent_workflow(
+    package_directory="path/to/agent-package",
+    prompt="Run locally on MLX.",
+    model_adapter=[mlx_adapter],
+    model_adapter_coverage="strict",
+)
+```
+
+The MLX helper is macOS-only, lazily imports `mlx-lm` for the default
+in-process backend, and expects a caller-controlled converted MLX model
+directory or explicit Hugging Face reference. It does not start a server or wrap
+MLX as hosted OpenAI. Install with the `huggingface` extra before using
+Hugging Face-backed model discovery or asset downloads.
+
 Use `load_agent_workflow(...)` when callers only need to load and validate the
-artifact relationship without executing model or tool calls.
+package relationship without executing model or tool calls.
+`load_agent_package_workflow(...)` loads and compiles package-directory input.
+Lower-level file-by-file artifact inputs remain available only as a
+compatibility seam.
+
+Runtime manifests may also declare provider-neutral metadata for:
+
+- `runtime.execution_policy.model_capabilities`
+- `runtime.execution_policy.model_map`
+- `runtime.execution_policy.async_session`
+- `llm_step.model_requirements`
+- `metadata.patterns_present`
+- `metadata.rag_pipeline`
+
+These fields are preserved and validated as runtime selection or package-shape
+metadata. They are not passed through directly as OpenAI API parameters.
+
+The current runtime also preserves and validates a metadata-only async-session
+policy seam under `runtime.execution_policy.async_session`. This seam supports
+portable future multi-turn or resumable workflow metadata such as `mode`,
+`persist`, `history`, `session_id_state_key`, and
+`session_messages_state_key`, but it does not yet provide runner-owned session
+storage, automatic replay, or automatic cross-run message reuse.
+
+For ReAct-style or retrieval loops, keep the runtime graph expressed in the
+primitive node taxonomy (`llm_step`, `tool_use_step`, `decision_step`) with
+pattern metadata such as `react_loop`, `evidence_loop`, `rag`,
+`embedding_retrieval`, `graph_retrieval`, or `graphrag` layered on top.
 
 ## Retry Policy
 
@@ -193,28 +363,25 @@ intentionally deferred until this package-owned interface is stable.
 
 ## CLI Usage
 
-After installation, run a workflow package from artifact paths:
+After installation, run a workflow package from its directory:
 
 ```bash
 dynamic-agent-runner \
-  --runtime-manifest path/to/agent-runtime.yaml \
-  --agent-design path/to/agent-design.md \
-  --mermaid-graph path/to/agent-graph.mmd \
-  --tool-index path/to/tool-index.yaml \
+  --package path/to/agent-package \
   --prompt "Say hello from this workflow."
 ```
 
-If `--mermaid-graph` is omitted, the loader resolves the manifest's
-`mermaid_diagram` reference relative to the runtime manifest path. The prompt may
-also be supplied with `--prompt-file`; when neither prompt option is used, the
-CLI reads the prompt from standard input.
+The prompt may also be supplied with `--prompt-file`; when neither prompt
+option is used, the CLI reads the prompt from standard input. Use
+`--runtime-overrides` when the caller needs prompt or skill overrides layered on
+top of the immutable base package.
 
 Tool-using workflows need an explicit registry source. The first CLI-supported
 registry configuration is the opt-in read-only `local_workspace` tool pack:
 
 ```bash
 dynamic-agent-runner \
-  --runtime-manifest path/to/agent-runtime.yaml \
+  --package path/to/agent-package \
   --prompt "Inspect this workspace." \
   --workspace-root .
 ```
@@ -233,14 +400,26 @@ Current tests cover:
   relationships
 - constructing the OpenAI package-backed model execution path through an adapter
 - applying bounded model and tool retry policies without live model calls
+- resolving local model assets and classifying local OpenAI-compatible endpoint
+  failures
+- searching Hugging Face models through a repository-owned public result
+  contract
+- dispatching async model, tool, and lifecycle hook calls
+- deriving and applying context-pipeline graph-mutation helpers for prepared
+  context injection
 - validating LLM output contracts and decision routes before trusting node output
 - estimating prompt tokens and enforcing configured token budgets before model
   calls
+- recording provider-neutral prompt-cache observations and provider cached-token
+  telemetry when exposed by an adapter response
 - emitting package-owned trace events through execution state and optional trace
   sinks without external observability dependencies
+- preserving and validating deferred execution-policy seams such as
+  `approval_interruption`, `async_session`, and `sandbox_runtime` without
+  enabling their future runtime engines
 - converting repository-owned tool registry definitions to OpenAI tool schema
 - dispatching registered tools without live model calls in unit tests
 - running supported workflows from a user prompt with fake clients/tools
 - loading hello-world fixture packages for all 11 supported agent-pattern IDs
-- running the CLI with artifact paths, prompt input, fake model clients, and
-  clear error reporting
+- running the CLI with package-directory input, prompt input, fake model
+  clients, and clear error reporting

@@ -2,13 +2,187 @@
 
 ## Status
 
-- State: Slice 12 complete; runtime behavior overrides are implemented and
-  validated
+- State: E14 Slices I.1 through I.7 are complete; the planned E14 async-first
+  implementation and validation slice sequence is complete. Runtime-package
+  simplification S1-S5 is also complete, including the placeholder-safe
+  Power-Marimo fixture.
 - Source spec: `specs/dynamic-agent-runner/spec.md`
 - Technical plan: `specs/dynamic-agent-runner/plan.md`
-- Readiness verdict: ready for a narrow readiness/scaffold slice only; not ready
-  for unrestricted runtime implementation
-- Next active slice: none currently defined
+- Downstream driver:
+  `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
+  identifies `../power-marimo` as the first-customer fit for the next runtime
+  capabilities.
+- Readiness verdict: runtime-package simplification follow-up is complete; not
+  ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
+  automation work without a new scoped follow-up.
+- Next active slice: none — OA11 is complete and the original OA follow-up
+  sequence is finished.
+- Current focus: all planned implementation slices through OA11 are complete;
+  the active remaining work is now the promoted Codex/Cline evaluation
+  follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
+- Council recommendation: the next useful runtime work should prioritize a
+  narrow live-action vertical slice that pairs approval interruption with
+  sandbox/workspace grants, plus a capability/status report that makes
+  metadata-only declarations visible before execution.
+
+## Feature-spec roadmap index
+
+- `specs/openai-compatible-provider-wrapper/` — implemented follow-up; Slices
+  1-6 complete, with any remaining work treated as optional compatibility
+  polish.
+- `specs/llama-cpp-local-model/` — implemented feature record; Slices 1-3 are
+  complete, including endpoint-backed local chat, model resolution, direct
+  in-process llama.cpp chat, tests, and docs. Optional separate local embedding
+  configuration remains pending only if explicitly scheduled.
+- `specs/internal-graph-mutation/` — first implementation checkpoint complete;
+  no additional graph-mutation tasks are currently scheduled in that artifact
+  set.
+- `specs/hugging-face-model-search/` — implemented feature; public Hub model
+  discovery API, normalized result contract, package-owned error boundary,
+  exports, tests, and docs are complete.
+- `specs/async-session-memory-pipeline/` — implemented metadata-only OA8
+  baseline plus future expansion analysis; no runner-owned session behavior is
+  implemented.
+- `specs/llm-step-interpreter-middleware/` — future investigation spec; no
+  interpreter backend is selected and no implementation is authorized yet.
+- `specs/capability-status-report/` — future usefulness feature; no
+  implementation is started, but it should be considered before broad live
+  MCP/guardrail/loop/interpreter work so callers can distinguish live behavior
+  from metadata-only declarations.
+- `specs/llmfit-model-fit-filter/` — future optional advisory feature for
+  pre-download Hugging Face candidate filtering through an already-installed
+  `llmfit` executable.
+- `specs/llama-cpp-memory-fit-profile/` — future optional advisory feature for
+  post-resolution memory/context profiling of concrete local GGUF assets.
+- `specs/approval-interruption-resume/` — future feature spec for live approval
+  pause/resume, serialized run state, and approval outcomes; metadata baseline
+  only is currently implemented.
+- `specs/sandbox-workspace-runtime/` — future feature spec for write, patch,
+  shell, workspace grants, sandbox adapters, and approval-aware command policy;
+  metadata baseline only is currently implemented.
+- `specs/mcp-runtime-integration/` — future feature spec for live MCP source
+  configuration, lifecycle, tool discovery, registry injection, and invocation;
+  metadata diagnostics baseline only is currently implemented.
+- `specs/live-guardrail-execution/` — future feature spec for guardrail adapter
+  execution at input, output, tool-input, and tool-output phases; metadata
+  baseline only is currently implemented.
+- `specs/skill-source-resolution/` — future feature spec for trusted `SKILL.md`
+  body loading, source precedence, and prompt injection; current runtime only
+  preserves skill metadata and refs.
+- `specs/iterative-agent-loop-runtime/` — future feature spec for live
+  model/tool loop execution and stop policies; current runtime only preserves
+  tool-use completion metadata.
+- `specs/power-marimo-host-automation/` — future downstream integration spec for
+  live Marimo-session tools, power-domain adapters, PyQt-widget automation, and
+  host safety policy; current runtime only has placeholder-safe fixture coverage.
+
+## Active follow-up implementation order
+
+1. **Completed:** OA11 landed the upstream portable `tool_type` seam, so the
+   original OA follow-up sequence has no remaining active slices.
+
+## High-ROI Remaining Spec Work Order
+
+This order records the June 2026 council review plus the follow-up remaining
+spec evaluation. It is not implementation approval by itself; each item still
+needs a scoped plan and task slice before code changes begin.
+
+1. **Spec portfolio hygiene:** keep `specs/README.md`,
+   `specs/dynamic-agent-runner/tasks.md`, and each feature package's status
+   consistent before starting new implementation slices. Stale status text can
+   mislead future agents into re-planning completed work.
+2. **Capability/status report:** add a read-only preflight surface from
+   `capability-status-report` so callers can see live, metadata-only, missing
+   collaborator, disabled, unsupported, and invalid capabilities before runtime.
+   This is the highest-ROI first implementation because it makes the current
+   metadata/live gap visible without enabling new high-risk behavior.
+3. **Approval/sandbox live-action vertical slice:** pair
+   `approval-interruption-resume` and `sandbox-workspace-runtime` around one
+   safe mutating workspace capability, explicit path grants, approval
+   interruption records, redacted traces, and a resumable or clearly interrupted
+   public result.
+4. **Capability/status expansion:** update the report to classify any new live
+   approval/sandbox capabilities, including approval engines, sandbox adapters,
+   workspace grants, and mutating tool packs.
+5. **Policy-bound MCP integration:** only then promote live MCP source
+   discovery/invocation, keeping MCP tools behind registry, approval, sandbox,
+   provenance, timeout, retry, and redaction policy.
+6. **Live guardrail execution:** add input/output guardrail execution first,
+   then tool-input/tool-output phases once mutating tool policy and trace
+   redaction are proven.
+7. **Iterative agent-loop runtime:** implement bounded model/tool loops only
+   after registry, approval, sandbox, status, and guardrail boundaries are real.
+8. **SKILL.md source resolution:** start package-local and opt-in; defer
+   external roots until prompt-injection, precedence, size, and trace-redaction
+   rules are settled.
+9. **Local model advisory features:** implement `llmfit-model-fit-filter` for
+   pre-download Hugging Face candidate filtering and
+   `llama-cpp-memory-fit-profile` for post-resolution GGUF profiling only when
+   local-model ergonomics becomes the immediate product driver.
+10. **Power-Marimo host automation:** build live host automation only after
+    approval/sandbox and host-managed continuity boundaries are clear; keep app
+    lifecycle ownership in Power-Marimo or caller tools.
+11. **Async session memory pipeline:** keep v1 host-managed. Add runner-owned
+    durable session storage only after a concrete workflow proves host-managed
+    continuity is insufficient.
+12. **LLM step interpreter middleware:** defer until sandbox, approval,
+    guardrails, tracing, redaction, and capability reporting are stable enough
+    to contain a general-purpose interpreter surface.
+
+Clean dependency chain:
+
+```text
+status visibility
+→ approval/sandbox mutation policy
+→ MCP/guardrails
+→ loops/skills
+→ host integrations
+→ durable memory
+→ interpreter
+```
+
+### Active follow-up ordering rationale
+
+- Foundation metadata first: OA1, OA2, and OA3 are now complete, so the next
+  near-term work can move to the grouped MCP/source-aware cluster after the
+  runtime gained dedicated provenance, prepare-model-input, and deferred
+  guardrail metadata seams.
+- MCP/source-aware work next completed: OA4 and E9 were intentionally grouped,
+  and the runtime now preserves deferred MCP lifecycle diagnostics plus
+  registry-source metadata through typed manifest extension seams.
+- Narrower derived context work next completed: E11 extended the broader
+  prepare-stage seam from OA3 with bounded file-backed prompt-context loading,
+  deterministic ordering, source provenance, and byte/token-aware limits.
+- Loop-completion metadata next completed: OA5 now preserves deferred
+  `runtime.execution_policy.tool_use_completion` metadata for future iterative
+  agent-loop runtimes, with fail-closed validation for `run_again`,
+  `stop_on_tool`, and `final_output` decisions.
+- Multi-agent metadata distinction next completed: OA6 now preserves grouped
+  `metadata.handoffs` plus node-local `agent_as_tool` / `agent_tool` metadata
+  without introducing a new primitive node kind, and validates the handoff vs
+  bounded-delegation distinction fail-closed.
+- Interruption and resumable-run policy is complete: OA7 built on the earlier
+  metadata and lifecycle foundations and now preserves deferred interruption
+  metadata without a live approval engine.
+- Convenience and optional-session metadata seams are complete: OA9 and the
+  metadata-only OA8 seam are implemented, and OA10 sandbox/runtime metadata is
+  also complete.
+- OA11 is complete, so the original upstream-alignment follow-up queue is now
+  finished.
+- OA9 scope clarification: the helper may accept explicit metadata, but any
+  missing or incomplete label, description, or input-schema fields should fall
+  back to conservative inference from the Python callable rather than requiring
+  fully explicit definitions in every caller.
+- OA8 scope clarification: the implemented metadata-only seam preserves
+  `runtime.execution_policy.async_session` for future async multi-turn runtimes,
+  including the current `mode`, `persist`, `history`, `session_id_state_key`,
+  and `session_messages_state_key` fields, but it still does not add live
+  session storage, automatic cross-run history replay, or broader
+  memory/runtime behavior in the current executor. The repository-local feature
+  spec at `specs/async-session-memory-pipeline/spec.md` records the current
+  implemented baseline plus future expansion analysis, with packaged supporting
+  references, a Power-Marimo readiness memo, and a host-managed multi-call
+  continuity sketch.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 
@@ -240,9 +414,9 @@
 
 - [x] T7.1 Add a CLI entry point for loading artifacts and running a workflow
       from a prompt.
-- [x] T7.2 Support CLI options for `agent-design.md`, runtime YAML, Mermaid
-      graph, optional `tool-index.yaml` metadata, registry configuration, and
-      prompt input.
+- [x] T7.2 Support a package-directory-first CLI with prompt input,
+      max-step control, optional runtime-overrides input, and the opt-in
+      read-only `local_workspace` registry pack via `--workspace-root`.
 - [x] T7.3 Return final output on success and clear non-zero errors on loading,
       validation, registry, model, or execution failure.
 - [x] T7.4 Add CLI tests using local fixtures and fake clients/tools.
@@ -256,9 +430,10 @@
   `console_main()` for running generated workflow artifacts from the command
   line.
 - `pyproject.toml` exposes the `dynamic-agent-runner` console script.
-- CLI options cover runtime manifest, agent design, Mermaid graph, optional tool
-  index metadata, prompt text, prompt file, stdin prompt input, max steps, and
-  the opt-in read-only local workspace registry pack via `--workspace-root`.
+- CLI options are package-directory-first and now cover `--package`,
+  `--runtime-overrides`, prompt text, prompt file, stdin prompt input,
+  `--max-steps`, and the opt-in read-only local workspace registry pack via
+  `--workspace-root`.
 - The CLI prints the final workflow result to stdout and reports runtime-specific
   errors to stderr with exit code `1`.
 - `tests/test_cli.py` uses local fixture artifacts and fake OpenAI clients only;
@@ -448,6 +623,352 @@
 - Validation run: `ruff check src tests && ruff format --check src tests &&
   pytest -q` — pass; 93 tests passed.
 
+## Slice 13 — Prompt-cache intent and trace observation
+
+- [x] T13.1 Parse and preserve optional `execution_policy.prompt_cache` metadata
+      as provider-neutral cache intent without requiring it for existing
+      manifests.
+- [x] T13.2 Validate prompt-cache metadata shape, including `enabled`,
+      `strategy`, `min_prefix_tokens`, `prefix_parts`, `variable_parts`,
+      `cache_key_hint`, and optional `provider_hints`.
+- [x] T13.3 Preserve declared stable-prefix ordering during message rendering
+      when doing so does not change prompt semantics.
+- [x] T13.4 Reuse existing token-budget estimation to compute stable-prefix token
+      estimates and clearly record when estimation is unavailable.
+- [x] T13.5 Emit trace/debug evidence for cache eligibility, rendered
+      stable-prefix part names, prefix token estimate, prefix hash, first
+      variable part, caller override status, and adapter fallback status.
+- [x] T13.6 Allow runtime callers to disable or override prompt-cache behavior
+      per execution request before any provider-specific behavior is applied.
+- [x] T13.7 Keep provider-specific cache pass-through adapter-gated and add it
+      only after SDK/API support is verified.
+- [x] T13.8 Record observed cached-token usage, cache-read status, or equivalent
+      provider response metadata when the provider exposes it.
+- [x] T13.9 Add tests for disabled, enabled-but-ineligible, eligible,
+      override-disabled, invalid metadata, unsupported prompt part names,
+      `x-` extension part names, provider-hint behavior, missing token-estimator
+      behavior, and missing provider cache telemetry behavior.
+
+## Slice 13 Completion Evidence
+
+- `src/dynamic_agent_runner/prompt_cache.py` defines provider-neutral
+  `PromptCachePolicy` parsing and prompt-cache eligibility observation helpers.
+- `src/dynamic_agent_runner/validation.py` validates optional
+  `execution_policy.prompt_cache` metadata and fails closed for malformed
+  policy shape.
+- `src/dynamic_agent_runner/executor.py` preserves rendered message part names,
+  emits `prompt_cache_checked` trace events, supports per-execution
+  `prompt_cache=False` overrides, and records provider cached-token telemetry
+  when exposed by the model response.
+- `src/dynamic_agent_runner/api.py` forwards the optional `prompt_cache` runtime
+  execution override.
+- `tests/test_prompt_cache.py` covers parsing, invalid metadata, eligible and
+  ineligible prefixes, override-disabled behavior, `x-` extension part names,
+  missing token-estimator behavior, and provider cached-token telemetry.
+- Validation run: `ruff check src tests && ruff format --check src tests &&
+  python -m pytest -q` — pass; 104 tests passed.
+
+## Runtime-package simplification follow-up
+
+Driver reference:
+`specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
+shows that the first downstream candidate needs grouped manifest support,
+preparation seams, and tool provenance before safe Marimo notebook automation.
+
+- [x] S1. Update manifest models and validation to prefer grouped `runtime`,
+      `metadata`, and `extensions` maps, parse `output_contracts` as an array of
+      contract objects, and reject or clearly report legacy flat optional root
+      fields.
+      - Completed in commit `695c0cc`: `RuntimeManifest` now preserves grouped
+        maps, derives convenience accessors from grouped sections, indexes
+        array-shaped `output_contracts`, validates extension envelopes, and
+        rejects legacy flat optional root fields.
+      - Validation: `poetry run pytest -q` — pass; 164 tests passed.
+      - Pre-commit: `pre-commit run --files <S1 changed files>` — pass.
+- [x] S2. Add an internal `ExecutionPlan` / `PreparedNode` normalization layer so
+      the executor consumes normalized per-node configuration instead of raw
+      manifest dictionaries.
+      - Completed in commit `b315c96`: added internal `ExecutionPlan` and
+        `PreparedNode` models plus `prepare_execution_plan(...)`, resolved node
+        lookup, outgoing-edge indexes, max-step defaults, per-node model/tool/
+        decision fields, output-contract references, token/retry policy values,
+        and optional unsupported extension visibility during preparation.
+      - The executor now routes finite graph execution through prepared nodes
+        while preserving public API behavior and existing workflow semantics.
+      - RED: `poetry run pytest
+        tests/test_executor.py::test_prepare_execution_plan_resolves_node_indexes_and_defaults
+        -q` — failed because `prepare_execution_plan` did not exist yet.
+      - GREEN: same targeted test — pass; 1 test passed.
+      - Targeted validation: `poetry run pytest tests/test_executor.py
+        tests/test_validation.py tests/test_registry.py -q` — pass; 78 tests
+        passed.
+      - Full validation: `poetry run pytest -q` — pass; 165 tests passed.
+      - Pre-commit: `pre-commit run --files src/dynamic_agent_runner/models.py
+        src/dynamic_agent_runner/executor.py tests/test_executor.py` — pass after
+        Ruff Format rewrote `src/dynamic_agent_runner/executor.py` once.
+      - Note: the planning note listed `tests/test_behavior.py`, but that file is
+        not present; S2 validation used existing executor, validation, and registry
+        tests instead.
+- [x] S3. Add a pass-through `prepare_model_input(...)` / `PreparedModelInput`
+      seam before expanding context-management, session pruning, hierarchical
+      prompt injection, or Marimo notebook-state context injection.
+      - Completed in commit `33096b5`: `PreparedModelInput` captures rendered
+        messages and named prompt parts, and `prepare_model_input(...)`
+        centralizes prompt rendering, prompt-cache observation, token-budget
+        preflight, and behavior override integration for `llm_step` execution
+        while preserving current prompt semantics.
+      - RED: `poetry run pytest
+        tests/test_executor.py::test_prepare_model_input_renders_messages_and_named_parts
+        -q` — failed because `prepare_model_input` did not exist yet.
+      - GREEN: same targeted test — pass; 1 test passed.
+      - Focused validation: `poetry run pytest
+        tests/test_executor.py::test_prepare_model_input_renders_messages_and_named_parts
+        tests/test_executor.py::test_execute_workflow_records_token_usage_when_budget_enabled
+        tests/test_prompt_cache.py::test_prompt_cache_trace_records_eligibility_and_prefix_evidence
+        -q` — pass; 3 tests passed.
+      - Targeted validation: `poetry run pytest tests/test_executor.py
+        tests/test_prompt_cache.py tests/test_token_budget.py tests/test_tracing.py
+        -q` — pass; 62 tests passed.
+      - Full validation: `poetry run pytest -q` — pass; 166 tests passed.
+      - Pre-commit: `pre-commit run --files
+        src/dynamic_agent_runner/executor.py tests/test_executor.py` — pass after
+        replacing an unnecessary dict comprehension flagged by Ruff.
+- [x] S4. Add `ToolSource` provenance metadata before MCP, Marimo-session,
+      domain-SDK, or agent-as-tool registry sources are implemented.
+      - Completed in commit `a46bb5a` (`feat(registry): add tool source
+        provenance`).
+      - Added `ToolSource` / `ToolSourceKind` metadata for manifest declarations,
+        external tool-index entries, built-in local workspace tools, runtime
+        overrides, and caller-registered tools.
+      - Model-request traces now include diagnostic `tool_sources` metadata for
+        model-exposed tools without changing callable dispatch or exposure rules.
+      - RED: `poetry run pytest
+        tests/test_registry.py::test_tool_definition_records_manifest_and_index_source_metadata
+        tests/test_registry.py::test_runtime_overrides_add_replace_disable_and_restrict_per_node
+        tests/test_registry.py::test_local_workspace_tool_pack_is_opt_in_and_path_restricted
+        -q` — failed because `ToolSource` did not exist yet.
+      - RED: `poetry run pytest
+        tests/test_tracing.py::test_model_request_trace_includes_model_exposed_tool_sources
+        -q` — failed because model-request traces did not include
+        `tool_sources`.
+      - GREEN: `poetry run pytest
+        tests/test_tracing.py::test_model_request_trace_includes_model_exposed_tool_sources
+        tests/test_registry.py::test_tool_definition_records_manifest_and_index_source_metadata
+        tests/test_registry.py::test_runtime_overrides_add_replace_disable_and_restrict_per_node
+        tests/test_registry.py::test_local_workspace_tool_pack_is_opt_in_and_path_restricted
+        -q` — pass; 4 tests passed.
+      - Targeted validation: `poetry run pytest tests/test_registry.py
+        tests/test_tracing.py tests/test_validation.py -q` — pass; 49 tests
+        passed.
+      - Full validation: `poetry run pytest -q` — pass; 168 tests passed.
+      - Pre-commit: `pre-commit run --files src/dynamic_agent_runner/models.py
+        src/dynamic_agent_runner/registry.py src/dynamic_agent_runner/executor.py
+        tests/test_registry.py tests/test_tracing.py` — pass.
+- [x] S5. Draft a narrow `power-marimo` runtime-package fixture or example as a
+      supervised, bounded workflow-orchestration agent using primitive nodes,
+      an agent-as-tool `marimo-pair` invocation backed by
+      `../power-marimo/skills/marimo-pair/SKILL.md`, and placeholder
+      Marimo/domain tool definitions.
+      - Implemented in commit `84dfd31`: added
+        `tests/fixtures/power-marimo/agent-runtime.yaml`,
+        `tests/fixtures/power-marimo/agent-graph.mmd`,
+        `tests/fixtures/power-marimo/agent-design.md`, and
+        `tests/test_power_marimo_fixture.py`.
+      - RED: `poetry run pytest tests/test_power_marimo_fixture.py -q` — failed
+        because the Power-Marimo runtime fixture did not exist yet.
+      - GREEN: `poetry run pytest tests/test_power_marimo_fixture.py -q` — pass;
+        2 tests passed.
+      - Targeted validation: `poetry run pytest tests/test_power_marimo_fixture.py
+        tests/test_agent_pattern_fixtures.py -q` — pass; 4 tests passed.
+      - Pre-commit: `pre-commit run --files tests/test_power_marimo_fixture.py
+        tests/fixtures/power-marimo/agent-runtime.yaml
+        tests/fixtures/power-marimo/agent-graph.mmd
+        tests/fixtures/power-marimo/agent-design.md` — pass.
+
+## Package-alignment follow-up: map directly to agent-development skill output
+
+Driver summary:
+Review against the agent-development skill's current
+`references/agent-runtime-package.md` concluded that this repository should no
+longer treat skill output as a loose set of optional individual artifacts. The
+canonical contract should be one immutable base package directory with fixed
+sibling files and first-class `skill-bundle/` handling. Caller-owned overrides
+remain supported as separate runtime inputs that compile into a derived final
+workflow. Backward compatibility is not required for the old
+artifact-by-artifact base-package loading flow. The latest upstream reference
+also adds concrete package-contract guidance for provider-neutral
+`model_requirements`, ReAct-style loop manifests, RAG/GraphRAG metadata, and the
+`evidence_loop` pattern, so package-alignment work should track those surfaces
+explicitly instead of leaving them as undocumented future behavior.
+
+### Slice P1 — Canonical package-directory loader
+
+- [x] P1.1 Add one package-directory-first loader entry point rooted at a design
+      bundle path.
+- [x] P1.2 Require `agent-runtime.yaml` in the package root as the authoritative
+      executable artifact.
+- [x] P1.3 Resolve `agent-design.md` and `agent-graph.mmd` as fixed sibling
+      artifacts relative to the package root.
+- [x] P1.4 Preserve any lower-level artifact helper functions only as internal
+      seams for tests or implementation support, not as the primary public
+      contract.
+
+### Slice P1 Completion Evidence
+
+- Added package-directory-first loading via `load_agent_package(...)` in
+  `src/dynamic_agent_runner/artifacts.py` and validated public package loading
+  via `load_agent_package_workflow(...)` in `src/dynamic_agent_runner/api.py`.
+- `load_agent_package(...)` requires `agent-runtime.yaml` at the package root,
+  records `package_root` on `LoadedAgentWorkflow`, and resolves fixed sibling
+  `agent-design.md` / `agent-graph.mmd` artifacts when present.
+- Lower-level artifact helpers remain available for tests and internal support;
+  the new package-directory loader is additive rather than replacing those seams
+  during P1.
+- Targeted validation: `poetry run pytest tests/test_artifacts.py
+  tests/test_import.py -q` — pass; 14 tests passed.
+
+### Slice P2 — Strict package and `skill-bundle/` validation
+
+- [x] P2.1 Add explicit `skill-bundle/` awareness to loaded workflow/package
+      models.
+- [x] P2.2 Validate top-level `skills[*].bundled_path` references against the
+      package `skill-bundle/` directory.
+- [x] P2.3 Validate `skills[*].support_files[*].bundled_path` references against
+      the package `skill-bundle/` directory.
+- [x] P2.4 Fail clearly for missing sibling artifacts or missing bundled support
+      files instead of silently degrading.
+- [x] P2.5 Add tests for valid packages, missing sibling files, and missing
+      bundled skill/support files.
+
+### Slice P2 Completion Evidence
+
+- `LoadedAgentWorkflow` now preserves canonical package-directory metadata for
+  both `package_root` and optional `skill_bundle_root` so package validation can
+  reason about bundled skill assets.
+- `load_agent_package(...)` now fails closed for missing canonical sibling
+  artifacts (`agent-design.md` and `agent-graph.mmd`) and records the configured
+  `packaging.skill_bundle_dir` as package-local `skill_bundle_root` when present.
+- `validate_agent_workflow(...)` now validates package-local
+  `skills[*].bundled_path` and `skills[*].support_files[*].bundled_path`
+  references against the canonical `skill-bundle/` directory and fails clearly
+  for missing bundled files or escaping paths.
+- `tests/test_artifacts.py` covers missing canonical sibling files, and
+  `tests/test_validation.py` covers valid bundled-skill packages plus missing
+  bundled skill and support-file failures.
+- Targeted validation: `poetry run pytest tests/test_artifacts.py
+  tests/test_validation.py -q` — pass; 37 tests passed.
+
+### Slice P3 — Compile final workflow from immutable base plus overrides
+
+- [x] P3.1 Add an explicit compile/preparation step that combines the immutable
+      base package with caller-owned overrides.
+- [x] P3.2 Validate prompt, skill, tool-exposure, and other allowed override
+      targets against the immutable base package before compilation succeeds.
+- [x] P3.3 Produce a derived final workflow/prepared workflow model that becomes
+      the execution source of truth.
+- [x] P3.4 Keep the loaded base package immutable after compilation and
+      execution.
+- [x] P3.5 Add tests for valid override compilation, invalid override rejection,
+      and immutable-base guarantees.
+
+### Slice P3 Completion Evidence
+
+- `src/dynamic_agent_runner/models.py` now defines `CompiledAgentWorkflow` as the
+  execution-ready workflow view layered over an immutable `LoadedAgentWorkflow`
+  base while preserving package-root and override metadata.
+- `src/dynamic_agent_runner/artifacts.py` now provides
+  `compile_loaded_workflow(...)` and `compile_agent_package(...)` so callers can
+  compile a canonical package plus caller-owned runtime overrides into a final
+  workflow before execution.
+- `src/dynamic_agent_runner/api.py`, `src/dynamic_agent_runner/context.py`, and
+  `src/dynamic_agent_runner/executor.py` now accept the compiled workflow form in
+  the public API, execution context, and execution path while keeping the loaded
+  base workflow available as a lower-level seam.
+- `tests/test_artifacts.py` covers loaded-workflow compilation and package
+  compilation, and `tests/test_executor.py` covers execution from a compiled
+  workflow plus package-loading API return shape.
+- Targeted validation: `poetry run pytest tests/test_artifacts.py
+  tests/test_executor.py tests/test_validation.py -q` — pass; 82 tests passed.
+
+### Slice P4 — Package-directory-first public API and CLI
+
+- [x] P4.1 Change the main public API to accept a package directory as the
+      canonical input.
+- [x] P4.2 Keep caller-owned override input as a separate API/CLI layer over the
+      immutable base package.
+- [x] P4.3 Keep any file-by-file base-package entry points internal-only or
+      remove them if no longer needed.
+- [x] P4.4 Simplify CLI invocation around a `--package` style input contract.
+- [x] P4.5 Remove legacy CLI flags for separate base runtime/design/graph files
+      if they are no longer part of the supported public contract.
+- [x] P4.6 Update README and docs to describe the immutable-base + caller-
+      override + compiled-workflow contract.
+
+### Slice P4 Completion Evidence
+
+- `src/dynamic_agent_runner/api.py` now treats `package_directory` as the
+  canonical public input for `load_agent_workflow(...)`,
+  `run_agent_workflow(...)`, and `run_agent_workflow_async(...)` while keeping
+  file-by-file artifact arguments available as compatibility seams.
+- `src/dynamic_agent_runner/cli.py` now uses a package-directory-first `--package`
+  contract and keeps `--runtime-overrides` as the caller-owned overlay input.
+- `src/dynamic_agent_runner/validation.py` now requires a package skill-bundle
+  directory only when bundled skill or support-file paths are actually declared,
+  so package-directory execution matches the existing fixture contract.
+- `tests/test_cli.py` now covers the `--package` CLI surface, and
+  `tests/test_executor.py` now covers direct package-directory API execution plus
+  compatibility execution from file-by-file artifact inputs.
+- `README.md`, `docs/files/cli.rst`, and `docs/files/python-api.rst` now describe
+  the immutable-base package + caller override + compiled workflow public
+  contract.
+- Targeted validation: `poetry run pytest tests/test_cli.py tests/test_executor.py
+  tests/test_import.py -q` — pass; 64 tests passed.
+
+### Slice P5 — Manifest/runtime alignment cleanup for upstream taxonomy
+
+- [x] P5.1 Align manifest capability vocabulary with the current
+      `agent-runtime-package.md` guidance so runtime feature routing does not
+      drift from the skill contract.
+- [x] P5.2 Document support for manifest-driven `runtime.execution_policy`
+      model-selection metadata in the spec and user-facing docs.
+- [x] P5.3 Decide and document whether automatic local model-adapter fallback is
+      part of the supported runtime contract or an internal convenience.
+- [x] P5.4 Add and validate provider-neutral `model_requirements` support on
+      `llm_step` nodes, including capability, reasoning, context, output, and
+      fallback metadata preservation.
+- [x] P5.5 Add package-validation and documentation rules for ReAct-style
+      `react_loop` manifests, including `metadata.patterns_present`,
+      `runtime.execution_policy.max_iterations`, `loopback` edges, and
+      model-safe observation-state expectations.
+- [x] P5.6 Add metadata preservation and validation for package-declared `rag`,
+      `embedding_retrieval`, `graph_retrieval`, and `graphrag` pattern
+      classifications plus `metadata.rag_pipeline` shape.
+- [x] P5.7 Preserve and document `evidence_loop` pattern metadata so retrieval
+      sufficiency gates, evaluator-driven missing-information flow, and
+      layered model-visible versus runtime-only evidence remain aligned with the
+      upstream skill contract.
+
+### Slice P5 Completion Evidence
+
+- `src/dynamic_agent_runner/validation.py` now validates `react_loop` manifests
+  as primitive-node workflows with a positive
+  `runtime.execution_policy.max_iterations` value, at least one `loopback`
+  edge, package-preserved `runtime.state` observation metadata, and both
+  `llm_step` and `tool_use_step` nodes.
+- `tests/test_validation.py` now covers both failing and passing ReAct-style
+  manifest shapes, alongside the existing `model_requirements` and
+  `metadata.rag_pipeline` preservation/validation coverage.
+- `tests/test_executor.py` now documents the default executor contract when no
+  explicit adapters are provided for capability routing: a default async OpenAI
+  adapter is constructed for the requested model name, while capability-aware
+  or local-only selection requires explicit manifest-driven routing metadata.
+- `docs/files/artifact-package.rst`, `docs/files/runtime-policies.rst`, and
+  `README.md` now describe the supported taxonomy for
+  `execution_policy.model_capabilities`, `execution_policy.model_map`,
+  provider-neutral `llm_step.model_requirements`, ReAct-style `react_loop`
+  manifests, `evidence_loop` metadata, and package-declared
+  `rag`/`embedding_retrieval`/`graph_retrieval`/`graphrag` classifications.
+
 ## Deferred library-evaluation follow-ups
 
 - [ ] D1. Revisit Rich only when CLI UX/debug output needs structured tables,
@@ -459,11 +980,423 @@
 - [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
       helper if prompt/artifact hot-reload workflows become valuable.
 
-## Cross-Cutting Validation Tasks
+## Active Codex/Cline evaluation follow-ups
 
-- [ ] V1. Keep unit tests free of live OpenAI API calls.
-- [ ] V2. Run `poetry check` after package/dependency changes.
-- [ ] V3. Run targeted `pytest` after each implemented slice once tests exist.
-- [ ] V4. Run `pre-commit run --files <changed files>` before scoped commits.
-- [ ] V5. Track drift: update `spec.md`, `plan.md`, or this task list when
+- [x] E1. Introduce a `WorkflowExecutionContext` / `RunContext` object separate
+      from mutable `WorkflowExecutionState`.
+      - Implemented in commit `38929f1`: added
+        `src/dynamic_agent_runner/context.py`, exported `RunContext`, and allowed
+        `execute_workflow(...)` / `run_agent_workflow(...)` to accept the context
+        while rejecting ambiguous duplicate runtime arguments.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 108 tests passed.
+- [x] E2. Add a lightweight `ModelCapabilities` model for context window,
+      structured-output support, reasoning support, modalities, and parallel
+      tool-call support.
+      - Implemented in commit `13c6dac`: added `ModelCapabilities`, parsed
+        runtime `execution_policy.model_capabilities` into `RuntimeManifest`, and
+        exported the metadata model publicly.
+      - Capability metadata is preserved for inspection without being passed
+        through as OpenAI request parameters.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 132 tests passed.
+- [x] E3. Strengthen tool input-schema validation for OpenAI-compatible
+      object-shaped function schemas.
+      - Implemented in commit `44b0847`: added a shared registry schema
+        normalization path for OpenAI tool exposure and invocation validation.
+      - The registry now rejects malformed `input_schema` values, non-object
+        schemas, non-mapping `properties`, non-list or non-string `required`
+        entries, and unsupported top-level `oneOf` / `anyOf` / `allOf`.
+      - Model-facing OpenAI tool parameters now omit top-level `$schema` metadata.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 116 tests passed.
+- [x] E4. Add explicit tool exposure states: `direct`, `deferred`,
+      `direct_model_only`, and `hidden`.
+      - Implemented in commit `61f1548`: added `ToolExposure`, model-facing
+        exposure filtering, direct-tool callable checks, and fail-closed unknown
+        exposure validation.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 121 tests passed.
+- [x] E5. Clarify separation between tool catalog metadata, callable registry
+      entries, node exposure, approval policy, and sandbox/side-effect policy.
+      - Implemented in commit `61f1548`: added `ToolPolicy` to preserve
+        side-effect, approval, sandbox, timeout, retry, and failure metadata
+        separately from callable registry entries and node exposure decisions.
+      - Validation: `python -m pytest tests/test_registry.py
+        tests/test_validation.py tests/test_import.py -q` — pass; 34 tests
+        passed.
+- [x] E6. Refine `ToolResult` into model-facing output, raw output,
+      trace/log preview, and hook/event payload facets.
+      - Implemented in commit `815f55a`: extended `ToolResult` with
+        `model_output`, `raw_output`, `log_preview`, `event_payload`, and
+        `sensitive_fields` while preserving `output` fallback behavior.
+      - The registry now preserves structured `ToolResult` objects returned by
+        tool handlers, and the executor uses model-facing output for prompt/state
+        references while emitting raw/log/event facets in tool-result traces.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 123 tests passed.
+- [x] E7. Define narrow in-process lifecycle hook protocols for model, tool,
+      node, permission, and workflow boundaries.
+      - Implemented in commit `bf18554`: added `WorkflowLifecycleHooks`, stable
+        hook context objects, execution-context/API wiring, and executor calls for
+        node, model, tool, and workflow lifecycle points.
+      - `PermissionHookContext` is exported as the reserved permission-boundary
+        context shape, while active controls remain limited to trusted Python
+        hooks that may raise project errors to abort execution.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 129 tests passed.
+- [x] E8. Extend trace vocabulary for tool lifecycle, usage updates, status
+      notices, and future permission/context-management events.
+      - Implemented in commit `bcd76d4`: added `tool_started` and
+        `tool_finished` events around direct tool invocation while preserving the
+        existing `tool_invocation` and `tool_result` compatibility events.
+      - The executor now emits warning `status_notice` events for fallback tool
+        failures with stable code, message, tool id, and error detail.
+      - Validation: `ruff check src tests && ruff format --check src tests &&
+        python -m pytest -q` — pass; 125 tests passed.
+- [x] E9. Draft MCP registry-source support for visibility, status, tool cache,
+      disabled state, operation locking, and memory-pollution metadata.
+      - Completed in working tree: `RuntimeManifest` now preserves deferred MCP
+        registry-source metadata from `extensions.mcp_registry_sources.sources`,
+        including visibility/status, tool-cache policy, disabled state,
+        operation-locking, and memory-pollution fields.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed MCP registry-source extension payloads and unsupported status,
+        tool-cache, operation-locking, or memory-pollution values.
+      - Duplication removed: lifecycle diagnostics now live in OA4, and tool
+        provenance distinctions are covered by OA2.
+- [x] E10. Add a context-management prepare-stage design for future compaction
+      policies while preserving current fail-closed token-budget behavior.
+      - Completion for this overlap is tracked in OA3.
+- [x] E11. Consider hierarchical file-backed prompt context only with explicit
+      roots, source tracking, scan limits, and token/byte budgets.
+      - Completed in working tree: `prepare_model_input(...)` now supports an
+        opt-in `runtime.execution_policy.prepare_model_input.file_context`
+        policy for package-root-backed workflows, adding deterministic
+        file-context prompt parts with source provenance, bounded relative roots,
+        bounded scan depth/file count, and byte/token budget tracking in
+        `PreparedInputMetadata`.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `file_context` policy shapes, non-relative or escaping roots,
+        unsupported prompt roles, and invalid depth/file/byte/token bounds.
+      - Validation: `poetry run pytest tests/test_validation.py
+        tests/test_executor.py -q 2>&1` — pass; 80 tests passed.
+      - Active order: completed; OA5 is now the next active slice.
+- [x] E12. Keep multi-agent collaboration represented through primitive nodes and
+      optional delegation tools; defer durable team runtime until requirements
+      justify it.
+      - Completion for this overlap is tracked in OA6.
+- [x] E13. Define and validate the package's thread-safety and concurrent
+      invocation contract for multiple client-created agents.
+      - Implemented in commit `2e45888`: added per-run `run_id` generation and
+        caller-provided `run_id` support through `execute_workflow(...)` and
+        `run_agent_workflow(...)`.
+      - `TraceEvent` and lifecycle hook context objects now carry run-correlation
+        metadata so interleaved runs can be distinguished in shared observability
+        surfaces.
+      - `InMemoryTraceSink`, `WorkflowTracer`, `OpenAIClientAdapter` lazy default
+        client initialization, and `InMemoryToolRegistry` read/mutation helpers
+        now use synchronization for shared QThread-style callers. Tool handlers
+        and lifecycle hook implementations remain responsible for synchronizing
+        their own mutable internal state.
+      - Validation: `poetry run pytest -q && poetry run python -m compileall -q
+        src tests && pre-commit run --files src/dynamic_agent_runner/api.py
+        src/dynamic_agent_runner/executor.py src/dynamic_agent_runner/hooks.py
+        src/dynamic_agent_runner/openai_client.py
+        src/dynamic_agent_runner/registry.py src/dynamic_agent_runner/tracing.py
+        tests/test_concurrency.py tests/test_hooks.py` — pass; 136 tests
+        passed.
+- [x] E14. Implement async-first execution APIs and sync wrapper behavior without
+      creating a separate runtime implementation.
+      - Detailed implementation plan: `cline-tasks/evaluation-follow-up-implementation-plan.md`.
+      - Slice I.1 async OpenAI client boundary completed in commit `acca9da`:
+        added async OpenAI protocol types, `AsyncOpenAIClientAdapter`,
+        `create_default_async_openai_client()`, package exports, and fake-client
+        tests while keeping request construction and response normalization shared.
+      - Slice I.2 async retry helper completed in commit `f2296e9`: added
+        `run_with_retry_async(...)`, exported it publicly, preserved retry attempt
+        counts, and ensured `asyncio.CancelledError` propagates without retry.
+      - Slice I.3 callable-shape metadata for tools completed in commit
+        `ff144f5`: added `RegisteredTool.handler_is_async`,
+        `invoke_tool_async(...)`, awaited async handlers, and `asyncio.to_thread(...)`
+        dispatch for sync handlers in the async registry path.
+      - Slice I.4 callable-shape metadata for lifecycle hooks completed in commit
+        `2b9271b`: added `RegisteredLifecycleHook`, recorded configured hook
+        callable shape in `WorkflowLifecycleHooks`, added
+        `invoke_lifecycle_hook_async(...)`, exported hook metadata/dispatch helpers,
+        and awaited async hooks from the current synchronous executor
+        compatibility path when no event loop is already running.
+      - Slice I.5 async executor core completed in commit `72c28dd`: added
+        `execute_workflow_async(...)`, async workflow/node helpers, awaited async
+        model calls, awaited async direct tool dispatch, awaited lifecycle hook
+        dispatch, and a sync-path guard for async model adapters.
+      - Slice I.6 public async API and sync wrappers completed in commit
+        `4f279ff`: added `run_agent_workflow_async(...)`, exported
+        `execute_workflow_async(...)` and `run_agent_workflow_async(...)`,
+        converted sync public entry points into wrappers over the async semantic
+        path, and made sync wrappers reject already-running event loops with
+        `WorkflowExecutionError`.
+      - Slice I.7 cancellation and concurrent async validation completed in commit
+        `7990503`: added cancellation, concurrent async run-correlation, and
+        sync/async public entry-point parity tests in `tests/test_concurrency.py`.
+      - Slice I.1 validation: `poetry run pytest tests/test_import.py
+        tests/test_openai_client.py -q` — pass; 11 tests passed.
+      - Slice I.1 pre-commit: `pre-commit run --files
+        src/dynamic_agent_runner/openai_client.py src/dynamic_agent_runner/__init__.py
+        tests/test_openai_client.py` — pass.
+      - Slice I.2 validation: `poetry run pytest tests/test_retry.py
+        tests/test_executor.py tests/test_import.py -q` — pass; 32 tests passed.
+      - Slice I.2 pre-commit: `pre-commit run --files
+        src/dynamic_agent_runner/retry.py src/dynamic_agent_runner/__init__.py
+        tests/test_retry.py` — pass.
+      - Slice I.3 validation: `poetry run pytest tests/test_registry.py
+        tests/test_validation.py tests/test_import.py -q` — pass; 39 tests passed.
+      - Slice I.3 pre-commit: `pre-commit run --files
+        src/dynamic_agent_runner/registry.py tests/test_registry.py` — pass.
+      - Slice I.4 validation: `poetry run pytest tests/test_hooks.py
+        tests/test_executor.py tests/test_import.py -q` — pass; 39 tests passed.
+      - Slice I.4 pre-commit: `pre-commit run --files
+        src/dynamic_agent_runner/hooks.py src/dynamic_agent_runner/executor.py
+        src/dynamic_agent_runner/__init__.py tests/test_hooks.py
+        tests/test_import.py` — pass.
+      - First-class async public APIs `execute_workflow_async(...)` and
+        `run_agent_workflow_async(...)` are available for event-loop callers.
+      - Synchronous APIs for CLI, scripts, tests, cron jobs, and simple automation
+        now wrap the async semantic path.
+      - Sync wrappers raise a clear project error when called from an
+        already-running event loop, directing callers to the async APIs.
+      - Use one async-canonical model-client protocol and verify native OpenAI
+        async behavior from official SDK documentation/source before
+        implementation; use
+        the local Obsidian note titled
+  `How make async calls to OpenAI’s API in Python  Medium.md`
+        only as supporting guidance for the expected `openai.AsyncOpenAI` /
+        awaited-call shape.
+      - Adapt sync-only model clients behind the async protocol when needed rather
+        than adding a separate sync executor protocol.
+      - Inspect sync/async tool-handler callable shape at registration or setup
+        time and dispatch each handler correctly during async execution.
+      - Inspect sync/async lifecycle hook callable shape at setup time and invoke
+        or await each hook correctly during async execution.
+      - Implement best-effort cancellation propagation across workflow, node,
+        model, tool, hook, registry, and child-task boundaries; document
+        non-cancellable sync or external boundaries honestly.
+      - Update the E13 concurrent invocation contract for async consistency:
+        concurrent async runs must preserve per-run state isolation, `run_id`
+        metadata, trace correlation, hook correlation, and synchronized
+        package-owned shared helpers.
+      - Acceptance evidence covers async model calls, async tools, async hooks,
+        cancellation, sync wrapper compatibility, and concurrent async runs.
+      - Slice I.7 validation: `poetry run pytest tests/test_concurrency.py
+        tests/test_executor.py -q` — pass; 43 tests passed.
+      - Slice I.7 broader validation: `poetry run pytest tests/test_executor.py
+        tests/test_tracing.py tests/test_prompt_cache.py tests/test_token_budget.py
+        tests/test_hooks.py tests/test_registry.py tests/test_openai_client.py
+        tests/test_import.py tests/test_cli.py tests/test_concurrency.py -q` —
+        pass; 129 tests passed.
+      - Slice I.7 pre-commit: `poetry run pre-commit run --files
+        tests/test_concurrency.py` — pass.
+
+## Active OpenAI Agents SDK Python evaluation follow-ups
+
+- [x] OA1. Add guardrail metadata for input, output, tool-input, and
+      tool-output phases, including abort and reject-content behavior.
+      - Completed in working tree: `RuntimeManifest` now preserves deferred
+        guardrail declarations from `extensions.guardrails.declarations`, with
+        supported `input`, `output`, `tool_input`, and `tool_output` phases plus
+        `abort` and `reject_content` tripwire behavior metadata.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed guardrail declarations, unsupported phases or behaviors, and
+        `reject_content` declarations that omit a model-visible rejection message.
+      - Validation: `poetry run pytest tests/test_validation.py
+        tests/test_executor.py -q 2>&1` — pass; 74 tests passed.
+      - Active order: completed; OA4 + E9 is now the next active slice.
+- [x] OA2. Extend tool provenance metadata to distinguish registered,
+      built-in, override, MCP, and future agent-as-tool origins while keeping
+      provenance separate from any future portable tool-type taxonomy.
+      - Completed in working tree: `ToolSource` now carries both the existing
+        low-level `kind` and a higher-level `origin`, defaulting manifest,
+        tool-index, and caller-registered tools to `registered`, built-ins to
+        `built_in`, runtime overrides to `override`, and preserving explicit
+        future `mcp` and `agent_as_tool` origins.
+      - Validation: `poetry run pytest tests/test_registry.py
+        tests/test_artifacts.py tests/test_validation.py 2>&1` — pass; 68 tests
+        passed.
+      - Active order: completed; OA3 is now the next active slice.
+- [x] OA3. Design a prepare-model-input stage for context compaction, session
+      pruning, and hierarchical prompt injection before model adapter calls.
+      - Completed in working tree: `prepare_model_input(...)` now applies an
+        explicit pre-adapter preparation stage that can inject hierarchical
+        system/developer prompt parts, prune session-history messages, and
+        compact pruned history into a summary message while preserving the
+        rendered part ordering in `PreparedModelInput` metadata.
+      - Validation: `poetry run pytest tests/test_executor.py -q 2>&1` — pass;
+        47 tests passed.
+      - Active order: completed, before the narrower file-backed prompt-context
+        follow-up in E11.
+- [x] OA4. Fold MCP lifecycle diagnostics into E9: active/failed server lists,
+      error maps, strict/degraded startup, reconnect, and cleanup timeouts.
+      Keep concrete MCP discovery, injection, and lifecycle schemas downstream-
+      owned even if upstream later defines portable extension envelopes or tool
+      categories.
+      - Completed in working tree: `RuntimeManifest` now preserves deferred MCP
+        lifecycle diagnostics metadata from `extensions.mcp_lifecycle_diagnostics`,
+        including strict/degraded startup mode, reconnect policy, cleanup
+        timeout, and state keys for active servers, failed servers, and error
+        maps.
+      - Validation: the runtime now treats `mcp_registry_sources` and
+        `mcp_lifecycle_diagnostics` as supported extension ids, fails closed for
+        malformed payloads or unsupported enum-like values, and keeps those
+        extension envelopes out of generic unsupported-extension reporting.
+      - Validation: `poetry run pytest tests/test_validation.py
+        tests/test_executor.py -q 2>&1` — pass; 76 tests passed.
+      - Active order: completed with E9; E11 is now the next active slice.
+- [x] OA5. Draft tool-use completion policy for future iterative agent-loop
+      support, including run-again, stop-on-tool, and custom final-output
+      decisions.
+      - Completed in working tree: `RuntimeManifest` and `ExecutionPlan` now
+        preserve an opt-in `runtime.execution_policy.tool_use_completion`
+        metadata surface with deferred `run_again`, `stop_on_tool`,
+        `final_output`, and `final_output_state_key` settings for future loop
+        runtimes without changing current executor step semantics.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `tool_use_completion` policy shapes, unsupported enum-like
+        values, missing `final_output_state_key` when `final_output` is
+        `state_field`, and stray state-key metadata when `final_output` is not
+        `state_field`.
+      - Validation: `poetry run pytest tests/test_validation.py
+        tests/test_executor.py -q 2>&1` — pass; 83 tests passed.
+      - Active order: completed; OA6 is now the next active slice.
+- [x] OA6. Preserve handoff vs agent-as-tool as distinct manifest metadata
+      patterns for multi-agent workflows, aligned with the grouped
+      `runtime`/`metadata`/`extensions` surface and without introducing a new
+      primitive node kind.
+      - Active order: completed after OA5, once earlier metadata and
+        completion-policy foundations were in place.
+      - Evidence: `RuntimeManifest` now preserves grouped `metadata.handoffs`
+        and typed node-local `agent_as_tool` / `agent_tool` metadata, while
+        `ExecutionPlan` carries both surfaces forward without changing current
+        executor behavior.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `metadata.handoffs`, unsupported `on_handoff` or
+        `nested_history` values, blank grouped handoff fields, non-mapping
+        node-level agent metadata, agent-as-tool metadata on non-`tool_use_step`
+        nodes, missing `skill_id` / `task_boundary`, and unsupported
+        `output_mode` values.
+      - Validation: `poetry run pytest tests/test_artifacts.py
+        tests/test_validation.py tests/test_executor.py
+        tests/test_power_marimo_fixture.py -q 2>&1` — pass; 106 passed.
+      - Active order: completed; OA7 is now the next active slice.
+- [x] OA7. Design workflow interruption and resumable run state for
+      approval-required tools before implementing live approval pauses. Keep
+      portable approval/interruption metadata separate from runtime-enforced
+      approval engines and pause/resume implementation.
+      - Completed in working tree: `RuntimeManifest` and `ExecutionPlan` now
+        preserve deferred `runtime.execution_policy.approval_interruption`
+        metadata, including interruption mode, persistence strategy, resume
+        boundary, and resumable state-key fields for pending tool calls,
+        pending approvals, interruption state, and resume tokens.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `approval_interruption` policy shapes, unsupported mode /
+        persist / resume-from values, non-string or blank state-key fields,
+        persisted interruption policies that omit required resumable state keys,
+        and `persist: none` policies that still declare persisted state keys.
+      - Active order: completed after OA6, because interruption/resume policy
+        builds on earlier guardrail, MCP, and loop-policy definitions.
+- [x] OA8. Preserve a small metadata-only async session protocol after the
+      earlier execution-policy seams settled, while leaving live session
+      behavior out of scope.
+      - Completed in code: `RuntimeManifest` and `ExecutionPlan` now preserve
+        deferred `runtime.execution_policy.async_session` metadata through
+        `AsyncSessionPolicy`, including `mode`, `persist`, `history`,
+        `session_id_state_key`, and `session_messages_state_key`.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `async_session` policy shapes, unsupported mode / persist /
+        history values, non-string or blank state-key fields, persisted session
+        policies that omit `session_id_state_key`, and `history: none` policies
+        that still declare `session_messages_state_key`.
+      - Artifact support: `tests/test_artifacts.py`, `tests/test_executor.py`,
+        and `tests/test_validation.py` cover metadata preservation and fail-
+        closed validation for the implemented seam.
+      - Follow-on design: `specs/async-session-memory-pipeline/` extends this
+        implemented baseline with future memory-pipeline analysis and
+        Power-Marimo host-integration guidance.
+- [x] OA9. Add an optional `tool_from_function(...)` helper that generates
+      explicit registry metadata while preserving side-effect and approval policy.
+      - Completed in working tree: the registry now exposes
+        `tool_from_function(...)`, accepts explicit metadata when provided, and
+        falls back conservatively to callable-name, docstring, and supported
+        signature/type-hint inference for missing label, description, and input
+        schema fields.
+      - Validation: `poetry run pytest tests/test_registry.py
+        tests/test_import.py -q 2>&1` — pass; 32 tests passed.
+- [x] OA10. Keep sandbox/workspace runtime support separate from default local
+      tool packs and defer it until write/command tool requirements are approved.
+      - Active order: late, after the policy, interruption, and MCP/source
+        surfaces settle.
+      - Completed in working tree: `RuntimeManifest` and `ExecutionPlan` now
+        preserve deferred `runtime.execution_policy.sandbox_runtime` metadata for
+        future writable-workspace and command-execution runtimes without changing
+        the current opt-in read-only `local_workspace` built-in tool pack.
+      - Validation: `validate_runtime_manifest(...)` now fails closed for
+        malformed `sandbox_runtime` policy shapes, unsupported mode /
+        filesystem / persist-workspace / command-policy values, non-string or
+        blank workspace state-key fields, persisted workspace policies that omit
+        required state keys, `persist_workspace: none` policies that still
+        declare state keys, and command-execution policies paired with
+        `filesystem: read_only`.
+      - Active order: completed after OA7, because writable-workspace runtime
+        metadata remains downstream of the earlier policy and interruption seams.
+- [x] OA11. The upstream runtime-package reference now defines portable
+      `tool_type` metadata, and the runtime maps those shared semantic
+      categories into local tool metadata and validation without treating them
+      as MCP/source injection contracts.
+      - Completed in commit `1d0aa32`: `ToolDefinition` now preserves portable
+        `tool_type` metadata separately from runtime-specific `adapter` and tool
+        provenance/source metadata, validation fails closed for unsupported
+        `tool_type` values, and the built-in `local_workspace` tool pack records
+        portable `file_read` semantics.
+      - Validation: `poetry run pytest tests/test_import.py tests/test_registry.py
+        tests/test_validation.py -q 2>&1` — pass; 86 tests passed.
+      - Active order: completed after OA10 once the upstream `tool_type`
+        vocabulary was confirmed in the runtime-package reference.
+
+## Cross-Cutting Validation Rules
+
+Standing rules:
+
+- V1. Keep unit tests free of live OpenAI API calls.
+- V2. Run `poetry check` after package/dependency changes.
+- V3. Run targeted `pytest` after each implemented slice once tests exist.
+- V4. Run `pre-commit run --files <changed files>` before scoped commits.
+- V5. Track drift: update `spec.md`, `plan.md`, or this task list when
       implementation reveals changed requirements, architecture, or task order.
+- V8. Validate package-directory-first loading with focused tests before
+      changing the public API and CLI contracts.
+
+Completed cross-cutting checkpoints:
+
+- [x] V6. Add concurrency validation before claiming full thread safety: run
+      concurrent fake-client/fake-tool executions and verify there is no
+      library-owned run-state crosstalk and that shared-collaborator behavior
+      matches the documented contract.
+      - Completed in commit `2e45888` with `tests/test_concurrency.py` covering
+        shared-context concurrent runs, run-correlated traces/hooks, synchronized
+        in-memory registry registration/invocation, public API `run_id`
+        propagation, and thread-safe lazy default-client initialization.
+- [x] V7. Add async-interface validation before claiming async support: cover
+      async model calls, async tool handlers, async lifecycle hooks, cancellation
+      propagation, sync wrapper compatibility including already-running event-loop
+      misuse, and concurrent async runs that preserve E13 run-correlation
+      semantics.
+      - Partially covered in commit `72c28dd`: async executor core validation now
+        covers async model calls, async direct tool handlers, async lifecycle
+        hooks, and sync-path rejection of async model adapters.
+      - Partially covered in commit `4f279ff`: public async API exports, high-level
+        async API final-result behavior, sync wrapper conversion, ordinary sync
+        wrapper execution, and already-running event-loop misuse are validated.
+      - Completed in commit `7990503`: cancellation-focused tests validate
+        in-flight async workflow cancellation propagation plus trace/hook
+        observations, concurrent async run validation preserves E13 run
+        correlation, and sync/async public entry points preserve observable final
+        result and trace event shapes.
