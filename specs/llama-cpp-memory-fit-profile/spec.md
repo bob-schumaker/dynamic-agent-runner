@@ -3,9 +3,9 @@
 ## Metadata
 
 - Feature slug: `llama-cpp-memory-fit-profile`
-- Mode: `light`
-- Artifact type: future feature specification
-- Status: proposed optional advisory feature; no implementation started
+- Mode: `guided`
+- Artifact type: planned feature specification
+- Status: prepared for v1 implementation; no implementation started
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/llama-cpp-local-model/spec.md`
@@ -84,6 +84,36 @@ This feature does not cover:
 6. starting, stopping, or configuring a llama.cpp server process
 7. making profiling mandatory before local execution
 8. porting LlamaBarn's Swift implementation wholesale
+
+## V1 Slice Boundary
+
+The first implementation slice should be a small, read-only advisory API backed
+only by caller-injected profiler/evaluator behavior. It must not discover or run
+real llama.cpp binaries, load GGUF files, infer machine memory automatically, or
+mutate adapter configuration.
+
+V1 includes:
+
+1. package-owned dataclasses and status vocabulary for memory-fit profiles
+2. resolution of the concrete GGUF path through existing
+   `resolve_local_model_path(...)`
+3. an injected evaluator protocol that returns resident bytes and context-growth
+   measurements
+4. deterministic fit math for requested context tokens and configured tiers
+5. fail-open unavailable/unknown/failed advisory results by default
+6. strict mode that raises a package-owned error from the profiling call only
+7. suggested `model_kwargs` limited to `{"n_ctx": effective_context}`
+8. unit tests with fake evaluators and temporary files only
+
+V1 intentionally defers:
+
+- subprocess integration with `llama fit-params` or any other concrete command
+- `llama-cpp-python` metadata probing
+- automatic memory-budget discovery
+- cache persistence
+- GPU layer/offload recommendations
+- adapter-construction or execution gating
+- capability-status reporting beyond the existing roadmap note
 
 ## Assumptions and Definitions
 
@@ -218,8 +248,7 @@ Acceptance criteria:
 
 ## Suggested Public API Shape
 
-Exact names are not authoritative. A future implementation may expose a small
-API such as:
+The v1 implementation should expose a small public API along these lines:
 
 ```python
 profile_llama_cpp_model_memory_fit(
@@ -227,7 +256,7 @@ profile_llama_cpp_model_memory_fit(
     *,
     requested_context_tokens: int | None = None,
     context_tiers: Sequence[int] = (4096, 8192, 16384, 32768, 65536, 131072),
-    memory_budget_mb: int | None = None,
+    memory_budget_bytes: int | None = None,
     mode: str = "fail_open",
     profiler: LlamaCppMemoryFitProfiler | None = None,
 ) -> LlamaCppMemoryFitProfileResult
@@ -247,9 +276,10 @@ Where `LlamaCppMemoryFitProfileResult` contains:
 - suggested model kwargs
 - diagnostics
 
-This suggested shape is not implementation approval. A future implementation
-plan should decide exact names, exports, caching behavior, and failure-mode
-types.
+Exact field names may change during implementation to match repository style,
+but the v1 behavior should keep the same boundary: caller-supplied config,
+optional injected profiler, optional caller-supplied memory budget, advisory
+result in fail-open mode, package-owned error in strict mode.
 
 ## Design Constraints
 
@@ -276,18 +306,17 @@ types.
 
 ## NEEDS CLARIFICATION
 
-- Should the first profiler integrate with an existing llama.cpp command such as
-  `llama fit-params`, use `llama-cpp-python` metadata, or support only an
-  injected evaluator until a concrete command contract is selected?
-- Should profile results be cached, and if so, should cache keys include model
-  file path, size, modification time, backend, GPU offload settings, context
-  tier set, and memory budget?
-- Which memory budget default is acceptable across CPU-only, unified-memory, and
-  discrete-GPU environments?
-- Should strict mode block adapter creation, execution, or only the profiling
-  call?
-- Should suggested kwargs include only `n_ctx` in v1, or also backend-specific
-  values such as GPU layer/offload options when available?
+No v1-blocking clarifications remain. Decisions:
+
+- Profiler integration: v1 supports only an injected evaluator/profiler. Concrete
+  command integration is deferred until a command contract is selected.
+- Caching: v1 does not cache results.
+- Memory budget default: v1 does not guess a budget. Without a caller-provided
+  budget or evaluator-provided budget, fit status is `unknown` with diagnostics.
+- Strict mode: v1 strict mode affects only the profiling call; it does not block
+  adapter construction or execution unless the caller explicitly wires that
+  behavior around the advisory API.
+- Suggested kwargs: v1 suggests only `n_ctx`.
 
 ## Validation Checklist
 

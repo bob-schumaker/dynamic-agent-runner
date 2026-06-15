@@ -28,7 +28,7 @@ Companion planning artifacts:
 | Hugging Face model search | [`spec.md`](hugging-face-model-search/spec.md) | Implemented | Public Hub discovery API, result contract, error translation, exports, tests, and docs complete |
 | Hugging Face support layer | [`spec.md`](hugging-face-support-layer/spec.md) | Implemented | Internal shared Hub import/call/error mechanics, search routing, local download routing, tests, and validation complete |
 | llmfit model-fit filter | [`spec.md`](llmfit-model-fit-filter/spec.md) | Future optional advisory feature | Proposed optional `llmfit`-on-`PATH` pre-download filter; keep recommended plus unknown models without bundling or installing llmfit |
-| llama.cpp memory fit profile | [`spec.md`](llama-cpp-memory-fit-profile/spec.md) | Future optional advisory feature | Proposed optional post-resolution memory-fit profiler for concrete local GGUF assets; estimate safe context without changing adapter execution |
+| llama.cpp memory fit profile | [`spec.md`](llama-cpp-memory-fit-profile/spec.md) | Prepared for v1 implementation | Optional post-resolution GGUF memory-fit profiler plan, tasks, and validation scaffold are ready; implementation remains pending |
 | Capability status report | [`spec.md`](capability-status-report/spec.md) | Implemented | Public preflight report distinguishes live, metadata-only, missing-collaborator, disabled, and invalid runtime capabilities; CLI rendering and future collaborator types remain deferred |
 | Async session memory pipeline | [`spec.md`](async-session-memory-pipeline/spec.md) | Metadata baseline plus future analysis | Metadata-only OA8 baseline implemented; no runner-owned session behavior |
 | LLM step interpreter middleware | [`spec.md`](llm-step-interpreter-middleware/spec.md) | Future investigation | Spec captured; backend selection, prototypes, and implementation not started |
@@ -54,7 +54,7 @@ Companion planning artifacts:
 | Public Hugging Face model discovery | `hugging-face-model-search` | Repository-owned search API, normalized result types, error translation, exports, tests, and docs complete | Future richer Hub capabilities require a separate feature spec |
 | Shared Hugging Face SDK support | `hugging-face-support-layer` | Internal helper for lazy Hub import, read-only Hub calls, and domain-specific error translation complete | Future Hub behavior beyond search and local-model downloads requires a separate feature spec |
 | Optional local model fit filtering | `llmfit-model-fit-filter` | None | Future optional `llmfit` CLI JSON advisory layer to preserve recommended and unknown models before explicit Hub asset downloads |
-| Optional llama.cpp memory fit profiling | `llama-cpp-memory-fit-profile` | None | Future optional profiler for resolved local GGUF assets to estimate resident memory, context growth, supported context tiers, and suggested effective context |
+| Optional llama.cpp memory fit profiling | `llama-cpp-memory-fit-profile` | None | V1 implementation plan prepared for injected-evaluator, fail-open profiling of resolved local GGUF assets; implementation remains pending |
 | Capability/status reporting | `capability-status-report` | Public report contract, package inspection, metadata-only declarations, model adapter coverage, tool registry coverage, built-in tool-pack status, invalid package reporting, tests, and completion evidence complete | Future CLI rendering and additional collaborator types remain deferred until there is a concrete caller |
 | Async session metadata | `async-session-memory-pipeline` | `runtime.execution_policy.async_session` metadata preservation and fail-closed validation complete | Runner-owned durable storage, replay, summary generation, and pruning are deferred |
 | Interpreter middleware | `llm-step-interpreter-middleware` | Future feature spec and candidate interface expectations captured | Dependency checks, prototypes, benchmark evidence, backend selection, and implementation |
@@ -103,7 +103,8 @@ item still needs a scoped plan and task slice before code changes begin.
 8. Next: add opt-in package-local `skill-source-resolution`.
 9. Implement local-model advisory features only when local-model ergonomics is
    the immediate driver: `llmfit-model-fit-filter` for pre-download filtering and
-   `llama-cpp-memory-fit-profile` for post-resolution GGUF profiling.
+   the prepared `llama-cpp-memory-fit-profile` v1 slice for post-resolution GGUF
+   profiling.
 10. Add `power-marimo-host-automation` after approval/sandbox and host-managed
     continuity boundaries are clear.
 11. Keep `async-session-memory-pipeline` host-managed in v1; add runner-owned
