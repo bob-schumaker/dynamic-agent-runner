@@ -226,11 +226,13 @@ Acceptance criteria:
 
 - Given the package is imported on Linux, Windows, or CI without MLX installed,
   then importing `dynamic_agent_runner` still succeeds.
-- Given an MLX adapter is constructed or used on an unsupported platform, then
+- Given an MLX adapter is constructed on an unsupported platform, then
+  construction still succeeds without importing MLX.
+- Given an MLX adapter is used for generation on an unsupported platform, then
   the runtime raises a package-owned error that names the macOS-only MLX
-  requirement.
-- Given MLX is missing on macOS, then adapter construction or first use raises a
-  package-owned dependency error rather than an unwrapped `ImportError`.
+  requirement before resolving model assets or loading dependencies.
+- Given MLX is missing on macOS, then first generation raises a package-owned
+  dependency error rather than an unwrapped `ImportError`.
 - Given tests run on non-macOS, then fake MLX loaders/generators can validate
   adapter behavior without importing upstream MLX.
 
@@ -327,8 +329,10 @@ Acceptance criteria:
 ## Validation Checklist
 
 - [x] Importing `dynamic_agent_runner` succeeds without MLX installed.
-- [x] MLX adapter construction fails clearly on unsupported platforms.
-- [x] MLX adapter construction fails clearly when MLX dependencies are missing.
+- [x] MLX adapter construction remains safe on unsupported platforms.
+- [x] MLX generation fails clearly on unsupported platforms before model
+      resolution or dependency loading.
+- [x] MLX generation fails clearly when MLX dependencies are missing.
 - [x] Fake MLX adapter tests prove advertised model aliases are selected by the
       existing executor path.
 - [x] Strict coverage with only MLX adapters prevents default OpenAI fallback.

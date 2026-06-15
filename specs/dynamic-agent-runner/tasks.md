@@ -45,33 +45,38 @@
   implemented.
 - `specs/llm-step-interpreter-middleware/` — future investigation spec; no
   interpreter backend is selected and no implementation is authorized yet.
-- `specs/capability-status-report/` — future usefulness feature; no
-  implementation is started, but it should be considered before broad live
-  MCP/guardrail/loop/interpreter work so callers can distinguish live behavior
-  from metadata-only declarations.
+- `specs/capability-status-report/` — implemented feature; public preflight
+  reporting distinguishes live, metadata-only, missing-collaborator, disabled,
+  unsupported, and invalid capabilities. CLI rendering and additional
+  collaborator types remain deferred.
 - `specs/llmfit-model-fit-filter/` — future optional advisory feature for
   pre-download Hugging Face candidate filtering through an already-installed
   `llmfit` executable.
-- `specs/llama-cpp-memory-fit-profile/` — future optional advisory feature for
-  post-resolution memory/context profiling of concrete local GGUF assets.
-- `specs/approval-interruption-resume/` — future feature spec for live approval
-  pause/resume, serialized run state, and approval outcomes; metadata baseline
-  only is currently implemented.
-- `specs/sandbox-workspace-runtime/` — future feature spec for write, patch,
-  shell, workspace grants, sandbox adapters, and approval-aware command policy;
-  metadata baseline only is currently implemented.
-- `specs/mcp-runtime-integration/` — future feature spec for live MCP source
-  configuration, lifecycle, tool discovery, registry injection, and invocation;
-  metadata diagnostics baseline only is currently implemented.
-- `specs/live-guardrail-execution/` — future feature spec for guardrail adapter
-  execution at input, output, tool-input, and tool-output phases; metadata
-  baseline only is currently implemented.
+- `specs/llama-cpp-memory-fit-profile/` — implemented v1 optional advisory
+  feature for post-resolution memory/context profiling of concrete local GGUF
+  assets through injected evaluators.
+- `specs/approval-interruption-resume/` — implemented v1 feature for direct
+  approval-required `tool_use_step` pause behavior, public interruption
+  results, redacted traces, high-level API guardrails, and capability status;
+  durable resume and approval outcomes remain deferred.
+- `specs/sandbox-workspace-runtime/` — partial approval-policy baseline;
+  metadata preservation and approval-before-side-effect behavior are
+  implemented, while write/shell runtime, workspace grants, sandbox adapters,
+  and mutation audits remain deferred.
+- `specs/mcp-runtime-integration/` — implemented v1 feature for explicit
+  caller-supplied MCP registry injection, MCP provenance, conservative policy
+  defaults, and capability status; live transports, lifecycle, and discovery
+  remain deferred.
+- `specs/live-guardrail-execution/` — implemented v1 feature for caller-
+  registered input guardrail pass/abort behavior, fail-closed missing adapters,
+  redacted traces, and capability status; output/tool phases remain deferred.
 - `specs/skill-source-resolution/` — future feature spec for trusted `SKILL.md`
   body loading, source precedence, and prompt injection; current runtime only
   preserves skill metadata and refs.
-- `specs/iterative-agent-loop-runtime/` — future feature spec for live
-  model/tool loop execution and stop policies; current runtime only preserves
-  tool-use completion metadata.
+- `specs/iterative-agent-loop-runtime/` — implemented v1 feature for bounded
+  opt-in serial model-tool loops inside eligible `llm_step` nodes; state-field
+  final selectors, durable resume, output/tool guardrails, parallel tool calls,
+  and durable transcripts remain deferred.
 - `specs/power-marimo-host-automation/` — future downstream integration spec for
   live Marimo-session tools, power-domain adapters, PyQt-widget automation, and
   host safety policy; current runtime only has placeholder-safe fixture coverage.
@@ -91,34 +96,28 @@ needs a scoped plan and task slice before code changes begin.
    `specs/dynamic-agent-runner/tasks.md`, and each feature package's status
    consistent before starting new implementation slices. Stale status text can
    mislead future agents into re-planning completed work.
-2. **Capability/status report:** add a read-only preflight surface from
-   `capability-status-report` so callers can see live, metadata-only, missing
-   collaborator, disabled, unsupported, and invalid capabilities before runtime.
-   This is the highest-ROI first implementation because it makes the current
-   metadata/live gap visible without enabling new high-risk behavior.
-3. **Approval/sandbox live-action vertical slice:** pair
-   `approval-interruption-resume` and `sandbox-workspace-runtime` around one
-   safe mutating workspace capability, explicit path grants, approval
-   interruption records, redacted traces, and a resumable or clearly interrupted
-   public result.
-4. **Capability/status expansion:** update the report to classify any new live
-   approval/sandbox capabilities, including approval engines, sandbox adapters,
-   workspace grants, and mutating tool packs.
-5. **Policy-bound MCP integration:** only then promote live MCP source
-   discovery/invocation, keeping MCP tools behind registry, approval, sandbox,
-   provenance, timeout, retry, and redaction policy.
-6. **Live guardrail execution:** add input/output guardrail execution first,
-   then tool-input/tool-output phases once mutating tool policy and trace
-   redaction are proven.
-7. **Iterative agent-loop runtime:** implement bounded model/tool loops only
-   after registry, approval, sandbox, status, and guardrail boundaries are real.
-8. **SKILL.md source resolution:** start package-local and opt-in; defer
-   external roots until prompt-injection, precedence, size, and trace-redaction
-   rules are settled.
-9. **Local model advisory features:** implement `llmfit-model-fit-filter` for
-   pre-download Hugging Face candidate filtering and
-   `llama-cpp-memory-fit-profile` for post-resolution GGUF profiling only when
-   local-model ergonomics becomes the immediate product driver.
+2. **Complete:** capability/status report distinguishes live, metadata-only,
+   missing-collaborator, disabled, unsupported, and invalid capabilities.
+3. **Complete for v1 approval boundary:** approval interruption and the
+   approval-before-side-effect sandbox baseline are implemented; broader
+   workspace grants, shell/write tools, and durable approval resume remain
+   deferred.
+4. **Complete for v1 collaborator visibility:** capability/status reporting now
+   classifies approval, MCP, and guardrail collaborator coverage.
+5. **Complete for v1 MCP policy:** explicit caller-supplied MCP registry
+   injection is implemented; live source discovery and process lifecycle remain
+   deferred.
+6. **Complete for v1 input guardrails:** caller-registered input guardrail
+   execution is implemented; output/tool phases remain deferred.
+7. **Complete for v1 iterative loops:** bounded opt-in serial model-tool loops
+   are implemented.
+8. **Next:** SKILL.md source resolution should start package-local and opt-in;
+   defer external roots until prompt-injection, precedence, size, and
+   trace-redaction rules are settled.
+9. **Local model advisory features:** `llama-cpp-memory-fit-profile` v1 is
+   complete through injected evaluators. Implement `llmfit-model-fit-filter`
+   and any concrete llama.cpp command/metadata probing only when local-model
+   ergonomics becomes the immediate product driver.
 10. **Power-Marimo host automation:** build live host automation only after
     approval/sandbox and host-managed continuity boundaries are clear; keep app
     lifecycle ownership in Power-Marimo or caller tools.

@@ -101,10 +101,11 @@ item still needs a scoped plan and task slice before code changes begin.
 7. Complete: implement the prepared bounded `iterative-agent-loop-runtime` v1
    slice.
 8. Next: add opt-in package-local `skill-source-resolution`.
-9. Implement local-model advisory features only when local-model ergonomics is
-   the immediate driver: `llmfit-model-fit-filter` for pre-download filtering and
-   the prepared `llama-cpp-memory-fit-profile` v1 slice for post-resolution GGUF
-   profiling.
+9. Implement additional local-model advisory features only when local-model
+   ergonomics is the immediate driver: `llmfit-model-fit-filter` for
+   pre-download filtering, plus any concrete llama.cpp command or metadata
+   probing beyond the completed injected-evaluator
+   `llama-cpp-memory-fit-profile` v1 baseline.
 10. Add `power-marimo-host-automation` after approval/sandbox and host-managed
     continuity boundaries are clear.
 11. Keep `async-session-memory-pipeline` host-managed in v1; add runner-owned
