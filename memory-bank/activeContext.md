@@ -10,6 +10,10 @@
 - Bounded `iterative-agent-loop-runtime` v1 is now implemented and documented.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
   optional, read-only, injected-evaluator advisory feature.
+- Recent local-model maintenance tightened optional-runtime behavior:
+  direct llama.cpp docs now point callers to the `llamacpp` extra, missing
+  default `llama_cpp` imports are covered by regression tests, and MLX adapter
+  tests verify non-macOS use fails before model resolution or `mlx_lm` loading.
 - The next recorded ROI focus in `specs/README.md` is opt-in package-local
   `skill-source-resolution`; local-model advisory implementation should happen
   when local-model ergonomics is the immediate driver.
@@ -68,6 +72,12 @@
   - fail-open is the default, strict mode is scoped to the profiling call, no
     cache or automatic memory-budget discovery is planned for v1
   - suggested kwargs are limited to `n_ctx`
+- Local-model optional-runtime hardening is in place at the test/docs layer:
+  - direct llama.cpp helpers remain lazy and report a package-owned
+    `ModelExecutionError` when the default `llama_cpp` dependency is absent
+  - MLX helpers remain constructible on non-macOS, advertise their model aliases,
+    and fail with the macOS-only `ModelExecutionError` before resolving model
+    paths or loading dependencies when generation is attempted off macOS
 
 ## Current Spec Authority Map
 
@@ -93,9 +103,9 @@
 
 ## Next Steps
 
-- If continuing local-model advisory work, execute
-  `specs/llama-cpp-memory-fit-profile/tasks.md` from Slice 1 and commit after
-  each slice.
+- If continuing local-model advisory work, decide whether the pending
+  `pyproject.toml` / `poetry.lock` optional llama.cpp metadata edits should be
+  committed, revised, or discarded before executing another slice.
 - If following the ROI queue instead, prepare `skill-source-resolution` before
   implementation.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,

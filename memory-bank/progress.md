@@ -10,7 +10,8 @@
 - Default OpenAI/Codex auth discovery and ChatGPT/Codex backend compatibility
   are implemented.
 - llama.cpp and MLX local-model adapters are implemented through their current
-  scoped baselines.
+  scoped baselines, with regression coverage for optional direct llama.cpp
+  dependency absence and MLX unsupported-platform short-circuit behavior.
 - Capability status reporting is implemented for:
   - finite execution
   - metadata-only declarations
@@ -64,6 +65,10 @@
 - `633cbe3` recorded live input-guardrail v1 completion.
 - `4d60fb1` recorded iterative agent-loop runtime v1 completion.
 - `987915a` prepared the llama.cpp memory-fit profile v1 implementation plan.
+- `c8a8770` added missing default `llama_cpp` dependency handling coverage.
+- `89ace5e` documented the optional direct llama.cpp extra in README/API docs.
+- `8c83492` added MLX unsupported-platform coverage proving non-macOS execution
+  fails before model resolution or dependency loading.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -81,6 +86,9 @@
   - `llmfit-model-fit-filter` for pre-download filtering
   - prepared `llama-cpp-memory-fit-profile` v1 for post-resolution GGUF
     profiling
+- Pending working-tree package metadata edits currently make
+  `llama-cpp-python` optional behind a `llamacpp` extra; decide whether to keep,
+  revise, or discard those changes before the next commit bundle.
 - Power-Marimo host automation remains deferred until approval/sandbox and
   host-managed continuity boundaries are clear.
 - Runner-owned durable session storage remains deferred until a concrete
@@ -113,3 +121,6 @@
   capability-status, and guardrail boundaries.
 - Keep core tests fake-only; do not add live OpenAI, MCP, Hugging Face, Marimo,
   llama.cpp, or local-model calls to unit tests.
+- Keep MLX local execution macOS-only and lazy on other platforms: adapter
+  construction and model alias inspection should not import `mlx_lm`, resolve
+  local model assets, or fail until generation is attempted.
