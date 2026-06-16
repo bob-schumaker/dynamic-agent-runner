@@ -41,6 +41,11 @@
 - Context compression profiles are specified as policy presets:
   `balanced`, `fast`, `exact`, `semantic`, `recency_weighted`, and
   `instruction_weighted`.
+- Cross-cutting follow-up ideas from Micheal Lanham's `AI Agents in Action,
+  Second Edition: Intelligent Workflows With LLMs, MCP, A2A, and More`
+  (Manning, ISBN `9781633434530`) are recorded as future-work notes in the
+  owning specs: MCP resources/prompts, evaluation guardrails, loop controls,
+  memory-selection hints, capability/deployment reporting, and sandbox safety.
 - The next recorded ROI focus in `specs/README.md` is opt-in package-local
   `skill-source-resolution`; local-model advisory implementation should happen
   when local-model ergonomics is the immediate driver.
@@ -106,6 +111,9 @@
     and fail with the macOS-only `ModelExecutionError` before resolving model
     paths or loading dependencies when generation is attempted off macOS
 - PyInstaller packaging support for `openai-model-registry` is complete.
+- Agent-architecture follow-ups from `AI Agents in Action, Second Edition` are
+  tracked across the relevant spec packages without changing implementation
+  scope.
 
 ## Current Spec Authority Map
 

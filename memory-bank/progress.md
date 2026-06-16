@@ -78,6 +78,10 @@
 - The spec inventory and completion matrix now include
   `context-management-prepare-stage`, and graph mutation is documented as the
   derived workflow-operation layer rather than a context-management helper.
+- Cross-cutting future-work ideas from Micheal Lanham's `AI Agents in Action,
+  Second Edition: Intelligent Workflows With LLMs, MCP, A2A, and More`
+  (Manning, ISBN `9781633434530`) are tracked in the owning specs without
+  expanding immediate implementation scope.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -115,6 +119,9 @@
   for future context-management attachment or insertion.
 - `89488e4` aligned the top-level README, spec inventory, completion matrix,
   and graph-mutation planning artifacts with those boundaries.
+- `fcde8bf` tracked evaluated agent-architecture follow-ups across the spec
+  index, MCP runtime, guardrails, iterative loops, context management,
+  capability reporting, and sandbox/workspace specs.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
