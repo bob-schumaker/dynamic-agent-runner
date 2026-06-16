@@ -166,6 +166,7 @@ class PreparedInputMetadata:
     context_compaction_applied: bool = False
     compaction: Mapping[str, Any] = field(default_factory=dict)
     pre_turn_compaction: Mapping[str, Any] = field(default_factory=dict)
+    context_reset: Mapping[str, Any] = field(default_factory=dict)
     file_context_applied: bool = False
     file_context_sources: tuple[str, ...] = ()
     file_context_files_included: int = 0
@@ -477,6 +478,7 @@ def prepare_model_input(
                 "context_compaction_applied": preparation.context_compaction_applied,
                 "compaction": preparation.compaction,
                 "pre_turn_compaction": preparation.pre_turn_compaction,
+                "context_reset": preparation.context_reset,
                 "file_context_applied": preparation.file_context_applied,
                 "file_context_sources": preparation.file_context_sources,
                 "file_context_files_included": preparation.file_context_files_included,
@@ -1805,6 +1807,7 @@ def _merge_prepared_input_metadata(
         context_compaction_applied=base.context_compaction_applied,
         compaction=base.compaction,
         pre_turn_compaction=base.pre_turn_compaction,
+        context_reset=base.context_reset,
         file_context_applied=base.file_context_applied,
         file_context_sources=base.file_context_sources,
         file_context_files_included=base.file_context_files_included,
@@ -1846,6 +1849,7 @@ def _merge_skill_source_preparation(
         context_compaction_applied=base.context_compaction_applied,
         compaction=base.compaction,
         pre_turn_compaction=base.pre_turn_compaction,
+        context_reset=base.context_reset,
         file_context_applied=base.file_context_applied,
         file_context_sources=base.file_context_sources,
         file_context_files_included=base.file_context_files_included,
@@ -1970,6 +1974,7 @@ def _apply_prepare_model_input_stage(
     )
     context_compaction_applied = False
     compaction_metadata: Mapping[str, Any] = {}
+    context_reset = _context_reset_metadata(pruned_session, policy)
     if pruned_session:
         summary_message = _compacted_session_message(pruned_session, policy, state)
         if summary_message is not None:
@@ -2012,6 +2017,7 @@ def _apply_prepare_model_input_stage(
         context_compaction_applied=context_compaction_applied,
         compaction=compaction_metadata,
         pre_turn_compaction=pre_turn_compaction,
+        context_reset=context_reset,
         file_context_applied=file_context_metadata.file_context_applied,
         file_context_sources=file_context_metadata.file_context_sources,
         file_context_files_included=file_context_metadata.file_context_files_included,
@@ -2824,6 +2830,8 @@ def _compacted_session_message(
     compaction = policy.get("context_compaction")
     if not isinstance(compaction, Mapping):
         return None
+    if compaction.get("reset_behavior") == "new_window":
+        return None
     strategy = str(compaction.get("strategy") or "summary_message")
     if strategy == "rolling_summary":
         return _rolling_summary_message(pruned_session, compaction, state)
@@ -2838,6 +2846,25 @@ def _compacted_session_message(
     for message in pruned_session:
         lines.append(f"- {message.role}: {_truncate_text(message.content, max_chars)}")
     return OpenAIMessage(role=role, content="\n".join(lines))
+
+
+def _context_reset_metadata(
+    pruned_session: Sequence[OpenAIMessage],
+    policy: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    compaction = policy.get("context_compaction")
+    if (
+        not pruned_session
+        or not isinstance(compaction, Mapping)
+        or compaction.get("reset_behavior") != "new_window"
+    ):
+        return {}
+    return {
+        "reset_behavior": "new_window",
+        "reason": str(compaction.get("reset_reason") or "policy"),
+        "session_messages_dropped": len(pruned_session),
+        "compaction_success": False,
+    }
 
 
 def _rolling_summary_message(

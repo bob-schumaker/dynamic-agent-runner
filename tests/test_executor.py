@@ -1603,6 +1603,59 @@ def test_prepare_model_input_pre_turn_compaction_replaces_over_threshold_context
     )
 
 
+def test_prepare_model_input_new_window_reset_does_not_count_as_compaction() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "new-window-reset-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "reset_behavior": "new_window",
+                            "reset_reason": "user_requested",
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="old request"),
+            OpenAIMessage(role="assistant", content="old answer"),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "session_summary" not in prepared_input.named_parts
+    assert prepared_input.preparation.context_compaction_applied is False
+    assert prepared_input.preparation.context_reset == {
+        "reset_behavior": "new_window",
+        "reason": "user_requested",
+        "session_messages_dropped": 2,
+        "compaction_success": False,
+    }
+
+
 def test_prepare_model_input_reports_context_lanes() -> None:
     """prepare_model_input reports ordered context lanes and utilization metadata."""
 

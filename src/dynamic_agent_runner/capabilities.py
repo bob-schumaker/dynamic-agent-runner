@@ -315,11 +315,27 @@ def _context_management_items(
     compaction = prepare_model_input.get("context_compaction")
     if not isinstance(compaction, Mapping):
         return ()
+    items: list[CapabilityStatusItem] = []
+    if compaction.get("reset_behavior") == "new_window":
+        items.append(
+            CapabilityStatusItem(
+                id="metadata.context.new_window_reset",
+                label="New context window reset",
+                state=CapabilityState.METADATA_ONLY,
+                category="metadata",
+                summary=(
+                    "New-window reset is declared separately from summarizing "
+                    "context compaction."
+                ),
+                owner=_OWNER_CONTEXT_MANAGEMENT,
+                details={"reset_behavior": "new_window"},
+            )
+        )
     auto = compaction.get("auto")
     if not isinstance(auto, Mapping) or auto.get("enabled") is not True:
-        return ()
+        return tuple(items)
     implementation = str(auto.get("implementation") or "metadata_only")
-    return (
+    items.append(
         CapabilityStatusItem(
             id="metadata.context.pre_turn_compaction",
             label="Pre-turn context compaction",
@@ -338,6 +354,7 @@ def _context_management_items(
             },
         ),
     )
+    return tuple(items)
 
 
 def _metadata_only_item(

@@ -244,7 +244,7 @@ Status: future backlog; no tasks started
 
 ## Slice 8 — Explicit new-context-window reset
 
-- [ ] T8.1 [tests] Add RED coverage for reset behavior distinct from
+- [x] T8.1 [tests] Add RED coverage for reset behavior distinct from
       summarizing compaction.
   - Spec: FR10
   - Files/components: `tests/test_executor.py`,
@@ -254,7 +254,7 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_capabilities.py -q`
 
-- [ ] T8.2 [implementation] Add explicit reset/new-window policy or tool.
+- [x] T8.2 [implementation] Add explicit reset/new-window policy or tool.
   - Spec: FR10
   - Files/components: `src/dynamic_agent_runner/executor.py`,
     `src/dynamic_agent_runner/registry.py`
