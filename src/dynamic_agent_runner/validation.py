@@ -10,6 +10,7 @@ from dynamic_agent_runner.errors import WorkflowValidationError
 from dynamic_agent_runner.behavior import effective_node_behavior, skill_catalog
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
+    ManifestObject,
     PRIMITIVE_NODE_KINDS,
     RuntimeManifest,
     RuntimeNode,
@@ -22,6 +23,9 @@ from dynamic_agent_runner.prompt_cache import prompt_cache_policy_from_value
 from dynamic_agent_runner.skill_sources import (
     SUPPORTED_SKILL_SOURCE_KINDS,
     SUPPORTED_SKILL_SOURCE_PROMPT_ROLES,
+    SkillSourceResolutionError,
+    enforce_node_skill_source_budget,
+    resolve_package_bundled_skill_source,
 )
 
 SUPPORTED_FORMAT_VERSION = 1
@@ -272,6 +276,7 @@ def validate_loaded_package_structure(workflow: LoadedAgentWorkflow) -> None:
             errors,
             _bundled_skill_path_errors(skill, skill_bundle_root),
         )
+    _extend(errors, _skill_source_resolution_source_errors(workflow))
 
     if errors:
         raise WorkflowValidationError(_format_errors("agent package", errors))
@@ -580,6 +585,91 @@ def _bundled_path_target_errors(
         errors.append(
             f"{label} bundled_path not found in package skill-bundle: {candidate}"
         )
+    return errors
+
+
+def _skill_source_resolution_source_errors(workflow: LoadedAgentWorkflow) -> list[str]:
+    policy_metadata = workflow.runtime_manifest.skill_source_resolution_policy
+    if policy_metadata is None or not policy_metadata.enabled:
+        return []
+
+    boundary_error = _skill_source_resolution_boundary_error(workflow)
+    if boundary_error is not None:
+        return [boundary_error]
+
+    return _enabled_skill_source_resolution_source_errors(workflow)
+
+
+def _skill_source_resolution_boundary_error(
+    workflow: LoadedAgentWorkflow,
+) -> str | None:
+    if workflow.package_root is None:
+        return "runtime.execution_policy.skill_source_resolution requires a package-loaded workflow"
+    if workflow.skill_bundle_root is None:
+        return "runtime.execution_policy.skill_source_resolution requires packaging.skill_bundle_dir"
+    return None
+
+
+def _enabled_skill_source_resolution_source_errors(
+    workflow: LoadedAgentWorkflow,
+) -> list[str]:
+    errors: list[str] = []
+    policy_metadata = workflow.runtime_manifest.skill_source_resolution_policy
+    assert policy_metadata is not None
+    assert workflow.skill_bundle_root is not None
+    policy = policy_metadata.to_policy()
+    catalog = skill_catalog(workflow)
+    for node in workflow.runtime_manifest.nodes:
+        if node.kind != "llm_step":
+            continue
+        errors.extend(
+            _node_skill_source_resolution_errors(
+                node=node,
+                workflow=workflow,
+                catalog=catalog,
+                policy=policy,
+            )
+        )
+    return errors
+
+
+def _node_skill_source_resolution_errors(
+    *,
+    node: RuntimeNode,
+    workflow: LoadedAgentWorkflow,
+    catalog: Mapping[str, ManifestObject],
+    policy: Any,
+) -> list[str]:
+    errors: list[str] = []
+    resolved_sources = []
+    assert workflow.skill_bundle_root is not None
+    behavior = effective_node_behavior(node, workflow)
+    for skill_id in behavior.skill_refs:
+        skill = catalog.get(skill_id)
+        if skill is None:
+            continue
+        if skill.raw.get("instructions") is not None:
+            continue
+        try:
+            resolved_sources.append(
+                resolve_package_bundled_skill_source(
+                    skill_id=skill_id,
+                    raw_skill=skill.raw,
+                    package_id=workflow.runtime_manifest.package_id,
+                    skill_bundle_root=workflow.skill_bundle_root,
+                    policy=policy,
+                )
+            )
+        except SkillSourceResolutionError as exc:
+            errors.append(str(exc))
+    try:
+        enforce_node_skill_source_budget(
+            tuple(resolved_sources),
+            policy=policy,
+            node_id=str(node.id),
+        )
+    except SkillSourceResolutionError as exc:
+        errors.append(str(exc))
     return errors
 
 

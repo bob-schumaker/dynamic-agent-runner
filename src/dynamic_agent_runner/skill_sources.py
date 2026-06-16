@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Mapping
 
 
@@ -10,6 +12,12 @@ DEFAULT_MAX_SKILL_BYTES = 65_536
 DEFAULT_MAX_NODE_SKILL_BYTES = 262_144
 SUPPORTED_SKILL_SOURCE_KINDS = frozenset({"package_bundle"})
 SUPPORTED_SKILL_SOURCE_PROMPT_ROLES = frozenset({"system", "developer"})
+PACKAGE_LOCAL_TRUST = "package_local"
+PACKAGE_BUNDLE_SOURCE_KIND = "package_bundle"
+
+
+class SkillSourceResolutionError(ValueError):
+    """Raised when a declared skill source cannot be loaded safely."""
 
 
 @dataclass(frozen=True)
@@ -103,6 +111,122 @@ class RejectedSkillSource:
         if self.bundled_path is not None:
             metadata["bundled_path"] = self.bundled_path
         return metadata
+
+
+def resolve_package_bundled_skill_source(
+    *,
+    skill_id: str,
+    raw_skill: Mapping[str, Any],
+    package_id: str | None,
+    skill_bundle_root: str | Path,
+    policy: SkillSourceResolutionPolicy,
+) -> ResolvedSkillSource:
+    """Resolve one package-local bundled `SKILL.md` source."""
+
+    bundled_path = raw_skill.get("bundled_path")
+    if bundled_path is None:
+        raise SkillSourceResolutionError(
+            f"skill {skill_id!r} requires bundled_path for source loading"
+        )
+    relative_path = Path(str(bundled_path))
+    if relative_path.name != "SKILL.md":
+        raise SkillSourceResolutionError(
+            f"skill {skill_id!r} bundled_path must point to SKILL.md"
+        )
+    root = Path(skill_bundle_root)
+    candidate = _safe_package_relative_file(
+        root,
+        relative_path,
+        label=f"skill {skill_id!r}",
+    )
+    body_bytes = _bounded_read_bytes(
+        candidate,
+        max_bytes=policy.max_skill_bytes,
+        label=f"skill {skill_id!r}",
+    )
+    body = _decode_skill_body(body_bytes, label=f"skill {skill_id!r}")
+    return ResolvedSkillSource(
+        skill_id=skill_id,
+        body=body,
+        source_kind=PACKAGE_BUNDLE_SOURCE_KIND,
+        trust=PACKAGE_LOCAL_TRUST,
+        package_id=package_id,
+        bundled_path=str(relative_path),
+        content_hash=f"sha256:{hashlib.sha256(body_bytes).hexdigest()}",
+        byte_count=len(body_bytes),
+    )
+
+
+def enforce_node_skill_source_budget(
+    sources: tuple[ResolvedSkillSource, ...],
+    *,
+    policy: SkillSourceResolutionPolicy,
+    node_id: str,
+) -> None:
+    """Fail when resolved source bodies exceed the per-node budget."""
+
+    total_bytes = sum(source.byte_count for source in sources)
+    if total_bytes > policy.max_node_skill_bytes:
+        raise SkillSourceResolutionError(
+            f"llm_step node {node_id!r} skill sources exceed max_node_skill_bytes"
+        )
+
+
+def _safe_package_relative_file(
+    root: Path,
+    relative_path: Path,
+    *,
+    label: str,
+) -> Path:
+    if relative_path.is_absolute():
+        raise SkillSourceResolutionError(
+            f"{label} bundled_path must be package-relative"
+        )
+    if ".." in relative_path.parts:
+        raise SkillSourceResolutionError(
+            f"{label} bundled_path must not escape package skill-bundle"
+        )
+    try:
+        root_resolved = root.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise SkillSourceResolutionError(
+            "package skill-bundle directory does not exist"
+        ) from exc
+    candidate = root / relative_path
+    try:
+        candidate_resolved = candidate.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise SkillSourceResolutionError(f"{label} bundled_path not found") from exc
+    try:
+        candidate_resolved.relative_to(root_resolved)
+    except ValueError as exc:
+        raise SkillSourceResolutionError(
+            f"{label} bundled_path escapes package skill-bundle"
+        ) from exc
+    if not candidate_resolved.is_file():
+        raise SkillSourceResolutionError(f"{label} bundled_path is not a file")
+    return candidate_resolved
+
+
+def _bounded_read_bytes(
+    path: Path,
+    *,
+    max_bytes: int,
+    label: str,
+) -> bytes:
+    size = path.stat().st_size
+    if size > max_bytes:
+        raise SkillSourceResolutionError(f"{label} exceeds max_skill_bytes")
+    return path.read_bytes()
+
+
+def _decode_skill_body(body: bytes, *, label: str) -> str:
+    if b"\x00" in body:
+        raise SkillSourceResolutionError(f"{label} appears to be binary")
+    try:
+        return body.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SkillSourceResolutionError(f"{label} must be UTF-8 text") from exc
 
 
 def _string_tuple(value: object, *, default: tuple[str, ...]) -> tuple[str, ...]:
