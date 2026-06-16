@@ -334,3 +334,11 @@ CRITICAL:PowerMarimo:An error occurred: Error: Function call (name: send_prompt,
 ---
 
 execute the ROI queue, commit after each slice. before starting a significanlty different focus area, update the specs with current state and commit.
+
+---
+
+the context pruning reference seems generally out of place in a long-term memory management system. lets create a spec specifically to meet "session pruning, context compaction, hierarchical prompt-context injection"
+
+since we are openai focused, examine the repo at /Users/roschuma/Repos/github/codex for how they handle automatic context window compression
+
+add this information to the spec, plan and tasks

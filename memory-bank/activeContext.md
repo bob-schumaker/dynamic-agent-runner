@@ -14,10 +14,13 @@
   direct llama.cpp docs now point callers to the `llamacpp` extra, missing
   default `llama_cpp` imports are covered by regression tests, and MLX adapter
   tests verify non-macOS use fails before model resolution or `mlx_lm` loading.
-- Current packaging maintenance added package-owned PyInstaller hook files for
-  `openai-model-registry`; the `pyproject.toml` entry point that advertises the
-  hook directory is intentionally being committed separately so downstream build
-  automation sees a metadata-only final commit.
+- PyInstaller packaging support for `openai-model-registry` is complete:
+  package-owned hook files, metadata advertisement, build-gated DevOps SCM PR,
+  and develop/main branch synchronization are done.
+- Context growth management has a dedicated spec package:
+  `specs/context-management-prepare-stage/` now owns session pruning, context
+  compaction, hierarchical prompt-context injection, and future
+  OpenAI-focused automatic context-window compression planning.
 - The next recorded ROI focus in `specs/README.md` is opt-in package-local
   `skill-source-resolution`; local-model advisory implementation should happen
   when local-model ergonomics is the immediate driver.
@@ -102,8 +105,9 @@
   - `specs/mcp-runtime-integration/spec.md`
   - `specs/live-guardrail-execution/spec.md`
   - `specs/iterative-agent-loop-runtime/spec.md`
-- Prepared feature package:
+- Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
+  - `specs/context-management-prepare-stage/spec.md`
 - Next ROI feature package:
   - `specs/skill-source-resolution/spec.md`
 - Later feature packages:
@@ -120,6 +124,9 @@
   committed, revised, or discarded before executing another slice.
 - If following the ROI queue instead, prepare `skill-source-resolution` before
   implementation.
+- If implementing context growth management, use
+  `specs/context-management-prepare-stage/plan.md` and `tasks.md`; start with
+  the policy/metadata contract slice before remote or mid-turn compaction.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.
