@@ -145,7 +145,7 @@ Status: future backlog; no tasks started
 
 ## Slice 4 — Deterministic fallback compaction
 
-- [ ] T4.1 [tests] Add RED executor coverage for deterministic fallback
+- [x] T4.1 [tests] Add RED executor coverage for deterministic fallback
       compaction.
   - Spec: FR11, FR12, FR14, FR16
   - Files/components: `tests/test_executor.py`,
@@ -156,7 +156,7 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k basic_compaction`
 
-- [ ] T4.2 [tests] Add RED coverage for tool-call/result pair safety.
+- [x] T4.2 [tests] Add RED coverage for tool-call/result pair safety.
   - Spec: FR11
   - Files/components: `tests/test_executor.py`
   - Cover old pair removal, latest pair preservation, multi-tool turns, and
@@ -164,7 +164,7 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k compaction_tool_pairs`
 
-- [ ] T4.3 [implementation] Add deterministic fallback compaction.
+- [x] T4.3 [implementation] Add deterministic fallback compaction.
   - Spec: FR11, FR12, FR14, FR16
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Trim oversized retained tool results/file blocks first, then selected older

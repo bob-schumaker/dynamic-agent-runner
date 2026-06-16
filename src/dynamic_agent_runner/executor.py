@@ -160,6 +160,7 @@ class PreparedInputMetadata:
     session_messages_included: int = 0
     session_messages_pruned: int = 0
     context_compaction_applied: bool = False
+    compaction: Mapping[str, Any] = field(default_factory=dict)
     file_context_applied: bool = False
     file_context_sources: tuple[str, ...] = ()
     file_context_files_included: int = 0
@@ -462,6 +463,7 @@ def prepare_model_input(
                 "session_messages_included": preparation.session_messages_included,
                 "session_messages_pruned": preparation.session_messages_pruned,
                 "context_compaction_applied": preparation.context_compaction_applied,
+                "compaction": preparation.compaction,
                 "file_context_applied": preparation.file_context_applied,
                 "file_context_sources": preparation.file_context_sources,
                 "file_context_files_included": preparation.file_context_files_included,
@@ -1732,6 +1734,7 @@ def _merge_prepared_input_metadata(
         session_messages_included=base.session_messages_included,
         session_messages_pruned=base.session_messages_pruned,
         context_compaction_applied=base.context_compaction_applied,
+        compaction=base.compaction,
         file_context_applied=base.file_context_applied,
         file_context_sources=base.file_context_sources,
         file_context_files_included=base.file_context_files_included,
@@ -1771,6 +1774,7 @@ def _merge_skill_source_preparation(
         session_messages_included=base.session_messages_included,
         session_messages_pruned=base.session_messages_pruned,
         context_compaction_applied=base.context_compaction_applied,
+        compaction=base.compaction,
         file_context_applied=base.file_context_applied,
         file_context_sources=base.file_context_sources,
         file_context_files_included=base.file_context_files_included,
@@ -1893,11 +1897,18 @@ def _apply_prepare_model_input_stage(
         selection_policy,
     )
     context_compaction_applied = False
+    compaction_metadata: Mapping[str, Any] = {}
     if pruned_session:
         summary_message = _compacted_session_message(pruned_session, policy)
         if summary_message is not None:
             result_parts.append(("session_summary", summary_message))
             context_compaction_applied = True
+            compaction_metadata = _compaction_metadata(
+                pruned_session,
+                summary_message,
+                policy,
+                model=model,
+            )
 
     result_parts.extend(selected_turn_parts)
 
@@ -1919,6 +1930,7 @@ def _apply_prepare_model_input_stage(
         session_messages_included=len(kept_session),
         session_messages_pruned=len(pruned_session),
         context_compaction_applied=context_compaction_applied,
+        compaction=compaction_metadata,
         file_context_applied=file_context_metadata.file_context_applied,
         file_context_sources=file_context_metadata.file_context_sources,
         file_context_files_included=file_context_metadata.file_context_files_included,
@@ -2627,7 +2639,22 @@ def _pruned_session_messages(
         return tuple(session_messages), ()
     if limit == 0:
         return (), tuple(session_messages)
-    return tuple(session_messages[-limit:]), tuple(session_messages[:-limit])
+    turns = _session_turns(session_messages)
+    kept_turns: list[tuple[OpenAIMessage, ...]] = []
+    kept_count = 0
+    for turn in reversed(turns):
+        if kept_turns and kept_count + len(turn) > limit:
+            break
+        kept_turns.append(turn)
+        kept_count += len(turn)
+        if kept_count >= limit:
+            break
+    kept_turns.reverse()
+    pruned_turn_count = len(turns) - len(kept_turns)
+    return (
+        tuple(message for turn in kept_turns for message in turn),
+        tuple(message for turn in turns[:pruned_turn_count] for message in turn),
+    )
 
 
 def _compacted_session_message(
@@ -2638,7 +2665,7 @@ def _compacted_session_message(
     if not isinstance(compaction, Mapping):
         return None
     strategy = str(compaction.get("strategy") or "summary_message")
-    if strategy != "summary_message":
+    if strategy not in {"summary_message", "basic"}:
         return None
     role = str(compaction.get("summary_role") or "developer")
     max_chars = _optional_positive_int(compaction.get("max_chars_per_message")) or 120
@@ -2649,6 +2676,40 @@ def _compacted_session_message(
     for message in pruned_session:
         lines.append(f"- {message.role}: {_truncate_text(message.content, max_chars)}")
     return OpenAIMessage(role=role, content="\n".join(lines))
+
+
+def _compaction_metadata(
+    pruned_session: Sequence[OpenAIMessage],
+    summary_message: OpenAIMessage,
+    policy: Mapping[str, Any],
+    *,
+    model: str,
+) -> Mapping[str, Any]:
+    compaction = policy.get("context_compaction")
+    strategy = (
+        str(compaction.get("strategy") or "summary_message")
+        if isinstance(compaction, Mapping)
+        else "summary_message"
+    )
+    before_tokens = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content}
+            for message in pruned_session
+        ),
+        model=model,
+    ).token_count
+    after_tokens = estimate_messages_tokens(
+        ({"role": summary_message.role, "content": summary_message.content},),
+        model=model,
+    ).token_count
+    return {
+        "strategy": strategy,
+        "messages_before": len(pruned_session),
+        "messages_after": 1,
+        "tokens_before": before_tokens,
+        "tokens_after": after_tokens,
+        "compression_ratio": after_tokens / before_tokens if before_tokens else 1,
+    }
 
 
 def _optional_positive_int(value: Any) -> int | None:

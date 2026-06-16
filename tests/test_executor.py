@@ -1208,6 +1208,182 @@ def test_prepare_model_input_records_auto_compaction_threshold_metadata() -> Non
     assert prepared_input.preparation.metrics == ("lane_utilization",)
 
 
+def test_prepare_model_input_basic_compaction_reports_deterministic_metadata() -> None:
+    """Basic fallback compaction is deterministic and protects recent turns."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "basic-compaction-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "basic",
+                            "summary_prefix": "Basic compacted context:",
+                            "max_chars_per_message": 12,
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(
+                role="user",
+                content="older request with many details " * 20,
+            ),
+            OpenAIMessage(
+                role="assistant",
+                content="older answer with many details " * 20,
+            ),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert prepared_input.part_names == (
+        "session_summary",
+        "session_message_1",
+        "session_message_2",
+        "user_prompt",
+    )
+    assert prepared_input.named_parts["session_summary"].content == (
+        "Basic compacted context:\n- user: older reque…\n- assistant: older answe…"
+    )
+    assert prepared_input.named_parts["session_message_1"].content == "latest request"
+    assert prepared_input.named_parts["session_message_2"].content == "latest answer"
+    assert prepared_input.preparation.compaction["strategy"] == "basic"
+    assert prepared_input.preparation.compaction["messages_before"] == 2
+    assert prepared_input.preparation.compaction["messages_after"] == 1
+    assert (
+        prepared_input.preparation.compaction["tokens_before"]
+        > (prepared_input.preparation.compaction["tokens_after"])
+    )
+    assert 0 < prepared_input.preparation.compaction["compression_ratio"] < 1
+
+
+def test_prepare_model_input_basic_compaction_noops_when_under_target() -> None:
+    """Basic fallback compaction does not run when no session history is pruned."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "basic-compaction-noop-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 4},
+                        "context_compaction": {"strategy": "basic"},
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "session_summary" not in prepared_input.named_parts
+    assert prepared_input.preparation.context_compaction_applied is False
+    assert prepared_input.preparation.compaction == {}
+
+
+def test_prepare_model_input_compaction_tool_pairs_preserves_latest_turn() -> None:
+    """Whole-turn pruning must not split a latest tool-call/result turn."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-pair-compaction-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 1},
+                        "context_compaction": {"strategy": "basic"},
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="old request"),
+            OpenAIMessage(role="assistant", content="old answer"),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="calling lookup"),
+            OpenAIMessage(role="tool", content="lookup result"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert [
+        prepared_input.named_parts[name].content
+        for name in prepared_input.part_names
+        if name.startswith("session_message_")
+    ] == [
+        "latest request",
+        "calling lookup",
+        "lookup result",
+        "latest answer",
+    ]
+    assert "old request" in prepared_input.named_parts["session_summary"].content
+    assert prepared_input.preparation.session_messages_included == 4
+
+
 def test_prepare_model_input_reports_context_lanes() -> None:
     """prepare_model_input reports ordered context lanes and utilization metadata."""
 
