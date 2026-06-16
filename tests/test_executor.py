@@ -1477,6 +1477,205 @@ def test_prepare_model_input_chronological_reassembly_orders_selected_turns() ->
     assert "beta beta" in prepared_input.named_parts["selected_turn_2"].content
 
 
+def test_prepare_model_input_retrieved_context_lane_packs_evidence() -> None:
+    """Caller-provided retrieved evidence is packed into a bounded context lane."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "retrieved-context-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "retrieved_context": {
+                            "enabled": True,
+                            "source_slot": "retrieved_context",
+                            "header": "Retrieved evidence:",
+                        },
+                        "context_compression": {
+                            "lanes": {"retrieved_context_tokens": 8}
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Explain billing retries",
+        node_outputs={
+            "retrieved_context": [
+                {
+                    "source_id": "kb-billing",
+                    "chunk_id": "chunk-required",
+                    "citation_handle": "[1]",
+                    "content": "Required billing retry rules.",
+                    "required": True,
+                    "token_estimate": 20,
+                    "score": 0.98,
+                    "freshness": {"as_of": "2026-06-16"},
+                    "packing_hint": {"order": 1},
+                },
+                {
+                    "source_id": "kb-billing",
+                    "chunk_id": "chunk-optional",
+                    "citation_handle": "[2]",
+                    "content": "Optional retry example.",
+                    "lane_hint": "optional",
+                    "token_estimate": 4,
+                    "score": 0.77,
+                    "freshness": {"as_of": "2026-06-15"},
+                    "packing_hint": {"order": 2},
+                },
+                {
+                    "source_id": "kb-billing",
+                    "chunk_id": "chunk-omitted",
+                    "citation_handle": "[3]",
+                    "content": "Sensitive omitted evidence body.",
+                    "lane_hint": "optional",
+                    "token_estimate": 6,
+                    "score": 0.52,
+                    "freshness": {"as_of": "2026-06-14"},
+                    "packing_hint": {"order": 3},
+                },
+            ]
+        },
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "retrieved_context_1" in prepared_input.named_parts
+    assert "retrieved_context_2" in prepared_input.named_parts
+    assert "retrieved_context_3" not in prepared_input.named_parts
+    assert (
+        "Required billing retry rules."
+        in prepared_input.named_parts["retrieved_context_1"].content
+    )
+    assert prepared_input.preparation.retrieved_context == (
+        {
+            "source_id": "kb-billing",
+            "chunk_id": "chunk-required",
+            "citation_handle": "[1]",
+            "required": True,
+            "token_estimate": 20,
+            "score": 0.98,
+            "freshness": {"as_of": "2026-06-16"},
+            "packing_hint": {"order": 1},
+            "selection_status": "included",
+        },
+        {
+            "source_id": "kb-billing",
+            "chunk_id": "chunk-optional",
+            "citation_handle": "[2]",
+            "required": False,
+            "token_estimate": 4,
+            "score": 0.77,
+            "freshness": {"as_of": "2026-06-15"},
+            "packing_hint": {"order": 2},
+            "selection_status": "included",
+        },
+    )
+    assert prepared_input.preparation.retrieved_context_omitted == (
+        {
+            "source_id": "kb-billing",
+            "chunk_id": "chunk-omitted",
+            "citation_handle": "[3]",
+            "required": False,
+            "token_estimate": 6,
+            "score": 0.52,
+            "freshness": {"as_of": "2026-06-14"},
+            "packing_hint": {"order": 3},
+            "selection_status": "omitted",
+            "selection_reason": "retrieved_context_lane_budget_exceeded",
+        },
+    )
+    lane_map = {
+        lane["lane_id"]: lane for lane in prepared_input.preparation.context_lanes
+    }
+    assert lane_map["retrieved_context"]["part_count"] == 2
+    assert lane_map["retrieved_context"]["budget_tokens"] == 8
+    assert lane_map["retrieved_context"]["omitted_count"] == 1
+
+
+def test_prepare_model_input_retrieved_context_lane_redacts_trace_content() -> None:
+    """Retrieved-context trace metadata must not expose raw evidence content."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "retrieved-context-trace-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "retrieved_context": {"enabled": True},
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Explain billing retries",
+        node_outputs={
+            "retrieved_context": [
+                {
+                    "source_id": "kb-billing",
+                    "chunk_id": "chunk-sensitive",
+                    "citation_handle": "[1]",
+                    "content": "Do not leak this retrieved body in traces.",
+                    "token_estimate": 5,
+                }
+            ]
+        },
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepare_model_input(plan.nodes_by_id["answer"], plan, state, tracer=tracer)
+
+    prepared_events = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    assert len(prepared_events) == 1
+    trace_payload = prepared_events[0].payload
+    assert trace_payload["retrieved_context"] == (
+        {
+            "source_id": "kb-billing",
+            "chunk_id": "chunk-sensitive",
+            "citation_handle": "[1]",
+            "required": False,
+            "token_estimate": 5,
+            "selection_status": "included",
+        },
+    )
+    assert "Do not leak this retrieved body" not in repr(trace_payload)
+
+
 def test_prepare_model_input_includes_bounded_file_context_with_provenance(
     tmp_path,
 ) -> None:

@@ -165,6 +165,8 @@ class PreparedInputMetadata:
     file_context_files_included: int = 0
     file_context_bytes: int = 0
     file_context_estimated_tokens: int = 0
+    retrieved_context: tuple[Mapping[str, Any], ...] = ()
+    retrieved_context_omitted: tuple[Mapping[str, Any], ...] = ()
     mutation_applied: bool = False
     mutation_id: str | None = None
     mutation_output_slots: tuple[str, ...] = ()
@@ -465,6 +467,8 @@ def prepare_model_input(
                 "file_context_files_included": preparation.file_context_files_included,
                 "file_context_bytes": preparation.file_context_bytes,
                 "file_context_estimated_tokens": preparation.file_context_estimated_tokens,
+                "retrieved_context": preparation.retrieved_context,
+                "retrieved_context_omitted": preparation.retrieved_context_omitted,
                 "mutation_applied": preparation.mutation_applied,
                 "mutation_id": preparation.mutation_id,
                 "mutation_output_slots": preparation.mutation_output_slots,
@@ -1733,6 +1737,8 @@ def _merge_prepared_input_metadata(
         file_context_files_included=base.file_context_files_included,
         file_context_bytes=base.file_context_bytes,
         file_context_estimated_tokens=base.file_context_estimated_tokens,
+        retrieved_context=base.retrieved_context,
+        retrieved_context_omitted=base.retrieved_context_omitted,
         mutation_applied=overlay.mutation_applied,
         mutation_id=overlay.mutation_id,
         mutation_output_slots=overlay.mutation_output_slots,
@@ -1770,6 +1776,8 @@ def _merge_skill_source_preparation(
         file_context_files_included=base.file_context_files_included,
         file_context_bytes=base.file_context_bytes,
         file_context_estimated_tokens=base.file_context_estimated_tokens,
+        retrieved_context=base.retrieved_context,
+        retrieved_context_omitted=base.retrieved_context_omitted,
         mutation_applied=base.mutation_applied,
         mutation_id=base.mutation_id,
         mutation_output_slots=base.mutation_output_slots,
@@ -1858,6 +1866,17 @@ def _apply_prepare_model_input_stage(
     selection_policy = _selection_policy(policy)
     lifecycle_stages = _lifecycle_stage_status(policy)
     metrics = _context_metrics(policy)
+    (
+        retrieved_context_parts,
+        retrieved_context,
+        retrieved_context_omitted,
+    ) = _retrieved_context_messages(
+        state,
+        policy,
+        lane_budgets,
+        model=model,
+    )
+    result_parts.extend(retrieved_context_parts)
     kept_session, lane_trimmed_session = _apply_recent_turn_lane_budget(
         kept_session,
         lane_budgets,
@@ -1892,6 +1911,7 @@ def _apply_prepare_model_input_stage(
         result_parts,
         lane_budgets,
         recent_trimmed_count=len(lane_trimmed_session),
+        retrieved_omitted_count=len(retrieved_context_omitted),
     )
 
     return tuple(result_parts), PreparedInputMetadata(
@@ -1904,6 +1924,8 @@ def _apply_prepare_model_input_stage(
         file_context_files_included=file_context_metadata.file_context_files_included,
         file_context_bytes=file_context_metadata.file_context_bytes,
         file_context_estimated_tokens=file_context_metadata.file_context_estimated_tokens,
+        retrieved_context=retrieved_context,
+        retrieved_context_omitted=retrieved_context_omitted,
         turn_count=len(turn_metadata),
         segment_count=len(segment_metadata),
         turns=turn_metadata,
@@ -2062,6 +2084,140 @@ def _apply_recent_turn_lane_budget(
     return tuple(included), tuple(omitted)
 
 
+def _retrieved_context_messages(
+    state: WorkflowExecutionState,
+    policy: Mapping[str, Any],
+    lane_budgets: Mapping[str, int],
+    *,
+    model: str,
+) -> tuple[
+    tuple[tuple[str, OpenAIMessage], ...],
+    tuple[Mapping[str, Any], ...],
+    tuple[Mapping[str, Any], ...],
+]:
+    retrieved_context = policy.get("retrieved_context")
+    if (
+        not isinstance(retrieved_context, Mapping)
+        or retrieved_context.get("enabled") is not True
+    ):
+        return (), (), ()
+
+    slot = str(retrieved_context.get("source_slot") or "retrieved_context")
+    evidence_items = _retrieved_context_items(state.node_outputs.get(slot))
+    if not evidence_items:
+        return (), (), ()
+
+    role = str(retrieved_context.get("prompt_role") or "developer")
+    header = str(retrieved_context.get("header") or "Retrieved context:")
+    budget = lane_budgets.get("retrieved_context_tokens")
+    used_optional_tokens = 0
+    parts: list[tuple[str, OpenAIMessage]] = []
+    included: list[Mapping[str, Any]] = []
+    omitted: list[Mapping[str, Any]] = []
+
+    for item in evidence_items:
+        metadata = _retrieved_context_metadata(item)
+        token_count = _retrieved_context_token_estimate(item, model=model)
+        required = metadata["required"] is True
+        if (
+            not required
+            and budget is not None
+            and used_optional_tokens + token_count > budget
+        ):
+            omitted.append(
+                {
+                    **metadata,
+                    "selection_status": "omitted",
+                    "selection_reason": "retrieved_context_lane_budget_exceeded",
+                }
+            )
+            continue
+        part_index = len(parts) + 1
+        parts.append(
+            (
+                f"retrieved_context_{part_index}",
+                OpenAIMessage(
+                    role=role,
+                    content=_render_retrieved_context_item(header, item),
+                ),
+            )
+        )
+        included.append({**metadata, "selection_status": "included"})
+        if not required:
+            used_optional_tokens += token_count
+
+    return tuple(parts), tuple(included), tuple(omitted)
+
+
+def _retrieved_context_items(value: Any) -> tuple[Mapping[str, Any], ...]:
+    if isinstance(value, Mapping):
+        evidence = value.get("evidence")
+        if evidence is None:
+            return (value,)
+        value = evidence
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        return ()
+    return tuple(item for item in value if isinstance(item, Mapping))
+
+
+def _retrieved_context_metadata(item: Mapping[str, Any]) -> Mapping[str, Any]:
+    metadata: dict[str, Any] = {
+        "source_id": str(item.get("source_id") or ""),
+        "chunk_id": str(item.get("chunk_id") or ""),
+        "citation_handle": str(item.get("citation_handle") or ""),
+        "required": _retrieved_context_required(item),
+    }
+    token_estimate = item.get("token_estimate")
+    if isinstance(token_estimate, int) and not isinstance(token_estimate, bool):
+        metadata["token_estimate"] = token_estimate
+    score = item.get("score")
+    if isinstance(score, int | float) and not isinstance(score, bool):
+        metadata["score"] = score
+    freshness = item.get("freshness")
+    if isinstance(freshness, Mapping):
+        metadata["freshness"] = dict(freshness)
+    packing_hint = item.get("packing_hint")
+    if isinstance(packing_hint, Mapping):
+        metadata["packing_hint"] = dict(packing_hint)
+    return {key: value for key, value in metadata.items() if value != ""}
+
+
+def _retrieved_context_required(item: Mapping[str, Any]) -> bool:
+    if item.get("required") is True or item.get("required_context") is True:
+        return True
+    lane_hint = item.get("lane_hint")
+    return isinstance(lane_hint, str) and lane_hint.lower() == "required"
+
+
+def _retrieved_context_token_estimate(
+    item: Mapping[str, Any],
+    *,
+    model: str,
+) -> int:
+    token_estimate = item.get("token_estimate")
+    if isinstance(token_estimate, int) and not isinstance(token_estimate, bool):
+        return max(token_estimate, 0)
+    content = str(item.get("content") or "")
+    return estimate_messages_tokens(
+        ({"role": "developer", "content": content},),
+        model=model,
+    ).token_count
+
+
+def _render_retrieved_context_item(header: str, item: Mapping[str, Any]) -> str:
+    lines = [header]
+    for label, key in (
+        ("Source ID", "source_id"),
+        ("Chunk ID", "chunk_id"),
+        ("Citation", "citation_handle"),
+    ):
+        value = item.get(key)
+        if value is not None:
+            lines.append(f"{label}: {value}")
+    lines.append(str(item.get("content") or ""))
+    return "\n".join(lines)
+
+
 def _selected_older_turn_parts(
     pruned_session: Sequence[OpenAIMessage],
     prompt: str,
@@ -2169,10 +2325,12 @@ def _context_lane_metadata(
     lane_budgets: Mapping[str, int],
     *,
     recent_trimmed_count: int,
+    retrieved_omitted_count: int,
 ) -> tuple[Mapping[str, Any], ...]:
     lane_order = (
         "pinned",
         "file_tool",
+        "retrieved_context",
         "rolling_summary",
         "selected_older_turns",
         "recent_turns",
@@ -2184,15 +2342,26 @@ def _context_lane_metadata(
     lanes: list[Mapping[str, Any]] = []
     for lane_id in lane_order:
         part_names = tuple(lane_parts[lane_id])
-        if not part_names and not (lane_id == "recent_turns" and recent_trimmed_count):
+        if (
+            not part_names
+            and not (lane_id == "recent_turns" and recent_trimmed_count)
+            and not (lane_id == "retrieved_context" and retrieved_omitted_count)
+        ):
             continue
         budget = lane_budgets.get(_lane_budget_key(lane_id))
+        omitted_count = (
+            retrieved_omitted_count
+            if lane_id == "retrieved_context"
+            else recent_trimmed_count
+            if lane_id == "recent_turns"
+            else 0
+        )
         lane: dict[str, Any] = {
             "lane_id": lane_id,
             "part_count": len(part_names),
             "part_names": part_names,
             "trimmed_count": recent_trimmed_count if lane_id == "recent_turns" else 0,
-            "omitted_count": recent_trimmed_count if lane_id == "recent_turns" else 0,
+            "omitted_count": omitted_count,
         }
         if budget is not None:
             lane["budget_tokens"] = budget
@@ -2209,6 +2378,8 @@ def _part_lane_id(part_name: str) -> str:
         return "pinned"
     if part_name.startswith("file_context_"):
         return "file_tool"
+    if part_name.startswith("retrieved_context_"):
+        return "retrieved_context"
     if part_name == "session_summary":
         return "rolling_summary"
     if part_name.startswith("selected_turn_"):
@@ -2224,6 +2395,7 @@ def _lane_budget_key(lane_id: str) -> str:
     return {
         "pinned": "pinned_tokens",
         "file_tool": "file_context_tokens",
+        "retrieved_context": "retrieved_context_tokens",
         "rolling_summary": "summary_tokens",
         "selected_older_turns": "selected_turn_tokens",
         "recent_turns": "recent_turn_tokens",

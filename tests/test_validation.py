@@ -1957,6 +1957,7 @@ def test_context_compaction_auto_policy_passes_with_supported_values() -> None:
                         "summary_tokens": 1024,
                         "selected_turn_tokens": 4096,
                         "file_context_tokens": 1024,
+                        "retrieved_context_tokens": 2048,
                     },
                     "selection": {
                         "strategy": "deterministic_overlap",

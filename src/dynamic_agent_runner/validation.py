@@ -341,6 +341,7 @@ SUPPORTED_CONTEXT_LANE_BUDGET_FIELDS = {
     "summary_tokens",
     "selected_turn_tokens",
     "file_context_tokens",
+    "retrieved_context_tokens",
 }
 REACT_LOOP_PATTERN_ID = "react_loop"
 PROMPT_REPLACE_FIELDS = {
