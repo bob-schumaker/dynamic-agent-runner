@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from dynamic_agent_runner._pyinstaller import get_hook_dirs
+from dynamic_agent_runner.__pyinstaller import get_hook_dirs
 
 
 def test_pyinstaller_hook_dirs_advertise_openai_model_registry_hook() -> None:
@@ -10,4 +10,4 @@ def test_pyinstaller_hook_dirs_advertise_openai_model_registry_hook() -> None:
 
     assert len(hook_dirs) == 1
     assert hook_dirs[0].is_dir()
-    assert (hook_dirs[0] / "hook-openai_model_registry.py").is_file()
+    assert (hook_dirs[0] / "hook-openai-model-registry.py").is_file()
