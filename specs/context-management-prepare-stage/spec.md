@@ -63,14 +63,16 @@ places:
 
 - long-term async-session memory, which should own session identity and durable
   continuity metadata, not per-call prompt shaping
-- graph mutation, which owns internal derived workflow transforms and one
-  context-pruning mutation path, not the general policy surface for prompt
-  preparation
+- graph mutation, which owns high-level derived workflow operations such as
+  inserting context-management steps onto edges between `llm_step` nodes, not
+  the prompt-preparation behavior those inserted steps perform
 - model adapters, which should execute prepared requests rather than rewrite or
   summarize prompt history
 
 This spec separates short-horizon context construction from long-term memory and
-from lower-level model execution.
+from lower-level model execution. It also separates the behavior of context
+management from the graph-mutation mechanism that may decide where that behavior
+is inserted into a derived workflow.
 
 ## Current Runtime Context
 
@@ -87,8 +89,11 @@ The implemented baseline already includes:
 - bounded file-context prompt injection with source provenance
 - trace payload metadata through `model_input_prepared`
 
-`internal-graph-mutation` can feed prepared context into the same prompt
-rendering path, but it is not the owner of the general context-management policy.
+`internal-graph-mutation` can attach context-management behavior to a derived
+execution graph. The current implementation can feed prepared context into
+prompt rendering for selected `llm_step` nodes; future mutation slices may
+insert explicit context-management operations on links between LLM steps, such
+as a ReAct loopback connection.
 
 `async-session-memory-pipeline` can declare future session identity and
 history-retention metadata, but it is not the owner of live pruning,
@@ -125,6 +130,7 @@ This feature must not introduce:
 - background summarization jobs
 - model-adapter-specific prompt rewriting
 - automatic mutation of portable workflow package artifacts
+- graph insertion, edge rewiring, or workflow-shape mutation semantics
 - approval pause/resume behavior
 - multi-agent shared memory semantics
 - a public graph-mutation schema
@@ -147,6 +153,7 @@ runtime:
         summary_template: "Earlier context summary:\n{summary}"
       context_compression:
         enabled: true
+        profile: balanced
         trigger:
           threshold_ratio: 0.9
           reserve_tokens: 16384
@@ -178,6 +185,21 @@ runtime:
 
 Exact field growth requires a future approved task, but any expansion should
 remain under `prepare_model_input` unless it belongs to another owning spec.
+
+Compression profile selection should live in the context-compression policy
+first. Future node-level overrides may select a profile for a specific
+`llm_step`, but the override should name a profile rather than embedding a
+separate compression algorithm in workflow nodes.
+
+Example future node-level override:
+
+```yaml
+nodes:
+  analyze:
+    type: llm_step
+    metadata:
+      context_compression_profile: exact
+```
 
 ## Recommended Compression Architecture
 
@@ -234,6 +256,38 @@ Prompt ordering should account for primacy, recency, and lost-in-the-middle
 risk. The default lane order preserves stable instructions early, keeps current
 turn state late, and avoids burying the highest-value selected context in the
 middle of large low-priority blocks.
+
+### Compression profiles
+
+Compression profiles are named policy presets that resolve into lane budgets,
+required/optional lane treatment, ordering, selector allowance, summarization
+allowance, and fallback behavior. They are not separate execution engines.
+
+The initial profile vocabulary is:
+
+- `balanced`: default automatic profile. Use lane budgets, recent turns, rolling
+  summary, deterministic older-turn selection, chronological reassembly, and
+  deterministic fallback trimming.
+- `fast`: deterministic only. Make no summarizer, model, embedding, or vector
+  call; trim large tool/file blocks first, then use lane selection and omission.
+- `exact`: avoid lossy summarization. Prefer required lanes, recent turns,
+  exact injected retrieval, and explicit omission over generated summaries.
+  This is the profile for source-sensitive, legal, config, or code workflows
+  where wording may matter.
+- `semantic`: allow an injected semantic selector or summarizer when available.
+  If unavailable, degrade or fail according to policy; never create a built-in
+  runner-owned vector store or live embedding backend.
+- `recency_weighted`: protect current and recent turns more aggressively than
+  older selected or summarized context. This is useful for task execution,
+  support, and chat flows where the latest state matters most.
+- `instruction_weighted`: protect system/developer/package instructions,
+  examples, and other pinned guidance more aggressively than ordinary history.
+  This is useful when stable behavioral constraints matter more than older
+  conversation detail.
+
+Profiles must report the resolved profile name in metadata. If a node-level
+override exists later, metadata should report both the workflow default and the
+effective node profile.
 
 ### Lifecycle stages
 
@@ -789,6 +843,31 @@ Acceptance criteria:
 - Given no semantic selector is injected, when older-turn selection runs, then
   no live embedding, vector search, or model-backed retrieval call occurs.
 
+### FR17 — Support named compression profiles
+
+The prepare stage should support named compression profiles so callers can ask
+for classes of context-window behavior without configuring every low-level
+policy knob.
+
+Acceptance criteria:
+
+- Given `context_compression.profile` is omitted, when policy is normalized,
+  then the runtime uses `balanced`.
+- Given a supported profile is configured, when policy is normalized, then the
+  runtime records the effective profile in prepared-input metadata.
+- Given a future `llm_step` override selects a profile, when input is prepared
+  for that node, then the override chooses the effective profile without
+  embedding algorithm details in the node definition.
+- Given `fast` is selected, when compression runs, then no summarizer, model,
+  embedding, vector search, or external provider call is made.
+- Given `semantic` is selected without an injected semantic selector or
+  summarizer, when policy is normalized or executed, then the runtime degrades
+  or fails according to explicit policy rather than creating a built-in
+  retrieval backend.
+- Given `exact`, `recency_weighted`, or `instruction_weighted` is selected,
+  when lanes are assembled, then required/optional lane treatment and ordering
+  reflect the selected profile and are reported in metadata.
+
 ## Boundaries With Adjacent Specs
 
 ### Async session memory pipeline
@@ -804,10 +883,15 @@ future caller-provided messages, but it does not create a durable session store.
 
 `internal-graph-mutation` owns internal derived workflow transforms, including a
 context-pruning mutation that can render prepared context from declared sources.
-This spec owns the general pre-adapter prompt preparation policy and diagnostics.
+It is also the owning feature for future high-level operations that insert,
+remove, replace, or rewire derived workflow steps and links.
 
-Graph mutation may produce an input for this prepare stage, but it should not
-replace the `prepare_model_input` policy surface.
+Context management is one use of graph mutation when the runtime or host decides
+to add context-management behavior to a user's workflow. For example, mutation
+may insert a context-management operation into the link between LLM steps, or
+into the loopback connection in a ReAct agent model. This spec owns what that
+operation does to prompt/session/file context; graph mutation owns where and how
+it is attached to the derived workflow.
 
 ### Token budgeting
 
@@ -846,8 +930,10 @@ session-memory policy.
   relevance-aware older-turn selection as the preferred compression scheme.
 - The spec adopts lifecycle, scoring, and metrics vocabulary without adopting
   runner-owned durable memory or vector storage.
-- The spec distinguishes the general prepare-stage policy from the narrower
-  internal graph-mutation context-pruning path.
+- The spec defines named compression profiles as policy presets, not separate
+  node-embedded algorithms.
+- The spec distinguishes context-management behavior from the graph-mutation
+  mechanism that may attach or insert that behavior into derived workflows.
 - The spec gives future expansion a place to grow without changing model
   adapter contracts.
 
@@ -857,6 +943,7 @@ Future approved slices may add:
 
 - turn-level rather than message-level pruning
 - explicit lane-budget policy and metadata
+- named compression-profile policy with optional `llm_step` overrides
 - deterministic older-turn relevance selectors
 - injected semantic selectors behind fake-only unit tests
 - lifecycle-stage diagnostics, segment scoring metadata, and quality/efficiency

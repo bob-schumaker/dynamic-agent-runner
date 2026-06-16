@@ -111,6 +111,8 @@ Define the policy shape and datamodel additions without live compaction:
 - add turn-unit grouping for user/assistant/tool-call/tool-result history
 - add lane-budget policy parsing for pinned, current, recent, summary,
   selected older-turn, and file/tool lanes
+- add named compression-profile parsing for `balanced`, `fast`, `exact`,
+  `semantic`, `recency_weighted`, and `instruction_weighted`
 - add lifecycle-stage vocabulary, stable turn/segment ids, scoring metadata,
   and metric field names
 - derive thresholds from model capability metadata where available
@@ -120,6 +122,8 @@ Define the policy shape and datamodel additions without live compaction:
 - add validation coverage for invalid thresholds and unsupported automatic modes
 - add validation coverage for strategy, mode, reserve-token, and
   threshold-ratio policy combinations
+- add validation coverage for unsupported profiles and future node-level profile
+  overrides
 
 ### Slice 2 — Lane-based prompt assembly
 
@@ -129,6 +133,8 @@ Implement the preferred compression skeleton before summarization:
 - preserve a bounded recent-turn suffix uncompressed
 - place rolling summary before recent and selected older turns
 - enforce independent lane budgets and lane-utilization metadata
+- resolve `balanced`, `fast`, `exact`, `recency_weighted`, and
+  `instruction_weighted` profiles into lane priority and ordering behavior
 - keep selected older-turn lane empty until Slice 3
 - keep rolling summary generation disabled until Slice 4
 
@@ -143,6 +149,7 @@ Add the first relevance-aware retention path without embeddings or live models:
   metadata
 - keep an injected selector seam for later semantic selection without adding a
   runner-owned vector or embedding backend
+- resolve `semantic` profile behavior through the injected selector seam only
 
 ### Slice 4 — Deterministic basic compaction
 

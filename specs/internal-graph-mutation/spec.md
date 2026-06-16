@@ -34,8 +34,9 @@
 
 Define the authoritative repository direction for an internal compile-time
 graph-mutation layer that derives execution-ready workflows from immutable base
-runtime packages, beginning with context-pruning attachment for selected
-`llm_step` nodes.
+runtime packages. Context-pruning attachment for selected `llm_step` nodes was
+the first implementation checkpoint, but the feature's architectural role is a
+higher-level set of derived graph operations.
 
 ## Problem Statement
 
@@ -79,9 +80,11 @@ This feature specification covers:
 
 1. an internal graph-mutation seam applied during workflow preparation
 2. typed internal mutation definitions rather than YAML-first public artifacts
-3. context-pruning attachment as the first mutation target
+3. context-pruning attachment as the first implemented mutation target
 4. required manifest metadata for safe mutation attachment
 5. fail-closed validation rules for derived workflow mutation
+6. future structural insertion, rewiring, and link-level operations over
+   derived runtime graphs
 
 ## Current Status and Boundary
 
@@ -149,7 +152,8 @@ Acceptance criteria:
 ### FR-3: Use context pruning as the first mutation target
 
 The first graph-mutation target must be internal context-pruning attachment for
-selected `llm_step` nodes.
+selected `llm_step` nodes, without reducing graph mutation to context
+management.
 
 Acceptance criteria:
 
@@ -162,6 +166,31 @@ Acceptance criteria:
 - Given future mutation needs may become more structural, when the first slice
   is designed, then the conceptual mutation seam still allows later evolution
   to true derived node and edge rewiring.
+- Given context management is inserted into a user's workflow later, when graph
+  mutation derives the execution graph, then it may insert prepare, pruning,
+  compression, or context-window management operations between `llm_step`
+  nodes rather than only decorating a target node's prompt render context.
+- Given a ReAct-style workflow has a loopback edge from tool feedback or model
+  output into a later `llm_step`, when context management is enabled for that
+  connection, then graph mutation is the owning mechanism for deriving the
+  inserted context-management operation on that link.
+
+### FR-6: Support standalone high-level graph operations
+
+Graph mutation must remain a standalone high-level workflow-derivation feature,
+not a context-management implementation detail.
+
+Acceptance criteria:
+
+- Given a future mutation inserts, removes, replaces, or rewires derived nodes
+  or edges, when the base package is inspected, then the portable workflow
+  artifact remains unchanged.
+- Given a mutation inserts a context-management operation between existing
+  workflow steps, when execution is prepared, then diagnostics identify both
+  the original edge or attachment point and the derived operation.
+- Given non-context-management mutation types are added later, when they share
+  the graph-mutation seam, then they do not need to depend on
+  `context-management-prepare-stage` policy.
 
 ### FR-4: Require explicit workflow metadata for safe attachment
 
@@ -211,6 +240,8 @@ Acceptance criteria:
   Mermaid rewriting.
 - No requirement to expose a stable public YAML mutation schema in the first
   implementation slice.
+- No requirement that every graph mutation be a context-management or
+  prompt-preparation feature.
 
 ## Design Constraints
 
@@ -221,6 +252,8 @@ Acceptance criteria:
 - Prefer the narrowest initial implementation that honestly supports the first
   context-pruning use case while preserving a path to richer structural
   mutation later.
+- Treat context management as one consumer of mutation, not the reason the
+  mutation layer exists.
 
 ## Validation Status
 

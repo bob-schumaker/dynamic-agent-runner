@@ -16,14 +16,15 @@ Status: future backlog; no tasks started
 
 - [ ] T1.1 [tests] Add RED validation coverage for
       `runtime.execution_policy.prepare_model_input.context_compaction.auto`.
-  - Spec: FR7, FR10, FR12, FR14, FR16
+  - Spec: FR7, FR10, FR12, FR14, FR16, FR17
   - Files/components: `tests/test_validation.py`,
     `src/dynamic_agent_runner/validation.py`
   - Cover invalid threshold types, negative thresholds, unknown scopes,
     unsupported implementation modes, invalid strategies, invalid manual/auto
     modes, invalid lane budgets, invalid selection modes, and
     reset-vs-compaction ambiguity. Cover invalid metric and lifecycle-stage
-    declarations if policy exposes them.
+    declarations if policy exposes them. Cover supported and unsupported
+    compression profiles.
   - Validation: `poetry run pytest tests/test_validation.py -q`
 
 - [ ] T1.2 [tests] Add RED executor coverage for turn-unit grouping.
@@ -47,25 +48,27 @@ Status: future backlog; no tasks started
 
 - [ ] T1.4 [implementation] Add normalized compression policy parsing, turn
       grouping, and prepared-input metadata fields.
-  - Spec: FR2, FR6, FR7, FR10, FR12, FR14, FR16
+  - Spec: FR2, FR6, FR7, FR10, FR12, FR14, FR16, FR17
   - Files/components: `src/dynamic_agent_runner/executor.py`,
     `src/dynamic_agent_runner/models.py`
   - Include turn ids, lane ids, threshold, scope, phase, trigger, reason,
     implementation, strategy, mode, window-id, token-baseline, reserve-token,
     lifecycle-stage status, importance/relevance scores, caller-provided
-    access history, metric names, and reset-vs-compaction diagnostics.
+    access history, metric names, effective compression profile, and
+    reset-vs-compaction diagnostics.
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_validation.py -q`
 
 ## Slice 2 — Lane-based prompt assembly
 
 - [ ] T2.1 [tests] Add RED coverage for lane budget assembly.
-  - Spec: FR4, FR5, FR14, FR16
+  - Spec: FR4, FR5, FR14, FR16, FR17
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
   - Cover pinned hierarchy, current turn, recent turns, rolling-summary slot,
     selected older-turn slot, file/tool lane, lane ordering, lane utilization,
-    and lane metadata.
+    lane metadata, and profile-specific lane priority for `balanced`, `fast`,
+    `exact`, `recency_weighted`, and `instruction_weighted`.
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k context_lanes`
 
@@ -107,11 +110,12 @@ Status: future backlog; no tasks started
     `poetry run pytest tests/test_executor.py -q -k chronological_reassembly`
 
 - [ ] T3.3 [implementation] Add deterministic older-turn selector.
-  - Spec: FR6, FR15, FR16
+  - Spec: FR6, FR15, FR16, FR17
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Use deterministic overlap only, add an injected selector seam for future
     semantic selectors, make no built-in embedding/vector calls, and report
-    selected/rejected/omitted metadata.
+    selected/rejected/omitted metadata. Route `semantic` profile behavior
+    through the injected selector seam only.
   - Validation: `poetry run pytest tests/test_executor.py -q`
 
 ## Slice 4 — Deterministic fallback compaction
