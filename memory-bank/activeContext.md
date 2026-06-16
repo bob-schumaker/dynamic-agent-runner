@@ -16,7 +16,8 @@
   tests verify non-macOS use fails before model resolution or `mlx_lm` loading.
 - PyInstaller packaging support for `openai-model-registry` is complete:
   package-owned hook files, metadata advertisement, build-gated DevOps SCM PR,
-  and develop/main branch synchronization are done.
+  develop/main branch synchronization, and post-hoc SDD representation in
+  `specs/pyinstaller-packaging-support/` are done.
 - Context growth management has a dedicated spec package:
   `specs/context-management-prepare-stage/` now owns session pruning, context
   compaction, hierarchical prompt-context injection, and provider-neutral
@@ -63,11 +64,9 @@
   `skill_refs` are derived, with bounded UTF-8 loading, redacted provenance,
   fail-closed validation, and capability/status reporting for metadata-only,
   live, and rejected states.
-- The next ROI action is no longer skill-source or RAG orchestration v1.
-  Local-model advisory implementation should happen only when local-model
-  ergonomics is the immediate driver; context-management implementation remains
-  available from `specs/context-management-prepare-stage/tasks.md` when prompt
-  growth becomes the immediate driver.
+- The next ROI action is no longer skill-source, RAG orchestration v1, or
+  context-management prepare-stage v1. Local-model advisory implementation
+  should happen only when local-model ergonomics is the immediate driver.
 
 ## Recent Completed Work
 
@@ -130,6 +129,8 @@
     and fail with the macOS-only `ModelExecutionError` before resolving model
     paths or loading dependencies when generation is attempted off macOS
 - PyInstaller packaging support for `openai-model-registry` is complete.
+- `pyinstaller-packaging-support` now has a dedicated post-hoc feature spec,
+  implementation plan, task list, validation log, and spec-index coverage.
 - Agent-architecture follow-ups from `AI Agents in Action, Second Edition` are
   tracked across the relevant spec packages without changing implementation
   scope.
@@ -155,9 +156,10 @@
   - `specs/iterative-agent-loop-runtime/spec.md`
   - `specs/skill-source-resolution/spec.md`
   - `specs/rag-orchestration-contract/spec.md`
+  - `specs/context-management-prepare-stage/spec.md`
+  - `specs/pyinstaller-packaging-support/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
-  - `specs/context-management-prepare-stage/spec.md`
 - Later feature packages:
   - `specs/power-marimo-host-automation/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
@@ -173,12 +175,10 @@
 - If extending skill-source support, start a new beyond-v1 plan before adding
   external roots, `source_path` reads, support-file prompt loading, network
   fetching, Markdown frontmatter parsing, or raw-body debugging modes.
-- If implementing context growth management, use
-  `specs/context-management-prepare-stage/plan.md` and `tasks.md`; start with
-  policy/turn-unit metadata, lifecycle diagnostics, scoring/metric fields, and
-  lane-based prompt assembly. Preserve required lanes, reserve output headroom,
-  compression profiles, and add overflowing-history checks before provider or
-  mid-turn compaction.
+- If extending context growth management beyond the implemented prepare-stage
+  slices, create a new approved plan before adding provider-backed remote
+  compaction, semantic selectors, model-backed summaries, richer profile
+  behavior, or prompt-cache-aware ordering.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.

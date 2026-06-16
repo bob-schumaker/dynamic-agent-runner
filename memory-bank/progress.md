@@ -60,6 +60,10 @@
 - The package advertises its PyInstaller hook directory through the
   `pyinstaller40` entry point, and the hook support was merged through the
   build-gated DevOps SCM PR flow.
+- PyInstaller packaging support is now represented by
+  `specs/pyinstaller-packaging-support/`, with `spec.md`, `plan.md`,
+  `tasks.md`, `validation.md`, `specs/README.md` coverage, and primary roadmap
+  coverage in `specs/dynamic-agent-runner/tasks.md`.
 - Skill-source resolution v1 is implemented:
   - `runtime.execution_policy.skill_source_resolution` policy parsing and
     validation
@@ -126,6 +130,8 @@
 - `8f63fb9`, `55a6fba`, and `7b7cf6d` completed package-owned PyInstaller
   hook support for `openai-model-registry`, hook advertisement, and packaging
   cleanup after build validation.
+- `c54164e` added the post-hoc PyInstaller packaging support spec package and
+  reconciled the spec inventory/roadmap so the hook work is represented.
 - `743b38c` added the context-management prepare-stage spec, plan, task list,
   and context-pruning reference relocation out of async-session memory.
 - `5dd0e5a` recast context-management planning around provider-neutral
@@ -199,14 +205,10 @@
   roots, `source_path` reads, support-file prompt loading, network fetching,
   executable skill files, Markdown frontmatter parsing, or raw skill-body trace
   payloads.
-- Live prompt pruning, compaction, and hierarchical prompt-context injection are
-  owned by `context-management-prepare-stage`, not the async-session memory
-  pipeline.
-- Context compression implementation should begin with turn grouping and lane
-  assembly, including lifecycle diagnostics and metric metadata, then
-  compression-profile normalization and deterministic older-turn selection.
-  Required lanes, output headroom, and overflowing-history checks should be
-  addressed before summary generation or provider-owned compaction.
+- Context-management prepare-stage v1 is implemented through Slice 9. Future
+  work should start from a new approved plan for provider-backed remote
+  compaction, semantic selectors, model-backed summaries, richer profile
+  behavior, or prompt-cache-aware ordering.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.
 
