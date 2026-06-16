@@ -91,7 +91,7 @@ Status: future backlog; no tasks started
 
 ## Slice 3 — Deterministic older-turn selection
 
-- [ ] T3.1 [tests] Add RED coverage for deterministic older-turn selection.
+- [x] T3.1 [tests] Add RED coverage for deterministic older-turn selection.
   - Spec: FR15, FR16
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -101,7 +101,7 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k older_turn_selection`
 
-- [ ] T3.2 [tests] Add RED coverage for chronological reassembly.
+- [x] T3.2 [tests] Add RED coverage for chronological reassembly.
   - Spec: FR15
   - Files/components: `tests/test_executor.py`
   - Cover ranked selections returned out of order and final selected-turn
@@ -109,7 +109,7 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k chronological_reassembly`
 
-- [ ] T3.3 [implementation] Add deterministic older-turn selector.
+- [x] T3.3 [implementation] Add deterministic older-turn selector.
   - Spec: FR6, FR15, FR16, FR17
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Use deterministic overlap only, add an injected selector seam for future

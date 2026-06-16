@@ -1348,6 +1348,135 @@ def test_prepare_model_input_enforces_recent_turn_lane_budget() -> None:
     assert lane_map["current_turn"]["part_count"] == 1
 
 
+def test_prepare_model_input_older_turn_selection_selects_relevant_turns() -> None:
+    """Deterministic older-turn selection reports scores and reasons."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "older-turn-selection-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {"auto": {"enabled": True}},
+                        "context_compression": {
+                            "profile": "balanced",
+                            "lanes": {"selected_turn_tokens": 1000},
+                            "selection": {
+                                "strategy": "deterministic_overlap",
+                                "max_selected_turns": 1,
+                                "chronological_reassembly": True,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Explain the billing error in src/billing.py",
+        session_messages=(
+            OpenAIMessage(role="user", content="Discuss src/auth.py login"),
+            OpenAIMessage(role="assistant", content="Auth summary"),
+            OpenAIMessage(role="user", content="Investigate src/billing.py error"),
+            OpenAIMessage(role="assistant", content="Billing stack trace"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "selected_turn_1" in prepared_input.named_parts
+    assert (
+        "src/billing.py error" in prepared_input.named_parts["selected_turn_1"].content
+    )
+    assert prepared_input.preparation.selected_turns == (
+        {
+            "turn_id": "turn_2",
+            "selection_status": "selected",
+            "selection_reason": "deterministic_overlap",
+            "relevance_score": 2,
+        },
+    )
+    lane_map = {
+        lane["lane_id"]: lane for lane in prepared_input.preparation.context_lanes
+    }
+    assert lane_map["selected_older_turns"]["part_count"] == 1
+
+
+def test_prepare_model_input_chronological_reassembly_orders_selected_turns() -> None:
+    """Selected older turns render in original order even when scores differ."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "chronological-selection-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 0},
+                        "context_compaction": {"auto": {"enabled": True}},
+                        "context_compression": {
+                            "profile": "balanced",
+                            "selection": {
+                                "strategy": "deterministic_overlap",
+                                "max_selected_turns": 2,
+                                "chronological_reassembly": True,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="alpha beta beta",
+        session_messages=(
+            OpenAIMessage(role="user", content="alpha"),
+            OpenAIMessage(role="assistant", content="first"),
+            OpenAIMessage(role="user", content="beta beta"),
+            OpenAIMessage(role="assistant", content="second"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    selected_names = [
+        name for name in prepared_input.part_names if name.startswith("selected_turn_")
+    ]
+    assert selected_names == ["selected_turn_1", "selected_turn_2"]
+    assert "alpha" in prepared_input.named_parts["selected_turn_1"].content
+    assert "beta beta" in prepared_input.named_parts["selected_turn_2"].content
+
+
 def test_prepare_model_input_includes_bounded_file_context_with_provenance(
     tmp_path,
 ) -> None:

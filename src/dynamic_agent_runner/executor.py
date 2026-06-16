@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from pathlib import Path
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -179,6 +180,9 @@ class PreparedInputMetadata:
     lane_budgets: Mapping[str, int] = field(default_factory=dict)
     context_lanes: tuple[Mapping[str, Any], ...] = ()
     selection_policy: Mapping[str, Any] = field(default_factory=dict)
+    selected_turns: tuple[Mapping[str, Any], ...] = ()
+    omitted_turns: tuple[Mapping[str, Any], ...] = ()
+    rejected_turns: tuple[Mapping[str, Any], ...] = ()
     lifecycle_stages: tuple[Mapping[str, Any], ...] = ()
     metrics: tuple[str, ...] = ()
 
@@ -474,6 +478,9 @@ def prepare_model_input(
                 "lane_budgets": preparation.lane_budgets,
                 "context_lanes": preparation.context_lanes,
                 "selection_policy": preparation.selection_policy,
+                "selected_turns": preparation.selected_turns,
+                "omitted_turns": preparation.omitted_turns,
+                "rejected_turns": preparation.rejected_turns,
                 "lifecycle_stages": preparation.lifecycle_stages,
                 "metrics": preparation.metrics,
             },
@@ -1741,6 +1748,9 @@ def _merge_prepared_input_metadata(
         lane_budgets=base.lane_budgets,
         context_lanes=base.context_lanes,
         selection_policy=base.selection_policy,
+        selected_turns=base.selected_turns,
+        omitted_turns=base.omitted_turns,
+        rejected_turns=base.rejected_turns,
         lifecycle_stages=base.lifecycle_stages,
         metrics=base.metrics,
     )
@@ -1775,6 +1785,9 @@ def _merge_skill_source_preparation(
         lane_budgets=base.lane_budgets,
         context_lanes=base.context_lanes,
         selection_policy=base.selection_policy,
+        selected_turns=base.selected_turns,
+        omitted_turns=base.omitted_turns,
+        rejected_turns=base.rejected_turns,
         lifecycle_stages=base.lifecycle_stages,
         metrics=base.metrics,
     )
@@ -1850,12 +1863,24 @@ def _apply_prepare_model_input_stage(
         lane_budgets,
         model=model,
     )
+    (
+        selected_turn_parts,
+        selected_turns,
+        omitted_turns,
+        rejected_turns,
+    ) = _selected_older_turn_parts(
+        pruned_session,
+        state.prompt,
+        selection_policy,
+    )
     context_compaction_applied = False
     if pruned_session:
         summary_message = _compacted_session_message(pruned_session, policy)
         if summary_message is not None:
             result_parts.append(("session_summary", summary_message))
             context_compaction_applied = True
+
+    result_parts.extend(selected_turn_parts)
 
     for index, message in enumerate(kept_session, start=1):
         result_parts.append((f"session_message_{index}", message))
@@ -1888,6 +1913,9 @@ def _apply_prepare_model_input_stage(
         lane_budgets=lane_budgets,
         context_lanes=context_lanes,
         selection_policy=selection_policy,
+        selected_turns=selected_turns,
+        omitted_turns=omitted_turns,
+        rejected_turns=rejected_turns,
         lifecycle_stages=lifecycle_stages,
         metrics=metrics,
     )
@@ -2034,6 +2062,108 @@ def _apply_recent_turn_lane_budget(
     return tuple(included), tuple(omitted)
 
 
+def _selected_older_turn_parts(
+    pruned_session: Sequence[OpenAIMessage],
+    prompt: str,
+    selection_policy: Mapping[str, Any],
+) -> tuple[
+    tuple[tuple[str, OpenAIMessage], ...],
+    tuple[Mapping[str, Any], ...],
+    tuple[Mapping[str, Any], ...],
+    tuple[Mapping[str, Any], ...],
+]:
+    if selection_policy.get("strategy") != "deterministic_overlap":
+        return (), (), (), ()
+    max_selected_turns = selection_policy.get("max_selected_turns")
+    if (
+        not isinstance(max_selected_turns, int)
+        or isinstance(max_selected_turns, bool)
+        or max_selected_turns <= 0
+    ):
+        return (), (), (), ()
+
+    prompt_tokens = _selection_tokens(prompt)
+    if not prompt_tokens:
+        return (), (), (), ()
+
+    scored_turns: list[tuple[int, int, str, tuple[OpenAIMessage, ...]]] = []
+    rejected_turns: list[Mapping[str, Any]] = []
+    for turn_index, messages in enumerate(_session_turns(pruned_session), start=1):
+        turn_text = "\n".join(message.content for message in messages)
+        score = len(prompt_tokens & _selection_tokens(turn_text))
+        if score > 0:
+            scored_turns.append((score, turn_index, f"turn_{turn_index}", messages))
+        else:
+            rejected_turns.append(
+                {
+                    "turn_id": f"turn_{turn_index}",
+                    "selection_status": "rejected",
+                    "selection_reason": "no_deterministic_overlap",
+                    "relevance_score": 0,
+                }
+            )
+
+    ranked_candidates = sorted(scored_turns, key=lambda item: (-item[0], item[1]))
+    selected_candidates = ranked_candidates[:max_selected_turns]
+    omitted_candidates = ranked_candidates[max_selected_turns:]
+    if selection_policy.get("chronological_reassembly") is not False:
+        selected_candidates = sorted(selected_candidates, key=lambda item: item[1])
+
+    parts: list[tuple[str, OpenAIMessage]] = []
+    metadata: list[Mapping[str, Any]] = []
+    for selected_index, (score, _turn_index, turn_id, messages) in enumerate(
+        selected_candidates,
+        start=1,
+    ):
+        lines = [f"Selected older turn {turn_id}:"]
+        lines.extend(f"- {message.role}: {message.content}" for message in messages)
+        parts.append(
+            (
+                f"selected_turn_{selected_index}",
+                OpenAIMessage(role="developer", content="\n".join(lines)),
+            )
+        )
+        metadata.append(
+            {
+                "turn_id": turn_id,
+                "selection_status": "selected",
+                "selection_reason": "deterministic_overlap",
+                "relevance_score": score,
+            }
+        )
+    omitted_turns = tuple(
+        {
+            "turn_id": turn_id,
+            "selection_status": "omitted",
+            "selection_reason": "max_selected_turns_exceeded",
+            "relevance_score": score,
+        }
+        for score, _turn_index, turn_id, _messages in omitted_candidates
+    )
+    return tuple(parts), tuple(metadata), omitted_turns, tuple(rejected_turns)
+
+
+def _session_turns(
+    session_messages: Sequence[OpenAIMessage],
+) -> tuple[tuple[OpenAIMessage, ...], ...]:
+    turns: list[list[OpenAIMessage]] = []
+    current: list[OpenAIMessage] = []
+    for message in session_messages:
+        if message.role == "user" and current:
+            turns.append(current)
+            current = []
+        current.append(message)
+    if current:
+        turns.append(current)
+    return tuple(tuple(turn) for turn in turns)
+
+
+def _selection_tokens(value: str) -> set[str]:
+    return {
+        token for token in re.findall(r"[A-Za-z]+", value.lower()) if len(token) >= 4
+    }
+
+
 def _context_lane_metadata(
     parts: Sequence[tuple[str, OpenAIMessage]],
     lane_budgets: Mapping[str, int],
@@ -2044,6 +2174,7 @@ def _context_lane_metadata(
         "pinned",
         "file_tool",
         "rolling_summary",
+        "selected_older_turns",
         "recent_turns",
         "current_turn",
     )
@@ -2080,6 +2211,8 @@ def _part_lane_id(part_name: str) -> str:
         return "file_tool"
     if part_name == "session_summary":
         return "rolling_summary"
+    if part_name.startswith("selected_turn_"):
+        return "selected_older_turns"
     if part_name.startswith("session_message_"):
         return "recent_turns"
     if part_name == "user_prompt":
@@ -2092,6 +2225,7 @@ def _lane_budget_key(lane_id: str) -> str:
         "pinned": "pinned_tokens",
         "file_tool": "file_context_tokens",
         "rolling_summary": "summary_tokens",
+        "selected_older_turns": "selected_turn_tokens",
         "recent_turns": "recent_turn_tokens",
         "current_turn": "current_turn_tokens",
     }[lane_id]
