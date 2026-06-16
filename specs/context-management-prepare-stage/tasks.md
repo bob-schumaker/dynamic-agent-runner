@@ -227,7 +227,7 @@ Status: future backlog; no tasks started
 
 ## Slice 7 — Mid-turn iterative-loop compaction
 
-- [ ] T7.1 [tests] Add RED iterative-loop coverage for mid-turn compaction
+- [x] T7.1 [tests] Add RED iterative-loop coverage for mid-turn compaction
       unavailability.
   - Spec: FR8
   - Files/components: `tests/test_executor.py`
@@ -235,7 +235,7 @@ Status: future backlog; no tasks started
     after threshold exhaustion and mid-turn compaction is not enabled.
   - Validation: `poetry run pytest tests/test_executor.py -q -k mid_turn_compaction`
 
-- [ ] T7.2 [implementation] Add mid-turn compaction for eligible iterative
+- [x] T7.2 [implementation] Add mid-turn compaction for eligible iterative
       loops.
   - Spec: FR8, FR10
   - Files/components: `src/dynamic_agent_runner/executor.py`

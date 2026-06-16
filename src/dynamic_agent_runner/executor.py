@@ -225,6 +225,7 @@ class PreparedModelInput:
     model_parameters: Mapping[str, Any] = field(default_factory=dict)
     tool_choice: Any = None
     response_format: Mapping[str, Any] | None = None
+    context_compactor: ContextCompactor | None = None
 
     @property
     def part_names(self) -> tuple[str, ...]:
@@ -246,6 +247,7 @@ async def execute_workflow_async(
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
+    context_compactor: ContextCompactor | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt asynchronously."""
 
@@ -326,6 +328,7 @@ async def execute_workflow_async(
                     context.prompt_cache,
                     hooks,
                     context.model_adapter_coverage,
+                    context_compactor,
                 )
             except Exception as exc:
                 tracer.emit(
@@ -395,6 +398,7 @@ def execute_workflow(
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
+    context_compactor: ContextCompactor | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -411,6 +415,7 @@ def execute_workflow(
             lifecycle_hooks=lifecycle_hooks,
             model_adapter_coverage=model_adapter_coverage,
             run_id=run_id,
+            context_compactor=context_compactor,
         )
     )
 
@@ -525,6 +530,7 @@ def prepare_model_input(
         model_parameters=_model_parameters(node),
         tool_choice=node.tool_choice,
         response_format=node.response_format,
+        context_compactor=context_compactor,
     )
 
 
@@ -596,6 +602,7 @@ async def _execute_node_async(
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str,
+    context_compactor: ContextCompactor | None,
 ) -> Any:
     if node.kind == "llm_step":
         return await _execute_llm_step_async(
@@ -608,6 +615,7 @@ async def _execute_node_async(
             prompt_cache,
             lifecycle_hooks,
             model_adapter_coverage,
+            context_compactor,
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
@@ -724,6 +732,7 @@ async def _execute_llm_step_async(
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str,
+    context_compactor: ContextCompactor | None,
 ) -> ModelResponse:
     prepared_input = prepare_model_input(
         node,
@@ -733,6 +742,7 @@ async def _execute_llm_step_async(
         tracer=tracer,
         prompt_cache=prompt_cache,
         model_adapter_coverage=model_adapter_coverage,
+        context_compactor=context_compactor,
     )
     tools: list[dict[str, Any]] = []
     exposed_tools: tuple[RegisteredTool, ...] = ()
@@ -962,7 +972,21 @@ async def _request_loop_model_response_async(
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ModelResponse:
-    messages = (*prepared_input.messages, *transcript)
+    messages, mid_turn_compaction = _apply_mid_turn_compaction(
+        (*prepared_input.messages, *transcript),
+        plan,
+        prepared_input,
+    )
+    if mid_turn_compaction:
+        tracer.emit(
+            "mid_turn_compaction",
+            node_id=str(node.id),
+            payload=mid_turn_compaction,
+        )
+    if mid_turn_compaction.get("status") == "missing_collaborator":
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} requires mid-turn context compaction"
+        )
     request = build_openai_request(
         model=prepared_input.model,
         messages=messages,
@@ -1031,6 +1055,43 @@ async def _request_loop_model_response_async(
     )
     _record_prompt_cache_provider_telemetry(response, node, tracer)
     return response
+
+
+def _apply_mid_turn_compaction(
+    messages: Sequence[OpenAIMessage | Mapping[str, Any]],
+    plan: ExecutionPlan,
+    prepared_input: PreparedModelInput,
+) -> tuple[tuple[OpenAIMessage | Mapping[str, Any], ...], Mapping[str, Any]]:
+    normalized_messages = tuple(
+        _message_from_model_input(message) for message in messages
+    )
+    compacted_parts, metadata = _apply_pre_turn_compaction(
+        tuple(
+            (f"mid_turn_message_{index}", message)
+            for index, message in enumerate(normalized_messages, start=1)
+        ),
+        _prepare_model_input_policy(plan.execution_policy),
+        prepared_input.adapter,
+        model=prepared_input.model,
+        context_compactor=prepared_input.context_compactor,
+    )
+    if not metadata:
+        return tuple(messages), {}
+    metadata = {**metadata, "phase": "mid_turn"}
+    if metadata.get("status") != "complete":
+        return tuple(messages), metadata
+    return tuple(message for _part_name, message in compacted_parts), metadata
+
+
+def _message_from_model_input(
+    message: OpenAIMessage | Mapping[str, Any],
+) -> OpenAIMessage:
+    if isinstance(message, OpenAIMessage):
+        return message
+    return OpenAIMessage(
+        role=str(message.get("role") or "user"),
+        content=str(message.get("content") or ""),
+    )
 
 
 async def _invoke_model_tool_call_async(

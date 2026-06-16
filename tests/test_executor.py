@@ -2505,6 +2505,109 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     }
 
 
+def test_execute_workflow_mid_turn_compaction_fails_without_compactor() -> None:
+    workflow = loop_tool_workflow()
+    workflow.runtime_manifest.execution_policy["prepare_model_input"] = {
+        "context_compaction": {
+            "auto": {
+                "enabled": True,
+                "threshold_tokens": 20,
+                "implementation": "injected",
+            }
+        }
+    }
+    registry = InMemoryToolRegistry(
+        [make_tool("search_repo", output={"summary": "agents found " * 20})]
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="mid-turn context compaction"):
+        execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=registry,
+            model_adapter=adapter,
+        )
+
+
+def test_execute_workflow_mid_turn_compaction_uses_injected_compactor() -> None:
+    workflow = loop_tool_workflow()
+    workflow.runtime_manifest.execution_policy["prepare_model_input"] = {
+        "context_compaction": {
+            "auto": {
+                "enabled": True,
+                "threshold_tokens": 20,
+                "implementation": "injected",
+            }
+        }
+    }
+    registry = InMemoryToolRegistry(
+        [make_tool("search_repo", output={"summary": "agents found " * 20})]
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+
+    def fake_compactor(
+        _messages: tuple[OpenAIMessage, ...],
+        metadata: Mapping[str, Any],
+    ) -> tuple[OpenAIMessage, ...]:
+        assert metadata["phase"] == "pre_turn"
+        return (
+            OpenAIMessage(role="developer", content="Mid-turn compacted context."),
+            OpenAIMessage(role="user", content="Continue."),
+        )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+        context_compactor=fake_compactor,
+    )
+
+    assert result.final_result == "final answer"
+    second_input = adapter.client.responses.calls[1]["input"]
+    assert second_input == [
+        {"role": "developer", "content": "Mid-turn compacted context."},
+        {"role": "user", "content": "Continue."},
+    ]
+    compaction_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "mid_turn_compaction"
+    ]
+    assert compaction_events[0].payload["status"] == "complete"
+    assert compaction_events[0].payload["phase"] == "mid_turn"
+
+
 def test_execute_workflow_traces_iterative_model_tool_loop() -> None:
     workflow = loop_tool_workflow()
     registry = InMemoryToolRegistry(
