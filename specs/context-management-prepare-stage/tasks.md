@@ -175,7 +175,7 @@ Status: future backlog; no tasks started
 
 ## Slice 5 — Rolling summary compaction
 
-- [ ] T5.1 [tests] Add RED rolling summary coverage with a fake
+- [x] T5.1 [tests] Add RED rolling summary coverage with a fake
       model adapter.
   - Spec: FR3, FR14, FR16
   - Files/components: `tests/test_executor.py`
@@ -185,7 +185,7 @@ Status: future backlog; no tasks started
     information-retention proxy metadata, and failure taxonomy.
   - Validation: `poetry run pytest tests/test_executor.py -q -k local_compaction`
 
-- [ ] T5.2 [implementation] Add explicit rolling summary compaction.
+- [x] T5.2 [implementation] Add explicit rolling summary compaction.
   - Spec: FR3, FR9, FR14, FR16
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Require explicit policy opt-in; no hidden live model call. Emit summary

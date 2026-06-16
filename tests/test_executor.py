@@ -1384,6 +1384,133 @@ def test_prepare_model_input_compaction_tool_pairs_preserves_latest_turn() -> No
     assert prepared_input.preparation.session_messages_included == 4
 
 
+def test_prepare_model_input_local_compaction_builds_rolling_summary() -> None:
+    """Explicit rolling-summary compaction uses structured local preparation."""
+
+    adapter = make_adapter([])
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "rolling-summary-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "rolling_summary",
+                            "rolling_summary": {
+                                "enabled": True,
+                                "prior_summary_slot": "rolling_summary",
+                                "source_provenance_slot": "source_provenance",
+                                "max_retained_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        node_outputs={
+            "rolling_summary": "Earlier summary to fold forward.",
+            "source_provenance": ["docs/guide.md", "README.md"],
+        },
+        session_messages=(
+            OpenAIMessage(role="user", content="first old request"),
+            OpenAIMessage(role="assistant", content="first old answer"),
+            OpenAIMessage(role="user", content="second old request"),
+            OpenAIMessage(role="assistant", content="second old answer"),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+    )
+
+    summary = prepared_input.named_parts["session_summary"].content
+    assert "## Prior Summary\nEarlier summary to fold forward." in summary
+    assert "## Retained Turns\n- user: second old request" in summary
+    assert "- assistant: second old answer" in summary
+    assert "first old request" not in summary
+    assert "## Source Provenance\n- docs/guide.md\n- README.md" in summary
+    assert prepared_input.part_names == (
+        "session_summary",
+        "session_message_1",
+        "session_message_2",
+        "user_prompt",
+    )
+    assert prepared_input.preparation.compaction["strategy"] == "rolling_summary"
+    assert prepared_input.preparation.compaction["retained_turn_count"] == 1
+    assert prepared_input.preparation.compaction["information_retention_proxy"] > 0
+    assert adapter.client.responses.calls == []
+
+
+def test_prepare_model_input_local_compaction_skips_summary_without_eviction() -> None:
+    """Rolling-summary compaction is a no-op when no history is evicted."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "rolling-summary-noop-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 4},
+                        "context_compaction": {
+                            "strategy": "rolling_summary",
+                            "rolling_summary": {"enabled": True},
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "session_summary" not in prepared_input.named_parts
+    assert prepared_input.preparation.compaction == {}
+
+
 def test_prepare_model_input_reports_context_lanes() -> None:
     """prepare_model_input reports ordered context lanes and utilization metadata."""
 

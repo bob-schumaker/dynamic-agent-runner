@@ -1899,7 +1899,7 @@ def _apply_prepare_model_input_stage(
     context_compaction_applied = False
     compaction_metadata: Mapping[str, Any] = {}
     if pruned_session:
-        summary_message = _compacted_session_message(pruned_session, policy)
+        summary_message = _compacted_session_message(pruned_session, policy, state)
         if summary_message is not None:
             result_parts.append(("session_summary", summary_message))
             context_compaction_applied = True
@@ -2660,11 +2660,14 @@ def _pruned_session_messages(
 def _compacted_session_message(
     pruned_session: Sequence[OpenAIMessage],
     policy: Mapping[str, Any],
+    state: WorkflowExecutionState,
 ) -> OpenAIMessage | None:
     compaction = policy.get("context_compaction")
     if not isinstance(compaction, Mapping):
         return None
     strategy = str(compaction.get("strategy") or "summary_message")
+    if strategy == "rolling_summary":
+        return _rolling_summary_message(pruned_session, compaction, state)
     if strategy not in {"summary_message", "basic"}:
         return None
     role = str(compaction.get("summary_role") or "developer")
@@ -2676,6 +2679,71 @@ def _compacted_session_message(
     for message in pruned_session:
         lines.append(f"- {message.role}: {_truncate_text(message.content, max_chars)}")
     return OpenAIMessage(role=role, content="\n".join(lines))
+
+
+def _rolling_summary_message(
+    pruned_session: Sequence[OpenAIMessage],
+    compaction: Mapping[str, Any],
+    state: WorkflowExecutionState,
+) -> OpenAIMessage | None:
+    rolling_summary = compaction.get("rolling_summary")
+    if (
+        not isinstance(rolling_summary, Mapping)
+        or rolling_summary.get("enabled") is not True
+    ):
+        return None
+    role = str(compaction.get("summary_role") or "developer")
+    prior_summary_slot = str(
+        rolling_summary.get("prior_summary_slot") or "rolling_summary"
+    )
+    source_slot = str(
+        rolling_summary.get("source_provenance_slot") or "source_provenance"
+    )
+    retained_turns = _retained_rolling_summary_turns(
+        pruned_session,
+        rolling_summary,
+    )
+    lines = [
+        "Rolling context summary:",
+        "## Prior Summary",
+        str(state.node_outputs.get(prior_summary_slot) or "Not recorded."),
+        "## Retained Turns",
+    ]
+    if retained_turns:
+        for turn in retained_turns:
+            lines.extend(f"- {message.role}: {message.content}" for message in turn)
+    else:
+        lines.append("Not recorded.")
+    lines.extend(["## Source Provenance"])
+    source_provenance = _rolling_summary_source_provenance(
+        state.node_outputs.get(source_slot)
+    )
+    if source_provenance:
+        lines.extend(f"- {source}" for source in source_provenance)
+    else:
+        lines.append("Not recorded.")
+    lines.extend(["## Open Decisions", "Not recorded."])
+    return OpenAIMessage(role=role, content="\n".join(lines))
+
+
+def _retained_rolling_summary_turns(
+    pruned_session: Sequence[OpenAIMessage],
+    rolling_summary: Mapping[str, Any],
+) -> tuple[tuple[OpenAIMessage, ...], ...]:
+    max_retained_turns = (
+        _optional_positive_int(rolling_summary.get("max_retained_turns")) or 1
+    )
+    return _session_turns(pruned_session)[-max_retained_turns:]
+
+
+def _rolling_summary_source_provenance(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return tuple(str(item) for item in value if item is not None)
+    return (str(value),)
 
 
 def _compaction_metadata(
@@ -2709,6 +2777,28 @@ def _compaction_metadata(
         "tokens_before": before_tokens,
         "tokens_after": after_tokens,
         "compression_ratio": after_tokens / before_tokens if before_tokens else 1,
+        **_rolling_summary_metadata(pruned_session, compaction),
+    }
+
+
+def _rolling_summary_metadata(
+    pruned_session: Sequence[OpenAIMessage],
+    compaction: Any,
+) -> Mapping[str, Any]:
+    if not isinstance(compaction, Mapping):
+        return {}
+    if str(compaction.get("strategy") or "") != "rolling_summary":
+        return {}
+    rolling_summary = compaction.get("rolling_summary")
+    if not isinstance(rolling_summary, Mapping):
+        return {}
+    retained_turn_count = len(
+        _retained_rolling_summary_turns(pruned_session, rolling_summary)
+    )
+    total_turn_count = max(len(_session_turns(pruned_session)), 1)
+    return {
+        "retained_turn_count": retained_turn_count,
+        "information_retention_proxy": retained_turn_count / total_turn_count,
     }
 
 
