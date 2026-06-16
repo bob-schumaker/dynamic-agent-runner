@@ -14,6 +14,11 @@ from dynamic_agent_runner.artifacts import (
 )
 from dynamic_agent_runner.errors import WorkflowValidationError
 from dynamic_agent_runner.models import LoadedAgentWorkflow
+from dynamic_agent_runner.skill_sources import (
+    RejectedSkillSource,
+    ResolvedSkillSource,
+    SkillSourceResolutionPolicy,
+)
 from dynamic_agent_runner.validation import (
     validate_agent_workflow,
     validate_runtime_manifest,
@@ -1133,6 +1138,112 @@ def test_tool_use_completion_policy_passes_with_supported_metadata() -> None:
     }
 
     validate_mapping(data)
+
+
+def test_skill_source_resolution_policy_passes_with_supported_metadata() -> None:
+    """Skill-source resolution accepts the prepared package-local v1 policy."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "skill_source_resolution": {
+                "enabled": True,
+                "allowed_sources": ["package_bundle"],
+                "max_skill_bytes": 1024,
+                "max_node_skill_bytes": 4096,
+                "load_support_files": False,
+                "prompt_role": "developer",
+            },
+        }
+    }
+
+    manifest = load_runtime_manifest(data)
+
+    validate_runtime_manifest(manifest)
+    assert manifest.skill_source_resolution_policy is not None
+    assert manifest.skill_source_resolution_policy.enabled is True
+    assert manifest.skill_source_resolution_policy.allowed_sources == (
+        "package_bundle",
+    )
+    assert manifest.skill_source_resolution_policy.to_policy() == (
+        SkillSourceResolutionPolicy(
+            enabled=True,
+            allowed_sources=("package_bundle",),
+            max_skill_bytes=1024,
+            max_node_skill_bytes=4096,
+            load_support_files=False,
+            prompt_role="developer",
+            raw=manifest.skill_source_resolution_policy.raw,
+        )
+    )
+
+
+def test_skill_source_resolution_policy_fails_closed_for_bad_values() -> None:
+    """Skill-source resolution rejects unsupported v1 policy metadata."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "skill_source_resolution": {
+                "enabled": "yes",
+                "allowed_sources": ["package_bundle", "global_user"],
+                "max_skill_bytes": 4096,
+                "max_node_skill_bytes": 1024,
+                "load_support_files": True,
+                "prompt_role": "user",
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".enabled must be boolean" in message
+    assert ".allowed_sources contains unsupported values ['global_user']" in message
+    assert (
+        ".max_node_skill_bytes must be greater than or equal to max_skill_bytes"
+        in message
+    )
+    assert ".load_support_files is not supported in v1" in message
+    assert ".prompt_role has unsupported value 'user'" in message
+
+
+def test_skill_source_provenance_models_redact_raw_content() -> None:
+    """Resolver provenance models expose diagnostics without skill bodies."""
+
+    resolved = ResolvedSkillSource(
+        skill_id="demo",
+        body="# Demo\nsecret details",
+        source_kind="package_bundle",
+        trust="package_local",
+        package_id="pkg",
+        bundled_path="skills/demo/SKILL.md",
+        content_hash="sha256:abc",
+        byte_count=21,
+    )
+    rejected = RejectedSkillSource(
+        skill_id="demo",
+        reason="unsupported encoding",
+        source_kind="package_bundle",
+        bundled_path="skills/demo/SKILL.md",
+    )
+
+    resolved_metadata = resolved.redacted_metadata()
+    rejected_metadata = rejected.redacted_metadata()
+
+    assert "body" not in resolved_metadata
+    assert "secret details" not in str(resolved_metadata)
+    assert resolved_metadata["skill_id"] == "demo"
+    assert resolved_metadata["content_hash"] == "sha256:abc"
+    assert rejected_metadata == {
+        "skill_id": "demo",
+        "reason": "unsupported encoding",
+        "source_kind": "package_bundle",
+        "bundled_path": "skills/demo/SKILL.md",
+    }
 
 
 def test_async_session_policy_fails_closed_for_bad_values() -> None:

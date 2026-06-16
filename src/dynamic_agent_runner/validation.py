@@ -19,6 +19,10 @@ from dynamic_agent_runner.models import (
     ToolType,
 )
 from dynamic_agent_runner.prompt_cache import prompt_cache_policy_from_value
+from dynamic_agent_runner.skill_sources import (
+    SUPPORTED_SKILL_SOURCE_KINDS,
+    SUPPORTED_SKILL_SOURCE_PROMPT_ROLES,
+)
 
 SUPPORTED_FORMAT_VERSION = 1
 SUPPORTED_PACKAGE_TYPE = "dynamic_agent_design"
@@ -190,6 +194,8 @@ SUPPORTED_SANDBOX_RUNTIME_COMMAND_POLICY_VALUES = {
     "allow_list",
     "caller_controlled",
 }
+SUPPORTED_SKILL_SOURCE_ALLOWED_SOURCES = set(SUPPORTED_SKILL_SOURCE_KINDS)
+SUPPORTED_SKILL_SOURCE_PROMPT_ROLE_VALUES = set(SUPPORTED_SKILL_SOURCE_PROMPT_ROLES)
 SUPPORTED_HANDOFF_ON_HANDOFF_VALUES = {"switch_active_profile"}
 SUPPORTED_HANDOFF_NESTED_HISTORY_VALUES = {"preserve", "drop", "filtered"}
 SUPPORTED_AGENT_AS_TOOL_OUTPUT_MODE_VALUES = {
@@ -334,6 +340,7 @@ def validate_runtime_manifest(
     _extend(errors, _approval_interruption_policy_errors(manifest))
     _extend(errors, _async_session_policy_errors(manifest))
     _extend(errors, _sandbox_runtime_policy_errors(manifest))
+    _extend(errors, _skill_source_resolution_policy_errors(manifest))
     _extend(errors, _handoff_metadata_errors(manifest))
     _extend(errors, _agent_as_tool_metadata_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
@@ -1428,6 +1435,83 @@ def _sandbox_runtime_policy_errors(manifest: RuntimeManifest) -> list[str]:
     _validate_sandbox_runtime_state_key_types(policy, label, errors)
     _validate_sandbox_runtime_consistency(policy, label, errors)
     return errors
+
+
+def _skill_source_resolution_policy_errors(manifest: RuntimeManifest) -> list[str]:
+    policy = manifest.execution_policy.get("skill_source_resolution")
+    if policy is None:
+        return []
+    if not isinstance(policy, Mapping):
+        return ["runtime.execution_policy.skill_source_resolution must be a mapping"]
+
+    errors: list[str] = []
+    label = "runtime.execution_policy.skill_source_resolution"
+    _validate_optional_bool(policy, "enabled", label, errors)
+    _validate_optional_bool(policy, "load_support_files", label, errors)
+    _validate_optional_enum(
+        policy,
+        "prompt_role",
+        SUPPORTED_SKILL_SOURCE_PROMPT_ROLE_VALUES,
+        label,
+        errors,
+    )
+    _skill_source_allowed_sources_errors(policy, label, errors)
+    _skill_source_size_limit_errors(policy, label, errors)
+    if policy.get("load_support_files") is True:
+        errors.append(f"{label}.load_support_files is not supported in v1")
+    return errors
+
+
+def _skill_source_allowed_sources_errors(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    allowed_sources = policy.get("allowed_sources")
+    if allowed_sources is None:
+        return
+    if not _is_string_list(allowed_sources):
+        errors.append(f"{label}.allowed_sources must be a list of strings")
+        return
+    if not allowed_sources:
+        errors.append(f"{label}.allowed_sources must not be empty when provided")
+        return
+    unsupported = sorted(
+        source
+        for source in allowed_sources
+        if source not in SUPPORTED_SKILL_SOURCE_ALLOWED_SOURCES
+    )
+    if unsupported:
+        errors.append(
+            f"{label}.allowed_sources contains unsupported values {unsupported!r}"
+        )
+
+
+def _skill_source_size_limit_errors(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    for field_name in ("max_skill_bytes", "max_node_skill_bytes"):
+        value = policy.get(field_name)
+        if value is None:
+            continue
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            errors.append(f"{label}.{field_name} must be a positive integer")
+
+    skill_limit = policy.get("max_skill_bytes")
+    node_limit = policy.get("max_node_skill_bytes")
+    if (
+        isinstance(skill_limit, int)
+        and not isinstance(skill_limit, bool)
+        and isinstance(node_limit, int)
+        and not isinstance(node_limit, bool)
+        and node_limit < skill_limit
+    ):
+        errors.append(
+            f"{label}.max_node_skill_bytes must be greater than or equal to "
+            "max_skill_bytes"
+        )
 
 
 def _validate_async_session_state_key_types(
