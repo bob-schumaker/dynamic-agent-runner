@@ -384,3 +384,45 @@ mke the specs internally consistent and update the README and completion matrix
 ---
 
 evaluate Micheal Lanham's `AI Agents in Action, Second Edition: Intelligent Workflows With LLMs, MCP, A2A, and More` for any useful ideas or improvements
+
+---
+
+this is the automation used for devops scm-git in bash. use this guidance to create patterns we can remember across sessions.
+
+```bash
+scm-session ()
+{
+    local PROFILE=${1:-DEFAULT};
+    local REGION=${2:-us-phoenix-1};
+    if ! oci session validate --local --profile "${PROFILE}" --region "${REGION}"; then
+        oci session authenticate --profile-name "${PROFILE}" --region "${REGION}" --tenancy-name bmc_operator_access;
+    else
+        oci session refresh --profile "${PROFILE}";
+    fi
+}
+
+choose-git ()
+{
+    local VERB="${1}";
+    local GIT_COMMAND;
+    local remote_commands=("clone" "fetch" "pull" "push" "remote");
+    if [[ -n "${VERB}" && ! " ${remote_commands[*]} " =~ [[:space:]]${VERB}[[:space:]] ]]; then
+        GIT_COMMAND="command git";
+    else
+        if [[ -f .git/config ]] && grep devops.scmservice .git/config > /dev/null; then
+            scm-session 2> /dev/null > /dev/null;
+            GIT_COMMAND="scm-git";
+        else
+            GIT_COMMAND="command git";
+        fi;
+    fi;
+    echo "${GIT_COMMAND}"
+}
+
+git ()
+{
+    local GIT_COMMAND;
+    GIT_COMMAND=$(choose-git "$1");
+    ${GIT_COMMAND} "$@"
+}
+```

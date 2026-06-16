@@ -22,6 +22,14 @@
   group. The package-owned provider is
   `dynamic_agent_runner.__pyinstaller:get_hook_dirs`, which returns bundled hook
   files under `src/dynamic_agent_runner/__pyinstaller/`.
+- OCI DevOps SCM git automation should validate sessions with
+  `oci session validate --local --profile DEFAULT --region us-phoenix-1`.
+  If invalid, authenticate with `oci session authenticate --profile-name DEFAULT`
+  plus `--region us-phoenix-1 --tenancy-name bmc_operator_access`;
+  if valid, refresh with `oci session refresh --profile DEFAULT`. Use
+  `scm-git` for remote git verbs against `devops.scmservice` remotes.
+  Authentication is not fully unattended: the user must manage the browser login
+  and any key/profile prompts in the session workflow.
 
 ## Main Dependencies
 

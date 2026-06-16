@@ -200,6 +200,13 @@
   hooks live under the package and are exposed through installed distribution
   entry points so downstream frozen clients collect required third-party data
   files and metadata automatically.
+- OCI DevOps SCM remotes should use an auth-aware git routing pattern for
+  remote verbs. For repositories whose `.git/config` contains
+  `devops.scmservice`, run an OCI session check before `clone`, `fetch`,
+  `pull`, `push`, or `remote`, and dispatch those verbs through `scm-git`;
+  non-remote git verbs should continue to use `command git`. Session
+  authentication is human-in-the-loop: `oci session authenticate` opens a
+  browser login and may require the user to complete key/profile prompts.
 - Local model support now has two distinct advisory fit layers in the specs:
   `llmfit-model-fit-filter` is pre-download Hugging Face candidate filtering,
   while `llama-cpp-memory-fit-profile` is post-resolution profiling for a
