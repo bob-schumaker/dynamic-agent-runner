@@ -364,3 +364,19 @@ evaluate "/Users/roschuma/.vaults/Personal/Strategies and Techniques for Managin
 ---
 
 track this analysis in the spec
+
+---
+
+the graph mutation spec is for a standalone high level set of operations. context management is one usage of mutation when we decide to add context management to the users workflow, e.g. we would insert it in the links between LLM steps, for example into the loopback connection in a ReAct agent model
+
+---
+
+should we add an llm step setting that is something "fast", "semantic", "front-weighted" so that clients can ask for specific classes of context window compression as opposed to the default we will use when the context window gets "too large"
+
+---
+
+use those definitions and use instruction_weighted instead of front_weighted
+
+---
+
+mke the specs internally consistent and update the README and completion matrix

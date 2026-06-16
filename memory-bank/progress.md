@@ -72,6 +72,12 @@
   optional lanes, output/continuation headroom, lost-in-the-middle-aware
   ordering, model-routing boundaries, exact-retrieval boundaries, and
   overflowing-history evaluation fixtures.
+- Context-management compression profiles are now specified as policy presets:
+  `balanced`, `fast`, `exact`, `semantic`, `recency_weighted`, and
+  `instruction_weighted`.
+- The spec inventory and completion matrix now include
+  `context-management-prepare-stage`, and graph mutation is documented as the
+  derived workflow-operation layer rather than a context-management helper.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -104,6 +110,11 @@
 - `bc65162` tracked context-window survey findings in the spec, including
   required/optional context, reserve-token headroom, lost-in-the-middle
   ordering, model routing, exact retrieval, and overflow fixture guidance.
+- `b7bb17e` refined context-compression boundaries, added named compression
+  profiles, and clarified graph mutation as the workflow-derivation mechanism
+  for future context-management attachment or insertion.
+- `89488e4` aligned the top-level README, spec inventory, completion matrix,
+  and graph-mutation planning artifacts with those boundaries.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -134,9 +145,9 @@
   pipeline.
 - Context compression implementation should begin with turn grouping and lane
   assembly, including lifecycle diagnostics and metric metadata, then
-  deterministic older-turn selection. Required lanes, output headroom, and
-  overflowing-history checks should be addressed before summary generation or
-  provider-owned compaction.
+  compression-profile normalization and deterministic older-turn selection.
+  Required lanes, output headroom, and overflowing-history checks should be
+  addressed before summary generation or provider-owned compaction.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.
 
