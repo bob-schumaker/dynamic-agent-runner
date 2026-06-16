@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from dynamic_agent_runner.artifacts import load_agent_package
+from dynamic_agent_runner.artifacts import compile_loaded_workflow, load_agent_package
 from dynamic_agent_runner.errors import WorkflowExecutionError, WorkflowValidationError
 from dynamic_agent_runner.executor import (
     WorkflowExecutionState,
@@ -181,6 +181,55 @@ def test_package_local_bundled_skill_sources_render_in_effective_order(
     assert trace_loaded[0]["skill_id"] == "first"
     assert trace_loaded[0]["content_hash"].startswith("sha256:")
     assert "Use question first" not in str(trace_loaded)
+
+
+def test_package_local_skill_sources_follow_runtime_skill_ref_overrides(
+    tmp_path,
+) -> None:
+    """Runtime overrides choose the source-backed skill set before loading."""
+
+    package_dir = tmp_path / "skill-source-overrides"
+    for name in ("base", "added"):
+        skill_path = package_dir / "skill-bundle" / "skills" / name / "SKILL.md"
+        skill_path.parent.mkdir(parents=True)
+        skill_path.write_text(f"# {name}\nUse {name}.\n", encoding="utf-8")
+    _write_skill_package(
+        package_dir,
+        skill_entries=(
+            "  - id: base\n"
+            "    bundled_path: skills/base/SKILL.md\n"
+            "  - id: added\n"
+            "    bundled_path: skills/added/SKILL.md"
+        ),
+        node_skill_refs='["base"]',
+    )
+    compiled = compile_loaded_workflow(
+        load_agent_package(package_dir),
+        runtime_overrides={
+            "version": 1,
+            "nodes": {
+                "analyze_request": {
+                    "skill_refs": {
+                        "remove": ["base"],
+                        "add": ["added"],
+                    }
+                }
+            },
+        },
+    )
+    plan = prepare_execution_plan(compiled)
+
+    prepared = prepare_model_input(
+        plan.nodes_by_id["analyze_request"],
+        plan,
+        WorkflowExecutionState(prompt="question"),
+    )
+
+    assert [message.content for message in prepared.messages] == [
+        "# added\nUse added.\n",
+        "Analyze question",
+    ]
+    assert prepared.preparation.skill_sources_loaded[0]["skill_id"] == "added"
 
 
 def test_package_local_skill_source_failure_stops_before_model_call(
