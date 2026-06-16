@@ -30,16 +30,28 @@
 - `specs/openai-compatible-provider-wrapper/` — implemented follow-up; Slices
   1-6 complete, with any remaining work treated as optional compatibility
   polish.
+- `specs/default-openai-codex-auth/` — implemented feature for default
+  OpenAI/Codex auth discovery, ordered Codex API-key/ChatGPT auth selection,
+  caller precedence, opt-out behavior, redaction, tests, and docs.
 - `specs/llama-cpp-local-model/` — implemented feature record; Slices 1-3 are
   complete, including endpoint-backed local chat, model resolution, direct
   in-process llama.cpp chat, tests, and docs. Optional separate local embedding
   configuration remains pending only if explicitly scheduled.
+- `specs/mlx-local-model-adapter/` — implemented feature for macOS-only
+  in-process MLX adapter helpers, local path/Hub resolution, identity
+  validation, executor coverage, tests, and docs.
+- `specs/model-adapter-coverage/` — implemented feature for public
+  `model_adapter_coverage`, strict supplied-adapter failures, augmented default
+  OpenAI coverage, local-only routing removal, tests, and docs.
 - `specs/internal-graph-mutation/` — first implementation checkpoint complete;
   no additional graph-mutation tasks are currently scheduled in that artifact
   set.
 - `specs/hugging-face-model-search/` — implemented feature; public Hub model
   discovery API, normalized result contract, package-owned error boundary,
   exports, tests, and docs are complete.
+- `specs/hugging-face-support-layer/` — implemented internal support feature
+  for shared Hugging Face Hub import/call/error mechanics across search and
+  local-model download routing.
 - `specs/async-session-memory-pipeline/` — implemented metadata-only OA8
   baseline plus future expansion analysis; no runner-owned session behavior is
   implemented.
@@ -49,6 +61,10 @@
   reporting distinguishes live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities. CLI rendering and additional
   collaborator types remain deferred.
+- `specs/pyinstaller-packaging-support/` — implemented v1 packaging support for
+  package-owned PyInstaller hook discovery and the `openai-model-registry`
+  dependency hook; downstream frozen-application builds and additional
+  dependency hooks remain deferred until explicitly scheduled.
 - `specs/llmfit-model-fit-filter/` — future optional advisory feature for
   pre-download Hugging Face candidate filtering through an already-installed
   `llmfit` executable.
