@@ -11,7 +11,7 @@ dynamic = ["dependencies", "requires-python"]
 dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
 
 [project.entry-points.pyinstaller40]
-hook-dirs = "dynamic_agent_runner._pyinstaller:get_hook_dirs"
+hook-dirs = "dynamic_agent_runner.__pyinstaller:get_hook_dirs"
 
 [project.optional-dependencies]
 huggingface = ["huggingface-hub>=1.18.0,<2.0.0"]
