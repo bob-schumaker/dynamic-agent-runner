@@ -29,6 +29,10 @@
   metadata, and quality/efficiency metric vocabulary while keeping
   runner-owned durable memory and built-in vector/embedding retrieval out of
   scope.
+- Survey-note analysis added required-vs-optional lane semantics,
+  reserve-token output headroom, lost-in-the-middle-aware ordering, model
+  routing boundaries, exact retrieval boundaries, and overflowing-history
+  evaluation guidance to the context-management spec.
 - The next recorded ROI focus in `specs/README.md` is opt-in package-local
   `skill-source-resolution`; local-model advisory implementation should happen
   when local-model ergonomics is the immediate driver.
@@ -128,7 +132,8 @@
 - If implementing context growth management, use
   `specs/context-management-prepare-stage/plan.md` and `tasks.md`; start with
   policy/turn-unit metadata, lifecycle diagnostics, scoring/metric fields, and
-  lane-based prompt assembly before provider or mid-turn compaction.
+  lane-based prompt assembly. Preserve required lanes, reserve output headroom,
+  and add overflowing-history checks before provider or mid-turn compaction.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.

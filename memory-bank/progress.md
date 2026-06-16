@@ -68,6 +68,10 @@
 - The context-management spec now includes lifecycle-stage diagnostics,
   segment/turn scoring metadata, quality/efficiency metrics, and an explicit
   injected-selector-only boundary for future semantic retrieval.
+- Context-window survey analysis is captured in the spec as required vs
+  optional lanes, output/continuation headroom, lost-in-the-middle-aware
+  ordering, model-routing boundaries, exact-retrieval boundaries, and
+  overflowing-history evaluation fixtures.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -97,6 +101,9 @@
 - `ed22596` added LCWMS-derived lifecycle, metadata, and metric taxonomy to
   the context-management spec while preserving the no durable runner memory and
   no built-in vector retrieval boundaries.
+- `bc65162` tracked context-window survey findings in the spec, including
+  required/optional context, reserve-token headroom, lost-in-the-middle
+  ordering, model routing, exact retrieval, and overflow fixture guidance.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -127,7 +134,8 @@
   pipeline.
 - Context compression implementation should begin with turn grouping and lane
   assembly, including lifecycle diagnostics and metric metadata, then
-  deterministic older-turn selection, before summary generation or
+  deterministic older-turn selection. Required lanes, output headroom, and
+  overflowing-history checks should be addressed before summary generation or
   provider-owned compaction.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.

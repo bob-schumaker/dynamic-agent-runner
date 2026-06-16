@@ -356,3 +356,11 @@ examine /Users/roschuma/Repos/github/llm-context-management-specifications/
 ---
 
 update our spec using the considered addons
+
+---
+
+evaluate "/Users/roschuma/.vaults/Personal/Strategies and Techniques for Managing Context Windows.md" and "/Users/roschuma/.vaults/Personal/Top techniques to Manage Context Lengths in LLMs.md"
+
+---
+
+track this analysis in the spec
