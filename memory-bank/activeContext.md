@@ -52,15 +52,17 @@
   permission-aware retrieval, retrieval routers/profiles, cache contracts,
   GraphRAG construction vs query-time retrieval, degraded execution, and
   evaluation lifecycle hooks.
-- `skill-source-resolution` is now prepared for implementation with
-  `spec.md`, `plan.md`, and `tasks.md`. V1 is scoped to opt-in package-local
-  bundled `SKILL.md` loading under `skill-bundle/`, deterministic `skill_refs`
-  injection, bounded UTF-8 bodies, redacted provenance, and capability/status
-  reporting; external roots, `source_path` reads, support-file prompt loading,
-  and network fetching remain deferred.
-- The next ROI action is implementing `skill-source-resolution` Slice 1
-  (policy and data model). Local-model advisory implementation should happen
-  only when local-model ergonomics is the immediate driver.
+- `skill-source-resolution` v1 is implemented. Source loading is opt-in and
+  package-local only: referenced bundled `SKILL.md` bodies under
+  `skill-bundle/` inject through `skill_instructions` after effective
+  `skill_refs` are derived, with bounded UTF-8 loading, redacted provenance,
+  fail-closed validation, and capability/status reporting for metadata-only,
+  live, and rejected states.
+- The next ROI action is no longer skill-source v1. Local-model advisory
+  implementation should happen only when local-model ergonomics is the
+  immediate driver; context-management implementation remains available from
+  `specs/context-management-prepare-stage/tasks.md` when prompt growth becomes
+  the immediate driver.
 
 ## Recent Completed Work
 
@@ -129,9 +131,8 @@
 - RAG orchestration follow-ups from Apple Books RAG references are tracked in
   `specs/rag-orchestration-contract/spec.md` with citations by title, author,
   publisher, and ISBN rather than local file paths.
-- Skill-source resolution planning is complete and ready for v1 implementation;
-  open decisions are deferred beyond v1 rather than blockers for the first
-  slice.
+- Skill-source resolution v1 is implemented and documented; open decisions are
+  deferred beyond v1.
 
 ## Current Spec Authority Map
 
@@ -144,13 +145,11 @@
   - `specs/mcp-runtime-integration/spec.md`
   - `specs/live-guardrail-execution/spec.md`
   - `specs/iterative-agent-loop-runtime/spec.md`
+  - `specs/skill-source-resolution/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
   - `specs/context-management-prepare-stage/spec.md`
   - `specs/rag-orchestration-contract/spec.md`
-  - `specs/skill-source-resolution/spec.md`
-- Next ROI implementation package:
-  - `specs/skill-source-resolution/tasks.md`
 - Later feature packages:
   - `specs/power-marimo-host-automation/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
@@ -163,9 +162,9 @@
 - If continuing local-model advisory work, decide whether the pending
   `pyproject.toml` / `poetry.lock` optional llama.cpp metadata edits should be
   committed, revised, or discarded before executing another slice.
-- If following the ROI queue, implement `skill-source-resolution` Slice 1 from
-  `specs/skill-source-resolution/tasks.md`: policy/data model, validation of
-  policy shape, resolver provenance dataclasses, and targeted validation tests.
+- If extending skill-source support, start a new beyond-v1 plan before adding
+  external roots, `source_path` reads, support-file prompt loading, network
+  fetching, Markdown frontmatter parsing, or raw-body debugging modes.
 - If implementing context growth management, use
   `specs/context-management-prepare-stage/plan.md` and `tasks.md`; start with
   policy/turn-unit metadata, lifecycle diagnostics, scoring/metric fields, and

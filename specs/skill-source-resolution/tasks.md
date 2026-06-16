@@ -83,7 +83,7 @@
 - [x] T5.3 Run `pre-commit run --files ...` for all changed files.
 - [x] T5.4 Update `specs/README.md` completion wording if the v1 baseline is
       implemented.
-- [ ] T5.5 Refresh `memory-bank/activeContext.md` and `memory-bank/progress.md`.
+- [x] T5.5 Refresh `memory-bank/activeContext.md` and `memory-bank/progress.md`.
 - [x] T5.6 Commit implementation and memory-bank refresh separately if requested
       by the active workflow.
 

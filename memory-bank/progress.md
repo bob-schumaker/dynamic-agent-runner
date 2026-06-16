@@ -58,6 +58,15 @@
 - The package advertises its PyInstaller hook directory through the
   `pyinstaller40` entry point, and the hook support was merged through the
   build-gated DevOps SCM PR flow.
+- Skill-source resolution v1 is implemented:
+  - `runtime.execution_policy.skill_source_resolution` policy parsing and
+    validation
+  - package-local bundled `SKILL.md` resolution under `skill-bundle/`
+  - fail-closed path, symlink, encoding, binary-content, and byte-budget checks
+  - deterministic injection through `skill_instructions` after runtime
+    `skill_refs` overrides
+  - redacted prepared-input and trace provenance metadata
+  - capability/status reporting for metadata-only, live, and rejected states
 - `context-management-prepare-stage` now owns the prompt-preparation feature
   spec for session pruning, context compaction, hierarchical prompt-context
   injection, and provider-neutral hierarchical context compression.
@@ -87,10 +96,9 @@
   retrievers/adapters, provenance, context injection, index lifecycle,
   permission-aware retrieval, routing profiles, GraphRAG layers, cache state,
   degraded execution traces, and evaluation hooks.
-- `skill-source-resolution` is prepared for v1 implementation with a spec, plan,
-  and task list. The v1 boundary is opt-in package-local bundled `SKILL.md`
-  loading only, with deterministic skill-ref injection, bounded UTF-8 bodies,
-  redacted provenance, and capability/status reporting.
+- `skill-source-resolution` is complete for the v1 boundary. It remains
+  opt-in, package-local, and fake-test covered; external roots, `source_path`
+  reads, support-file prompt loading, and network fetching remain deferred.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -137,6 +145,10 @@
   query-time retrieval, degraded execution, and evaluation lifecycle metadata.
 - `78d080c` prepared `skill-source-resolution` for implementation by resolving
   v1 decisions, adding `plan.md` and `tasks.md`, and updating the spec index.
+- `5f7d1fd`, `79cce93`, `99ed79d`, `ac8028b`, `9b5f6a8`, and `9f0557b`
+  implemented and documented skill-source resolution v1 across policy models,
+  package-local resolver validation, prompt injection, override coverage,
+  capability/status reporting, and spec completion evidence.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -147,9 +159,10 @@
 
 ## Remaining
 
-- Next highest-ROI slice in the roadmap: implement `skill-source-resolution`
-  Slice 1, covering policy/data model, resolver provenance dataclasses, policy
-  shape validation, and targeted validation tests.
+- Next highest-ROI implementation slice is not currently pinned in the memory
+  bank. Use `specs/README.md` plus the user's immediate priority to choose
+  between local-model advisory work, context-management implementation, or a new
+  scoped feature slice.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering
@@ -167,9 +180,10 @@
   stay focused on metadata validation, capability/status diagnostics, trace
   contracts, provenance, context-management integration, and fake-adapter
   evaluation hooks.
-- Skill-source resolution v1 must stay package-local and opt-in. Do not add
-  external roots, `source_path` reads, support-file prompt loading, network
-  fetching, executable skill files, or raw skill-body trace payloads in v1.
+- Skill-source resolution beyond v1 needs a new plan before adding external
+  roots, `source_path` reads, support-file prompt loading, network fetching,
+  executable skill files, Markdown frontmatter parsing, or raw skill-body trace
+  payloads.
 - Live prompt pruning, compaction, and hierarchical prompt-context injection are
   owned by `context-management-prepare-stage`, not the async-session memory
   pipeline.
