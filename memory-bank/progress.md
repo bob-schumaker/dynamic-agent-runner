@@ -60,7 +60,11 @@
   build-gated DevOps SCM PR flow.
 - `context-management-prepare-stage` now owns the prompt-preparation feature
   spec for session pruning, context compaction, hierarchical prompt-context
-  injection, and future OpenAI-focused automatic context-window compression.
+  injection, and provider-neutral hierarchical context compression.
+- The preferred future compression architecture is turn-aware lane assembly:
+  pinned hierarchy, current turn, recent turns, rolling structured summary,
+  selected older turns, bounded file/tool context, chronological reassembly,
+  and deterministic fallback trimming.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -83,6 +87,10 @@
   cleanup after build validation.
 - `743b38c` added the context-management prepare-stage spec, plan, task list,
   and context-pruning reference relocation out of async-session memory.
+- `5dd0e5a` recast context-management planning around provider-neutral
+  hierarchical compression, including turn units, budget lanes, rolling
+  summaries, deterministic older-turn selection, chronological reassembly, and
+  fallback trimming.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -111,6 +119,9 @@
 - Live prompt pruning, compaction, and hierarchical prompt-context injection are
   owned by `context-management-prepare-stage`, not the async-session memory
   pipeline.
+- Context compression implementation should begin with turn grouping and lane
+  assembly, then deterministic older-turn selection, before summary generation
+  or provider-owned compaction.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.
 

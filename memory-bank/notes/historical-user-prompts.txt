@@ -342,3 +342,9 @@ the context pruning reference seems generally out of place in a long-term memory
 since we are openai focused, examine the repo at /Users/roschuma/Repos/github/codex for how they handle automatic context window compression
 
 add this information to the spec, plan and tasks
+
+---
+
+ignore the codex/cline sourcing and our openai first focus, what is the best overall compression scheme for us to implement? does the context pruning reference add any nuance?
+
+update our spec to match this analysis

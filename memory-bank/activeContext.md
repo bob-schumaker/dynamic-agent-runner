@@ -19,8 +19,12 @@
   and develop/main branch synchronization are done.
 - Context growth management has a dedicated spec package:
   `specs/context-management-prepare-stage/` now owns session pruning, context
-  compaction, hierarchical prompt-context injection, and future
-  OpenAI-focused automatic context-window compression planning.
+  compaction, hierarchical prompt-context injection, and provider-neutral
+  hierarchical compression planning.
+- The current preferred compression scheme is turn-aware lane assembly:
+  pinned hierarchy, current turn, recent turns, rolling structured summary,
+  deterministic older-turn selection with chronological reassembly, and
+  deterministic fallback trimming before optional provider compaction.
 - The next recorded ROI focus in `specs/README.md` is opt-in package-local
   `skill-source-resolution`; local-model advisory implementation should happen
   when local-model ergonomics is the immediate driver.
@@ -85,14 +89,7 @@
   - MLX helpers remain constructible on non-macOS, advertise their model aliases,
     and fail with the macOS-only `ModelExecutionError` before resolving model
     paths or loading dependencies when generation is attempted off macOS
-- PyInstaller packaging support for `openai-model-registry` is in progress:
-  - `8f63fb9` added a package-owned hook provider module, bundled
-    `hook-openai_model_registry.py`, and regression coverage for the advertised
-    hook directory
-  - the hook collects `openai_model_registry` data files and
-    `openai-model-registry` distribution metadata
-  - the `pyproject.toml` `pyinstaller40` entry point is intentionally reserved
-    for a final separate build-triggering commit
+- PyInstaller packaging support for `openai-model-registry` is complete.
 
 ## Current Spec Authority Map
 
@@ -126,7 +123,8 @@
   implementation.
 - If implementing context growth management, use
   `specs/context-management-prepare-stage/plan.md` and `tasks.md`; start with
-  the policy/metadata contract slice before remote or mid-turn compaction.
+  policy/turn-unit metadata and lane-based prompt assembly before provider or
+  mid-turn compaction.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.
