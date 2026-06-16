@@ -75,7 +75,7 @@
   redacted provenance, and capability/status reporting; external roots,
   `source_path` reads, support-file prompt loading, and network fetching remain
   deferred.
-- `specs/rag-orchestration-contract/` — prepared v1 feature for expanded
+- `specs/rag-orchestration-contract/` — implemented v1 feature for expanded
   declarative `metadata.rag_pipeline` validation and capability/status
   reporting around staged retrievers, provenance requirements,
   context-management handoff declarations, source readiness, permissions,
@@ -122,10 +122,9 @@ needs a scoped plan and task slice before code changes begin.
 8. **Complete for v1 skill loading:** SKILL.md source resolution is
    implemented for opt-in package-local bundled skills; external roots and
    support-file prompt loading remain deferred.
-9. **Prepared RAG orchestration contract:** implement the prepared v1 only when
-   RAG readiness is the immediate driver. V1 is declarative validation plus
-   capability/status reporting; retrieved-context prompt packing belongs to
-   `context-management-prepare-stage`.
+9. **Complete for v1 RAG orchestration contract:** declarative RAG metadata
+   validation and capability/status reporting are implemented; retrieved-context
+   prompt packing remains with `context-management-prepare-stage`.
 10. **Local model advisory features:** `llama-cpp-memory-fit-profile` v1 is
     complete through injected evaluators. Implement `llmfit-model-fit-filter`
     and any concrete llama.cpp command/metadata probing only when local-model
@@ -981,13 +980,14 @@ explicitly instead of leaving them as undocumented future behavior.
   manifests, `evidence_loop` metadata, and package-declared
   `rag`/`embedding_retrieval`/`graph_retrieval`/`graphrag` classifications.
 - The richer RAG orchestration contract now lives in
-  `specs/rag-orchestration-contract/spec.md` with prepared v1 plan/tasks. P5
-  remains the implemented baseline for metadata preservation and validation;
-  future RAG slices for index lifecycle, permission-aware retrieval, routing
-  profiles, GraphRAG construction/query boundaries, cache/degraded execution,
-  provenance requirements, and evaluation hooks should use that dedicated
-  feature package as the source of truth. Retrieved-context prompt packing and
-  injection are owned by `specs/context-management-prepare-stage/spec.md`.
+  `specs/rag-orchestration-contract/spec.md` with implemented v1 plan/tasks.
+  P5 is superseded by expanded declarative RAG metadata validation and
+  capability/status reporting; future RAG slices for live retrieval
+  orchestration, richer routing, index lifecycle execution, GraphRAG execution,
+  answer citation rendering, and evaluator/output-guardrail hooks should use
+  that dedicated feature package as the source of truth. Retrieved-context
+  prompt packing and injection are owned by
+  `specs/context-management-prepare-stage/spec.md`.
 
 ## Deferred library-evaluation follow-ups
 

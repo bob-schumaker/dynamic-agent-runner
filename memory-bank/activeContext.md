@@ -46,12 +46,12 @@
   (Manning, ISBN `9781633434530`) are recorded as future-work notes in the
   owning specs: MCP resources/prompts, evaluation guardrails, loop controls,
   memory-selection hints, capability/deployment reporting, and sandbox safety.
-- `rag-orchestration-contract` is now prepared for implementation. V1 is scoped
-  to expanded declarative `metadata.rag_pipeline` validation and
-  capability/status reporting for retriever collaborators, provenance
-  requirements, source readiness, permissions, cache, degraded states, and
-  context-management handoff declarations while keeping retrieval
-  infrastructure and prompt packing out of RAG ownership.
+- `rag-orchestration-contract` v1 is implemented. It provides expanded
+  declarative `metadata.rag_pipeline` validation and capability/status
+  reporting for retriever collaborators, provenance requirements, source
+  readiness, permissions, cache, degraded states, and context-management
+  handoff declarations while keeping retrieval infrastructure and prompt
+  packing out of RAG ownership.
 - RAG + context-management integration is split by ownership:
   `rag-orchestration-contract` declares and preflights retrieved evidence
   requirements; `context-management-prepare-stage` owns retrieved-context
@@ -63,8 +63,7 @@
   `skill_refs` are derived, with bounded UTF-8 loading, redacted provenance,
   fail-closed validation, and capability/status reporting for metadata-only,
   live, and rejected states.
-- The next ROI action is no longer skill-source v1. RAG orchestration v1 is
-  prepared but should start only when RAG readiness is the immediate driver.
+- The next ROI action is no longer skill-source or RAG orchestration v1.
   Local-model advisory implementation should happen only when local-model
   ergonomics is the immediate driver; context-management implementation remains
   available from `specs/context-management-prepare-stage/tasks.md` when prompt
@@ -137,9 +136,9 @@
 - RAG orchestration follow-ups from Apple Books RAG references are tracked in
   `specs/rag-orchestration-contract/spec.md` with citations by title, author,
   publisher, and ISBN rather than local file paths.
-- RAG orchestration v1 planning is prepared with `plan.md`, `tasks.md`, and
-  `validation.md`, and the full spec surface now consistently records the
-  RAG/context-management ownership split.
+- RAG orchestration v1 implementation is complete with validation and
+  capability/status coverage, and the full spec surface now consistently
+  records the RAG/context-management ownership split.
 - Skill-source resolution v1 is implemented and documented; open decisions are
   deferred beyond v1.
 

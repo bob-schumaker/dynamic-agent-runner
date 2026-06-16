@@ -1,6 +1,6 @@
 # RAG Orchestration Contract V1 Tasks
 
-Status: prepared for implementation
+Status: implemented v1
 
 ## Slice 0 — Planning Checkpoint
 
@@ -16,7 +16,7 @@ Status: prepared for implementation
     `specs/rag-orchestration-contract/tasks.md`
     `specs/rag-orchestration-contract/validation.md specs/README.md`
   - Result: passed
-- [ ] T0.4 Commit the planning checkpoint before code changes if requested.
+- [x] T0.4 Commit the planning checkpoint before code changes if requested.
 
 ## Slice 1 — Declarative RAG Metadata Validation
 
@@ -119,15 +119,15 @@ Status: prepared for implementation
 
 ## Slice 4 — Completion Evidence
 
-- [ ] T4.1 [validation] Run focused affected tests.
+- [x] T4.1 [validation] Run focused affected tests.
   - Command:
     `poetry run pytest tests/test_validation.py tests/test_capabilities.py -q`
 
-- [ ] T4.2 [validation] Run the full suite unless scoped narrower by explicit
+- [x] T4.2 [validation] Run the full suite unless scoped narrower by explicit
       implementation notes.
   - Command: `poetry run pytest -q`
 
-- [ ] T4.3 [validation] Run focused pre-commit over touched files.
+- [x] T4.3 [validation] Run focused pre-commit over touched files.
   - Command:
     `pre-commit run --files src/dynamic_agent_runner/validation.py`
     `src/dynamic_agent_runner/capabilities.py tests/test_validation.py`
@@ -137,7 +137,7 @@ Status: prepared for implementation
     `specs/rag-orchestration-contract/tasks.md`
     `specs/rag-orchestration-contract/validation.md specs/README.md`
 
-- [ ] T4.4 [docs] Record completion evidence and update spec/memory status
+- [x] T4.4 [docs] Record completion evidence and update spec/memory status
       before the next focus area.
 
 ## Done Definition

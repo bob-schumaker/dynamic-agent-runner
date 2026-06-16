@@ -4,10 +4,9 @@
 
 - Feature slug: `rag-orchestration-contract`
 - Mode: `light`
-- Artifact type: future feature specification
-- Status: prepared for implementation; v1 should add richer declarative
-  metadata validation and capability/status reporting without executing
-  retrieval infrastructure
+- Artifact type: implemented feature specification
+- Status: implemented v1; richer declarative metadata validation and
+  capability/status reporting exist without executing retrieval infrastructure
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related specs:
   - `specs/context-management-prepare-stage/spec.md`
