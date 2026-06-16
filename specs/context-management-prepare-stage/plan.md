@@ -236,6 +236,9 @@ Add defensive error handling only after pre-turn compaction is available:
 - Mid-turn compaction is deferred because it interacts with iterative loops,
   tool calls, and approval interruption.
 - Reset/new-window behavior remains separate from summarizing compaction.
+- RAG orchestration declares retriever and evidence requirements; this prepare
+  stage owns retrieved-context lane packing, budget enforcement, compression,
+  omission diagnostics, and final prompt injection.
 
 ## Validation Strategy
 
@@ -246,6 +249,8 @@ Focused validation should use fake adapters and injected compactors only:
   turn grouping, lane budgets, deterministic selection, reserve-token triggers,
   lifecycle-stage diagnostics, scoring metadata, quality metrics, basic
   compaction, pre-turn compaction, trace diagnostics, and failure behavior
+- targeted future tests for RAG retrieved-context lane assembly using
+  caller-supplied fake evidence mappings only
 
 Full validation before a future implementation commit:
 

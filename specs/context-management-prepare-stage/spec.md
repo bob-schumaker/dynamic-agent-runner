@@ -914,6 +914,20 @@ source-critical wording. This spec may consume host-provided or injected
 retrieval results as bounded prompt-context segments, but it must not own
 embedding, indexing, vector storage, or durable retrieval infrastructure.
 
+`rag-orchestration-contract` owns what RAG workflows can declare and preflight:
+retriever collaborators, provenance requirements, evidence fields, source
+readiness, permission/cache/degraded metadata, and
+`context_assembly.target: prepare_model_input`. This spec owns how any
+caller-provided retrieved evidence becomes model-visible prompt context:
+retrieved-context lanes, required-vs-optional treatment, token budgets,
+packing/order policy, trimming, compression, lost-in-the-middle mitigation,
+redaction-safe inclusion/omission diagnostics, and final prompt injection.
+
+RAG metadata may request context assembly, but it must not define a separate
+prompt-packing algorithm. Context-management policy may consume RAG-declared
+packing hints when provided, but the prepare stage remains the authority for
+lane placement and budget enforcement.
+
 ### Model adapters
 
 Model adapters remain transport/execution boundaries. They should not implement
@@ -934,6 +948,8 @@ session-memory policy.
   node-embedded algorithms.
 - The spec distinguishes context-management behavior from the graph-mutation
   mechanism that may attach or insert that behavior into derived workflows.
+- The spec owns RAG retrieved-context prompt packing and injection, while
+  `rag-orchestration-contract` owns RAG declarations and readiness preflight.
 - The spec gives future expansion a place to grow without changing model
   adapter contracts.
 
@@ -966,6 +982,9 @@ Future approved slices may add:
 - capability-status reporting that distinguishes available context-management
   policies from metadata-only declarations
 - host-provided context packets that are already summarized or ranked
+- retrieved-context lanes for RAG evidence declared by
+  `rag-orchestration-contract`, including provenance-aware packing, trimming,
+  compression, and omission diagnostics
 - caller-provided memory-kind labels such as semantic, episodic, procedural, or
   source-context segments, used only as selection/scoring hints
 - access-frequency, recency, and last-selected metadata as optional scoring

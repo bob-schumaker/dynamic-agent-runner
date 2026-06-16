@@ -118,6 +118,31 @@ Status: future backlog; no tasks started
     through the injected selector seam only.
   - Validation: `poetry run pytest tests/test_executor.py -q`
 
+## Slice 3A — RAG Retrieved-Context Lane
+
+- [ ] T3A.1 [tests] Add RED coverage for caller-provided retrieved evidence as
+      a bounded context lane.
+  - Spec: RAG/context-management integration boundary
+  - Files/components: `tests/test_executor.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Cover evidence mappings with source id, chunk id, citation handle,
+    required/optional lane hints, token estimates, scores, freshness metadata,
+    and packing hints. Prove raw retrieved content is not emitted in trace
+    metadata.
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k retrieved_context_lane`
+
+- [ ] T3A.2 [implementation] Add retrieved-context lane packing and diagnostics.
+  - Spec: RAG/context-management integration boundary
+  - Files/components: `src/dynamic_agent_runner/executor.py`
+  - Consume caller-provided evidence already placed in runtime state or prepared
+    context by RAG/tool orchestration. Apply context-management lane budgets,
+    required-vs-optional handling, ordering, trimming, compression hooks, and
+    omission diagnostics. Do not run retrieval, embeddings, rerankers, or
+    evaluators.
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k retrieved_context_lane`
+
 ## Slice 4 — Deterministic fallback compaction
 
 - [ ] T4.1 [tests] Add RED executor coverage for deterministic fallback

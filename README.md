@@ -92,8 +92,9 @@ Feature spec packages under `specs/` record scoped runtime extensions and
 boundaries, including graph mutation as the derived workflow-operation layer and
 `context-management-prepare-stage` as the prompt/session/file context behavior
 owner. The `rag-orchestration-contract` spec records RAG as orchestration,
-validation, provenance, context-injection, and evaluation metadata while keeping
-retrieval infrastructure caller-owned.
+validation, provenance, context-management handoff, and evaluation metadata
+while keeping retrieval infrastructure caller-owned and prompt packing owned by
+the context-management prepare-stage spec.
 
 ## Development Setup
 

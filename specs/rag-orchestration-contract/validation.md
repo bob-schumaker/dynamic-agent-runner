@@ -1,0 +1,111 @@
+# RAG Orchestration Contract V1 Validation Log
+
+Status: planning checkpoint prepared
+
+## Scope
+
+- Feature: `specs/rag-orchestration-contract/spec.md`
+- Plan: `specs/rag-orchestration-contract/plan.md`
+- Tasks: `specs/rag-orchestration-contract/tasks.md`
+
+## Planned Checks
+
+- `poetry run pytest tests/test_validation.py -q`
+- `poetry run pytest tests/test_capabilities.py -q`
+- `poetry run pytest tests/test_validation.py tests/test_capabilities.py -q`
+- `poetry run pytest -q`
+- `pre-commit run --files src/dynamic_agent_runner/validation.py`
+  `src/dynamic_agent_runner/capabilities.py tests/test_validation.py`
+  `tests/test_capabilities.py docs/files/artifact-package.rst`
+  `specs/rag-orchestration-contract/spec.md`
+  `specs/rag-orchestration-contract/plan.md`
+  `specs/rag-orchestration-contract/tasks.md`
+  `specs/rag-orchestration-contract/validation.md specs/README.md`
+
+## Planning Evidence
+
+- V1 is limited to declarative `metadata.rag_pipeline` validation and
+  capability/status reporting.
+- V1 keeps RAG over existing primitive nodes and does not add a `rag_step`.
+- V1 uses caller-owned `ToolRegistry` coverage for live retriever readiness and
+  does not invoke retrievers during preflight.
+- V1 does not add ingestion, chunking, embedding, vector DB, graph store,
+  reranker, compressor, evaluator, or cache dependencies.
+- Retrieved-context dataclasses and prompt packing/injection remain owned by
+  `context-management-prepare-stage`; answer citation rendering, evaluator
+  registries, and output guardrails remain deferred to their owning future
+  slices.
+
+## Evidence
+
+### Planning Checkpoint
+
+- Command:
+  `pre-commit run --files specs/rag-orchestration-contract/spec.md`
+  `specs/rag-orchestration-contract/plan.md`
+  `specs/rag-orchestration-contract/tasks.md`
+  `specs/rag-orchestration-contract/validation.md specs/README.md`
+- Observed result: passed
+- Interpretation: Markdown checks passed for the prepared RAG orchestration
+  planning artifacts and spec index update.
+
+### Slice 1 — Declarative RAG Metadata Validation
+
+- Command: `poetry run pytest tests/test_validation.py -q`
+- RED observed result: pending
+- GREEN observed result: pending
+- Interpretation: pending
+
+### Slice 2 — RAG Collaborator Capability Status
+
+- Command: `poetry run pytest tests/test_capabilities.py -q`
+- RED observed result: pending
+- GREEN observed result: pending
+- Interpretation: pending
+
+### Slice 3 — Provenance and Context-Management Handoff Metadata
+
+- Command:
+  `poetry run pytest tests/test_validation.py tests/test_capabilities.py -q`
+- RED observed result: pending
+- GREEN observed result: pending
+- Interpretation: pending
+
+### Slice 4 — Completion Evidence
+
+#### Final Affected Tests
+
+- Command:
+  `poetry run pytest tests/test_validation.py tests/test_capabilities.py -q`
+- Observed result: pending
+- Interpretation: pending
+
+#### Full Suite
+
+- Command: `poetry run pytest -q`
+- Observed result: pending
+- Interpretation: pending
+
+#### Final Focused Pre-Commit
+
+- Command:
+  `pre-commit run --files src/dynamic_agent_runner/validation.py`
+  `src/dynamic_agent_runner/capabilities.py tests/test_validation.py`
+  `tests/test_capabilities.py docs/files/artifact-package.rst`
+  `specs/rag-orchestration-contract/spec.md`
+  `specs/rag-orchestration-contract/plan.md`
+  `specs/rag-orchestration-contract/tasks.md`
+  `specs/rag-orchestration-contract/validation.md specs/README.md`
+- Observed result: pending
+- Interpretation: pending
+
+## Deferred From V1
+
+- Built-in ingestion, chunking, embedding, vector DB, graph store, reranker,
+  compressor, evaluator, and cache integrations remain deferred.
+- Live retrieval orchestration beyond existing `tool_use_step` execution remains
+  deferred.
+- A public retrieved-context object contract remains deferred until
+  context-management owns a retrieved-context lane.
+- Answer citation rendering remains deferred.
+- Evaluator registries and output guardrails remain deferred.

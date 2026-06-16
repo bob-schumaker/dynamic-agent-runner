@@ -70,9 +70,17 @@
 - `specs/live-guardrail-execution/` — implemented v1 feature for caller-
   registered input guardrail pass/abort behavior, fail-closed missing adapters,
   redacted traces, and capability status; output/tool phases remain deferred.
-- `specs/skill-source-resolution/` — future feature spec for trusted `SKILL.md`
-  body loading, source precedence, and prompt injection; current runtime only
-  preserves skill metadata and refs.
+- `specs/skill-source-resolution/` — implemented v1 feature for opt-in
+  package-local bundled `SKILL.md` loading, deterministic skill-ref injection,
+  redacted provenance, and capability/status reporting; external roots,
+  `source_path` reads, support-file prompt loading, and network fetching remain
+  deferred.
+- `specs/rag-orchestration-contract/` — prepared v1 feature for expanded
+  declarative `metadata.rag_pipeline` validation and capability/status
+  reporting around staged retrievers, provenance requirements,
+  context-management handoff declarations, source readiness, permissions,
+  cache, and degraded states; retrieval infrastructure and prompt packing stay
+  outside RAG ownership.
 - `specs/iterative-agent-loop-runtime/` — implemented v1 feature for bounded
   opt-in serial model-tool loops inside eligible `llm_step` nodes; state-field
   final selectors, durable resume, output/tool guardrails, parallel tool calls,
@@ -111,20 +119,24 @@ needs a scoped plan and task slice before code changes begin.
    execution is implemented; output/tool phases remain deferred.
 7. **Complete for v1 iterative loops:** bounded opt-in serial model-tool loops
    are implemented.
-8. **Next:** SKILL.md source resolution should start package-local and opt-in;
-   defer external roots until prompt-injection, precedence, size, and
-   trace-redaction rules are settled.
-9. **Local model advisory features:** `llama-cpp-memory-fit-profile` v1 is
-   complete through injected evaluators. Implement `llmfit-model-fit-filter`
-   and any concrete llama.cpp command/metadata probing only when local-model
-   ergonomics becomes the immediate product driver.
-10. **Power-Marimo host automation:** build live host automation only after
+8. **Complete for v1 skill loading:** SKILL.md source resolution is
+   implemented for opt-in package-local bundled skills; external roots and
+   support-file prompt loading remain deferred.
+9. **Prepared RAG orchestration contract:** implement the prepared v1 only when
+   RAG readiness is the immediate driver. V1 is declarative validation plus
+   capability/status reporting; retrieved-context prompt packing belongs to
+   `context-management-prepare-stage`.
+10. **Local model advisory features:** `llama-cpp-memory-fit-profile` v1 is
+    complete through injected evaluators. Implement `llmfit-model-fit-filter`
+    and any concrete llama.cpp command/metadata probing only when local-model
+    ergonomics becomes the immediate product driver.
+11. **Power-Marimo host automation:** build live host automation only after
     approval/sandbox and host-managed continuity boundaries are clear; keep app
     lifecycle ownership in Power-Marimo or caller tools.
-11. **Async session memory pipeline:** keep v1 host-managed. Add runner-owned
+12. **Async session memory pipeline:** keep v1 host-managed. Add runner-owned
     durable session storage only after a concrete workflow proves host-managed
     continuity is insufficient.
-12. **LLM step interpreter middleware:** defer until sandbox, approval,
+13. **LLM step interpreter middleware:** defer until sandbox, approval,
     guardrails, tracing, redaction, and capability reporting are stable enough
     to contain a general-purpose interpreter surface.
 
@@ -134,7 +146,8 @@ Clean dependency chain:
 status visibility
 → approval/sandbox mutation policy
 → MCP/guardrails
-→ loops/skills
+→ loops/skills/RAG declarations
+→ context-management packing
 → host integrations
 → durable memory
 → interpreter
@@ -967,13 +980,14 @@ explicitly instead of leaving them as undocumented future behavior.
   provider-neutral `llm_step.model_requirements`, ReAct-style `react_loop`
   manifests, `evidence_loop` metadata, and package-declared
   `rag`/`embedding_retrieval`/`graph_retrieval`/`graphrag` classifications.
-- The richer future contract for RAG orchestration now lives in
-  `specs/rag-orchestration-contract/spec.md`. P5 remains the implemented
-  baseline for metadata preservation and validation; future slices for index
-  lifecycle, permission-aware retrieval, routing profiles, GraphRAG
-  construction/query boundaries, cache/degraded execution, provenance-aware
-  context injection, and evaluation hooks should use that dedicated feature
-  package as the source of truth.
+- The richer RAG orchestration contract now lives in
+  `specs/rag-orchestration-contract/spec.md` with prepared v1 plan/tasks. P5
+  remains the implemented baseline for metadata preservation and validation;
+  future RAG slices for index lifecycle, permission-aware retrieval, routing
+  profiles, GraphRAG construction/query boundaries, cache/degraded execution,
+  provenance requirements, and evaluation hooks should use that dedicated
+  feature package as the source of truth. Retrieved-context prompt packing and
+  injection are owned by `specs/context-management-prepare-stage/spec.md`.
 
 ## Deferred library-evaluation follow-ups
 

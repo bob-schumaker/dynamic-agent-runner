@@ -5,8 +5,9 @@
 - Feature slug: `rag-orchestration-contract`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: proposed future feature; current runtime validates limited
-  `metadata.rag_pipeline` fields but does not execute a RAG pipeline directly
+- Status: prepared for implementation; v1 should add richer declarative
+  metadata validation and capability/status reporting without executing
+  retrieval infrastructure
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related specs:
   - `specs/context-management-prepare-stage/spec.md`
@@ -108,8 +109,8 @@ This feature covers:
 4. trace metadata for retrieval, fusion, reranking, context assembly, and
    generation boundaries
 5. provenance contracts for retrieved chunks and generated answers
-6. context-management integration for bounded prompt injection of retrieved
-   context
+6. context-management handoff declarations for bounded prompt injection of
+   retrieved context
 7. guardrail and evaluation hooks for retrieval quality, faithfulness, and
    groundedness
 8. workflow patterns for ordinary RAG, lexical RAG, structural RAG, hybrid RAG,
@@ -135,7 +136,7 @@ This feature must not introduce:
 - runner-owned durable knowledge-base storage
 - automatic indexing background jobs
 - mutation of generated package artifacts
-- a new primitive `rag_step` node kind in the first design
+- a new primitive `rag_step` node kind in v1
 - runner-owned ACL evaluation, tenant policy enforcement, or cache storage
 
 ## Direct Support Boundary
@@ -143,14 +144,15 @@ This feature must not introduce:
 RAG should be directly supported as an orchestration contract, not as
 infrastructure.
 
-Direct runner-owned responsibilities:
+Eventual runner-owned responsibilities:
 
 - parse and validate RAG declarations
 - expose RAG capability/status diagnostics
 - enforce required collaborators before execution
 - carry provenance and retrieval metadata through traces
-- make retrieved context visible to `prepare_model_input(...)` through bounded,
-  policy-controlled inputs
+- declare retrieved-context requirements that
+  `context-management-prepare-stage` can pack into `prepare_model_input(...)`
+  after its retrieved-context lane exists
 - provide hooks where caller-owned evaluators and guardrails can inspect
   retrieval and generation outputs
 - preserve primitive workflow execution and registry-authoritative tool use
@@ -166,12 +168,93 @@ Caller-owned responsibilities:
   Elasticsearch, graph databases, RAGAS, TruLens, DeepEval, or Phoenix
 - manage data governance, retention, and access policy for knowledge sources
 
-## Proposed Manifest Shape
+## Manifest Shape
 
 The current `metadata.rag_pipeline` surface should grow carefully before any
 runtime execution behavior changes.
 
-Illustrative future metadata:
+## V1 Decisions
+
+The first implementation slice should stay declarative and preflight-oriented:
+
+- Expanded RAG metadata remains under `metadata.rag_pipeline`; no
+  `runtime.execution_policy` RAG execution policy is introduced in v1.
+- V1 does not add a new primitive `rag_step`; RAG workflows continue to use
+  `llm_step`, `tool_use_step`, and `decision_step`.
+- V1 validates stage-level metadata and collaborator references, but does not
+  invoke retrieval, reranking, compression, evaluation, or cache services.
+- Retrieval collaborator references are manifest tool ids or caller-owned opaque
+  adapter ids. Live readiness is reported by capability/status when a supplied
+  `ToolRegistry` covers referenced tool ids.
+- Retrieval results remain plain tool outputs in v1. A public retrieved-context
+  dataclass or protocol is deferred until context-management implements a
+  retrieved-context lane.
+- Parsed-query and answer-state contracts remain metadata and output-contract
+  references in v1. They are not a dedicated contract type yet.
+- Provenance, permission, cache, source-readiness, GraphRAG, and degraded-state
+  metadata are validated as declarative status inputs.
+- `context_assembly.target: prepare_model_input` declares a handoff target, not
+  a RAG-owned prompt-packing algorithm.
+- Evaluation hooks are metadata-only in v1 and use caller-owned fake adapters in
+  future tests; no evaluator registry is introduced.
+- Capability/status v1 should distinguish metadata-only RAG declarations, live
+  covered retriever tools, missing required collaborators, and degraded
+  declarative conditions such as stale indexes or missing required provenance.
+
+V1 metadata should use this high-level shape:
+
+```yaml
+metadata:
+  patterns_present:
+    - rag
+    - embedding_retrieval
+  rag_pipeline:
+    orchestration_mode: hybrid_retrieval
+    retrieval_mode: hybrid
+    retrievers:
+      - id: keyword
+        tool_id: search_keyword
+        mode: lexical_keyword
+        required: true
+      - id: semantic
+        tool_id: search_semantic
+        mode: embedding_semantic
+        required: true
+    fusion: rrf
+    reranking: caller_adapter
+    compression: none
+    correction: optional
+    candidate_budget:
+      stage1_k: 50
+      stage2_k: 20
+      final_k: 5
+    provenance_required: true
+    context_assembly:
+      target: prepare_model_input
+      max_context_tokens: 8192
+      required_evidence_fields:
+        - source_id
+        - chunk_id
+        - citation_handle
+    permissions:
+      permission_filtering: required
+      permission_failure_policy: fail_closed
+      audit_required: true
+    source_readiness:
+      source_registry: external_service
+      refresh_mode: scheduled
+      index_version: caller_supplied
+      stale_state: fresh
+    cache:
+      retrieval_results: optional
+      semantic_query_cache: optional
+    degraded_states:
+      - stale_but_allowed
+      - partial_results
+```
+
+Richer future metadata may introduce nested stage declarations after the v1
+contract is implemented and proven useful. Illustrative future metadata:
 
 ```yaml
 metadata:
@@ -553,7 +636,7 @@ Capability/status reporting must make RAG readiness inspectable.
 Acceptance criteria:
 
 - Reports distinguish metadata-only RAG declarations from live retriever,
-  reranker, compressor, evaluator, and context-assembly collaborators.
+  reranker, compressor, evaluator, and context-management handoff requirements.
 - Reports identify missing required collaborators before execution.
 - Reports can describe degraded conditions such as stale index, absent
   provenance, unsupported fusion, unavailable graph store, unavailable embedding
@@ -590,26 +673,29 @@ Acceptance criteria:
   guardrails or evaluators.
 - Missing provenance is visible in capability/status and trace metadata.
 
-### FR-5: Integrate with context preparation
+### FR-5: Declare context-management handoff requirements
 
-RAG context must enter model prompts through `prepare_model_input(...)` or a
-compatible future context-management seam.
+RAG orchestration must declare how retrieved evidence should hand off to
+`context-management-prepare-stage`. The context-management spec owns prompt
+packing, lane budgets, trimming, compression, and injection.
 
 Acceptance criteria:
 
-- Retrieved context is treated as a bounded context lane, not as unstructured
-  transcript history.
-- Context assembly respects prompt hierarchy, output headroom, required vs
-  optional lanes, compression profiles, and deterministic fallback trimming.
+- RAG metadata can declare `context_assembly.target: prepare_model_input`.
+- RAG metadata can declare required evidence fields, provenance requirements,
+  source freshness, permission scope, and packing hints.
 - Caller-owned retrieval results can provide selection hints such as score,
   source type, recency, parent/child relationship, and chunk role.
 - Caller-owned retrieval results can provide packing hints for order, diversity,
   redundancy suppression, parent expansion, summary/detail balance, and citation
   priority.
-- Context injection emits redacted diagnostics for included, omitted, trimmed,
-  and compressed retrieved items.
+- `context-management-prepare-stage` owns bounded lanes, prompt hierarchy,
+  output headroom, required vs optional lanes, compression profiles,
+  deterministic fallback trimming, redaction-safe inclusion/omission
+  diagnostics, and final prompt injection.
 - Agentic retrieval context can expose soft and hard token thresholds so a
-  retrieval agent may continue, prune, or stop according to policy.
+  retrieval agent may continue, prune, or stop according to policy; enforcement
+  in prompts belongs to context-management.
 
 ### FR-6: Support hybrid and post-retrieval metadata
 
@@ -799,7 +885,10 @@ Decision guidance:
 - `dynamic-agent-runner` owns package loading, primitive workflow execution, and
   public API boundaries.
 - `context-management-prepare-stage` owns prompt assembly, context lanes,
-  trimming, compression profiles, and retrieved-context injection.
+  trimming, compression profiles, retrieved-context packing, and prompt
+  injection. This RAG spec owns declarations and preflight for retrievers,
+  evidence requirements, provenance, source readiness, permissions, cache, and
+  degraded state.
 - `capability-status-report` owns user-visible readiness diagnostics for RAG
   collaborators.
 - `live-guardrail-execution` owns future input, tool, and output guardrail
@@ -812,29 +901,19 @@ Decision guidance:
 - `async-session-memory-pipeline` does not own live RAG retrieval or prompt
   shaping.
 
-## NEEDS CLARIFICATION
+## Deferred Questions
 
-- Should the expanded RAG metadata remain entirely under
-  `metadata.rag_pipeline`, or should stage-level execution policy live under
-  `runtime.execution_policy`?
-- What exact enum values should be supported for fusion, reranking,
-  compression, correction, and evaluator types?
-- What exact enum values should be supported for orchestration mode and
-  retrieval mode, including lexical, structural, SQL, Cypher, graph, and
-  multimodal variants?
-- Should retrieval results use a package-owned public dataclass, a protocol, or
-  plain mappings supplied by tools?
-- Should parsed-query and answer-state contracts be modeled as output contracts,
-  lifecycle hooks, guardrail inputs, or a dedicated RAG contract type?
+- What public retrieved-context dataclass or protocol should replace plain
+  mappings once context-management owns a retrieved-context lane?
 - How should provenance metadata map into generated answer citation formats?
-- Which RAG degraded states belong in capability/status v1 versus later
-  deployment reporting?
-- Should RAG evaluation hooks be modeled as guardrails, lifecycle hooks, or a
-  separate evaluator registry?
-- How much of the illustrative stage vocabulary should be validated before
-  there is live orchestration behavior?
-- How should token/cost budgets be represented for agentic retrieval loops and
-  specialized retrieval agents?
+- Should RAG evaluation hooks eventually be modeled as guardrails, lifecycle
+  hooks, or a separate evaluator registry?
+- How should token/cost budgets be enforced for agentic retrieval loops and
+  specialized retrieval agents after metadata-only validation exists?
+- Which live degraded states need runtime trace events instead of
+  capability/status metadata?
+- Which, if any, RAG fields should move into `runtime.execution_policy` after
+  the declarative contract proves useful?
 
 ## Future Work
 
@@ -859,8 +938,8 @@ Future approved slices may add:
   assembly, evaluation, and generation
 - degraded-execution trace events for cache hits, stale-but-allowed retrieval,
   timeouts, cancellations, and partial results
-- context-management support for retrieved-context lanes and provenance-aware
-  trimming
+- context-management support for retrieved-context lanes, provenance-aware
+  packing, trimming, compression, omission diagnostics, and prompt injection
 - just-in-time retrieval examples using file, SQL, Cypher, MCP, and structural
   search tools
 - agentic retrieval examples with soft/hard context thresholds and
@@ -877,7 +956,8 @@ Future approved slices may add:
       or evaluator dependency is introduced.
 - [ ] RAG pattern metadata composes with primitive nodes.
 - [ ] Required retriever/collaborator gaps are reportable before execution.
-- [ ] Retrieved context enters prompts through context-management boundaries.
+- [ ] RAG context-assembly metadata declares handoff requirements; retrieved
+      context enters prompts only through context-management boundaries.
 - [ ] Provenance absence is visible when `provenance_required` is true.
 - [ ] Hybrid retrieval distinguishes retrieval, fusion, reranking, compression,
       and correction.
