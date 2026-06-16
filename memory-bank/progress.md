@@ -87,6 +87,10 @@
   retrievers/adapters, provenance, context injection, index lifecycle,
   permission-aware retrieval, routing profiles, GraphRAG layers, cache state,
   degraded execution traces, and evaluation hooks.
+- `skill-source-resolution` is prepared for v1 implementation with a spec, plan,
+  and task list. The v1 boundary is opt-in package-local bundled `SKILL.md`
+  loading only, with deterministic skill-ref injection, bounded UTF-8 bodies,
+  redacted provenance, and capability/status reporting.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -131,6 +135,8 @@
   evaluated RAG books, including index lifecycle, permission-aware retrieval,
   retrieval routers/profiles, cache contracts, GraphRAG construction vs
   query-time retrieval, degraded execution, and evaluation lifecycle metadata.
+- `78d080c` prepared `skill-source-resolution` for implementation by resolving
+  v1 decisions, adding `plan.md` and `tasks.md`, and updating the spec index.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -141,8 +147,9 @@
 
 ## Remaining
 
-- Next highest-ROI slice in the roadmap: opt-in package-local
-  `skill-source-resolution`.
+- Next highest-ROI slice in the roadmap: implement `skill-source-resolution`
+  Slice 1, covering policy/data model, resolver provenance dataclasses, policy
+  shape validation, and targeted validation tests.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering
@@ -160,6 +167,9 @@
   stay focused on metadata validation, capability/status diagnostics, trace
   contracts, provenance, context-management integration, and fake-adapter
   evaluation hooks.
+- Skill-source resolution v1 must stay package-local and opt-in. Do not add
+  external roots, `source_path` reads, support-file prompt loading, network
+  fetching, executable skill files, or raw skill-body trace payloads in v1.
 - Live prompt pruning, compaction, and hierarchical prompt-context injection are
   owned by `context-management-prepare-stage`, not the async-session memory
   pipeline.

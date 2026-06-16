@@ -52,9 +52,15 @@
   permission-aware retrieval, retrieval routers/profiles, cache contracts,
   GraphRAG construction vs query-time retrieval, degraded execution, and
   evaluation lifecycle hooks.
-- The next recorded ROI focus in `specs/README.md` is opt-in package-local
-  `skill-source-resolution`; local-model advisory implementation should happen
-  when local-model ergonomics is the immediate driver.
+- `skill-source-resolution` is now prepared for implementation with
+  `spec.md`, `plan.md`, and `tasks.md`. V1 is scoped to opt-in package-local
+  bundled `SKILL.md` loading under `skill-bundle/`, deterministic `skill_refs`
+  injection, bounded UTF-8 bodies, redacted provenance, and capability/status
+  reporting; external roots, `source_path` reads, support-file prompt loading,
+  and network fetching remain deferred.
+- The next ROI action is implementing `skill-source-resolution` Slice 1
+  (policy and data model). Local-model advisory implementation should happen
+  only when local-model ergonomics is the immediate driver.
 
 ## Recent Completed Work
 
@@ -123,6 +129,9 @@
 - RAG orchestration follow-ups from Apple Books RAG references are tracked in
   `specs/rag-orchestration-contract/spec.md` with citations by title, author,
   publisher, and ISBN rather than local file paths.
+- Skill-source resolution planning is complete and ready for v1 implementation;
+  open decisions are deferred beyond v1 rather than blockers for the first
+  slice.
 
 ## Current Spec Authority Map
 
@@ -139,8 +148,9 @@
   - `specs/llama-cpp-memory-fit-profile/spec.md`
   - `specs/context-management-prepare-stage/spec.md`
   - `specs/rag-orchestration-contract/spec.md`
-- Next ROI feature package:
   - `specs/skill-source-resolution/spec.md`
+- Next ROI implementation package:
+  - `specs/skill-source-resolution/tasks.md`
 - Later feature packages:
   - `specs/power-marimo-host-automation/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
@@ -153,8 +163,9 @@
 - If continuing local-model advisory work, decide whether the pending
   `pyproject.toml` / `poetry.lock` optional llama.cpp metadata edits should be
   committed, revised, or discarded before executing another slice.
-- If following the ROI queue instead, prepare `skill-source-resolution` before
-  implementation.
+- If following the ROI queue, implement `skill-source-resolution` Slice 1 from
+  `specs/skill-source-resolution/tasks.md`: policy/data model, validation of
+  policy shape, resolver provenance dataclasses, and targeted validation tests.
 - If implementing context growth management, use
   `specs/context-management-prepare-stage/plan.md` and `tasks.md`; start with
   policy/turn-unit metadata, lifecycle diagnostics, scoring/metric fields, and
