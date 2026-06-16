@@ -32,6 +32,9 @@
   - `/Users/roschuma/Repos/github/llm-context-management-specifications/specifications/llm-context-management-spec.md`
   - `/Users/roschuma/Repos/github/llm-context-management-specifications/research/current-techniques.md`
   - `/Users/roschuma/Repos/github/llm-context-management-specifications/examples/basic_context_manager.py`
+- Evaluated context-management survey notes:
+  - `Strategies and Techniques for Managing Context Windows.md`
+  - `Top techniques to Manage Context Lengths in LLMs.md`
 
 ## Objective
 
@@ -214,6 +217,24 @@ budgets:
 Lane metadata must report requested, estimated, included, trimmed, and omitted
 token counts where practical.
 
+Lane policy should distinguish required context from optional context. Pinned
+hierarchy, the current user request, in-progress tool/approval state, and
+provider-required message structure are required lanes. Recent turns, selected
+older turns, rolling summaries, examples, and file/tool context are optional or
+degradable lanes unless a future policy marks them required. Required lanes are
+not candidates for lossy trimming; optional lanes are candidates for selection,
+compression, omission, or exact bounded inclusion.
+
+Reserve-token policy should be treated as output and continuation headroom, not
+as vague unused space. Future automatic compression must account for the fact
+that input tokens, model output tokens, and any provider/tool-call overhead
+share the same context window.
+
+Prompt ordering should account for primacy, recency, and lost-in-the-middle
+risk. The default lane order preserves stable instructions early, keeps current
+turn state late, and avoids burying the highest-value selected context in the
+middle of large low-priority blocks.
+
 ### Lifecycle stages
 
 Prepared-input diagnostics should use stable lifecycle stage names so future
@@ -298,6 +319,12 @@ regression tests:
 These metrics are best-effort diagnostics unless a future slice defines exact
 calculation rules. Unit tests should verify presence and monotonic behavior for
 implemented metrics rather than relying on live model judgment.
+
+Validation should include overflowing-history fixtures that compare strategies
+such as deterministic truncation, lane-based selection, rolling summary, exact
+retrieval through injected selectors, and fallback compaction. Passing a token
+limit is not sufficient; validation should also check whether required facts,
+decisions, constraints, and current-turn state survive prompt preparation.
 
 ### Deterministic fallback trimming
 
@@ -788,6 +815,21 @@ Token budgeting remains a separate preflight and accounting concern. This spec
 may use token counts to bound injected context, but it does not redefine token
 budget policy or model capability metadata.
 
+### Model routing
+
+Routing to a larger context-window model can preserve full context without
+compression, but it is a model-selection concern rather than prompt-preparation
+ownership. This spec may report when prepared context exceeds the current
+model's safe budget; it must not silently swap the selected model.
+
+### Retrieval and exact context
+
+RAG, vector search, and exact retrieval can be useful for large document or
+regulated workflows, especially when summarization would risk losing
+source-critical wording. This spec may consume host-provided or injected
+retrieval results as bounded prompt-context segments, but it must not own
+embedding, indexing, vector storage, or durable retrieval infrastructure.
+
 ### Model adapters
 
 Model adapters remain transport/execution boundaries. They should not implement
@@ -819,6 +861,9 @@ Future approved slices may add:
 - injected semantic selectors behind fake-only unit tests
 - lifecycle-stage diagnostics, segment scoring metadata, and quality/efficiency
   metrics
+- required-vs-optional lane policy and lost-in-the-middle-aware ordering
+- overflowing-history evaluation fixtures that check retained facts, decisions,
+  constraints, and current-turn state, not just final token counts
 - summary-generation adapters with explicit model/tool boundaries
 - OpenAI/provider-backed remote compaction, including `/responses/compact` when
   available through the configured provider
