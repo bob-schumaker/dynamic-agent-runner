@@ -5,9 +5,9 @@
 - Feature slug: `skill-source-resolution`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: prepared for implementation; v1 should be opt-in and package-local
-  only. Current runtime preserves skill metadata and skill refs but does not load
-  arbitrary `SKILL.md` bodies.
+- Status: v1 implemented; source loading is opt-in and package-local only.
+  The runtime still does not load arbitrary `SKILL.md` bodies outside declared
+  package bundles.
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - package `skill-bundle/`
@@ -25,10 +25,11 @@ or ambiguous prompt precedence.
 ## Existing Baseline
 
 The runtime loads package-local skill bundle metadata and validates referenced
-bundle paths. It preserves `skill_refs` on `llm_step` nodes and supports runtime
-behavior overrides. It intentionally defers arbitrary `SKILL.md` source-path
-resolution and does not treat source files outside the package boundary as
-executable prompt material.
+bundle paths. It preserves `skill_refs` on `llm_step` nodes, supports runtime
+behavior overrides, and can opt into bounded package-local `SKILL.md` prompt
+loading through `runtime.execution_policy.skill_source_resolution`. It still
+defers arbitrary `SKILL.md` source-path resolution and does not treat source
+files outside the package boundary as executable prompt material.
 
 ## Scope
 
@@ -203,7 +204,7 @@ Acceptance criteria:
 
 ## Proposed Runtime Shape
 
-Illustrative v1 metadata:
+Implemented v1 metadata:
 
 ```yaml
 runtime:
@@ -221,14 +222,14 @@ runtime:
 This is not a broad plugin system. It is an opt-in resolver for already-declared
 package-local bundled skills.
 
-Likely implementation surfaces:
+Implementation surfaces:
 
 - `dynamic_agent_runner.skill_sources` for resolver dataclasses and
   package-local file loading
 - `RuntimeManifest` or execution-policy helper for parsed
   `skill_source_resolution` policy
-- `EffectiveNodeBehavior` or a companion prepared-skill object for resolved
-  instruction bodies and provenance
+- `PreparedInputMetadata` and companion internal preparation structures for
+  resolved instruction bodies and provenance
 - `prepare_model_input(...)` / `_render_message_parts(...)` for injection and
   prepared-input metadata
 - `capabilities.py` for live/metadata-only/rejected skill-source status
@@ -252,15 +253,15 @@ Likely implementation surfaces:
 
 ## Validation Checklist
 
-- [ ] Package-local skill paths resolve within `skill-bundle/`.
-- [ ] Traversal and symlink escapes fail closed.
-- [ ] Missing required skill refs fail during preparation.
-- [ ] Multiple skill refs inject in deterministic order.
-- [ ] Size and encoding limits are enforced.
-- [ ] Runtime overrides produce derived behavior without mutating package files.
-- [ ] Trace metadata identifies loaded skills without raw body leakage.
-- [ ] Source loading is opt-in and package-local in v1.
-- [ ] `source_path` remains provenance-only in v1.
-- [ ] Support files are not loaded as prompt content in v1.
-- [ ] Capability/status reporting distinguishes disabled metadata-only skill
+- [x] Package-local skill paths resolve within `skill-bundle/`.
+- [x] Traversal and symlink escapes fail closed.
+- [x] Missing required skill refs fail during validation.
+- [x] Multiple skill refs inject in deterministic order.
+- [x] Size and encoding limits are enforced.
+- [x] Runtime overrides produce derived behavior without mutating package files.
+- [x] Trace metadata identifies loaded skills without raw body leakage.
+- [x] Source loading is opt-in and package-local in v1.
+- [x] `source_path` remains provenance-only in v1.
+- [x] Support files are not loaded as prompt content in v1.
+- [x] Capability/status reporting distinguishes disabled metadata-only skill
       refs from live or rejected package-local source loading.

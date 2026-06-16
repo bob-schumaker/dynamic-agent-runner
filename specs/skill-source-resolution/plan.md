@@ -8,6 +8,11 @@ through declared `skill_refs` while preserving the current safety boundary: no
 implicit global skill directories, no arbitrary host-file reads, no network
 fetching, and no generated-package mutation.
 
+## Implementation Status
+
+V1 is implemented. The remaining scope in this document describes deferred
+expansions beyond opt-in package-local bundled `SKILL.md` loading.
+
 ## Current Baseline
 
 Observed runtime surfaces:
