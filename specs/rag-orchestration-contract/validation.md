@@ -52,9 +52,16 @@ Status: planning checkpoint prepared
 ### Slice 1 — Declarative RAG Metadata Validation
 
 - Command: `poetry run pytest tests/test_validation.py -q`
-- RED observed result: pending
-- GREEN observed result: pending
-- Interpretation: pending
+- RED observed result: failed before implementation because staged RAG metadata
+  rejected `reranking: caller_adapter` and malformed v1 fields were not
+  reported.
+- GREEN observed result: passed, 60 tests.
+- Additional command:
+  `pre-commit run --files src/dynamic_agent_runner/validation.py`
+  `tests/test_validation.py docs/files/artifact-package.rst`
+- Additional observed result: passed.
+- Interpretation: expanded declarative `metadata.rag_pipeline` validation and
+  authored docs are complete for Slice 1 without adding RAG execution behavior.
 
 ### Slice 2 — RAG Collaborator Capability Status
 

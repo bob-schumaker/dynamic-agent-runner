@@ -20,7 +20,7 @@ Status: prepared for implementation
 
 ## Slice 1 — Declarative RAG Metadata Validation
 
-- [ ] T1.1 [tests] Add RED validation tests for staged RAG metadata.
+- [x] T1.1 [tests] Add RED validation tests for staged RAG metadata.
   - Spec: FR-1, FR-2, FR-6, FR-7, FR-11
   - Files/components: `tests/test_validation.py` or
     `tests/test_rag_orchestration.py`
@@ -34,7 +34,7 @@ Status: prepared for implementation
   - Validation:
     `poetry run pytest tests/test_validation.py -q`
 
-- [ ] T1.2 [implementation] Expand `metadata.rag_pipeline` validation without
+- [x] T1.2 [implementation] Expand `metadata.rag_pipeline` validation without
       changing execution behavior.
   - Spec: FR-1, FR-2, FR-6, FR-7, FR-11
   - Files/components: `src/dynamic_agent_runner/validation.py`
@@ -47,7 +47,7 @@ Status: prepared for implementation
   - Validation:
     `poetry run pytest tests/test_validation.py -q`
 
-- [ ] T1.3 [docs] Update authored artifact-package docs for the v1 metadata
+- [x] T1.3 [docs] Update authored artifact-package docs for the v1 metadata
       shape.
   - Spec: FR-1, FR-2
   - Files/components: `docs/files/artifact-package.rst`

@@ -57,10 +57,22 @@ SUPPORTED_TOOL_TYPES = {
 RAG_PATTERN_IDS = {"rag", "embedding_retrieval", "graph_retrieval", "graphrag"}
 SUPPORTED_RAG_RETRIEVAL_MODES = {
     "keyword",
+    "lexical_keyword",
     "structured",
     "embedding_semantic",
     "graph",
     "hybrid",
+    "unknown",
+}
+SUPPORTED_RAG_ORCHESTRATION_MODES = {
+    "basic_rag",
+    "lexical_retrieval",
+    "semantic_retrieval",
+    "hybrid_retrieval",
+    "graph_retrieval",
+    "graphrag",
+    "agentic_rag",
+    "adaptive_retrieval",
     "unknown",
 }
 SUPPORTED_RAG_CAPABILITY_VALUES = {
@@ -76,9 +88,69 @@ SUPPORTED_RAG_RERANKING_VALUES = {
     "vector_score",
     "graph_score",
     "hybrid",
+    "caller_adapter",
     "unknown",
 }
+SUPPORTED_RAG_FUSION_VALUES = {
+    "none",
+    "rrf",
+    "weighted",
+    "score_normalized",
+    "caller_adapter",
+    "unknown",
+}
+SUPPORTED_RAG_COMPRESSION_VALUES = {
+    "none",
+    "extractive",
+    "semantic",
+    "caller_adapter",
+    "unknown",
+}
+SUPPORTED_RAG_CORRECTION_VALUES = {"none", "optional", "required", "unknown"}
 SUPPORTED_RAG_FRESHNESS_VALUES = {"on_write", "scheduled", "manual", "unknown"}
+SUPPORTED_RAG_CONTEXT_ASSEMBLY_TARGETS = {"prepare_model_input", "external"}
+SUPPORTED_RAG_PERMISSION_FILTERING_VALUES = {
+    "required",
+    "optional",
+    "not_applicable",
+    "unknown",
+}
+SUPPORTED_RAG_PERMISSION_FAILURE_VALUES = {
+    "fail_closed",
+    "fail_open",
+    "degraded",
+    "unknown",
+}
+SUPPORTED_RAG_SOURCE_REGISTRY_VALUES = {
+    "runtime",
+    "host",
+    "external_service",
+    "caller_supplied",
+    "unknown",
+}
+SUPPORTED_RAG_REFRESH_MODE_VALUES = {"on_write", "scheduled", "manual", "unknown"}
+SUPPORTED_RAG_STALE_STATE_VALUES = {
+    "fresh",
+    "stale_but_allowed",
+    "stale_blocked",
+    "unknown",
+}
+SUPPORTED_RAG_CACHE_VALUES = {
+    "disabled",
+    "optional",
+    "required",
+    "metadata_only",
+    "unknown",
+}
+SUPPORTED_RAG_DEGRADED_STATES = {
+    "stale_but_allowed",
+    "partial_results",
+    "missing_optional_retriever",
+    "cache_unavailable",
+    "permission_filter_unavailable",
+    "graph_store_unavailable",
+    "unknown",
+}
 SUPPORTED_MODEL_REQUIRED_CAPABILITIES = {
     "structured_output",
     "tool_calling",
@@ -1902,6 +1974,13 @@ def _validate_rag_pipeline_fields(
 ) -> None:
     _validate_optional_enum(
         pipeline,
+        "orchestration_mode",
+        SUPPORTED_RAG_ORCHESTRATION_MODES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    _validate_optional_enum(
+        pipeline,
         "retrieval_mode",
         SUPPORTED_RAG_RETRIEVAL_MODES,
         "metadata.rag_pipeline",
@@ -1932,6 +2011,27 @@ def _validate_rag_pipeline_fields(
     )
     _validate_optional_enum(
         pipeline,
+        "fusion",
+        SUPPORTED_RAG_FUSION_VALUES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    _validate_optional_enum(
+        pipeline,
+        "compression",
+        SUPPORTED_RAG_COMPRESSION_VALUES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    _validate_optional_enum(
+        pipeline,
+        "correction",
+        SUPPORTED_RAG_CORRECTION_VALUES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    _validate_optional_enum(
+        pipeline,
         "freshness_policy",
         SUPPORTED_RAG_FRESHNESS_VALUES,
         "metadata.rag_pipeline",
@@ -1944,6 +2044,185 @@ def _validate_rag_pipeline_fields(
     if metadata_filters is not None and not _is_string_list(metadata_filters):
         errors.append(
             "metadata.rag_pipeline.metadata_filters must be a list of strings"
+        )
+    _validate_rag_retrievers(pipeline, errors)
+    _validate_rag_candidate_budget(pipeline, errors)
+    _validate_rag_context_assembly(pipeline, errors)
+    _validate_rag_permissions(pipeline, errors)
+    _validate_rag_source_readiness(pipeline, errors)
+    _validate_rag_cache(pipeline, errors)
+    _validate_rag_degraded_states(pipeline, errors)
+
+
+def _validate_rag_retrievers(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    retrievers = pipeline.get("retrievers")
+    if retrievers is None:
+        return
+    if not isinstance(retrievers, list):
+        errors.append("metadata.rag_pipeline.retrievers must be a list")
+        return
+    for index, retriever in enumerate(retrievers):
+        label = f"metadata.rag_pipeline.retrievers[{index}]"
+        if not isinstance(retriever, Mapping):
+            errors.append(f"{label} must be a mapping")
+            continue
+        _validate_optional_nonblank_string(retriever, "id", label, errors)
+        _validate_optional_nonblank_string(retriever, "tool_id", label, errors)
+        _validate_optional_enum(
+            retriever,
+            "mode",
+            SUPPORTED_RAG_RETRIEVAL_MODES,
+            label,
+            errors,
+        )
+        _validate_optional_bool(retriever, "required", label, errors)
+
+
+def _validate_rag_candidate_budget(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    candidate_budget = _optional_mapping(
+        pipeline, "candidate_budget", "metadata.rag_pipeline", errors
+    )
+    if candidate_budget is None:
+        return
+    for field_name in ("stage1_k", "stage2_k", "final_k"):
+        _validate_optional_positive_int(
+            candidate_budget,
+            field_name,
+            "metadata.rag_pipeline.candidate_budget",
+            errors,
+        )
+
+
+def _validate_rag_context_assembly(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    context_assembly = _optional_mapping(
+        pipeline, "context_assembly", "metadata.rag_pipeline", errors
+    )
+    if context_assembly is None:
+        return
+    _validate_optional_enum(
+        context_assembly,
+        "target",
+        SUPPORTED_RAG_CONTEXT_ASSEMBLY_TARGETS,
+        "metadata.rag_pipeline.context_assembly",
+        errors,
+    )
+    _validate_optional_positive_int(
+        context_assembly,
+        "max_context_tokens",
+        "metadata.rag_pipeline.context_assembly",
+        errors,
+    )
+    required_fields = context_assembly.get("required_evidence_fields")
+    if required_fields is not None and not _is_string_list(required_fields):
+        errors.append(
+            "metadata.rag_pipeline.context_assembly.required_evidence_fields "
+            "must be a list of strings"
+        )
+
+
+def _validate_rag_permissions(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    permissions = _optional_mapping(
+        pipeline, "permissions", "metadata.rag_pipeline", errors
+    )
+    if permissions is None:
+        return
+    _validate_optional_enum(
+        permissions,
+        "permission_filtering",
+        SUPPORTED_RAG_PERMISSION_FILTERING_VALUES,
+        "metadata.rag_pipeline.permissions",
+        errors,
+    )
+    _validate_optional_enum(
+        permissions,
+        "permission_failure_policy",
+        SUPPORTED_RAG_PERMISSION_FAILURE_VALUES,
+        "metadata.rag_pipeline.permissions",
+        errors,
+    )
+    _validate_optional_bool(
+        permissions, "audit_required", "metadata.rag_pipeline.permissions", errors
+    )
+
+
+def _validate_rag_source_readiness(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    source_readiness = _optional_mapping(
+        pipeline, "source_readiness", "metadata.rag_pipeline", errors
+    )
+    if source_readiness is None:
+        return
+    _validate_optional_enum(
+        source_readiness,
+        "source_registry",
+        SUPPORTED_RAG_SOURCE_REGISTRY_VALUES,
+        "metadata.rag_pipeline.source_readiness",
+        errors,
+    )
+    _validate_optional_enum(
+        source_readiness,
+        "refresh_mode",
+        SUPPORTED_RAG_REFRESH_MODE_VALUES,
+        "metadata.rag_pipeline.source_readiness",
+        errors,
+    )
+    _validate_optional_enum(
+        source_readiness,
+        "stale_state",
+        SUPPORTED_RAG_STALE_STATE_VALUES,
+        "metadata.rag_pipeline.source_readiness",
+        errors,
+    )
+
+
+def _validate_rag_cache(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    cache = _optional_mapping(pipeline, "cache", "metadata.rag_pipeline", errors)
+    if cache is None:
+        return
+    for field_name in ("retrieval_results", "semantic_query_cache"):
+        _validate_optional_enum(
+            cache,
+            field_name,
+            SUPPORTED_RAG_CACHE_VALUES,
+            "metadata.rag_pipeline.cache",
+            errors,
+        )
+
+
+def _validate_rag_degraded_states(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    degraded_states = pipeline.get("degraded_states")
+    if degraded_states is None:
+        return
+    if not isinstance(degraded_states, list) or not all(
+        isinstance(item, str) for item in degraded_states
+    ):
+        errors.append("metadata.rag_pipeline.degraded_states must be a list of strings")
+        return
+    unsupported = sorted(set(degraded_states) - SUPPORTED_RAG_DEGRADED_STATES)
+    if unsupported:
+        errors.append(
+            "metadata.rag_pipeline.degraded_states contains unsupported values "
+            f"{unsupported!r}"
         )
 
 
@@ -2017,6 +2296,34 @@ def _validate_optional_bool(
     value = mapping.get(field_name)
     if value is not None and not isinstance(value, bool):
         errors.append(f"{label}.{field_name} must be boolean")
+
+
+def _validate_optional_nonblank_string(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None:
+        return
+    if not isinstance(value, str):
+        errors.append(f"{label}.{field_name} must be a string")
+    elif not value.strip():
+        errors.append(f"{label}.{field_name} must not be blank")
+
+
+def _validate_optional_positive_int(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None:
+        return
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        errors.append(f"{label}.{field_name} must be a positive integer")
 
 
 def _validate_optional_bool_or_value(

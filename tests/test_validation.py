@@ -919,6 +919,165 @@ def test_rag_manifest_preserves_and_validates_pipeline_and_model_requirements() 
     ]
 
 
+def test_staged_rag_pipeline_metadata_passes_validation() -> None:
+    """Staged RAG orchestration metadata validates without adding execution behavior."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "patterns_present": ["rag", "embedding_retrieval"],
+        "rag_pipeline": {
+            "orchestration_mode": "hybrid_retrieval",
+            "retrieval_mode": "hybrid",
+            "retrievers": [
+                {
+                    "id": "keyword",
+                    "tool_id": "keyword_search",
+                    "mode": "lexical_keyword",
+                    "required": True,
+                },
+                {
+                    "id": "semantic",
+                    "tool_id": "semantic_search",
+                    "mode": "embedding_semantic",
+                    "required": True,
+                },
+            ],
+            "fusion": "rrf",
+            "reranking": "caller_adapter",
+            "compression": "none",
+            "correction": "optional",
+            "candidate_budget": {
+                "stage1_k": 50,
+                "stage2_k": 20,
+                "final_k": 5,
+            },
+            "embedding_capability": "required",
+            "graph_capability": "not_applicable",
+            "provenance_required": True,
+            "context_assembly": {
+                "target": "prepare_model_input",
+                "max_context_tokens": 8192,
+                "required_evidence_fields": [
+                    "source_id",
+                    "chunk_id",
+                    "citation_handle",
+                ],
+            },
+            "permissions": {
+                "permission_filtering": "required",
+                "permission_failure_policy": "fail_closed",
+                "audit_required": True,
+            },
+            "source_readiness": {
+                "source_registry": "external_service",
+                "refresh_mode": "scheduled",
+                "index_version": "caller_supplied",
+                "stale_state": "fresh",
+            },
+            "cache": {
+                "retrieval_results": "optional",
+                "semantic_query_cache": "optional",
+            },
+            "degraded_states": ["stale_but_allowed", "partial_results"],
+        },
+    }
+
+    validate_mapping(data)
+
+
+def test_staged_rag_pipeline_metadata_fails_for_malformed_values() -> None:
+    """Staged RAG metadata reports malformed v1 fields clearly."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "patterns_present": ["rag", "embedding_retrieval"],
+        "rag_pipeline": {
+            "orchestration_mode": "surprise",
+            "retrieval_mode": "hybrid",
+            "retrievers": [
+                {
+                    "id": "",
+                    "tool_id": 7,
+                    "mode": "telepathy",
+                    "required": "yes",
+                },
+                "not-a-mapping",
+            ],
+            "fusion": "magic",
+            "reranking": "oracle",
+            "compression": "lossy_magic",
+            "correction": "always",
+            "candidate_budget": {"stage1_k": 0, "stage2_k": True, "final_k": "five"},
+            "embedding_capability": "required",
+            "context_assembly": {
+                "target": "raw_prompt_append",
+                "max_context_tokens": 0,
+                "required_evidence_fields": ["source_id", 3],
+            },
+            "permissions": {
+                "permission_filtering": "maybe",
+                "permission_failure_policy": "continue",
+                "audit_required": "yes",
+            },
+            "source_readiness": {
+                "source_registry": "ambient_runtime",
+                "refresh_mode": "whenever",
+                "stale_state": "moldy",
+            },
+            "cache": {
+                "retrieval_results": "always",
+                "semantic_query_cache": 5,
+            },
+            "degraded_states": ["partial_results", "ominous"],
+        },
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "metadata.rag_pipeline.orchestration_mode has unsupported value" in message
+    assert "metadata.rag_pipeline.retrievers[0].id must not be blank" in message
+    assert "metadata.rag_pipeline.retrievers[0].tool_id must be a string" in message
+    assert "metadata.rag_pipeline.retrievers[0].mode has unsupported value" in message
+    assert "metadata.rag_pipeline.retrievers[0].required must be boolean" in message
+    assert "metadata.rag_pipeline.retrievers[1] must be a mapping" in message
+    assert "metadata.rag_pipeline.fusion has unsupported value 'magic'" in message
+    assert "metadata.rag_pipeline.reranking has unsupported value 'oracle'" in message
+    assert (
+        "metadata.rag_pipeline.compression has unsupported value 'lossy_magic'"
+        in message
+    )
+    assert "metadata.rag_pipeline.correction has unsupported value 'always'" in message
+    assert (
+        "metadata.rag_pipeline.candidate_budget.stage1_k must be a positive integer"
+        in message
+    )
+    assert (
+        "metadata.rag_pipeline.context_assembly.target has unsupported value" in message
+    )
+    assert (
+        "metadata.rag_pipeline.context_assembly.required_evidence_fields must be a list of strings"
+        in message
+    )
+    assert (
+        "metadata.rag_pipeline.permissions.permission_filtering has unsupported value"
+        in message
+    )
+    assert "metadata.rag_pipeline.permissions.audit_required must be boolean" in message
+    assert (
+        "metadata.rag_pipeline.source_readiness.stale_state has unsupported value"
+        in message
+    )
+    assert (
+        "metadata.rag_pipeline.cache.semantic_query_cache has unsupported value"
+        in message
+    )
+    assert (
+        "metadata.rag_pipeline.degraded_states contains unsupported values" in message
+    )
+
+
 def test_invalid_rag_pipeline_and_model_requirements_fail_validation() -> None:
     """RAG and model-requirement metadata fail clearly when generated malformed."""
 
