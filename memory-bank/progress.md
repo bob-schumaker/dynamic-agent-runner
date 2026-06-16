@@ -91,11 +91,16 @@
   Second Edition: Intelligent Workflows With LLMs, MCP, A2A, and More`
   (Manning, ISBN `9781633434530`) are tracked in the owning specs without
   expanding immediate implementation scope.
-- `rag-orchestration-contract` now records RAG as a future orchestration
-  contract, not a retrieval infrastructure framework. It covers caller-owned
-  retrievers/adapters, provenance, context injection, index lifecycle,
-  permission-aware retrieval, routing profiles, GraphRAG layers, cache state,
-  degraded execution traces, and evaluation hooks.
+- `rag-orchestration-contract` is prepared for implementation as a declarative
+  RAG orchestration contract, not a retrieval infrastructure framework. V1 is
+  scoped to expanded `metadata.rag_pipeline` validation and capability/status
+  reporting for caller-owned retriever collaborators, provenance requirements,
+  source readiness, permissions, cache, degraded states, and
+  context-management handoff declarations.
+- Retrieved-context prompt assembly is owned by
+  `context-management-prepare-stage`: RAG metadata can declare context assembly
+  needs, but retrieved-context lanes, packing, trimming, compression,
+  diagnostics, and final prompt injection belong to context management.
 - `skill-source-resolution` is complete for the v1 boundary. It remains
   opt-in, package-local, and fake-test covered; external roots, `source_path`
   reads, support-file prompt loading, and network fetching remain deferred.
@@ -143,6 +148,9 @@
   evaluated RAG books, including index lifecycle, permission-aware retrieval,
   retrieval routers/profiles, cache contracts, GraphRAG construction vs
   query-time retrieval, degraded execution, and evaluation lifecycle metadata.
+- `b76d581` prepared the RAG orchestration contract for v1 implementation,
+  added plan/tasks/validation artifacts, aligned the RAG/context-management
+  ownership split, and refreshed the spec inventory/high-ROI order.
 - `78d080c` prepared `skill-source-resolution` for implementation by resolving
   v1 decisions, adding `plan.md` and `tasks.md`, and updating the spec index.
 - `5f7d1fd`, `79cce93`, `99ed79d`, `ac8028b`, `9b5f6a8`, and `9f0557b`
@@ -161,8 +169,8 @@
 
 - Next highest-ROI implementation slice is not currently pinned in the memory
   bank. Use `specs/README.md` plus the user's immediate priority to choose
-  between local-model advisory work, context-management implementation, or a new
-  scoped feature slice.
+  between prepared RAG orchestration v1, local-model advisory work,
+  context-management implementation, or a new scoped feature slice.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering
@@ -176,10 +184,10 @@
   host-managed continuity boundaries are clear.
 - Runner-owned durable session storage remains deferred until a concrete
   workflow proves the need.
-- Runner-owned RAG infrastructure remains out of scope. RAG future work should
-  stay focused on metadata validation, capability/status diagnostics, trace
-  contracts, provenance, context-management integration, and fake-adapter
-  evaluation hooks.
+- Runner-owned RAG infrastructure remains out of scope. Prepared RAG v1 should
+  stay focused on metadata validation and capability/status diagnostics for
+  declared collaborators, provenance, source readiness, permissions, cache,
+  degraded states, and context-management handoff requirements.
 - Skill-source resolution beyond v1 needs a new plan before adding external
   roots, `source_path` reads, support-file prompt loading, network fetching,
   executable skill files, Markdown frontmatter parsing, or raw skill-body trace
