@@ -66,9 +66,21 @@ Status: planning checkpoint prepared
 ### Slice 2 — RAG Collaborator Capability Status
 
 - Command: `poetry run pytest tests/test_capabilities.py -q`
-- RED observed result: pending
-- GREEN observed result: pending
-- Interpretation: pending
+- RED observed result: failed before implementation because
+  `metadata.rag_pipeline` had no capability/status item.
+- GREEN observed result: passed, 11 tests.
+- Additional command:
+  `poetry run pytest tests/test_capabilities.py tests/test_validation.py -q`
+- Additional observed result: passed, 71 tests.
+- Additional command:
+  `pre-commit run --files src/dynamic_agent_runner/capabilities.py`
+  `tests/test_capabilities.py specs/rag-orchestration-contract/tasks.md`
+  `specs/rag-orchestration-contract/validation.md`
+- Additional observed result: passed.
+- Interpretation: RAG capability/status now reports metadata-only declarations,
+  live registered required retrievers, missing required collaborators, optional
+  metadata-only retrievers, and redaction-safe degraded/readiness details
+  without invoking retriever handlers.
 
 ### Slice 3 — Provenance and Context-Management Handoff Metadata
 

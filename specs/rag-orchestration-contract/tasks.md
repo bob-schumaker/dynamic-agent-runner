@@ -59,7 +59,7 @@ Status: prepared for implementation
 
 ## Slice 2 — RAG Collaborator Capability Status
 
-- [ ] T2.1 [tests] Add RED capability/status tests for RAG readiness.
+- [x] T2.1 [tests] Add RED capability/status tests for RAG readiness.
   - Spec: FR-3, FR-10, FR-11
   - Files/components: `tests/test_capabilities.py`
   - Acceptance:
@@ -72,7 +72,7 @@ Status: prepared for implementation
   - Validation:
     `poetry run pytest tests/test_capabilities.py -q`
 
-- [ ] T2.2 [implementation] Add RAG capability/status reporting without
+- [x] T2.2 [implementation] Add RAG capability/status reporting without
       invoking retrieval.
   - Spec: FR-3, FR-10, FR-11
   - Files/components: `src/dynamic_agent_runner/capabilities.py`

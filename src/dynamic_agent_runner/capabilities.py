@@ -26,6 +26,7 @@ _OWNER_APPROVAL_INTERRUPTION = "approval-interruption-resume"
 _OWNER_ASYNC_SESSION = "async-session-memory-pipeline"
 _OWNER_GUARDRAILS = "live-guardrail-execution"
 _OWNER_MCP = "mcp-runtime-integration"
+_OWNER_RAG = "rag-orchestration-contract"
 _OWNER_SANDBOX = "sandbox-workspace-runtime"
 _OWNER_SKILL_SOURCE = "skill-source-resolution"
 _OWNER_TOOL_LOOP = "iterative-agent-loop-runtime"
@@ -287,6 +288,7 @@ def _capability_items(
                 "MCP source declarations are preserved but no live MCP clients run.",
             )
         )
+    items.extend(_rag_items(manifest.rag_pipeline, tool_registry=tool_registry))
     if has_skill_refs:
         items.append(_skill_source_resolution_item(workflow, plan=plan))
     items.extend(
@@ -466,6 +468,174 @@ def _guardrail_coverage_items(
             )
         )
     return tuple(items)
+
+
+def _rag_items(
+    pipeline: Mapping[str, Any] | None,
+    *,
+    tool_registry: object | None,
+) -> tuple[CapabilityStatusItem, ...]:
+    if not pipeline:
+        return ()
+    return (
+        _rag_pipeline_metadata_item(pipeline),
+        *_rag_retriever_items(pipeline, tool_registry=tool_registry),
+    )
+
+
+def _rag_pipeline_metadata_item(
+    pipeline: Mapping[str, Any],
+) -> CapabilityStatusItem:
+    retrievers = _rag_retriever_declarations(pipeline)
+    required_retrievers = [retriever for retriever in retrievers if retriever.required]
+    source_readiness = pipeline.get("source_readiness")
+    permissions = pipeline.get("permissions")
+    degraded_states = pipeline.get("degraded_states")
+    details: dict[str, object] = {
+        "orchestration_mode": str(pipeline.get("orchestration_mode", "unknown")),
+        "retrieval_mode": str(pipeline.get("retrieval_mode", "unknown")),
+        "required_retrievers": len(required_retrievers),
+        "declared_retrievers": len(retrievers),
+    }
+    if isinstance(degraded_states, list):
+        details["degraded_states"] = tuple(
+            sorted(str(item) for item in degraded_states)
+        )
+    if isinstance(source_readiness, Mapping):
+        stale_state = source_readiness.get("stale_state")
+        if stale_state is not None:
+            details["stale_state"] = str(stale_state)
+    if isinstance(permissions, Mapping):
+        permission_filtering = permissions.get("permission_filtering")
+        if permission_filtering is not None:
+            details["permission_filtering"] = str(permission_filtering)
+    return CapabilityStatusItem(
+        id="metadata.rag_pipeline",
+        label="RAG orchestration metadata",
+        state=CapabilityState.METADATA_ONLY,
+        category="rag",
+        summary=(
+            "RAG declarations are preserved and validated; retrieval execution "
+            "remains caller-owned."
+        ),
+        owner=_OWNER_RAG,
+        details=details,
+    )
+
+
+@dataclass(frozen=True)
+class _RAGRetrieverDeclaration:
+    retriever_id: str
+    tool_id: str | None
+    mode: str | None
+    required: bool
+
+
+def _rag_retriever_items(
+    pipeline: Mapping[str, Any],
+    *,
+    tool_registry: object | None,
+) -> tuple[CapabilityStatusItem, ...]:
+    items: list[CapabilityStatusItem] = []
+    for retriever in _rag_retriever_declarations(pipeline):
+        state, summary, required_collaborator = _rag_retriever_state(
+            retriever,
+            tool_registry=tool_registry,
+        )
+        items.append(
+            CapabilityStatusItem(
+                id=f"rag.retriever.{retriever.retriever_id}",
+                label=f"RAG retriever {retriever.retriever_id}",
+                state=state,
+                category="rag",
+                summary=summary,
+                owner=_OWNER_RAG,
+                required_collaborator=required_collaborator,
+                details={
+                    "retriever_id": retriever.retriever_id,
+                    "tool_id": retriever.tool_id or "",
+                    "mode": retriever.mode or "unknown",
+                    "required": retriever.required,
+                },
+            )
+        )
+    return tuple(items)
+
+
+def _rag_retriever_state(
+    retriever: _RAGRetrieverDeclaration,
+    *,
+    tool_registry: object | None,
+) -> tuple[CapabilityState, str, str | None]:
+    if not retriever.tool_id:
+        return (
+            CapabilityState.METADATA_ONLY,
+            "RAG retriever has no live tool collaborator declaration.",
+            None,
+        )
+    if tool_registry is None:
+        if retriever.required:
+            return (
+                CapabilityState.MISSING_COLLABORATOR,
+                "Required RAG retriever needs a caller-supplied tool registry.",
+                "tool_registry",
+            )
+        return (
+            CapabilityState.METADATA_ONLY,
+            "Optional RAG retriever is declared but has no live registry coverage.",
+            None,
+        )
+    try:
+        tool_registry.get_tool(retriever.tool_id)
+    except ToolRegistryError as exc:
+        if "disabled" in str(exc).lower():
+            return (
+                CapabilityState.DISABLED,
+                "RAG retriever tool is disabled in the registry.",
+                None,
+            )
+        if retriever.required:
+            return (
+                CapabilityState.MISSING_COLLABORATOR,
+                "Required RAG retriever tool is missing from the registry.",
+                "tool_registry",
+            )
+        return (
+            CapabilityState.METADATA_ONLY,
+            "Optional RAG retriever tool is not registered.",
+            None,
+        )
+    return (
+        CapabilityState.LIVE,
+        "RAG retriever tool is registered.",
+        None,
+    )
+
+
+def _rag_retriever_declarations(
+    pipeline: Mapping[str, Any],
+) -> tuple[_RAGRetrieverDeclaration, ...]:
+    retrievers = pipeline.get("retrievers")
+    if not isinstance(retrievers, list):
+        return ()
+    declarations: list[_RAGRetrieverDeclaration] = []
+    for index, retriever in enumerate(retrievers):
+        if not isinstance(retriever, Mapping):
+            continue
+        retriever_id = retriever.get("id")
+        tool_id = retriever.get("tool_id")
+        mode = retriever.get("mode")
+        declarations.append(
+            _RAGRetrieverDeclaration(
+                retriever_id=(
+                    str(retriever_id) if retriever_id is not None else str(index)
+                ),
+                tool_id=str(tool_id) if tool_id is not None else None,
+                mode=str(mode) if mode is not None else None,
+                required=retriever.get("required") is True,
+            )
+        )
+    return tuple(declarations)
 
 
 def _has_skill_refs(plan: object) -> bool:

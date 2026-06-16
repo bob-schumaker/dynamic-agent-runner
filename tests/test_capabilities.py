@@ -378,6 +378,133 @@ def test_inspect_agent_package_capabilities_reports_collaborator_coverage(
     assert disabled_items["built_in.local_workspace"].state == CapabilityState.LIVE
 
 
+def test_inspect_agent_package_capabilities_reports_rag_readiness(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: rag-capability-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        metadata:
+          patterns_present:
+            - rag
+            - embedding_retrieval
+          rag_pipeline:
+            orchestration_mode: hybrid_retrieval
+            retrieval_mode: hybrid
+            retrievers:
+              - id: keyword
+                tool_id: keyword_search
+                mode: lexical_keyword
+                required: true
+              - id: semantic
+                tool_id: semantic_search
+                mode: embedding_semantic
+                required: true
+              - id: graph_optional
+                tool_id: graph_search
+                mode: graph
+                required: false
+            fusion: rrf
+            reranking: caller_adapter
+            compression: none
+            correction: optional
+            embedding_capability: required
+            graph_capability: not_applicable
+            provenance_required: true
+            source_readiness:
+              source_registry: external_service
+              refresh_mode: scheduled
+              stale_state: stale_but_allowed
+            permissions:
+              permission_filtering: required
+              permission_failure_policy: fail_closed
+              audit_required: true
+            cache:
+              retrieval_results: optional
+            degraded_states:
+              - stale_but_allowed
+              - partial_results
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+        edges: []
+        """,
+    )
+
+    metadata_report = inspect_agent_package_capabilities(package_directory=package_dir)
+    metadata_items = {item.id: item for item in metadata_report.items}
+    assert (
+        metadata_items["metadata.rag_pipeline"].state == CapabilityState.METADATA_ONLY
+    )
+    assert metadata_items["metadata.rag_pipeline"].details == {
+        "orchestration_mode": "hybrid_retrieval",
+        "retrieval_mode": "hybrid",
+        "required_retrievers": 2,
+        "declared_retrievers": 3,
+        "degraded_states": ("partial_results", "stale_but_allowed"),
+        "stale_state": "stale_but_allowed",
+        "permission_filtering": "required",
+    }
+    assert (
+        metadata_items["rag.retriever.keyword"].state
+        == CapabilityState.MISSING_COLLABORATOR
+    )
+    assert (
+        metadata_items["rag.retriever.graph_optional"].state
+        == CapabilityState.METADATA_ONLY
+    )
+
+    invoked = False
+
+    def fail_if_invoked(_args):
+        nonlocal invoked
+        invoked = True
+        raise AssertionError("capability inspection must not invoke retrievers")
+
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "keyword_search"}),
+                fail_if_invoked,
+            ),
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "semantic_search"}),
+                fail_if_invoked,
+            ),
+        ]
+    )
+
+    live_report = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        tool_registry=registry,
+    )
+    live_items = {item.id: item for item in live_report.items}
+
+    assert invoked is False
+    assert live_items["rag.retriever.keyword"].state == CapabilityState.LIVE
+    assert live_items["rag.retriever.semantic"].state == CapabilityState.LIVE
+    assert (
+        live_items["rag.retriever.graph_optional"].state
+        == CapabilityState.METADATA_ONLY
+    )
+    assert live_items["rag.retriever.keyword"].details == {
+        "retriever_id": "keyword",
+        "tool_id": "keyword_search",
+        "mode": "lexical_keyword",
+        "required": True,
+    }
+
+
 def test_inspect_agent_package_capabilities_reports_live_approval_interruption(
     tmp_path: Path,
 ) -> None:
