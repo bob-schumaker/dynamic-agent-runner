@@ -37,7 +37,7 @@ Companion planning artifacts:
 | Sandbox and workspace runtime | [`spec.md`](sandbox-workspace-runtime/spec.md) | Partial approval-policy baseline | Approval-before-side-effect boundary is implemented through approval interruption v1; write/shell runtime, workspace grants, sandbox adapters, and mutation audits remain deferred |
 | MCP runtime integration | [`spec.md`](mcp-runtime-integration/spec.md) | Implemented v1 baseline | Explicit caller-supplied MCP registry injection, MCP provenance, conservative policy defaults, capability status, tests, and evidence complete; live transports, process lifecycle, and discovery remain deferred |
 | Live guardrail execution | [`spec.md`](live-guardrail-execution/spec.md) | Implemented v1 baseline | Caller-registered input guardrail pass/abort, fail-closed missing adapters, redacted traces, capability status, tests, and evidence complete; output/tool phases remain deferred |
-| RAG orchestration contract | [`spec.md`](rag-orchestration-contract/spec.md) | Future orchestration feature | Defines direct support for RAG metadata, orchestration modes, typed query/answer states, validation, capability/status, provenance, context assembly, guardrail/evaluation hooks, and primitive-node workflow patterns while keeping ingestion, embeddings, indexes, graph stores, rerankers, compressors, and evaluators caller-owned |
+| RAG orchestration contract | [`spec.md`](rag-orchestration-contract/spec.md) | Future orchestration feature | Defines direct support for RAG metadata, orchestration modes, typed query/answer states, validation, capability/status, provenance, context assembly, guardrail/evaluation hooks, production index/cache/permission metadata, retrieval routers/profiles, GraphRAG construction/query boundaries, degraded execution states, and primitive-node workflow patterns while keeping ingestion, embeddings, indexes, graph stores, rerankers, compressors, and evaluators caller-owned |
 | SKILL.md source resolution | [`spec.md`](skill-source-resolution/spec.md) | Future source-loading feature | Skill metadata and refs exist; arbitrary source loading not implemented |
 | Iterative agent-loop runtime | [`spec.md`](iterative-agent-loop-runtime/spec.md) | Implemented v1 baseline | Bounded opt-in serial model-tool loops execute inside eligible `llm_step` nodes with registry dispatch, approval pauses, fail-closed safety checks, loop traces, tests, and evidence complete; state-field final selectors and durable resume remain deferred |
 | Power-Marimo host automation | [`spec.md`](power-marimo-host-automation/spec.md) | Future downstream integration | Placeholder-safe fixture exists; live Marimo/PyQt automation not implemented |
@@ -65,7 +65,7 @@ Companion planning artifacts:
 | Approval interruption/resume | `approval-interruption-resume` | Public interruption contract, direct approval-required tool pause, no-side-effect-before-approval behavior, redacted approval traces, high-level API guardrails, capability status, tests, and evidence complete | Durable resume, approval decisions, model-emitted tool-call approval, argument modification, parallel approvals, and serialized resume state remain deferred |
 | MCP runtime integration | `mcp-runtime-integration` | Metadata-only MCP registry-source and lifecycle diagnostics preservation plus explicit caller-supplied MCP registry injection complete | Live server discovery, process lifecycle, transports, reconnect, schema cache, and diagnostics beyond metadata remain deferred |
 | Live guardrail execution | `live-guardrail-execution` | Metadata-only guardrail declaration preservation plus caller-registered input guardrail aborts before first runtime action complete | Output guardrails, tool guardrails, reject-content behavior, retries, timeouts, and external adapters remain deferred |
-| RAG orchestration contract | `rag-orchestration-contract` | Limited `metadata.rag_pipeline` validation exists in the primary runtime | Future RAG contract slices should add stage-level RAG metadata, retrieval orchestration modes, typed query/answer contracts, capability/status reporting, provenance-aware retrieved-context contracts, context-management integration, guardrail/evaluation hooks, and examples without owning retrieval infrastructure |
+| RAG orchestration contract | `rag-orchestration-contract` | Limited `metadata.rag_pipeline` validation exists in the primary runtime | Future RAG contract slices should add stage-level RAG metadata, retrieval orchestration modes, typed query/answer contracts, capability/status reporting, provenance-aware retrieved-context contracts, context-management integration, guardrail/evaluation hooks, index lifecycle/source-readiness metadata, permission-aware retrieval declarations, routing profiles, GraphRAG construction/query metadata, cache/degraded-execution traces, and examples without owning retrieval infrastructure |
 | SKILL.md source resolution | `skill-source-resolution` | Package-local skill metadata and `skill_refs` preservation complete | Source loading, trust, precedence, and prompt injection are specified as future work |
 | Iterative agent-loop runtime | `iterative-agent-loop-runtime` | Bounded opt-in serial model-tool loop execution complete for eligible `llm_step` nodes | Loop `state_field`/`tool_result` final selectors, durable approval resume, output/tool guardrails, parallel tool calls, and durable transcripts remain deferred |
 | Power-Marimo host automation | `power-marimo-host-automation` | Placeholder-safe fixture and fake-tool execution coverage complete | Live Marimo-session tools, domain adapters, PyQt-widget automation, and host safety policy are specified as future work |
@@ -124,6 +124,38 @@ reference. Useful ideas were tracked in
 - Retrieval evaluation and response evaluation should remain separable so
   callers can inspect retrieval quality, faithfulness, groundedness, answer
   relevance, and context relevance independently.
+
+Additional RAG and agent-data references were evaluated for production
+orchestration details: Ranajoy Bose's `Mastering Retrieval-Augmented
+Generation` (Apress, ISBN `9798868818080`), Tomaz Bratanic and Oskar Hane's
+`Essential GraphRAG` (Manning, ISBN `9781633436268`), Andrei Gheorghiu's
+`Building Data-Driven Applications with LlamaIndex - Second Edition` (Packt
+Publishing, ISBN `9781806021857`), Mayo Oshin and Nuno Campos's `Learning
+LangChain` (O'Reilly Media, ISBN `9781098167288`), Alireza Pareh and Alireza
+Parandeh's `Building Generative AI Services with FastAPI` (O'Reilly Media, ISBN
+`9781098160296`), Blaize Stewart and Ed Huang's `Agentic AI Data Architectures`
+(O'Reilly Media, ISBN `0642572250140`), Benjamin Labaschin, Jim Allen Wallace,
+Andrew Brookins, and Manvinder Singh's `Managing Memory for AI Agents`
+(O'Reilly Media, ISBN `9798341661257`), Navnit Shukla, Kien Pham, Srikanth
+Sopirala, and Harsha Tadiparthi's `AI-Ready Data Blueprints` (O'Reilly Media,
+ISBN `9798341631786`), and Erik Benner, Hicham Assoudi, and Tural
+Gulmammadov's `A Practical Guide to Oracle AI Engineering` (Packt Publishing,
+ISBN `9781806110797`). They added these future contract concerns:
+
+- Index lifecycle and source readiness should include source registries, source
+  and index versions, refresh modes, tombstones, stale-source diagnostics, and
+  source classes.
+- Permission-aware retrieval should be declarable with permission scope, ACL
+  authority, audit requirements, and fail-closed behavior when filtering cannot
+  be confirmed.
+- Retrieval routers and profiles should make query routing visible for
+  capability/status reporting without adding a new primitive node kind.
+- GraphRAG metadata should separate index-time graph construction from
+  query-time graph retrieval strategies such as local search, global search,
+  Cypher generation, and vector-plus-graph hybrid retrieval.
+- Cache and degraded-execution metadata should distinguish response, semantic
+  query, retrieval-result, and context-assembly caches, plus cache hit/miss,
+  timeout, cancellation, stale-but-allowed, and partial-result states.
 
 The repository-local RAG research notes under the Personal vault were also
 evaluated as supporting material for the same spec. They reinforced additional
