@@ -14,7 +14,7 @@ Status: future backlog; no tasks started
 
 ## Slice 1 — Policy, turn model, and metadata contract
 
-- [ ] T1.1 [tests] Add RED validation coverage for
+- [x] T1.1 [tests] Add RED validation coverage for
       `runtime.execution_policy.prepare_model_input.context_compaction.auto`.
   - Spec: FR7, FR10, FR12, FR14, FR16, FR17
   - Files/components: `tests/test_validation.py`,
@@ -27,7 +27,7 @@ Status: future backlog; no tasks started
     compression profiles.
   - Validation: `poetry run pytest tests/test_validation.py -q`
 
-- [ ] T1.2 [tests] Add RED executor coverage for turn-unit grouping.
+- [x] T1.2 [tests] Add RED executor coverage for turn-unit grouping.
   - Spec: FR2, FR11, FR16
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -36,7 +36,7 @@ Status: future backlog; no tasks started
     assignment, and fail-closed invalid structures.
   - Validation: `poetry run pytest tests/test_executor.py -q -k turn_grouping`
 
-- [ ] T1.3 [tests] Add RED executor coverage for threshold derivation and
+- [x] T1.3 [tests] Add RED executor coverage for threshold derivation and
       reserve-token trigger precedence.
   - Spec: FR7, FR12
   - Files/components: `tests/test_executor.py`,
@@ -46,7 +46,7 @@ Status: future backlog; no tasks started
     strict/unavailable behavior.
   - Validation: `poetry run pytest tests/test_executor.py -q -k auto_compact`
 
-- [ ] T1.4 [implementation] Add normalized compression policy parsing, turn
+- [x] T1.4 [implementation] Add normalized compression policy parsing, turn
       grouping, and prepared-input metadata fields.
   - Spec: FR2, FR6, FR7, FR10, FR12, FR14, FR16, FR17
   - Files/components: `src/dynamic_agent_runner/executor.py`,

@@ -170,6 +170,16 @@ class PreparedInputMetadata:
     skill_sources_loaded: tuple[Mapping[str, Any], ...] = ()
     skill_sources_omitted: tuple[Mapping[str, Any], ...] = ()
     skill_sources_rejected: tuple[Mapping[str, Any], ...] = ()
+    turn_count: int = 0
+    segment_count: int = 0
+    turns: tuple[Mapping[str, Any], ...] = ()
+    segments: tuple[Mapping[str, Any], ...] = ()
+    context_threshold: Mapping[str, Any] = field(default_factory=dict)
+    compression_profile: str | None = None
+    lane_budgets: Mapping[str, int] = field(default_factory=dict)
+    selection_policy: Mapping[str, Any] = field(default_factory=dict)
+    lifecycle_stages: tuple[Mapping[str, Any], ...] = ()
+    metrics: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -427,6 +437,7 @@ def prepare_model_input(
         plan,
         state,
         model=model,
+        adapter=adapter,
     )
     preparation = _merge_prepared_input_metadata(preparation, mutation_preparation)
     preparation = _merge_skill_source_preparation(
@@ -455,6 +466,14 @@ def prepare_model_input(
                 "skill_sources_loaded": preparation.skill_sources_loaded,
                 "skill_sources_omitted": preparation.skill_sources_omitted,
                 "skill_sources_rejected": preparation.skill_sources_rejected,
+                "turn_count": preparation.turn_count,
+                "segment_count": preparation.segment_count,
+                "context_threshold": preparation.context_threshold,
+                "compression_profile": preparation.compression_profile,
+                "lane_budgets": preparation.lane_budgets,
+                "selection_policy": preparation.selection_policy,
+                "lifecycle_stages": preparation.lifecycle_stages,
+                "metrics": preparation.metrics,
             },
         )
     if preparation.skill_sources_rejected:
@@ -1711,6 +1730,16 @@ def _merge_prepared_input_metadata(
         skill_sources_loaded=base.skill_sources_loaded,
         skill_sources_omitted=base.skill_sources_omitted,
         skill_sources_rejected=base.skill_sources_rejected,
+        turn_count=base.turn_count,
+        segment_count=base.segment_count,
+        turns=base.turns,
+        segments=base.segments,
+        context_threshold=base.context_threshold,
+        compression_profile=base.compression_profile,
+        lane_budgets=base.lane_budgets,
+        selection_policy=base.selection_policy,
+        lifecycle_stages=base.lifecycle_stages,
+        metrics=base.metrics,
     )
 
 
@@ -1734,6 +1763,16 @@ def _merge_skill_source_preparation(
         skill_sources_loaded=skill_sources.loaded,
         skill_sources_omitted=skill_sources.omitted,
         skill_sources_rejected=skill_sources.rejected,
+        turn_count=base.turn_count,
+        segment_count=base.segment_count,
+        turns=base.turns,
+        segments=base.segments,
+        context_threshold=base.context_threshold,
+        compression_profile=base.compression_profile,
+        lane_budgets=base.lane_budgets,
+        selection_policy=base.selection_policy,
+        lifecycle_stages=base.lifecycle_stages,
+        metrics=base.metrics,
     )
 
 
@@ -1752,6 +1791,7 @@ def _apply_prepare_model_input_stage(
     state: WorkflowExecutionState,
     *,
     model: str,
+    adapter: ModelAdapter,
 ) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
     """Apply optional prepare-stage hierarchy and session shaping."""
 
@@ -1794,6 +1834,13 @@ def _apply_prepare_model_input_stage(
     kept_session, pruned_session = _pruned_session_messages(
         state.session_messages, policy
     )
+    turn_metadata, segment_metadata = _session_turn_diagnostics(state.session_messages)
+    context_threshold = _context_threshold_metadata(policy, adapter, model)
+    compression_profile = _compression_profile(policy)
+    lane_budgets = _lane_budgets(policy)
+    selection_policy = _selection_policy(policy)
+    lifecycle_stages = _lifecycle_stage_status(policy)
+    metrics = _context_metrics(policy)
     context_compaction_applied = False
     if pruned_session:
         summary_message = _compacted_session_message(pruned_session, policy)
@@ -1817,6 +1864,16 @@ def _apply_prepare_model_input_stage(
         file_context_files_included=file_context_metadata.file_context_files_included,
         file_context_bytes=file_context_metadata.file_context_bytes,
         file_context_estimated_tokens=file_context_metadata.file_context_estimated_tokens,
+        turn_count=len(turn_metadata),
+        segment_count=len(segment_metadata),
+        turns=turn_metadata,
+        segments=segment_metadata,
+        context_threshold=context_threshold,
+        compression_profile=compression_profile,
+        lane_budgets=lane_budgets,
+        selection_policy=selection_policy,
+        lifecycle_stages=lifecycle_stages,
+        metrics=metrics,
     )
 
 
@@ -1825,6 +1882,151 @@ def _prepare_model_input_policy(
 ) -> Mapping[str, Any]:
     value = execution_policy.get("prepare_model_input")
     return value if isinstance(value, Mapping) else {}
+
+
+def _session_turn_diagnostics(
+    session_messages: Sequence[OpenAIMessage],
+) -> tuple[tuple[Mapping[str, Any], ...], tuple[Mapping[str, Any], ...]]:
+    turns: list[list[OpenAIMessage]] = []
+    current: list[OpenAIMessage] = []
+    for message in session_messages:
+        if message.role == "user" and current:
+            turns.append(current)
+            current = []
+        current.append(message)
+    if current:
+        turns.append(current)
+
+    turn_metadata: list[Mapping[str, Any]] = []
+    segment_metadata: list[Mapping[str, Any]] = []
+    for turn_index, turn in enumerate(turns, start=1):
+        turn_id = f"turn_{turn_index}"
+        lane = "current_turn" if turn_index == len(turns) else "recent_turns"
+        turn_metadata.append(
+            {
+                "turn_id": turn_id,
+                "lane": lane,
+                "message_count": len(turn),
+                "roles": tuple(message.role for message in turn),
+                "selection_status": "included",
+            }
+        )
+        for segment_index, message in enumerate(turn, start=1):
+            segment_metadata.append(
+                {
+                    "segment_id": f"{turn_id}_segment_{segment_index}",
+                    "turn_id": turn_id,
+                    "lane": lane,
+                    "role": message.role,
+                    "selection_status": "included",
+                }
+            )
+    return tuple(turn_metadata), tuple(segment_metadata)
+
+
+def _context_threshold_metadata(
+    policy: Mapping[str, Any],
+    adapter: ModelAdapter,
+    model: str,
+) -> Mapping[str, Any]:
+    auto = _context_compaction_auto_policy(policy)
+    if not auto:
+        return {}
+    threshold_ratio = min(float(auto.get("threshold_ratio", 0.9)), 0.9)
+    context_window = _adapter_context_window(adapter, model)
+    result: dict[str, Any] = {
+        "enabled": auto.get("enabled", False) is True,
+        "threshold_ratio": threshold_ratio,
+        "context_window": context_window,
+        "threshold_tokens": (
+            int(context_window * threshold_ratio)
+            if isinstance(context_window, int)
+            else None
+        ),
+        "reserve_tokens": auto.get("reserve_tokens"),
+        "trigger": str(auto.get("trigger") or "token_threshold"),
+        "scope": str(auto.get("scope") or "current_run"),
+        "implementation": str(auto.get("implementation") or "metadata_only"),
+        "strategy": str(auto.get("strategy") or "basic"),
+        "mode": str(auto.get("mode") or "auto"),
+        "status": "metadata_only",
+    }
+    return {key: value for key, value in result.items() if value is not None}
+
+
+def _context_compaction_auto_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:
+    compaction = policy.get("context_compaction")
+    if not isinstance(compaction, Mapping):
+        return {}
+    auto = compaction.get("auto")
+    return auto if isinstance(auto, Mapping) else {}
+
+
+def _adapter_context_window(adapter: ModelAdapter, model: str) -> int | None:
+    context_windows = getattr(adapter, "context_windows", None)
+    if isinstance(context_windows, Mapping):
+        value = context_windows.get(model)
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+    return None
+
+
+def _compression_profile(policy: Mapping[str, Any]) -> str | None:
+    compression = policy.get("context_compression")
+    if not isinstance(compression, Mapping):
+        return None
+    profile = compression.get("profile")
+    return str(profile) if profile is not None else None
+
+
+def _lane_budgets(policy: Mapping[str, Any]) -> Mapping[str, int]:
+    compression = policy.get("context_compression")
+    if not isinstance(compression, Mapping):
+        return {}
+    lanes = compression.get("lanes")
+    if not isinstance(lanes, Mapping):
+        return {}
+    return {
+        str(key): value
+        for key, value in lanes.items()
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0
+    }
+
+
+def _selection_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:
+    compression = policy.get("context_compression")
+    if not isinstance(compression, Mapping):
+        return {}
+    selection = compression.get("selection")
+    if not isinstance(selection, Mapping):
+        return {}
+    result: dict[str, Any] = {}
+    for key in ("strategy", "max_selected_turns", "chronological_reassembly"):
+        if key in selection:
+            result[key] = selection[key]
+    return result
+
+
+def _lifecycle_stage_status(policy: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
+    auto = _context_compaction_auto_policy(policy)
+    stages = auto.get("lifecycle_stages")
+    if not isinstance(stages, Sequence) or isinstance(stages, (str, bytes, bytearray)):
+        return ()
+    return tuple(
+        {"stage": str(stage), "status": "complete"}
+        for stage in stages
+        if isinstance(stage, str)
+    )
+
+
+def _context_metrics(policy: Mapping[str, Any]) -> tuple[str, ...]:
+    auto = _context_compaction_auto_policy(policy)
+    metrics = auto.get("metrics")
+    if not isinstance(metrics, Sequence) or isinstance(
+        metrics, (str, bytes, bytearray)
+    ):
+        return ()
+    return tuple(str(metric) for metric in metrics if isinstance(metric, str))
 
 
 def _file_context_messages(

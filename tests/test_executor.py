@@ -1030,6 +1030,184 @@ def test_prepare_model_input_applies_hierarchy_pruning_and_compaction() -> None:
     assert prepared_input.preparation.context_compaction_applied is True
 
 
+def test_prepare_model_input_groups_session_messages_into_turn_units() -> None:
+    """prepare_model_input records stable turn/segment diagnostics for sessions."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "turn-grouping-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "implementation": "metadata_only",
+                                "strategy": "basic",
+                            }
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish the work",
+        session_messages=(
+            OpenAIMessage(role="user", content="first request"),
+            OpenAIMessage(role="assistant", content="calling search"),
+            OpenAIMessage(role="tool", content="search result"),
+            OpenAIMessage(role="assistant", content="first answer"),
+            OpenAIMessage(role="user", content="second request"),
+            OpenAIMessage(role="assistant", content="second answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert prepared_input.preparation.turn_count == 2
+    assert prepared_input.preparation.segment_count == 6
+    assert prepared_input.preparation.turns == (
+        {
+            "turn_id": "turn_1",
+            "lane": "recent_turns",
+            "message_count": 4,
+            "roles": ("user", "assistant", "tool", "assistant"),
+            "selection_status": "included",
+        },
+        {
+            "turn_id": "turn_2",
+            "lane": "current_turn",
+            "message_count": 2,
+            "roles": ("user", "assistant"),
+            "selection_status": "included",
+        },
+    )
+    assert prepared_input.preparation.segments[0]["segment_id"] == "turn_1_segment_1"
+    assert prepared_input.preparation.segments[0]["role"] == "user"
+    assert prepared_input.preparation.segments[2]["role"] == "tool"
+
+
+def test_prepare_model_input_records_auto_compaction_threshold_metadata() -> None:
+    """prepare_model_input normalizes auto-compaction threshold diagnostics."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "auto-compact-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "threshold_ratio": 0.95,
+                                "reserve_tokens": 200,
+                                "scope": "current_run",
+                                "implementation": "metadata_only",
+                                "strategy": "basic",
+                                "mode": "auto",
+                                "trigger": "reserve_tokens",
+                                "lifecycle_stages": ["validate", "segment", "report"],
+                                "metrics": ["lane_utilization"],
+                            }
+                        },
+                        "context_compression": {
+                            "profile": "fast",
+                            "lanes": {
+                                "pinned_tokens": 100,
+                                "current_turn_tokens": 200,
+                            },
+                            "selection": {
+                                "strategy": "deterministic_overlap",
+                                "max_selected_turns": 3,
+                                "chronological_reassembly": True,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "model": "gpt-test",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    adapter = make_named_adapter(
+        [ModelResponse(content="ok")],
+        models=["gpt-test"],
+    )
+    adapter.context_windows = {"gpt-test": 1000}
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="older"),
+            OpenAIMessage(role="assistant", content="answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+    )
+
+    assert prepared_input.preparation.context_threshold == {
+        "enabled": True,
+        "threshold_ratio": 0.9,
+        "context_window": 1000,
+        "threshold_tokens": 900,
+        "reserve_tokens": 200,
+        "trigger": "reserve_tokens",
+        "scope": "current_run",
+        "implementation": "metadata_only",
+        "strategy": "basic",
+        "mode": "auto",
+        "status": "metadata_only",
+    }
+    assert prepared_input.preparation.compression_profile == "fast"
+    assert prepared_input.preparation.lane_budgets == {
+        "pinned_tokens": 100,
+        "current_turn_tokens": 200,
+    }
+    assert prepared_input.preparation.selection_policy == {
+        "strategy": "deterministic_overlap",
+        "max_selected_turns": 3,
+        "chronological_reassembly": True,
+    }
+    assert prepared_input.preparation.lifecycle_stages == (
+        {"stage": "validate", "status": "complete"},
+        {"stage": "segment", "status": "complete"},
+        {"stage": "report", "status": "complete"},
+    )
+    assert prepared_input.preparation.metrics == ("lane_utilization",)
+
+
 def test_prepare_model_input_includes_bounded_file_context_with_provenance(
     tmp_path,
 ) -> None:

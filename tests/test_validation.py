@@ -1852,6 +1852,125 @@ def test_file_context_policy_passes_with_bounded_relative_settings() -> None:
     validate_mapping(data)
 
 
+def test_context_compaction_auto_policy_fails_for_unsupported_values() -> None:
+    """Automatic context-management policy fails closed for malformed metadata."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "prepare_model_input": {
+                "context_compaction": {
+                    "auto": {
+                        "enabled": "yes",
+                        "threshold_ratio": "high",
+                        "reserve_tokens": -1,
+                        "scope": "global_memory",
+                        "implementation": "magic",
+                        "strategy": "semantic_embeddings",
+                        "mode": "always",
+                        "manual_mode": "surprise",
+                        "trigger": "provider_error",
+                        "reset_behavior": "compact",
+                        "lifecycle_stages": ["validate", "teleport"],
+                        "metrics": ["lane_utilization", "vibes"],
+                    }
+                },
+                "context_compression": {
+                    "profile": "dreamy",
+                    "lanes": {
+                        "pinned_tokens": 0,
+                        "current_turn_tokens": False,
+                        "recent_turn_tokens": -1,
+                    },
+                    "selection": {
+                        "strategy": "vector_search",
+                        "max_selected_turns": "many",
+                        "chronological_reassembly": "yes",
+                    },
+                },
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".auto.enabled must be boolean" in message
+    assert ".auto.threshold_ratio must be a number between 0 and 1" in message
+    assert ".auto.reserve_tokens must be a positive integer" in message
+    assert ".auto.scope has unsupported value 'global_memory'" in message
+    assert ".auto.implementation has unsupported value 'magic'" in message
+    assert ".auto.strategy has unsupported value 'semantic_embeddings'" in message
+    assert ".auto.mode has unsupported value 'always'" in message
+    assert ".auto.manual_mode has unsupported value 'surprise'" in message
+    assert ".auto.trigger has unsupported value 'provider_error'" in message
+    assert ".auto.reset_behavior must not request compaction" in message
+    assert ".auto.lifecycle_stages contains unsupported values" in message
+    assert ".auto.metrics contains unsupported values" in message
+    assert ".context_compression.profile has unsupported value 'dreamy'" in message
+    assert (
+        ".context_compression.lanes.pinned_tokens must be a positive integer" in message
+    )
+    assert (
+        ".context_compression.selection.strategy has unsupported value 'vector_search'"
+        in message
+    )
+    assert ".context_compression.selection.max_selected_turns" in message
+    assert (
+        ".context_compression.selection.chronological_reassembly must be boolean"
+        in message
+    )
+
+
+def test_context_compaction_auto_policy_passes_with_supported_values() -> None:
+    """Automatic context-management policy accepts the Slice 1 metadata contract."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "prepare_model_input": {
+                "context_compaction": {
+                    "auto": {
+                        "enabled": True,
+                        "threshold_ratio": 0.85,
+                        "reserve_tokens": 2048,
+                        "scope": "current_run",
+                        "implementation": "metadata_only",
+                        "strategy": "basic",
+                        "mode": "auto",
+                        "manual_mode": "allowed",
+                        "trigger": "token_threshold",
+                        "reset_behavior": "new_window",
+                        "lifecycle_stages": ["validate", "segment", "report"],
+                        "metrics": ["lane_utilization", "coverage_completeness"],
+                    }
+                },
+                "context_compression": {
+                    "profile": "instruction_weighted",
+                    "lanes": {
+                        "pinned_tokens": 2048,
+                        "current_turn_tokens": 4096,
+                        "recent_turn_tokens": 8192,
+                        "summary_tokens": 1024,
+                        "selected_turn_tokens": 4096,
+                        "file_context_tokens": 1024,
+                    },
+                    "selection": {
+                        "strategy": "deterministic_overlap",
+                        "max_selected_turns": 4,
+                        "chronological_reassembly": True,
+                    },
+                },
+            },
+        }
+    }
+
+    validate_mapping(data)
+
+
 def test_runtime_behavior_overrides_pass_validation() -> None:
     """Valid prompt and skill overrides pass before execution."""
 

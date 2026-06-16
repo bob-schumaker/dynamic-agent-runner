@@ -279,6 +279,69 @@ SUPPORTED_AGENT_AS_TOOL_OUTPUT_MODE_VALUES = {
     "tool_result",
     "state_field",
 }
+SUPPORTED_CONTEXT_COMPACTION_SCOPES = {"current_run", "session", "node"}
+SUPPORTED_CONTEXT_COMPACTION_IMPLEMENTATIONS = {
+    "metadata_only",
+    "basic",
+    "rolling_summary",
+    "provider",
+}
+SUPPORTED_CONTEXT_COMPACTION_STRATEGIES = {
+    "basic",
+    "rolling_summary",
+    "provider",
+    "off",
+}
+SUPPORTED_CONTEXT_COMPACTION_MODES = {"auto", "manual", "off"}
+SUPPORTED_CONTEXT_COMPACTION_MANUAL_MODES = {"disabled", "allowed", "required"}
+SUPPORTED_CONTEXT_COMPACTION_TRIGGERS = {
+    "token_threshold",
+    "reserve_tokens",
+    "manual",
+    "none",
+}
+SUPPORTED_CONTEXT_RESET_BEHAVIORS = {"none", "new_window"}
+SUPPORTED_CONTEXT_COMPRESSION_PROFILES = {
+    "balanced",
+    "fast",
+    "exact",
+    "semantic",
+    "recency_weighted",
+    "instruction_weighted",
+}
+SUPPORTED_CONTEXT_SELECTION_STRATEGIES = {
+    "deterministic_overlap",
+    "injected_semantic",
+    "none",
+}
+SUPPORTED_CONTEXT_LIFECYCLE_STAGES = {
+    "validate",
+    "segment",
+    "score",
+    "place",
+    "select",
+    "assemble",
+    "compress",
+    "omit",
+    "report",
+}
+SUPPORTED_CONTEXT_METRICS = {
+    "lane_utilization",
+    "information_density",
+    "redundancy_ratio",
+    "coverage_completeness",
+    "compression_ratio",
+    "processing_duration",
+    "summary_fidelity",
+}
+SUPPORTED_CONTEXT_LANE_BUDGET_FIELDS = {
+    "pinned_tokens",
+    "current_turn_tokens",
+    "recent_turn_tokens",
+    "summary_tokens",
+    "selected_turn_tokens",
+    "file_context_tokens",
+}
 REACT_LOOP_PATTERN_ID = "react_loop"
 PROMPT_REPLACE_FIELDS = {
     "system",
@@ -425,6 +488,7 @@ def validate_runtime_manifest(
     _extend(errors, _guardrail_declaration_errors(manifest))
     _extend(errors, _mcp_registry_source_errors(manifest))
     _extend(errors, _mcp_lifecycle_diagnostics_errors(manifest))
+    _extend(errors, _prepare_model_input_context_policy_errors(manifest))
     if errors:
         raise WorkflowValidationError(_format_errors("runtime manifest", errors))
 
@@ -2359,6 +2423,44 @@ def _validate_optional_positive_int(
         errors.append(f"{label}.{field_name} must be a positive integer")
 
 
+def _validate_optional_ratio(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None:
+        return
+    if (
+        not isinstance(value, int | float)
+        or isinstance(value, bool)
+        or value <= 0
+        or value > 1
+    ):
+        errors.append(f"{label}.{field_name} must be a number between 0 and 1")
+
+
+def _validate_optional_supported_string_list(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    supported: set[str],
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None:
+        return
+    if not _is_string_list(value):
+        errors.append(f"{label}.{field_name} must be a list of strings")
+        return
+    unsupported = sorted(set(value) - supported)
+    if unsupported:
+        errors.append(
+            f"{label}.{field_name} contains unsupported values {unsupported!r}"
+        )
+
+
 def _validate_optional_bool_or_value(
     mapping: Mapping[str, Any],
     field_name: str,
@@ -2398,6 +2500,153 @@ def _prompt_cache_policy_errors(manifest: RuntimeManifest) -> list[str]:
     except Exception as exc:  # noqa: BLE001 - normalized into validation errors.
         return [str(exc)]
     return []
+
+
+def _prepare_model_input_context_policy_errors(
+    manifest: RuntimeManifest,
+) -> list[str]:
+    policy = manifest.execution_policy.get("prepare_model_input")
+    if not isinstance(policy, Mapping):
+        return []
+    errors: list[str] = []
+    label = "runtime.execution_policy.prepare_model_input"
+    _context_compaction_auto_errors(policy, label, errors)
+    _context_compression_errors(policy, label, errors)
+    return errors
+
+
+def _context_compaction_auto_errors(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    compaction = policy.get("context_compaction")
+    if compaction is None:
+        return
+    if not isinstance(compaction, Mapping):
+        errors.append(f"{label}.context_compaction must be a mapping")
+        return
+    auto = compaction.get("auto")
+    if auto is None:
+        return
+    auto_label = f"{label}.context_compaction.auto"
+    if not isinstance(auto, Mapping):
+        errors.append(f"{auto_label} must be a mapping")
+        return
+    _validate_optional_bool(auto, "enabled", auto_label, errors)
+    _validate_optional_ratio(auto, "threshold_ratio", auto_label, errors)
+    _validate_optional_positive_int(auto, "reserve_tokens", auto_label, errors)
+    _validate_optional_enum(
+        auto, "scope", SUPPORTED_CONTEXT_COMPACTION_SCOPES, auto_label, errors
+    )
+    _validate_optional_enum(
+        auto,
+        "implementation",
+        SUPPORTED_CONTEXT_COMPACTION_IMPLEMENTATIONS,
+        auto_label,
+        errors,
+    )
+    _validate_optional_enum(
+        auto,
+        "strategy",
+        SUPPORTED_CONTEXT_COMPACTION_STRATEGIES,
+        auto_label,
+        errors,
+    )
+    _validate_optional_enum(
+        auto, "mode", SUPPORTED_CONTEXT_COMPACTION_MODES, auto_label, errors
+    )
+    _validate_optional_enum(
+        auto,
+        "manual_mode",
+        SUPPORTED_CONTEXT_COMPACTION_MANUAL_MODES,
+        auto_label,
+        errors,
+    )
+    _validate_optional_enum(
+        auto, "trigger", SUPPORTED_CONTEXT_COMPACTION_TRIGGERS, auto_label, errors
+    )
+    _validate_optional_enum(
+        auto,
+        "reset_behavior",
+        SUPPORTED_CONTEXT_RESET_BEHAVIORS,
+        auto_label,
+        errors,
+    )
+    if auto.get("reset_behavior") not in (None, "none", "new_window"):
+        errors.append(f"{auto_label}.reset_behavior must not request compaction")
+    _validate_optional_supported_string_list(
+        auto,
+        "lifecycle_stages",
+        SUPPORTED_CONTEXT_LIFECYCLE_STAGES,
+        auto_label,
+        errors,
+    )
+    _validate_optional_supported_string_list(
+        auto,
+        "metrics",
+        SUPPORTED_CONTEXT_METRICS,
+        auto_label,
+        errors,
+    )
+
+
+def _context_compression_errors(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    compression = policy.get("context_compression")
+    if compression is None:
+        return
+    compression_label = f"{label}.context_compression"
+    if not isinstance(compression, Mapping):
+        errors.append(f"{compression_label} must be a mapping")
+        return
+    _validate_optional_enum(
+        compression,
+        "profile",
+        SUPPORTED_CONTEXT_COMPRESSION_PROFILES,
+        compression_label,
+        errors,
+    )
+    lanes = compression.get("lanes")
+    if lanes is not None:
+        _context_lane_budget_errors(lanes, f"{compression_label}.lanes", errors)
+    selection = compression.get("selection")
+    if selection is not None:
+        _context_selection_errors(selection, f"{compression_label}.selection", errors)
+
+
+def _context_lane_budget_errors(
+    lanes: Any,
+    label: str,
+    errors: list[str],
+) -> None:
+    if not isinstance(lanes, Mapping):
+        errors.append(f"{label} must be a mapping")
+        return
+    for field_name in SUPPORTED_CONTEXT_LANE_BUDGET_FIELDS:
+        _validate_optional_positive_int(lanes, field_name, label, errors)
+
+
+def _context_selection_errors(
+    selection: Any,
+    label: str,
+    errors: list[str],
+) -> None:
+    if not isinstance(selection, Mapping):
+        errors.append(f"{label} must be a mapping")
+        return
+    _validate_optional_enum(
+        selection,
+        "strategy",
+        SUPPORTED_CONTEXT_SELECTION_STRATEGIES,
+        label,
+        errors,
+    )
+    _validate_optional_positive_int(selection, "max_selected_turns", label, errors)
+    _validate_optional_bool(selection, "chronological_reassembly", label, errors)
 
 
 def _file_context_policy_errors(manifest: RuntimeManifest) -> list[str]:
