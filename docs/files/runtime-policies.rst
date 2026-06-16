@@ -93,6 +93,27 @@ Node-level retry policy can also be attached to a model or tool node:
 
 Retry outcomes are recorded in ``WorkflowExecutionState.retry_records``.
 
+.. header2:: Tool-call completion loop
+
+Model-exposed tools can run inside an ``llm_step`` when
+``runtime.execution_policy.tool_use_completion.run_again`` is ``required``. The
+executor sends model tool calls to the caller-provided registry, appends tool
+results to the transcript, and asks the model again until the model stops
+requesting tools, ``stop_on_tool`` is enabled, or the iteration limit is reached.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       tool_use_completion:
+         run_again: required
+         stop_on_tool: disabled
+         final_output: default
+
+The loop is bounded by ``max_steps`` when configured, otherwise by the runtime's
+internal default. Approval-required tool calls can return an interruption result
+from the lower-level executor APIs.
+
 .. header2:: Token budgeting
 
 Token budgeting is disabled unless configured. A policy can fail before a model
@@ -133,6 +154,47 @@ usage are recorded as telemetry.
 Callers can pass ``prompt_cache=False`` at execution time to disable prompt-cache
 observation for a run.
 
+.. header2:: Prepare-model-input policy
+
+``runtime.execution_policy.prepare_model_input`` controls implemented prompt
+preparation behavior before a model request. The current runtime can add
+hierarchy messages, include bounded package-local file context, include retrieved
+context supplied in execution state, prune or compact session messages, apply
+lane budgets, select older turns, and emit preparation metadata.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       prepare_model_input:
+         hierarchy:
+           system:
+           - "Follow the package safety policy."
+           developer:
+           - "Prefer concise answers."
+         context_compaction:
+           auto:
+             enabled: true
+             threshold_ratio: 0.8
+             reserve_tokens: 1024
+             scope: session
+             implementation: rolling_summary
+             strategy: rolling_summary
+             reset_behavior: new_window
+         context_compression:
+           profile: balanced
+           lanes:
+             recent_turn_tokens: 4000
+             retrieved_context_tokens: 8000
+           selection:
+             strategy: deterministic_overlap
+             max_selected_turns: 6
+             chronological_reassembly: true
+
+Validation rejects unsupported compaction, compression, lane, and selection
+values. File context remains package-root bounded; paths that escape the package
+root fail closed.
+
 .. header2:: Runtime behavior overrides
 
 Runtime behavior overrides can patch ``llm_step`` prompts and skill references
@@ -171,6 +233,27 @@ limit violations. ``source_path`` remains provenance-only and is never read.
 ``support_files`` remain package validation artifacts; ``load_support_files`` is
 reserved and must be ``false``.
 
+.. header2:: Guardrails
+
+Guardrail declarations live under ``extensions.guardrails``:
+
+.. code-block:: yaml
+
+   extensions:
+     guardrails:
+       declarations:
+       - id: no_secrets
+         phase: input
+         behavior_on_tripwire: abort
+
+Declared ``input`` guardrails are live when the caller supplies an
+``InMemoryGuardrailRegistry`` through ``execute_workflow(...)``,
+``execute_workflow_async(...)``, or ``WorkflowExecutionContext``. Missing input
+guardrail handlers fail closed before the first node runs. A handler returning
+``GuardrailDecision.ABORT`` raises ``GuardrailExecutionError`` and emits
+guardrail trace events. Other phases are validated and preserved, but not yet
+executed.
+
 .. header2:: Approval interruption metadata
 
 Approval-required tool flows can preserve interruption and resumable-state intent
@@ -189,9 +272,10 @@ under ``runtime.execution_policy.approval_interruption``.
          interruption_state_key: interruption_state
          resume_token_state_key: resume_token
 
-The current runtime preserves and validates this metadata only. It does not yet
-implement a live approval engine, execution pause, resumable checkpoint store,
-or resume-token protocol.
+The metadata is preserved and validated. The lower-level executor can also
+return ``WorkflowInterruptedResult`` when a model tool call reaches a registered
+tool that requires approval. The package still does not provide durable
+checkpoint storage, resume-token persistence, or an external approval service.
 
 .. header2:: Async-session metadata
 

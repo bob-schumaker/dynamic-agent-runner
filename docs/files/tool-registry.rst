@@ -52,6 +52,36 @@ Tool handlers receive a mapping of resolved arguments and may return either a ra
 value or a ``ToolResult``. Raw values are wrapped as successful ``ToolResult``
 objects.
 
+.. header2:: MCP tool bindings
+
+MCP integration is explicit and caller-owned. The package does not discover or
+start MCP servers, but callers can bind known MCP tools into the normal registry
+contract:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import MCPToolBinding, create_mcp_registry
+
+   registry = create_mcp_registry(
+       [
+           MCPToolBinding(
+               tool_id="mcp.echo",
+               source_id="repo-tools",
+               server_id="repo-mcp",
+               mcp_tool_name="echo",
+               handler=lambda args: {"echo": args["text"]},
+               input_schema={
+                   "type": "object",
+                   "properties": {"text": {"type": "string"}},
+                   "required": ["text"],
+               },
+           )
+       ]
+   )
+
+MCP-bound tools default to hidden exposure and approval required. Trusted callers
+may override policy metadata in the binding ``metadata`` mapping.
+
 .. header2:: Async tool handlers
 
 Registered tools record whether their handler is synchronous or asynchronous.

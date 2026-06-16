@@ -65,6 +65,73 @@ The async path awaits async model adapters, async tool handlers, and async
 lifecycle hooks. Synchronous tool handlers are dispatched without blocking the
 event loop.
 
+.. header2:: Capability inspection
+
+Use ``inspect_agent_package_capabilities(...)`` to preflight a package without
+executing model, tool, or retriever calls:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import inspect_agent_package_capabilities
+
+   report = inspect_agent_package_capabilities(
+       package_directory="path/to/agent-package",
+       tool_registry=my_tool_registry,
+       guardrail_registry=my_guardrail_registry,
+       model_adapter=my_model_adapter,
+       model_adapter_coverage="strict",
+   )
+
+   for item in report.items:
+       print(item.id, item.state, item.summary)
+
+The report marks implemented runtime surfaces as ``live``, preserved metadata as
+``metadata_only``, missing collaborators as ``missing_collaborator``, and invalid
+packages as ``invalid``. It is a readiness report, not an execution trace.
+
+.. header2:: Input guardrails
+
+Input guardrails declared under ``extensions.guardrails`` run before workflow
+execution when a matching caller-owned registry is supplied to
+``execute_workflow(...)``, ``execute_workflow_async(...)``, or
+``WorkflowExecutionContext``:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       GuardrailDecision,
+       GuardrailResult,
+       InMemoryGuardrailRegistry,
+       WorkflowExecutionContext,
+       execute_workflow,
+       load_agent_package_workflow,
+   )
+
+   guardrails = InMemoryGuardrailRegistry(
+       {
+           "no_secrets": lambda prompt: GuardrailResult(
+               guardrail_id="no_secrets",
+               decision=(
+                   GuardrailDecision.ABORT
+                   if "secret" in str(prompt).lower()
+                   else GuardrailDecision.PASS
+               ),
+               reason_code="secret_detected",
+           )
+       }
+   )
+
+   context = WorkflowExecutionContext(
+       workflow=load_agent_package_workflow("path/to/agent-package"),
+       guardrail_registry=guardrails,
+       model_adapter=my_model_adapter,
+   )
+
+   result = execute_workflow(context, prompt="Run this workflow.")
+
+Missing declared input guardrail handlers fail closed. Non-input guardrail
+phases are currently validated and preserved as metadata.
+
 .. header2:: Model adapter coverage
 
 Execution APIs accept ``model_adapter_coverage`` to define whether caller
@@ -171,6 +238,23 @@ backend. They resolve local model assets before generation, normalize generated
 text into the package ``ModelResponse`` contract, and do not require a local
 server. If a caller already exposes llama.cpp through an OpenAI-compatible local
 server, use ``LocalOpenAIEndpointConfig`` instead.
+
+Use ``profile_llama_cpp_model_memory_fit(...)`` when a caller wants an advisory
+context-window fit check before constructing a llama.cpp backend:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import profile_llama_cpp_model_memory_fit
+
+   profile = profile_llama_cpp_model_memory_fit(
+       config,
+       requested_context_tokens=32768,
+       memory_budget_bytes=24 * 1024 * 1024 * 1024,
+       profiler=my_profiler,
+   )
+
+The profiler is caller-supplied. Without one, fail-open mode returns an
+``unavailable`` result; strict mode raises ``LlamaCppMemoryFitProfileError``.
 
 .. header2:: macOS MLX local models
 

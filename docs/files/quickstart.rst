@@ -72,10 +72,13 @@ A normal run follows this flow:
    contracts, extension envelopes, and callable tool availability.
 3. Prepare an internal execution plan from primitive runtime nodes and supported
    internal graph-mutation metadata.
-4. Render model input for each ``llm_step``.
-5. Dispatch ``tool_use_step`` nodes through a caller-provided tool registry.
-6. Traverse supported ``sequential`` and ``branch`` control-flow edges.
-7. Return the final result and retain detailed execution state when using the
+4. Run declared input guardrails when a matching guardrail registry is supplied.
+5. Render model input for each ``llm_step``, including configured prepare-stage
+   context policy.
+6. Dispatch ``tool_use_step`` nodes and model-requested tool calls through a
+   caller-provided tool registry.
+7. Traverse supported ``sequential`` and ``branch`` control-flow edges.
+8. Return the final result and retain detailed execution state when using the
    lower-level executor API.
 
 .. header2:: Current boundaries
@@ -86,7 +89,7 @@ The runtime supports a finite graph executor with primitive node kinds:
 - ``tool_use_step``
 - ``decision_step``
 
-Broader behavior such as live Marimo automation, MCP discovery, durable approval
-resume, unrestricted notebook mutation, automatic local model server management,
-and full multi-agent execution remains out of scope until future scoped
-follow-ups define it.
+Broader behavior such as live Marimo automation, automatic MCP discovery or
+server lifecycle management, durable approval resume, unrestricted notebook
+mutation, automatic local model server management, and full multi-agent
+execution remains out of scope until future scoped follow-ups define it.
