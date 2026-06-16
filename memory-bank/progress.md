@@ -65,6 +65,9 @@
   pinned hierarchy, current turn, recent turns, rolling structured summary,
   selected older turns, bounded file/tool context, chronological reassembly,
   and deterministic fallback trimming.
+- The context-management spec now includes lifecycle-stage diagnostics,
+  segment/turn scoring metadata, quality/efficiency metrics, and an explicit
+  injected-selector-only boundary for future semantic retrieval.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -91,6 +94,9 @@
   hierarchical compression, including turn units, budget lanes, rolling
   summaries, deterministic older-turn selection, chronological reassembly, and
   fallback trimming.
+- `ed22596` added LCWMS-derived lifecycle, metadata, and metric taxonomy to
+  the context-management spec while preserving the no durable runner memory and
+  no built-in vector retrieval boundaries.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -120,8 +126,9 @@
   owned by `context-management-prepare-stage`, not the async-session memory
   pipeline.
 - Context compression implementation should begin with turn grouping and lane
-  assembly, then deterministic older-turn selection, before summary generation
-  or provider-owned compaction.
+  assembly, including lifecycle diagnostics and metric metadata, then
+  deterministic older-turn selection, before summary generation or
+  provider-owned compaction.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.
 

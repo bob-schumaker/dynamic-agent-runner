@@ -25,6 +25,10 @@
   pinned hierarchy, current turn, recent turns, rolling structured summary,
   deterministic older-turn selection with chronological reassembly, and
   deterministic fallback trimming before optional provider compaction.
+- The context-management spec now adopts LCWMS-derived lifecycle, segment
+  metadata, and quality/efficiency metric vocabulary while keeping
+  runner-owned durable memory and built-in vector/embedding retrieval out of
+  scope.
 - The next recorded ROI focus in `specs/README.md` is opt-in package-local
   `skill-source-resolution`; local-model advisory implementation should happen
   when local-model ergonomics is the immediate driver.
@@ -123,8 +127,8 @@
   implementation.
 - If implementing context growth management, use
   `specs/context-management-prepare-stage/plan.md` and `tasks.md`; start with
-  policy/turn-unit metadata and lane-based prompt assembly before provider or
-  mid-turn compaction.
+  policy/turn-unit metadata, lifecycle diagnostics, scoring/metric fields, and
+  lane-based prompt assembly before provider or mid-turn compaction.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.

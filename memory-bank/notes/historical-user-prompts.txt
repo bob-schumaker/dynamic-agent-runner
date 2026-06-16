@@ -348,3 +348,11 @@ add this information to the spec, plan and tasks
 ignore the codex/cline sourcing and our openai first focus, what is the best overall compression scheme for us to implement? does the context pruning reference add any nuance?
 
 update our spec to match this analysis
+
+---
+
+examine /Users/roschuma/Repos/github/llm-context-management-specifications/
+
+---
+
+update our spec using the considered addons
