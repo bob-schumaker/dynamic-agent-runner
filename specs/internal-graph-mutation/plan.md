@@ -43,9 +43,10 @@ active.
 ## Goal
 
 Plan the first implementation path for an internal compile-time graph-mutation
-layer that attaches context-pruning preparation to selected `llm_step` nodes
-without mutating base workflow artifacts, introducing a public mutation schema,
-or coupling the design to a single local-model transport.
+layer that derives execution-ready workflows from immutable base artifacts. The
+first checkpoint attaches context-pruning preparation to selected `llm_step`
+nodes; future checkpoints may add higher-level derived graph operations such as
+node insertion, edge rewiring, or link-level context-management insertion.
 
 ## Spec Trace
 
@@ -65,6 +66,8 @@ or coupling the design to a single local-model transport.
   overrides.
 - The first implementation should prefer **input-transform mutation** over true
   derived-node insertion.
+- That first implementation choice must not redefine graph mutation as only a
+  context-management or prompt-preparation feature.
 - Portable workflow manifests should opt into mutation through small explicit
   node metadata such as `context_pipeline`, `context_sources`, and
   `context_contract`.
@@ -73,6 +76,9 @@ or coupling the design to a single local-model transport.
 - The first slice should reuse existing planning and execution seams — especially
   `prepare_execution_plan(...)` and `prepare_model_input(...)` — rather than
   adding a separate executor family.
+- Future structural slices may insert context-management operations between LLM
+  steps, including ReAct-style loopback links, while keeping the inserted
+  operation's behavior owned by `context-management-prepare-stage`.
 - Semantic retrieval, embedding-model choice, Hugging Face configuration, and
   top-K ranking internals should remain runtime-owned details behind strategy or
   profile identifiers rather than becoming required portable manifest fields.
@@ -145,7 +151,7 @@ preparation:
 This slice satisfies the spec's first real behavior target while keeping the
 scope narrow.
 
-### Slice 3 — Strategy/profile growth and future semantic pruning hooks
+### Slice 3 — Strategy/profile growth and future structural hooks
 
 Only after Slices 1 and 2 are stable should later work consider:
 
@@ -153,7 +159,8 @@ Only after Slices 1 and 2 are stable should later work consider:
 - semantic ranking or embedding-backed pruning profiles
 - tighter integration with local embedding follow-up work
 - eventual evolution from input-transform behavior to true derived-node
-  insertion if future use cases require it
+  insertion, derived edge rewiring, or link-level operation insertion if future
+  use cases require it
 
 This later slice must remain separate from llama.cpp transport ownership and any
 public mutation-schema stabilization.
@@ -173,8 +180,8 @@ artifacts in place.
 - It keeps validation and execution changes narrow by building on
   `prepare_execution_plan(...)` and `prepare_model_input(...)`.
 - It avoids early Mermaid/node-identity churn.
-- It preserves room for a future move to true derived-node insertion if later
-  features require it.
+- It preserves room for a future move to true derived-node insertion, edge
+  rewiring, or link-level operation insertion if later features require it.
 
 ### Why true node insertion is not the first slice
 

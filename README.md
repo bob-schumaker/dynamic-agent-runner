@@ -74,7 +74,9 @@ Known configuration:
 
 ## Planning Artifacts
 
-Current SDD artifacts live under `specs/dynamic-agent-runner/`:
+The full spec inventory and completion matrix live in
+[`specs/README.md`](specs/README.md). The primary runtime SDD artifacts live
+under `specs/dynamic-agent-runner/`:
 
 - `spec.md` — product/repository specification
 - `plan.md` — technical implementation plan
@@ -85,6 +87,11 @@ only for narrow implementation slices rather than unrestricted runtime
 implementation. Completed slices now cover the package scaffold, artifact
 loaders, validation, registry, OpenAI adapter, executor, fixture surface, and CLI
 entry point.
+
+Feature spec packages under `specs/` record scoped runtime extensions and
+boundaries, including graph mutation as the derived workflow-operation layer and
+`context-management-prepare-stage` as the prompt/session/file context behavior
+owner.
 
 ## Development Setup
 
