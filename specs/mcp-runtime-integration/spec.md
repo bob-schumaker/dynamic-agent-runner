@@ -191,6 +191,23 @@ Acceptance criteria:
 - Keep source provenance separate from `tool_type`.
 - Preserve fake-server unit testing without live external MCP infrastructure.
 
+## Future Work
+
+Lanham's `AI Agents in Action, Second Edition` reinforces that MCP can expose
+more than tools. Future approved slices may add:
+
+- MCP `resources` as bounded, provenance-bearing read context that can feed
+  `context-management-prepare-stage` without bypassing file/context policies
+- MCP `prompts` as explicit host-provided prompt templates or prompt fragments,
+  subject to hierarchy, trust, and redaction policy
+- MCP progress/log event mapping into package trace events
+- lifecycle handling for local, remote, and hybrid MCP transports
+- degraded-source policy for required vs optional MCP capabilities
+
+Those slices must preserve the v1 boundary: explicit caller/deployment
+configuration, registry authority for actions, conservative exposure defaults,
+and fake-server unit tests.
+
 ## NEEDS CLARIFICATION
 
 - RESOLVED for v1: support caller-provided descriptors/handlers only; no

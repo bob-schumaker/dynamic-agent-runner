@@ -184,6 +184,26 @@ Acceptance criteria:
 - Avoid leaking sensitive inspected content into traces or model prompts.
 - Preserve fake-adapter unit testing without live external safety services.
 
+## Future Work
+
+Lanham's `AI Agents in Action, Second Edition` frames robust agents around
+test-driven agent development, grounding, rubrics, critic agents, and traceable
+feedback. Future approved slices may add:
+
+- rubric-based evaluation contracts that can score workflow outputs without
+  replacing output-contract validation
+- grounding checks as guardrails for RAG and retrieved-context workflows
+- caller-registered critic or evaluator agents as guardrail adapters, with the
+  same approval, timeout, redaction, and fake-adapter requirements as other
+  guardrails
+- trace-linked evaluation metadata, annotations, and feedback records that do
+  not expose raw inspected content by default
+- deterministic composition rules for multiple evaluators or guardrails in the
+  same phase
+
+These follow-ups should remain separate from the v1 input-guardrail baseline and
+should not introduce a built-in external evaluation provider.
+
 ## NEEDS CLARIFICATION
 
 - RESOLVED for v1: expose a small caller-supplied registry of Python guardrail

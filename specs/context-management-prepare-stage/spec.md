@@ -966,6 +966,14 @@ Future approved slices may add:
 - capability-status reporting that distinguishes available context-management
   policies from metadata-only declarations
 - host-provided context packets that are already summarized or ranked
+- caller-provided memory-kind labels such as semantic, episodic, procedural, or
+  source-context segments, used only as selection/scoring hints
+- access-frequency, recency, and last-selected metadata as optional scoring
+  inputs for injected or deterministic selectors
+- compression and forgetting policy that removes redundant or stale context
+  from prompt candidates without creating runner-owned durable memory
+- hybrid exact-plus-semantic retrieval through injected selectors for workflows
+  that need both literal identifiers and semantic relevance
 
 Those future slices should start from this spec and update it before
 implementation if their behavior changes these boundaries.

@@ -84,6 +84,30 @@ Do not treat future-analysis specs as implementation authorization. Feature
 packages marked future investigation or optional follow-up require an explicit
 scheduled task before code changes begin.
 
+## Evaluated Cross-Cutting References
+
+Micheal Lanham's `AI Agents in Action, Second Edition: Intelligent Workflows
+With LLMs, MCP, A2A, and More` (Manning, ISBN `9781633434530`) was evaluated as
+a cross-cutting agent architecture reference. Useful ideas were tracked as
+future-work notes in the owning specs rather than as immediate implementation
+scope:
+
+- MCP `resources` and `prompts` belong to future MCP capability expansion, not
+  the current explicit tool-binding baseline.
+- Evaluation ideas such as rubrics, grounding checks, critic/evaluator agents,
+  and trace-linked annotations belong near guardrails and future evaluation
+  specs.
+- Loop ideas such as layered termination gates, stagnation detection, strategy
+  pivots, confidence gates, and knowledge-boundary awareness belong to future
+  iterative-loop slices.
+- Memory ideas such as semantic/episodic/procedural memory labels,
+  access-frequency scoring, compression, and forgetting inform
+  context-management policy inputs without creating runner-owned durable
+  storage.
+- Production ideas such as prompt/tool/model versioning, idempotency,
+  timeouts, fallback budgets, observability, and model routing inform
+  capability/status, sandbox, and future deployment-oriented specs.
+
 ## High-ROI Remaining Work Order
 
 The June 2026 council review plus the remaining-spec evaluation recommends this

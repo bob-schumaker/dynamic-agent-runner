@@ -214,6 +214,23 @@ features are implemented in separate slices.
 - DEFERRED: CLI shape remains open until there is a concrete command-line caller
   for the structured report.
 
+## Future Work
+
+Lanham's `AI Agents in Action, Second Edition` highlights production concerns
+that should eventually be visible in capability/status or adjacent deployment
+reports:
+
+- prompt, tool-schema, MCP-server, model, and safety-policy version identifiers
+- timeout, retry, fallback, and budget policy visibility
+- model-routing and cost-control policy status
+- idempotency and replay-support declarations for host-managed workflows
+- observability coverage for UI, gateway, runner, model, tool, and MCP spans
+- prompt-injection and data-exfiltration defense status where owned by
+  sandbox, guardrail, or host-integration specs
+
+These reports should remain descriptive. They must not silently enable live
+capabilities or replace the owning feature specs.
+
 ## Validation Checklist
 
 - [x] Metadata-only approval, sandbox, MCP, guardrail, skill, loop, and session
