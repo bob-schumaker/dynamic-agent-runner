@@ -59,6 +59,12 @@ from dynamic_agent_runner.retry import (
     retry_policy_from_value,
     run_with_retry_async,
 )
+from dynamic_agent_runner.skill_sources import (
+    RejectedSkillSource,
+    SkillSourceResolutionError,
+    enforce_node_skill_source_budget,
+    resolve_package_bundled_skill_source,
+)
 from dynamic_agent_runner.token_budget import (
     TokenBudgetPolicy,
     TokenUsageRecord,
@@ -161,6 +167,24 @@ class PreparedInputMetadata:
     mutation_applied: bool = False
     mutation_id: str | None = None
     mutation_output_slots: tuple[str, ...] = ()
+    skill_sources_loaded: tuple[Mapping[str, Any], ...] = ()
+    skill_sources_omitted: tuple[Mapping[str, Any], ...] = ()
+    skill_sources_rejected: tuple[Mapping[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
+class _SkillSourcePreparation:
+    loaded: tuple[Mapping[str, Any], ...] = ()
+    omitted: tuple[Mapping[str, Any], ...] = ()
+    rejected: tuple[Mapping[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
+class _RenderedMessageParts:
+    message_parts: tuple[tuple[str, OpenAIMessage], ...]
+    skill_source_preparation: _SkillSourcePreparation = field(
+        default_factory=_SkillSourcePreparation
+    )
 
 
 @dataclass(frozen=True)
@@ -391,13 +415,24 @@ def prepare_model_input(
     render_context, mutation_preparation = _prepare_model_input_render_context(
         node, state
     )
+    rendered_parts = _render_message_parts_with_skill_sources(
+        behavior,
+        state,
+        context=render_context,
+        workflow=workflow,
+        node_id=str(node.id),
+    )
     message_parts, preparation = _apply_prepare_model_input_stage(
-        _render_message_parts(behavior, state, context=render_context),
+        rendered_parts.message_parts,
         plan,
         state,
         model=model,
     )
     preparation = _merge_prepared_input_metadata(preparation, mutation_preparation)
+    preparation = _merge_skill_source_preparation(
+        preparation,
+        rendered_parts.skill_source_preparation,
+    )
     messages = tuple(message for _part, message in message_parts)
     if tracer is not None:
         tracer.emit(
@@ -417,8 +452,16 @@ def prepare_model_input(
                 "mutation_applied": preparation.mutation_applied,
                 "mutation_id": preparation.mutation_id,
                 "mutation_output_slots": preparation.mutation_output_slots,
+                "skill_sources_loaded": preparation.skill_sources_loaded,
+                "skill_sources_omitted": preparation.skill_sources_omitted,
+                "skill_sources_rejected": preparation.skill_sources_rejected,
             },
         )
+    if preparation.skill_sources_rejected:
+        raise WorkflowExecutionError(
+            f"skill source resolution failed for llm_step node {node.id!r}"
+        )
+    if tracer is not None:
         _check_prompt_cache(
             workflow,
             message_parts,
@@ -1447,6 +1490,21 @@ def _render_message_parts(
     *,
     context: Mapping[str, Any] | None = None,
 ) -> tuple[tuple[str, OpenAIMessage], ...]:
+    return _render_message_parts_with_skill_sources(
+        behavior,
+        state,
+        context=context,
+    ).message_parts
+
+
+def _render_message_parts_with_skill_sources(
+    behavior: Any,
+    state: WorkflowExecutionState,
+    *,
+    context: Mapping[str, Any] | None = None,
+    workflow: LoadedAgentWorkflow | None = None,
+    node_id: str | None = None,
+) -> _RenderedMessageParts:
     prompt_data = behavior.prompt
     render_context = dict(context) if context is not None else _format_context(state)
     messages: list[tuple[str, OpenAIMessage]] = []
@@ -1462,20 +1520,13 @@ def _render_message_parts(
                     ),
                 )
             )
-    for skill in behavior.skills:
-        instructions = skill.raw.get("instructions")
-        if instructions is None:
-            continue
-        role = str(skill.raw.get("prompt_role") or "developer")
-        messages.append(
-            (
-                "skill_instructions",
-                OpenAIMessage(
-                    role=role,
-                    content=_format_text(str(instructions), render_context),
-                ),
-            )
-        )
+    skill_messages, skill_source_preparation = _render_skill_instruction_messages(
+        behavior,
+        render_context,
+        workflow=workflow,
+        node_id=node_id,
+    )
+    messages.extend(skill_messages)
     user_template = (
         prompt_data.get("user_template") or prompt_data.get("user") or "{prompt}"
     )
@@ -1488,7 +1539,118 @@ def _render_message_parts(
             ),
         )
     )
-    return tuple(messages)
+    return _RenderedMessageParts(
+        message_parts=tuple(messages),
+        skill_source_preparation=skill_source_preparation,
+    )
+
+
+def _render_skill_instruction_messages(
+    behavior: Any,
+    render_context: Mapping[str, Any],
+    *,
+    workflow: LoadedAgentWorkflow | None,
+    node_id: str | None,
+) -> tuple[tuple[tuple[str, OpenAIMessage], ...], _SkillSourcePreparation]:
+    policy_metadata = (
+        workflow.runtime_manifest.skill_source_resolution_policy
+        if workflow is not None
+        else None
+    )
+    policy = (
+        policy_metadata.to_policy()
+        if policy_metadata is not None and policy_metadata.enabled
+        else None
+    )
+    messages: list[tuple[str, OpenAIMessage]] = []
+    loaded: list[Mapping[str, Any]] = []
+    omitted: list[Mapping[str, Any]] = []
+    rejected: list[Mapping[str, Any]] = []
+    resolved_sources = []
+    for skill in behavior.skills:
+        instructions = skill.raw.get("instructions")
+        if instructions is not None:
+            messages.append(
+                _skill_instruction_message(
+                    str(skill.raw.get("prompt_role") or "developer"),
+                    str(instructions),
+                    render_context,
+                )
+            )
+            omitted.append({"skill_id": skill.id, "reason": "inline_instructions"})
+            continue
+        if policy is None:
+            omitted.append({"skill_id": skill.id, "reason": "source_policy_disabled"})
+            continue
+        if workflow is None or workflow.skill_bundle_root is None:
+            rejected.append(
+                RejectedSkillSource(
+                    skill_id=str(skill.id),
+                    reason="missing package skill-bundle root",
+                ).redacted_metadata()
+            )
+            continue
+        try:
+            resolved = resolve_package_bundled_skill_source(
+                skill_id=str(skill.id),
+                raw_skill=skill.raw,
+                package_id=workflow.runtime_manifest.package_id,
+                skill_bundle_root=workflow.skill_bundle_root,
+                policy=policy,
+            )
+        except SkillSourceResolutionError as exc:
+            rejected.append(
+                RejectedSkillSource(
+                    skill_id=str(skill.id),
+                    reason=str(exc),
+                    bundled_path=(
+                        str(skill.raw["bundled_path"])
+                        if skill.raw.get("bundled_path") is not None
+                        else None
+                    ),
+                ).redacted_metadata()
+            )
+            continue
+        resolved_sources.append(resolved)
+        loaded.append(resolved.redacted_metadata())
+        messages.append(
+            _skill_instruction_message(
+                policy.prompt_role,
+                resolved.body,
+                render_context,
+            )
+        )
+    if policy is not None and node_id is not None:
+        try:
+            enforce_node_skill_source_budget(
+                tuple(resolved_sources),
+                policy=policy,
+                node_id=node_id,
+            )
+        except SkillSourceResolutionError as exc:
+            rejected.append({"skill_id": "*", "reason": str(exc)})
+    return (
+        tuple(messages),
+        _SkillSourcePreparation(
+            loaded=tuple(loaded),
+            omitted=tuple(omitted),
+            rejected=tuple(rejected),
+        ),
+    )
+
+
+def _skill_instruction_message(
+    role: str,
+    instructions: str,
+    render_context: Mapping[str, Any],
+) -> tuple[str, OpenAIMessage]:
+    return (
+        "skill_instructions",
+        OpenAIMessage(
+            role=role,
+            content=_format_text(instructions, render_context),
+        ),
+    )
 
 
 def _prepare_model_input_render_context(
@@ -1546,6 +1708,32 @@ def _merge_prepared_input_metadata(
         mutation_applied=overlay.mutation_applied,
         mutation_id=overlay.mutation_id,
         mutation_output_slots=overlay.mutation_output_slots,
+        skill_sources_loaded=base.skill_sources_loaded,
+        skill_sources_omitted=base.skill_sources_omitted,
+        skill_sources_rejected=base.skill_sources_rejected,
+    )
+
+
+def _merge_skill_source_preparation(
+    base: PreparedInputMetadata,
+    skill_sources: _SkillSourcePreparation,
+) -> PreparedInputMetadata:
+    return PreparedInputMetadata(
+        hierarchy_applied=base.hierarchy_applied,
+        session_messages_included=base.session_messages_included,
+        session_messages_pruned=base.session_messages_pruned,
+        context_compaction_applied=base.context_compaction_applied,
+        file_context_applied=base.file_context_applied,
+        file_context_sources=base.file_context_sources,
+        file_context_files_included=base.file_context_files_included,
+        file_context_bytes=base.file_context_bytes,
+        file_context_estimated_tokens=base.file_context_estimated_tokens,
+        mutation_applied=base.mutation_applied,
+        mutation_id=base.mutation_id,
+        mutation_output_slots=base.mutation_output_slots,
+        skill_sources_loaded=skill_sources.loaded,
+        skill_sources_omitted=skill_sources.omitted,
+        skill_sources_rejected=skill_sources.rejected,
     )
 
 

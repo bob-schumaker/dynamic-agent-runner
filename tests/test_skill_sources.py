@@ -8,12 +8,34 @@ from pathlib import Path
 import pytest
 
 from dynamic_agent_runner.artifacts import load_agent_package
-from dynamic_agent_runner.errors import WorkflowValidationError
+from dynamic_agent_runner.errors import WorkflowExecutionError, WorkflowValidationError
+from dynamic_agent_runner.executor import (
+    WorkflowExecutionState,
+    execute_workflow,
+    prepare_model_input,
+)
+from dynamic_agent_runner.models import prepare_execution_plan
+from dynamic_agent_runner.openai_client import OpenAIClientAdapter
 from dynamic_agent_runner.skill_sources import (
     SkillSourceResolutionPolicy,
     resolve_package_bundled_skill_source,
 )
+from dynamic_agent_runner.tracing import WorkflowTracer
 from dynamic_agent_runner.validation import validate_agent_workflow
+
+
+class _RecordingResponses:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        raise AssertionError("model adapter should not be called")
+
+
+class _RecordingClient:
+    def __init__(self) -> None:
+        self.responses = _RecordingResponses()
 
 
 def _write_skill_package(
@@ -93,6 +115,98 @@ def test_package_local_bundled_skill_source_passes_validation(tmp_path) -> None:
     )
     assert resolved.body.startswith("# Demo")
     assert resolved.redacted_metadata()["content_hash"].startswith("sha256:")
+
+
+def test_package_local_bundled_skill_sources_render_in_effective_order(
+    tmp_path,
+) -> None:
+    """Source-backed skills render through the skill_instructions prompt lane."""
+
+    package_dir = tmp_path / "skill-source-render"
+    for name, body in (
+        ("first", "# First\nUse {prompt} first.\n"),
+        ("second", "# Second\nUse {prompt} second.\n"),
+    ):
+        skill_path = package_dir / "skill-bundle" / "skills" / name / "SKILL.md"
+        skill_path.parent.mkdir(parents=True)
+        skill_path.write_text(body, encoding="utf-8")
+    _write_skill_package(
+        package_dir,
+        skill_entries=(
+            "  - id: first\n"
+            "    bundled_path: skills/first/SKILL.md\n"
+            "  - id: second\n"
+            "    bundled_path: skills/second/SKILL.md"
+        ),
+        node_skill_refs='["first", "second"]',
+    )
+    workflow = load_agent_package(package_dir)
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="question")
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepared = prepare_model_input(
+        plan.nodes_by_id["analyze_request"],
+        plan,
+        state,
+        tracer=tracer,
+    )
+
+    assert prepared.part_names == (
+        "skill_instructions",
+        "skill_instructions",
+        "user_prompt",
+    )
+    assert [message.content for message in prepared.messages] == [
+        "# First\nUse question first.\n",
+        "# Second\nUse question second.\n",
+        "Analyze question",
+    ]
+    assert [message.role for message in prepared.messages[:2]] == [
+        "developer",
+        "developer",
+    ]
+    assert len(prepared.preparation.skill_sources_loaded) == 2
+    assert prepared.preparation.skill_sources_omitted == ()
+    assert prepared.preparation.skill_sources_rejected == ()
+    assert "Use question first" not in str(prepared.preparation.skill_sources_loaded)
+    prepared_events = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    assert len(prepared_events) == 1
+    trace_loaded = prepared_events[0].payload["skill_sources_loaded"]
+    assert len(trace_loaded) == 2
+    assert trace_loaded[0]["skill_id"] == "first"
+    assert trace_loaded[0]["content_hash"].startswith("sha256:")
+    assert "Use question first" not in str(trace_loaded)
+
+
+def test_package_local_skill_source_failure_stops_before_model_call(
+    tmp_path,
+) -> None:
+    """Rejected source-backed skills fail before model request construction."""
+
+    package_dir = tmp_path / "skill-source-execute-fail"
+    skill_path = package_dir / "skill-bundle" / "skills" / "demo" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_bytes(b"\x00binary")
+    _write_skill_package(
+        package_dir,
+        skill_entries="  - id: demo\n    bundled_path: skills/demo/SKILL.md",
+    )
+    workflow = load_agent_package(package_dir)
+    client = _RecordingClient()
+
+    with pytest.raises(WorkflowExecutionError, match="skill source resolution failed"):
+        execute_workflow(
+            workflow,
+            prompt="question",
+            model_adapter=OpenAIClientAdapter(client),
+        )
+
+    assert client.responses.calls == []
 
 
 def test_disabled_skill_source_policy_does_not_require_body(tmp_path) -> None:
