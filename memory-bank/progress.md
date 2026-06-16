@@ -82,6 +82,11 @@
   Second Edition: Intelligent Workflows With LLMs, MCP, A2A, and More`
   (Manning, ISBN `9781633434530`) are tracked in the owning specs without
   expanding immediate implementation scope.
+- `rag-orchestration-contract` now records RAG as a future orchestration
+  contract, not a retrieval infrastructure framework. It covers caller-owned
+  retrievers/adapters, provenance, context injection, index lifecycle,
+  permission-aware retrieval, routing profiles, GraphRAG layers, cache state,
+  degraded execution traces, and evaluation hooks.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -122,6 +127,10 @@
 - `fcde8bf` tracked evaluated agent-architecture follow-ups across the spec
   index, MCP runtime, guardrails, iterative loops, context management,
   capability reporting, and sandbox/workspace specs.
+- `f59e7dd` expanded the RAG orchestration spec with production RAG ideas from
+  evaluated RAG books, including index lifecycle, permission-aware retrieval,
+  retrieval routers/profiles, cache contracts, GraphRAG construction vs
+  query-time retrieval, degraded execution, and evaluation lifecycle metadata.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -147,6 +156,10 @@
   host-managed continuity boundaries are clear.
 - Runner-owned durable session storage remains deferred until a concrete
   workflow proves the need.
+- Runner-owned RAG infrastructure remains out of scope. RAG future work should
+  stay focused on metadata validation, capability/status diagnostics, trace
+  contracts, provenance, context-management integration, and fake-adapter
+  evaluation hooks.
 - Live prompt pruning, compaction, and hierarchical prompt-context injection are
   owned by `context-management-prepare-stage`, not the async-session memory
   pipeline.

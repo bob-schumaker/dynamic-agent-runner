@@ -46,6 +46,12 @@
   (Manning, ISBN `9781633434530`) are recorded as future-work notes in the
   owning specs: MCP resources/prompts, evaluation guardrails, loop controls,
   memory-selection hints, capability/deployment reporting, and sandbox safety.
+- `rag-orchestration-contract` is now a proposed future-feature spec for
+  RAG as an orchestration contract rather than runner-owned retrieval
+  infrastructure. It includes production-oriented metadata for index lifecycle,
+  permission-aware retrieval, retrieval routers/profiles, cache contracts,
+  GraphRAG construction vs query-time retrieval, degraded execution, and
+  evaluation lifecycle hooks.
 - The next recorded ROI focus in `specs/README.md` is opt-in package-local
   `skill-source-resolution`; local-model advisory implementation should happen
   when local-model ergonomics is the immediate driver.
@@ -114,6 +120,9 @@
 - Agent-architecture follow-ups from `AI Agents in Action, Second Edition` are
   tracked across the relevant spec packages without changing implementation
   scope.
+- RAG orchestration follow-ups from Apple Books RAG references are tracked in
+  `specs/rag-orchestration-contract/spec.md` with citations by title, author,
+  publisher, and ISBN rather than local file paths.
 
 ## Current Spec Authority Map
 
@@ -129,6 +138,7 @@
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
   - `specs/context-management-prepare-stage/spec.md`
+  - `specs/rag-orchestration-contract/spec.md`
 - Next ROI feature package:
   - `specs/skill-source-resolution/spec.md`
 - Later feature packages:
