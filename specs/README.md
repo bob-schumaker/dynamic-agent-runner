@@ -37,6 +37,7 @@ Companion planning artifacts:
 | Sandbox and workspace runtime | [`spec.md`](sandbox-workspace-runtime/spec.md) | Partial approval-policy baseline | Approval-before-side-effect boundary is implemented through approval interruption v1; write/shell runtime, workspace grants, sandbox adapters, and mutation audits remain deferred |
 | MCP runtime integration | [`spec.md`](mcp-runtime-integration/spec.md) | Implemented v1 baseline | Explicit caller-supplied MCP registry injection, MCP provenance, conservative policy defaults, capability status, tests, and evidence complete; live transports, process lifecycle, and discovery remain deferred |
 | Live guardrail execution | [`spec.md`](live-guardrail-execution/spec.md) | Implemented v1 baseline | Caller-registered input guardrail pass/abort, fail-closed missing adapters, redacted traces, capability status, tests, and evidence complete; output/tool phases remain deferred |
+| RAG orchestration contract | [`spec.md`](rag-orchestration-contract/spec.md) | Future orchestration feature | Defines direct support for RAG metadata, orchestration modes, typed query/answer states, validation, capability/status, provenance, context assembly, guardrail/evaluation hooks, and primitive-node workflow patterns while keeping ingestion, embeddings, indexes, graph stores, rerankers, compressors, and evaluators caller-owned |
 | SKILL.md source resolution | [`spec.md`](skill-source-resolution/spec.md) | Future source-loading feature | Skill metadata and refs exist; arbitrary source loading not implemented |
 | Iterative agent-loop runtime | [`spec.md`](iterative-agent-loop-runtime/spec.md) | Implemented v1 baseline | Bounded opt-in serial model-tool loops execute inside eligible `llm_step` nodes with registry dispatch, approval pauses, fail-closed safety checks, loop traces, tests, and evidence complete; state-field final selectors and durable resume remain deferred |
 | Power-Marimo host automation | [`spec.md`](power-marimo-host-automation/spec.md) | Future downstream integration | Placeholder-safe fixture exists; live Marimo/PyQt automation not implemented |
@@ -64,6 +65,7 @@ Companion planning artifacts:
 | Approval interruption/resume | `approval-interruption-resume` | Public interruption contract, direct approval-required tool pause, no-side-effect-before-approval behavior, redacted approval traces, high-level API guardrails, capability status, tests, and evidence complete | Durable resume, approval decisions, model-emitted tool-call approval, argument modification, parallel approvals, and serialized resume state remain deferred |
 | MCP runtime integration | `mcp-runtime-integration` | Metadata-only MCP registry-source and lifecycle diagnostics preservation plus explicit caller-supplied MCP registry injection complete | Live server discovery, process lifecycle, transports, reconnect, schema cache, and diagnostics beyond metadata remain deferred |
 | Live guardrail execution | `live-guardrail-execution` | Metadata-only guardrail declaration preservation plus caller-registered input guardrail aborts before first runtime action complete | Output guardrails, tool guardrails, reject-content behavior, retries, timeouts, and external adapters remain deferred |
+| RAG orchestration contract | `rag-orchestration-contract` | Limited `metadata.rag_pipeline` validation exists in the primary runtime | Future RAG contract slices should add stage-level RAG metadata, retrieval orchestration modes, typed query/answer contracts, capability/status reporting, provenance-aware retrieved-context contracts, context-management integration, guardrail/evaluation hooks, and examples without owning retrieval infrastructure |
 | SKILL.md source resolution | `skill-source-resolution` | Package-local skill metadata and `skill_refs` preservation complete | Source loading, trust, precedence, and prompt injection are specified as future work |
 | Iterative agent-loop runtime | `iterative-agent-loop-runtime` | Bounded opt-in serial model-tool loop execution complete for eligible `llm_step` nodes | Loop `state_field`/`tool_result` final selectors, durable approval resume, output/tool guardrails, parallel tool calls, and durable transcripts remain deferred |
 | Power-Marimo host automation | `power-marimo-host-automation` | Placeholder-safe fixture and fake-tool execution coverage complete | Live Marimo-session tools, domain adapters, PyQt-widget automation, and host safety policy are specified as future work |
@@ -107,6 +109,37 @@ scope:
 - Production ideas such as prompt/tool/model versioning, idempotency,
   timeouts, fallback budgets, observability, and model routing inform
   capability/status, sandbox, and future deployment-oriented specs.
+
+Jia Huang's `RAG from First Principles` (Packt Publishing, ISBN
+`9781835888667`, 2026 metadata date) was evaluated as a RAG engineering
+reference. Useful ideas were tracked in
+[`rag-orchestration-contract/spec.md`](rag-orchestration-contract/spec.md):
+
+- RAG should be first-class as orchestration metadata and workflow contract, not
+  as runner-owned retrieval infrastructure.
+- Ingestion, chunking, embeddings, vector storage, graph storage, reranking,
+  compression, correction, and evaluation remain caller-owned.
+- Retrieval mode, fusion, reranking, compression, correction, provenance,
+  freshness, and evaluation should be modeled as distinct contract surfaces.
+- Retrieval evaluation and response evaluation should remain separable so
+  callers can inspect retrieval quality, faithfulness, groundedness, answer
+  relevance, and context relevance independently.
+
+The repository-local RAG research notes under the Personal vault were also
+evaluated as supporting material for the same spec. They reinforced additional
+contract details:
+
+- Retrieval orchestration should distinguish preindexed, just-in-time, hybrid,
+  structural, and agentic retrieval modes instead of defaulting to vector
+  search.
+- Typed question parsing, typed answer states, reference-resolution loops, and
+  absence-proof states should be explicit future contract surfaces.
+- Retrieved evidence should preserve document structure, citation handles,
+  parent/child links, adjacent ids, source coordinates, freshness, score, and
+  context-management metadata when caller-owned retrievers provide them.
+- Multi-stage retrieval funnels should expose candidate counts, cost/latency
+  budgets, cache policy, thresholds, and fallback behavior without making the
+  runner own retrieval infrastructure.
 
 ## High-ROI Remaining Work Order
 
