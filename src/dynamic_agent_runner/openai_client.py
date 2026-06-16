@@ -17,6 +17,15 @@ from dynamic_agent_runner.errors import ModelExecutionError
 
 
 ErrorTranslator = Callable[[ModelExecutionError], ModelExecutionError]
+
+_CONTEXT_OVERFLOW_MARKERS = (
+    "context_length_exceeded",
+    "context window",
+    "context limit",
+    "maximum context",
+    "token limit",
+    "too many tokens",
+)
 ResponseValidator = Callable[["OpenAIModelRequest", "ModelResponse"], None]
 CHATGPT_CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api/codex"
 CHATGPT_CODEX_PROVIDER_NAME = "chatgpt-codex"
@@ -198,6 +207,15 @@ class ModelToolCall:
     id: str | None
     name: str
     arguments: str | Mapping[str, Any]
+
+
+def is_context_overflow_error(error: BaseException) -> bool:
+    """Return whether an error looks like a provider context-window overflow."""
+
+    message = str(error).lower()
+    if "400" in message or "invalid_request" in message or "context" in message:
+        return any(marker in message for marker in _CONTEXT_OVERFLOW_MARKERS)
+    return False
 
 
 @dataclass(frozen=True)

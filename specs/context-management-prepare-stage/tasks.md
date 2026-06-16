@@ -264,7 +264,7 @@ Status: future backlog; no tasks started
 
 ## Slice 9 — Context-overflow error classification
 
-- [ ] T9.1 [tests] Add RED provider-overflow classification coverage.
+- [x] T9.1 [tests] Add RED provider-overflow classification coverage.
   - Spec: FR13
   - Files/components: `tests/test_openai_client.py`,
     `tests/test_executor.py`
@@ -273,7 +273,7 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_openai_client.py tests/test_executor.py -q`
 
-- [ ] T9.2 [implementation] Add defensive overflow classification and optional
+- [x] T9.2 [implementation] Add defensive overflow classification and optional
       one-retry compaction path.
   - Spec: FR13
   - Files/components: `src/dynamic_agent_runner/openai_client.py`,

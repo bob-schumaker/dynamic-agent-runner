@@ -48,6 +48,7 @@ from dynamic_agent_runner.openai_client import (
     OpenAIClientAdapter,
     OpenAIMessage,
     build_openai_request,
+    is_context_overflow_error,
 )
 from dynamic_agent_runner.prompt_cache import (
     build_prompt_cache_observation,
@@ -793,19 +794,39 @@ async def _execute_llm_step_async(
             retry_exceptions=(ModelExecutionError,),
         )
     except ModelExecutionError as exc:
-        _record_retry(
-            state,
+        retry_response = await _retry_model_after_context_overflow_async(
+            exc,
             node,
-            "model",
-            attempts=policy.max_attempts if _retries_exceptions(policy) else 1,
-            outcome="failure",
-            final_error=str(exc),
-            tracer=tracer,
+            plan,
+            state,
+            prepared_input,
+            tools,
+            tracer,
         )
-        raise
-    _record_retry(
-        state, node, "model", attempts=attempts, outcome="success", tracer=tracer
-    )
+        if retry_response is not None:
+            response = retry_response
+            attempts = 2
+        else:
+            _record_retry(
+                state,
+                node,
+                "model",
+                attempts=policy.max_attempts if _retries_exceptions(policy) else 1,
+                outcome="failure",
+                final_error=str(exc),
+                tracer=tracer,
+            )
+            raise
+    if "response" not in locals():
+        raise WorkflowExecutionError(f"llm_step node {node.id!r} did not return output")
+    if attempts == 2:
+        _record_retry(
+            state, node, "model", attempts=attempts, outcome="success", tracer=tracer
+        )
+    else:
+        _record_retry(
+            state, node, "model", attempts=attempts, outcome="success", tracer=tracer
+        )
     tracer.emit(
         "model_response",
         node_id=str(node.id),
@@ -823,26 +844,72 @@ async def _execute_llm_step_async(
         ),
     )
     _record_prompt_cache_provider_telemetry(response, node, tracer)
-    if not _iterative_loop_enabled(plan):
-        _validate_model_output_contract(node, plan, response, prepared_input.prompt)
-        return response
-    loop_output = await _execute_model_tool_loop_async(
-        node,
-        plan,
-        state,
-        registry,
-        prepared_input,
-        response,
-        tools,
-        exposed_tools,
-        tracer,
-        lifecycle_hooks,
-    )
-    if isinstance(loop_output, WorkflowInterruptedResult):
-        return loop_output
-    response = loop_output
+    if _iterative_loop_enabled(plan):
+        loop_output = await _execute_model_tool_loop_async(
+            node,
+            plan,
+            state,
+            registry,
+            prepared_input,
+            response,
+            tools,
+            exposed_tools,
+            tracer,
+            lifecycle_hooks,
+        )
+        if isinstance(loop_output, WorkflowInterruptedResult):
+            return loop_output
+        response = loop_output
     _validate_model_output_contract(node, plan, response, prepared_input.prompt)
     return response
+
+
+async def _retry_model_after_context_overflow_async(
+    exc: ModelExecutionError,
+    node: PreparedNode,
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+    prepared_input: PreparedModelInput,
+    tools: Sequence[Mapping[str, Any]],
+    tracer: WorkflowTracer,
+) -> ModelResponse | None:
+    auto = _context_compaction_auto_policy(
+        _prepare_model_input_policy(plan.execution_policy)
+    )
+    if (
+        not is_context_overflow_error(exc)
+        or auto.get("retry_on_overflow") is not True
+        or prepared_input.context_compactor is None
+    ):
+        return None
+    metadata = {
+        "phase": "overflow_retry",
+        "trigger": "provider_context_overflow",
+        "implementation": str(auto.get("implementation") or "injected"),
+        "status": "retrying",
+        "reason": "context_overflow",
+    }
+    replacement_messages = tuple(
+        prepared_input.context_compactor(prepared_input.messages, metadata)
+    )
+    retry_request = build_openai_request(
+        model=prepared_input.model,
+        messages=replacement_messages,
+        tools=tools,
+        tool_choice=prepared_input.tool_choice,
+        response_format=prepared_input.response_format,
+        **prepared_input.model_parameters,
+    )
+    state.node_inputs[str(node.id)] = retry_request.to_kwargs()
+    tracer.emit(
+        "context_overflow_retry",
+        node_id=str(node.id),
+        payload={
+            **metadata,
+            "message_count": len(replacement_messages),
+        },
+    )
+    return await _create_model_response_async(prepared_input.adapter, retry_request)
 
 
 def _iterative_loop_enabled(plan: ExecutionPlan) -> bool:

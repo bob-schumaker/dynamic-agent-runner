@@ -24,6 +24,7 @@ from dynamic_agent_runner.openai_client import (
     create_default_openai_provider,
     create_openai_adapter_from_provider_config,
     create_openai_response,
+    is_context_overflow_error,
     normalize_openai_response,
 )
 from dynamic_agent_runner.registry import openai_tool_schema
@@ -944,6 +945,22 @@ def test_async_adapter_wraps_model_failures() -> None:
 
     with pytest.raises(ModelExecutionError, match="OpenAI model request failed"):
         asyncio.run(adapter.create_response(request))
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "context_length_exceeded: too many tokens",
+        "invalid_request_error: prompt is longer than the maximum context window",
+        "400 Bad Request: token limit exceeded for this model",
+    ],
+)
+def test_context_overflow_error_classification(message: str) -> None:
+    assert is_context_overflow_error(ModelExecutionError(message)) is True
+
+
+def test_context_overflow_error_classification_ignores_unrelated_errors() -> None:
+    assert is_context_overflow_error(ModelExecutionError("network timeout")) is False
 
 
 def test_create_default_openai_client_uses_official_client(

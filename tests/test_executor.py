@@ -1656,6 +1656,72 @@ def test_prepare_model_input_new_window_reset_does_not_count_as_compaction() -> 
     }
 
 
+def test_execute_workflow_retries_once_after_context_overflow_with_compaction() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "overflow-retry-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "implementation": "injected",
+                                "retry_on_overflow": True,
+                            }
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter(
+        [
+            RuntimeError("context_length_exceeded: too many tokens"),
+            {"id": "resp_retry", "output_text": "compacted answer"},
+        ]
+    )
+
+    def fake_compactor(
+        _messages: tuple[OpenAIMessage, ...],
+        metadata: Mapping[str, Any],
+    ) -> tuple[OpenAIMessage, ...]:
+        assert metadata["phase"] == "overflow_retry"
+        return (OpenAIMessage(role="user", content="Compacted question."),)
+
+    result = execute_workflow(
+        workflow,
+        prompt="finish " * 80,
+        model_adapter=adapter,
+        context_compactor=fake_compactor,
+    )
+
+    assert result.final_result == "compacted answer"
+    assert len(adapter.client.responses.calls) == 2
+    assert adapter.client.responses.calls[1]["input"] == [
+        {"role": "user", "content": "Compacted question."}
+    ]
+    retry_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "context_overflow_retry"
+    ]
+    assert retry_events[0].payload["status"] == "retrying"
+
+
 def test_prepare_model_input_reports_context_lanes() -> None:
     """prepare_model_input reports ordered context lanes and utilization metadata."""
 
