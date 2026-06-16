@@ -86,9 +86,21 @@ Status: planning checkpoint prepared
 
 - Command:
   `poetry run pytest tests/test_validation.py tests/test_capabilities.py -q`
-- RED observed result: pending
-- GREEN observed result: pending
-- Interpretation: pending
+- RED observed result: failed before implementation because
+  `provenance_required: true` did not require evidence fields or a provenance
+  retriever, and RAG capability details did not summarize context handoff
+  metadata.
+- GREEN observed result: passed, 73 tests.
+- Additional command:
+  `pre-commit run --files src/dynamic_agent_runner/validation.py`
+  `src/dynamic_agent_runner/capabilities.py tests/test_validation.py`
+  `tests/test_capabilities.py specs/rag-orchestration-contract/tasks.md`
+  `specs/rag-orchestration-contract/validation.md`
+- Additional observed result: passed.
+- Interpretation: provenance-required metadata now fails closed unless evidence
+  fields or a required provenance retriever are declared, and capability/status
+  reports context handoff summaries without exposing raw evidence or field
+  lists.
 
 ### Slice 4 — Completion Evidence
 

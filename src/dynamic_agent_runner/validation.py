@@ -2079,6 +2079,7 @@ def _validate_rag_retrievers(
             errors,
         )
         _validate_optional_bool(retriever, "required", label, errors)
+        _validate_optional_bool(retriever, "provides_provenance", label, errors)
 
 
 def _validate_rag_candidate_budget(
@@ -2107,6 +2108,7 @@ def _validate_rag_context_assembly(
         pipeline, "context_assembly", "metadata.rag_pipeline", errors
     )
     if context_assembly is None:
+        _validate_rag_provenance_requirements(pipeline, None, errors)
         return
     _validate_optional_enum(
         context_assembly,
@@ -2127,6 +2129,37 @@ def _validate_rag_context_assembly(
             "metadata.rag_pipeline.context_assembly.required_evidence_fields "
             "must be a list of strings"
         )
+    _validate_rag_provenance_requirements(pipeline, context_assembly, errors)
+
+
+def _validate_rag_provenance_requirements(
+    pipeline: Mapping[str, Any],
+    context_assembly: Mapping[str, Any] | None,
+    errors: list[str],
+) -> None:
+    if pipeline.get("provenance_required") is not True:
+        return
+    required_fields = (
+        context_assembly.get("required_evidence_fields")
+        if isinstance(context_assembly, Mapping)
+        else None
+    )
+    if _is_string_list(required_fields) and required_fields:
+        return
+    retrievers = pipeline.get("retrievers")
+    if isinstance(retrievers, list):
+        for retriever in retrievers:
+            if not isinstance(retriever, Mapping):
+                continue
+            if (
+                retriever.get("required") is True
+                and retriever.get("provides_provenance") is True
+            ):
+                return
+    errors.append(
+        "metadata.rag_pipeline.provenance_required requires "
+        "context_assembly.required_evidence_fields or a required provenance retriever"
+    )
 
 
 def _validate_rag_permissions(

@@ -419,6 +419,13 @@ def test_inspect_agent_package_capabilities_reports_rag_readiness(
             embedding_capability: required
             graph_capability: not_applicable
             provenance_required: true
+            context_assembly:
+              target: prepare_model_input
+              max_context_tokens: 4096
+              required_evidence_fields:
+                - source_id
+                - chunk_id
+                - citation_handle
             source_readiness:
               source_registry: external_service
               refresh_mode: scheduled
@@ -451,10 +458,18 @@ def test_inspect_agent_package_capabilities_reports_rag_readiness(
         "retrieval_mode": "hybrid",
         "required_retrievers": 2,
         "declared_retrievers": 3,
+        "provenance_required": True,
+        "context_assembly_target": "prepare_model_input",
+        "context_max_tokens": 4096,
+        "required_evidence_field_count": 3,
         "degraded_states": ("partial_results", "stale_but_allowed"),
         "stale_state": "stale_but_allowed",
         "permission_filtering": "required",
     }
+    assert (
+        "required_evidence_fields"
+        not in metadata_items["metadata.rag_pipeline"].details
+    )
     assert (
         metadata_items["rag.retriever.keyword"].state
         == CapabilityState.MISSING_COLLABORATOR

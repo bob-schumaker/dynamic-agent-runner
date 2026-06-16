@@ -87,7 +87,7 @@ Status: prepared for implementation
 
 ## Slice 3 — Provenance and Context-Management Handoff Metadata
 
-- [ ] T3.1 [tests] Add RED tests for provenance-required and context-assembly
+- [x] T3.1 [tests] Add RED tests for provenance-required and context-assembly
       declarations.
   - Spec: FR-4, FR-5, FR-8, FR-9
   - Files/components: `tests/test_validation.py`,
@@ -104,7 +104,7 @@ Status: prepared for implementation
   - Validation:
     `poetry run pytest tests/test_validation.py tests/test_capabilities.py -q`
 
-- [ ] T3.2 [implementation] Validate and report provenance/context-management
+- [x] T3.2 [implementation] Validate and report provenance/context-management
       handoff metadata.
   - Spec: FR-4, FR-5, FR-8, FR-9
   - Files/components: `src/dynamic_agent_runner/validation.py`,

@@ -864,6 +864,10 @@ def test_rag_manifest_preserves_and_validates_pipeline_and_model_requirements() 
             "reranking": "vector_score",
             "freshness_policy": "manual",
             "provenance_required": True,
+            "context_assembly": {
+                "target": "prepare_model_input",
+                "required_evidence_fields": ["source_id", "chunk_id"],
+            },
         },
     }
     data["nodes"] = [
@@ -1076,6 +1080,61 @@ def test_staged_rag_pipeline_metadata_fails_for_malformed_values() -> None:
     assert (
         "metadata.rag_pipeline.degraded_states contains unsupported values" in message
     )
+
+
+def test_rag_provenance_required_needs_evidence_fields_or_provenance_retriever() -> (
+    None
+):
+    """Provenance-required RAG metadata needs a declared evidence source."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "patterns_present": ["rag"],
+        "rag_pipeline": {
+            "retrieval_mode": "keyword",
+            "retrievers": [
+                {
+                    "id": "keyword",
+                    "tool_id": "keyword_search",
+                    "mode": "keyword",
+                    "required": True,
+                }
+            ],
+            "provenance_required": True,
+        },
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    assert (
+        "metadata.rag_pipeline.provenance_required requires "
+        "context_assembly.required_evidence_fields or a required provenance retriever"
+        in str(exc_info.value)
+    )
+
+    data["metadata"]["rag_pipeline"]["retrievers"][0]["provides_provenance"] = True
+    validate_mapping(data)
+
+
+def test_rag_provenance_required_accepts_context_evidence_fields() -> None:
+    """Required evidence fields satisfy provenance-required RAG metadata."""
+
+    data = valid_manifest_data()
+    data["metadata"] = {
+        "patterns_present": ["rag"],
+        "rag_pipeline": {
+            "retrieval_mode": "keyword",
+            "provenance_required": True,
+            "context_assembly": {
+                "target": "prepare_model_input",
+                "max_context_tokens": 2048,
+                "required_evidence_fields": ["source_id", "chunk_id"],
+            },
+        },
+    }
+
+    validate_mapping(data)
 
 
 def test_invalid_rag_pipeline_and_model_requirements_fail_validation() -> None:

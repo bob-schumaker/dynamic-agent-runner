@@ -486,17 +486,74 @@ def _rag_items(
 def _rag_pipeline_metadata_item(
     pipeline: Mapping[str, Any],
 ) -> CapabilityStatusItem:
+    return CapabilityStatusItem(
+        id="metadata.rag_pipeline",
+        label="RAG orchestration metadata",
+        state=CapabilityState.METADATA_ONLY,
+        category="rag",
+        summary=(
+            "RAG declarations are preserved and validated; retrieval execution "
+            "remains caller-owned."
+        ),
+        owner=_OWNER_RAG,
+        details=_rag_pipeline_metadata_details(pipeline),
+    )
+
+
+def _rag_pipeline_metadata_details(pipeline: Mapping[str, Any]) -> dict[str, object]:
     retrievers = _rag_retriever_declarations(pipeline)
+    details = _rag_pipeline_base_details(pipeline, retrievers)
+    if pipeline.get("provenance_required") is not None:
+        details["provenance_required"] = pipeline.get("provenance_required") is True
+    _add_rag_context_details(details, pipeline.get("context_assembly"))
+    _add_rag_readiness_details(
+        details,
+        degraded_states=pipeline.get("degraded_states"),
+        source_readiness=pipeline.get("source_readiness"),
+        permissions=pipeline.get("permissions"),
+    )
+    return details
+
+
+def _rag_pipeline_base_details(
+    pipeline: Mapping[str, Any],
+    retrievers: tuple[_RAGRetrieverDeclaration, ...],
+) -> dict[str, object]:
     required_retrievers = [retriever for retriever in retrievers if retriever.required]
-    source_readiness = pipeline.get("source_readiness")
-    permissions = pipeline.get("permissions")
-    degraded_states = pipeline.get("degraded_states")
-    details: dict[str, object] = {
+    return {
         "orchestration_mode": str(pipeline.get("orchestration_mode", "unknown")),
         "retrieval_mode": str(pipeline.get("retrieval_mode", "unknown")),
         "required_retrievers": len(required_retrievers),
         "declared_retrievers": len(retrievers),
     }
+
+
+def _add_rag_context_details(
+    details: dict[str, object],
+    context_assembly: object,
+) -> None:
+    if not isinstance(context_assembly, Mapping):
+        return
+    target = context_assembly.get("target")
+    max_context_tokens = context_assembly.get("max_context_tokens")
+    required_evidence_fields = context_assembly.get("required_evidence_fields")
+    if target is not None:
+        details["context_assembly_target"] = str(target)
+    if isinstance(max_context_tokens, int) and not isinstance(max_context_tokens, bool):
+        details["context_max_tokens"] = max_context_tokens
+    if isinstance(required_evidence_fields, list):
+        details["required_evidence_field_count"] = len(
+            [field for field in required_evidence_fields if isinstance(field, str)]
+        )
+
+
+def _add_rag_readiness_details(
+    details: dict[str, object],
+    *,
+    degraded_states: object,
+    source_readiness: object,
+    permissions: object,
+) -> None:
     if isinstance(degraded_states, list):
         details["degraded_states"] = tuple(
             sorted(str(item) for item in degraded_states)
@@ -509,18 +566,6 @@ def _rag_pipeline_metadata_item(
         permission_filtering = permissions.get("permission_filtering")
         if permission_filtering is not None:
             details["permission_filtering"] = str(permission_filtering)
-    return CapabilityStatusItem(
-        id="metadata.rag_pipeline",
-        label="RAG orchestration metadata",
-        state=CapabilityState.METADATA_ONLY,
-        category="rag",
-        summary=(
-            "RAG declarations are preserved and validated; retrieval execution "
-            "remains caller-owned."
-        ),
-        owner=_OWNER_RAG,
-        details=details,
-    )
 
 
 @dataclass(frozen=True)
