@@ -1,6 +1,6 @@
 # Context Management Prepare Stage Task List
 
-Status: future backlog; no tasks started
+Status: implemented through Slice 9; no open task-list items remain
 
 ## Prerequisites
 
@@ -192,10 +192,10 @@ Status: future backlog; no tasks started
     fidelity or information-retention proxy metadata where practical.
   - Validation: `poetry run pytest tests/test_executor.py -q`
 
-## Slice 6 — Pre-turn provider compaction seam
+## Slice 6 — Pre-turn compaction seam
 
-- [x] T6.1 [tests] Add RED pre-turn provider compaction coverage using an
-      injected fake compactor.
+- [x] T6.1 [tests] Add RED pre-turn compaction coverage using an injected fake
+      compactor.
   - Spec: FR8, FR9, FR10
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -285,7 +285,7 @@ Status: future backlog; no tasks started
 
 ## Final Validation
 
-Before committing a future implementation slice:
+Completed implementation slices were validated with:
 
 - `poetry run pytest -q`
 - `poetry check`

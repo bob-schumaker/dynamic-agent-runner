@@ -4,7 +4,7 @@
 
 - Feature slug: `skill-source-resolution`
 - Mode: `light`
-- Artifact type: future feature specification
+- Artifact type: authoritative SDD feature specification
 - Status: v1 implemented; source loading is opt-in and package-local only.
   The runtime still does not load arbitrary `SKILL.md` bodies outside declared
   package bundles.

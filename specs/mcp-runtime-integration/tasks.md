@@ -1,6 +1,7 @@
 # MCP Runtime Integration V1 Tasks
 
-Status: planned next implementation slice
+Status: implemented v1 explicit registry-injection baseline; live transports
+and lifecycle remain deferred
 
 ## Slice 0 — Planning Checkpoint
 

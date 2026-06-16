@@ -1,6 +1,7 @@
 # Live Guardrail Execution V1 Tasks
 
-Status: planned next implementation slice
+Status: implemented v1 input-guardrail baseline; output/tool phases remain
+deferred
 
 ## Slice 0 — Planning Checkpoint
 

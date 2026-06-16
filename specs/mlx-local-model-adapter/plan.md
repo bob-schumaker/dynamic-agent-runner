@@ -1,6 +1,6 @@
 # macOS MLX Local-Model Adapter Implementation Plan
 
-Status: ready for implementation
+Status: implemented; Slices 1-4 complete
 
 ## Goal
 
