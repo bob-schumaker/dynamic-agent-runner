@@ -24,6 +24,7 @@ from dynamic_agent_runner.registry import ToolRegistryError
 _OWNER_DYNAMIC_AGENT_RUNNER = "dynamic-agent-runner"
 _OWNER_APPROVAL_INTERRUPTION = "approval-interruption-resume"
 _OWNER_ASYNC_SESSION = "async-session-memory-pipeline"
+_OWNER_CONTEXT_MANAGEMENT = "context-management-prepare-stage"
 _OWNER_GUARDRAILS = "live-guardrail-execution"
 _OWNER_MCP = "mcp-runtime-integration"
 _OWNER_RAG = "rag-orchestration-contract"
@@ -255,6 +256,7 @@ def _capability_items(
                 "Tool-use loop policy is preserved but iterative loops do not run.",
             )
         )
+    items.extend(_context_management_items(manifest.execution_policy))
     if manifest.handoffs:
         items.append(
             _metadata_only_item(
@@ -302,6 +304,40 @@ def _capability_items(
     items.extend(_mcp_registry_items(plan, tool_registry=tool_registry))
     items.append(_local_workspace_pack_item(built_in_tool_packs))
     return tuple(items)
+
+
+def _context_management_items(
+    execution_policy: Mapping[str, Any],
+) -> tuple[CapabilityStatusItem, ...]:
+    prepare_model_input = execution_policy.get("prepare_model_input")
+    if not isinstance(prepare_model_input, Mapping):
+        return ()
+    compaction = prepare_model_input.get("context_compaction")
+    if not isinstance(compaction, Mapping):
+        return ()
+    auto = compaction.get("auto")
+    if not isinstance(auto, Mapping) or auto.get("enabled") is not True:
+        return ()
+    implementation = str(auto.get("implementation") or "metadata_only")
+    return (
+        CapabilityStatusItem(
+            id="metadata.context.pre_turn_compaction",
+            label="Pre-turn context compaction",
+            state=CapabilityState.METADATA_ONLY,
+            category="metadata",
+            summary=(
+                "Pre-turn context compaction is declared; live compaction requires "
+                "an injected collaborator."
+            ),
+            owner=_OWNER_CONTEXT_MANAGEMENT,
+            details={
+                "phase": "pre_turn",
+                "implementation": implementation,
+                "trigger": str(auto.get("trigger") or "token_threshold"),
+                "scope": str(auto.get("scope") or "current_run"),
+            },
+        ),
+    )
 
 
 def _metadata_only_item(

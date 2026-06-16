@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
 import sys
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -1509,6 +1511,96 @@ def test_prepare_model_input_local_compaction_skips_summary_without_eviction() -
 
     assert "session_summary" not in prepared_input.named_parts
     assert prepared_input.preparation.compaction == {}
+
+
+def test_prepare_model_input_pre_turn_compaction_replaces_over_threshold_context() -> (
+    None
+):
+    """Injected pre-turn compaction can replace over-threshold prepared input."""
+
+    calls: list[tuple[OpenAIMessage, ...]] = []
+
+    def fake_compactor(
+        messages: tuple[OpenAIMessage, ...],
+        metadata: Mapping[str, Any],
+    ) -> tuple[OpenAIMessage, ...]:
+        calls.append(messages)
+        assert metadata["phase"] == "pre_turn"
+        return (
+            OpenAIMessage(role="developer", content="Compacted replacement history."),
+            OpenAIMessage(role="user", content="Answer finish."),
+        )
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "pre-turn-compaction-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "threshold_ratio": 0.01,
+                                "implementation": "injected",
+                                "trigger": "token_threshold",
+                            }
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="finish " * 80)
+    adapter = make_adapter([])
+    adapter.context_windows = {"gpt-test": 1000}
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        tracer=tracer,
+        context_compactor=fake_compactor,
+    )
+
+    assert len(calls) == 1
+    assert prepared_input.part_names == (
+        "pre_turn_compacted_1",
+        "pre_turn_compacted_2",
+    )
+    assert prepared_input.messages[0].content == "Compacted replacement history."
+    assert prepared_input.preparation.pre_turn_compaction["status"] == "complete"
+    assert (
+        prepared_input.preparation.pre_turn_compaction["implementation"] == "injected"
+    )
+    assert (
+        prepared_input.preparation.pre_turn_compaction["tokens_before"]
+        > (prepared_input.preparation.pre_turn_compaction["tokens_after"])
+    )
+    prepared_events = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    assert prepared_events[0].payload["pre_turn_compaction"]["phase"] == "pre_turn"
+    assert "finish finish" not in repr(
+        prepared_events[0].payload["pre_turn_compaction"]
+    )
 
 
 def test_prepare_model_input_reports_context_lanes() -> None:

@@ -194,7 +194,7 @@ Status: future backlog; no tasks started
 
 ## Slice 6 — Pre-turn provider compaction seam
 
-- [ ] T6.1 [tests] Add RED pre-turn provider compaction coverage using an
+- [x] T6.1 [tests] Add RED pre-turn provider compaction coverage using an
       injected fake compactor.
   - Spec: FR8, FR9, FR10
   - Files/components: `tests/test_executor.py`,
@@ -204,7 +204,7 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k pre_turn_compaction`
 
-- [ ] T6.2 [implementation] Add a provider/injected compaction boundary.
+- [x] T6.2 [implementation] Add a provider/injected compaction boundary.
   - Spec: FR9
   - Files/components: `src/dynamic_agent_runner/openai_client.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -213,7 +213,7 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_openai_client.py tests/test_executor.py -q`
 
-- [ ] T6.3 [implementation] Emit pre-turn compaction traces and capability
+- [x] T6.3 [implementation] Emit pre-turn compaction traces and capability
       status.
   - Spec: FR6, FR9, FR16
   - Files/components: `src/dynamic_agent_runner/tracing.py`,

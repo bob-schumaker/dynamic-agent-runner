@@ -77,6 +77,10 @@ from dynamic_agent_runner.tracing import TraceEvent, TraceSink, WorkflowTracer
 
 T = TypeVar("T")
 ModelAdapter = OpenAIClientAdapter | AsyncOpenAIClientAdapter
+ContextCompactor = Callable[
+    [tuple[OpenAIMessage, ...], Mapping[str, Any]],
+    tuple[OpenAIMessage, ...],
+]
 
 
 @dataclass(frozen=True)
@@ -161,6 +165,7 @@ class PreparedInputMetadata:
     session_messages_pruned: int = 0
     context_compaction_applied: bool = False
     compaction: Mapping[str, Any] = field(default_factory=dict)
+    pre_turn_compaction: Mapping[str, Any] = field(default_factory=dict)
     file_context_applied: bool = False
     file_context_sources: tuple[str, ...] = ()
     file_context_files_included: int = 0
@@ -419,6 +424,7 @@ def prepare_model_input(
     tracer: WorkflowTracer | None = None,
     prompt_cache: bool | None = None,
     model_adapter_coverage: str = "augmented",
+    context_compactor: ContextCompactor | None = None,
 ) -> PreparedModelInput:
     """Prepare rendered model input for an ``llm_step`` node."""
 
@@ -446,6 +452,7 @@ def prepare_model_input(
         state,
         model=model,
         adapter=adapter,
+        context_compactor=context_compactor,
     )
     preparation = _merge_prepared_input_metadata(preparation, mutation_preparation)
     preparation = _merge_skill_source_preparation(
@@ -464,6 +471,7 @@ def prepare_model_input(
                 "session_messages_pruned": preparation.session_messages_pruned,
                 "context_compaction_applied": preparation.context_compaction_applied,
                 "compaction": preparation.compaction,
+                "pre_turn_compaction": preparation.pre_turn_compaction,
                 "file_context_applied": preparation.file_context_applied,
                 "file_context_sources": preparation.file_context_sources,
                 "file_context_files_included": preparation.file_context_files_included,
@@ -1735,6 +1743,7 @@ def _merge_prepared_input_metadata(
         session_messages_pruned=base.session_messages_pruned,
         context_compaction_applied=base.context_compaction_applied,
         compaction=base.compaction,
+        pre_turn_compaction=base.pre_turn_compaction,
         file_context_applied=base.file_context_applied,
         file_context_sources=base.file_context_sources,
         file_context_files_included=base.file_context_files_included,
@@ -1775,6 +1784,7 @@ def _merge_skill_source_preparation(
         session_messages_pruned=base.session_messages_pruned,
         context_compaction_applied=base.context_compaction_applied,
         compaction=base.compaction,
+        pre_turn_compaction=base.pre_turn_compaction,
         file_context_applied=base.file_context_applied,
         file_context_sources=base.file_context_sources,
         file_context_files_included=base.file_context_files_included,
@@ -1821,6 +1831,7 @@ def _apply_prepare_model_input_stage(
     *,
     model: str,
     adapter: ModelAdapter,
+    context_compactor: ContextCompactor | None,
 ) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
     """Apply optional prepare-stage hierarchy and session shaping."""
 
@@ -1918,6 +1929,14 @@ def _apply_prepare_model_input_stage(
     if user_part is not None:
         result_parts.append(user_part)
 
+    result_parts, pre_turn_compaction = _apply_pre_turn_compaction(
+        result_parts,
+        policy,
+        adapter,
+        model=model,
+        context_compactor=context_compactor,
+    )
+
     context_lanes = _context_lane_metadata(
         result_parts,
         lane_budgets,
@@ -1931,6 +1950,7 @@ def _apply_prepare_model_input_stage(
         session_messages_pruned=len(pruned_session),
         context_compaction_applied=context_compaction_applied,
         compaction=compaction_metadata,
+        pre_turn_compaction=pre_turn_compaction,
         file_context_applied=file_context_metadata.file_context_applied,
         file_context_sources=file_context_metadata.file_context_sources,
         file_context_files_included=file_context_metadata.file_context_files_included,
@@ -2449,6 +2469,84 @@ def _context_metrics(policy: Mapping[str, Any]) -> tuple[str, ...]:
     ):
         return ()
     return tuple(str(metric) for metric in metrics if isinstance(metric, str))
+
+
+def _apply_pre_turn_compaction(
+    parts: Sequence[tuple[str, OpenAIMessage]],
+    policy: Mapping[str, Any],
+    adapter: ModelAdapter,
+    *,
+    model: str,
+    context_compactor: ContextCompactor | None,
+) -> tuple[list[tuple[str, OpenAIMessage]], Mapping[str, Any]]:
+    auto = _context_compaction_auto_policy(policy)
+    if auto.get("enabled") is not True:
+        return list(parts), {}
+    implementation = str(auto.get("implementation") or "metadata_only")
+    if implementation != "injected":
+        return list(parts), {}
+    messages = tuple(message for _part_name, message in parts)
+    tokens_before = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content} for message in messages
+        ),
+        model=model,
+    ).token_count
+    threshold = _pre_turn_compaction_threshold(auto, adapter, model)
+    base_metadata: dict[str, Any] = {
+        "phase": "pre_turn",
+        "trigger": str(auto.get("trigger") or "token_threshold"),
+        "implementation": implementation,
+        "threshold_tokens": threshold,
+        "tokens_before": tokens_before,
+    }
+    if threshold is None or tokens_before <= threshold:
+        return list(parts), {
+            **base_metadata,
+            "status": "skipped",
+            "reason": "under_threshold",
+            "tokens_after": tokens_before,
+        }
+    if context_compactor is None:
+        return list(parts), {
+            **base_metadata,
+            "status": "missing_collaborator",
+            "reason": "context_compactor_unavailable",
+            "tokens_after": tokens_before,
+        }
+    replacement_messages = tuple(context_compactor(messages, base_metadata))
+    tokens_after = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content}
+            for message in replacement_messages
+        ),
+        model=model,
+    ).token_count
+    replacement_parts = [
+        (f"pre_turn_compacted_{index}", message)
+        for index, message in enumerate(replacement_messages, start=1)
+    ]
+    return replacement_parts, {
+        **base_metadata,
+        "status": "complete",
+        "reason": "token_threshold_exceeded",
+        "tokens_after": tokens_after,
+    }
+
+
+def _pre_turn_compaction_threshold(
+    auto: Mapping[str, Any],
+    adapter: ModelAdapter,
+    model: str,
+) -> int | None:
+    threshold_tokens = auto.get("threshold_tokens")
+    if isinstance(threshold_tokens, int) and not isinstance(threshold_tokens, bool):
+        return threshold_tokens
+    context_window = _adapter_context_window(adapter, model)
+    if context_window is None:
+        return None
+    threshold_ratio = min(float(auto.get("threshold_ratio", 0.9)), 0.9)
+    return int(context_window * threshold_ratio)
 
 
 def _file_context_messages(

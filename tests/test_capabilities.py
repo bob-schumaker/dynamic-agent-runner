@@ -520,6 +520,56 @@ def test_inspect_agent_package_capabilities_reports_rag_readiness(
     }
 
 
+def test_inspect_agent_package_capabilities_reports_pre_turn_compaction(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: context-compaction-capability-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            prepare_model_input:
+              context_compaction:
+                auto:
+                  enabled: true
+                  implementation: injected
+                  trigger: token_threshold
+                  scope: current_run
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+        edges: []
+        """,
+    )
+
+    report = inspect_agent_package_capabilities(package_directory=package_dir)
+
+    item = next(
+        item
+        for item in report.items
+        if item.id == "metadata.context.pre_turn_compaction"
+    )
+    assert item.state is CapabilityState.METADATA_ONLY
+    assert item.owner == "context-management-prepare-stage"
+    assert item.details == {
+        "phase": "pre_turn",
+        "implementation": "injected",
+        "trigger": "token_threshold",
+        "scope": "current_run",
+    }
+
+
 def test_inspect_agent_package_capabilities_reports_live_approval_interruption(
     tmp_path: Path,
 ) -> None:

@@ -284,6 +284,7 @@ SUPPORTED_CONTEXT_COMPACTION_IMPLEMENTATIONS = {
     "metadata_only",
     "basic",
     "rolling_summary",
+    "injected",
     "provider",
 }
 SUPPORTED_CONTEXT_COMPACTION_STRATEGIES = {
