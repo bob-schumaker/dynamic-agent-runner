@@ -154,10 +154,10 @@
   - `specs/live-guardrail-execution/spec.md`
   - `specs/iterative-agent-loop-runtime/spec.md`
   - `specs/skill-source-resolution/spec.md`
+  - `specs/rag-orchestration-contract/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
   - `specs/context-management-prepare-stage/spec.md`
-  - `specs/rag-orchestration-contract/spec.md`
 - Later feature packages:
   - `specs/power-marimo-host-automation/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`

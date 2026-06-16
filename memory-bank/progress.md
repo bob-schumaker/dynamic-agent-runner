@@ -21,6 +21,8 @@
   - approval interruption coverage
   - MCP-origin registry entries
   - input guardrail adapter coverage
+  - RAG metadata, retriever collaborator, provenance, and context-handoff
+    readiness
   - invalid packages
 - Approval/sandbox v1 baseline is implemented:
   - direct approval-required `tool_use_step` interruption
@@ -154,6 +156,8 @@
 - `215e659`, `dd88fff`, and `5ba47a1` implemented RAG v1 validation,
   retriever capability/status reporting, and provenance/context-management
   handoff enforcement.
+- `e67e68c` recorded RAG orchestration v1 completion evidence and refreshed
+  spec/memory status.
 - `78d080c` prepared `skill-source-resolution` for implementation by resolving
   v1 decisions, adding `plan.md` and `tasks.md`, and updating the spec index.
 - `5f7d1fd`, `79cce93`, `99ed79d`, `ac8028b`, `9b5f6a8`, and `9f0557b`
