@@ -4,7 +4,7 @@
 
 - Feature slug: `approval-interruption-resume`
 - Mode: `light`
-- Artifact type: future feature specification
+- Artifact type: authoritative SDD feature specification
 - Status: implemented v1 live-action baseline; durable resume remains deferred
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
@@ -16,22 +16,22 @@
 
 ## Objective
 
-Define the future live approval-interruption runtime that can pause a workflow
-before approval-required actions, serialize enough state for safe inspection, and
+Define the live approval-interruption runtime that can pause a workflow before
+approval-required actions, expose enough state for safe inspection, and later
 resume or reject the pending action without mutating the immutable workflow
 package.
 
 ## Existing Baseline
 
-The primary runtime already preserves and validates approval-interruption
-metadata under `runtime.execution_policy.approval_interruption`. That metadata
-is intentionally declarative. It does not currently implement live pause/resume,
-durable checkpoints, approval UIs, or approval engines.
+The primary runtime preserves and validates approval-interruption metadata under
+`runtime.execution_policy.approval_interruption` and implements the v1 direct
+`tool_use_step` pause boundary. Durable checkpoints, approval UIs, approval
+engines, and resume/reject decisions remain deferred.
 
 The current executor also has tool policy metadata, trace events, lifecycle
 hooks, async execution, cancellation behavior, and per-run state isolation. Those
-are useful foundations, but none of them is sufficient by itself to resume a
-partially executed workflow after an approval decision.
+are useful foundations, but none of them is sufficient by itself for durable
+resume after an approval decision.
 
 ## Scope
 

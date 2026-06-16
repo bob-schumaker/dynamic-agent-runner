@@ -31,6 +31,11 @@ from dynamic_agent_runner.prompt_cache import (
     build_prompt_cache_observation,
     prompt_cache_policy_from_value,
 )
+from dynamic_agent_runner.skill_sources import (
+    RejectedSkillSource,
+    ResolvedSkillSource,
+    SkillSourceResolutionPolicy,
+)
 from dynamic_agent_runner.local_models import (
     LlamaCppMemoryFitMeasurement,
     LlamaCppMemoryFitProfileResult,
@@ -224,10 +229,13 @@ __all__ = [
     "PromptCachePolicy",
     "PermissionHookContext",
     "RegisteredLifecycleHook",
+    "RejectedSkillSource",
+    "ResolvedSkillSource",
     "RunContext",
     "RetryPolicy",
     "RuntimeBehaviorOverrides",
     "RetryRecord",
+    "SkillSourceResolutionPolicy",
     "TokenBudgetPolicy",
     "TokenEstimate",
     "TokenUsageRecord",

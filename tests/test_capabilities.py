@@ -177,6 +177,117 @@ def test_inspect_agent_package_capabilities_reports_metadata_only_features(
     assert report.summary.counts_by_state["metadata_only"] == 8
 
 
+def test_inspect_agent_package_capabilities_reports_live_skill_sources(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: live-skill-source-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+          skill_bundle_dir: skill-bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            skill_source_resolution:
+              enabled: true
+              allowed_sources:
+                - package_bundle
+              max_skill_bytes: 65536
+              max_node_skill_bytes: 262144
+              load_support_files: false
+              prompt_role: developer
+        skills:
+          - id: concise-writer
+            bundled_path: skills/concise-writer/SKILL.md
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+            skill_refs:
+              - concise-writer
+        edges: []
+        """,
+    )
+    skill_path = package_dir / "skill-bundle" / "skills" / "concise-writer" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text("# Concise writer\nBe brief.\n", encoding="utf-8")
+
+    report = inspect_agent_package_capabilities(package_directory=package_dir)
+
+    items = {item.id: item for item in report.items}
+    assert report.valid is True
+    assert "metadata.skill_refs" not in items
+    assert items["runtime.skill_source_resolution"].state == CapabilityState.LIVE
+    assert items["runtime.skill_source_resolution"].details == {
+        "allowed_sources": ("package_bundle",),
+        "prompt_role": "developer",
+        "referenced_skills": 1,
+    }
+
+
+def test_inspect_agent_package_capabilities_reports_rejected_skill_sources(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: rejected-skill-source-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+          skill_bundle_dir: skill-bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            skill_source_resolution:
+              enabled: true
+              allowed_sources:
+                - package_bundle
+              max_skill_bytes: 65536
+              max_node_skill_bytes: 262144
+              load_support_files: false
+              prompt_role: developer
+        skills:
+          - id: unsafe-skill
+            bundled_path: skills/unsafe-skill/SKILL.md
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+            skill_refs:
+              - unsafe-skill
+        edges: []
+        """,
+    )
+    skill_path = package_dir / "skill-bundle" / "skills" / "unsafe-skill" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_bytes(b"\x00binary")
+
+    report = inspect_agent_package_capabilities(package_directory=package_dir)
+
+    items = {item.id: item for item in report.items}
+    assert report.package_id == "rejected-skill-source-agent"
+    assert report.valid is False
+    assert items["package.validation"].state == CapabilityState.INVALID
+    assert items["runtime.skill_source_resolution"].state == CapabilityState.INVALID
+    assert "appears to be binary" in str(
+        items["runtime.skill_source_resolution"].details["validation_error"]
+    )
+
+
 def test_inspect_agent_package_capabilities_reports_invalid_packages(
     tmp_path: Path,
 ) -> None:
@@ -265,6 +376,237 @@ def test_inspect_agent_package_capabilities_reports_collaborator_coverage(
 
     assert disabled_items["tool.search_repo"].state == CapabilityState.DISABLED
     assert disabled_items["built_in.local_workspace"].state == CapabilityState.LIVE
+
+
+def test_inspect_agent_package_capabilities_reports_rag_readiness(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: rag-capability-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        metadata:
+          patterns_present:
+            - rag
+            - embedding_retrieval
+          rag_pipeline:
+            orchestration_mode: hybrid_retrieval
+            retrieval_mode: hybrid
+            retrievers:
+              - id: keyword
+                tool_id: keyword_search
+                mode: lexical_keyword
+                required: true
+              - id: semantic
+                tool_id: semantic_search
+                mode: embedding_semantic
+                required: true
+              - id: graph_optional
+                tool_id: graph_search
+                mode: graph
+                required: false
+            fusion: rrf
+            reranking: caller_adapter
+            compression: none
+            correction: optional
+            embedding_capability: required
+            graph_capability: not_applicable
+            provenance_required: true
+            context_assembly:
+              target: prepare_model_input
+              max_context_tokens: 4096
+              required_evidence_fields:
+                - source_id
+                - chunk_id
+                - citation_handle
+            source_readiness:
+              source_registry: external_service
+              refresh_mode: scheduled
+              stale_state: stale_but_allowed
+            permissions:
+              permission_filtering: required
+              permission_failure_policy: fail_closed
+              audit_required: true
+            cache:
+              retrieval_results: optional
+            degraded_states:
+              - stale_but_allowed
+              - partial_results
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+        edges: []
+        """,
+    )
+
+    metadata_report = inspect_agent_package_capabilities(package_directory=package_dir)
+    metadata_items = {item.id: item for item in metadata_report.items}
+    assert (
+        metadata_items["metadata.rag_pipeline"].state == CapabilityState.METADATA_ONLY
+    )
+    assert metadata_items["metadata.rag_pipeline"].details == {
+        "orchestration_mode": "hybrid_retrieval",
+        "retrieval_mode": "hybrid",
+        "required_retrievers": 2,
+        "declared_retrievers": 3,
+        "provenance_required": True,
+        "context_assembly_target": "prepare_model_input",
+        "context_max_tokens": 4096,
+        "required_evidence_field_count": 3,
+        "degraded_states": ("partial_results", "stale_but_allowed"),
+        "stale_state": "stale_but_allowed",
+        "permission_filtering": "required",
+    }
+    assert (
+        "required_evidence_fields"
+        not in metadata_items["metadata.rag_pipeline"].details
+    )
+    assert (
+        metadata_items["rag.retriever.keyword"].state
+        == CapabilityState.MISSING_COLLABORATOR
+    )
+    assert (
+        metadata_items["rag.retriever.graph_optional"].state
+        == CapabilityState.METADATA_ONLY
+    )
+
+    invoked = False
+
+    def fail_if_invoked(_args):
+        nonlocal invoked
+        invoked = True
+        raise AssertionError("capability inspection must not invoke retrievers")
+
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "keyword_search"}),
+                fail_if_invoked,
+            ),
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "semantic_search"}),
+                fail_if_invoked,
+            ),
+        ]
+    )
+
+    live_report = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        tool_registry=registry,
+    )
+    live_items = {item.id: item for item in live_report.items}
+
+    assert invoked is False
+    assert live_items["rag.retriever.keyword"].state == CapabilityState.LIVE
+    assert live_items["rag.retriever.semantic"].state == CapabilityState.LIVE
+    assert (
+        live_items["rag.retriever.graph_optional"].state
+        == CapabilityState.METADATA_ONLY
+    )
+    assert live_items["rag.retriever.keyword"].details == {
+        "retriever_id": "keyword",
+        "tool_id": "keyword_search",
+        "mode": "lexical_keyword",
+        "required": True,
+    }
+
+
+def test_inspect_agent_package_capabilities_reports_pre_turn_compaction(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: context-compaction-capability-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            prepare_model_input:
+              context_compaction:
+                auto:
+                  enabled: true
+                  implementation: injected
+                  trigger: token_threshold
+                  scope: current_run
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+        edges: []
+        """,
+    )
+
+    report = inspect_agent_package_capabilities(package_directory=package_dir)
+
+    item = next(
+        item
+        for item in report.items
+        if item.id == "metadata.context.pre_turn_compaction"
+    )
+    assert item.state is CapabilityState.METADATA_ONLY
+    assert item.owner == "context-management-prepare-stage"
+    assert item.details == {
+        "phase": "pre_turn",
+        "implementation": "injected",
+        "trigger": "token_threshold",
+        "scope": "current_run",
+    }
+
+
+def test_inspect_agent_package_capabilities_reports_new_window_reset(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: new-window-reset-capability-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            prepare_model_input:
+              context_compaction:
+                reset_behavior: new_window
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+        edges: []
+        """,
+    )
+
+    report = inspect_agent_package_capabilities(package_directory=package_dir)
+
+    item = next(
+        item for item in report.items if item.id == "metadata.context.new_window_reset"
+    )
+    assert item.state is CapabilityState.METADATA_ONLY
+    assert item.owner == "context-management-prepare-stage"
+    assert item.details == {"reset_behavior": "new_window"}
 
 
 def test_inspect_agent_package_capabilities_reports_live_approval_interruption(

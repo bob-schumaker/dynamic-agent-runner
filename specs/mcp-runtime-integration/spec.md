@@ -4,7 +4,7 @@
 
 - Feature slug: `mcp-runtime-integration`
 - Mode: `light`
-- Artifact type: future feature specification
+- Artifact type: authoritative SDD feature specification
 - Status: implemented v1 explicit registry-injection baseline; live transports
   and lifecycle remain deferred
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
@@ -16,16 +16,17 @@
 
 ## Objective
 
-Define future MCP runtime integration that can discover, connect to, cache,
-expose, invoke, and clean up tools from configured MCP servers without weakening
-the repository-owned tool registry, approval, sandbox, and trace boundaries.
+Define MCP runtime integration that can expose explicitly supplied MCP tool
+registries now and later discover, connect to, cache, invoke, and clean up tools
+from configured MCP servers without weakening the repository-owned tool
+registry, approval, sandbox, and trace boundaries.
 
 ## Existing Baseline
 
-The runtime preserves MCP registry-source metadata and MCP lifecycle diagnostics
-metadata. It does not currently launch MCP servers, connect to MCP transports,
-discover tool schemas, inject MCP tools into the registry, invoke MCP tools, or
-manage MCP server lifecycle.
+The runtime preserves MCP registry-source metadata, MCP lifecycle diagnostics
+metadata, and v1 caller-supplied MCP registry injection. It does not currently
+launch MCP servers, connect to MCP transports, discover tool schemas, or manage
+MCP server lifecycle.
 
 ## Scope
 

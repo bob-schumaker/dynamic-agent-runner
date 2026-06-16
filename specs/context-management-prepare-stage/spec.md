@@ -5,8 +5,8 @@
 - Feature slug: `context-management-prepare-stage`
 - Mode: `light`
 - Artifact type: authoritative SDD feature specification
-- Status: implemented baseline documented; future expansion requires a new
-  approved plan or task slice
+- Status: implemented through context-management prepare-stage Slice 9; future
+  expansion requires a new approved plan or task slice
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/tasks.md`
@@ -76,17 +76,28 @@ is inserted into a derived workflow.
 
 ## Current Runtime Context
 
-The implemented baseline already includes:
+The implemented runtime includes:
 
 - `PreparedInputMetadata` fields for hierarchy application, included/pruned
-  session messages, compaction, file context, and mutation diagnostics
+  session messages, compaction, context reset, file/retrieved context,
+  selected/omitted/rejected turns, lane diagnostics, lifecycle diagnostics, and
+  mutation diagnostics
 - `prepare_model_input(...)` as the public internal seam that renders model
   messages before adapter invocation
 - opt-in `runtime.execution_policy.prepare_model_input` policy handling
 - hierarchy message injection through `prompt_hierarchy`
-- bounded session-message retention and pruning
+- turn-aware bounded session-message retention and pruning
 - compact summary-message insertion for pruned session history
+- deterministic older-turn selection and chronological reassembly
+- lane-based prompt assembly for pinned, file/tool, retrieved-context,
+  rolling-summary, selected-older-turn, recent-turn, and current-turn context
+- deterministic fallback compaction, explicit rolling summaries, and
+  new-window reset diagnostics
+- injected pre-turn and mid-turn compaction seams plus opt-in one-shot
+  overflow retry after provider context-window classification
 - bounded file-context prompt injection with source provenance
+- caller-provided retrieved-context prompt packing with redacted inclusion and
+  omission diagnostics
 - trace payload metadata through `model_input_prepared`
 
 `internal-graph-mutation` can attach context-management behavior to a derived
@@ -112,13 +123,12 @@ This feature specification covers:
 6. diagnostics that make prepared inputs auditable
 7. turn-aware prompt assembly that preserves atomic tool-call/result structure
 8. budget lanes for pinned context, current turn, recent turns, rolling summary,
-   selected older turns, and bounded file/tool context
+   selected older turns, retrieved context, and bounded file/tool context
 9. relevance-aware selection of older turns with chronological reassembly
-10. future automatic context-window compaction triggered by model token usage
-    and context-window metadata
-11. future deterministic non-LLM compaction for constrained models
-12. future separation of summarizing compaction from explicit new-window reset
-    behavior
+10. automatic context-window compaction triggered by model token usage and
+    context-window metadata, with injected pre-turn and mid-turn seams
+11. deterministic non-LLM compaction for constrained models
+12. separation of summarizing compaction from explicit new-window reset behavior
 
 ## Non-Goals
 
@@ -396,9 +406,10 @@ pairs, and explicit diagnostics.
 ## Codex Automatic Compaction Findings
 
 The local Codex repository provides the closest OpenAI-focused reference for
-automatic context-window compression. The design points below are treated as
-requirements input for future slices, not as current implementation evidence in
-this package.
+automatic context-window compression. The design points below guided the
+implemented Slice 1-9 behavior where they fit this package's provider-neutral
+runtime boundary; provider-owned remote compaction and window-baseline features
+remain future work.
 
 ### Model-derived thresholds
 
@@ -408,9 +419,9 @@ limit exists, it derives the threshold from 90% of the resolved context window.
 When a configured limit exists, it clamps that limit to 90% of the resolved
 context window.
 
-For this package, future auto-compaction should use the OpenAI model-registry
-capability seam where possible, with workflow policy overrides only narrowing
-or disabling automatic behavior.
+For this package, automatic compaction derives safe thresholds from model
+capability metadata where possible, with workflow policy overrides only
+narrowing or disabling automatic behavior.
 
 ### Pre-turn and mid-turn phases
 
@@ -421,10 +432,10 @@ Codex runs automatic compaction in two phases:
 - **mid-turn**: after a model response when additional model work or pending
   input remains and the threshold has been reached
 
-For this package, pre-turn compaction is the safer first implementation because
-the current runner already has a pre-adapter prepare stage. Mid-turn compaction
-belongs to a later iterative-loop slice because it interacts with model-emitted
-tool calls, follow-up turns, and approval pauses.
+For this package, pre-turn compaction uses the pre-adapter prepare stage.
+Mid-turn compaction is opt-in and limited to eligible iterative-loop follow-up
+work where pending tool calls, follow-up turns, and approval pauses can be
+preserved.
 
 ### Remote compaction and local fallback
 
@@ -445,8 +456,8 @@ also tracks a prefix baseline so policies can count either total active context
 or growth after the carried prefix. This avoids repeated compaction immediately
 after a compacted window is installed.
 
-For this package, future compaction metadata should record a window id and a
-token baseline when automatic compaction is enabled.
+For this package, provider-backed compaction metadata should record a window id
+and a token baseline when a future provider/window replacement path is added.
 
 ### Reset is not compaction
 
@@ -454,8 +465,8 @@ Codex has a separate model-callable `new_context_window` tool that starts a new
 context window without summarizing conversation history. That is an explicit
 reset, not compression.
 
-For this package, any future reset behavior must be a separate policy/tool from
-context compaction and must not be reported as successful compression.
+For this package, reset behavior is separate from context compaction and must
+not be reported as successful compression.
 
 ### Diagnostics and lifecycle
 
@@ -463,16 +474,14 @@ Codex emits compaction lifecycle data: trigger, reason, phase, implementation,
 status, tokens before/after, and errors. It also has pre/post compact hooks and
 records compacted replacement history as a distinct history item.
 
-For this package, future compaction must extend `PreparedInputMetadata`,
-`TraceEvent` payloads, and capability/status reporting before being treated as
-production-ready.
+For this package, compaction extends `PreparedInputMetadata`, `TraceEvent`
+payloads, and capability/status reporting so callers can audit what changed.
 
 ## Cline Non-OpenAI Compaction Findings
 
 The local Cline repository provides a useful reference for provider-neutral and
-local-model context management. The design points below are treated as
-requirements input for future slices, not as current implementation evidence in
-this package.
+local-model context management. The design points below guided the implemented
+deterministic fallback path and leave model-backed summarization as future work.
 
 ### Strategy modes
 
@@ -482,10 +491,10 @@ Cline separates compaction into explicit strategies:
 - `agentic`: LLM-backed summarization using a configured provider/model
 - `off`: explicit disablement
 
-For this package, future policy should distinguish deterministic `basic`
-compaction from summarizing compaction. `basic` is the safer non-OpenAI/local
-model fallback because it does not require `/responses/compact`, a live
-summarizer, or provider-specific summary support.
+For this package, policy distinguishes deterministic `basic` compaction from
+summarizing compaction. `basic` is the safer non-OpenAI/local model fallback
+because it does not require `/responses/compact`, a live summarizer, or
+provider-specific summary support.
 
 ### Reserve-token triggers
 
@@ -494,10 +503,9 @@ Cline supports both a threshold ratio and a reserved-token trigger. If
 otherwise it defaults through a 90% threshold with a conservative output
 reserve.
 
-For this package, future automatic compaction should support a reserve-token
-policy alongside ratio-based thresholds. Workflow overrides may narrow the
-usable input budget, but must not silently expand past model capability
-metadata.
+For this package, automatic compaction supports reserve-token policy alongside
+ratio-based thresholds. Workflow overrides may narrow the usable input budget,
+but must not silently expand past model capability metadata.
 
 ### Manual and automatic modes
 
@@ -525,8 +533,8 @@ Cline truncates large tool-result text and file blocks before either basic
 compaction or agentic summarization. This prevents a single huge tool result
 from dominating the context window or the summarization request.
 
-For this package, future compaction should include bounded tool-result and
-file-content trimming as a deterministic preprocessing step with metadata.
+For this package, compaction includes bounded tool-result and file-content
+trimming as a deterministic preprocessing step with metadata.
 
 ### Summary folding
 
@@ -544,9 +552,9 @@ Cline has provider-specific context-window error detection across OpenAI,
 OpenRouter, Anthropic, Cerebras, Bedrock, Vercel-wrapped providers, and related
 400-error shapes.
 
-For this package, overflow-error classification should be a defensive later
-slice. It may support one retry after compaction, but first-pass behavior should
-remain preflight/pre-turn compaction rather than relying on provider failures.
+For this package, overflow-error classification is a defensive fallback. It may
+support one retry after compaction, but first-pass behavior remains
+preflight/pre-turn compaction rather than relying on provider failures.
 
 ## LCWMS Taxonomy Findings
 
@@ -673,8 +681,8 @@ Acceptance criteria:
 
 ### FR7 — Derive automatic compaction thresholds from model context windows
 
-Future automatic compaction must derive safe thresholds from model metadata and
-must never wait until a request is guaranteed to overflow.
+Automatic compaction must derive safe thresholds from model metadata and must
+never wait until a request is guaranteed to overflow.
 
 Acceptance criteria:
 
@@ -698,8 +706,8 @@ Acceptance criteria:
   automatic compaction is enabled, then pre-turn compaction runs before the
   adapter call.
 - Given an iterative model-tool loop needs more model work after a response and
-  the threshold is reached, when mid-turn compaction is implemented, then it
-  must preserve pending tool/approval state and record `phase: mid_turn`.
+  the threshold is reached, when mid-turn compaction is enabled, then it must
+  preserve pending tool/approval state and record `phase: mid_turn`.
 - Given mid-turn compaction is not implemented, when that condition occurs, then
   the runtime must fail or stop explicitly rather than silently dropping history.
 
@@ -720,15 +728,17 @@ Acceptance criteria:
   summary prompt, maximum retained user/history tokens, and output placement are
   deterministic and covered by tests.
 
-### FR10 — Track compaction windows and reset separately
+### FR10 — Track reset separately and reserve compaction-window metadata
 
 Automatic compaction must distinguish summarized replacement history from an
-explicit new context window reset.
+explicit new context window reset. Provider/window replacement metadata remains
+a future extension point.
 
 Acceptance criteria:
 
-- Given compaction installs replacement history, when metadata is recorded, then
-  a compaction window id and token baseline are updated.
+- Given a future provider/window replacement path installs replacement history,
+  when metadata is recorded, then a compaction window id and token baseline are
+  updated.
 - Given a reset starts a new context window without summary, when metadata is
   recorded, then it is reported as reset/new-window behavior, not compaction.
 - Given compaction has already installed a carried prefix, when later token
@@ -772,16 +782,15 @@ Acceptance criteria:
 ### FR13 — Classify context-overflow errors defensively
 
 Provider context-overflow errors should be classified explicitly before any
-retry behavior is added.
+retry behavior runs.
 
 Acceptance criteria:
 
 - Given a provider returns a structured or text-only context-window overflow
   error, when the runtime handles the failure, then it classifies the failure
   with a package-owned reason without losing the original error context.
-- Given retry-after-compaction is enabled in a future slice, when the first
-  provider call fails with a classified overflow, then the runtime may compact
-  once and retry once.
+- Given retry-after-compaction is enabled, when the first provider call fails
+  with a classified overflow, then the runtime may compact once and retry once.
 - Given the retry also fails, when the runtime reports the error, then it must
   not loop or silently drop more history.
 
@@ -794,7 +803,8 @@ Acceptance criteria:
 
 - Given context compression is enabled, when input is prepared, then the runtime
   allocates separate budgets for pinned hierarchy, current turn, recent turns,
-  rolling summary, selected older turns, and file/tool context.
+  rolling summary, selected older turns, retrieved context, and file/tool
+  context.
 - Given one lane exceeds its configured budget, when input is prepared, then
   the runtime trims or omits that lane without silently consuming another lane's
   budget unless policy allows borrowing.
@@ -914,6 +924,20 @@ source-critical wording. This spec may consume host-provided or injected
 retrieval results as bounded prompt-context segments, but it must not own
 embedding, indexing, vector storage, or durable retrieval infrastructure.
 
+`rag-orchestration-contract` owns what RAG workflows can declare and preflight:
+retriever collaborators, provenance requirements, evidence fields, source
+readiness, permission/cache/degraded metadata, and
+`context_assembly.target: prepare_model_input`. This spec owns how any
+caller-provided retrieved evidence becomes model-visible prompt context:
+retrieved-context lanes, required-vs-optional treatment, token budgets,
+packing/order policy, trimming, compression, lost-in-the-middle mitigation,
+redaction-safe inclusion/omission diagnostics, and final prompt injection.
+
+RAG metadata may request context assembly, but it must not define a separate
+prompt-packing algorithm. Context-management policy may consume RAG-declared
+packing hints when provided, but the prepare stage remains the authority for
+lane placement and budget enforcement.
+
 ### Model adapters
 
 Model adapters remain transport/execution boundaries. They should not implement
@@ -934,37 +958,25 @@ session-memory policy.
   node-embedded algorithms.
 - The spec distinguishes context-management behavior from the graph-mutation
   mechanism that may attach or insert that behavior into derived workflows.
-- The spec gives future expansion a place to grow without changing model
-  adapter contracts.
+- The spec owns RAG retrieved-context prompt packing and injection, while
+  `rag-orchestration-contract` owns RAG declarations and readiness preflight.
+- The implementation gives future expansion a place to grow without changing
+  model adapter contracts.
 
 ## Future Work
 
 Future approved slices may add:
 
-- turn-level rather than message-level pruning
-- explicit lane-budget policy and metadata
 - named compression-profile policy with optional `llm_step` overrides
-- deterministic older-turn relevance selectors
 - injected semantic selectors behind fake-only unit tests
-- lifecycle-stage diagnostics, segment scoring metadata, and quality/efficiency
-  metrics
-- required-vs-optional lane policy and lost-in-the-middle-aware ordering
+- richer required-vs-optional lane policy and lost-in-the-middle-aware ordering
 - overflowing-history evaluation fixtures that check retained facts, decisions,
   constraints, and current-turn state, not just final token counts
 - summary-generation adapters with explicit model/tool boundaries
 - OpenAI/provider-backed remote compaction, including `/responses/compact` when
   available through the configured provider
-- deterministic `basic` compaction for non-OpenAI and local models
-- automatic pre-turn compaction derived from model context-window metadata
-- mid-turn compaction for iterative model-tool loops
-- explicit new-context-window reset behavior separate from summarizing
-  compaction
-- richer retention policies that preserve tool-call/result pairs
-- provider context-overflow error classification with at most one explicit
-  compaction/retry path
+- richer retention audit policies for complex tool-call/result pairs
 - prompt-cache-aware ordering rules
-- capability-status reporting that distinguishes available context-management
-  policies from metadata-only declarations
 - host-provided context packets that are already summarized or ranked
 - caller-provided memory-kind labels such as semantic, episodic, procedural, or
   source-context segments, used only as selection/scoring hints

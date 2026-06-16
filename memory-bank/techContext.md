@@ -20,8 +20,8 @@
   pointing to `dynamic_agent_runner.cli:console_main`.
 - PyInstaller hook discovery uses the standard `pyinstaller40` entry point
   group. The package-owned provider is
-  `dynamic_agent_runner._pyinstaller:get_hook_dirs`, which returns bundled hook
-  files under `src/dynamic_agent_runner/_pyinstaller_hooks/`.
+  `dynamic_agent_runner.__pyinstaller:get_hook_dirs`, which returns bundled hook
+  files under `src/dynamic_agent_runner/__pyinstaller/`.
 
 ## Main Dependencies
 

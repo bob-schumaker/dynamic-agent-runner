@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
 import sys
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -1030,6 +1032,1164 @@ def test_prepare_model_input_applies_hierarchy_pruning_and_compaction() -> None:
     assert prepared_input.preparation.context_compaction_applied is True
 
 
+def test_prepare_model_input_groups_session_messages_into_turn_units() -> None:
+    """prepare_model_input records stable turn/segment diagnostics for sessions."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "turn-grouping-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "implementation": "metadata_only",
+                                "strategy": "basic",
+                            }
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish the work",
+        session_messages=(
+            OpenAIMessage(role="user", content="first request"),
+            OpenAIMessage(role="assistant", content="calling search"),
+            OpenAIMessage(role="tool", content="search result"),
+            OpenAIMessage(role="assistant", content="first answer"),
+            OpenAIMessage(role="user", content="second request"),
+            OpenAIMessage(role="assistant", content="second answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert prepared_input.preparation.turn_count == 2
+    assert prepared_input.preparation.segment_count == 6
+    assert prepared_input.preparation.turns == (
+        {
+            "turn_id": "turn_1",
+            "lane": "recent_turns",
+            "message_count": 4,
+            "roles": ("user", "assistant", "tool", "assistant"),
+            "selection_status": "included",
+        },
+        {
+            "turn_id": "turn_2",
+            "lane": "current_turn",
+            "message_count": 2,
+            "roles": ("user", "assistant"),
+            "selection_status": "included",
+        },
+    )
+    assert prepared_input.preparation.segments[0]["segment_id"] == "turn_1_segment_1"
+    assert prepared_input.preparation.segments[0]["role"] == "user"
+    assert prepared_input.preparation.segments[2]["role"] == "tool"
+
+
+def test_prepare_model_input_records_auto_compaction_threshold_metadata() -> None:
+    """prepare_model_input normalizes auto-compaction threshold diagnostics."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "auto-compact-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "threshold_ratio": 0.95,
+                                "reserve_tokens": 200,
+                                "scope": "current_run",
+                                "implementation": "metadata_only",
+                                "strategy": "basic",
+                                "mode": "auto",
+                                "trigger": "reserve_tokens",
+                                "lifecycle_stages": ["validate", "segment", "report"],
+                                "metrics": ["lane_utilization"],
+                            }
+                        },
+                        "context_compression": {
+                            "profile": "fast",
+                            "lanes": {
+                                "pinned_tokens": 100,
+                                "current_turn_tokens": 200,
+                            },
+                            "selection": {
+                                "strategy": "deterministic_overlap",
+                                "max_selected_turns": 3,
+                                "chronological_reassembly": True,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "model": "gpt-test",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    adapter = make_named_adapter(
+        [ModelResponse(content="ok")],
+        models=["gpt-test"],
+    )
+    adapter.context_windows = {"gpt-test": 1000}
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="older"),
+            OpenAIMessage(role="assistant", content="answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+    )
+
+    assert prepared_input.preparation.context_threshold == {
+        "enabled": True,
+        "threshold_ratio": 0.9,
+        "context_window": 1000,
+        "threshold_tokens": 900,
+        "reserve_tokens": 200,
+        "trigger": "reserve_tokens",
+        "scope": "current_run",
+        "implementation": "metadata_only",
+        "strategy": "basic",
+        "mode": "auto",
+        "status": "metadata_only",
+    }
+    assert prepared_input.preparation.compression_profile == "fast"
+    assert prepared_input.preparation.lane_budgets == {
+        "pinned_tokens": 100,
+        "current_turn_tokens": 200,
+    }
+    assert prepared_input.preparation.selection_policy == {
+        "strategy": "deterministic_overlap",
+        "max_selected_turns": 3,
+        "chronological_reassembly": True,
+    }
+    assert prepared_input.preparation.lifecycle_stages == (
+        {"stage": "validate", "status": "complete"},
+        {"stage": "segment", "status": "complete"},
+        {"stage": "report", "status": "complete"},
+    )
+    assert prepared_input.preparation.metrics == ("lane_utilization",)
+
+
+def test_prepare_model_input_basic_compaction_reports_deterministic_metadata() -> None:
+    """Basic fallback compaction is deterministic and protects recent turns."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "basic-compaction-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "basic",
+                            "summary_prefix": "Basic compacted context:",
+                            "max_chars_per_message": 12,
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(
+                role="user",
+                content="older request with many details " * 20,
+            ),
+            OpenAIMessage(
+                role="assistant",
+                content="older answer with many details " * 20,
+            ),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert prepared_input.part_names == (
+        "session_summary",
+        "session_message_1",
+        "session_message_2",
+        "user_prompt",
+    )
+    assert prepared_input.named_parts["session_summary"].content == (
+        "Basic compacted context:\n- user: older reque…\n- assistant: older answe…"
+    )
+    assert prepared_input.named_parts["session_message_1"].content == "latest request"
+    assert prepared_input.named_parts["session_message_2"].content == "latest answer"
+    assert prepared_input.preparation.compaction["strategy"] == "basic"
+    assert prepared_input.preparation.compaction["messages_before"] == 2
+    assert prepared_input.preparation.compaction["messages_after"] == 1
+    assert (
+        prepared_input.preparation.compaction["tokens_before"]
+        > (prepared_input.preparation.compaction["tokens_after"])
+    )
+    assert 0 < prepared_input.preparation.compaction["compression_ratio"] < 1
+
+
+def test_prepare_model_input_basic_compaction_noops_when_under_target() -> None:
+    """Basic fallback compaction does not run when no session history is pruned."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "basic-compaction-noop-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 4},
+                        "context_compaction": {"strategy": "basic"},
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "session_summary" not in prepared_input.named_parts
+    assert prepared_input.preparation.context_compaction_applied is False
+    assert prepared_input.preparation.compaction == {}
+
+
+def test_prepare_model_input_compaction_tool_pairs_preserves_latest_turn() -> None:
+    """Whole-turn pruning must not split a latest tool-call/result turn."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-pair-compaction-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 1},
+                        "context_compaction": {"strategy": "basic"},
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="old request"),
+            OpenAIMessage(role="assistant", content="old answer"),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="calling lookup"),
+            OpenAIMessage(role="tool", content="lookup result"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert [
+        prepared_input.named_parts[name].content
+        for name in prepared_input.part_names
+        if name.startswith("session_message_")
+    ] == [
+        "latest request",
+        "calling lookup",
+        "lookup result",
+        "latest answer",
+    ]
+    assert "old request" in prepared_input.named_parts["session_summary"].content
+    assert prepared_input.preparation.session_messages_included == 4
+
+
+def test_prepare_model_input_local_compaction_builds_rolling_summary() -> None:
+    """Explicit rolling-summary compaction uses structured local preparation."""
+
+    adapter = make_adapter([])
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "rolling-summary-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "rolling_summary",
+                            "rolling_summary": {
+                                "enabled": True,
+                                "prior_summary_slot": "rolling_summary",
+                                "source_provenance_slot": "source_provenance",
+                                "max_retained_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        node_outputs={
+            "rolling_summary": "Earlier summary to fold forward.",
+            "source_provenance": ["docs/guide.md", "README.md"],
+        },
+        session_messages=(
+            OpenAIMessage(role="user", content="first old request"),
+            OpenAIMessage(role="assistant", content="first old answer"),
+            OpenAIMessage(role="user", content="second old request"),
+            OpenAIMessage(role="assistant", content="second old answer"),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+    )
+
+    summary = prepared_input.named_parts["session_summary"].content
+    assert "## Prior Summary\nEarlier summary to fold forward." in summary
+    assert "## Retained Turns\n- user: second old request" in summary
+    assert "- assistant: second old answer" in summary
+    assert "first old request" not in summary
+    assert "## Source Provenance\n- docs/guide.md\n- README.md" in summary
+    assert prepared_input.part_names == (
+        "session_summary",
+        "session_message_1",
+        "session_message_2",
+        "user_prompt",
+    )
+    assert prepared_input.preparation.compaction["strategy"] == "rolling_summary"
+    assert prepared_input.preparation.compaction["retained_turn_count"] == 1
+    assert prepared_input.preparation.compaction["information_retention_proxy"] > 0
+    assert adapter.client.responses.calls == []
+
+
+def test_prepare_model_input_local_compaction_skips_summary_without_eviction() -> None:
+    """Rolling-summary compaction is a no-op when no history is evicted."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "rolling-summary-noop-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 4},
+                        "context_compaction": {
+                            "strategy": "rolling_summary",
+                            "rolling_summary": {"enabled": True},
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "session_summary" not in prepared_input.named_parts
+    assert prepared_input.preparation.compaction == {}
+
+
+def test_prepare_model_input_pre_turn_compaction_replaces_over_threshold_context() -> (
+    None
+):
+    """Injected pre-turn compaction can replace over-threshold prepared input."""
+
+    calls: list[tuple[OpenAIMessage, ...]] = []
+
+    def fake_compactor(
+        messages: tuple[OpenAIMessage, ...],
+        metadata: Mapping[str, Any],
+    ) -> tuple[OpenAIMessage, ...]:
+        calls.append(messages)
+        assert metadata["phase"] == "pre_turn"
+        return (
+            OpenAIMessage(role="developer", content="Compacted replacement history."),
+            OpenAIMessage(role="user", content="Answer finish."),
+        )
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "pre-turn-compaction-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "threshold_ratio": 0.01,
+                                "implementation": "injected",
+                                "trigger": "token_threshold",
+                            }
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="finish " * 80)
+    adapter = make_adapter([])
+    adapter.context_windows = {"gpt-test": 1000}
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        tracer=tracer,
+        context_compactor=fake_compactor,
+    )
+
+    assert len(calls) == 1
+    assert prepared_input.part_names == (
+        "pre_turn_compacted_1",
+        "pre_turn_compacted_2",
+    )
+    assert prepared_input.messages[0].content == "Compacted replacement history."
+    assert prepared_input.preparation.pre_turn_compaction["status"] == "complete"
+    assert (
+        prepared_input.preparation.pre_turn_compaction["implementation"] == "injected"
+    )
+    assert (
+        prepared_input.preparation.pre_turn_compaction["tokens_before"]
+        > (prepared_input.preparation.pre_turn_compaction["tokens_after"])
+    )
+    prepared_events = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    assert prepared_events[0].payload["pre_turn_compaction"]["phase"] == "pre_turn"
+    assert "finish finish" not in repr(
+        prepared_events[0].payload["pre_turn_compaction"]
+    )
+
+
+def test_prepare_model_input_new_window_reset_does_not_count_as_compaction() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "new-window-reset-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "reset_behavior": "new_window",
+                            "reset_reason": "user_requested",
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="old request"),
+            OpenAIMessage(role="assistant", content="old answer"),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "session_summary" not in prepared_input.named_parts
+    assert prepared_input.preparation.context_compaction_applied is False
+    assert prepared_input.preparation.context_reset == {
+        "reset_behavior": "new_window",
+        "reason": "user_requested",
+        "session_messages_dropped": 2,
+        "compaction_success": False,
+    }
+
+
+def test_execute_workflow_retries_once_after_context_overflow_with_compaction() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "overflow-retry-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "implementation": "injected",
+                                "retry_on_overflow": True,
+                            }
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter(
+        [
+            RuntimeError("context_length_exceeded: too many tokens"),
+            {"id": "resp_retry", "output_text": "compacted answer"},
+        ]
+    )
+
+    def fake_compactor(
+        _messages: tuple[OpenAIMessage, ...],
+        metadata: Mapping[str, Any],
+    ) -> tuple[OpenAIMessage, ...]:
+        assert metadata["phase"] == "overflow_retry"
+        return (OpenAIMessage(role="user", content="Compacted question."),)
+
+    result = execute_workflow(
+        workflow,
+        prompt="finish " * 80,
+        model_adapter=adapter,
+        context_compactor=fake_compactor,
+    )
+
+    assert result.final_result == "compacted answer"
+    assert len(adapter.client.responses.calls) == 2
+    assert adapter.client.responses.calls[1]["input"] == [
+        {"role": "user", "content": "Compacted question."}
+    ]
+    retry_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "context_overflow_retry"
+    ]
+    assert retry_events[0].payload["status"] == "retrying"
+
+
+def test_prepare_model_input_reports_context_lanes() -> None:
+    """prepare_model_input reports ordered context lanes and utilization metadata."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "context-lanes-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "prompt_hierarchy": {
+                            "system": ["Pinned system"],
+                            "developer": ["Pinned developer"],
+                        },
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "summary_message",
+                            "summary_prefix": "Earlier:",
+                            "auto": {"enabled": True},
+                        },
+                        "context_compression": {
+                            "profile": "balanced",
+                            "lanes": {
+                                "pinned_tokens": 200,
+                                "current_turn_tokens": 400,
+                                "recent_turn_tokens": 400,
+                                "summary_tokens": 100,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "system": "Base system",
+                        "user_template": "Answer {prompt}",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="now",
+        session_messages=(
+            OpenAIMessage(role="user", content="old"),
+            OpenAIMessage(role="assistant", content="old answer"),
+            OpenAIMessage(role="user", content="recent"),
+            OpenAIMessage(role="assistant", content="recent answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert [lane["lane_id"] for lane in prepared_input.preparation.context_lanes] == [
+        "pinned",
+        "rolling_summary",
+        "recent_turns",
+        "current_turn",
+    ]
+    assert prepared_input.preparation.context_lanes[0]["part_count"] == 3
+    assert prepared_input.preparation.context_lanes[0]["budget_tokens"] == 200
+    assert prepared_input.preparation.context_lanes[1]["part_count"] == 1
+    assert prepared_input.preparation.context_lanes[2]["part_count"] == 2
+    assert prepared_input.preparation.context_lanes[3]["part_count"] == 1
+    assert prepared_input.preparation.context_lanes[3]["budget_tokens"] == 400
+
+
+def test_prepare_model_input_enforces_recent_turn_lane_budget() -> None:
+    """Recent-turn lane budget trimming does not borrow from current-turn budget."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "lane-budget-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 4},
+                        "context_compaction": {
+                            "auto": {"enabled": True},
+                        },
+                        "context_compression": {
+                            "profile": "fast",
+                            "lanes": {
+                                "recent_turn_tokens": 1,
+                                "current_turn_tokens": 1000,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="protected current prompt",
+        session_messages=(
+            OpenAIMessage(role="user", content="recent user with many tokens"),
+            OpenAIMessage(
+                role="assistant", content="recent assistant with many tokens"
+            ),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+    lane_map = {
+        lane["lane_id"]: lane for lane in prepared_input.preparation.context_lanes
+    }
+
+    assert "session_message_1" not in prepared_input.named_parts
+    assert "session_message_2" not in prepared_input.named_parts
+    assert prepared_input.named_parts["user_prompt"].content == (
+        "Answer protected current prompt"
+    )
+    assert lane_map["recent_turns"]["trimmed_count"] == 2
+    assert lane_map["recent_turns"]["omitted_count"] == 2
+    assert lane_map["current_turn"]["part_count"] == 1
+
+
+def test_prepare_model_input_older_turn_selection_selects_relevant_turns() -> None:
+    """Deterministic older-turn selection reports scores and reasons."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "older-turn-selection-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {"auto": {"enabled": True}},
+                        "context_compression": {
+                            "profile": "balanced",
+                            "lanes": {"selected_turn_tokens": 1000},
+                            "selection": {
+                                "strategy": "deterministic_overlap",
+                                "max_selected_turns": 1,
+                                "chronological_reassembly": True,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Explain the billing error in src/billing.py",
+        session_messages=(
+            OpenAIMessage(role="user", content="Discuss src/auth.py login"),
+            OpenAIMessage(role="assistant", content="Auth summary"),
+            OpenAIMessage(role="user", content="Investigate src/billing.py error"),
+            OpenAIMessage(role="assistant", content="Billing stack trace"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "selected_turn_1" in prepared_input.named_parts
+    assert (
+        "src/billing.py error" in prepared_input.named_parts["selected_turn_1"].content
+    )
+    assert prepared_input.preparation.selected_turns == (
+        {
+            "turn_id": "turn_2",
+            "selection_status": "selected",
+            "selection_reason": "deterministic_overlap",
+            "relevance_score": 2,
+        },
+    )
+    lane_map = {
+        lane["lane_id"]: lane for lane in prepared_input.preparation.context_lanes
+    }
+    assert lane_map["selected_older_turns"]["part_count"] == 1
+
+
+def test_prepare_model_input_chronological_reassembly_orders_selected_turns() -> None:
+    """Selected older turns render in original order even when scores differ."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "chronological-selection-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 0},
+                        "context_compaction": {"auto": {"enabled": True}},
+                        "context_compression": {
+                            "profile": "balanced",
+                            "selection": {
+                                "strategy": "deterministic_overlap",
+                                "max_selected_turns": 2,
+                                "chronological_reassembly": True,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="alpha beta beta",
+        session_messages=(
+            OpenAIMessage(role="user", content="alpha"),
+            OpenAIMessage(role="assistant", content="first"),
+            OpenAIMessage(role="user", content="beta beta"),
+            OpenAIMessage(role="assistant", content="second"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    selected_names = [
+        name for name in prepared_input.part_names if name.startswith("selected_turn_")
+    ]
+    assert selected_names == ["selected_turn_1", "selected_turn_2"]
+    assert "alpha" in prepared_input.named_parts["selected_turn_1"].content
+    assert "beta beta" in prepared_input.named_parts["selected_turn_2"].content
+
+
+def test_prepare_model_input_retrieved_context_lane_packs_evidence() -> None:
+    """Caller-provided retrieved evidence is packed into a bounded context lane."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "retrieved-context-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "retrieved_context": {
+                            "enabled": True,
+                            "source_slot": "retrieved_context",
+                            "header": "Retrieved evidence:",
+                        },
+                        "context_compression": {
+                            "lanes": {"retrieved_context_tokens": 8}
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Explain billing retries",
+        node_outputs={
+            "retrieved_context": [
+                {
+                    "source_id": "kb-billing",
+                    "chunk_id": "chunk-required",
+                    "citation_handle": "[1]",
+                    "content": "Required billing retry rules.",
+                    "required": True,
+                    "token_estimate": 20,
+                    "score": 0.98,
+                    "freshness": {"as_of": "2026-06-16"},
+                    "packing_hint": {"order": 1},
+                },
+                {
+                    "source_id": "kb-billing",
+                    "chunk_id": "chunk-optional",
+                    "citation_handle": "[2]",
+                    "content": "Optional retry example.",
+                    "lane_hint": "optional",
+                    "token_estimate": 4,
+                    "score": 0.77,
+                    "freshness": {"as_of": "2026-06-15"},
+                    "packing_hint": {"order": 2},
+                },
+                {
+                    "source_id": "kb-billing",
+                    "chunk_id": "chunk-omitted",
+                    "citation_handle": "[3]",
+                    "content": "Sensitive omitted evidence body.",
+                    "lane_hint": "optional",
+                    "token_estimate": 6,
+                    "score": 0.52,
+                    "freshness": {"as_of": "2026-06-14"},
+                    "packing_hint": {"order": 3},
+                },
+            ]
+        },
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "retrieved_context_1" in prepared_input.named_parts
+    assert "retrieved_context_2" in prepared_input.named_parts
+    assert "retrieved_context_3" not in prepared_input.named_parts
+    assert (
+        "Required billing retry rules."
+        in prepared_input.named_parts["retrieved_context_1"].content
+    )
+    assert prepared_input.preparation.retrieved_context == (
+        {
+            "source_id": "kb-billing",
+            "chunk_id": "chunk-required",
+            "citation_handle": "[1]",
+            "required": True,
+            "token_estimate": 20,
+            "score": 0.98,
+            "freshness": {"as_of": "2026-06-16"},
+            "packing_hint": {"order": 1},
+            "selection_status": "included",
+        },
+        {
+            "source_id": "kb-billing",
+            "chunk_id": "chunk-optional",
+            "citation_handle": "[2]",
+            "required": False,
+            "token_estimate": 4,
+            "score": 0.77,
+            "freshness": {"as_of": "2026-06-15"},
+            "packing_hint": {"order": 2},
+            "selection_status": "included",
+        },
+    )
+    assert prepared_input.preparation.retrieved_context_omitted == (
+        {
+            "source_id": "kb-billing",
+            "chunk_id": "chunk-omitted",
+            "citation_handle": "[3]",
+            "required": False,
+            "token_estimate": 6,
+            "score": 0.52,
+            "freshness": {"as_of": "2026-06-14"},
+            "packing_hint": {"order": 3},
+            "selection_status": "omitted",
+            "selection_reason": "retrieved_context_lane_budget_exceeded",
+        },
+    )
+    lane_map = {
+        lane["lane_id"]: lane for lane in prepared_input.preparation.context_lanes
+    }
+    assert lane_map["retrieved_context"]["part_count"] == 2
+    assert lane_map["retrieved_context"]["budget_tokens"] == 8
+    assert lane_map["retrieved_context"]["omitted_count"] == 1
+
+
+def test_prepare_model_input_retrieved_context_lane_redacts_trace_content() -> None:
+    """Retrieved-context trace metadata must not expose raw evidence content."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "retrieved-context-trace-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "retrieved_context": {"enabled": True},
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Explain billing retries",
+        node_outputs={
+            "retrieved_context": [
+                {
+                    "source_id": "kb-billing",
+                    "chunk_id": "chunk-sensitive",
+                    "citation_handle": "[1]",
+                    "content": "Do not leak this retrieved body in traces.",
+                    "token_estimate": 5,
+                }
+            ]
+        },
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepare_model_input(plan.nodes_by_id["answer"], plan, state, tracer=tracer)
+
+    prepared_events = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    assert len(prepared_events) == 1
+    trace_payload = prepared_events[0].payload
+    assert trace_payload["retrieved_context"] == (
+        {
+            "source_id": "kb-billing",
+            "chunk_id": "chunk-sensitive",
+            "citation_handle": "[1]",
+            "required": False,
+            "token_estimate": 5,
+            "selection_status": "included",
+        },
+    )
+    assert "Do not leak this retrieved body" not in repr(trace_payload)
+
+
 def test_prepare_model_input_includes_bounded_file_context_with_provenance(
     tmp_path,
 ) -> None:
@@ -1462,6 +2622,109 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     assert result.state.tool_results["analyze.call_1"].model_facing_output == {
         "summary": "agents found"
     }
+
+
+def test_execute_workflow_mid_turn_compaction_fails_without_compactor() -> None:
+    workflow = loop_tool_workflow()
+    workflow.runtime_manifest.execution_policy["prepare_model_input"] = {
+        "context_compaction": {
+            "auto": {
+                "enabled": True,
+                "threshold_tokens": 20,
+                "implementation": "injected",
+            }
+        }
+    }
+    registry = InMemoryToolRegistry(
+        [make_tool("search_repo", output={"summary": "agents found " * 20})]
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="mid-turn context compaction"):
+        execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=registry,
+            model_adapter=adapter,
+        )
+
+
+def test_execute_workflow_mid_turn_compaction_uses_injected_compactor() -> None:
+    workflow = loop_tool_workflow()
+    workflow.runtime_manifest.execution_policy["prepare_model_input"] = {
+        "context_compaction": {
+            "auto": {
+                "enabled": True,
+                "threshold_tokens": 20,
+                "implementation": "injected",
+            }
+        }
+    }
+    registry = InMemoryToolRegistry(
+        [make_tool("search_repo", output={"summary": "agents found " * 20})]
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+
+    def fake_compactor(
+        _messages: tuple[OpenAIMessage, ...],
+        metadata: Mapping[str, Any],
+    ) -> tuple[OpenAIMessage, ...]:
+        assert metadata["phase"] == "pre_turn"
+        return (
+            OpenAIMessage(role="developer", content="Mid-turn compacted context."),
+            OpenAIMessage(role="user", content="Continue."),
+        )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+        context_compactor=fake_compactor,
+    )
+
+    assert result.final_result == "final answer"
+    second_input = adapter.client.responses.calls[1]["input"]
+    assert second_input == [
+        {"role": "developer", "content": "Mid-turn compacted context."},
+        {"role": "user", "content": "Continue."},
+    ]
+    compaction_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "mid_turn_compaction"
+    ]
+    assert compaction_events[0].payload["status"] == "complete"
+    assert compaction_events[0].payload["phase"] == "mid_turn"
 
 
 def test_execute_workflow_traces_iterative_model_tool_loop() -> None:

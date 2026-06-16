@@ -92,8 +92,9 @@ Feature spec packages under `specs/` record scoped runtime extensions and
 boundaries, including graph mutation as the derived workflow-operation layer and
 `context-management-prepare-stage` as the prompt/session/file context behavior
 owner. The `rag-orchestration-contract` spec records RAG as orchestration,
-validation, provenance, context-injection, and evaluation metadata while keeping
-retrieval infrastructure caller-owned.
+validation, provenance, context-management handoff, and evaluation metadata
+while keeping retrieval infrastructure caller-owned and prompt packing owned by
+the context-management prepare-stage spec.
 
 ## Development Setup
 
@@ -275,6 +276,7 @@ Runtime manifests may also declare provider-neutral metadata for:
 
 - `runtime.execution_policy.model_capabilities`
 - `runtime.execution_policy.model_map`
+- `runtime.execution_policy.skill_source_resolution`
 - `runtime.execution_policy.async_session`
 - `llm_step.model_requirements`
 - `metadata.patterns_present`
@@ -282,6 +284,13 @@ Runtime manifests may also declare provider-neutral metadata for:
 
 These fields are preserved and validated as runtime selection or package-shape
 metadata. They are not passed through directly as OpenAI API parameters.
+
+`runtime.execution_policy.skill_source_resolution` is opt-in. When enabled for a
+package-directory workflow, referenced package-local `bundled_path` entries that
+point to `SKILL.md` are loaded into the existing `skill_instructions` prompt
+lane with bounded byte limits and redacted provenance metadata. `source_path`
+remains provenance-only, and support files are validated as package artifacts but
+are not prompt-loaded.
 
 The current runtime also preserves and validates a metadata-only async-session
 policy seam under `runtime.execution_policy.async_session`. This seam supports

@@ -1,6 +1,6 @@
 # Capability Status Report Implementation Plan
 
-Status: active planning record; implementation not started
+Status: v1 baseline complete
 
 ## Goal
 

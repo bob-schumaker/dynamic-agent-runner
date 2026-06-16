@@ -4,7 +4,7 @@
 
 - Feature slug: `live-guardrail-execution`
 - Mode: `light`
-- Artifact type: future feature specification
+- Artifact type: authoritative SDD feature specification
 - Status: implemented v1 input-guardrail baseline; output/tool phases remain
   deferred
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
@@ -23,9 +23,10 @@ content, or fail closed according to explicit runtime policy.
 
 ## Existing Baseline
 
-The runtime currently preserves and validates deferred guardrail declarations.
-It does not execute guardrail checks, call guardrail models, run guardrail tools,
-modify model prompts based on guardrail outcomes, or enforce live tripwires.
+The runtime preserves and validates guardrail declarations and implements the v1
+caller-registered input-guardrail abort boundary. Output guardrails, tool
+guardrails, reject-content behavior, retries, timeouts, and external adapters
+remain deferred.
 
 ## Scope
 

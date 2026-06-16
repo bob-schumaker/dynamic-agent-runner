@@ -32,10 +32,10 @@
     redaction, and in-memory tracing primitives
   - `src/dynamic_agent_runner/token_budget.py` owns `tiktoken`-backed prompt
     estimation and token-budget policy parsing
-  - `src/dynamic_agent_runner/_pyinstaller.py` advertises package-owned
-    PyInstaller hook directories, while
-    `src/dynamic_agent_runner/_pyinstaller_hooks/` stores bundled freeze hooks
-    such as `hook-openai_model_registry.py`
+  - `src/dynamic_agent_runner/__pyinstaller/__init__.py` advertises
+    package-owned PyInstaller hook directories, while
+    `src/dynamic_agent_runner/__pyinstaller/` stores bundled freeze hooks such
+    as `hook-openai_model_registry.py`
   - `src/dynamic_agent_runner/retry.py` owns retry policy parsing and
     Tenacity-backed bounded retry helpers
   - `src/dynamic_agent_runner/cli.py` exposes an injectable CLI implementation
@@ -296,13 +296,24 @@
 - Allow endpoint-backed local chat to ship before separate local embedding
   execution, while preserving the later embedding contract and keeping that
   deferred embedding work separate from first-slice graph-mutation delivery.
-- The following areas now have dedicated future-feature specs and should not be
+- The following areas now have dedicated feature specs and should not be
   implemented directly from the primary spec alone: capability status reporting,
   approval interruption/resume, sandbox/workspace runtime, MCP runtime
   integration, live guardrail execution, `SKILL.md` source resolution,
-  iterative agent-loop runtime, local-model advisory fit features,
-  Power-Marimo host automation, async session memory, and interpreter
-  middleware.
+  iterative agent-loop runtime, context-management prepare stage,
+  RAG orchestration contract, local-model advisory fit features, Power-Marimo
+  host automation, async session memory, and interpreter middleware.
+- Capability/status expansion is split by ownership: each feature spec owns the
+  domain facts it contributes, while
+  `specs/capability-status-report/spec.md` owns shared report shape, status
+  vocabulary, redaction posture, and user-visible readiness assembly.
+- RAG/context-management integration is split by ownership:
+  `specs/rag-orchestration-contract/spec.md` owns RAG declarations,
+  collaborator readiness, provenance/source/permission/cache/degraded metadata,
+  and context-management handoff declarations;
+  `specs/context-management-prepare-stage/spec.md` owns retrieved-context
+  lanes, prompt packing, trimming, compression, omission diagnostics, and final
+  prompt injection.
 - Repository-local reference packaging is now being used for external guidance
   that should remain available inside this repo. The OpenAI Model Registry notes
   under `cline-tasks/references/openai-model-registry/` are supporting

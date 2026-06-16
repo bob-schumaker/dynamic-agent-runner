@@ -16,7 +16,8 @@
   tests verify non-macOS use fails before model resolution or `mlx_lm` loading.
 - PyInstaller packaging support for `openai-model-registry` is complete:
   package-owned hook files, metadata advertisement, build-gated DevOps SCM PR,
-  and develop/main branch synchronization are done.
+  develop/main branch synchronization, and post-hoc SDD representation in
+  `specs/pyinstaller-packaging-support/` are done.
 - Context growth management has a dedicated spec package:
   `specs/context-management-prepare-stage/` now owns session pruning, context
   compaction, hierarchical prompt-context injection, and provider-neutral
@@ -46,15 +47,26 @@
   (Manning, ISBN `9781633434530`) are recorded as future-work notes in the
   owning specs: MCP resources/prompts, evaluation guardrails, loop controls,
   memory-selection hints, capability/deployment reporting, and sandbox safety.
-- `rag-orchestration-contract` is now a proposed future-feature spec for
-  RAG as an orchestration contract rather than runner-owned retrieval
-  infrastructure. It includes production-oriented metadata for index lifecycle,
-  permission-aware retrieval, retrieval routers/profiles, cache contracts,
-  GraphRAG construction vs query-time retrieval, degraded execution, and
-  evaluation lifecycle hooks.
-- The next recorded ROI focus in `specs/README.md` is opt-in package-local
-  `skill-source-resolution`; local-model advisory implementation should happen
-  when local-model ergonomics is the immediate driver.
+- `rag-orchestration-contract` v1 is implemented. It provides expanded
+  declarative `metadata.rag_pipeline` validation and capability/status
+  reporting for retriever collaborators, provenance requirements, source
+  readiness, permissions, cache, degraded states, and context-management
+  handoff declarations while keeping retrieval infrastructure and prompt
+  packing out of RAG ownership.
+- RAG + context-management integration is split by ownership:
+  `rag-orchestration-contract` declares and preflights retrieved evidence
+  requirements; `context-management-prepare-stage` owns retrieved-context
+  lanes, packing, trimming, compression, diagnostics, and final prompt
+  injection.
+- `skill-source-resolution` v1 is implemented. Source loading is opt-in and
+  package-local only: referenced bundled `SKILL.md` bodies under
+  `skill-bundle/` inject through `skill_instructions` after effective
+  `skill_refs` are derived, with bounded UTF-8 loading, redacted provenance,
+  fail-closed validation, and capability/status reporting for metadata-only,
+  live, and rejected states.
+- The next ROI action is no longer skill-source, RAG orchestration v1, or
+  context-management prepare-stage v1. Local-model advisory implementation
+  should happen only when local-model ergonomics is the immediate driver.
 
 ## Recent Completed Work
 
@@ -117,12 +129,19 @@
     and fail with the macOS-only `ModelExecutionError` before resolving model
     paths or loading dependencies when generation is attempted off macOS
 - PyInstaller packaging support for `openai-model-registry` is complete.
+- `pyinstaller-packaging-support` now has a dedicated post-hoc feature spec,
+  implementation plan, task list, validation log, and spec-index coverage.
 - Agent-architecture follow-ups from `AI Agents in Action, Second Edition` are
   tracked across the relevant spec packages without changing implementation
   scope.
 - RAG orchestration follow-ups from Apple Books RAG references are tracked in
   `specs/rag-orchestration-contract/spec.md` with citations by title, author,
   publisher, and ISBN rather than local file paths.
+- RAG orchestration v1 implementation is complete with validation and
+  capability/status coverage, and the full spec surface now consistently
+  records the RAG/context-management ownership split.
+- Skill-source resolution v1 is implemented and documented; open decisions are
+  deferred beyond v1.
 
 ## Current Spec Authority Map
 
@@ -135,12 +154,12 @@
   - `specs/mcp-runtime-integration/spec.md`
   - `specs/live-guardrail-execution/spec.md`
   - `specs/iterative-agent-loop-runtime/spec.md`
+  - `specs/skill-source-resolution/spec.md`
+  - `specs/rag-orchestration-contract/spec.md`
+  - `specs/context-management-prepare-stage/spec.md`
+  - `specs/pyinstaller-packaging-support/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
-  - `specs/context-management-prepare-stage/spec.md`
-  - `specs/rag-orchestration-contract/spec.md`
-- Next ROI feature package:
-  - `specs/skill-source-resolution/spec.md`
 - Later feature packages:
   - `specs/power-marimo-host-automation/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
@@ -153,14 +172,13 @@
 - If continuing local-model advisory work, decide whether the pending
   `pyproject.toml` / `poetry.lock` optional llama.cpp metadata edits should be
   committed, revised, or discarded before executing another slice.
-- If following the ROI queue instead, prepare `skill-source-resolution` before
-  implementation.
-- If implementing context growth management, use
-  `specs/context-management-prepare-stage/plan.md` and `tasks.md`; start with
-  policy/turn-unit metadata, lifecycle diagnostics, scoring/metric fields, and
-  lane-based prompt assembly. Preserve required lanes, reserve output headroom,
-  compression profiles, and add overflowing-history checks before provider or
-  mid-turn compaction.
+- If extending skill-source support, start a new beyond-v1 plan before adding
+  external roots, `source_path` reads, support-file prompt loading, network
+  fetching, Markdown frontmatter parsing, or raw-body debugging modes.
+- If extending context growth management beyond the implemented prepare-stage
+  slices, create a new approved plan before adding provider-backed remote
+  compaction, semantic selectors, model-backed summaries, richer profile
+  behavior, or prompt-cache-aware ordering.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.

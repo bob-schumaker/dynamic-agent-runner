@@ -230,26 +230,70 @@ under ``metadata.rag_pipeline``:
      - rag
      - embedding_retrieval
      rag_pipeline:
-       retrieval_mode: embedding_semantic
+       orchestration_mode: hybrid_retrieval
+       retrieval_mode: hybrid
+       retrievers:
+       - id: keyword
+         tool_id: keyword_search
+         mode: lexical_keyword
+         required: true
+       - id: semantic
+         tool_id: semantic_search
+         mode: embedding_semantic
+         required: true
+       fusion: rrf
+       reranking: caller_adapter
+       compression: none
+       correction: optional
+       candidate_budget:
+         stage1_k: 50
+         stage2_k: 20
+         final_k: 5
        embedding_capability: required
        graph_capability: not_applicable
-       index_owner: runtime
+       index_owner: external_service
        graph_store_owner: unknown
        corpus_boundary: runtime fixture documents
        chunking_policy: runtime default
-       metadata_filters:
-       - tenant
-       reranking: vector_score
-       freshness_policy: manual
        provenance_required: true
+       context_assembly:
+         target: prepare_model_input
+         max_context_tokens: 8192
+         required_evidence_fields:
+         - source_id
+         - chunk_id
+         - citation_handle
+       permissions:
+         permission_filtering: required
+         permission_failure_policy: fail_closed
+         audit_required: true
+       source_readiness:
+         source_registry: external_service
+         refresh_mode: scheduled
+         index_version: caller_supplied
+         stale_state: fresh
+       cache:
+         retrieval_results: optional
+         semantic_query_cache: optional
+       degraded_states:
+       - stale_but_allowed
+       - partial_results
 
 The loader preserves ``metadata.rag_pipeline`` as manifest metadata. Validation
-checks the supported enum values and the basic consistency of RAG pattern flags:
+checks supported enum values and staged metadata shapes for retrievers,
+candidate budgets, context-management handoff declarations, permission
+requirements, source readiness, cache state, and degraded states. RAG metadata
+does not make the runner own retrieval, indexing, embedding, reranking,
+compression, evaluation, or cache infrastructure, and it does not add a
+``rag_step`` node kind.
+
 ``embedding_retrieval`` requires ``retrieval_mode: embedding_semantic`` or
 ``hybrid`` plus ``embedding_capability: required``; graph retrieval patterns
-require ``graph_capability: required``. These RAG and GraphRAG classifications
-remain metadata on top of the primitive runtime graph rather than separate node
-types.
+require ``graph_capability: required``. ``context_assembly.target:
+prepare_model_input`` is a declaration for the context-management prepare stage;
+prompt packing and injection remain owned by context management. These RAG and
+GraphRAG classifications remain metadata on top of the primitive runtime graph
+rather than separate node types.
 
 .. header2:: Output contracts
 

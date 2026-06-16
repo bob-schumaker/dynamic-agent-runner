@@ -10,6 +10,7 @@ from dynamic_agent_runner.errors import WorkflowValidationError
 from dynamic_agent_runner.behavior import effective_node_behavior, skill_catalog
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
+    ManifestObject,
     PRIMITIVE_NODE_KINDS,
     RuntimeManifest,
     RuntimeNode,
@@ -19,6 +20,13 @@ from dynamic_agent_runner.models import (
     ToolType,
 )
 from dynamic_agent_runner.prompt_cache import prompt_cache_policy_from_value
+from dynamic_agent_runner.skill_sources import (
+    SUPPORTED_SKILL_SOURCE_KINDS,
+    SUPPORTED_SKILL_SOURCE_PROMPT_ROLES,
+    SkillSourceResolutionError,
+    enforce_node_skill_source_budget,
+    resolve_package_bundled_skill_source,
+)
 
 SUPPORTED_FORMAT_VERSION = 1
 SUPPORTED_PACKAGE_TYPE = "dynamic_agent_design"
@@ -49,10 +57,22 @@ SUPPORTED_TOOL_TYPES = {
 RAG_PATTERN_IDS = {"rag", "embedding_retrieval", "graph_retrieval", "graphrag"}
 SUPPORTED_RAG_RETRIEVAL_MODES = {
     "keyword",
+    "lexical_keyword",
     "structured",
     "embedding_semantic",
     "graph",
     "hybrid",
+    "unknown",
+}
+SUPPORTED_RAG_ORCHESTRATION_MODES = {
+    "basic_rag",
+    "lexical_retrieval",
+    "semantic_retrieval",
+    "hybrid_retrieval",
+    "graph_retrieval",
+    "graphrag",
+    "agentic_rag",
+    "adaptive_retrieval",
     "unknown",
 }
 SUPPORTED_RAG_CAPABILITY_VALUES = {
@@ -68,9 +88,69 @@ SUPPORTED_RAG_RERANKING_VALUES = {
     "vector_score",
     "graph_score",
     "hybrid",
+    "caller_adapter",
     "unknown",
 }
+SUPPORTED_RAG_FUSION_VALUES = {
+    "none",
+    "rrf",
+    "weighted",
+    "score_normalized",
+    "caller_adapter",
+    "unknown",
+}
+SUPPORTED_RAG_COMPRESSION_VALUES = {
+    "none",
+    "extractive",
+    "semantic",
+    "caller_adapter",
+    "unknown",
+}
+SUPPORTED_RAG_CORRECTION_VALUES = {"none", "optional", "required", "unknown"}
 SUPPORTED_RAG_FRESHNESS_VALUES = {"on_write", "scheduled", "manual", "unknown"}
+SUPPORTED_RAG_CONTEXT_ASSEMBLY_TARGETS = {"prepare_model_input", "external"}
+SUPPORTED_RAG_PERMISSION_FILTERING_VALUES = {
+    "required",
+    "optional",
+    "not_applicable",
+    "unknown",
+}
+SUPPORTED_RAG_PERMISSION_FAILURE_VALUES = {
+    "fail_closed",
+    "fail_open",
+    "degraded",
+    "unknown",
+}
+SUPPORTED_RAG_SOURCE_REGISTRY_VALUES = {
+    "runtime",
+    "host",
+    "external_service",
+    "caller_supplied",
+    "unknown",
+}
+SUPPORTED_RAG_REFRESH_MODE_VALUES = {"on_write", "scheduled", "manual", "unknown"}
+SUPPORTED_RAG_STALE_STATE_VALUES = {
+    "fresh",
+    "stale_but_allowed",
+    "stale_blocked",
+    "unknown",
+}
+SUPPORTED_RAG_CACHE_VALUES = {
+    "disabled",
+    "optional",
+    "required",
+    "metadata_only",
+    "unknown",
+}
+SUPPORTED_RAG_DEGRADED_STATES = {
+    "stale_but_allowed",
+    "partial_results",
+    "missing_optional_retriever",
+    "cache_unavailable",
+    "permission_filter_unavailable",
+    "graph_store_unavailable",
+    "unknown",
+}
 SUPPORTED_MODEL_REQUIRED_CAPABILITIES = {
     "structured_output",
     "tool_calling",
@@ -190,12 +270,79 @@ SUPPORTED_SANDBOX_RUNTIME_COMMAND_POLICY_VALUES = {
     "allow_list",
     "caller_controlled",
 }
+SUPPORTED_SKILL_SOURCE_ALLOWED_SOURCES = set(SUPPORTED_SKILL_SOURCE_KINDS)
+SUPPORTED_SKILL_SOURCE_PROMPT_ROLE_VALUES = set(SUPPORTED_SKILL_SOURCE_PROMPT_ROLES)
 SUPPORTED_HANDOFF_ON_HANDOFF_VALUES = {"switch_active_profile"}
 SUPPORTED_HANDOFF_NESTED_HISTORY_VALUES = {"preserve", "drop", "filtered"}
 SUPPORTED_AGENT_AS_TOOL_OUTPUT_MODE_VALUES = {
     "default",
     "tool_result",
     "state_field",
+}
+SUPPORTED_CONTEXT_COMPACTION_SCOPES = {"current_run", "session", "node"}
+SUPPORTED_CONTEXT_COMPACTION_IMPLEMENTATIONS = {
+    "metadata_only",
+    "basic",
+    "rolling_summary",
+    "injected",
+    "provider",
+}
+SUPPORTED_CONTEXT_COMPACTION_STRATEGIES = {
+    "basic",
+    "rolling_summary",
+    "provider",
+    "off",
+}
+SUPPORTED_CONTEXT_COMPACTION_MODES = {"auto", "manual", "off"}
+SUPPORTED_CONTEXT_COMPACTION_MANUAL_MODES = {"disabled", "allowed", "required"}
+SUPPORTED_CONTEXT_COMPACTION_TRIGGERS = {
+    "token_threshold",
+    "reserve_tokens",
+    "manual",
+    "none",
+}
+SUPPORTED_CONTEXT_RESET_BEHAVIORS = {"none", "new_window"}
+SUPPORTED_CONTEXT_COMPRESSION_PROFILES = {
+    "balanced",
+    "fast",
+    "exact",
+    "semantic",
+    "recency_weighted",
+    "instruction_weighted",
+}
+SUPPORTED_CONTEXT_SELECTION_STRATEGIES = {
+    "deterministic_overlap",
+    "injected_semantic",
+    "none",
+}
+SUPPORTED_CONTEXT_LIFECYCLE_STAGES = {
+    "validate",
+    "segment",
+    "score",
+    "place",
+    "select",
+    "assemble",
+    "compress",
+    "omit",
+    "report",
+}
+SUPPORTED_CONTEXT_METRICS = {
+    "lane_utilization",
+    "information_density",
+    "redundancy_ratio",
+    "coverage_completeness",
+    "compression_ratio",
+    "processing_duration",
+    "summary_fidelity",
+}
+SUPPORTED_CONTEXT_LANE_BUDGET_FIELDS = {
+    "pinned_tokens",
+    "current_turn_tokens",
+    "recent_turn_tokens",
+    "summary_tokens",
+    "selected_turn_tokens",
+    "file_context_tokens",
+    "retrieved_context_tokens",
 }
 REACT_LOOP_PATTERN_ID = "react_loop"
 PROMPT_REPLACE_FIELDS = {
@@ -266,6 +413,7 @@ def validate_loaded_package_structure(workflow: LoadedAgentWorkflow) -> None:
             errors,
             _bundled_skill_path_errors(skill, skill_bundle_root),
         )
+    _extend(errors, _skill_source_resolution_source_errors(workflow))
 
     if errors:
         raise WorkflowValidationError(_format_errors("agent package", errors))
@@ -334,6 +482,7 @@ def validate_runtime_manifest(
     _extend(errors, _approval_interruption_policy_errors(manifest))
     _extend(errors, _async_session_policy_errors(manifest))
     _extend(errors, _sandbox_runtime_policy_errors(manifest))
+    _extend(errors, _skill_source_resolution_policy_errors(manifest))
     _extend(errors, _handoff_metadata_errors(manifest))
     _extend(errors, _agent_as_tool_metadata_errors(manifest))
     _extend(errors, _prompt_cache_policy_errors(manifest))
@@ -341,6 +490,7 @@ def validate_runtime_manifest(
     _extend(errors, _guardrail_declaration_errors(manifest))
     _extend(errors, _mcp_registry_source_errors(manifest))
     _extend(errors, _mcp_lifecycle_diagnostics_errors(manifest))
+    _extend(errors, _prepare_model_input_context_policy_errors(manifest))
     if errors:
         raise WorkflowValidationError(_format_errors("runtime manifest", errors))
 
@@ -573,6 +723,91 @@ def _bundled_path_target_errors(
         errors.append(
             f"{label} bundled_path not found in package skill-bundle: {candidate}"
         )
+    return errors
+
+
+def _skill_source_resolution_source_errors(workflow: LoadedAgentWorkflow) -> list[str]:
+    policy_metadata = workflow.runtime_manifest.skill_source_resolution_policy
+    if policy_metadata is None or not policy_metadata.enabled:
+        return []
+
+    boundary_error = _skill_source_resolution_boundary_error(workflow)
+    if boundary_error is not None:
+        return [boundary_error]
+
+    return _enabled_skill_source_resolution_source_errors(workflow)
+
+
+def _skill_source_resolution_boundary_error(
+    workflow: LoadedAgentWorkflow,
+) -> str | None:
+    if workflow.package_root is None:
+        return "runtime.execution_policy.skill_source_resolution requires a package-loaded workflow"
+    if workflow.skill_bundle_root is None:
+        return "runtime.execution_policy.skill_source_resolution requires packaging.skill_bundle_dir"
+    return None
+
+
+def _enabled_skill_source_resolution_source_errors(
+    workflow: LoadedAgentWorkflow,
+) -> list[str]:
+    errors: list[str] = []
+    policy_metadata = workflow.runtime_manifest.skill_source_resolution_policy
+    assert policy_metadata is not None
+    assert workflow.skill_bundle_root is not None
+    policy = policy_metadata.to_policy()
+    catalog = skill_catalog(workflow)
+    for node in workflow.runtime_manifest.nodes:
+        if node.kind != "llm_step":
+            continue
+        errors.extend(
+            _node_skill_source_resolution_errors(
+                node=node,
+                workflow=workflow,
+                catalog=catalog,
+                policy=policy,
+            )
+        )
+    return errors
+
+
+def _node_skill_source_resolution_errors(
+    *,
+    node: RuntimeNode,
+    workflow: LoadedAgentWorkflow,
+    catalog: Mapping[str, ManifestObject],
+    policy: Any,
+) -> list[str]:
+    errors: list[str] = []
+    resolved_sources = []
+    assert workflow.skill_bundle_root is not None
+    behavior = effective_node_behavior(node, workflow)
+    for skill_id in behavior.skill_refs:
+        skill = catalog.get(skill_id)
+        if skill is None:
+            continue
+        if skill.raw.get("instructions") is not None:
+            continue
+        try:
+            resolved_sources.append(
+                resolve_package_bundled_skill_source(
+                    skill_id=skill_id,
+                    raw_skill=skill.raw,
+                    package_id=workflow.runtime_manifest.package_id,
+                    skill_bundle_root=workflow.skill_bundle_root,
+                    policy=policy,
+                )
+            )
+        except SkillSourceResolutionError as exc:
+            errors.append(str(exc))
+    try:
+        enforce_node_skill_source_budget(
+            tuple(resolved_sources),
+            policy=policy,
+            node_id=str(node.id),
+        )
+    except SkillSourceResolutionError as exc:
+        errors.append(str(exc))
     return errors
 
 
@@ -1430,6 +1665,83 @@ def _sandbox_runtime_policy_errors(manifest: RuntimeManifest) -> list[str]:
     return errors
 
 
+def _skill_source_resolution_policy_errors(manifest: RuntimeManifest) -> list[str]:
+    policy = manifest.execution_policy.get("skill_source_resolution")
+    if policy is None:
+        return []
+    if not isinstance(policy, Mapping):
+        return ["runtime.execution_policy.skill_source_resolution must be a mapping"]
+
+    errors: list[str] = []
+    label = "runtime.execution_policy.skill_source_resolution"
+    _validate_optional_bool(policy, "enabled", label, errors)
+    _validate_optional_bool(policy, "load_support_files", label, errors)
+    _validate_optional_enum(
+        policy,
+        "prompt_role",
+        SUPPORTED_SKILL_SOURCE_PROMPT_ROLE_VALUES,
+        label,
+        errors,
+    )
+    _skill_source_allowed_sources_errors(policy, label, errors)
+    _skill_source_size_limit_errors(policy, label, errors)
+    if policy.get("load_support_files") is True:
+        errors.append(f"{label}.load_support_files is not supported in v1")
+    return errors
+
+
+def _skill_source_allowed_sources_errors(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    allowed_sources = policy.get("allowed_sources")
+    if allowed_sources is None:
+        return
+    if not _is_string_list(allowed_sources):
+        errors.append(f"{label}.allowed_sources must be a list of strings")
+        return
+    if not allowed_sources:
+        errors.append(f"{label}.allowed_sources must not be empty when provided")
+        return
+    unsupported = sorted(
+        source
+        for source in allowed_sources
+        if source not in SUPPORTED_SKILL_SOURCE_ALLOWED_SOURCES
+    )
+    if unsupported:
+        errors.append(
+            f"{label}.allowed_sources contains unsupported values {unsupported!r}"
+        )
+
+
+def _skill_source_size_limit_errors(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    for field_name in ("max_skill_bytes", "max_node_skill_bytes"):
+        value = policy.get(field_name)
+        if value is None:
+            continue
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            errors.append(f"{label}.{field_name} must be a positive integer")
+
+    skill_limit = policy.get("max_skill_bytes")
+    node_limit = policy.get("max_node_skill_bytes")
+    if (
+        isinstance(skill_limit, int)
+        and not isinstance(skill_limit, bool)
+        and isinstance(node_limit, int)
+        and not isinstance(node_limit, bool)
+        and node_limit < skill_limit
+    ):
+        errors.append(
+            f"{label}.max_node_skill_bytes must be greater than or equal to "
+            "max_skill_bytes"
+        )
+
+
 def _validate_async_session_state_key_types(
     policy: Mapping[str, Any],
     label: str,
@@ -1728,6 +2040,13 @@ def _validate_rag_pipeline_fields(
 ) -> None:
     _validate_optional_enum(
         pipeline,
+        "orchestration_mode",
+        SUPPORTED_RAG_ORCHESTRATION_MODES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    _validate_optional_enum(
+        pipeline,
         "retrieval_mode",
         SUPPORTED_RAG_RETRIEVAL_MODES,
         "metadata.rag_pipeline",
@@ -1758,6 +2077,27 @@ def _validate_rag_pipeline_fields(
     )
     _validate_optional_enum(
         pipeline,
+        "fusion",
+        SUPPORTED_RAG_FUSION_VALUES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    _validate_optional_enum(
+        pipeline,
+        "compression",
+        SUPPORTED_RAG_COMPRESSION_VALUES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    _validate_optional_enum(
+        pipeline,
+        "correction",
+        SUPPORTED_RAG_CORRECTION_VALUES,
+        "metadata.rag_pipeline",
+        errors,
+    )
+    _validate_optional_enum(
+        pipeline,
         "freshness_policy",
         SUPPORTED_RAG_FRESHNESS_VALUES,
         "metadata.rag_pipeline",
@@ -1770,6 +2110,218 @@ def _validate_rag_pipeline_fields(
     if metadata_filters is not None and not _is_string_list(metadata_filters):
         errors.append(
             "metadata.rag_pipeline.metadata_filters must be a list of strings"
+        )
+    _validate_rag_retrievers(pipeline, errors)
+    _validate_rag_candidate_budget(pipeline, errors)
+    _validate_rag_context_assembly(pipeline, errors)
+    _validate_rag_permissions(pipeline, errors)
+    _validate_rag_source_readiness(pipeline, errors)
+    _validate_rag_cache(pipeline, errors)
+    _validate_rag_degraded_states(pipeline, errors)
+
+
+def _validate_rag_retrievers(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    retrievers = pipeline.get("retrievers")
+    if retrievers is None:
+        return
+    if not isinstance(retrievers, list):
+        errors.append("metadata.rag_pipeline.retrievers must be a list")
+        return
+    for index, retriever in enumerate(retrievers):
+        label = f"metadata.rag_pipeline.retrievers[{index}]"
+        if not isinstance(retriever, Mapping):
+            errors.append(f"{label} must be a mapping")
+            continue
+        _validate_optional_nonblank_string(retriever, "id", label, errors)
+        _validate_optional_nonblank_string(retriever, "tool_id", label, errors)
+        _validate_optional_enum(
+            retriever,
+            "mode",
+            SUPPORTED_RAG_RETRIEVAL_MODES,
+            label,
+            errors,
+        )
+        _validate_optional_bool(retriever, "required", label, errors)
+        _validate_optional_bool(retriever, "provides_provenance", label, errors)
+
+
+def _validate_rag_candidate_budget(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    candidate_budget = _optional_mapping(
+        pipeline, "candidate_budget", "metadata.rag_pipeline", errors
+    )
+    if candidate_budget is None:
+        return
+    for field_name in ("stage1_k", "stage2_k", "final_k"):
+        _validate_optional_positive_int(
+            candidate_budget,
+            field_name,
+            "metadata.rag_pipeline.candidate_budget",
+            errors,
+        )
+
+
+def _validate_rag_context_assembly(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    context_assembly = _optional_mapping(
+        pipeline, "context_assembly", "metadata.rag_pipeline", errors
+    )
+    if context_assembly is None:
+        _validate_rag_provenance_requirements(pipeline, None, errors)
+        return
+    _validate_optional_enum(
+        context_assembly,
+        "target",
+        SUPPORTED_RAG_CONTEXT_ASSEMBLY_TARGETS,
+        "metadata.rag_pipeline.context_assembly",
+        errors,
+    )
+    _validate_optional_positive_int(
+        context_assembly,
+        "max_context_tokens",
+        "metadata.rag_pipeline.context_assembly",
+        errors,
+    )
+    required_fields = context_assembly.get("required_evidence_fields")
+    if required_fields is not None and not _is_string_list(required_fields):
+        errors.append(
+            "metadata.rag_pipeline.context_assembly.required_evidence_fields "
+            "must be a list of strings"
+        )
+    _validate_rag_provenance_requirements(pipeline, context_assembly, errors)
+
+
+def _validate_rag_provenance_requirements(
+    pipeline: Mapping[str, Any],
+    context_assembly: Mapping[str, Any] | None,
+    errors: list[str],
+) -> None:
+    if pipeline.get("provenance_required") is not True:
+        return
+    required_fields = (
+        context_assembly.get("required_evidence_fields")
+        if isinstance(context_assembly, Mapping)
+        else None
+    )
+    if _is_string_list(required_fields) and required_fields:
+        return
+    retrievers = pipeline.get("retrievers")
+    if isinstance(retrievers, list):
+        for retriever in retrievers:
+            if not isinstance(retriever, Mapping):
+                continue
+            if (
+                retriever.get("required") is True
+                and retriever.get("provides_provenance") is True
+            ):
+                return
+    errors.append(
+        "metadata.rag_pipeline.provenance_required requires "
+        "context_assembly.required_evidence_fields or a required provenance retriever"
+    )
+
+
+def _validate_rag_permissions(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    permissions = _optional_mapping(
+        pipeline, "permissions", "metadata.rag_pipeline", errors
+    )
+    if permissions is None:
+        return
+    _validate_optional_enum(
+        permissions,
+        "permission_filtering",
+        SUPPORTED_RAG_PERMISSION_FILTERING_VALUES,
+        "metadata.rag_pipeline.permissions",
+        errors,
+    )
+    _validate_optional_enum(
+        permissions,
+        "permission_failure_policy",
+        SUPPORTED_RAG_PERMISSION_FAILURE_VALUES,
+        "metadata.rag_pipeline.permissions",
+        errors,
+    )
+    _validate_optional_bool(
+        permissions, "audit_required", "metadata.rag_pipeline.permissions", errors
+    )
+
+
+def _validate_rag_source_readiness(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    source_readiness = _optional_mapping(
+        pipeline, "source_readiness", "metadata.rag_pipeline", errors
+    )
+    if source_readiness is None:
+        return
+    _validate_optional_enum(
+        source_readiness,
+        "source_registry",
+        SUPPORTED_RAG_SOURCE_REGISTRY_VALUES,
+        "metadata.rag_pipeline.source_readiness",
+        errors,
+    )
+    _validate_optional_enum(
+        source_readiness,
+        "refresh_mode",
+        SUPPORTED_RAG_REFRESH_MODE_VALUES,
+        "metadata.rag_pipeline.source_readiness",
+        errors,
+    )
+    _validate_optional_enum(
+        source_readiness,
+        "stale_state",
+        SUPPORTED_RAG_STALE_STATE_VALUES,
+        "metadata.rag_pipeline.source_readiness",
+        errors,
+    )
+
+
+def _validate_rag_cache(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    cache = _optional_mapping(pipeline, "cache", "metadata.rag_pipeline", errors)
+    if cache is None:
+        return
+    for field_name in ("retrieval_results", "semantic_query_cache"):
+        _validate_optional_enum(
+            cache,
+            field_name,
+            SUPPORTED_RAG_CACHE_VALUES,
+            "metadata.rag_pipeline.cache",
+            errors,
+        )
+
+
+def _validate_rag_degraded_states(
+    pipeline: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    degraded_states = pipeline.get("degraded_states")
+    if degraded_states is None:
+        return
+    if not isinstance(degraded_states, list) or not all(
+        isinstance(item, str) for item in degraded_states
+    ):
+        errors.append("metadata.rag_pipeline.degraded_states must be a list of strings")
+        return
+    unsupported = sorted(set(degraded_states) - SUPPORTED_RAG_DEGRADED_STATES)
+    if unsupported:
+        errors.append(
+            "metadata.rag_pipeline.degraded_states contains unsupported values "
+            f"{unsupported!r}"
         )
 
 
@@ -1845,6 +2397,72 @@ def _validate_optional_bool(
         errors.append(f"{label}.{field_name} must be boolean")
 
 
+def _validate_optional_nonblank_string(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None:
+        return
+    if not isinstance(value, str):
+        errors.append(f"{label}.{field_name} must be a string")
+    elif not value.strip():
+        errors.append(f"{label}.{field_name} must not be blank")
+
+
+def _validate_optional_positive_int(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None:
+        return
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        errors.append(f"{label}.{field_name} must be a positive integer")
+
+
+def _validate_optional_ratio(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None:
+        return
+    if (
+        not isinstance(value, int | float)
+        or isinstance(value, bool)
+        or value <= 0
+        or value > 1
+    ):
+        errors.append(f"{label}.{field_name} must be a number between 0 and 1")
+
+
+def _validate_optional_supported_string_list(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    supported: set[str],
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None:
+        return
+    if not _is_string_list(value):
+        errors.append(f"{label}.{field_name} must be a list of strings")
+        return
+    unsupported = sorted(set(value) - supported)
+    if unsupported:
+        errors.append(
+            f"{label}.{field_name} contains unsupported values {unsupported!r}"
+        )
+
+
 def _validate_optional_bool_or_value(
     mapping: Mapping[str, Any],
     field_name: str,
@@ -1884,6 +2502,153 @@ def _prompt_cache_policy_errors(manifest: RuntimeManifest) -> list[str]:
     except Exception as exc:  # noqa: BLE001 - normalized into validation errors.
         return [str(exc)]
     return []
+
+
+def _prepare_model_input_context_policy_errors(
+    manifest: RuntimeManifest,
+) -> list[str]:
+    policy = manifest.execution_policy.get("prepare_model_input")
+    if not isinstance(policy, Mapping):
+        return []
+    errors: list[str] = []
+    label = "runtime.execution_policy.prepare_model_input"
+    _context_compaction_auto_errors(policy, label, errors)
+    _context_compression_errors(policy, label, errors)
+    return errors
+
+
+def _context_compaction_auto_errors(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    compaction = policy.get("context_compaction")
+    if compaction is None:
+        return
+    if not isinstance(compaction, Mapping):
+        errors.append(f"{label}.context_compaction must be a mapping")
+        return
+    auto = compaction.get("auto")
+    if auto is None:
+        return
+    auto_label = f"{label}.context_compaction.auto"
+    if not isinstance(auto, Mapping):
+        errors.append(f"{auto_label} must be a mapping")
+        return
+    _validate_optional_bool(auto, "enabled", auto_label, errors)
+    _validate_optional_ratio(auto, "threshold_ratio", auto_label, errors)
+    _validate_optional_positive_int(auto, "reserve_tokens", auto_label, errors)
+    _validate_optional_enum(
+        auto, "scope", SUPPORTED_CONTEXT_COMPACTION_SCOPES, auto_label, errors
+    )
+    _validate_optional_enum(
+        auto,
+        "implementation",
+        SUPPORTED_CONTEXT_COMPACTION_IMPLEMENTATIONS,
+        auto_label,
+        errors,
+    )
+    _validate_optional_enum(
+        auto,
+        "strategy",
+        SUPPORTED_CONTEXT_COMPACTION_STRATEGIES,
+        auto_label,
+        errors,
+    )
+    _validate_optional_enum(
+        auto, "mode", SUPPORTED_CONTEXT_COMPACTION_MODES, auto_label, errors
+    )
+    _validate_optional_enum(
+        auto,
+        "manual_mode",
+        SUPPORTED_CONTEXT_COMPACTION_MANUAL_MODES,
+        auto_label,
+        errors,
+    )
+    _validate_optional_enum(
+        auto, "trigger", SUPPORTED_CONTEXT_COMPACTION_TRIGGERS, auto_label, errors
+    )
+    _validate_optional_enum(
+        auto,
+        "reset_behavior",
+        SUPPORTED_CONTEXT_RESET_BEHAVIORS,
+        auto_label,
+        errors,
+    )
+    if auto.get("reset_behavior") not in (None, "none", "new_window"):
+        errors.append(f"{auto_label}.reset_behavior must not request compaction")
+    _validate_optional_supported_string_list(
+        auto,
+        "lifecycle_stages",
+        SUPPORTED_CONTEXT_LIFECYCLE_STAGES,
+        auto_label,
+        errors,
+    )
+    _validate_optional_supported_string_list(
+        auto,
+        "metrics",
+        SUPPORTED_CONTEXT_METRICS,
+        auto_label,
+        errors,
+    )
+
+
+def _context_compression_errors(
+    policy: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    compression = policy.get("context_compression")
+    if compression is None:
+        return
+    compression_label = f"{label}.context_compression"
+    if not isinstance(compression, Mapping):
+        errors.append(f"{compression_label} must be a mapping")
+        return
+    _validate_optional_enum(
+        compression,
+        "profile",
+        SUPPORTED_CONTEXT_COMPRESSION_PROFILES,
+        compression_label,
+        errors,
+    )
+    lanes = compression.get("lanes")
+    if lanes is not None:
+        _context_lane_budget_errors(lanes, f"{compression_label}.lanes", errors)
+    selection = compression.get("selection")
+    if selection is not None:
+        _context_selection_errors(selection, f"{compression_label}.selection", errors)
+
+
+def _context_lane_budget_errors(
+    lanes: Any,
+    label: str,
+    errors: list[str],
+) -> None:
+    if not isinstance(lanes, Mapping):
+        errors.append(f"{label} must be a mapping")
+        return
+    for field_name in SUPPORTED_CONTEXT_LANE_BUDGET_FIELDS:
+        _validate_optional_positive_int(lanes, field_name, label, errors)
+
+
+def _context_selection_errors(
+    selection: Any,
+    label: str,
+    errors: list[str],
+) -> None:
+    if not isinstance(selection, Mapping):
+        errors.append(f"{label} must be a mapping")
+        return
+    _validate_optional_enum(
+        selection,
+        "strategy",
+        SUPPORTED_CONTEXT_SELECTION_STRATEGIES,
+        label,
+        errors,
+    )
+    _validate_optional_positive_int(selection, "max_selected_turns", label, errors)
+    _validate_optional_bool(selection, "chronological_reassembly", label, errors)
 
 
 def _file_context_policy_errors(manifest: RuntimeManifest) -> list[str]:

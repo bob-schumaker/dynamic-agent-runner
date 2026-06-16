@@ -4,7 +4,7 @@
 
 - Feature slug: `capability-status-report`
 - Mode: `light`
-- Artifact type: future feature specification
+- Artifact type: authoritative SDD feature specification
 - Status: implemented v1 baseline
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:

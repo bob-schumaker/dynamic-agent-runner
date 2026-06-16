@@ -1,6 +1,6 @@
 # Approval Interruption and Sandbox V1 Tasks
 
-Status: planned next implementation slice
+Status: implemented v1 live-action baseline; durable resume remains deferred
 
 ## Slice 0 — Planning Checkpoint
 

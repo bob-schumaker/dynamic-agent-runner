@@ -1,7 +1,7 @@
 # Context Management Prepare Stage Implementation Plan
 
-Status: planning artifact created; no implementation is authorized by this
-artifact alone
+Status: implemented through Slice 9; future behavior changes require a new
+approved plan or task slice
 
 ## Goal
 
@@ -20,9 +20,9 @@ async-session metadata, graph mutation, and model adapters.
   - `specs/internal-graph-mutation/spec.md`
   - `specs/model-adapter-coverage/spec.md`
 
-## Current Baseline
+## Implemented Baseline
 
-Already implemented:
+Implemented before this expansion:
 
 - hierarchy prompt injection
 - bounded current-run session-message pruning
@@ -30,7 +30,7 @@ Already implemented:
 - bounded file-context injection
 - prepared-input metadata and `model_input_prepared` diagnostics
 
-Not implemented:
+Implemented by this plan:
 
 - turn-aware history grouping
 - explicit lane-budget prompt assembly
@@ -38,8 +38,6 @@ Not implemented:
 - rolling structured summary folding
 - model-derived automatic compaction thresholds
 - deterministic basic compaction for local or non-OpenAI models
-- provider-backed remote compaction
-- compaction window ids or token baselines
 - manual-vs-automatic compaction modes
 - pre-turn automatic summarizing compaction
 - mid-turn compaction inside iterative model-tool loops
@@ -48,6 +46,15 @@ Not implemented:
 - segment/turn scoring metadata
 - quality and efficiency metrics such as lane utilization, information density,
   redundancy ratio, coverage completeness, and summary fidelity proxies
+
+Still future:
+
+- provider-backed remote compaction, including `/responses/compact` when
+  available through the configured provider
+- compaction window ids and provider token baselines
+- model-backed summary-generation adapters
+- richer profile-specific lane priority behavior
+- semantic selection through injected collaborators
 
 ## Codex Reference Summary
 
@@ -101,11 +108,13 @@ ownership boundaries:
 - keep semantic/vector retrieval as a future injected selector only
 - do not adopt runner-owned durable active/working/long-term memory storage
 
-## Delivery Strategy
+## Delivery Record
 
 ### Slice 1 — Policy, turn model, and metadata contract
 
-Define the policy shape and datamodel additions without live compaction:
+Status: complete.
+
+Defined the policy shape and datamodel additions without live compaction:
 
 - add normalized automatic compaction policy parsing
 - add turn-unit grouping for user/assistant/tool-call/tool-result history
@@ -127,7 +136,9 @@ Define the policy shape and datamodel additions without live compaction:
 
 ### Slice 2 — Lane-based prompt assembly
 
-Implement the preferred compression skeleton before summarization:
+Status: complete.
+
+Implemented the preferred compression skeleton before summarization:
 
 - preserve pinned hierarchy and current turn first
 - preserve a bounded recent-turn suffix uncompressed
@@ -140,7 +151,10 @@ Implement the preferred compression skeleton before summarization:
 
 ### Slice 3 — Deterministic older-turn selection
 
-Add the first relevance-aware retention path without embeddings or live models:
+Status: complete.
+
+Added the first relevance-aware retention path without embeddings or live
+models:
 
 - select older turns by deterministic overlap with current prompt, file paths,
   symbols, state keys, tool names, error markers, and decision markers
@@ -153,7 +167,9 @@ Add the first relevance-aware retention path without embeddings or live models:
 
 ### Slice 4 — Deterministic basic compaction
 
-Implement the provider-neutral fallback before live summarization:
+Status: complete.
+
+Implemented the provider-neutral fallback before live summarization:
 
 - run only before a model call
 - preserve the latest typed user turn and protected tool work
@@ -164,7 +180,9 @@ Implement the provider-neutral fallback before live summarization:
 
 ### Slice 5 — Rolling summary compaction
 
-Add summary continuity after lane assembly and deterministic selection are
+Status: complete.
+
+Added summary continuity after lane assembly and deterministic selection are
 stable:
 
 - deterministic summarization prompt
@@ -177,12 +195,14 @@ stable:
 - package-owned failure taxonomy
 - no live model calls in unit tests
 
-### Slice 6 — Pre-turn provider compaction seam
+### Slice 6 — Pre-turn compaction seam
 
-Implement the safest automatic behavior first:
+Status: complete.
+
+Implemented the safest automatic behavior first:
 
 - run only before a model call
-- use an injected/provider-owned remote compaction function in tests
+- use an injected compaction function in tests
 - install replacement session history only after successful compaction
 - recompute token accounting and emit trace diagnostics
 - fail closed when compaction is required but no remote compaction capability is
@@ -190,8 +210,10 @@ Implement the safest automatic behavior first:
 
 ### Slice 7 — Mid-turn iterative-loop compaction
 
-Add mid-turn behavior only after pre-turn behavior and iterative loops remain
-stable:
+Status: complete.
+
+Added mid-turn behavior only after pre-turn behavior and iterative loops
+remained stable:
 
 - trigger after a model response only when additional model work remains
 - preserve pending tool-call and approval state
@@ -200,7 +222,9 @@ stable:
 
 ### Slice 8 — Reset/new-window behavior
 
-If needed, add an explicit reset policy or tool separate from compaction:
+Status: complete.
+
+Added explicit reset metadata separate from compaction:
 
 - no summary generation
 - replacement with canonical initial context only
@@ -208,7 +232,9 @@ If needed, add an explicit reset policy or tool separate from compaction:
 
 ### Slice 9 — Context-overflow error classification
 
-Add defensive error handling only after pre-turn compaction is available:
+Status: complete.
+
+Added defensive error handling after pre-turn compaction became available:
 
 - classify provider context-window errors into package-owned reasons
 - keep classification separate from retry policy
@@ -224,30 +250,36 @@ Add defensive error handling only after pre-turn compaction is available:
   chronological.
 - Deterministic overlap selection comes before embedding-backed or model-backed
   semantic selection.
-- Remote compaction is a provider capability, not an assumed OpenAI API surface.
+- Remote compaction remains a future provider capability, not an assumed OpenAI
+  API surface.
 - Deterministic `basic` compaction is the fallback when summary generation is
   unavailable or disabled and must not make live model calls.
-- Automatic compaction should be opt-in until capability/status reporting can
-  make live support visible.
+- Automatic compaction remains opt-in so callers choose when prepared context
+  may be rewritten.
 - Pre-turn compaction is the first implementation target because it aligns with
   the existing pre-adapter seam.
 - Provider overflow classification is a defensive fallback, not the primary
   trigger for compaction.
-- Mid-turn compaction is deferred because it interacts with iterative loops,
-  tool calls, and approval interruption.
+- Mid-turn compaction is opt-in and runs only through the injected compactor
+  seam when iterative-loop follow-up context crosses policy thresholds.
 - Reset/new-window behavior remains separate from summarizing compaction.
+- RAG orchestration declares retriever and evidence requirements; this prepare
+  stage owns retrieved-context lane packing, budget enforcement, compression,
+  omission diagnostics, and final prompt injection.
 
 ## Validation Strategy
 
-Focused validation should use fake adapters and injected compactors only:
+Focused validation uses fake adapters and injected compactors only:
 
 - `poetry run pytest tests/test_executor.py -q`
-- targeted future tests for policy normalization, threshold clamping,
-  turn grouping, lane budgets, deterministic selection, reserve-token triggers,
+- targeted tests for policy normalization, threshold clamping, turn grouping,
+  lane budgets, deterministic selection, reserve-token triggers,
   lifecycle-stage diagnostics, scoring metadata, quality metrics, basic
   compaction, pre-turn compaction, trace diagnostics, and failure behavior
+- targeted tests for RAG retrieved-context lane assembly using caller-supplied
+  fake evidence mappings only
 
-Full validation before a future implementation commit:
+Full validation for completed implementation slices:
 
 - `poetry run pytest -q`
 - `poetry check`

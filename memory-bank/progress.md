@@ -21,6 +21,8 @@
   - approval interruption coverage
   - MCP-origin registry entries
   - input guardrail adapter coverage
+  - RAG metadata, retriever collaborator, provenance, and context-handoff
+    readiness
   - invalid packages
 - Approval/sandbox v1 baseline is implemented:
   - direct approval-required `tool_use_step` interruption
@@ -58,6 +60,19 @@
 - The package advertises its PyInstaller hook directory through the
   `pyinstaller40` entry point, and the hook support was merged through the
   build-gated DevOps SCM PR flow.
+- PyInstaller packaging support is now represented by
+  `specs/pyinstaller-packaging-support/`, with `spec.md`, `plan.md`,
+  `tasks.md`, `validation.md`, `specs/README.md` coverage, and primary roadmap
+  coverage in `specs/dynamic-agent-runner/tasks.md`.
+- Skill-source resolution v1 is implemented:
+  - `runtime.execution_policy.skill_source_resolution` policy parsing and
+    validation
+  - package-local bundled `SKILL.md` resolution under `skill-bundle/`
+  - fail-closed path, symlink, encoding, binary-content, and byte-budget checks
+  - deterministic injection through `skill_instructions` after runtime
+    `skill_refs` overrides
+  - redacted prepared-input and trace provenance metadata
+  - capability/status reporting for metadata-only, live, and rejected states
 - `context-management-prepare-stage` now owns the prompt-preparation feature
   spec for session pruning, context compaction, hierarchical prompt-context
   injection, and provider-neutral hierarchical context compression.
@@ -82,11 +97,19 @@
   Second Edition: Intelligent Workflows With LLMs, MCP, A2A, and More`
   (Manning, ISBN `9781633434530`) are tracked in the owning specs without
   expanding immediate implementation scope.
-- `rag-orchestration-contract` now records RAG as a future orchestration
-  contract, not a retrieval infrastructure framework. It covers caller-owned
-  retrievers/adapters, provenance, context injection, index lifecycle,
-  permission-aware retrieval, routing profiles, GraphRAG layers, cache state,
-  degraded execution traces, and evaluation hooks.
+- `rag-orchestration-contract` v1 is implemented as a declarative RAG
+  orchestration contract, not a retrieval infrastructure framework. V1 provides
+  expanded `metadata.rag_pipeline` validation and capability/status reporting
+  for caller-owned retriever collaborators, provenance requirements, source
+  readiness, permissions, cache, degraded states, and
+  context-management handoff declarations.
+- Retrieved-context prompt assembly is owned by
+  `context-management-prepare-stage`: RAG metadata can declare context assembly
+  needs, but retrieved-context lanes, packing, trimming, compression,
+  diagnostics, and final prompt injection belong to context management.
+- `skill-source-resolution` is complete for the v1 boundary. It remains
+  opt-in, package-local, and fake-test covered; external roots, `source_path`
+  reads, support-file prompt loading, and network fetching remain deferred.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -107,6 +130,8 @@
 - `8f63fb9`, `55a6fba`, and `7b7cf6d` completed package-owned PyInstaller
   hook support for `openai-model-registry`, hook advertisement, and packaging
   cleanup after build validation.
+- `c54164e` added the post-hoc PyInstaller packaging support spec package and
+  reconciled the spec inventory/roadmap so the hook work is represented.
 - `743b38c` added the context-management prepare-stage spec, plan, task list,
   and context-pruning reference relocation out of async-session memory.
 - `5dd0e5a` recast context-management planning around provider-neutral
@@ -131,6 +156,20 @@
   evaluated RAG books, including index lifecycle, permission-aware retrieval,
   retrieval routers/profiles, cache contracts, GraphRAG construction vs
   query-time retrieval, degraded execution, and evaluation lifecycle metadata.
+- `b76d581` prepared the RAG orchestration contract for v1 implementation,
+  added plan/tasks/validation artifacts, aligned the RAG/context-management
+  ownership split, and refreshed the spec inventory/high-ROI order.
+- `215e659`, `dd88fff`, and `5ba47a1` implemented RAG v1 validation,
+  retriever capability/status reporting, and provenance/context-management
+  handoff enforcement.
+- `e67e68c` recorded RAG orchestration v1 completion evidence and refreshed
+  spec/memory status.
+- `78d080c` prepared `skill-source-resolution` for implementation by resolving
+  v1 decisions, adding `plan.md` and `tasks.md`, and updating the spec index.
+- `5f7d1fd`, `79cce93`, `99ed79d`, `ac8028b`, `9b5f6a8`, and `9f0557b`
+  implemented and documented skill-source resolution v1 across policy models,
+  package-local resolver validation, prompt injection, override coverage,
+  capability/status reporting, and spec completion evidence.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -141,8 +180,10 @@
 
 ## Remaining
 
-- Next highest-ROI slice in the roadmap: opt-in package-local
-  `skill-source-resolution`.
+- Next highest-ROI implementation slice is not currently pinned in the memory
+  bank. Use `specs/README.md` plus the user's immediate priority to choose
+  between local-model advisory work, context-management implementation, or a
+  new scoped feature slice.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering
@@ -156,18 +197,18 @@
   host-managed continuity boundaries are clear.
 - Runner-owned durable session storage remains deferred until a concrete
   workflow proves the need.
-- Runner-owned RAG infrastructure remains out of scope. RAG future work should
-  stay focused on metadata validation, capability/status diagnostics, trace
-  contracts, provenance, context-management integration, and fake-adapter
-  evaluation hooks.
-- Live prompt pruning, compaction, and hierarchical prompt-context injection are
-  owned by `context-management-prepare-stage`, not the async-session memory
-  pipeline.
-- Context compression implementation should begin with turn grouping and lane
-  assembly, including lifecycle diagnostics and metric metadata, then
-  compression-profile normalization and deterministic older-turn selection.
-  Required lanes, output headroom, and overflowing-history checks should be
-  addressed before summary generation or provider-owned compaction.
+- Runner-owned RAG infrastructure remains out of scope. Future RAG work should
+  stay focused on live retrieval orchestration only through caller-owned tools,
+  richer routing metadata, answer citation rendering, evaluator/output-guardrail
+  hooks, and context-management handoff boundaries.
+- Skill-source resolution beyond v1 needs a new plan before adding external
+  roots, `source_path` reads, support-file prompt loading, network fetching,
+  executable skill files, Markdown frontmatter parsing, or raw skill-body trace
+  payloads.
+- Context-management prepare-stage v1 is implemented through Slice 9. Future
+  work should start from a new approved plan for provider-backed remote
+  compaction, semantic selectors, model-backed summaries, richer profile
+  behavior, or prompt-cache-aware ordering.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.
 

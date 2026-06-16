@@ -1700,11 +1700,13 @@ Before implementation is considered complete, add validation covering:
   planning and task-decomposition companions to this light-mode spec.
 - Richer RAG orchestration is owned by
   `specs/rag-orchestration-contract/spec.md`. The primary runtime spec only
-  records the current baseline metadata preservation and validation surface; the
-  future contract for index lifecycle, permission-aware retrieval, retrieval
-  routing, GraphRAG construction/query boundaries, cache/degraded execution
-  state, provenance, context injection, and evaluation hooks remains scoped to
-  that dedicated feature package.
+  records the historical baseline; the implemented RAG contract now covers
+  expanded declarative metadata validation and capability/status reporting.
+  Future RAG execution behavior for live retrieval orchestration, richer
+  routing, index lifecycle execution, GraphRAG execution, answer citation
+  rendering, and evaluator/output-guardrail hooks remains scoped to that
+  dedicated feature package. Retrieved-context prompt packing and injection
+  remain owned by `specs/context-management-prepare-stage/spec.md`.
 - Earlier debate review originally constrained work to a narrow readiness slice,
   but the planned implementation sequence recorded in this spec has since been
   completed through the currently tracked slices.

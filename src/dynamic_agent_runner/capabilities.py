@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from dynamic_agent_runner.api import load_agent_package_workflow
+from dynamic_agent_runner.artifacts import load_agent_package
+from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.errors import DynamicAgentRunnerError
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
@@ -22,8 +24,10 @@ from dynamic_agent_runner.registry import ToolRegistryError
 _OWNER_DYNAMIC_AGENT_RUNNER = "dynamic-agent-runner"
 _OWNER_APPROVAL_INTERRUPTION = "approval-interruption-resume"
 _OWNER_ASYNC_SESSION = "async-session-memory-pipeline"
+_OWNER_CONTEXT_MANAGEMENT = "context-management-prepare-stage"
 _OWNER_GUARDRAILS = "live-guardrail-execution"
 _OWNER_MCP = "mcp-runtime-integration"
+_OWNER_RAG = "rag-orchestration-contract"
 _OWNER_SANDBOX = "sandbox-workspace-runtime"
 _OWNER_SKILL_SOURCE = "skill-source-resolution"
 _OWNER_TOOL_LOOP = "iterative-agent-loop-runtime"
@@ -133,7 +137,10 @@ def inspect_agent_package_capabilities(
     except DynamicAgentRunnerError as exc:
         if strict:
             raise
-        return _invalid_report(str(exc))
+        return _invalid_report(
+            str(exc),
+            package_directory=package_directory,
+        )
 
     plan = prepare_execution_plan(workflow)
     return CapabilityStatusReport.from_items(
@@ -151,21 +158,40 @@ def inspect_agent_package_capabilities(
     )
 
 
-def _invalid_report(validation_error: str) -> CapabilityStatusReport:
+def _invalid_report(
+    validation_error: str,
+    *,
+    package_directory: str | Path | None = None,
+) -> CapabilityStatusReport:
+    package_id: str | None = None
+    items: list[CapabilityStatusItem] = [
+        CapabilityStatusItem(
+            id="package.validation",
+            label="Package validation",
+            state=CapabilityState.INVALID,
+            category="validation",
+            summary="The package could not be loaded or validated.",
+            owner=_OWNER_DYNAMIC_AGENT_RUNNER,
+        ),
+    ]
+    if package_directory is not None:
+        try:
+            workflow = load_agent_package(package_directory)
+        except DynamicAgentRunnerError:
+            workflow = None
+        if workflow is not None:
+            package_id = workflow.runtime_manifest.package_id
+            skill_item = _invalid_skill_source_resolution_item(
+                workflow,
+                validation_error,
+            )
+            if skill_item is not None:
+                items.append(skill_item)
     return CapabilityStatusReport.from_items(
-        package_id=None,
+        package_id=package_id,
         valid=False,
         validation_error=validation_error,
-        items=(
-            CapabilityStatusItem(
-                id="package.validation",
-                label="Package validation",
-                state=CapabilityState.INVALID,
-                category="validation",
-                summary="The package could not be loaded or validated.",
-                owner=_OWNER_DYNAMIC_AGENT_RUNNER,
-            ),
-        ),
+        items=tuple(items),
     )
 
 
@@ -230,6 +256,7 @@ def _capability_items(
                 "Tool-use loop policy is preserved but iterative loops do not run.",
             )
         )
+    items.extend(_context_management_items(manifest.execution_policy))
     if manifest.handoffs:
         items.append(
             _metadata_only_item(
@@ -263,15 +290,9 @@ def _capability_items(
                 "MCP source declarations are preserved but no live MCP clients run.",
             )
         )
+    items.extend(_rag_items(manifest.rag_pipeline, tool_registry=tool_registry))
     if has_skill_refs:
-        items.append(
-            _metadata_only_item(
-                "metadata.skill_refs",
-                "Skill references",
-                _OWNER_SKILL_SOURCE,
-                "Skill references are preserved but SKILL.md bodies are not loaded.",
-            )
-        )
+        items.append(_skill_source_resolution_item(workflow, plan=plan))
     items.extend(
         _model_coverage_items(
             plan,
@@ -282,6 +303,57 @@ def _capability_items(
     items.extend(_tool_coverage_items(plan, tool_registry=tool_registry))
     items.extend(_mcp_registry_items(plan, tool_registry=tool_registry))
     items.append(_local_workspace_pack_item(built_in_tool_packs))
+    return tuple(items)
+
+
+def _context_management_items(
+    execution_policy: Mapping[str, Any],
+) -> tuple[CapabilityStatusItem, ...]:
+    prepare_model_input = execution_policy.get("prepare_model_input")
+    if not isinstance(prepare_model_input, Mapping):
+        return ()
+    compaction = prepare_model_input.get("context_compaction")
+    if not isinstance(compaction, Mapping):
+        return ()
+    items: list[CapabilityStatusItem] = []
+    if compaction.get("reset_behavior") == "new_window":
+        items.append(
+            CapabilityStatusItem(
+                id="metadata.context.new_window_reset",
+                label="New context window reset",
+                state=CapabilityState.METADATA_ONLY,
+                category="metadata",
+                summary=(
+                    "New-window reset is declared separately from summarizing "
+                    "context compaction."
+                ),
+                owner=_OWNER_CONTEXT_MANAGEMENT,
+                details={"reset_behavior": "new_window"},
+            )
+        )
+    auto = compaction.get("auto")
+    if not isinstance(auto, Mapping) or auto.get("enabled") is not True:
+        return tuple(items)
+    implementation = str(auto.get("implementation") or "metadata_only")
+    items.append(
+        CapabilityStatusItem(
+            id="metadata.context.pre_turn_compaction",
+            label="Pre-turn context compaction",
+            state=CapabilityState.METADATA_ONLY,
+            category="metadata",
+            summary=(
+                "Pre-turn context compaction is declared; live compaction requires "
+                "an injected collaborator."
+            ),
+            owner=_OWNER_CONTEXT_MANAGEMENT,
+            details={
+                "phase": "pre_turn",
+                "implementation": implementation,
+                "trigger": str(auto.get("trigger") or "token_threshold"),
+                "scope": str(auto.get("scope") or "current_run"),
+            },
+        ),
+    )
     return tuple(items)
 
 
@@ -299,6 +371,75 @@ def _metadata_only_item(
         summary=summary,
         owner=owner,
     )
+
+
+def _skill_source_resolution_item(
+    workflow: LoadedAgentWorkflow,
+    *,
+    plan: object,
+) -> CapabilityStatusItem:
+    policy = workflow.runtime_manifest.skill_source_resolution_policy
+    if policy is None or not policy.enabled:
+        return CapabilityStatusItem(
+            id="metadata.skill_refs",
+            label="Skill references",
+            state=CapabilityState.METADATA_ONLY,
+            category="metadata",
+            summary="Skill references are preserved but SKILL.md bodies are not loaded.",
+            owner=_OWNER_SKILL_SOURCE,
+            details={
+                "source_resolution": "absent" if policy is None else "disabled",
+                "referenced_skills": _referenced_skill_count(workflow, plan),
+            },
+        )
+    return CapabilityStatusItem(
+        id="runtime.skill_source_resolution",
+        label="Package-local skill source resolution",
+        state=CapabilityState.LIVE,
+        category="runtime",
+        summary="Package-local SKILL.md bodies are loaded into prompt preparation.",
+        owner=_OWNER_SKILL_SOURCE,
+        details={
+            "allowed_sources": policy.allowed_sources,
+            "prompt_role": policy.prompt_role,
+            "referenced_skills": _referenced_skill_count(workflow, plan),
+        },
+    )
+
+
+def _invalid_skill_source_resolution_item(
+    workflow: LoadedAgentWorkflow,
+    validation_error: str,
+) -> CapabilityStatusItem | None:
+    policy = workflow.runtime_manifest.skill_source_resolution_policy
+    if policy is None or not policy.enabled:
+        return None
+    return CapabilityStatusItem(
+        id="runtime.skill_source_resolution",
+        label="Package-local skill source resolution",
+        state=CapabilityState.INVALID,
+        category="runtime",
+        summary="Package-local SKILL.md source loading was rejected during validation.",
+        owner=_OWNER_SKILL_SOURCE,
+        details={
+            "allowed_sources": policy.allowed_sources,
+            "prompt_role": policy.prompt_role,
+            "validation_error": validation_error,
+        },
+    )
+
+
+def _referenced_skill_count(workflow: LoadedAgentWorkflow, plan: object) -> int:
+    skill_refs: set[str] = set()
+    nodes_by_id = getattr(plan, "nodes_by_id", {})
+    if not isinstance(nodes_by_id, Mapping):
+        return 0
+    for node in nodes_by_id.values():
+        if getattr(node, "kind", None) != "llm_step":
+            continue
+        behavior = effective_node_behavior(node.source_node, workflow)
+        skill_refs.update(behavior.skill_refs)
+    return len(skill_refs)
 
 
 def _approval_interruption_item(
@@ -380,6 +521,219 @@ def _guardrail_coverage_items(
             )
         )
     return tuple(items)
+
+
+def _rag_items(
+    pipeline: Mapping[str, Any] | None,
+    *,
+    tool_registry: object | None,
+) -> tuple[CapabilityStatusItem, ...]:
+    if not pipeline:
+        return ()
+    return (
+        _rag_pipeline_metadata_item(pipeline),
+        *_rag_retriever_items(pipeline, tool_registry=tool_registry),
+    )
+
+
+def _rag_pipeline_metadata_item(
+    pipeline: Mapping[str, Any],
+) -> CapabilityStatusItem:
+    return CapabilityStatusItem(
+        id="metadata.rag_pipeline",
+        label="RAG orchestration metadata",
+        state=CapabilityState.METADATA_ONLY,
+        category="rag",
+        summary=(
+            "RAG declarations are preserved and validated; retrieval execution "
+            "remains caller-owned."
+        ),
+        owner=_OWNER_RAG,
+        details=_rag_pipeline_metadata_details(pipeline),
+    )
+
+
+def _rag_pipeline_metadata_details(pipeline: Mapping[str, Any]) -> dict[str, object]:
+    retrievers = _rag_retriever_declarations(pipeline)
+    details = _rag_pipeline_base_details(pipeline, retrievers)
+    if pipeline.get("provenance_required") is not None:
+        details["provenance_required"] = pipeline.get("provenance_required") is True
+    _add_rag_context_details(details, pipeline.get("context_assembly"))
+    _add_rag_readiness_details(
+        details,
+        degraded_states=pipeline.get("degraded_states"),
+        source_readiness=pipeline.get("source_readiness"),
+        permissions=pipeline.get("permissions"),
+    )
+    return details
+
+
+def _rag_pipeline_base_details(
+    pipeline: Mapping[str, Any],
+    retrievers: tuple[_RAGRetrieverDeclaration, ...],
+) -> dict[str, object]:
+    required_retrievers = [retriever for retriever in retrievers if retriever.required]
+    return {
+        "orchestration_mode": str(pipeline.get("orchestration_mode", "unknown")),
+        "retrieval_mode": str(pipeline.get("retrieval_mode", "unknown")),
+        "required_retrievers": len(required_retrievers),
+        "declared_retrievers": len(retrievers),
+    }
+
+
+def _add_rag_context_details(
+    details: dict[str, object],
+    context_assembly: object,
+) -> None:
+    if not isinstance(context_assembly, Mapping):
+        return
+    target = context_assembly.get("target")
+    max_context_tokens = context_assembly.get("max_context_tokens")
+    required_evidence_fields = context_assembly.get("required_evidence_fields")
+    if target is not None:
+        details["context_assembly_target"] = str(target)
+    if isinstance(max_context_tokens, int) and not isinstance(max_context_tokens, bool):
+        details["context_max_tokens"] = max_context_tokens
+    if isinstance(required_evidence_fields, list):
+        details["required_evidence_field_count"] = len(
+            [field for field in required_evidence_fields if isinstance(field, str)]
+        )
+
+
+def _add_rag_readiness_details(
+    details: dict[str, object],
+    *,
+    degraded_states: object,
+    source_readiness: object,
+    permissions: object,
+) -> None:
+    if isinstance(degraded_states, list):
+        details["degraded_states"] = tuple(
+            sorted(str(item) for item in degraded_states)
+        )
+    if isinstance(source_readiness, Mapping):
+        stale_state = source_readiness.get("stale_state")
+        if stale_state is not None:
+            details["stale_state"] = str(stale_state)
+    if isinstance(permissions, Mapping):
+        permission_filtering = permissions.get("permission_filtering")
+        if permission_filtering is not None:
+            details["permission_filtering"] = str(permission_filtering)
+
+
+@dataclass(frozen=True)
+class _RAGRetrieverDeclaration:
+    retriever_id: str
+    tool_id: str | None
+    mode: str | None
+    required: bool
+
+
+def _rag_retriever_items(
+    pipeline: Mapping[str, Any],
+    *,
+    tool_registry: object | None,
+) -> tuple[CapabilityStatusItem, ...]:
+    items: list[CapabilityStatusItem] = []
+    for retriever in _rag_retriever_declarations(pipeline):
+        state, summary, required_collaborator = _rag_retriever_state(
+            retriever,
+            tool_registry=tool_registry,
+        )
+        items.append(
+            CapabilityStatusItem(
+                id=f"rag.retriever.{retriever.retriever_id}",
+                label=f"RAG retriever {retriever.retriever_id}",
+                state=state,
+                category="rag",
+                summary=summary,
+                owner=_OWNER_RAG,
+                required_collaborator=required_collaborator,
+                details={
+                    "retriever_id": retriever.retriever_id,
+                    "tool_id": retriever.tool_id or "",
+                    "mode": retriever.mode or "unknown",
+                    "required": retriever.required,
+                },
+            )
+        )
+    return tuple(items)
+
+
+def _rag_retriever_state(
+    retriever: _RAGRetrieverDeclaration,
+    *,
+    tool_registry: object | None,
+) -> tuple[CapabilityState, str, str | None]:
+    if not retriever.tool_id:
+        return (
+            CapabilityState.METADATA_ONLY,
+            "RAG retriever has no live tool collaborator declaration.",
+            None,
+        )
+    if tool_registry is None:
+        if retriever.required:
+            return (
+                CapabilityState.MISSING_COLLABORATOR,
+                "Required RAG retriever needs a caller-supplied tool registry.",
+                "tool_registry",
+            )
+        return (
+            CapabilityState.METADATA_ONLY,
+            "Optional RAG retriever is declared but has no live registry coverage.",
+            None,
+        )
+    try:
+        tool_registry.get_tool(retriever.tool_id)
+    except ToolRegistryError as exc:
+        if "disabled" in str(exc).lower():
+            return (
+                CapabilityState.DISABLED,
+                "RAG retriever tool is disabled in the registry.",
+                None,
+            )
+        if retriever.required:
+            return (
+                CapabilityState.MISSING_COLLABORATOR,
+                "Required RAG retriever tool is missing from the registry.",
+                "tool_registry",
+            )
+        return (
+            CapabilityState.METADATA_ONLY,
+            "Optional RAG retriever tool is not registered.",
+            None,
+        )
+    return (
+        CapabilityState.LIVE,
+        "RAG retriever tool is registered.",
+        None,
+    )
+
+
+def _rag_retriever_declarations(
+    pipeline: Mapping[str, Any],
+) -> tuple[_RAGRetrieverDeclaration, ...]:
+    retrievers = pipeline.get("retrievers")
+    if not isinstance(retrievers, list):
+        return ()
+    declarations: list[_RAGRetrieverDeclaration] = []
+    for index, retriever in enumerate(retrievers):
+        if not isinstance(retriever, Mapping):
+            continue
+        retriever_id = retriever.get("id")
+        tool_id = retriever.get("tool_id")
+        mode = retriever.get("mode")
+        declarations.append(
+            _RAGRetrieverDeclaration(
+                retriever_id=(
+                    str(retriever_id) if retriever_id is not None else str(index)
+                ),
+                tool_id=str(tool_id) if tool_id is not None else None,
+                mode=str(mode) if mode is not None else None,
+                required=retriever.get("required") is True,
+            )
+        )
+    return tuple(declarations)
 
 
 def _has_skill_refs(plan: object) -> bool:

@@ -11,6 +11,7 @@ from dynamic_agent_runner.graph_mutation import (
     WorkflowMutationBundle,
     derive_workflow_mutation_bundle,
 )
+from dynamic_agent_runner.skill_sources import SkillSourceResolutionPolicy
 
 SUPPORTED_AGENT_PATTERNS = (
     "basic-reasoning-agent",
@@ -396,6 +397,47 @@ class SandboxRuntimePolicy:
 
 
 @dataclass(frozen=True)
+class SkillSourceResolutionMetadata:
+    """Skill source resolution execution policy metadata."""
+
+    enabled: bool = False
+    allowed_sources: tuple[str, ...] = ("package_bundle",)
+    max_skill_bytes: int = 65_536
+    max_node_skill_bytes: int = 262_144
+    load_support_files: bool = False
+    prompt_role: str = "developer"
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> SkillSourceResolutionMetadata:
+        """Build skill-source resolution metadata from execution policy."""
+
+        policy = SkillSourceResolutionPolicy.from_mapping(value)
+        return cls(
+            enabled=policy.enabled,
+            allowed_sources=policy.allowed_sources,
+            max_skill_bytes=policy.max_skill_bytes,
+            max_node_skill_bytes=policy.max_node_skill_bytes,
+            load_support_files=policy.load_support_files,
+            prompt_role=policy.prompt_role,
+            raw=policy.raw,
+        )
+
+    def to_policy(self) -> SkillSourceResolutionPolicy:
+        """Return the executable policy model for resolver code."""
+
+        return SkillSourceResolutionPolicy(
+            enabled=self.enabled,
+            allowed_sources=self.allowed_sources,
+            max_skill_bytes=self.max_skill_bytes,
+            max_node_skill_bytes=self.max_node_skill_bytes,
+            load_support_files=self.load_support_files,
+            prompt_role=self.prompt_role,
+            raw=self.raw,
+        )
+
+
+@dataclass(frozen=True)
 class HandoffMetadata:
     """Deferred handoff metadata for future active-agent transfer workflows."""
 
@@ -612,6 +654,7 @@ class RuntimeManifest:
     approval_interruption_policy: ApprovalInterruptionPolicy | None = None
     async_session_policy: AsyncSessionPolicy | None = None
     sandbox_runtime_policy: SandboxRuntimePolicy | None = None
+    skill_source_resolution_policy: SkillSourceResolutionMetadata | None = None
     handoffs: tuple[HandoffMetadata, ...] = ()
     state: Mapping[str, Any] = field(default_factory=dict)
     skills: tuple[ManifestObject, ...] = ()
@@ -643,6 +686,9 @@ class RuntimeManifest:
         )
         async_session = _as_mapping(execution_policy.get("async_session"))
         sandbox_runtime = _as_mapping(execution_policy.get("sandbox_runtime"))
+        skill_source_resolution = _as_mapping(
+            execution_policy.get("skill_source_resolution")
+        )
         handoffs = _handoff_metadata(metadata)
         return cls(
             raw=raw,
@@ -688,6 +734,11 @@ class RuntimeManifest:
             sandbox_runtime_policy=(
                 SandboxRuntimePolicy.from_mapping(sandbox_runtime)
                 if sandbox_runtime is not None
+                else None
+            ),
+            skill_source_resolution_policy=(
+                SkillSourceResolutionMetadata.from_mapping(skill_source_resolution)
+                if skill_source_resolution is not None
                 else None
             ),
             handoffs=handoffs,
@@ -953,6 +1004,7 @@ class ExecutionPlan:
     approval_interruption_policy: ApprovalInterruptionPolicy | None = None
     async_session_policy: AsyncSessionPolicy | None = None
     sandbox_runtime_policy: SandboxRuntimePolicy | None = None
+    skill_source_resolution_policy: SkillSourceResolutionMetadata | None = None
     handoffs: tuple[HandoffMetadata, ...] = ()
     output_contracts: Mapping[str, Any] = field(default_factory=dict)
     unsupported_extensions: tuple[str, ...] = ()
@@ -987,6 +1039,7 @@ def prepare_execution_plan(
         approval_interruption_policy=manifest.approval_interruption_policy,
         async_session_policy=manifest.async_session_policy,
         sandbox_runtime_policy=manifest.sandbox_runtime_policy,
+        skill_source_resolution_policy=manifest.skill_source_resolution_policy,
         handoffs=manifest.handoffs,
         output_contracts=dict(manifest.output_contracts),
         unsupported_extensions=tuple(

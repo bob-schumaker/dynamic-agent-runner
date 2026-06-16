@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from pathlib import Path
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -47,6 +48,7 @@ from dynamic_agent_runner.openai_client import (
     OpenAIClientAdapter,
     OpenAIMessage,
     build_openai_request,
+    is_context_overflow_error,
 )
 from dynamic_agent_runner.prompt_cache import (
     build_prompt_cache_observation,
@@ -59,6 +61,12 @@ from dynamic_agent_runner.retry import (
     retry_policy_from_value,
     run_with_retry_async,
 )
+from dynamic_agent_runner.skill_sources import (
+    RejectedSkillSource,
+    SkillSourceResolutionError,
+    enforce_node_skill_source_budget,
+    resolve_package_bundled_skill_source,
+)
 from dynamic_agent_runner.token_budget import (
     TokenBudgetPolicy,
     TokenUsageRecord,
@@ -70,6 +78,10 @@ from dynamic_agent_runner.tracing import TraceEvent, TraceSink, WorkflowTracer
 
 T = TypeVar("T")
 ModelAdapter = OpenAIClientAdapter | AsyncOpenAIClientAdapter
+ContextCompactor = Callable[
+    [tuple[OpenAIMessage, ...], Mapping[str, Any]],
+    tuple[OpenAIMessage, ...],
+]
 
 
 @dataclass(frozen=True)
@@ -153,14 +165,51 @@ class PreparedInputMetadata:
     session_messages_included: int = 0
     session_messages_pruned: int = 0
     context_compaction_applied: bool = False
+    compaction: Mapping[str, Any] = field(default_factory=dict)
+    pre_turn_compaction: Mapping[str, Any] = field(default_factory=dict)
+    context_reset: Mapping[str, Any] = field(default_factory=dict)
     file_context_applied: bool = False
     file_context_sources: tuple[str, ...] = ()
     file_context_files_included: int = 0
     file_context_bytes: int = 0
     file_context_estimated_tokens: int = 0
+    retrieved_context: tuple[Mapping[str, Any], ...] = ()
+    retrieved_context_omitted: tuple[Mapping[str, Any], ...] = ()
     mutation_applied: bool = False
     mutation_id: str | None = None
     mutation_output_slots: tuple[str, ...] = ()
+    skill_sources_loaded: tuple[Mapping[str, Any], ...] = ()
+    skill_sources_omitted: tuple[Mapping[str, Any], ...] = ()
+    skill_sources_rejected: tuple[Mapping[str, Any], ...] = ()
+    turn_count: int = 0
+    segment_count: int = 0
+    turns: tuple[Mapping[str, Any], ...] = ()
+    segments: tuple[Mapping[str, Any], ...] = ()
+    context_threshold: Mapping[str, Any] = field(default_factory=dict)
+    compression_profile: str | None = None
+    lane_budgets: Mapping[str, int] = field(default_factory=dict)
+    context_lanes: tuple[Mapping[str, Any], ...] = ()
+    selection_policy: Mapping[str, Any] = field(default_factory=dict)
+    selected_turns: tuple[Mapping[str, Any], ...] = ()
+    omitted_turns: tuple[Mapping[str, Any], ...] = ()
+    rejected_turns: tuple[Mapping[str, Any], ...] = ()
+    lifecycle_stages: tuple[Mapping[str, Any], ...] = ()
+    metrics: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class _SkillSourcePreparation:
+    loaded: tuple[Mapping[str, Any], ...] = ()
+    omitted: tuple[Mapping[str, Any], ...] = ()
+    rejected: tuple[Mapping[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
+class _RenderedMessageParts:
+    message_parts: tuple[tuple[str, OpenAIMessage], ...]
+    skill_source_preparation: _SkillSourcePreparation = field(
+        default_factory=_SkillSourcePreparation
+    )
 
 
 @dataclass(frozen=True)
@@ -178,6 +227,7 @@ class PreparedModelInput:
     model_parameters: Mapping[str, Any] = field(default_factory=dict)
     tool_choice: Any = None
     response_format: Mapping[str, Any] | None = None
+    context_compactor: ContextCompactor | None = None
 
     @property
     def part_names(self) -> tuple[str, ...]:
@@ -199,6 +249,7 @@ async def execute_workflow_async(
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
+    context_compactor: ContextCompactor | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt asynchronously."""
 
@@ -279,6 +330,7 @@ async def execute_workflow_async(
                     context.prompt_cache,
                     hooks,
                     context.model_adapter_coverage,
+                    context_compactor,
                 )
             except Exception as exc:
                 tracer.emit(
@@ -348,6 +400,7 @@ def execute_workflow(
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
+    context_compactor: ContextCompactor | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -364,6 +417,7 @@ def execute_workflow(
             lifecycle_hooks=lifecycle_hooks,
             model_adapter_coverage=model_adapter_coverage,
             run_id=run_id,
+            context_compactor=context_compactor,
         )
     )
 
@@ -377,6 +431,7 @@ def prepare_model_input(
     tracer: WorkflowTracer | None = None,
     prompt_cache: bool | None = None,
     model_adapter_coverage: str = "augmented",
+    context_compactor: ContextCompactor | None = None,
 ) -> PreparedModelInput:
     """Prepare rendered model input for an ``llm_step`` node."""
 
@@ -391,13 +446,26 @@ def prepare_model_input(
     render_context, mutation_preparation = _prepare_model_input_render_context(
         node, state
     )
+    rendered_parts = _render_message_parts_with_skill_sources(
+        behavior,
+        state,
+        context=render_context,
+        workflow=workflow,
+        node_id=str(node.id),
+    )
     message_parts, preparation = _apply_prepare_model_input_stage(
-        _render_message_parts(behavior, state, context=render_context),
+        rendered_parts.message_parts,
         plan,
         state,
         model=model,
+        adapter=adapter,
+        context_compactor=context_compactor,
     )
     preparation = _merge_prepared_input_metadata(preparation, mutation_preparation)
+    preparation = _merge_skill_source_preparation(
+        preparation,
+        rendered_parts.skill_source_preparation,
+    )
     messages = tuple(message for _part, message in message_parts)
     if tracer is not None:
         tracer.emit(
@@ -409,16 +477,41 @@ def prepare_model_input(
                 "session_messages_included": preparation.session_messages_included,
                 "session_messages_pruned": preparation.session_messages_pruned,
                 "context_compaction_applied": preparation.context_compaction_applied,
+                "compaction": preparation.compaction,
+                "pre_turn_compaction": preparation.pre_turn_compaction,
+                "context_reset": preparation.context_reset,
                 "file_context_applied": preparation.file_context_applied,
                 "file_context_sources": preparation.file_context_sources,
                 "file_context_files_included": preparation.file_context_files_included,
                 "file_context_bytes": preparation.file_context_bytes,
                 "file_context_estimated_tokens": preparation.file_context_estimated_tokens,
+                "retrieved_context": preparation.retrieved_context,
+                "retrieved_context_omitted": preparation.retrieved_context_omitted,
                 "mutation_applied": preparation.mutation_applied,
                 "mutation_id": preparation.mutation_id,
                 "mutation_output_slots": preparation.mutation_output_slots,
+                "skill_sources_loaded": preparation.skill_sources_loaded,
+                "skill_sources_omitted": preparation.skill_sources_omitted,
+                "skill_sources_rejected": preparation.skill_sources_rejected,
+                "turn_count": preparation.turn_count,
+                "segment_count": preparation.segment_count,
+                "context_threshold": preparation.context_threshold,
+                "compression_profile": preparation.compression_profile,
+                "lane_budgets": preparation.lane_budgets,
+                "context_lanes": preparation.context_lanes,
+                "selection_policy": preparation.selection_policy,
+                "selected_turns": preparation.selected_turns,
+                "omitted_turns": preparation.omitted_turns,
+                "rejected_turns": preparation.rejected_turns,
+                "lifecycle_stages": preparation.lifecycle_stages,
+                "metrics": preparation.metrics,
             },
         )
+    if preparation.skill_sources_rejected:
+        raise WorkflowExecutionError(
+            f"skill source resolution failed for llm_step node {node.id!r}"
+        )
+    if tracer is not None:
         _check_prompt_cache(
             workflow,
             message_parts,
@@ -440,6 +533,7 @@ def prepare_model_input(
         model_parameters=_model_parameters(node),
         tool_choice=node.tool_choice,
         response_format=node.response_format,
+        context_compactor=context_compactor,
     )
 
 
@@ -511,6 +605,7 @@ async def _execute_node_async(
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str,
+    context_compactor: ContextCompactor | None,
 ) -> Any:
     if node.kind == "llm_step":
         return await _execute_llm_step_async(
@@ -523,6 +618,7 @@ async def _execute_node_async(
             prompt_cache,
             lifecycle_hooks,
             model_adapter_coverage,
+            context_compactor,
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
@@ -639,6 +735,7 @@ async def _execute_llm_step_async(
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str,
+    context_compactor: ContextCompactor | None,
 ) -> ModelResponse:
     prepared_input = prepare_model_input(
         node,
@@ -648,6 +745,7 @@ async def _execute_llm_step_async(
         tracer=tracer,
         prompt_cache=prompt_cache,
         model_adapter_coverage=model_adapter_coverage,
+        context_compactor=context_compactor,
     )
     tools: list[dict[str, Any]] = []
     exposed_tools: tuple[RegisteredTool, ...] = ()
@@ -696,19 +794,39 @@ async def _execute_llm_step_async(
             retry_exceptions=(ModelExecutionError,),
         )
     except ModelExecutionError as exc:
-        _record_retry(
-            state,
+        retry_response = await _retry_model_after_context_overflow_async(
+            exc,
             node,
-            "model",
-            attempts=policy.max_attempts if _retries_exceptions(policy) else 1,
-            outcome="failure",
-            final_error=str(exc),
-            tracer=tracer,
+            plan,
+            state,
+            prepared_input,
+            tools,
+            tracer,
         )
-        raise
-    _record_retry(
-        state, node, "model", attempts=attempts, outcome="success", tracer=tracer
-    )
+        if retry_response is not None:
+            response = retry_response
+            attempts = 2
+        else:
+            _record_retry(
+                state,
+                node,
+                "model",
+                attempts=policy.max_attempts if _retries_exceptions(policy) else 1,
+                outcome="failure",
+                final_error=str(exc),
+                tracer=tracer,
+            )
+            raise
+    if "response" not in locals():
+        raise WorkflowExecutionError(f"llm_step node {node.id!r} did not return output")
+    if attempts == 2:
+        _record_retry(
+            state, node, "model", attempts=attempts, outcome="success", tracer=tracer
+        )
+    else:
+        _record_retry(
+            state, node, "model", attempts=attempts, outcome="success", tracer=tracer
+        )
     tracer.emit(
         "model_response",
         node_id=str(node.id),
@@ -726,26 +844,72 @@ async def _execute_llm_step_async(
         ),
     )
     _record_prompt_cache_provider_telemetry(response, node, tracer)
-    if not _iterative_loop_enabled(plan):
-        _validate_model_output_contract(node, plan, response, prepared_input.prompt)
-        return response
-    loop_output = await _execute_model_tool_loop_async(
-        node,
-        plan,
-        state,
-        registry,
-        prepared_input,
-        response,
-        tools,
-        exposed_tools,
-        tracer,
-        lifecycle_hooks,
-    )
-    if isinstance(loop_output, WorkflowInterruptedResult):
-        return loop_output
-    response = loop_output
+    if _iterative_loop_enabled(plan):
+        loop_output = await _execute_model_tool_loop_async(
+            node,
+            plan,
+            state,
+            registry,
+            prepared_input,
+            response,
+            tools,
+            exposed_tools,
+            tracer,
+            lifecycle_hooks,
+        )
+        if isinstance(loop_output, WorkflowInterruptedResult):
+            return loop_output
+        response = loop_output
     _validate_model_output_contract(node, plan, response, prepared_input.prompt)
     return response
+
+
+async def _retry_model_after_context_overflow_async(
+    exc: ModelExecutionError,
+    node: PreparedNode,
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+    prepared_input: PreparedModelInput,
+    tools: Sequence[Mapping[str, Any]],
+    tracer: WorkflowTracer,
+) -> ModelResponse | None:
+    auto = _context_compaction_auto_policy(
+        _prepare_model_input_policy(plan.execution_policy)
+    )
+    if (
+        not is_context_overflow_error(exc)
+        or auto.get("retry_on_overflow") is not True
+        or prepared_input.context_compactor is None
+    ):
+        return None
+    metadata = {
+        "phase": "overflow_retry",
+        "trigger": "provider_context_overflow",
+        "implementation": str(auto.get("implementation") or "injected"),
+        "status": "retrying",
+        "reason": "context_overflow",
+    }
+    replacement_messages = tuple(
+        prepared_input.context_compactor(prepared_input.messages, metadata)
+    )
+    retry_request = build_openai_request(
+        model=prepared_input.model,
+        messages=replacement_messages,
+        tools=tools,
+        tool_choice=prepared_input.tool_choice,
+        response_format=prepared_input.response_format,
+        **prepared_input.model_parameters,
+    )
+    state.node_inputs[str(node.id)] = retry_request.to_kwargs()
+    tracer.emit(
+        "context_overflow_retry",
+        node_id=str(node.id),
+        payload={
+            **metadata,
+            "message_count": len(replacement_messages),
+        },
+    )
+    return await _create_model_response_async(prepared_input.adapter, retry_request)
 
 
 def _iterative_loop_enabled(plan: ExecutionPlan) -> bool:
@@ -877,7 +1041,21 @@ async def _request_loop_model_response_async(
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ModelResponse:
-    messages = (*prepared_input.messages, *transcript)
+    messages, mid_turn_compaction = _apply_mid_turn_compaction(
+        (*prepared_input.messages, *transcript),
+        plan,
+        prepared_input,
+    )
+    if mid_turn_compaction:
+        tracer.emit(
+            "mid_turn_compaction",
+            node_id=str(node.id),
+            payload=mid_turn_compaction,
+        )
+    if mid_turn_compaction.get("status") == "missing_collaborator":
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} requires mid-turn context compaction"
+        )
     request = build_openai_request(
         model=prepared_input.model,
         messages=messages,
@@ -946,6 +1124,43 @@ async def _request_loop_model_response_async(
     )
     _record_prompt_cache_provider_telemetry(response, node, tracer)
     return response
+
+
+def _apply_mid_turn_compaction(
+    messages: Sequence[OpenAIMessage | Mapping[str, Any]],
+    plan: ExecutionPlan,
+    prepared_input: PreparedModelInput,
+) -> tuple[tuple[OpenAIMessage | Mapping[str, Any], ...], Mapping[str, Any]]:
+    normalized_messages = tuple(
+        _message_from_model_input(message) for message in messages
+    )
+    compacted_parts, metadata = _apply_pre_turn_compaction(
+        tuple(
+            (f"mid_turn_message_{index}", message)
+            for index, message in enumerate(normalized_messages, start=1)
+        ),
+        _prepare_model_input_policy(plan.execution_policy),
+        prepared_input.adapter,
+        model=prepared_input.model,
+        context_compactor=prepared_input.context_compactor,
+    )
+    if not metadata:
+        return tuple(messages), {}
+    metadata = {**metadata, "phase": "mid_turn"}
+    if metadata.get("status") != "complete":
+        return tuple(messages), metadata
+    return tuple(message for _part_name, message in compacted_parts), metadata
+
+
+def _message_from_model_input(
+    message: OpenAIMessage | Mapping[str, Any],
+) -> OpenAIMessage:
+    if isinstance(message, OpenAIMessage):
+        return message
+    return OpenAIMessage(
+        role=str(message.get("role") or "user"),
+        content=str(message.get("content") or ""),
+    )
 
 
 async def _invoke_model_tool_call_async(
@@ -1447,6 +1662,21 @@ def _render_message_parts(
     *,
     context: Mapping[str, Any] | None = None,
 ) -> tuple[tuple[str, OpenAIMessage], ...]:
+    return _render_message_parts_with_skill_sources(
+        behavior,
+        state,
+        context=context,
+    ).message_parts
+
+
+def _render_message_parts_with_skill_sources(
+    behavior: Any,
+    state: WorkflowExecutionState,
+    *,
+    context: Mapping[str, Any] | None = None,
+    workflow: LoadedAgentWorkflow | None = None,
+    node_id: str | None = None,
+) -> _RenderedMessageParts:
     prompt_data = behavior.prompt
     render_context = dict(context) if context is not None else _format_context(state)
     messages: list[tuple[str, OpenAIMessage]] = []
@@ -1462,20 +1692,13 @@ def _render_message_parts(
                     ),
                 )
             )
-    for skill in behavior.skills:
-        instructions = skill.raw.get("instructions")
-        if instructions is None:
-            continue
-        role = str(skill.raw.get("prompt_role") or "developer")
-        messages.append(
-            (
-                "skill_instructions",
-                OpenAIMessage(
-                    role=role,
-                    content=_format_text(str(instructions), render_context),
-                ),
-            )
-        )
+    skill_messages, skill_source_preparation = _render_skill_instruction_messages(
+        behavior,
+        render_context,
+        workflow=workflow,
+        node_id=node_id,
+    )
+    messages.extend(skill_messages)
     user_template = (
         prompt_data.get("user_template") or prompt_data.get("user") or "{prompt}"
     )
@@ -1488,7 +1711,118 @@ def _render_message_parts(
             ),
         )
     )
-    return tuple(messages)
+    return _RenderedMessageParts(
+        message_parts=tuple(messages),
+        skill_source_preparation=skill_source_preparation,
+    )
+
+
+def _render_skill_instruction_messages(
+    behavior: Any,
+    render_context: Mapping[str, Any],
+    *,
+    workflow: LoadedAgentWorkflow | None,
+    node_id: str | None,
+) -> tuple[tuple[tuple[str, OpenAIMessage], ...], _SkillSourcePreparation]:
+    policy_metadata = (
+        workflow.runtime_manifest.skill_source_resolution_policy
+        if workflow is not None
+        else None
+    )
+    policy = (
+        policy_metadata.to_policy()
+        if policy_metadata is not None and policy_metadata.enabled
+        else None
+    )
+    messages: list[tuple[str, OpenAIMessage]] = []
+    loaded: list[Mapping[str, Any]] = []
+    omitted: list[Mapping[str, Any]] = []
+    rejected: list[Mapping[str, Any]] = []
+    resolved_sources = []
+    for skill in behavior.skills:
+        instructions = skill.raw.get("instructions")
+        if instructions is not None:
+            messages.append(
+                _skill_instruction_message(
+                    str(skill.raw.get("prompt_role") or "developer"),
+                    str(instructions),
+                    render_context,
+                )
+            )
+            omitted.append({"skill_id": skill.id, "reason": "inline_instructions"})
+            continue
+        if policy is None:
+            omitted.append({"skill_id": skill.id, "reason": "source_policy_disabled"})
+            continue
+        if workflow is None or workflow.skill_bundle_root is None:
+            rejected.append(
+                RejectedSkillSource(
+                    skill_id=str(skill.id),
+                    reason="missing package skill-bundle root",
+                ).redacted_metadata()
+            )
+            continue
+        try:
+            resolved = resolve_package_bundled_skill_source(
+                skill_id=str(skill.id),
+                raw_skill=skill.raw,
+                package_id=workflow.runtime_manifest.package_id,
+                skill_bundle_root=workflow.skill_bundle_root,
+                policy=policy,
+            )
+        except SkillSourceResolutionError as exc:
+            rejected.append(
+                RejectedSkillSource(
+                    skill_id=str(skill.id),
+                    reason=str(exc),
+                    bundled_path=(
+                        str(skill.raw["bundled_path"])
+                        if skill.raw.get("bundled_path") is not None
+                        else None
+                    ),
+                ).redacted_metadata()
+            )
+            continue
+        resolved_sources.append(resolved)
+        loaded.append(resolved.redacted_metadata())
+        messages.append(
+            _skill_instruction_message(
+                policy.prompt_role,
+                resolved.body,
+                render_context,
+            )
+        )
+    if policy is not None and node_id is not None:
+        try:
+            enforce_node_skill_source_budget(
+                tuple(resolved_sources),
+                policy=policy,
+                node_id=node_id,
+            )
+        except SkillSourceResolutionError as exc:
+            rejected.append({"skill_id": "*", "reason": str(exc)})
+    return (
+        tuple(messages),
+        _SkillSourcePreparation(
+            loaded=tuple(loaded),
+            omitted=tuple(omitted),
+            rejected=tuple(rejected),
+        ),
+    )
+
+
+def _skill_instruction_message(
+    role: str,
+    instructions: str,
+    render_context: Mapping[str, Any],
+) -> tuple[str, OpenAIMessage]:
+    return (
+        "skill_instructions",
+        OpenAIMessage(
+            role=role,
+            content=_format_text(instructions, render_context),
+        ),
+    )
 
 
 def _prepare_model_input_render_context(
@@ -1538,14 +1872,78 @@ def _merge_prepared_input_metadata(
         session_messages_included=base.session_messages_included,
         session_messages_pruned=base.session_messages_pruned,
         context_compaction_applied=base.context_compaction_applied,
+        compaction=base.compaction,
+        pre_turn_compaction=base.pre_turn_compaction,
+        context_reset=base.context_reset,
         file_context_applied=base.file_context_applied,
         file_context_sources=base.file_context_sources,
         file_context_files_included=base.file_context_files_included,
         file_context_bytes=base.file_context_bytes,
         file_context_estimated_tokens=base.file_context_estimated_tokens,
+        retrieved_context=base.retrieved_context,
+        retrieved_context_omitted=base.retrieved_context_omitted,
         mutation_applied=overlay.mutation_applied,
         mutation_id=overlay.mutation_id,
         mutation_output_slots=overlay.mutation_output_slots,
+        skill_sources_loaded=base.skill_sources_loaded,
+        skill_sources_omitted=base.skill_sources_omitted,
+        skill_sources_rejected=base.skill_sources_rejected,
+        turn_count=base.turn_count,
+        segment_count=base.segment_count,
+        turns=base.turns,
+        segments=base.segments,
+        context_threshold=base.context_threshold,
+        compression_profile=base.compression_profile,
+        lane_budgets=base.lane_budgets,
+        context_lanes=base.context_lanes,
+        selection_policy=base.selection_policy,
+        selected_turns=base.selected_turns,
+        omitted_turns=base.omitted_turns,
+        rejected_turns=base.rejected_turns,
+        lifecycle_stages=base.lifecycle_stages,
+        metrics=base.metrics,
+    )
+
+
+def _merge_skill_source_preparation(
+    base: PreparedInputMetadata,
+    skill_sources: _SkillSourcePreparation,
+) -> PreparedInputMetadata:
+    return PreparedInputMetadata(
+        hierarchy_applied=base.hierarchy_applied,
+        session_messages_included=base.session_messages_included,
+        session_messages_pruned=base.session_messages_pruned,
+        context_compaction_applied=base.context_compaction_applied,
+        compaction=base.compaction,
+        pre_turn_compaction=base.pre_turn_compaction,
+        context_reset=base.context_reset,
+        file_context_applied=base.file_context_applied,
+        file_context_sources=base.file_context_sources,
+        file_context_files_included=base.file_context_files_included,
+        file_context_bytes=base.file_context_bytes,
+        file_context_estimated_tokens=base.file_context_estimated_tokens,
+        retrieved_context=base.retrieved_context,
+        retrieved_context_omitted=base.retrieved_context_omitted,
+        mutation_applied=base.mutation_applied,
+        mutation_id=base.mutation_id,
+        mutation_output_slots=base.mutation_output_slots,
+        skill_sources_loaded=skill_sources.loaded,
+        skill_sources_omitted=skill_sources.omitted,
+        skill_sources_rejected=skill_sources.rejected,
+        turn_count=base.turn_count,
+        segment_count=base.segment_count,
+        turns=base.turns,
+        segments=base.segments,
+        context_threshold=base.context_threshold,
+        compression_profile=base.compression_profile,
+        lane_budgets=base.lane_budgets,
+        context_lanes=base.context_lanes,
+        selection_policy=base.selection_policy,
+        selected_turns=base.selected_turns,
+        omitted_turns=base.omitted_turns,
+        rejected_turns=base.rejected_turns,
+        lifecycle_stages=base.lifecycle_stages,
+        metrics=base.metrics,
     )
 
 
@@ -1564,6 +1962,8 @@ def _apply_prepare_model_input_stage(
     state: WorkflowExecutionState,
     *,
     model: str,
+    adapter: ModelAdapter,
+    context_compactor: ContextCompactor | None,
 ) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
     """Apply optional prepare-stage hierarchy and session shaping."""
 
@@ -1606,12 +2006,55 @@ def _apply_prepare_model_input_stage(
     kept_session, pruned_session = _pruned_session_messages(
         state.session_messages, policy
     )
+    compression_profile = _compression_profile(policy)
+    lane_budgets = _lane_budgets(policy)
+    turn_metadata, segment_metadata = _session_turn_diagnostics(state.session_messages)
+    context_threshold = _context_threshold_metadata(policy, adapter, model)
+    selection_policy = _selection_policy(policy)
+    lifecycle_stages = _lifecycle_stage_status(policy)
+    metrics = _context_metrics(policy)
+    (
+        retrieved_context_parts,
+        retrieved_context,
+        retrieved_context_omitted,
+    ) = _retrieved_context_messages(
+        state,
+        policy,
+        lane_budgets,
+        model=model,
+    )
+    result_parts.extend(retrieved_context_parts)
+    kept_session, lane_trimmed_session = _apply_recent_turn_lane_budget(
+        kept_session,
+        lane_budgets,
+        model=model,
+    )
+    (
+        selected_turn_parts,
+        selected_turns,
+        omitted_turns,
+        rejected_turns,
+    ) = _selected_older_turn_parts(
+        pruned_session,
+        state.prompt,
+        selection_policy,
+    )
     context_compaction_applied = False
+    compaction_metadata: Mapping[str, Any] = {}
+    context_reset = _context_reset_metadata(pruned_session, policy)
     if pruned_session:
-        summary_message = _compacted_session_message(pruned_session, policy)
+        summary_message = _compacted_session_message(pruned_session, policy, state)
         if summary_message is not None:
             result_parts.append(("session_summary", summary_message))
             context_compaction_applied = True
+            compaction_metadata = _compaction_metadata(
+                pruned_session,
+                summary_message,
+                policy,
+                model=model,
+            )
+
+    result_parts.extend(selected_turn_parts)
 
     for index, message in enumerate(kept_session, start=1):
         result_parts.append((f"session_message_{index}", message))
@@ -1619,16 +2062,50 @@ def _apply_prepare_model_input_stage(
     if user_part is not None:
         result_parts.append(user_part)
 
+    result_parts, pre_turn_compaction = _apply_pre_turn_compaction(
+        result_parts,
+        policy,
+        adapter,
+        model=model,
+        context_compactor=context_compactor,
+    )
+
+    context_lanes = _context_lane_metadata(
+        result_parts,
+        lane_budgets,
+        recent_trimmed_count=len(lane_trimmed_session),
+        retrieved_omitted_count=len(retrieved_context_omitted),
+    )
+
     return tuple(result_parts), PreparedInputMetadata(
         hierarchy_applied=hierarchy_applied,
         session_messages_included=len(kept_session),
         session_messages_pruned=len(pruned_session),
         context_compaction_applied=context_compaction_applied,
+        compaction=compaction_metadata,
+        pre_turn_compaction=pre_turn_compaction,
+        context_reset=context_reset,
         file_context_applied=file_context_metadata.file_context_applied,
         file_context_sources=file_context_metadata.file_context_sources,
         file_context_files_included=file_context_metadata.file_context_files_included,
         file_context_bytes=file_context_metadata.file_context_bytes,
         file_context_estimated_tokens=file_context_metadata.file_context_estimated_tokens,
+        retrieved_context=retrieved_context,
+        retrieved_context_omitted=retrieved_context_omitted,
+        turn_count=len(turn_metadata),
+        segment_count=len(segment_metadata),
+        turns=turn_metadata,
+        segments=segment_metadata,
+        context_threshold=context_threshold,
+        compression_profile=compression_profile,
+        lane_budgets=lane_budgets,
+        context_lanes=context_lanes,
+        selection_policy=selection_policy,
+        selected_turns=selected_turns,
+        omitted_turns=omitted_turns,
+        rejected_turns=rejected_turns,
+        lifecycle_stages=lifecycle_stages,
+        metrics=metrics,
     )
 
 
@@ -1637,6 +2114,573 @@ def _prepare_model_input_policy(
 ) -> Mapping[str, Any]:
     value = execution_policy.get("prepare_model_input")
     return value if isinstance(value, Mapping) else {}
+
+
+def _session_turn_diagnostics(
+    session_messages: Sequence[OpenAIMessage],
+) -> tuple[tuple[Mapping[str, Any], ...], tuple[Mapping[str, Any], ...]]:
+    turns: list[list[OpenAIMessage]] = []
+    current: list[OpenAIMessage] = []
+    for message in session_messages:
+        if message.role == "user" and current:
+            turns.append(current)
+            current = []
+        current.append(message)
+    if current:
+        turns.append(current)
+
+    turn_metadata: list[Mapping[str, Any]] = []
+    segment_metadata: list[Mapping[str, Any]] = []
+    for turn_index, turn in enumerate(turns, start=1):
+        turn_id = f"turn_{turn_index}"
+        lane = "current_turn" if turn_index == len(turns) else "recent_turns"
+        turn_metadata.append(
+            {
+                "turn_id": turn_id,
+                "lane": lane,
+                "message_count": len(turn),
+                "roles": tuple(message.role for message in turn),
+                "selection_status": "included",
+            }
+        )
+        for segment_index, message in enumerate(turn, start=1):
+            segment_metadata.append(
+                {
+                    "segment_id": f"{turn_id}_segment_{segment_index}",
+                    "turn_id": turn_id,
+                    "lane": lane,
+                    "role": message.role,
+                    "selection_status": "included",
+                }
+            )
+    return tuple(turn_metadata), tuple(segment_metadata)
+
+
+def _context_threshold_metadata(
+    policy: Mapping[str, Any],
+    adapter: ModelAdapter,
+    model: str,
+) -> Mapping[str, Any]:
+    auto = _context_compaction_auto_policy(policy)
+    if not auto:
+        return {}
+    threshold_ratio = min(float(auto.get("threshold_ratio", 0.9)), 0.9)
+    context_window = _adapter_context_window(adapter, model)
+    result: dict[str, Any] = {
+        "enabled": auto.get("enabled", False) is True,
+        "threshold_ratio": threshold_ratio,
+        "context_window": context_window,
+        "threshold_tokens": (
+            int(context_window * threshold_ratio)
+            if isinstance(context_window, int)
+            else None
+        ),
+        "reserve_tokens": auto.get("reserve_tokens"),
+        "trigger": str(auto.get("trigger") or "token_threshold"),
+        "scope": str(auto.get("scope") or "current_run"),
+        "implementation": str(auto.get("implementation") or "metadata_only"),
+        "strategy": str(auto.get("strategy") or "basic"),
+        "mode": str(auto.get("mode") or "auto"),
+        "status": "metadata_only",
+    }
+    return {key: value for key, value in result.items() if value is not None}
+
+
+def _context_compaction_auto_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:
+    compaction = policy.get("context_compaction")
+    if not isinstance(compaction, Mapping):
+        return {}
+    auto = compaction.get("auto")
+    return auto if isinstance(auto, Mapping) else {}
+
+
+def _adapter_context_window(adapter: ModelAdapter, model: str) -> int | None:
+    context_windows = getattr(adapter, "context_windows", None)
+    if isinstance(context_windows, Mapping):
+        value = context_windows.get(model)
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+    return None
+
+
+def _compression_profile(policy: Mapping[str, Any]) -> str | None:
+    compression = policy.get("context_compression")
+    if not isinstance(compression, Mapping):
+        return None
+    profile = compression.get("profile")
+    return str(profile) if profile is not None else None
+
+
+def _lane_budgets(policy: Mapping[str, Any]) -> Mapping[str, int]:
+    compression = policy.get("context_compression")
+    if not isinstance(compression, Mapping):
+        return {}
+    lanes = compression.get("lanes")
+    if not isinstance(lanes, Mapping):
+        return {}
+    return {
+        str(key): value
+        for key, value in lanes.items()
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0
+    }
+
+
+def _apply_recent_turn_lane_budget(
+    messages: Sequence[OpenAIMessage],
+    lane_budgets: Mapping[str, int],
+    *,
+    model: str,
+) -> tuple[tuple[OpenAIMessage, ...], tuple[OpenAIMessage, ...]]:
+    budget = lane_budgets.get("recent_turn_tokens")
+    if budget is None:
+        return tuple(messages), ()
+    included: list[OpenAIMessage] = []
+    omitted: list[OpenAIMessage] = []
+    used_tokens = 0
+    for message in messages:
+        token_count = estimate_messages_tokens(
+            ({"role": message.role, "content": message.content},),
+            model=model,
+        ).token_count
+        if used_tokens + token_count > budget:
+            omitted.append(message)
+            continue
+        included.append(message)
+        used_tokens += token_count
+    return tuple(included), tuple(omitted)
+
+
+def _retrieved_context_messages(
+    state: WorkflowExecutionState,
+    policy: Mapping[str, Any],
+    lane_budgets: Mapping[str, int],
+    *,
+    model: str,
+) -> tuple[
+    tuple[tuple[str, OpenAIMessage], ...],
+    tuple[Mapping[str, Any], ...],
+    tuple[Mapping[str, Any], ...],
+]:
+    retrieved_context = policy.get("retrieved_context")
+    if (
+        not isinstance(retrieved_context, Mapping)
+        or retrieved_context.get("enabled") is not True
+    ):
+        return (), (), ()
+
+    slot = str(retrieved_context.get("source_slot") or "retrieved_context")
+    evidence_items = _retrieved_context_items(state.node_outputs.get(slot))
+    if not evidence_items:
+        return (), (), ()
+
+    role = str(retrieved_context.get("prompt_role") or "developer")
+    header = str(retrieved_context.get("header") or "Retrieved context:")
+    budget = lane_budgets.get("retrieved_context_tokens")
+    used_optional_tokens = 0
+    parts: list[tuple[str, OpenAIMessage]] = []
+    included: list[Mapping[str, Any]] = []
+    omitted: list[Mapping[str, Any]] = []
+
+    for item in evidence_items:
+        metadata = _retrieved_context_metadata(item)
+        token_count = _retrieved_context_token_estimate(item, model=model)
+        required = metadata["required"] is True
+        if (
+            not required
+            and budget is not None
+            and used_optional_tokens + token_count > budget
+        ):
+            omitted.append(
+                {
+                    **metadata,
+                    "selection_status": "omitted",
+                    "selection_reason": "retrieved_context_lane_budget_exceeded",
+                }
+            )
+            continue
+        part_index = len(parts) + 1
+        parts.append(
+            (
+                f"retrieved_context_{part_index}",
+                OpenAIMessage(
+                    role=role,
+                    content=_render_retrieved_context_item(header, item),
+                ),
+            )
+        )
+        included.append({**metadata, "selection_status": "included"})
+        if not required:
+            used_optional_tokens += token_count
+
+    return tuple(parts), tuple(included), tuple(omitted)
+
+
+def _retrieved_context_items(value: Any) -> tuple[Mapping[str, Any], ...]:
+    if isinstance(value, Mapping):
+        evidence = value.get("evidence")
+        if evidence is None:
+            return (value,)
+        value = evidence
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        return ()
+    return tuple(item for item in value if isinstance(item, Mapping))
+
+
+def _retrieved_context_metadata(item: Mapping[str, Any]) -> Mapping[str, Any]:
+    metadata: dict[str, Any] = {
+        "source_id": str(item.get("source_id") or ""),
+        "chunk_id": str(item.get("chunk_id") or ""),
+        "citation_handle": str(item.get("citation_handle") or ""),
+        "required": _retrieved_context_required(item),
+    }
+    token_estimate = item.get("token_estimate")
+    if isinstance(token_estimate, int) and not isinstance(token_estimate, bool):
+        metadata["token_estimate"] = token_estimate
+    score = item.get("score")
+    if isinstance(score, int | float) and not isinstance(score, bool):
+        metadata["score"] = score
+    freshness = item.get("freshness")
+    if isinstance(freshness, Mapping):
+        metadata["freshness"] = dict(freshness)
+    packing_hint = item.get("packing_hint")
+    if isinstance(packing_hint, Mapping):
+        metadata["packing_hint"] = dict(packing_hint)
+    return {key: value for key, value in metadata.items() if value != ""}
+
+
+def _retrieved_context_required(item: Mapping[str, Any]) -> bool:
+    if item.get("required") is True or item.get("required_context") is True:
+        return True
+    lane_hint = item.get("lane_hint")
+    return isinstance(lane_hint, str) and lane_hint.lower() == "required"
+
+
+def _retrieved_context_token_estimate(
+    item: Mapping[str, Any],
+    *,
+    model: str,
+) -> int:
+    token_estimate = item.get("token_estimate")
+    if isinstance(token_estimate, int) and not isinstance(token_estimate, bool):
+        return max(token_estimate, 0)
+    content = str(item.get("content") or "")
+    return estimate_messages_tokens(
+        ({"role": "developer", "content": content},),
+        model=model,
+    ).token_count
+
+
+def _render_retrieved_context_item(header: str, item: Mapping[str, Any]) -> str:
+    lines = [header]
+    for label, key in (
+        ("Source ID", "source_id"),
+        ("Chunk ID", "chunk_id"),
+        ("Citation", "citation_handle"),
+    ):
+        value = item.get(key)
+        if value is not None:
+            lines.append(f"{label}: {value}")
+    lines.append(str(item.get("content") or ""))
+    return "\n".join(lines)
+
+
+def _selected_older_turn_parts(
+    pruned_session: Sequence[OpenAIMessage],
+    prompt: str,
+    selection_policy: Mapping[str, Any],
+) -> tuple[
+    tuple[tuple[str, OpenAIMessage], ...],
+    tuple[Mapping[str, Any], ...],
+    tuple[Mapping[str, Any], ...],
+    tuple[Mapping[str, Any], ...],
+]:
+    if selection_policy.get("strategy") != "deterministic_overlap":
+        return (), (), (), ()
+    max_selected_turns = selection_policy.get("max_selected_turns")
+    if (
+        not isinstance(max_selected_turns, int)
+        or isinstance(max_selected_turns, bool)
+        or max_selected_turns <= 0
+    ):
+        return (), (), (), ()
+
+    prompt_tokens = _selection_tokens(prompt)
+    if not prompt_tokens:
+        return (), (), (), ()
+
+    scored_turns: list[tuple[int, int, str, tuple[OpenAIMessage, ...]]] = []
+    rejected_turns: list[Mapping[str, Any]] = []
+    for turn_index, messages in enumerate(_session_turns(pruned_session), start=1):
+        turn_text = "\n".join(message.content for message in messages)
+        score = len(prompt_tokens & _selection_tokens(turn_text))
+        if score > 0:
+            scored_turns.append((score, turn_index, f"turn_{turn_index}", messages))
+        else:
+            rejected_turns.append(
+                {
+                    "turn_id": f"turn_{turn_index}",
+                    "selection_status": "rejected",
+                    "selection_reason": "no_deterministic_overlap",
+                    "relevance_score": 0,
+                }
+            )
+
+    ranked_candidates = sorted(scored_turns, key=lambda item: (-item[0], item[1]))
+    selected_candidates = ranked_candidates[:max_selected_turns]
+    omitted_candidates = ranked_candidates[max_selected_turns:]
+    if selection_policy.get("chronological_reassembly") is not False:
+        selected_candidates = sorted(selected_candidates, key=lambda item: item[1])
+
+    parts: list[tuple[str, OpenAIMessage]] = []
+    metadata: list[Mapping[str, Any]] = []
+    for selected_index, (score, _turn_index, turn_id, messages) in enumerate(
+        selected_candidates,
+        start=1,
+    ):
+        lines = [f"Selected older turn {turn_id}:"]
+        lines.extend(f"- {message.role}: {message.content}" for message in messages)
+        parts.append(
+            (
+                f"selected_turn_{selected_index}",
+                OpenAIMessage(role="developer", content="\n".join(lines)),
+            )
+        )
+        metadata.append(
+            {
+                "turn_id": turn_id,
+                "selection_status": "selected",
+                "selection_reason": "deterministic_overlap",
+                "relevance_score": score,
+            }
+        )
+    omitted_turns = tuple(
+        {
+            "turn_id": turn_id,
+            "selection_status": "omitted",
+            "selection_reason": "max_selected_turns_exceeded",
+            "relevance_score": score,
+        }
+        for score, _turn_index, turn_id, _messages in omitted_candidates
+    )
+    return tuple(parts), tuple(metadata), omitted_turns, tuple(rejected_turns)
+
+
+def _session_turns(
+    session_messages: Sequence[OpenAIMessage],
+) -> tuple[tuple[OpenAIMessage, ...], ...]:
+    turns: list[list[OpenAIMessage]] = []
+    current: list[OpenAIMessage] = []
+    for message in session_messages:
+        if message.role == "user" and current:
+            turns.append(current)
+            current = []
+        current.append(message)
+    if current:
+        turns.append(current)
+    return tuple(tuple(turn) for turn in turns)
+
+
+def _selection_tokens(value: str) -> set[str]:
+    return {
+        token for token in re.findall(r"[A-Za-z]+", value.lower()) if len(token) >= 4
+    }
+
+
+def _context_lane_metadata(
+    parts: Sequence[tuple[str, OpenAIMessage]],
+    lane_budgets: Mapping[str, int],
+    *,
+    recent_trimmed_count: int,
+    retrieved_omitted_count: int,
+) -> tuple[Mapping[str, Any], ...]:
+    lane_order = (
+        "pinned",
+        "file_tool",
+        "retrieved_context",
+        "rolling_summary",
+        "selected_older_turns",
+        "recent_turns",
+        "current_turn",
+    )
+    lane_parts: dict[str, list[str]] = {lane_id: [] for lane_id in lane_order}
+    for part_name, _message in parts:
+        lane_parts[_part_lane_id(part_name)].append(part_name)
+    lanes: list[Mapping[str, Any]] = []
+    for lane_id in lane_order:
+        part_names = tuple(lane_parts[lane_id])
+        if (
+            not part_names
+            and not (lane_id == "recent_turns" and recent_trimmed_count)
+            and not (lane_id == "retrieved_context" and retrieved_omitted_count)
+        ):
+            continue
+        budget = lane_budgets.get(_lane_budget_key(lane_id))
+        omitted_count = (
+            retrieved_omitted_count
+            if lane_id == "retrieved_context"
+            else recent_trimmed_count
+            if lane_id == "recent_turns"
+            else 0
+        )
+        lane: dict[str, Any] = {
+            "lane_id": lane_id,
+            "part_count": len(part_names),
+            "part_names": part_names,
+            "trimmed_count": recent_trimmed_count if lane_id == "recent_turns" else 0,
+            "omitted_count": omitted_count,
+        }
+        if budget is not None:
+            lane["budget_tokens"] = budget
+        lanes.append(lane)
+    return tuple(lanes)
+
+
+def _part_lane_id(part_name: str) -> str:
+    if part_name.startswith("hierarchy_") or part_name in {
+        "system",
+        "developer",
+        "skill_instructions",
+    }:
+        return "pinned"
+    if part_name.startswith("file_context_"):
+        return "file_tool"
+    if part_name.startswith("retrieved_context_"):
+        return "retrieved_context"
+    if part_name == "session_summary":
+        return "rolling_summary"
+    if part_name.startswith("selected_turn_"):
+        return "selected_older_turns"
+    if part_name.startswith("session_message_"):
+        return "recent_turns"
+    if part_name == "user_prompt":
+        return "current_turn"
+    return "pinned"
+
+
+def _lane_budget_key(lane_id: str) -> str:
+    return {
+        "pinned": "pinned_tokens",
+        "file_tool": "file_context_tokens",
+        "retrieved_context": "retrieved_context_tokens",
+        "rolling_summary": "summary_tokens",
+        "selected_older_turns": "selected_turn_tokens",
+        "recent_turns": "recent_turn_tokens",
+        "current_turn": "current_turn_tokens",
+    }[lane_id]
+
+
+def _selection_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:
+    compression = policy.get("context_compression")
+    if not isinstance(compression, Mapping):
+        return {}
+    selection = compression.get("selection")
+    if not isinstance(selection, Mapping):
+        return {}
+    result: dict[str, Any] = {}
+    for key in ("strategy", "max_selected_turns", "chronological_reassembly"):
+        if key in selection:
+            result[key] = selection[key]
+    return result
+
+
+def _lifecycle_stage_status(policy: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
+    auto = _context_compaction_auto_policy(policy)
+    stages = auto.get("lifecycle_stages")
+    if not isinstance(stages, Sequence) or isinstance(stages, (str, bytes, bytearray)):
+        return ()
+    return tuple(
+        {"stage": str(stage), "status": "complete"}
+        for stage in stages
+        if isinstance(stage, str)
+    )
+
+
+def _context_metrics(policy: Mapping[str, Any]) -> tuple[str, ...]:
+    auto = _context_compaction_auto_policy(policy)
+    metrics = auto.get("metrics")
+    if not isinstance(metrics, Sequence) or isinstance(
+        metrics, (str, bytes, bytearray)
+    ):
+        return ()
+    return tuple(str(metric) for metric in metrics if isinstance(metric, str))
+
+
+def _apply_pre_turn_compaction(
+    parts: Sequence[tuple[str, OpenAIMessage]],
+    policy: Mapping[str, Any],
+    adapter: ModelAdapter,
+    *,
+    model: str,
+    context_compactor: ContextCompactor | None,
+) -> tuple[list[tuple[str, OpenAIMessage]], Mapping[str, Any]]:
+    auto = _context_compaction_auto_policy(policy)
+    if auto.get("enabled") is not True:
+        return list(parts), {}
+    implementation = str(auto.get("implementation") or "metadata_only")
+    if implementation != "injected":
+        return list(parts), {}
+    messages = tuple(message for _part_name, message in parts)
+    tokens_before = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content} for message in messages
+        ),
+        model=model,
+    ).token_count
+    threshold = _pre_turn_compaction_threshold(auto, adapter, model)
+    base_metadata: dict[str, Any] = {
+        "phase": "pre_turn",
+        "trigger": str(auto.get("trigger") or "token_threshold"),
+        "implementation": implementation,
+        "threshold_tokens": threshold,
+        "tokens_before": tokens_before,
+    }
+    if threshold is None or tokens_before <= threshold:
+        return list(parts), {
+            **base_metadata,
+            "status": "skipped",
+            "reason": "under_threshold",
+            "tokens_after": tokens_before,
+        }
+    if context_compactor is None:
+        return list(parts), {
+            **base_metadata,
+            "status": "missing_collaborator",
+            "reason": "context_compactor_unavailable",
+            "tokens_after": tokens_before,
+        }
+    replacement_messages = tuple(context_compactor(messages, base_metadata))
+    tokens_after = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content}
+            for message in replacement_messages
+        ),
+        model=model,
+    ).token_count
+    replacement_parts = [
+        (f"pre_turn_compacted_{index}", message)
+        for index, message in enumerate(replacement_messages, start=1)
+    ]
+    return replacement_parts, {
+        **base_metadata,
+        "status": "complete",
+        "reason": "token_threshold_exceeded",
+        "tokens_after": tokens_after,
+    }
+
+
+def _pre_turn_compaction_threshold(
+    auto: Mapping[str, Any],
+    adapter: ModelAdapter,
+    model: str,
+) -> int | None:
+    threshold_tokens = auto.get("threshold_tokens")
+    if isinstance(threshold_tokens, int) and not isinstance(threshold_tokens, bool):
+        return threshold_tokens
+    context_window = _adapter_context_window(adapter, model)
+    if context_window is None:
+        return None
+    threshold_ratio = min(float(auto.get("threshold_ratio", 0.9)), 0.9)
+    return int(context_window * threshold_ratio)
 
 
 def _file_context_messages(
@@ -1827,18 +2871,38 @@ def _pruned_session_messages(
         return tuple(session_messages), ()
     if limit == 0:
         return (), tuple(session_messages)
-    return tuple(session_messages[-limit:]), tuple(session_messages[:-limit])
+    turns = _session_turns(session_messages)
+    kept_turns: list[tuple[OpenAIMessage, ...]] = []
+    kept_count = 0
+    for turn in reversed(turns):
+        if kept_turns and kept_count + len(turn) > limit:
+            break
+        kept_turns.append(turn)
+        kept_count += len(turn)
+        if kept_count >= limit:
+            break
+    kept_turns.reverse()
+    pruned_turn_count = len(turns) - len(kept_turns)
+    return (
+        tuple(message for turn in kept_turns for message in turn),
+        tuple(message for turn in turns[:pruned_turn_count] for message in turn),
+    )
 
 
 def _compacted_session_message(
     pruned_session: Sequence[OpenAIMessage],
     policy: Mapping[str, Any],
+    state: WorkflowExecutionState,
 ) -> OpenAIMessage | None:
     compaction = policy.get("context_compaction")
     if not isinstance(compaction, Mapping):
         return None
+    if compaction.get("reset_behavior") == "new_window":
+        return None
     strategy = str(compaction.get("strategy") or "summary_message")
-    if strategy != "summary_message":
+    if strategy == "rolling_summary":
+        return _rolling_summary_message(pruned_session, compaction, state)
+    if strategy not in {"summary_message", "basic"}:
         return None
     role = str(compaction.get("summary_role") or "developer")
     max_chars = _optional_positive_int(compaction.get("max_chars_per_message")) or 120
@@ -1849,6 +2913,146 @@ def _compacted_session_message(
     for message in pruned_session:
         lines.append(f"- {message.role}: {_truncate_text(message.content, max_chars)}")
     return OpenAIMessage(role=role, content="\n".join(lines))
+
+
+def _context_reset_metadata(
+    pruned_session: Sequence[OpenAIMessage],
+    policy: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    compaction = policy.get("context_compaction")
+    if (
+        not pruned_session
+        or not isinstance(compaction, Mapping)
+        or compaction.get("reset_behavior") != "new_window"
+    ):
+        return {}
+    return {
+        "reset_behavior": "new_window",
+        "reason": str(compaction.get("reset_reason") or "policy"),
+        "session_messages_dropped": len(pruned_session),
+        "compaction_success": False,
+    }
+
+
+def _rolling_summary_message(
+    pruned_session: Sequence[OpenAIMessage],
+    compaction: Mapping[str, Any],
+    state: WorkflowExecutionState,
+) -> OpenAIMessage | None:
+    rolling_summary = compaction.get("rolling_summary")
+    if (
+        not isinstance(rolling_summary, Mapping)
+        or rolling_summary.get("enabled") is not True
+    ):
+        return None
+    role = str(compaction.get("summary_role") or "developer")
+    prior_summary_slot = str(
+        rolling_summary.get("prior_summary_slot") or "rolling_summary"
+    )
+    source_slot = str(
+        rolling_summary.get("source_provenance_slot") or "source_provenance"
+    )
+    retained_turns = _retained_rolling_summary_turns(
+        pruned_session,
+        rolling_summary,
+    )
+    lines = [
+        "Rolling context summary:",
+        "## Prior Summary",
+        str(state.node_outputs.get(prior_summary_slot) or "Not recorded."),
+        "## Retained Turns",
+    ]
+    if retained_turns:
+        for turn in retained_turns:
+            lines.extend(f"- {message.role}: {message.content}" for message in turn)
+    else:
+        lines.append("Not recorded.")
+    lines.extend(["## Source Provenance"])
+    source_provenance = _rolling_summary_source_provenance(
+        state.node_outputs.get(source_slot)
+    )
+    if source_provenance:
+        lines.extend(f"- {source}" for source in source_provenance)
+    else:
+        lines.append("Not recorded.")
+    lines.extend(["## Open Decisions", "Not recorded."])
+    return OpenAIMessage(role=role, content="\n".join(lines))
+
+
+def _retained_rolling_summary_turns(
+    pruned_session: Sequence[OpenAIMessage],
+    rolling_summary: Mapping[str, Any],
+) -> tuple[tuple[OpenAIMessage, ...], ...]:
+    max_retained_turns = (
+        _optional_positive_int(rolling_summary.get("max_retained_turns")) or 1
+    )
+    return _session_turns(pruned_session)[-max_retained_turns:]
+
+
+def _rolling_summary_source_provenance(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return tuple(str(item) for item in value if item is not None)
+    return (str(value),)
+
+
+def _compaction_metadata(
+    pruned_session: Sequence[OpenAIMessage],
+    summary_message: OpenAIMessage,
+    policy: Mapping[str, Any],
+    *,
+    model: str,
+) -> Mapping[str, Any]:
+    compaction = policy.get("context_compaction")
+    strategy = (
+        str(compaction.get("strategy") or "summary_message")
+        if isinstance(compaction, Mapping)
+        else "summary_message"
+    )
+    before_tokens = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content}
+            for message in pruned_session
+        ),
+        model=model,
+    ).token_count
+    after_tokens = estimate_messages_tokens(
+        ({"role": summary_message.role, "content": summary_message.content},),
+        model=model,
+    ).token_count
+    return {
+        "strategy": strategy,
+        "messages_before": len(pruned_session),
+        "messages_after": 1,
+        "tokens_before": before_tokens,
+        "tokens_after": after_tokens,
+        "compression_ratio": after_tokens / before_tokens if before_tokens else 1,
+        **_rolling_summary_metadata(pruned_session, compaction),
+    }
+
+
+def _rolling_summary_metadata(
+    pruned_session: Sequence[OpenAIMessage],
+    compaction: Any,
+) -> Mapping[str, Any]:
+    if not isinstance(compaction, Mapping):
+        return {}
+    if str(compaction.get("strategy") or "") != "rolling_summary":
+        return {}
+    rolling_summary = compaction.get("rolling_summary")
+    if not isinstance(rolling_summary, Mapping):
+        return {}
+    retained_turn_count = len(
+        _retained_rolling_summary_turns(pruned_session, rolling_summary)
+    )
+    total_turn_count = max(len(_session_turns(pruned_session)), 1)
+    return {
+        "retained_turn_count": retained_turn_count,
+        "information_retention_proxy": retained_turn_count / total_turn_count,
+    }
 
 
 def _optional_positive_int(value: Any) -> int | None:
