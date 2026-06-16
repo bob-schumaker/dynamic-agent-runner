@@ -12,40 +12,149 @@ Status: future backlog; no tasks started
   - `src/dynamic_agent_runner/capabilities.py`
   - `tests/test_executor.py`
 
-## Slice 1 — Policy and metadata contract
+## Slice 1 — Policy, turn model, and metadata contract
 
 - [ ] T1.1 [tests] Add RED validation coverage for
       `runtime.execution_policy.prepare_model_input.context_compaction.auto`.
-  - Spec: FR7, FR10
+  - Spec: FR7, FR10, FR12, FR14
   - Files/components: `tests/test_validation.py`,
     `src/dynamic_agent_runner/validation.py`
   - Cover invalid threshold types, negative thresholds, unknown scopes,
-    unsupported implementation modes, and reset-vs-compaction ambiguity.
+    unsupported implementation modes, invalid strategies, invalid manual/auto
+    modes, invalid lane budgets, invalid selection modes, and
+    reset-vs-compaction ambiguity.
   - Validation: `poetry run pytest tests/test_validation.py -q`
 
-- [ ] T1.2 [tests] Add RED executor coverage for threshold derivation and
-      clamping from model context-window metadata.
-  - Spec: FR7
+- [ ] T1.2 [tests] Add RED executor coverage for turn-unit grouping.
+  - Spec: FR2, FR11
+  - Files/components: `tests/test_executor.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Cover user/assistant turns, tool-call/result pairs, multi-tool turns,
+    retry/error records where represented, and fail-closed invalid structures.
+  - Validation: `poetry run pytest tests/test_executor.py -q -k turn_grouping`
+
+- [ ] T1.3 [tests] Add RED executor coverage for threshold derivation and
+      reserve-token trigger precedence.
+  - Spec: FR7, FR12
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
   - Cover default 90% threshold, configured threshold clamping, missing
-    context-window metadata, and strict/unavailable behavior.
+    context-window metadata, reserve-token trigger precedence, and
+    strict/unavailable behavior.
   - Validation: `poetry run pytest tests/test_executor.py -q -k auto_compact`
 
-- [ ] T1.3 [implementation] Add normalized automatic compaction policy parsing
-      and prepared-input metadata fields.
-  - Spec: FR6, FR7, FR10
+- [ ] T1.4 [implementation] Add normalized compression policy parsing, turn
+      grouping, and prepared-input metadata fields.
+  - Spec: FR2, FR6, FR7, FR10, FR12, FR14
   - Files/components: `src/dynamic_agent_runner/executor.py`,
     `src/dynamic_agent_runner/models.py`
-  - Include threshold, scope, phase, trigger, reason, implementation,
-    window-id, token-baseline, and reset-vs-compaction diagnostics.
+  - Include turn ids, lane ids, threshold, scope, phase, trigger, reason,
+    implementation, strategy, mode, window-id, token-baseline, reserve-token,
+    and reset-vs-compaction diagnostics.
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_validation.py -q`
 
-## Slice 2 — Pre-turn remote compaction seam
+## Slice 2 — Lane-based prompt assembly
 
-- [ ] T2.1 [tests] Add RED pre-turn remote compaction coverage using an injected
-      fake compactor.
+- [ ] T2.1 [tests] Add RED coverage for lane budget assembly.
+  - Spec: FR4, FR5, FR14
+  - Files/components: `tests/test_executor.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Cover pinned hierarchy, current turn, recent turns, rolling-summary slot,
+    selected older-turn slot, file/tool lane, lane ordering, and lane metadata.
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k context_lanes`
+
+- [ ] T2.2 [tests] Add RED coverage for lane budget enforcement.
+  - Spec: FR6, FR14
+  - Files/components: `tests/test_executor.py`
+  - Cover per-lane token limits, no implicit cross-lane borrowing, trimmed and
+    omitted counts, and protected current-turn behavior.
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k lane_budget`
+
+- [ ] T2.3 [implementation] Add lane-based prompt assembly.
+  - Spec: FR4, FR5, FR6, FR14
+  - Files/components: `src/dynamic_agent_runner/executor.py`
+  - Assemble prepared input from explicit lanes with stable ordering and
+    metadata before any summarization or provider compaction.
+  - Validation: `poetry run pytest tests/test_executor.py -q`
+
+## Slice 3 — Deterministic older-turn selection
+
+- [ ] T3.1 [tests] Add RED coverage for deterministic older-turn selection.
+  - Spec: FR15
+  - Files/components: `tests/test_executor.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Cover path overlap, symbol/name overlap, state-key overlap, tool-name
+    overlap, error/decision markers, max selected turns, and empty selection.
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k older_turn_selection`
+
+- [ ] T3.2 [tests] Add RED coverage for chronological reassembly.
+  - Spec: FR15
+  - Files/components: `tests/test_executor.py`
+  - Cover ranked selections returned out of order and final selected-turn
+    rendering in original chronological order.
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k chronological_reassembly`
+
+- [ ] T3.3 [implementation] Add deterministic older-turn selector.
+  - Spec: FR6, FR15
+  - Files/components: `src/dynamic_agent_runner/executor.py`
+  - Use deterministic overlap only, add an injected selector seam for future
+    semantic selectors, and report selected/rejected/omitted metadata.
+  - Validation: `poetry run pytest tests/test_executor.py -q`
+
+## Slice 4 — Deterministic fallback compaction
+
+- [ ] T4.1 [tests] Add RED executor coverage for deterministic fallback
+      compaction.
+  - Spec: FR11, FR12, FR14
+  - Files/components: `tests/test_executor.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Cover no live model call, latest-turn protection, older-history reduction,
+    token-count metadata, and no-op behavior when already under target.
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k basic_compaction`
+
+- [ ] T4.2 [tests] Add RED coverage for tool-call/result pair safety.
+  - Spec: FR11
+  - Files/components: `tests/test_executor.py`
+  - Cover old pair removal, latest pair preservation, multi-tool turns, and
+    fail-closed behavior when a valid pair cannot be preserved.
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k compaction_tool_pairs`
+
+- [ ] T4.3 [implementation] Add deterministic fallback compaction.
+  - Spec: FR11, FR12, FR14
+  - Files/components: `src/dynamic_agent_runner/executor.py`
+  - Trim oversized retained tool results/file blocks first, then selected older
+    turns, then oldest recent turns beyond the protected suffix, and finally
+    summary detail below required headings.
+  - Validation: `poetry run pytest tests/test_executor.py -q`
+
+## Slice 5 — Rolling summary compaction
+
+- [ ] T5.1 [tests] Add RED rolling summary coverage with a fake
+      model adapter.
+  - Spec: FR3, FR14
+  - Files/components: `tests/test_executor.py`
+  - Cover required structured headings, retained-turn limits, prior-summary
+    folding, file/source provenance carry-forward, summary placement,
+    no-summary when nothing was evicted, and failure taxonomy.
+  - Validation: `poetry run pytest tests/test_executor.py -q -k local_compaction`
+
+- [ ] T5.2 [implementation] Add explicit rolling summary compaction.
+  - Spec: FR3, FR9, FR14
+  - Files/components: `src/dynamic_agent_runner/executor.py`
+  - Require explicit policy opt-in; no hidden live model call.
+  - Validation: `poetry run pytest tests/test_executor.py -q`
+
+## Slice 6 — Pre-turn provider compaction seam
+
+- [ ] T6.1 [tests] Add RED pre-turn provider compaction coverage using an
+      injected fake compactor.
   - Spec: FR8, FR9, FR10
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -54,16 +163,16 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k pre_turn_compaction`
 
-- [ ] T2.2 [implementation] Add a provider/injected remote compaction boundary.
+- [ ] T6.2 [implementation] Add a provider/injected compaction boundary.
   - Spec: FR9
   - Files/components: `src/dynamic_agent_runner/openai_client.py`,
     `src/dynamic_agent_runner/executor.py`
-  - Keep `/responses/compact` as an optional provider capability; do not call it
-    from unit tests.
+  - Keep provider compaction optional; do not call any live provider from unit
+    tests.
   - Validation:
     `poetry run pytest tests/test_openai_client.py tests/test_executor.py -q`
 
-- [ ] T2.3 [implementation] Emit pre-turn compaction traces and capability
+- [ ] T6.3 [implementation] Emit pre-turn compaction traces and capability
       status.
   - Spec: FR6, FR9
   - Files/components: `src/dynamic_agent_runner/tracing.py`,
@@ -74,25 +183,9 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_tracing.py tests/test_executor.py -q`
 
-## Slice 3 — Local summarization fallback
+## Slice 7 — Mid-turn iterative-loop compaction
 
-- [ ] T3.1 [tests] Add RED local summarization fallback coverage with a fake
-      model adapter.
-  - Spec: FR3, FR9
-  - Files/components: `tests/test_executor.py`
-  - Cover deterministic summary prompt, retained-message limit, summary
-    placement, no-summary when nothing was pruned, and failure taxonomy.
-  - Validation: `poetry run pytest tests/test_executor.py -q -k local_compaction`
-
-- [ ] T3.2 [implementation] Add explicit local summarization fallback.
-  - Spec: FR3, FR9
-  - Files/components: `src/dynamic_agent_runner/executor.py`
-  - Require explicit policy opt-in; no hidden live model call.
-  - Validation: `poetry run pytest tests/test_executor.py -q`
-
-## Slice 4 — Mid-turn iterative-loop compaction
-
-- [ ] T4.1 [tests] Add RED iterative-loop coverage for mid-turn compaction
+- [ ] T7.1 [tests] Add RED iterative-loop coverage for mid-turn compaction
       unavailability.
   - Spec: FR8
   - Files/components: `tests/test_executor.py`
@@ -100,16 +193,16 @@ Status: future backlog; no tasks started
     after threshold exhaustion and mid-turn compaction is not enabled.
   - Validation: `poetry run pytest tests/test_executor.py -q -k mid_turn_compaction`
 
-- [ ] T4.2 [implementation] Add mid-turn compaction for eligible iterative
+- [ ] T7.2 [implementation] Add mid-turn compaction for eligible iterative
       loops.
   - Spec: FR8, FR10
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Preserve pending tool-call, approval, retry, and loop trace state.
   - Validation: `poetry run pytest tests/test_executor.py -q`
 
-## Slice 5 — Explicit new-context-window reset
+## Slice 8 — Explicit new-context-window reset
 
-- [ ] T5.1 [tests] Add RED coverage for reset behavior distinct from
+- [ ] T8.1 [tests] Add RED coverage for reset behavior distinct from
       summarizing compaction.
   - Spec: FR10
   - Files/components: `tests/test_executor.py`,
@@ -119,13 +212,34 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_capabilities.py -q`
 
-- [ ] T5.2 [implementation] Add explicit reset/new-window policy or tool.
+- [ ] T8.2 [implementation] Add explicit reset/new-window policy or tool.
   - Spec: FR10
   - Files/components: `src/dynamic_agent_runner/executor.py`,
     `src/dynamic_agent_runner/registry.py`
   - Keep reset opt-in and separate from `context_compaction`.
   - Validation:
     `poetry run pytest tests/test_executor.py tests/test_registry.py -q`
+
+## Slice 9 — Context-overflow error classification
+
+- [ ] T9.1 [tests] Add RED provider-overflow classification coverage.
+  - Spec: FR13
+  - Files/components: `tests/test_openai_client.py`,
+    `tests/test_executor.py`
+  - Cover OpenAI/OpenRouter-style `context_length_exceeded`, Anthropic-style
+    invalid request, and generic 400 token/context/window message patterns.
+  - Validation:
+    `poetry run pytest tests/test_openai_client.py tests/test_executor.py -q`
+
+- [ ] T9.2 [implementation] Add defensive overflow classification and optional
+      one-retry compaction path.
+  - Spec: FR13
+  - Files/components: `src/dynamic_agent_runner/openai_client.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Keep retry opt-in, emit explicit diagnostics, and never retry after
+    compaction if the second provider call fails.
+  - Validation:
+    `poetry run pytest tests/test_openai_client.py tests/test_executor.py -q`
 
 ## Final Validation
 
@@ -136,4 +250,4 @@ Before committing a future implementation slice:
 - `poetry run ruff check src tests`
 
 Unit tests must not make live OpenAI, `/responses/compact`, Hugging Face,
-Marimo, MCP, or local model calls.
+Marimo, MCP, local summarizer, or local model calls.

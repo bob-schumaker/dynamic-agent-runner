@@ -6,9 +6,9 @@ artifact alone
 ## Goal
 
 Plan the next coherent expansion from the implemented
-`prepare_model_input(...)` baseline toward OpenAI-focused automatic
-context-window compaction while preserving the current separation between
-prompt preparation, async-session metadata, graph mutation, and model adapters.
+`prepare_model_input(...)` baseline toward provider-neutral hierarchical
+compression while preserving the current separation between prompt preparation,
+async-session metadata, graph mutation, and model adapters.
 
 ## Spec Trace
 
@@ -32,9 +32,15 @@ Already implemented:
 
 Not implemented:
 
+- turn-aware history grouping
+- explicit lane-budget prompt assembly
+- deterministic older-turn relevance selection
+- rolling structured summary folding
 - model-derived automatic compaction thresholds
+- deterministic basic compaction for local or non-OpenAI models
 - provider-backed remote compaction
 - compaction window ids or token baselines
+- manual-vs-automatic compaction modes
 - pre-turn automatic summarizing compaction
 - mid-turn compaction inside iterative model-tool loops
 - explicit new-context-window reset behavior
@@ -58,19 +64,86 @@ package's implementation:
   compaction
 - record trigger, reason, phase, implementation, status, and token deltas
 
+## Cline Reference Summary
+
+The Cline repo adds provider-neutral and local-model guidance that should shape
+the non-OpenAI path:
+
+- expose strategy modes for `basic`, `agentic`, and `off`
+- default local/CLI-style compaction to deterministic `basic` truncation
+- support `reserve_tokens` as an alternative to threshold-ratio triggers
+- separate `auto` compaction from manual host/user-triggered compaction
+- protect the latest typed user turn during deterministic compaction
+- remove linked tool-call/tool-result pairs atomically
+- trim oversized tool-result and file-content blocks before summarization
+- fold repeated summaries by carrying prior compaction summary metadata forward
+- classify provider context-overflow errors as a later defensive retry signal,
+  not as the primary trigger mechanism
+
 ## Delivery Strategy
 
-### Slice 1 — Policy and metadata contract
+### Slice 1 — Policy, turn model, and metadata contract
 
 Define the policy shape and datamodel additions without live compaction:
 
 - add normalized automatic compaction policy parsing
+- add turn-unit grouping for user/assistant/tool-call/tool-result history
+- add lane-budget policy parsing for pinned, current, recent, summary,
+  selected older-turn, and file/tool lanes
 - derive thresholds from model capability metadata where available
 - add metadata fields for compaction window id, phase, trigger, reason,
-  implementation, threshold, tokens before/after, and reset-vs-compaction
+  implementation, lane usage, threshold, tokens before/after, and
+  reset-vs-compaction
 - add validation coverage for invalid thresholds and unsupported automatic modes
+- add validation coverage for strategy, mode, reserve-token, and
+  threshold-ratio policy combinations
 
-### Slice 2 — Pre-turn remote compaction seam
+### Slice 2 — Lane-based prompt assembly
+
+Implement the preferred compression skeleton before summarization:
+
+- preserve pinned hierarchy and current turn first
+- preserve a bounded recent-turn suffix uncompressed
+- place rolling summary before recent and selected older turns
+- enforce independent lane budgets and metadata
+- keep selected older-turn lane empty until Slice 3
+- keep rolling summary generation disabled until Slice 4
+
+### Slice 3 — Deterministic older-turn selection
+
+Add the first relevance-aware retention path without embeddings or live models:
+
+- select older turns by deterministic overlap with current prompt, file paths,
+  symbols, state keys, tool names, error markers, and decision markers
+- reassemble selected older turns chronologically
+- report selected, rejected, and omitted turn counts in metadata
+- keep an injected selector seam for later semantic selection
+
+### Slice 4 — Deterministic basic compaction
+
+Implement the provider-neutral fallback before live summarization:
+
+- run only before a model call
+- preserve the latest typed user turn and protected tool work
+- remove tool-call/tool-result pairs atomically
+- trim oversized retained tool results and file blocks deterministically
+- emit metadata for strategy, mode, trigger, token counts, and trimmed content
+- require fake token estimators and fake message histories in tests
+
+### Slice 5 — Rolling summary compaction
+
+Add summary continuity after lane assembly and deterministic selection are
+stable:
+
+- deterministic summarization prompt
+- repeated-summary folding from prior compaction summary metadata
+- file/source provenance carry-forward
+- bounded retained messages/tokens
+- deterministic summary placement
+- package-owned failure taxonomy
+- no live model calls in unit tests
+
+### Slice 6 — Pre-turn provider compaction seam
 
 Implement the safest automatic behavior first:
 
@@ -81,17 +154,7 @@ Implement the safest automatic behavior first:
 - fail closed when compaction is required but no remote compaction capability is
   available
 
-### Slice 3 — Local summarization fallback
-
-Add explicit local fallback only after remote compaction is stable:
-
-- deterministic summarization prompt
-- bounded retained messages/tokens
-- deterministic summary placement
-- package-owned failure taxonomy
-- no live model calls in unit tests
-
-### Slice 4 — Mid-turn iterative-loop compaction
+### Slice 7 — Mid-turn iterative-loop compaction
 
 Add mid-turn behavior only after pre-turn behavior and iterative loops remain
 stable:
@@ -101,7 +164,7 @@ stable:
 - record `phase: mid_turn`
 - reject or stop clearly when mid-turn compaction is unavailable
 
-### Slice 5 — Reset/new-window behavior
+### Slice 8 — Reset/new-window behavior
 
 If needed, add an explicit reset policy or tool separate from compaction:
 
@@ -109,15 +172,33 @@ If needed, add an explicit reset policy or tool separate from compaction:
 - replacement with canonical initial context only
 - clear trace/status reporting as `reset`, not `compaction`
 
+### Slice 9 — Context-overflow error classification
+
+Add defensive error handling only after pre-turn compaction is available:
+
+- classify provider context-window errors into package-owned reasons
+- keep classification separate from retry policy
+- make retry-after-compaction opt-in and one-shot only
+- preserve original provider error context in diagnostics
+
 ## Design Decisions
 
 - The prepare stage owns prompt shaping; model adapters execute prepared model
   calls.
+- Turn-aware lane assembly is the core compression scheme.
+- Relevance ranking is only a selection mechanism; final selected-turn order is
+  chronological.
+- Deterministic overlap selection comes before embedding-backed or model-backed
+  semantic selection.
 - Remote compaction is a provider capability, not an assumed OpenAI API surface.
+- Deterministic `basic` compaction is the fallback when summary generation is
+  unavailable or disabled and must not make live model calls.
 - Automatic compaction should be opt-in until capability/status reporting can
   make live support visible.
 - Pre-turn compaction is the first implementation target because it aligns with
   the existing pre-adapter seam.
+- Provider overflow classification is a defensive fallback, not the primary
+  trigger for compaction.
 - Mid-turn compaction is deferred because it interacts with iterative loops,
   tool calls, and approval interruption.
 - Reset/new-window behavior remains separate from summarizing compaction.
@@ -128,7 +209,9 @@ Focused validation should use fake adapters and injected compactors only:
 
 - `poetry run pytest tests/test_executor.py -q`
 - targeted future tests for policy normalization, threshold clamping,
-  pre-turn compaction, trace diagnostics, and failure behavior
+  turn grouping, lane budgets, deterministic selection, reserve-token triggers,
+  basic compaction, pre-turn compaction, trace diagnostics, and failure
+  behavior
 
 Full validation before a future implementation commit:
 
@@ -136,5 +219,5 @@ Full validation before a future implementation commit:
 - `poetry check`
 - `poetry run ruff check src tests`
 
-No unit test should call live OpenAI, `/responses/compact`, or any external
-provider.
+No unit test should call live OpenAI, `/responses/compact`, local-model
+summarizers, or any external provider.
