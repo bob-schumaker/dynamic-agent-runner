@@ -29,6 +29,9 @@
   - `/Users/roschuma/Repos/github/cline/sdk/packages/core/src/extensions/context/compaction-shared.ts`
   - `/Users/roschuma/Repos/github/cline/sdk/packages/core/src/types/config.ts`
   - `/Users/roschuma/Repos/github/cline/apps/vscode/src/core/context/context-management/context-error-handling.ts`
+  - `/Users/roschuma/Repos/github/llm-context-management-specifications/specifications/llm-context-management-spec.md`
+  - `/Users/roschuma/Repos/github/llm-context-management-specifications/research/current-techniques.md`
+  - `/Users/roschuma/Repos/github/llm-context-management-specifications/examples/basic_context_manager.py`
 
 ## Objective
 
@@ -179,13 +182,14 @@ The preferred implementation is provider-neutral hierarchical compression, not
 simple truncation and not whole-transcript summarization. The target model is:
 
 1. normalize history into atomic turns
-2. reserve explicit token budget lanes
-3. preserve pinned hierarchy and the current turn first
-4. preserve a bounded recent-turn suffix uncompressed
-5. carry a rolling structured summary for older work
-6. select older relevant turns before summarizing the remainder
-7. reassemble selected older turns chronologically before final prompt rendering
-8. trim oversized tool/file blocks deterministically as a final fallback
+2. validate and score turn/lane candidates
+3. reserve explicit token budget lanes
+4. preserve pinned hierarchy and the current turn first
+5. preserve a bounded recent-turn suffix uncompressed
+6. carry a rolling structured summary for older work
+7. select older relevant turns before summarizing the remainder
+8. reassemble selected older turns chronologically before final prompt rendering
+9. trim oversized tool/file blocks deterministically as a final fallback
 
 ### Atomic turn model
 
@@ -209,6 +213,43 @@ budgets:
 
 Lane metadata must report requested, estimated, included, trimmed, and omitted
 token counts where practical.
+
+### Lifecycle stages
+
+Prepared-input diagnostics should use stable lifecycle stage names so future
+implementations can be compared without leaking prompt content:
+
+- validate
+- segment
+- score
+- place
+- select
+- assemble
+- compress
+- omit
+- report
+
+Each stage may report status, reason, duration, counts, and non-sensitive
+policy identifiers. Stage names are a diagnostic vocabulary, not a requirement
+to split implementation into separate public APIs.
+
+### Segment and turn metadata
+
+Normalized turns and injected context segments should carry stable metadata
+where practical:
+
+- segment or turn id
+- source kind and source path when applicable
+- lane assignment
+- importance score when policy or caller input provides one
+- relevance score when selection computes one
+- selection reason
+- access count or last-selected timestamp when supplied by caller-provided
+  history
+- compression ratio and summary fidelity/retention proxy when compression runs
+
+The runtime may compute deterministic scores locally. It must not create a
+runner-owned durable memory store to maintain access history.
 
 ### Rolling structured summary
 
@@ -239,6 +280,24 @@ injected selector boundary.
 
 Selected older turns must be reassembled chronologically. Relevance ranking is a
 selection mechanism, not the final prompt order.
+
+### Quality and efficiency metrics
+
+Context management should report a small metric vocabulary for tuning and
+regression tests:
+
+- lane utilization
+- information density
+- redundancy ratio
+- coverage completeness
+- compression ratio
+- summary fidelity or information-retention proxy
+- processing duration
+- memory overhead where practical
+
+These metrics are best-effort diagnostics unless a future slice defines exact
+calculation rules. Unit tests should verify presence and monotonic behavior for
+implemented metrics rather than relying on live model judgment.
 
 ### Deterministic fallback trimming
 
@@ -408,6 +467,30 @@ For this package, overflow-error classification should be a defensive later
 slice. It may support one retry after compaction, but first-pass behavior should
 remain preflight/pre-turn compaction rather than relying on provider failures.
 
+## LCWMS Taxonomy Findings
+
+The `llm-context-management-specifications` repository is useful as a taxonomy
+for lifecycle, metadata, and metrics. It is not adopted as this package's
+storage architecture.
+
+The useful additions are:
+
+- lifecycle names for validation, segmentation, scoring, placement, retrieval
+  or selection, assembly, compression, eviction or omission, and reporting
+- segment metadata for ids, source metadata, timestamps, relevance scoring,
+  access counts, and compression ratios
+- quality metrics such as information retention, semantic similarity,
+  structural preservation, key-concept coverage, coherence, and relevance
+- efficiency metrics such as compression ratio, processing time, memory
+  overhead, context utilization, information density, redundancy ratio, and
+  coverage completeness
+
+The three-tier active/working/long-term memory model is intentionally not
+adopted here because this feature must not own durable storage. Semantic or
+vector retrieval remains a future injected selector boundary only; the runner
+must not create or call a built-in embedding/vector backend as part of prompt
+preparation.
+
 ## Functional Requirements
 
 ### FR1 — Keep context management before the model adapter
@@ -496,6 +579,13 @@ Acceptance criteria:
 - Given context-management policy changes the prepared input, when
   `model_input_prepared` is traced, then the trace contains non-sensitive
   diagnostic facts about which transformations applied.
+- Given lifecycle diagnostics are emitted, when metadata is inspected, then
+  stage names use the stable validate, segment, score, place, select, assemble,
+  compress, omit, and report vocabulary.
+- Given lane or compression metrics are computed, when traces are emitted, then
+  they include non-sensitive quality and efficiency metrics such as lane
+  utilization, compression ratio, information density, redundancy ratio,
+  coverage completeness, and summary fidelity/retention proxies.
 - Given transformed content may contain user, session, or file data, when traces
   are emitted, then sensitive content is not copied into non-redacted trace
   fields.
@@ -650,6 +740,28 @@ Acceptance criteria:
   then its selected turn ids and scores are reflected in metadata without
   exposing sensitive prompt content in traces.
 
+### FR16 — Record segment lifecycle and scoring metadata
+
+The prepare stage should make segment and turn handling inspectable without
+requiring callers to reconstruct pruning decisions from rendered prompt text.
+
+Acceptance criteria:
+
+- Given input is prepared, when metadata is inspected, then normalized turns and
+  injected context segments have stable ids, lane assignments, and selection
+  status where practical.
+- Given policy or caller-provided history includes importance, relevance,
+  access-count, or last-selected metadata, when selection runs, then those
+  values are preserved or incorporated without creating runner-owned durable
+  storage.
+- Given deterministic selection computes relevance, when metadata is emitted,
+  then selected and omitted turns include non-sensitive scores or reasons.
+- Given compression runs, when metadata is emitted, then compression ratio and
+  summary fidelity or information-retention proxy fields are reported where
+  practical.
+- Given no semantic selector is injected, when older-turn selection runs, then
+  no live embedding, vector search, or model-backed retrieval call occurs.
+
 ## Boundaries With Adjacent Specs
 
 ### Async session memory pipeline
@@ -690,6 +802,8 @@ session-memory policy.
   prompt-context injection.
 - The spec identifies turn-aware lane budgeting, rolling summaries, and
   relevance-aware older-turn selection as the preferred compression scheme.
+- The spec adopts lifecycle, scoring, and metrics vocabulary without adopting
+  runner-owned durable memory or vector storage.
 - The spec distinguishes the general prepare-stage policy from the narrower
   internal graph-mutation context-pruning path.
 - The spec gives future expansion a place to grow without changing model
@@ -703,6 +817,8 @@ Future approved slices may add:
 - explicit lane-budget policy and metadata
 - deterministic older-turn relevance selectors
 - injected semantic selectors behind fake-only unit tests
+- lifecycle-stage diagnostics, segment scoring metadata, and quality/efficiency
+  metrics
 - summary-generation adapters with explicit model/tool boundaries
 - OpenAI/provider-backed remote compaction, including `/responses/compact` when
   available through the configured provider

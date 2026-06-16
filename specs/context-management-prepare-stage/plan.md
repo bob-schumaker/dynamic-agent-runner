@@ -44,6 +44,10 @@ Not implemented:
 - pre-turn automatic summarizing compaction
 - mid-turn compaction inside iterative model-tool loops
 - explicit new-context-window reset behavior
+- lifecycle-stage diagnostics
+- segment/turn scoring metadata
+- quality and efficiency metrics such as lane utilization, information density,
+  redundancy ratio, coverage completeness, and summary fidelity proxies
 
 ## Codex Reference Summary
 
@@ -80,6 +84,23 @@ the non-OpenAI path:
 - classify provider context-overflow errors as a later defensive retry signal,
   not as the primary trigger mechanism
 
+## LCWMS Taxonomy Summary
+
+The `llm-context-management-specifications` repo contributes useful vocabulary
+for lifecycle, metadata, and metrics, but does not change this package's
+ownership boundaries:
+
+- adopt lifecycle names for validate, segment, score, place, select, assemble,
+  compress, omit, and report diagnostics
+- record stable segment/turn ids, lane assignment, selection status, selection
+  reason, importance score, relevance score, and caller-provided access history
+  when available
+- report quality and efficiency metrics such as lane utilization, information
+  density, redundancy ratio, coverage completeness, compression ratio,
+  processing duration, and summary fidelity or retention proxies
+- keep semantic/vector retrieval as a future injected selector only
+- do not adopt runner-owned durable active/working/long-term memory storage
+
 ## Delivery Strategy
 
 ### Slice 1 — Policy, turn model, and metadata contract
@@ -90,10 +111,12 @@ Define the policy shape and datamodel additions without live compaction:
 - add turn-unit grouping for user/assistant/tool-call/tool-result history
 - add lane-budget policy parsing for pinned, current, recent, summary,
   selected older-turn, and file/tool lanes
+- add lifecycle-stage vocabulary, stable turn/segment ids, scoring metadata,
+  and metric field names
 - derive thresholds from model capability metadata where available
 - add metadata fields for compaction window id, phase, trigger, reason,
-  implementation, lane usage, threshold, tokens before/after, and
-  reset-vs-compaction
+  implementation, lane usage, threshold, tokens before/after, quality metrics,
+  segment scores, lifecycle stage status, and reset-vs-compaction
 - add validation coverage for invalid thresholds and unsupported automatic modes
 - add validation coverage for strategy, mode, reserve-token, and
   threshold-ratio policy combinations
@@ -105,7 +128,7 @@ Implement the preferred compression skeleton before summarization:
 - preserve pinned hierarchy and current turn first
 - preserve a bounded recent-turn suffix uncompressed
 - place rolling summary before recent and selected older turns
-- enforce independent lane budgets and metadata
+- enforce independent lane budgets and lane-utilization metadata
 - keep selected older-turn lane empty until Slice 3
 - keep rolling summary generation disabled until Slice 4
 
@@ -116,8 +139,10 @@ Add the first relevance-aware retention path without embeddings or live models:
 - select older turns by deterministic overlap with current prompt, file paths,
   symbols, state keys, tool names, error markers, and decision markers
 - reassemble selected older turns chronologically
-- report selected, rejected, and omitted turn counts in metadata
-- keep an injected selector seam for later semantic selection
+- report selected, rejected, and omitted turn counts, scores, and reasons in
+  metadata
+- keep an injected selector seam for later semantic selection without adding a
+  runner-owned vector or embedding backend
 
 ### Slice 4 — Deterministic basic compaction
 
@@ -140,6 +165,8 @@ stable:
 - file/source provenance carry-forward
 - bounded retained messages/tokens
 - deterministic summary placement
+- compression ratio and summary fidelity or information-retention proxy
+  metadata
 - package-owned failure taxonomy
 - no live model calls in unit tests
 
@@ -210,8 +237,8 @@ Focused validation should use fake adapters and injected compactors only:
 - `poetry run pytest tests/test_executor.py -q`
 - targeted future tests for policy normalization, threshold clamping,
   turn grouping, lane budgets, deterministic selection, reserve-token triggers,
-  basic compaction, pre-turn compaction, trace diagnostics, and failure
-  behavior
+  lifecycle-stage diagnostics, scoring metadata, quality metrics, basic
+  compaction, pre-turn compaction, trace diagnostics, and failure behavior
 
 Full validation before a future implementation commit:
 
@@ -220,4 +247,4 @@ Full validation before a future implementation commit:
 - `poetry run ruff check src tests`
 
 No unit test should call live OpenAI, `/responses/compact`, local-model
-summarizers, or any external provider.
+summarizers, embedding/vector retrieval, or any external provider.
