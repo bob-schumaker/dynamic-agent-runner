@@ -136,10 +136,40 @@ observation for a run.
 .. header2:: Runtime behavior overrides
 
 Runtime behavior overrides can patch ``llm_step`` prompts and skill references
-without mutating generated artifacts. Initial support is limited to inline skill
-instructions and prompt-role placement. Arbitrary ``SKILL.md`` source-path
-resolution remains deferred until trust, packaging, precedence, and loading rules
-are specified.
+without mutating generated artifacts. Inline skill instructions still render in
+the ``skill_instructions`` prompt lane with each skill's ``prompt_role``.
+
+.. header2:: Skill source resolution
+
+Package-local ``SKILL.md`` loading is disabled by default. Package-directory
+workflows can opt in with ``runtime.execution_policy.skill_source_resolution``:
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       skill_source_resolution:
+         enabled: true
+         allowed_sources:
+         - package_bundle
+         max_skill_bytes: 65536
+         max_node_skill_bytes: 262144
+         load_support_files: false
+         prompt_role: developer
+
+When enabled, skill declarations without inline ``instructions`` must use a
+package-local ``bundled_path`` that resolves under ``packaging.skill_bundle_dir``
+and points to a ``SKILL.md`` file. The executor loads those bodies into the
+existing ``skill_instructions`` prompt lane after runtime behavior overrides are
+applied, preserving effective ``skill_refs`` order. Loaded, omitted, and
+rejected sources are reported as redacted preparation and trace metadata with
+content hashes and byte counts, never raw skill bodies.
+
+The loader fails closed for missing files, absolute or escaping paths, symlink
+escapes, binary-looking content, non-UTF-8 content, and per-skill or per-node byte
+limit violations. ``source_path`` remains provenance-only and is never read.
+``support_files`` remain package validation artifacts; ``load_support_files`` is
+reserved and must be ``false``.
 
 .. header2:: Approval interruption metadata
 

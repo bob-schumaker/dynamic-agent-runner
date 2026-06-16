@@ -177,6 +177,117 @@ def test_inspect_agent_package_capabilities_reports_metadata_only_features(
     assert report.summary.counts_by_state["metadata_only"] == 8
 
 
+def test_inspect_agent_package_capabilities_reports_live_skill_sources(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: live-skill-source-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+          skill_bundle_dir: skill-bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            skill_source_resolution:
+              enabled: true
+              allowed_sources:
+                - package_bundle
+              max_skill_bytes: 65536
+              max_node_skill_bytes: 262144
+              load_support_files: false
+              prompt_role: developer
+        skills:
+          - id: concise-writer
+            bundled_path: skills/concise-writer/SKILL.md
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+            skill_refs:
+              - concise-writer
+        edges: []
+        """,
+    )
+    skill_path = package_dir / "skill-bundle" / "skills" / "concise-writer" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text("# Concise writer\nBe brief.\n", encoding="utf-8")
+
+    report = inspect_agent_package_capabilities(package_directory=package_dir)
+
+    items = {item.id: item for item in report.items}
+    assert report.valid is True
+    assert "metadata.skill_refs" not in items
+    assert items["runtime.skill_source_resolution"].state == CapabilityState.LIVE
+    assert items["runtime.skill_source_resolution"].details == {
+        "allowed_sources": ("package_bundle",),
+        "prompt_role": "developer",
+        "referenced_skills": 1,
+    }
+
+
+def test_inspect_agent_package_capabilities_reports_rejected_skill_sources(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: rejected-skill-source-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+          skill_bundle_dir: skill-bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            skill_source_resolution:
+              enabled: true
+              allowed_sources:
+                - package_bundle
+              max_skill_bytes: 65536
+              max_node_skill_bytes: 262144
+              load_support_files: false
+              prompt_role: developer
+        skills:
+          - id: unsafe-skill
+            bundled_path: skills/unsafe-skill/SKILL.md
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+            skill_refs:
+              - unsafe-skill
+        edges: []
+        """,
+    )
+    skill_path = package_dir / "skill-bundle" / "skills" / "unsafe-skill" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_bytes(b"\x00binary")
+
+    report = inspect_agent_package_capabilities(package_directory=package_dir)
+
+    items = {item.id: item for item in report.items}
+    assert report.package_id == "rejected-skill-source-agent"
+    assert report.valid is False
+    assert items["package.validation"].state == CapabilityState.INVALID
+    assert items["runtime.skill_source_resolution"].state == CapabilityState.INVALID
+    assert "appears to be binary" in str(
+        items["runtime.skill_source_resolution"].details["validation_error"]
+    )
+
+
 def test_inspect_agent_package_capabilities_reports_invalid_packages(
     tmp_path: Path,
 ) -> None:

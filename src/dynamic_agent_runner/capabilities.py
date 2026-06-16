@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from dynamic_agent_runner.api import load_agent_package_workflow
+from dynamic_agent_runner.artifacts import load_agent_package
+from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.errors import DynamicAgentRunnerError
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
@@ -133,7 +135,10 @@ def inspect_agent_package_capabilities(
     except DynamicAgentRunnerError as exc:
         if strict:
             raise
-        return _invalid_report(str(exc))
+        return _invalid_report(
+            str(exc),
+            package_directory=package_directory,
+        )
 
     plan = prepare_execution_plan(workflow)
     return CapabilityStatusReport.from_items(
@@ -151,21 +156,40 @@ def inspect_agent_package_capabilities(
     )
 
 
-def _invalid_report(validation_error: str) -> CapabilityStatusReport:
+def _invalid_report(
+    validation_error: str,
+    *,
+    package_directory: str | Path | None = None,
+) -> CapabilityStatusReport:
+    package_id: str | None = None
+    items: list[CapabilityStatusItem] = [
+        CapabilityStatusItem(
+            id="package.validation",
+            label="Package validation",
+            state=CapabilityState.INVALID,
+            category="validation",
+            summary="The package could not be loaded or validated.",
+            owner=_OWNER_DYNAMIC_AGENT_RUNNER,
+        ),
+    ]
+    if package_directory is not None:
+        try:
+            workflow = load_agent_package(package_directory)
+        except DynamicAgentRunnerError:
+            workflow = None
+        if workflow is not None:
+            package_id = workflow.runtime_manifest.package_id
+            skill_item = _invalid_skill_source_resolution_item(
+                workflow,
+                validation_error,
+            )
+            if skill_item is not None:
+                items.append(skill_item)
     return CapabilityStatusReport.from_items(
-        package_id=None,
+        package_id=package_id,
         valid=False,
         validation_error=validation_error,
-        items=(
-            CapabilityStatusItem(
-                id="package.validation",
-                label="Package validation",
-                state=CapabilityState.INVALID,
-                category="validation",
-                summary="The package could not be loaded or validated.",
-                owner=_OWNER_DYNAMIC_AGENT_RUNNER,
-            ),
-        ),
+        items=tuple(items),
     )
 
 
@@ -264,14 +288,7 @@ def _capability_items(
             )
         )
     if has_skill_refs:
-        items.append(
-            _metadata_only_item(
-                "metadata.skill_refs",
-                "Skill references",
-                _OWNER_SKILL_SOURCE,
-                "Skill references are preserved but SKILL.md bodies are not loaded.",
-            )
-        )
+        items.append(_skill_source_resolution_item(workflow, plan=plan))
     items.extend(
         _model_coverage_items(
             plan,
@@ -299,6 +316,75 @@ def _metadata_only_item(
         summary=summary,
         owner=owner,
     )
+
+
+def _skill_source_resolution_item(
+    workflow: LoadedAgentWorkflow,
+    *,
+    plan: object,
+) -> CapabilityStatusItem:
+    policy = workflow.runtime_manifest.skill_source_resolution_policy
+    if policy is None or not policy.enabled:
+        return CapabilityStatusItem(
+            id="metadata.skill_refs",
+            label="Skill references",
+            state=CapabilityState.METADATA_ONLY,
+            category="metadata",
+            summary="Skill references are preserved but SKILL.md bodies are not loaded.",
+            owner=_OWNER_SKILL_SOURCE,
+            details={
+                "source_resolution": "absent" if policy is None else "disabled",
+                "referenced_skills": _referenced_skill_count(workflow, plan),
+            },
+        )
+    return CapabilityStatusItem(
+        id="runtime.skill_source_resolution",
+        label="Package-local skill source resolution",
+        state=CapabilityState.LIVE,
+        category="runtime",
+        summary="Package-local SKILL.md bodies are loaded into prompt preparation.",
+        owner=_OWNER_SKILL_SOURCE,
+        details={
+            "allowed_sources": policy.allowed_sources,
+            "prompt_role": policy.prompt_role,
+            "referenced_skills": _referenced_skill_count(workflow, plan),
+        },
+    )
+
+
+def _invalid_skill_source_resolution_item(
+    workflow: LoadedAgentWorkflow,
+    validation_error: str,
+) -> CapabilityStatusItem | None:
+    policy = workflow.runtime_manifest.skill_source_resolution_policy
+    if policy is None or not policy.enabled:
+        return None
+    return CapabilityStatusItem(
+        id="runtime.skill_source_resolution",
+        label="Package-local skill source resolution",
+        state=CapabilityState.INVALID,
+        category="runtime",
+        summary="Package-local SKILL.md source loading was rejected during validation.",
+        owner=_OWNER_SKILL_SOURCE,
+        details={
+            "allowed_sources": policy.allowed_sources,
+            "prompt_role": policy.prompt_role,
+            "validation_error": validation_error,
+        },
+    )
+
+
+def _referenced_skill_count(workflow: LoadedAgentWorkflow, plan: object) -> int:
+    skill_refs: set[str] = set()
+    nodes_by_id = getattr(plan, "nodes_by_id", {})
+    if not isinstance(nodes_by_id, Mapping):
+        return 0
+    for node in nodes_by_id.values():
+        if getattr(node, "kind", None) != "llm_step":
+            continue
+        behavior = effective_node_behavior(node.source_node, workflow)
+        skill_refs.update(behavior.skill_refs)
+    return len(skill_refs)
 
 
 def _approval_interruption_item(
