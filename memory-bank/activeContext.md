@@ -14,10 +14,44 @@
   direct llama.cpp docs now point callers to the `llamacpp` extra, missing
   default `llama_cpp` imports are covered by regression tests, and MLX adapter
   tests verify non-macOS use fails before model resolution or `mlx_lm` loading.
-- Current packaging maintenance added package-owned PyInstaller hook files for
-  `openai-model-registry`; the `pyproject.toml` entry point that advertises the
-  hook directory is intentionally being committed separately so downstream build
-  automation sees a metadata-only final commit.
+- PyInstaller packaging support for `openai-model-registry` is complete:
+  package-owned hook files, metadata advertisement, build-gated DevOps SCM PR,
+  and develop/main branch synchronization are done.
+- Context growth management has a dedicated spec package:
+  `specs/context-management-prepare-stage/` now owns session pruning, context
+  compaction, hierarchical prompt-context injection, and provider-neutral
+  hierarchical compression planning.
+- The current preferred compression scheme is turn-aware lane assembly:
+  pinned hierarchy, current turn, recent turns, rolling structured summary,
+  deterministic older-turn selection with chronological reassembly, and
+  deterministic fallback trimming before optional provider compaction.
+- The context-management spec now adopts LCWMS-derived lifecycle, segment
+  metadata, and quality/efficiency metric vocabulary while keeping
+  runner-owned durable memory and built-in vector/embedding retrieval out of
+  scope.
+- Survey-note analysis added required-vs-optional lane semantics,
+  reserve-token output headroom, lost-in-the-middle-aware ordering, model
+  routing boundaries, exact retrieval boundaries, and overflowing-history
+  evaluation guidance to the context-management spec.
+- The spec inventory and completion matrix now include
+  `context-management-prepare-stage`; graph mutation is recorded as the
+  standalone derived workflow-operation layer, with context management as one
+  usage that may be attached to nodes or inserted on links such as ReAct
+  loopbacks.
+- Context compression profiles are specified as policy presets:
+  `balanced`, `fast`, `exact`, `semantic`, `recency_weighted`, and
+  `instruction_weighted`.
+- Cross-cutting follow-up ideas from Micheal Lanham's `AI Agents in Action,
+  Second Edition: Intelligent Workflows With LLMs, MCP, A2A, and More`
+  (Manning, ISBN `9781633434530`) are recorded as future-work notes in the
+  owning specs: MCP resources/prompts, evaluation guardrails, loop controls,
+  memory-selection hints, capability/deployment reporting, and sandbox safety.
+- `rag-orchestration-contract` is now a proposed future-feature spec for
+  RAG as an orchestration contract rather than runner-owned retrieval
+  infrastructure. It includes production-oriented metadata for index lifecycle,
+  permission-aware retrieval, retrieval routers/profiles, cache contracts,
+  GraphRAG construction vs query-time retrieval, degraded execution, and
+  evaluation lifecycle hooks.
 - The next recorded ROI focus in `specs/README.md` is opt-in package-local
   `skill-source-resolution`; local-model advisory implementation should happen
   when local-model ergonomics is the immediate driver.
@@ -82,14 +116,13 @@
   - MLX helpers remain constructible on non-macOS, advertise their model aliases,
     and fail with the macOS-only `ModelExecutionError` before resolving model
     paths or loading dependencies when generation is attempted off macOS
-- PyInstaller packaging support for `openai-model-registry` is in progress:
-  - `8f63fb9` added a package-owned hook provider module, bundled
-    `hook-openai_model_registry.py`, and regression coverage for the advertised
-    hook directory
-  - the hook collects `openai_model_registry` data files and
-    `openai-model-registry` distribution metadata
-  - the `pyproject.toml` `pyinstaller40` entry point is intentionally reserved
-    for a final separate build-triggering commit
+- PyInstaller packaging support for `openai-model-registry` is complete.
+- Agent-architecture follow-ups from `AI Agents in Action, Second Edition` are
+  tracked across the relevant spec packages without changing implementation
+  scope.
+- RAG orchestration follow-ups from Apple Books RAG references are tracked in
+  `specs/rag-orchestration-contract/spec.md` with citations by title, author,
+  publisher, and ISBN rather than local file paths.
 
 ## Current Spec Authority Map
 
@@ -102,8 +135,10 @@
   - `specs/mcp-runtime-integration/spec.md`
   - `specs/live-guardrail-execution/spec.md`
   - `specs/iterative-agent-loop-runtime/spec.md`
-- Prepared feature package:
+- Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
+  - `specs/context-management-prepare-stage/spec.md`
+  - `specs/rag-orchestration-contract/spec.md`
 - Next ROI feature package:
   - `specs/skill-source-resolution/spec.md`
 - Later feature packages:
@@ -120,6 +155,12 @@
   committed, revised, or discarded before executing another slice.
 - If following the ROI queue instead, prepare `skill-source-resolution` before
   implementation.
+- If implementing context growth management, use
+  `specs/context-management-prepare-stage/plan.md` and `tasks.md`; start with
+  policy/turn-unit metadata, lifecycle diagnostics, scoring/metric fields, and
+  lane-based prompt assembly. Preserve required lanes, reserve output headroom,
+  compression profiles, and add overflowing-history checks before provider or
+  mid-turn compaction.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.

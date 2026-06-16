@@ -182,6 +182,22 @@ Acceptance criteria:
 - Treat command execution as a high-risk capability with explicit approval and
   redaction rules.
 
+## Future Work
+
+Lanham's `AI Agents in Action, Second Edition` reinforces several production
+safety concerns for future sandbox/workspace slices:
+
+- egress controls for network-capable tools and MCP servers
+- prompt-injection and data-exfiltration defenses at tool and workspace
+  boundaries
+- idempotency and replay declarations for mutating actions
+- timeout, resource, and budget enforcement for long-running tools
+- changed-path and side-effect summaries that can support incident review
+  without exposing sensitive file contents
+
+These follow-ups must remain behind explicit grants, approval policy, and
+backend capability reporting.
+
 ## NEEDS CLARIFICATION
 
 - What sandbox adapter backends should v1 support?

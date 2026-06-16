@@ -30,9 +30,11 @@ Status: first implementation checkpoint complete through T3.2
     `tests/test_executor.py -q` -> `115 passed`
 - Next implementation steps:
   - No additional tasks are currently scheduled in this artifact set
-- Scope rule: keep the first slice input-transform-only; do not introduce public
-  mutation-package artifacts, true graph surgery, or llama.cpp/local-embedding
-  transport ownership into these tasks
+- Scope rule: keep the first completed checkpoint input-transform-only; do not
+  introduce public mutation-package artifacts, true graph surgery, or
+  llama.cpp/local-embedding transport ownership into these tasks. Future
+  graph-mutation work may add structural insertion, edge rewiring, or
+  link-level operations through a new approved task slice.
 
 ## Slice 1 — Mutation metadata contract and internal seam
 
@@ -228,6 +230,10 @@ Status: first implementation checkpoint complete through T3.2
 - Validation should fail closed before executor integration so mutation behavior
   cannot attach implicitly.
 - The first implementation should remain input-transform-only until the
-  repository proves that true node insertion is needed.
+  repository proves that true node insertion, edge rewiring, or link-level
+  operation insertion is needed.
+- Context-management insertion on links between LLM steps, including ReAct
+  loopbacks, is future graph-mutation work and should not be smuggled into the
+  closed context-pruning checkpoint.
 - Semantic ranking, embedding selection, and local-model transport follow-up
   should remain separate from this first mutation slice.

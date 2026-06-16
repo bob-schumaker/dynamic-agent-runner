@@ -18,7 +18,7 @@
   - `tests/fixtures/power-marimo/agent-runtime.yaml`
   - `cline-tasks/power-marimo-analysis.md`
   - `specs/async-session-memory-pipeline/references/multi-turn-memory-architecture-summary.md`
-  - `specs/async-session-memory-pipeline/references/context-pruning-pipeline-summary.md`
+  - `specs/context-management-prepare-stage/spec.md`
   - `specs/async-session-memory-pipeline/references/multi-turn-agent-evals-summary.md`
   - `specs/async-session-memory-pipeline/decision-memo.md`
   - `specs/async-session-memory-pipeline/power-marimo-host-integration.md`
@@ -28,9 +28,9 @@
 - `specs/async-session-memory-pipeline/references/multi-turn-memory-architecture-summary.md`
   — supporting; packaged summary of the most relevant multi-turn agent-memory
   reference notes
-- `specs/async-session-memory-pipeline/references/context-pruning-pipeline-summary.md`
-  — supporting; packaged summary of the context-pruning reference and its
-  OA8-relevant implications
+- `specs/context-management-prepare-stage/spec.md`
+  — adjacent; owns live session pruning, context compaction, and hierarchical
+  prompt-context injection
 - `specs/async-session-memory-pipeline/references/multi-turn-agent-evals-summary.md`
   — supporting; packaged summary of evaluation guidance relevant to future
   transcript/session validation
@@ -146,7 +146,7 @@ The newer OA8 feature package also evaluates possible later expansion beyond the
 implemented baseline, such as:
 
 - explicit summary-backed continuity keys
-- richer pruning/retention metadata
+- richer retention metadata
 - stronger host/runtime session contracts for first-customer integrations
 
 Those are design candidates only, not part of the currently implemented seam.
@@ -189,11 +189,12 @@ The first OA8 implementation must not itself add:
 - automatic summary generation
 - semantic pruning execution
 
-### FR6 — Future compatibility with pruning and summary workflows
+### FR6 — Future compatibility with summary and retention workflows
 
 The protocol must remain broad enough that later implementations can add
-summary-backed continuity or pruning-aware continuity without redefining the
-basic session identity and history-retention fields.
+summary-backed continuity or retention-aware continuity without redefining the
+basic session identity and history-retention fields. Live prompt pruning and
+compaction remain owned by `context-management-prepare-stage`.
 
 ## Validation Rules
 
@@ -307,9 +308,9 @@ machine-specific paths.
 ## Risks and Tradeoffs
 
 - If OA8 only models simplistic sliding-window continuity later, it may block
-  richer pruning-aware continuity.
-- If OA8 tries to solve storage, replay, pruning, and approval-resume in one
-  step, it will likely exceed its intended narrow scope.
+  richer retention-aware continuity.
+- If OA8 tries to solve storage, replay, context preparation, and
+  approval-resume in one step, it will likely exceed its intended narrow scope.
 - If host-managed continuity is not documented for `power-marimo`, users may
   infer runner-native memory support that does not exist yet.
 

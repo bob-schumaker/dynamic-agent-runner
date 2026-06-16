@@ -55,6 +55,38 @@
 - Package-owned PyInstaller support now includes a hook provider and bundled
   `openai_model_registry` hook that collects registry data files and
   distribution metadata for frozen downstream clients.
+- The package advertises its PyInstaller hook directory through the
+  `pyinstaller40` entry point, and the hook support was merged through the
+  build-gated DevOps SCM PR flow.
+- `context-management-prepare-stage` now owns the prompt-preparation feature
+  spec for session pruning, context compaction, hierarchical prompt-context
+  injection, and provider-neutral hierarchical context compression.
+- The preferred future compression architecture is turn-aware lane assembly:
+  pinned hierarchy, current turn, recent turns, rolling structured summary,
+  selected older turns, bounded file/tool context, chronological reassembly,
+  and deterministic fallback trimming.
+- The context-management spec now includes lifecycle-stage diagnostics,
+  segment/turn scoring metadata, quality/efficiency metrics, and an explicit
+  injected-selector-only boundary for future semantic retrieval.
+- Context-window survey analysis is captured in the spec as required vs
+  optional lanes, output/continuation headroom, lost-in-the-middle-aware
+  ordering, model-routing boundaries, exact-retrieval boundaries, and
+  overflowing-history evaluation fixtures.
+- Context-management compression profiles are now specified as policy presets:
+  `balanced`, `fast`, `exact`, `semantic`, `recency_weighted`, and
+  `instruction_weighted`.
+- The spec inventory and completion matrix now include
+  `context-management-prepare-stage`, and graph mutation is documented as the
+  derived workflow-operation layer rather than a context-management helper.
+- Cross-cutting future-work ideas from Micheal Lanham's `AI Agents in Action,
+  Second Edition: Intelligent Workflows With LLMs, MCP, A2A, and More`
+  (Manning, ISBN `9781633434530`) are tracked in the owning specs without
+  expanding immediate implementation scope.
+- `rag-orchestration-contract` now records RAG as a future orchestration
+  contract, not a retrieval infrastructure framework. It covers caller-owned
+  retrievers/adapters, provenance, context injection, index lifecycle,
+  permission-aware retrieval, routing profiles, GraphRAG layers, cache state,
+  degraded execution traces, and evaluation hooks.
 - ReAct/tool workflow guidance exists in authored docs and documents
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
@@ -72,10 +104,33 @@
 - `89ace5e` documented the optional direct llama.cpp extra in README/API docs.
 - `8c83492` added MLX unsupported-platform coverage proving non-macOS execution
   fails before model resolution or dependency loading.
-- `8f63fb9` added package-owned PyInstaller hook files and regression coverage
-  for `openai-model-registry` data/metadata collection. The package metadata
-  entry point is intentionally being committed separately to trigger downstream
-  build automation.
+- `8f63fb9`, `55a6fba`, and `7b7cf6d` completed package-owned PyInstaller
+  hook support for `openai-model-registry`, hook advertisement, and packaging
+  cleanup after build validation.
+- `743b38c` added the context-management prepare-stage spec, plan, task list,
+  and context-pruning reference relocation out of async-session memory.
+- `5dd0e5a` recast context-management planning around provider-neutral
+  hierarchical compression, including turn units, budget lanes, rolling
+  summaries, deterministic older-turn selection, chronological reassembly, and
+  fallback trimming.
+- `ed22596` added LCWMS-derived lifecycle, metadata, and metric taxonomy to
+  the context-management spec while preserving the no durable runner memory and
+  no built-in vector retrieval boundaries.
+- `bc65162` tracked context-window survey findings in the spec, including
+  required/optional context, reserve-token headroom, lost-in-the-middle
+  ordering, model routing, exact retrieval, and overflow fixture guidance.
+- `b7bb17e` refined context-compression boundaries, added named compression
+  profiles, and clarified graph mutation as the workflow-derivation mechanism
+  for future context-management attachment or insertion.
+- `89488e4` aligned the top-level README, spec inventory, completion matrix,
+  and graph-mutation planning artifacts with those boundaries.
+- `fcde8bf` tracked evaluated agent-architecture follow-ups across the spec
+  index, MCP runtime, guardrails, iterative loops, context management,
+  capability reporting, and sandbox/workspace specs.
+- `f59e7dd` expanded the RAG orchestration spec with production RAG ideas from
+  evaluated RAG books, including index lifecycle, permission-aware retrieval,
+  retrieval routers/profiles, cache contracts, GraphRAG construction vs
+  query-time retrieval, degraded execution, and evaluation lifecycle metadata.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -93,16 +148,26 @@
   - `llmfit-model-fit-filter` for pre-download filtering
   - prepared `llama-cpp-memory-fit-profile` v1 for post-resolution GGUF
     profiling
-- Pending working-tree package metadata edits currently make
-  `llama-cpp-python` optional behind a `llamacpp` extra; decide whether to keep,
-  revise, or discard those changes before the next commit bundle.
-- Pending working-tree package metadata also advertises the package-owned
-  PyInstaller hook directory through the `pyinstaller40` entry point and should
-  remain isolated in the final build-triggering commit.
+- No PyInstaller packaging work is currently pending after the hook support PR
+  and branch synchronization.
+- Pending package metadata from earlier local-model work may still need review
+  if local-model dependency packaging resumes.
 - Power-Marimo host automation remains deferred until approval/sandbox and
   host-managed continuity boundaries are clear.
 - Runner-owned durable session storage remains deferred until a concrete
   workflow proves the need.
+- Runner-owned RAG infrastructure remains out of scope. RAG future work should
+  stay focused on metadata validation, capability/status diagnostics, trace
+  contracts, provenance, context-management integration, and fake-adapter
+  evaluation hooks.
+- Live prompt pruning, compaction, and hierarchical prompt-context injection are
+  owned by `context-management-prepare-stage`, not the async-session memory
+  pipeline.
+- Context compression implementation should begin with turn grouping and lane
+  assembly, including lifecycle diagnostics and metric metadata, then
+  compression-profile normalization and deterministic older-turn selection.
+  Required lanes, output headroom, and overflowing-history checks should be
+  addressed before summary generation or provider-owned compaction.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.
 

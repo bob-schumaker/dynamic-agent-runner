@@ -1698,6 +1698,13 @@ Before implementation is considered complete, add validation covering:
   `specs/dynamic-agent-runner/plan.md` and
   `specs/dynamic-agent-runner/tasks.md`. Treat them as the current technical
   planning and task-decomposition companions to this light-mode spec.
+- Richer RAG orchestration is owned by
+  `specs/rag-orchestration-contract/spec.md`. The primary runtime spec only
+  records the current baseline metadata preservation and validation surface; the
+  future contract for index lifecycle, permission-aware retrieval, retrieval
+  routing, GraphRAG construction/query boundaries, cache/degraded execution
+  state, provenance, context injection, and evaluation hooks remains scoped to
+  that dedicated feature package.
 - Earlier debate review originally constrained work to a narrow readiness slice,
   but the planned implementation sequence recorded in this spec has since been
   completed through the currently tracked slices.

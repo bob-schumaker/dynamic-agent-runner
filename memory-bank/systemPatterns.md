@@ -190,6 +190,12 @@
   guardrail registries, trace sinks, lifecycle hooks, and opt-in built-in packs.
   Future live features should fit this collaborator model instead of reading
   ambient host configuration from portable workflow packages.
+- Graph mutation is the derived workflow-operation layer. The first completed
+  checkpoint is an input-transform context-pruning attachment, but future graph
+  mutation may own structural insertion, edge rewiring, or link-level operations
+  such as inserting context management on a ReAct loopback. The
+  `context-management-prepare-stage` spec owns the behavior of prompt/session/
+  file context shaping, not the graph location where that behavior is attached.
 - Freeze-time packaging support is isolated from runtime execution. PyInstaller
   hooks live under the package and are exposed through installed distribution
   entry points so downstream frozen clients collect required third-party data
@@ -255,13 +261,11 @@
   redirect user credentials. Future PAT or agent-identity support needs a
   separate provider/base-url/signing spec before implementation.
 - If local-model support returns, follow the split authoritative specs:
-  `specs/llama-cpp-local-model/spec.md` for local adapter design and
-  `specs/internal-graph-mutation/spec.md` for mutation design. Fit llama.cpp
-  into the existing `model_adapter` contract rather than introducing a parallel
-  runtime model interface, and treat future context-pruning attachment as an
-  internal compile-time graph-mutation layer, ideally starting with input
-  transformation on `llm_step` nodes before any true node or edge graph
-  surgery.
+  `specs/llama-cpp-local-model/spec.md` for local adapter design,
+  `specs/internal-graph-mutation/spec.md` for derived workflow operations, and
+  `specs/context-management-prepare-stage/spec.md` for prompt/session/file
+  context shaping. Fit llama.cpp into the existing `model_adapter` contract
+  rather than introducing a parallel runtime model interface.
 - For the llama.cpp local-model slice specifically, preserve these boundaries:
   do not launch local servers in the runtime; use the OpenAI-compatible provider
   seam only when the caller already supplies a local server; direct in-process

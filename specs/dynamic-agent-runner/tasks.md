@@ -967,6 +967,13 @@ explicitly instead of leaving them as undocumented future behavior.
   provider-neutral `llm_step.model_requirements`, ReAct-style `react_loop`
   manifests, `evidence_loop` metadata, and package-declared
   `rag`/`embedding_retrieval`/`graph_retrieval`/`graphrag` classifications.
+- The richer future contract for RAG orchestration now lives in
+  `specs/rag-orchestration-contract/spec.md`. P5 remains the implemented
+  baseline for metadata preservation and validation; future slices for index
+  lifecycle, permission-aware retrieval, routing profiles, GraphRAG
+  construction/query boundaries, cache/degraded execution, provenance-aware
+  context injection, and evaluation hooks should use that dedicated feature
+  package as the source of truth.
 
 ## Deferred library-evaluation follow-ups
 

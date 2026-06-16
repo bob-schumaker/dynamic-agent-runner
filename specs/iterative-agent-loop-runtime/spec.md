@@ -228,6 +228,28 @@ Acceptance criteria:
 - Should future loop transcripts become public state, exported artifacts, or
   trace-only diagnostics?
 
+## Future Work
+
+Lanham's `AI Agents in Action, Second Edition` distinguishes inner loops, task
+loops, and meta loops, and highlights operational loop controls. Future approved
+slices may add:
+
+- layered termination gates that combine hard iteration limits, success
+  criteria, no-progress detection, budget exhaustion, and human/host stop
+  signals
+- iteration body output contracts that separate sensed state, plan updates,
+  tool actions, observations, and learned state from final model output
+- stagnation detection that pivots strategy when repeated iterations produce no
+  new evidence or state change
+- confidence-gated final output and knowledge-boundary reporting before an
+  answer is presented to the caller
+- strategy-pivot metadata and trace events for loop diagnostics
+- evaluation hooks that can score loop progress without making the loop
+  unbounded or self-modifying
+
+Those follow-ups must keep loops opt-in, bounded, registry-authoritative, and
+fake-client testable.
+
 ## Validation Checklist
 
 - [x] Ordinary `llm_step` behavior is unchanged without loop policy.
