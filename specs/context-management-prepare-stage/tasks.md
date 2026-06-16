@@ -61,7 +61,7 @@ Status: future backlog; no tasks started
 
 ## Slice 2 — Lane-based prompt assembly
 
-- [ ] T2.1 [tests] Add RED coverage for lane budget assembly.
+- [x] T2.1 [tests] Add RED coverage for lane budget assembly.
   - Spec: FR4, FR5, FR14, FR16, FR17
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -72,7 +72,7 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k context_lanes`
 
-- [ ] T2.2 [tests] Add RED coverage for lane budget enforcement.
+- [x] T2.2 [tests] Add RED coverage for lane budget enforcement.
   - Spec: FR6, FR14, FR16
   - Files/components: `tests/test_executor.py`
   - Cover per-lane token limits, no implicit cross-lane borrowing, trimmed and
@@ -81,7 +81,7 @@ Status: future backlog; no tasks started
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k lane_budget`
 
-- [ ] T2.3 [implementation] Add lane-based prompt assembly.
+- [x] T2.3 [implementation] Add lane-based prompt assembly.
   - Spec: FR4, FR5, FR6, FR14, FR16
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Assemble prepared input from explicit lanes with stable ordering and

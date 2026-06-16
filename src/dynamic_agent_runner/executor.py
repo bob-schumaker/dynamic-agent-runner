@@ -177,6 +177,7 @@ class PreparedInputMetadata:
     context_threshold: Mapping[str, Any] = field(default_factory=dict)
     compression_profile: str | None = None
     lane_budgets: Mapping[str, int] = field(default_factory=dict)
+    context_lanes: tuple[Mapping[str, Any], ...] = ()
     selection_policy: Mapping[str, Any] = field(default_factory=dict)
     lifecycle_stages: tuple[Mapping[str, Any], ...] = ()
     metrics: tuple[str, ...] = ()
@@ -471,6 +472,7 @@ def prepare_model_input(
                 "context_threshold": preparation.context_threshold,
                 "compression_profile": preparation.compression_profile,
                 "lane_budgets": preparation.lane_budgets,
+                "context_lanes": preparation.context_lanes,
                 "selection_policy": preparation.selection_policy,
                 "lifecycle_stages": preparation.lifecycle_stages,
                 "metrics": preparation.metrics,
@@ -1737,6 +1739,7 @@ def _merge_prepared_input_metadata(
         context_threshold=base.context_threshold,
         compression_profile=base.compression_profile,
         lane_budgets=base.lane_budgets,
+        context_lanes=base.context_lanes,
         selection_policy=base.selection_policy,
         lifecycle_stages=base.lifecycle_stages,
         metrics=base.metrics,
@@ -1770,6 +1773,7 @@ def _merge_skill_source_preparation(
         context_threshold=base.context_threshold,
         compression_profile=base.compression_profile,
         lane_budgets=base.lane_budgets,
+        context_lanes=base.context_lanes,
         selection_policy=base.selection_policy,
         lifecycle_stages=base.lifecycle_stages,
         metrics=base.metrics,
@@ -1834,13 +1838,18 @@ def _apply_prepare_model_input_stage(
     kept_session, pruned_session = _pruned_session_messages(
         state.session_messages, policy
     )
-    turn_metadata, segment_metadata = _session_turn_diagnostics(state.session_messages)
-    context_threshold = _context_threshold_metadata(policy, adapter, model)
     compression_profile = _compression_profile(policy)
     lane_budgets = _lane_budgets(policy)
+    turn_metadata, segment_metadata = _session_turn_diagnostics(state.session_messages)
+    context_threshold = _context_threshold_metadata(policy, adapter, model)
     selection_policy = _selection_policy(policy)
     lifecycle_stages = _lifecycle_stage_status(policy)
     metrics = _context_metrics(policy)
+    kept_session, lane_trimmed_session = _apply_recent_turn_lane_budget(
+        kept_session,
+        lane_budgets,
+        model=model,
+    )
     context_compaction_applied = False
     if pruned_session:
         summary_message = _compacted_session_message(pruned_session, policy)
@@ -1853,6 +1862,12 @@ def _apply_prepare_model_input_stage(
 
     if user_part is not None:
         result_parts.append(user_part)
+
+    context_lanes = _context_lane_metadata(
+        result_parts,
+        lane_budgets,
+        recent_trimmed_count=len(lane_trimmed_session),
+    )
 
     return tuple(result_parts), PreparedInputMetadata(
         hierarchy_applied=hierarchy_applied,
@@ -1871,6 +1886,7 @@ def _apply_prepare_model_input_stage(
         context_threshold=context_threshold,
         compression_profile=compression_profile,
         lane_budgets=lane_budgets,
+        context_lanes=context_lanes,
         selection_policy=selection_policy,
         lifecycle_stages=lifecycle_stages,
         metrics=metrics,
@@ -1991,6 +2007,94 @@ def _lane_budgets(policy: Mapping[str, Any]) -> Mapping[str, int]:
         for key, value in lanes.items()
         if isinstance(value, int) and not isinstance(value, bool) and value > 0
     }
+
+
+def _apply_recent_turn_lane_budget(
+    messages: Sequence[OpenAIMessage],
+    lane_budgets: Mapping[str, int],
+    *,
+    model: str,
+) -> tuple[tuple[OpenAIMessage, ...], tuple[OpenAIMessage, ...]]:
+    budget = lane_budgets.get("recent_turn_tokens")
+    if budget is None:
+        return tuple(messages), ()
+    included: list[OpenAIMessage] = []
+    omitted: list[OpenAIMessage] = []
+    used_tokens = 0
+    for message in messages:
+        token_count = estimate_messages_tokens(
+            ({"role": message.role, "content": message.content},),
+            model=model,
+        ).token_count
+        if used_tokens + token_count > budget:
+            omitted.append(message)
+            continue
+        included.append(message)
+        used_tokens += token_count
+    return tuple(included), tuple(omitted)
+
+
+def _context_lane_metadata(
+    parts: Sequence[tuple[str, OpenAIMessage]],
+    lane_budgets: Mapping[str, int],
+    *,
+    recent_trimmed_count: int,
+) -> tuple[Mapping[str, Any], ...]:
+    lane_order = (
+        "pinned",
+        "file_tool",
+        "rolling_summary",
+        "recent_turns",
+        "current_turn",
+    )
+    lane_parts: dict[str, list[str]] = {lane_id: [] for lane_id in lane_order}
+    for part_name, _message in parts:
+        lane_parts[_part_lane_id(part_name)].append(part_name)
+    lanes: list[Mapping[str, Any]] = []
+    for lane_id in lane_order:
+        part_names = tuple(lane_parts[lane_id])
+        if not part_names and not (lane_id == "recent_turns" and recent_trimmed_count):
+            continue
+        budget = lane_budgets.get(_lane_budget_key(lane_id))
+        lane: dict[str, Any] = {
+            "lane_id": lane_id,
+            "part_count": len(part_names),
+            "part_names": part_names,
+            "trimmed_count": recent_trimmed_count if lane_id == "recent_turns" else 0,
+            "omitted_count": recent_trimmed_count if lane_id == "recent_turns" else 0,
+        }
+        if budget is not None:
+            lane["budget_tokens"] = budget
+        lanes.append(lane)
+    return tuple(lanes)
+
+
+def _part_lane_id(part_name: str) -> str:
+    if part_name.startswith("hierarchy_") or part_name in {
+        "system",
+        "developer",
+        "skill_instructions",
+    }:
+        return "pinned"
+    if part_name.startswith("file_context_"):
+        return "file_tool"
+    if part_name == "session_summary":
+        return "rolling_summary"
+    if part_name.startswith("session_message_"):
+        return "recent_turns"
+    if part_name == "user_prompt":
+        return "current_turn"
+    return "pinned"
+
+
+def _lane_budget_key(lane_id: str) -> str:
+    return {
+        "pinned": "pinned_tokens",
+        "file_tool": "file_context_tokens",
+        "rolling_summary": "summary_tokens",
+        "recent_turns": "recent_turn_tokens",
+        "current_turn": "current_turn_tokens",
+    }[lane_id]
 
 
 def _selection_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:

@@ -1208,6 +1208,146 @@ def test_prepare_model_input_records_auto_compaction_threshold_metadata() -> Non
     assert prepared_input.preparation.metrics == ("lane_utilization",)
 
 
+def test_prepare_model_input_reports_context_lanes() -> None:
+    """prepare_model_input reports ordered context lanes and utilization metadata."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "context-lanes-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "prompt_hierarchy": {
+                            "system": ["Pinned system"],
+                            "developer": ["Pinned developer"],
+                        },
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "summary_message",
+                            "summary_prefix": "Earlier:",
+                            "auto": {"enabled": True},
+                        },
+                        "context_compression": {
+                            "profile": "balanced",
+                            "lanes": {
+                                "pinned_tokens": 200,
+                                "current_turn_tokens": 400,
+                                "recent_turn_tokens": 400,
+                                "summary_tokens": 100,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "system": "Base system",
+                        "user_template": "Answer {prompt}",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="now",
+        session_messages=(
+            OpenAIMessage(role="user", content="old"),
+            OpenAIMessage(role="assistant", content="old answer"),
+            OpenAIMessage(role="user", content="recent"),
+            OpenAIMessage(role="assistant", content="recent answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert [lane["lane_id"] for lane in prepared_input.preparation.context_lanes] == [
+        "pinned",
+        "rolling_summary",
+        "recent_turns",
+        "current_turn",
+    ]
+    assert prepared_input.preparation.context_lanes[0]["part_count"] == 3
+    assert prepared_input.preparation.context_lanes[0]["budget_tokens"] == 200
+    assert prepared_input.preparation.context_lanes[1]["part_count"] == 1
+    assert prepared_input.preparation.context_lanes[2]["part_count"] == 2
+    assert prepared_input.preparation.context_lanes[3]["part_count"] == 1
+    assert prepared_input.preparation.context_lanes[3]["budget_tokens"] == 400
+
+
+def test_prepare_model_input_enforces_recent_turn_lane_budget() -> None:
+    """Recent-turn lane budget trimming does not borrow from current-turn budget."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "lane-budget-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 4},
+                        "context_compaction": {
+                            "auto": {"enabled": True},
+                        },
+                        "context_compression": {
+                            "profile": "fast",
+                            "lanes": {
+                                "recent_turn_tokens": 1,
+                                "current_turn_tokens": 1000,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="protected current prompt",
+        session_messages=(
+            OpenAIMessage(role="user", content="recent user with many tokens"),
+            OpenAIMessage(
+                role="assistant", content="recent assistant with many tokens"
+            ),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+    lane_map = {
+        lane["lane_id"]: lane for lane in prepared_input.preparation.context_lanes
+    }
+
+    assert "session_message_1" not in prepared_input.named_parts
+    assert "session_message_2" not in prepared_input.named_parts
+    assert prepared_input.named_parts["user_prompt"].content == (
+        "Answer protected current prompt"
+    )
+    assert lane_map["recent_turns"]["trimmed_count"] == 2
+    assert lane_map["recent_turns"]["omitted_count"] == 2
+    assert lane_map["current_turn"]["part_count"] == 1
+
+
 def test_prepare_model_input_includes_bounded_file_context_with_provenance(
     tmp_path,
 ) -> None:
