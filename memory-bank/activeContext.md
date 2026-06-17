@@ -3,6 +3,14 @@
 ## Current Focus
 
 - No implementation slice is currently active.
+- A new draft spec package, `specs/litellm-provider-adapter/`, now proposes
+  making LiteLLM the package's core OpenAI-compatible transport while
+  preserving repository-owned OpenAI/Codex auth discovery and mapping default
+  Codex behavior through a helper shaped like
+  `create_litellm_codex_adapter_from_codex_auth(...)`.
+- `docs/source/conf.py` was refreshed and committed separately to derive Sphinx
+  project metadata from `pyproject.toml`/git config and to simplify the
+  Confluence SSO session override path.
 - The high-ROI queue has advanced through four major runtime foundations:
   capability/status visibility, approval/sandbox approval-before-side-effect
   policy, explicit MCP registry injection, and caller-registered input
@@ -65,8 +73,10 @@
   fail-closed validation, and capability/status reporting for metadata-only,
   live, and rejected states.
 - The next ROI action is no longer skill-source, RAG orchestration v1, or
-  context-management prepare-stage v1. Local-model advisory implementation
-  should happen only when local-model ergonomics is the immediate driver.
+  context-management prepare-stage v1. LiteLLM provider implementation now has
+  a draft spec, but code work should wait for an approved implementation plan.
+  Local-model advisory implementation should happen only when local-model
+  ergonomics is the immediate driver.
 
 ## Recent Completed Work
 
@@ -142,6 +152,10 @@
   records the RAG/context-management ownership split.
 - Skill-source resolution v1 is implemented and documented; open decisions are
   deferred beyond v1.
+- Core LiteLLM adapter planning is captured in
+  `specs/litellm-provider-adapter/spec.md`; it is draft-only and not yet
+  implementation authorization.
+- Sphinx configuration refresh is committed separately from the LiteLLM spec.
 
 ## Current Spec Authority Map
 
@@ -158,6 +172,8 @@
   - `specs/rag-orchestration-contract/spec.md`
   - `specs/context-management-prepare-stage/spec.md`
   - `specs/pyinstaller-packaging-support/spec.md`
+- Draft feature packages:
+  - `specs/litellm-provider-adapter/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
 - Later feature packages:
@@ -169,6 +185,11 @@
 
 ## Next Steps
 
+- If implementing LiteLLM support, first approve or refine
+  `specs/litellm-provider-adapter/spec.md`, then create plan/tasks artifacts
+  that decide request mapping, Codex auth adaptation, model-id aliasing,
+  Responses API support, PyInstaller handling, and official OpenAI SDK
+  compatibility/fallback behavior before editing runtime code.
 - If continuing local-model advisory work, decide whether the pending
   `pyproject.toml` / `poetry.lock` optional llama.cpp metadata edits should be
   committed, revised, or discarded before executing another slice.

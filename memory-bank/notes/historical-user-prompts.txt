@@ -426,3 +426,7 @@ git ()
     ${GIT_COMMAND} "$@"
 }
 ```
+
+---
+
+write a feature spec to update the package to use LiteLLM. a local repo is at /Users/roschuma/Repos/github/litellm/
