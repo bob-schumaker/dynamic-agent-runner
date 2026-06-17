@@ -56,7 +56,11 @@
   with top-level `name`.
 - Package-owned PyInstaller support now includes a hook provider and bundled
   `openai_model_registry` hook that collects registry data files and
-  distribution metadata for frozen downstream clients.
+  distribution metadata for frozen downstream clients. The hook also collects
+  `tiktoken_ext` hidden imports so tokenizer encoding plugins are preserved in
+  frozen apps.
+- Sphinx configuration now derives project metadata from `pyproject.toml` and
+  git config, and its Confluence mode uses a session override for Selenium SSO.
 - The package advertises its PyInstaller hook directory through the
   `pyinstaller40` entry point, and the hook support was merged through the
   build-gated DevOps SCM PR flow.
@@ -114,6 +118,10 @@
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
   optional injected-evaluator advisory profile for resolved GGUF assets.
+- `litellm-provider-adapter` is drafted as a future core provider-transport
+  spec. It proposes making LiteLLM the core OpenAI-compatible transport,
+  preserving repository-owned OpenAI/Codex auth discovery, and mapping default
+  Codex behavior through `create_litellm_codex_adapter_from_codex_auth(...)`.
 
 ## Latest Milestones
 
@@ -170,6 +178,10 @@
   implemented and documented skill-source resolution v1 across policy models,
   package-local resolver validation, prompt injection, override coverage,
   capability/status reporting, and spec completion evidence.
+- `3c5e672` added the core LiteLLM OpenAI-compatible adapter spec and spec
+  index coverage.
+- `eca1436` updated Sphinx configuration metadata loading and Confluence SSO
+  session setup.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -184,13 +196,17 @@
   bank. Use `specs/README.md` plus the user's immediate priority to choose
   between local-model advisory work, context-management implementation, or a
   new scoped feature slice.
+- LiteLLM provider work remains spec-only. Before implementation, create
+  plan/tasks artifacts for the core dependency change, default provider
+  selection, Codex auth adaptation, request/response mapping, fake-test
+  strategy, and packaging implications.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering
   - prepared `llama-cpp-memory-fit-profile` v1 for post-resolution GGUF
     profiling
-- No PyInstaller packaging work is currently pending after the hook support PR
-  and branch synchronization.
+- No larger PyInstaller packaging work is currently pending after the hook
+  support PR, branch synchronization, and `tiktoken_ext` hidden-import update.
 - Pending package metadata from earlier local-model work may still need review
   if local-model dependency packaging resumes.
 - Power-Marimo host automation remains deferred until approval/sandbox and

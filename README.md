@@ -59,13 +59,17 @@ Known configuration:
 - model capability metadata uses `openai-model-registry` behind
   package-owned validation and selection interfaces
 - workflow tracing uses package-owned trace events and optional trace sinks
-- async execution, lifecycle hooks, prompt-cache observation, local
+- async execution, lifecycle hooks, prompt-cache observation, capability
+  inspection, input guardrail execution, explicit MCP registry bindings, local
   OpenAI-compatible endpoint helpers, and context-pipeline graph-mutation helpers
   are implemented behind package-owned interfaces
 - local model asset, endpoint, and direct in-process llama.cpp support is
   represented through package-owned local-model helpers; `llama-cpp-python` is a
   `llamacpp` extra and `huggingface-hub` is available through the `huggingface`
   extra, but the runner does not start model servers
+- llama.cpp memory-fit profiling is an advisory caller-supplied profiler path;
+  the package resolves model assets and reports fit status without owning a live
+  profiler process
 - no required `ocihelper`, `ai-tools-core`, or `openai-tools-core` dependency in
   the current implementation direction
 - the initial implementation targets the OpenAI Python SDK behind a small adapter
@@ -299,6 +303,24 @@ portable future multi-turn or resumable workflow metadata such as `mode`,
 `session_messages_state_key`, but it does not yet provide runner-owned session
 storage, automatic replay, or automatic cross-run message reuse.
 
+`runtime.execution_policy.prepare_model_input` is implemented for prompt
+hierarchy messages, package-bounded file context, retrieved context supplied in
+execution state, session pruning and compaction metadata, lane budgets, selected
+older turns, and preparation diagnostics. Unsupported compaction, compression,
+lane, selection, and file-context values fail validation before execution.
+
+`extensions.guardrails.declarations` is live for `phase: input` when callers
+provide an `InMemoryGuardrailRegistry` through the lower-level executor or a
+`WorkflowExecutionContext`. Missing input guardrail handlers fail closed, and
+abort decisions raise `GuardrailExecutionError`. Other guardrail phases are
+validated and preserved as metadata.
+
+MCP support is explicit and caller-owned. The package preserves
+`extensions.mcp_registry_sources` and `extensions.mcp_lifecycle_diagnostics`
+metadata, and exposes `MCPToolBinding` plus `create_mcp_registry(...)` for
+binding known MCP tools into the normal tool registry. The runner does not
+discover, start, reconnect, or stop MCP servers.
+
 For ReAct-style or retrieval loops, keep the runtime graph expressed in the
 primitive node taxonomy (`llm_step`, `tool_use_step`, `decision_step`) with
 pattern metadata such as `react_loop`, `evidence_loop`, `rag`,
@@ -382,6 +404,16 @@ outputs, node outputs, and final results as sensitive where applicable;
 redaction path before external emission. Logfire/OpenTelemetry integration is
 intentionally deferred until this package-owned interface is stable.
 
+## Capability Inspection
+
+Use `inspect_agent_package_capabilities(...)` to preflight a package without
+executing model, tool, guardrail, or retriever calls. The report marks current
+surfaces as `live`, `metadata_only`, `missing_collaborator`, `disabled`,
+`unsupported`, or `invalid`, and summarizes counts by state. Pass the same
+collaborators you plan to execute with, such as a tool registry, guardrail
+registry, model adapter, and strict model-adapter coverage, to see readiness
+instead of just manifest shape.
+
 ## CLI Usage
 
 After installation, run a workflow package from its directory:
@@ -423,11 +455,21 @@ Current tests cover:
 - applying bounded model and tool retry policies without live model calls
 - resolving local model assets and classifying local OpenAI-compatible endpoint
   failures
+- profiling llama.cpp memory-fit status through a caller-supplied advisory
+  profiler
 - searching Hugging Face models through a repository-owned public result
   contract
 - dispatching async model, tool, and lifecycle hook calls
+- running declared input guardrails through caller-owned registries and failing
+  closed for missing handlers
+- binding explicit MCP tools into the package-owned registry contract
+- inspecting package capability readiness without executing model, tool,
+  guardrail, or retriever calls
 - deriving and applying context-pipeline graph-mutation helpers for prepared
   context injection
+- applying prepare-model-input policy for hierarchy messages, package-bounded
+  file context, retrieved context, session pruning, lane budgets, selected
+  turns, and compaction diagnostics
 - validating LLM output contracts and decision routes before trusting node output
 - estimating prompt tokens and enforcing configured token budgets before model
   calls
