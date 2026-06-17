@@ -49,6 +49,7 @@ optional = true
 sphinxcontrib-confluencebuilder = "*"
 myst-parser = "*"
 sphinx-markdown-builder = "^0.6.10"
+werner = {extras = ["login"], version = "^0.4.216"}
 
 [tool.poetry.group.test.dependencies]
 pytest-cov = "^7.1.0"
