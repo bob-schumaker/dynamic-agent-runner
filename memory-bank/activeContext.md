@@ -26,6 +26,9 @@
   package-owned hook files, metadata advertisement, build-gated DevOps SCM PR,
   develop/main branch synchronization, and post-hoc SDD representation in
   `specs/pyinstaller-packaging-support/` are done.
+- The package-owned `openai_model_registry` PyInstaller hook now also collects
+  `tiktoken_ext` hidden imports so frozen apps include tokenizer encoding
+  namespace-package plugins.
 - Context growth management has a dedicated spec package:
   `specs/context-management-prepare-stage/` now owns session pruning, context
   compaction, hierarchical prompt-context injection, and provider-neutral
@@ -138,7 +141,9 @@
   - MLX helpers remain constructible on non-macOS, advertise their model aliases,
     and fail with the macOS-only `ModelExecutionError` before resolving model
     paths or loading dependencies when generation is attempted off macOS
-- PyInstaller packaging support for `openai-model-registry` is complete.
+- PyInstaller packaging support for `openai-model-registry` now includes
+  registry data files, distribution metadata, and `tiktoken_ext` hidden imports
+  for tokenizer encoding plugins.
 - `pyinstaller-packaging-support` now has a dedicated post-hoc feature spec,
   implementation plan, task list, validation log, and spec-index coverage.
 - Agent-architecture follow-ups from `AI Agents in Action, Second Edition` are

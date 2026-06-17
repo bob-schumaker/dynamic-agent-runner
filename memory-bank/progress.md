@@ -56,7 +56,9 @@
   with top-level `name`.
 - Package-owned PyInstaller support now includes a hook provider and bundled
   `openai_model_registry` hook that collects registry data files and
-  distribution metadata for frozen downstream clients.
+  distribution metadata for frozen downstream clients. The hook also collects
+  `tiktoken_ext` hidden imports so tokenizer encoding plugins are preserved in
+  frozen apps.
 - Sphinx configuration now derives project metadata from `pyproject.toml` and
   git config, and its Confluence mode uses a session override for Selenium SSO.
 - The package advertises its PyInstaller hook directory through the
@@ -203,8 +205,8 @@
   - `llmfit-model-fit-filter` for pre-download filtering
   - prepared `llama-cpp-memory-fit-profile` v1 for post-resolution GGUF
     profiling
-- No PyInstaller packaging work is currently pending after the hook support PR
-  and branch synchronization.
+- No larger PyInstaller packaging work is currently pending after the hook
+  support PR, branch synchronization, and `tiktoken_ext` hidden-import update.
 - Pending package metadata from earlier local-model work may still need review
   if local-model dependency packaging resumes.
 - Power-Marimo host automation remains deferred until approval/sandbox and
