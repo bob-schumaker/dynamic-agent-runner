@@ -16,8 +16,12 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-import re
+import subprocess
 import sys
+from datetime import date
+from urllib.parse import urlparse
+
+import tomllib
 
 DOCS_SOURCE_DIR = os.path.abspath(os.path.dirname(__file__))
 DOCS_DIR = os.path.dirname(DOCS_SOURCE_DIR)
@@ -25,29 +29,154 @@ REPO_ROOT = os.path.dirname(DOCS_DIR)
 sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
 
 
-def _load_release(default: str = "local") -> str:
-    """Read the package version from ``pyproject.toml`` when available."""
+def _load_project_metadata() -> dict:
+    """Read Sphinx project metadata from ``pyproject.toml`` when available."""
     pyproject_path = os.path.join(REPO_ROOT, "pyproject.toml")
     try:
-        with open(pyproject_path, "rt", encoding="utf-8") as handle:
-            pyproject_text = handle.read()
+        with open(pyproject_path, "rb") as handle:
+            pyproject_data = tomllib.load(handle)
     except OSError:
-        return default
+        return {}
 
-    match = re.search(r'^version\s*=\s*"([^"]+)"', pyproject_text, re.MULTILINE)
-    if not match:
-        return default
-    return match.group(1)
+    return pyproject_data.get("project", {})
+
+
+def _git_config_value(key: str) -> str:
+    """Return a git config value for this repository, if available."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", key],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return ""
+
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
+def _git_config_values(pattern: str) -> list[str]:
+    """Return git config values matching a key pattern."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get-regexp", pattern],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return []
+
+    if result.returncode != 0:
+        return []
+
+    values = []
+    for line in result.stdout.splitlines():
+        _key, _, value = line.partition(" ")
+        if value:
+            values.append(value.strip())
+    return values
+
+
+def _format_author(name: str = "", email: str = "") -> str:
+    """Format author metadata for Sphinx."""
+    if name and email:
+        return f"{name} <{email}>"
+    return name or email
+
+
+def _project_name_from_remote_url(remote_url: str) -> str:
+    """Return the trailing repository name from a remote URL."""
+    if not remote_url:
+        return ""
+
+    if ":" in remote_url and "://" not in remote_url:
+        remote_path = remote_url.rsplit(":", 1)[-1]
+    else:
+        remote_path = urlparse(remote_url).path
+
+    project_name = remote_path.rstrip("/").rsplit("/", 1)[-1]
+    if project_name.endswith(".git"):
+        project_name = project_name[:-4]
+    return project_name
+
+
+def _remote_project_name() -> str:
+    """Return a trailing repository name from configured git remotes."""
+    remote_urls = [
+        _git_config_value("remote.origin.url"),
+        *_git_config_values(r"^remote\..*\.url$"),
+    ]
+    for remote_url in remote_urls:
+        project_name = _project_name_from_remote_url(remote_url)
+        if project_name:
+            return project_name
+    return ""
+
+
+def _load_author(project_metadata: dict) -> str:
+    """Read author metadata, falling back to git config when needed."""
+    authors = project_metadata.get("authors") or []
+    if authors:
+        author = authors[0]
+        if isinstance(author, dict):
+            return _format_author(author.get("name", ""), author.get("email", ""))
+        return str(author)
+
+    return _format_author(
+        _git_config_value("user.name"),
+        _git_config_value("user.email"),
+    )
+
+
+def _load_author_name(project_metadata: dict) -> str:
+    """Read the author name without email metadata."""
+    authors = project_metadata.get("authors") or []
+    if authors:
+        author = authors[0]
+        if isinstance(author, dict):
+            return author.get("name", "")
+        return str(author)
+
+    return _git_config_value("user.name")
+
+
+def _load_copyright(author_name: str) -> str:
+    """Build a project-neutral copyright string."""
+    copyright_holders = []
+    company = _git_config_value("user.company")
+    if company:
+        copyright_holders.append(company)
+    if author_name:
+        copyright_holders.append(author_name)
+
+    if not copyright_holders:
+        return str(date.today().year)
+    return f"{date.today().year}, {' and '.join(copyright_holders)}"
+
+
+_project_metadata = _load_project_metadata()
+_author = _load_author(_project_metadata)
+_author_name = _load_author_name(_project_metadata)
 
 
 # -- Project information -----------------------------------------------------
 
-project = os.path.basename(REPO_ROOT)
-copyright = "2026, Oracle Corporation"
-author = "Bob Schumaker"
+project = (
+    _project_metadata.get("name")
+    or _remote_project_name()
+    or os.path.basename(REPO_ROOT)
+)
+author = _author
+copyright = _load_copyright(_author_name)
 
 # The full version, including alpha/beta/rc tags
-release = _load_release()
+release = _project_metadata.get("version", "local")
 version = release
 
 
@@ -70,54 +199,40 @@ templates_path = ["_templates"]
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
 
+rst_epilog = f"""
+.. |copyright| replace:: {copyright}
+"""
+
 if os.environ.get("SPHINX_MODE") == "confluence":
     from selenium import webdriver
 
     from werner.connect import SeleniumSSOAuthAdapter
-    from werner.sparta import OCIPasswordManager, OracleConfluenceClient
-    from werner.sparta.oracle_sso import OracleSingleSignOn, PICAUTH
+    from werner.sparta.oracle_sso import OracleSingleSignOn
 
-    class SphinxOracleConfluenceClient(OracleConfluenceClient):
-        """Use the Selenium-backed SSO flow for Sphinx Confluence publishing."""
+    confluence_auth_cookie = "seraph.confluence"
 
-        def handle_authentication(self, security_descriptor):
-            del security_descriptor
+    def _configure_confluence_session(session):
+        """Install Selenium SSO auth on confluencebuilder's requests session."""
+        session.auth = SeleniumSSOAuthAdapter(
+            OracleSingleSignOn,
+            driver_factory=lambda: webdriver.Firefox(),
+            expected_cookie=confluence_auth_cookie,
+            base_url=confluence_server_url,
+            target_url=confluence_server_url,
+            manual_login=True,
+            manual_login_message=(
+                "Complete the Oracle Confluence login in the opened Firefox "
+                "window so Sphinx can publish the documentation."
+            ),
+        )
 
-            signon_handler = OracleSingleSignOn(
-                self,
-                notifier=self.notify,
-                logger=self.logger,
-            )
-            self._auth = SeleniumSSOAuthAdapter(
-                signon_handler,
-                driver_factory=webdriver.Firefox,
-                expected_cookie=PICAUTH,
-                logger=self.logger,
-                manual_login=True,
-                manual_login_message=(
-                    "Complete the Oracle Confluence login in the opened Firefox "
-                    "window so Sphinx can publish the documentation."
-                ),
-            )
-            self.session.auth = self._auth
-            if not self.validate_auth():
-                raise RuntimeError(
-                    "Unable to authenticate Oracle Confluence for Sphinx publishing."
-                )
-
-    oci_manager = OCIPasswordManager()
-    descriptors = [OracleConfluenceClient.security_descriptor()]
-    auth = oci_manager.get_descriptors(descriptors, interactive=False)
-
-    conf_client = SphinxOracleConfluenceClient(auth)
-
-    confluence_server_cookies = conf_client.session.cookies.get_dict()
+    confluence_server_url = "https://confluence.oraclecorp.com/confluence/"
     confluence_publish = True
     confluence_space_key = "INDCON"
     confluence_parent_page = "Documentation"
-    confluence_server_url = "https://confluence.oraclecorp.com/"
     confluence_page_hierarchy = True
     confluence_cleanup_from_root = True
+    confluence_request_session_override = _configure_confluence_session
 
 # -- Options for HTML output -------------------------------------------------
 
