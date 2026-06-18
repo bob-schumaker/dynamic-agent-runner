@@ -74,9 +74,10 @@ That API depends on the session feature owning:
 - per-prompt bounded run ownership
 - final transcript update rules
 
-Implementing streaming first would force ad hoc run/session semantics into the
-streaming API. Therefore this spec must not be scheduled before
-`persistent-agent-sessions` has an approved plan or implementation baseline.
+Implementing streaming first would have forced ad hoc run/session semantics into
+the streaming API. `persistent-agent-sessions` now provides the required
+in-memory session baseline, so this spec can be planned next when streaming is
+the active priority.
 
 ## Users and User Stories
 
@@ -373,6 +374,6 @@ poetry run ruff check src tests
 ## Approval State
 
 This is a proposed post-`persistent-agent-sessions` feature spec. It is not
-implementation authorization. Do not implement this feature until persistent
-agent sessions have an approved plan or baseline and this spec has its own
-approved implementation plan/tasks or explicit user waiver.
+implementation authorization. Persistent agent sessions now have an implemented
+baseline; do not implement streaming until this spec has its own approved
+implementation plan/tasks or explicit user waiver.

@@ -7,7 +7,8 @@
 - Artifact type: implemented-baseline plus future expansion specification /
   first-customer readiness analysis
 - Status: documents an implemented metadata-only async-session baseline and
-  proposes future expansion; no runner-owned session behavior is implemented
+  proposes future expansion; live in-memory session behavior is now implemented
+  separately by `specs/persistent-agent-sessions/spec.md`
 - Source context:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/plan.md`
@@ -51,6 +52,11 @@ support richer multi-turn or resumable async workflows without prematurely
 introducing runner-owned durable memory, automatic history replay, or broader
 runtime behavior changes.
 
+The first live runner-owned in-memory session object and store are implemented
+separately in `specs/persistent-agent-sessions/spec.md`. This OA8 package
+continues to own the metadata protocol seam and future broader memory-pipeline
+analysis, not the `AgentSession` v1 API.
+
 This spec also records whether the current API surface is already sufficient for
 the first expected customer, `power-marimo`, when continuity is managed by the
 host across repeated runner calls.
@@ -65,7 +71,7 @@ The implemented baseline is:
 - preserve deferred `runtime.execution_policy.async_session` metadata on
   `RuntimeManifest` and `ExecutionPlan`
 - validate the metadata fail-closed
-- keep live session storage, replay, and broader memory behavior out of scope
+- keep durable session storage and broader memory behavior out of OA8 scope
 
 The remaining design question is how future session-memory work should grow from
 that baseline without collapsing into an oversized memory/runtime feature.
@@ -74,9 +80,8 @@ The current planning notes already identify the narrow desired capability:
 
 - preserve a compact deferred `runtime.execution_policy.async_session` protocol
 - include session-id persistence and optional history-retention metadata
-- do **not** add live session storage
-- do **not** add automatic cross-run history replay
-- do **not** broaden current executor memory/runtime behavior
+- do **not** add durable session storage in OA8
+- do **not** broaden executor-owned durable memory/runtime behavior in OA8
 
 That narrow protocol seam is useful because the current runtime executes one
 bounded workflow per call, while likely first-customer use cases such as
@@ -130,7 +135,9 @@ runtime:
 ### Implemented field intent
 
 - `mode`
-  - future behavior class only; no live session behavior in the current runtime
+  - behavior class metadata; live in-memory behavior is implemented by
+    `persistent-agent-sessions`, while durable/broader memory behavior remains
+    future work for a separate slice
 - `persist`
   - declares where future continuity state would live
 - `history`
@@ -322,6 +329,6 @@ machine-specific paths.
 3. Document host-managed continuity as the v1 multi-turn pattern.
 4. Prioritize safe tool adapters and, if needed, OA7 before treating OA8 as a
    customer-facing requirement.
-5. Use `capability-status-report` before promoting runner-owned session behavior
-   so callers can distinguish host-managed continuity, metadata-only session
-   declarations, and any future live session store.
+5. Use `capability-status-report` so callers can distinguish host-managed
+   continuity, metadata-only session declarations, live in-memory
+   `AgentSession` support, and any future durable session store.

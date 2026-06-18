@@ -4,13 +4,14 @@
 
 Describe the next coherent expansion slice for OA8 now that the runner already
 preserves validated `runtime.execution_policy.async_session` metadata without
-adding runner-owned session storage, automatic replay, or broader memory
-behavior.
+adding durable runner-owned session storage or broader memory behavior. Live
+in-memory session continuity is implemented separately by
+`specs/persistent-agent-sessions/spec.md`.
 
 ## Scope Boundary
 
 This plan is for the **next expansion pass after the implemented metadata-only
-baseline**.
+baseline**. It does not replace the implemented `AgentSession` v1 surface.
 
 Already implemented baseline:
 
@@ -148,4 +149,5 @@ poetry run pytest \
 After the next expansion pass, the repository should keep the existing
 validated, portable, metadata-only `runtime.execution_policy.async_session`
 seam and, if approved, extend it in a way that remains compatible with future
-host integrations while leaving the current execution model unchanged.
+host integrations and the separate in-memory `AgentSession` API while leaving
+durable memory behavior out of OA8 until a new slice is approved.

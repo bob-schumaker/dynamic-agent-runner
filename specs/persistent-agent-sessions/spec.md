@@ -4,7 +4,7 @@
 
 - Feature slug: `persistent-agent-sessions`
 - Mode: `light`
-- Artifact type: future feature specification
+- Artifact type: implemented feature specification
 - Status: implemented v1 baseline
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature packages:
@@ -37,8 +37,7 @@ The current architecture already has most of the right ingredients:
 - `WorkflowExecutionState` already has a `session_messages` field.
 - `prepare_model_input(...)` already knows how to include, prune, and compact
   session messages when present.
-- `runtime.execution_policy.async_session` already declares portable session
-  intent, but current behavior is metadata-only.
+- `runtime.execution_policy.async_session` declares portable session intent.
 - Bounded iterative model-tool loops are already implemented inside eligible
   `llm_step` nodes.
 
@@ -71,10 +70,9 @@ still letting callers reuse a ReAct-style workflow as a stateful agent.
 - As a safety reviewer, I can verify each prompt still goes through the normal
   executor limits, guardrails, approval checks, and trace behavior.
 
-## Proposed Public Shape
+## Public Shape
 
-The exact class and module names are implementation-plan decisions, but v1
-should provide a shape close to:
+The v1 public API is:
 
 ```python
 context = WorkflowExecutionContext(
@@ -93,7 +91,7 @@ session = AgentSession.create(
 first = await session.accept("Inspect the repository.")
 second = await session.accept("Now summarize the risky parts.")
 
-snapshot = session.snapshot()
+snapshot = session.current_state().to_mapping()
 restored = AgentSession.from_snapshot(
     snapshot,
     execution_context=context,
@@ -101,9 +99,8 @@ restored = AgentSession.from_snapshot(
 )
 ```
 
-The public API must also support synchronous callers where the repository
-already provides synchronous wrappers, without allowing sync wrappers inside a
-running event loop.
+`accept_sync(...)` supports synchronous callers through the existing sync-wrapper
+policy and fails inside a running event loop.
 
 ## Functional Requirements
 
@@ -119,9 +116,8 @@ Acceptance criteria:
   recompiling the workflow.
 - Given no explicit session id, when a caller creates a session, then the
   runtime generates a stable id for that session.
-- Given an existing session id in the store, when creation uses
-  `create_or_resume` behavior, then the session resumes that state instead of
-  starting empty.
+- Given an existing session id in the store, when creation uses that session id,
+  then the session uses the existing state instead of starting empty.
 
 ### FR-2: Accept prompts as bounded workflow runs
 
@@ -238,10 +234,10 @@ Acceptance criteria:
 
 - Given a package declares async-session metadata and no session store is
   provided, then capability/status can still report metadata-only behavior.
-- Given a package runs through `AgentSession` with `InMemorySessionStore`, then
-  capability/status can report live in-memory session continuity.
-- Given external checkpoint persistence is requested, then capability/status
-  reports unsupported or missing collaborator for v1.
+- Given package capability inspection receives an `InMemorySessionStore`, then
+  capability/status reports live in-memory session continuity.
+- Given external checkpoint persistence is requested, then v1 does not report a
+  live persistent-session capability.
 
 ## Non-Functional Requirements
 
@@ -282,15 +278,13 @@ Acceptance criteria:
 
 ## Data Model Expectations
 
-The implementation plan should define concrete dataclasses, but v1 needs at
-least these concepts:
+The v1 implementation defines dataclasses and state with these concepts:
 
 - session id
 - schema version
 - workflow identity or compatibility marker
 - retained session messages
 - turn count
-- created/updated timestamps or monotonic counters
 - last run id
 - last result value or compact result record
 - optional caller metadata
@@ -334,7 +328,7 @@ they must not be added to retained chat history by default.
 
 ## Validation Checklist
 
-Implementation should provide focused tests for:
+The implementation provides focused tests for:
 
 - creating a session and accepting two prompts with prior messages visible on
   the second run
@@ -347,7 +341,7 @@ Implementation should provide focused tests for:
 - not appending assistant history for failed or interrupted runs
 - retaining only user/assistant messages by default, without raw tool payloads
 
-Validation commands should include at least:
+Validation commands include:
 
 ```bash
 poetry run pytest tests/test_agent_sessions.py -q
@@ -355,18 +349,18 @@ poetry run pytest tests/test_executor.py -q
 poetry run ruff check src tests
 ```
 
-## Open Questions
+## Resolved V1 Decisions
 
-- Should `AgentSession.accept(...)` return the full `WorkflowResult`, a
-  session-specific result wrapper, or only the final result by default?
-- Should sync wrappers be public in v1, or should the first pass be async-only?
-- Should workflow compatibility on restore be strict by package id plus version,
-  by manifest hash, or caller-owned?
-- Should `history: summary` be rejected for live sessions until summary
-  generation is implemented, or should it preserve caller-supplied summaries
-  only?
-- Should `session_id_state_key` write into `node_outputs`, a dedicated state
-  field, or prepared prompt context?
+- `AgentSession.accept(...)` returns `AgentSessionResult`, which exposes the
+  bounded `WorkflowResult` or `WorkflowInterruptedResult` plus current session
+  state.
+- `accept_sync(...)` is public and reuses the existing sync-wrapper event-loop
+  guard.
+- Workflow compatibility on restore is checked with package id plus entrypoint.
+- `history: summary` preserves caller-supplied metadata only and does not
+  generate summaries.
+- `session_id_state_key` writes the session id into initial run `node_outputs`,
+  making it available to prompt templates through the existing state formatter.
 
 ## Implementation State
 

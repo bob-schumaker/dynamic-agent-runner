@@ -219,12 +219,13 @@ or a clear error.
   deferred `runtime.execution_policy.async_session` metadata for future
   multi-turn or resumable async workflows, including the currently implemented
   `mode`, `persist`, `history`, `session_id_state_key`, and
-  `session_messages_state_key` fields, without enabling live session
-  persistence, conversation replay, or automatic cross-run message reuse in the
-  current runtime. The repository-local feature-spec package, packaged reference
-  summaries, first-customer decision memo, and host-managed Power-Marimo
-  continuity sketch under `specs/async-session-memory-pipeline/` extend that
-  implemented baseline with future design analysis.
+  `session_messages_state_key` fields. Live in-memory cross-prompt continuity is
+  implemented separately by `specs/persistent-agent-sessions/`; OA8 still does
+  not add durable session storage or broader memory behavior to the executor.
+  The repository-local feature-spec package, packaged reference summaries,
+  first-customer decision memo, and host-managed Power-Marimo continuity sketch
+  under `specs/async-session-memory-pipeline/` extend that implemented baseline
+  with future design analysis.
 - OA11 is now implemented in the working tree: `ToolDefinition` preserves the
   upstream portable `tool_type` vocabulary separately from runtime-specific
   `adapter` selection and provenance/source metadata, validation fails closed

@@ -53,8 +53,8 @@
   for shared Hugging Face Hub import/call/error mechanics across search and
   local-model download routing.
 - `specs/async-session-memory-pipeline/` — implemented metadata-only OA8
-  baseline plus future expansion analysis; no runner-owned session behavior is
-  implemented.
+  baseline plus future expansion analysis; live in-memory sessions are owned by
+  `specs/persistent-agent-sessions/`.
 - `specs/llm-step-interpreter-middleware/` — future investigation spec; no
   interpreter backend is selected and no implementation is authorized yet.
 - `specs/capability-status-report/` — implemented feature; public preflight
@@ -203,13 +203,13 @@ status visibility
 - OA8 scope clarification: the implemented metadata-only seam preserves
   `runtime.execution_policy.async_session` for future async multi-turn runtimes,
   including the current `mode`, `persist`, `history`, `session_id_state_key`,
-  and `session_messages_state_key` fields, but it still does not add live
-  session storage, automatic cross-run history replay, or broader
-  memory/runtime behavior in the current executor. The repository-local feature
-  spec at `specs/async-session-memory-pipeline/spec.md` records the current
-  implemented baseline plus future expansion analysis, with packaged supporting
-  references, a Power-Marimo readiness memo, and a host-managed multi-call
-  continuity sketch.
+  and `session_messages_state_key` fields. Live in-memory cross-prompt
+  continuity is now implemented by `specs/persistent-agent-sessions/`; OA8 still
+  does not add durable session storage or broader memory/runtime behavior in the
+  current executor. The repository-local feature spec at
+  `specs/async-session-memory-pipeline/spec.md` records the current implemented
+  baseline plus future expansion analysis, with packaged supporting references,
+  a Power-Marimo readiness memo, and a host-managed multi-call continuity sketch.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 

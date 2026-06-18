@@ -61,8 +61,9 @@ However, that behavior does not have a standalone feature spec.
 Without an owning feature package, context-growth work can drift into the wrong
 places:
 
-- long-term async-session memory, which should own session identity and durable
-  continuity metadata, not per-call prompt shaping
+- long-term async-session memory and persistent sessions, which own session
+  identity, cross-run continuity, and durable continuity metadata, not per-call
+  prompt shaping
 - graph mutation, which owns high-level derived workflow operations such as
   inserting context-management steps onto edges between `llm_step` nodes, not
   the prompt-preparation behavior those inserted steps perform
@@ -106,9 +107,10 @@ prompt rendering for selected `llm_step` nodes; future mutation slices may
 insert explicit context-management operations on links between LLM steps, such
 as a ReAct loopback connection.
 
-`async-session-memory-pipeline` can declare future session identity and
-history-retention metadata, but it is not the owner of live pruning,
-compaction, or prompt-context injection.
+`async-session-memory-pipeline` declares session identity and history-retention
+metadata, and `persistent-agent-sessions` owns live in-memory cross-run
+continuity. Neither is the owner of live pruning, compaction, or prompt-context
+injection.
 
 ## Scope
 
@@ -883,11 +885,13 @@ Acceptance criteria:
 ### Async session memory pipeline
 
 `async-session-memory-pipeline` owns declarative session identity and
-history-retention metadata for future cross-run continuity. It must not own live
+history-retention metadata for cross-run continuity. `persistent-agent-sessions`
+owns the live in-memory session object and store. Neither spec owns live
 pruning, compaction, or prompt-context injection.
 
 This spec may consume current-run `WorkflowExecutionState.session_messages` and
-future caller-provided messages, but it does not create a durable session store.
+messages provided by `AgentSession`, but it does not create a durable session
+store.
 
 ### Internal graph mutation
 

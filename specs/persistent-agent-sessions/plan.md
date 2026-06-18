@@ -29,8 +29,9 @@ Observed runtime surfaces:
 - `run_agent_workflow_async(...)` returns only final output at the high-level
   API boundary, while `execute_workflow_async(...)` exposes `WorkflowResult` and
   `WorkflowInterruptedResult`.
-- `capabilities.py` currently reports `metadata.async_session` as
-  metadata-only because no live session store runs.
+- `capabilities.py` reports `metadata.async_session` as metadata-only and can
+  also report live in-memory session support when an `InMemorySessionStore` is
+  supplied to capability inspection.
 
 ## V1 Scope
 
@@ -60,19 +61,17 @@ Do not implement:
 
 ## Runtime Contract
 
-Proposed public module:
+Public module:
 
 - `src/dynamic_agent_runner/sessions.py`
 
-Proposed public exports:
+Public exports:
 
 - `AgentSession`
 - `AgentSessionState`
 - `AgentSessionResult`
 - `InMemorySessionStore`
-- package-owned session errors if existing `WorkflowExecutionError` is not
-  specific enough for malformed snapshots, missing sessions, or concurrent
-  turns
+- `AgentSessionError`
 
 The session object should bind:
 
@@ -122,7 +121,7 @@ Failed or interrupted runs must not append a normal assistant turn.
 
 Add snapshot/state and in-memory store contracts without invoking the executor.
 
-Likely files:
+Files:
 
 - `src/dynamic_agent_runner/sessions.py`
 - `src/dynamic_agent_runner/__init__.py`
@@ -147,7 +146,7 @@ poetry run pytest tests/test_agent_sessions.py -q
 Wire `AgentSession.accept(...)` to `execute_workflow_async(...)` and retained
 messages.
 
-Likely files:
+Files:
 
 - `src/dynamic_agent_runner/sessions.py`
 - `src/dynamic_agent_runner/executor.py`
@@ -173,7 +172,7 @@ poetry run pytest tests/test_agent_sessions.py tests/test_executor.py -q
 
 Apply concrete async-session history behavior and restart from saved state.
 
-Likely files:
+Files:
 
 - `src/dynamic_agent_runner/sessions.py`
 - `src/dynamic_agent_runner/models.py` only if existing policy accessors need a
@@ -201,9 +200,8 @@ poetry run pytest tests/test_agent_sessions.py tests/test_validation.py -q
 
 Expose the public surface and report live in-memory session capability.
 
-Likely files:
+Files:
 
-- `src/dynamic_agent_runner/api.py`
 - `src/dynamic_agent_runner/__init__.py`
 - `src/dynamic_agent_runner/capabilities.py`
 - `tests/test_agent_sessions.py`
@@ -253,8 +251,9 @@ MCP, Hugging Face, Marimo, llama.cpp, MLX, or local model calls.
 - Concurrency ambiguity: same-session overlap must fail clearly unless a later
   plan chooses queued serialization.
 
-## Readiness
+## Completion
 
-This plan is ready for implementation after `tasks.md` is accepted as the active
-execution checklist. The first implementation step should be Slice 1, Task 1.1,
-starting with a failing `tests/test_agent_sessions.py` assertion.
+V1 implementation is complete. Future expansions should start from a new plan
+or an explicit amendment before adding durable stores, model-backed summaries,
+long-running graph executors, raw tool transcript replay, durable approval
+resume, cross-process locking, or event streaming.

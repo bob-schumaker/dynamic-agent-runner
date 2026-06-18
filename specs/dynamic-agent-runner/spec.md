@@ -223,10 +223,11 @@ Acceptance criteria:
   or live pause/resume behavior in this slice.
 - Given `runtime.execution_policy.async_session`, when parsing succeeds, then the
   library preserves the currently implemented metadata-only async-session seam
-  for future multi-turn or resumable async runtimes without implementing live
-  session reuse, durable conversation storage, or automatic message-history
-  replay in this slice. The repository-local feature-spec package at
-  `specs/async-session-memory-pipeline/` records the current implemented
+  for future multi-turn or resumable async runtimes. Live in-memory session
+  reuse is implemented separately by `specs/persistent-agent-sessions/`; durable
+  conversation storage and broader memory behavior remain outside this slice.
+  The repository-local feature-spec package at
+  `specs/async-session-memory-pipeline/` records the implemented metadata
   baseline plus proposed future expansion for that protocol.
 - Given `runtime.execution_policy.sandbox_runtime`, when parsing succeeds, then
   the library preserves portable sandbox/workspace runtime metadata for future
@@ -1406,10 +1407,11 @@ diagnostic layer, not an implicit authorization to execute deferred metadata.
   pause/resume engine. NEEDS CLARIFICATION for serialized state, resume safety,
   and schema-version policy before live approval interruption is implemented.
 - RESOLVED BASELINE: Async-session metadata is preserved and host-managed
-  continuity is documented in `specs/async-session-memory-pipeline/`. NEEDS
-  CLARIFICATION for any future runner-owned session memory, storage, replay, or
-  pruning behavior beyond current per-run execution state and provider response
-  chaining.
+  continuity is documented in `specs/async-session-memory-pipeline/`. Live
+  in-memory sessions are implemented in `specs/persistent-agent-sessions/`.
+  NEEDS CLARIFICATION for any future durable runner-owned session memory,
+  external storage, richer replay, or pruning behavior beyond current per-run
+  execution state and the in-memory session baseline.
 - RESOLVED BASELINE: Sandbox/workspace runtime metadata is preserved without
   enabling write or command tools. NEEDS CLARIFICATION for workspace manifests,
   path grants, resource limits, and approval policy before write, shell,

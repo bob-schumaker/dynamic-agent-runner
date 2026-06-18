@@ -86,8 +86,8 @@ Record command outcomes in `validation.md` as slices complete.
       `accept(...)` calls fail clearly rather than interleaving turns.
 - [x] T4.2 Add RED/GREEN coverage proving different session ids in one store can
       accept prompts without transcript mixing.
-- [x] T4.3 Add public high-level helpers in `api.py` only if they reduce caller
-      boilerplate without duplicating `AgentSession.create(...)`.
+- [x] T4.3 Decide not to add public high-level helpers in `api.py`; the public
+      `AgentSession.create(...)` surface avoids duplicating construction logic.
 - [x] T4.4 Add sync wrappers only if they reuse `_run_async_from_sync(...)` and
       preserve the existing "no sync wrapper inside a running event loop"
       behavior.
@@ -117,8 +117,8 @@ Record command outcomes in `validation.md` as slices complete.
       `poetry run ruff check src tests`.
 - [x] T5.7 Run `pre-commit run --files ...` for all changed files in the
       implementation slice.
-- [x] T5.8 Refresh `memory-bank/activeContext.md` and `memory-bank/progress.md`
-      after implementation milestones if requested by the active workflow.
+- [x] T5.8 Leave memory-bank refresh for a separate user-requested maintenance
+      slice; implementation completion is captured in this spec package.
 
 ## Done Definition
 

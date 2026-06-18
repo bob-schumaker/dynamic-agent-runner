@@ -23,7 +23,7 @@ Repository discovery for this preparation pass confirmed the intended seams:
 
 ## TDD Validation Log
 
-Future implementation slices must append exact outcomes in this format:
+Implementation slices recorded exact outcomes in this format:
 
 ```text
 Slice N / Task Tn.n:
@@ -84,9 +84,9 @@ Slice 5 / Tasks T5.1-T5.8:
   `tests/test_capabilities.py -q` - pass - 140 tests passed.
 - Refactor: `poetry run ruff check src tests` - pass - all checks passed.
 
-## Planned Commands
+## Validation Commands
 
-Targeted implementation commands:
+Targeted implementation commands used during implementation:
 
 ```bash
 poetry run pytest tests/test_agent_sessions.py -q
@@ -104,9 +104,9 @@ poetry run ruff check src tests
 pre-commit run --files <changed files>
 ```
 
-## Preparation Gate
+## Completion Gate
 
-- Spec exists and defines the v1 behavior boundary.
-- Plan exists and chooses a TDD-first implementation sequence.
-- Tasks exist and require RED/GREEN/refactor validation per behavior slice.
-- No production code has been changed.
+- Spec defines the implemented v1 behavior boundary.
+- Plan records the TDD-first implementation sequence and deferred scope.
+- Tasks record completed RED/GREEN/refactor slices.
+- Validation records exact commands and outcomes for each slice.
