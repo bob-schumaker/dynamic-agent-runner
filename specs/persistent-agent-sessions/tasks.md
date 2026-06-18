@@ -82,21 +82,21 @@ Record command outcomes in `validation.md` as slices complete.
 
 ## Slice 4: Concurrency, Public API, and Capability Status
 
-- [ ] T4.1 Add RED/GREEN coverage proving overlapping same-session
+- [x] T4.1 Add RED/GREEN coverage proving overlapping same-session
       `accept(...)` calls fail clearly rather than interleaving turns.
-- [ ] T4.2 Add RED/GREEN coverage proving different session ids in one store can
+- [x] T4.2 Add RED/GREEN coverage proving different session ids in one store can
       accept prompts without transcript mixing.
-- [ ] T4.3 Add public high-level helpers in `api.py` only if they reduce caller
+- [x] T4.3 Add public high-level helpers in `api.py` only if they reduce caller
       boilerplate without duplicating `AgentSession.create(...)`.
-- [ ] T4.4 Add sync wrappers only if they reuse `_run_async_from_sync(...)` and
+- [x] T4.4 Add sync wrappers only if they reuse `_run_async_from_sync(...)` and
       preserve the existing "no sync wrapper inside a running event loop"
       behavior.
-- [ ] T4.5 Add capability/status tests proving async-session metadata remains
+- [x] T4.5 Add capability/status tests proving async-session metadata remains
       metadata-only without live session use.
-- [ ] T4.6 Add capability/status tests and implementation for live
+- [x] T4.6 Add capability/status tests and implementation for live
       `InMemorySessionStore` support through the selected public inspection
       seam.
-- [ ] T4.7 Run targeted validation:
+- [x] T4.7 Run targeted validation:
       `poetry run pytest tests/test_agent_sessions.py`
       `tests/test_capabilities.py -q`.
 

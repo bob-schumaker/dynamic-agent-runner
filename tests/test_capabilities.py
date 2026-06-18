@@ -177,6 +177,51 @@ def test_inspect_agent_package_capabilities_reports_metadata_only_features(
     assert report.summary.counts_by_state["metadata_only"] == 8
 
 
+def test_inspect_agent_package_capabilities_reports_live_in_memory_sessions(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import (
+        InMemorySessionStore,
+        inspect_agent_package_capabilities,
+    )
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: live-session-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            async_session:
+              mode: create_or_resume
+              persist: in_memory
+              history: full
+              session_id_state_key: session_id
+              session_messages_state_key: session_messages
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+        edges: []
+        """,
+    )
+
+    report = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        session_store=InMemorySessionStore(),
+    )
+
+    items = {item.id: item for item in report.items}
+    assert items["metadata.async_session"].state == "metadata_only"
+    assert items["runtime.async_session.in_memory"].state == "live"
+
+
 def test_inspect_agent_package_capabilities_reports_live_skill_sources(
     tmp_path: Path,
 ) -> None:

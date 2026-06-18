@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 import pytest
 
@@ -12,6 +13,7 @@ from dynamic_agent_runner.errors import (
     AgentSessionError,
     GuardrailExecutionError,
     ModelExecutionError,
+    WorkflowExecutionError,
 )
 from dynamic_agent_runner.executor import WorkflowInterruptedResult
 from dynamic_agent_runner.guardrails import (
@@ -38,6 +40,8 @@ class FakeResponses:
     def create(self, **kwargs: object) -> object:
         self.calls.append(kwargs)
         response = self.responses.pop(0)
+        if callable(response):
+            response = response()
         if isinstance(response, Exception):
             raise response
         return response
@@ -631,3 +635,95 @@ def test_session_restart_rejects_incompatible_workflow_identity() -> None:
             execution_context=make_execution_context(),
             session_store=InMemorySessionStore(),
         )
+
+
+async def _same_session_overlapping_accept_fails_clearly() -> None:
+    def slow_response() -> dict[str, str]:
+        time.sleep(0.05)
+        return {"id": "slow", "output_text": "slow answer"}
+
+    adapter = make_adapter([slow_response, {"id": "second", "output_text": "second"}])
+    session = AgentSession.create(
+        execution_context=make_execution_context(model_adapter=adapter),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    first = asyncio.create_task(session.accept("first prompt"))
+    await asyncio.sleep(0)
+    with pytest.raises(AgentSessionError, match="already accepting a prompt"):
+        await session.accept("second prompt")
+    await first
+
+
+def test_same_session_overlapping_accept_fails_clearly() -> None:
+    asyncio.run(_same_session_overlapping_accept_fails_clearly())
+
+
+async def _different_session_ids_do_not_mix_transcripts() -> None:
+    store = InMemorySessionStore()
+    first = AgentSession.create(
+        execution_context=make_execution_context(
+            package_id="first-agent",
+            model_adapter=make_adapter([{"id": "first", "output_text": "first"}]),
+        ),
+        session_store=store,
+        session_id="first",
+    )
+    second = AgentSession.create(
+        execution_context=make_execution_context(
+            package_id="second-agent",
+            model_adapter=make_adapter([{"id": "second", "output_text": "second"}]),
+        ),
+        session_store=store,
+        session_id="second",
+    )
+
+    await asyncio.gather(first.accept("first prompt"), second.accept("second prompt"))
+
+    assert store.load("first").messages == (
+        OpenAIMessage(role="user", content="first prompt"),
+        OpenAIMessage(role="assistant", content="first"),
+    )
+    assert store.load("second").messages == (
+        OpenAIMessage(role="user", content="second prompt"),
+        OpenAIMessage(role="assistant", content="second"),
+    )
+
+
+def test_different_session_ids_do_not_mix_transcripts() -> None:
+    asyncio.run(_different_session_ids_do_not_mix_transcripts())
+
+
+def test_accept_sync_runs_outside_event_loop() -> None:
+    session = AgentSession.create(
+        execution_context=make_execution_context(
+            model_adapter=make_adapter([{"id": "sync", "output_text": "sync answer"}])
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    result = session.accept_sync("sync prompt")
+
+    assert result.final_result == "sync answer"
+
+
+async def _accept_sync_fails_inside_running_event_loop() -> None:
+    session = AgentSession.create(
+        execution_context=make_execution_context(
+            model_adapter=make_adapter([{"id": "sync", "output_text": "sync answer"}])
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    with pytest.raises(
+        WorkflowExecutionError,
+        match="cannot use synchronous workflow wrapper",
+    ):
+        session.accept_sync("sync prompt")
+
+
+def test_accept_sync_fails_inside_running_event_loop() -> None:
+    asyncio.run(_accept_sync_fails_inside_running_event_loop())

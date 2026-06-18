@@ -13,6 +13,7 @@ from dynamic_agent_runner.errors import AgentSessionError
 from dynamic_agent_runner.executor import (
     WorkflowInterruptedResult,
     WorkflowResult,
+    _run_async_from_sync,
     execute_workflow_async,
 )
 from dynamic_agent_runner.openai_client import OpenAIMessage
@@ -158,6 +159,7 @@ class AgentSession:
         self.execution_context = execution_context
         self.session_store = session_store
         self.session_id = session_id
+        self._accepting = False
 
     @classmethod
     def create(
@@ -220,43 +222,56 @@ class AgentSession:
     async def accept(self, prompt: str) -> AgentSessionResult:
         """Accept a prompt and execute it as one bounded workflow run."""
 
-        current = self.current_state()
-        result = await execute_workflow_async(
-            self.execution_context,
-            prompt=prompt,
-            session_messages=_messages_for_replay(
-                current.messages,
+        if self._accepting:
+            raise AgentSessionError(
+                f"session {self.session_id!r} is already accepting a prompt"
+            )
+        self._accepting = True
+        try:
+            current = self.current_state()
+            result = await execute_workflow_async(
                 self.execution_context,
-            ),
-            initial_node_outputs=_initial_node_outputs(
-                self.session_id,
-                self.execution_context,
-            ),
-        )
-        if isinstance(result, WorkflowInterruptedResult):
-            return AgentSessionResult(workflow_result=result, state=current)
-
-        updated = AgentSessionState(
-            session_id=current.session_id,
-            workflow_identity=current.workflow_identity,
-            messages=(
-                *current.messages,
-                OpenAIMessage(role="user", content=prompt),
-                OpenAIMessage(
-                    role="assistant",
-                    content=_assistant_content(result.final_result),
+                prompt=prompt,
+                session_messages=_messages_for_replay(
+                    current.messages,
+                    self.execution_context,
                 ),
-            ),
-            turn_count=current.turn_count + 1,
-            last_run_id=result.state.run_id,
-            last_result=deepcopy(result.final_result),
-            metadata=current.metadata,
-        )
-        self.session_store.save(updated)
-        return AgentSessionResult(
-            workflow_result=result,
-            state=self.current_state(),
-        )
+                initial_node_outputs=_initial_node_outputs(
+                    self.session_id,
+                    self.execution_context,
+                ),
+            )
+            if isinstance(result, WorkflowInterruptedResult):
+                return AgentSessionResult(workflow_result=result, state=current)
+
+            updated = AgentSessionState(
+                session_id=current.session_id,
+                workflow_identity=current.workflow_identity,
+                messages=(
+                    *current.messages,
+                    OpenAIMessage(role="user", content=prompt),
+                    OpenAIMessage(
+                        role="assistant",
+                        content=_assistant_content(result.final_result),
+                    ),
+                ),
+                turn_count=current.turn_count + 1,
+                last_run_id=result.state.run_id,
+                last_result=deepcopy(result.final_result),
+                metadata=current.metadata,
+            )
+            self.session_store.save(updated)
+            return AgentSessionResult(
+                workflow_result=result,
+                state=self.current_state(),
+            )
+        finally:
+            self._accepting = False
+
+    def accept_sync(self, prompt: str) -> AgentSessionResult:
+        """Synchronously accept a prompt when no event loop is running."""
+
+        return _run_async_from_sync(lambda: self.accept(prompt))
 
 
 def _workflow_identity(execution_context: WorkflowExecutionContext) -> str:

@@ -63,6 +63,19 @@ Slice 3 / Tasks T3.1-T3.8:
 - Refactor: `poetry run pytest tests/test_agent_sessions.py`
   `tests/test_validation.py -q` - pass - 81 tests passed.
 
+Slice 4 / Tasks T4.1-T4.7:
+
+- RED: `poetry run pytest tests/test_agent_sessions.py`
+  `tests/test_capabilities.py -q` - fail - four tests failed because
+  same-session overlap rejection, `accept_sync(...)`, and live session
+  capability reporting were missing.
+- GREEN: `poetry run pytest tests/test_agent_sessions.py`
+  `tests/test_capabilities.py -q` - pass - 35 tests passed.
+- Refactor: `poetry run pytest tests/test_agent_sessions.py`
+  `tests/test_capabilities.py -q` - pass - 35 tests passed after extracting
+  async-session capability item construction to keep complexity within the
+  lint threshold.
+
 ## Planned Commands
 
 Targeted implementation commands:
