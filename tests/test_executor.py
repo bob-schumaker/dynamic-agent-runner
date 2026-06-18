@@ -888,6 +888,73 @@ def test_prepare_model_input_records_mutation_preparation_diagnostics() -> None:
     assert prepared_payloads["plain"]["mutation_output_slots"] == ()
 
 
+def test_pruning_context_injection_trace_reports_redacted_attachment() -> None:
+    """Mutation traces should identify injection points without transcript text."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "pruning-context-injection-trace-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "prepared_context",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="What changed?",
+        session_messages=(
+            OpenAIMessage(role="user", content="secret earlier question"),
+            OpenAIMessage(role="assistant", content="secret earlier answer"),
+        ),
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepare_model_input(plan.nodes_by_id["answer"], plan, state, tracer=tracer)
+
+    [prepared_event] = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    payload = prepared_event.payload
+
+    assert payload["mutation_attachment"] == {
+        "type": "llm_step_interaction",
+        "target_node_id": "answer",
+    }
+    assert "secret earlier question" not in repr(payload)
+    assert "secret earlier answer" not in repr(payload)
+
+
 def test_prepare_model_input_renders_messages_and_named_parts() -> None:
     workflow = workflow_from(
         {
