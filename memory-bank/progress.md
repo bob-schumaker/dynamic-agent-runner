@@ -134,9 +134,22 @@
   feature for caller-facing `llm_step` and model-tool-loop event streaming,
   final-result authority, session-level `accept_stream(...)`, cancellation and
   backpressure semantics, and streaming capability/status reporting.
+- Pruning-context graph injection is prepared as the next implementation target
+  without creating a new feature spec:
+  - `async-session-memory-pipeline` is the metadata/session-boundary reference
+  - `internal-graph-mutation` owns planned Slice 4 for graph attachment or
+    narrow link-level injection around eligible `llm_step` interactions
+  - `context-management-prepare-stage` owns planned Slice 10 for pruning,
+    compaction, prompt-context assembly, and diagnostics from supplied session
+    messages
+  - both planned slices require TDD RED tests before production changes
 
 ## Latest Milestones
 
+- `386daa3` prepared pruning-context graph injection as follow-up Slice 4 in
+  `internal-graph-mutation` and Slice 10 in
+  `context-management-prepare-stage`, with async-session recorded as a boundary
+  handoff rather than the implementation owner.
 - `128acc2` recorded capability-status v1 completion.
 - `6ee9d43` recorded approval/sandbox v1 completion.
 - `2786e52` recorded MCP explicit registry-injection v1 completion.
@@ -215,10 +228,10 @@
 
 ## Remaining
 
-- Next highest-ROI implementation slice is not currently pinned in the memory
-  bank. Use `specs/README.md` plus the user's immediate priority to choose
-  between local-model advisory work, context-management implementation, or a
-  new scoped feature slice.
+- Next highest-ROI implementation slice is pinned as pruning-context graph
+  injection for `llm_step` interactions. Start with graph-mutation T4.1/T4.2
+  RED tests, then context-management T10.1/T10.2 RED tests, before production
+  changes.
 - LiteLLM provider work remains spec-only. Before implementation, create
   plan/tasks artifacts for the core dependency change, default provider
   selection, Codex auth adaptation, request/response mapping, fake-test
@@ -248,10 +261,10 @@
   roots, `source_path` reads, support-file prompt loading, network fetching,
   executable skill files, Markdown frontmatter parsing, or raw skill-body trace
   payloads.
-- Context-management prepare-stage v1 is implemented through Slice 9. Future
-  work should start from a new approved plan for provider-backed remote
+- Context-management prepare-stage v1 is implemented through Slice 9. Slice 10
+  is now planned for pruning-context injection behavior. Provider-backed remote
   compaction, semantic selectors, model-backed summaries, richer profile
-  behavior, or prompt-cache-aware ordering.
+  behavior, and prompt-cache-aware ordering remain later work.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.
 

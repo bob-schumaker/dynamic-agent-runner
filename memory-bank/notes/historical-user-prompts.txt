@@ -477,3 +477,15 @@ make the spec docs internally consistent
 ---
 
 make the full spec surface internally consistent
+
+---
+
+prepare async-session-memory-pipeline for the next work target, prioritizing the "pruning context" feature that we can inject into graphs with llm_step interactions
+
+---
+
+do we need a new feature spec to do the actual work
+
+---
+
+add the follow-up sections and TDD implementtion tasks to graph-mutation and context-management-prepare-stage

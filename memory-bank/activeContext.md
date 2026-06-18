@@ -2,7 +2,21 @@
 
 ## Current Focus
 
-- No implementation slice is currently active.
+- No implementation slice is currently active, but the next prepared work target
+  is pruning-context graph injection for `llm_step` interactions.
+- `specs/async-session-memory-pipeline/` now records this target as an
+  adjacent handoff rather than an OA8 memory expansion: async-session owns
+  session identity/history metadata only; live sessions are owned by
+  `persistent-agent-sessions`; pruning behavior is owned by
+  `context-management-prepare-stage`; graph attachment/injection is owned by
+  `internal-graph-mutation`.
+- `specs/internal-graph-mutation/` now has planned follow-up Slice 4 with TDD
+  tasks T4.1-T4.5 for pruning-context graph injection around eligible
+  `llm_step` interactions.
+- `specs/context-management-prepare-stage/` now has planned follow-up Slice 10
+  with TDD tasks T10.1-T10.5 for prepare-stage pruning-context behavior fed by
+  supplied `WorkflowExecutionState.session_messages` and `AgentSession`
+  message flow.
 - A new draft spec package, `specs/litellm-provider-adapter/`, now proposes
   making LiteLLM the package's core OpenAI-compatible transport while
   preserving repository-owned OpenAI/Codex auth discovery and mapping default
@@ -86,15 +100,13 @@
   event streaming, final-result authority, and `AgentSession.accept_stream(...)`
   as the intended primary surface after the implemented persistent-session
   baseline.
-- The next ROI action is no longer skill-source, RAG orchestration v1, or
-  context-management prepare-stage v1. Persistent agent sessions v1 is complete
-  and the full spec surface has been reconciled around that ownership boundary:
-  async-session metadata remains OA8-owned, live in-memory sessions are
-  `persistent-agent-sessions` owned, and durable external stores remain
-  deferred. LiteLLM provider implementation remains draft-only, and model event
-  streaming remains proposed until it has its own approved implementation plan.
-  Local-model advisory implementation should happen only when local-model
-  ergonomics is the immediate driver.
+- The next ROI action is now prepared as pruning-context graph injection:
+  start with graph-mutation T4.1/T4.2 RED tests, then context-management
+  T10.1/T10.2 RED tests, before production changes. LiteLLM provider
+  implementation remains draft-only, model event streaming remains proposed
+  until it has its own approved implementation plan, and local-model advisory
+  implementation should happen only when local-model ergonomics is the
+  immediate driver.
 
 ## Recent Completed Work
 
@@ -181,6 +193,14 @@
 - Model event streaming planning is captured in
   `specs/model-event-streaming/spec.md`; it is proposed only after persistent
   sessions and is not yet implementation authorization.
+- Pruning-context graph injection is prepared for the next implementation
+  stream through:
+  - `386daa3` — `docs(specs): plan pruning context injection follow-up`
+  - async-session handoff wording in
+    `specs/async-session-memory-pipeline/spec.md`
+  - graph-mutation Slice 4 tasks in `specs/internal-graph-mutation/tasks.md`
+  - context-management Slice 10 tasks in
+    `specs/context-management-prepare-stage/tasks.md`
 - Sphinx configuration refresh is committed separately from the LiteLLM spec.
 
 ## Current Spec Authority Map
@@ -230,9 +250,11 @@
   external roots, `source_path` reads, support-file prompt loading, network
   fetching, Markdown frontmatter parsing, or raw-body debugging modes.
 - If extending context growth management beyond the implemented prepare-stage
-  slices, create a new approved plan before adding provider-backed remote
-  compaction, semantic selectors, model-backed summaries, richer profile
-  behavior, or prompt-cache-aware ordering.
+  slices, the prepared next slice is pruning-context graph injection. Start with
+  graph-mutation T4.1/T4.2 RED tests and context-management T10.1/T10.2 RED
+  tests. Provider-backed remote compaction, semantic selectors, model-backed
+  summaries, richer profile behavior, and prompt-cache-aware ordering remain
+  separate future work.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.
