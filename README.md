@@ -61,8 +61,9 @@ Known configuration:
 - workflow tracing uses package-owned trace events and optional trace sinks
 - async execution, lifecycle hooks, prompt-cache observation, capability
   inspection, input guardrail execution, explicit MCP registry bindings, local
-  OpenAI-compatible endpoint helpers, and context-pipeline graph-mutation helpers
-  are implemented behind package-owned interfaces
+  OpenAI-compatible endpoint helpers, context-pipeline graph-mutation helpers,
+  and in-memory persistent agent sessions are implemented behind package-owned
+  interfaces
 - local model asset, endpoint, and direct in-process llama.cpp support is
   represented through package-owned local-model helpers; `llama-cpp-python` is a
   `llamacpp` extra and `huggingface-hub` is available through the `huggingface`
@@ -137,6 +138,40 @@ result = run_agent_workflow(
 Use `run_agent_workflow_async(...)` in async applications, or construct a
 `WorkflowExecutionContext` when several runs share the same loaded workflow and
 runtime collaborators.
+
+Use `AgentSession` with `InMemorySessionStore` when several prompts should reuse
+the same workflow context and retained user/assistant transcript:
+
+```python
+from dynamic_agent_runner import (
+    AgentSession,
+    InMemorySessionStore,
+    WorkflowExecutionContext,
+    load_agent_package_workflow,
+)
+
+context = WorkflowExecutionContext(
+    workflow=load_agent_package_workflow("path/to/agent-package"),
+    tool_registry=my_tool_registry,
+    model_adapter=my_model_adapter,
+)
+store = InMemorySessionStore()
+session = AgentSession.create(
+    execution_context=context,
+    session_store=store,
+    session_id="thread-123",
+)
+
+first = await session.accept("Inspect the repository.")
+second = await session.accept("Now summarize the risky parts.")
+snapshot = session.current_state().to_mapping()
+```
+
+Each `accept(...)` call is still a bounded workflow run with normal guardrails,
+approval checks, step limits, tracing, and retry behavior. The v1 store is
+process-local only; snapshots contain user prompts and model outputs, so callers
+own any external persistence and redaction. Raw tool arguments and raw tool
+outputs are not retained in chat history by default.
 
 Model adapter coverage defaults to augmented behavior. With
 `model_adapter_coverage="augmented"` or an omitted coverage policy, supplied
@@ -296,12 +331,12 @@ lane with bounded byte limits and redacted provenance metadata. `source_path`
 remains provenance-only, and support files are validated as package artifacts but
 are not prompt-loaded.
 
-The current runtime also preserves and validates a metadata-only async-session
-policy seam under `runtime.execution_policy.async_session`. This seam supports
-portable future multi-turn or resumable workflow metadata such as `mode`,
-`persist`, `history`, `session_id_state_key`, and
-`session_messages_state_key`, but it does not yet provide runner-owned session
-storage, automatic replay, or automatic cross-run message reuse.
+The runtime preserves and validates async-session policy under
+`runtime.execution_policy.async_session`. `AgentSession` uses this metadata for
+in-memory v1 behavior when present: `history` controls replay (`none`,
+`last_turn`, `full`, or v1 `summary` without model-generated summaries), and
+`session_id_state_key` injects the session id into run state. Durable external
+checkpoint stores remain out of scope.
 
 `runtime.execution_policy.prepare_model_input` is implemented for prompt
 hierarchy messages, package-bounded file context, retrieved context supplied in
@@ -411,8 +446,8 @@ executing model, tool, guardrail, or retriever calls. The report marks current
 surfaces as `live`, `metadata_only`, `missing_collaborator`, `disabled`,
 `unsupported`, or `invalid`, and summarizes counts by state. Pass the same
 collaborators you plan to execute with, such as a tool registry, guardrail
-registry, model adapter, and strict model-adapter coverage, to see readiness
-instead of just manifest shape.
+registry, model adapter, strict model-adapter coverage, and
+`InMemorySessionStore`, to see readiness instead of just manifest shape.
 
 ## CLI Usage
 

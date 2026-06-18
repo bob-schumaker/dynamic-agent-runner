@@ -279,8 +279,9 @@ checkpoint storage, resume-token persistence, or an external approval service.
 
 .. header2:: Async-session metadata
 
-Future multi-turn or resumable workflow intent can be preserved under
-``runtime.execution_policy.async_session``.
+Multi-turn or resumable workflow intent can be preserved under
+``runtime.execution_policy.async_session`` and used by ``AgentSession`` for
+in-memory v1 session continuity.
 
 .. code-block:: yaml
 
@@ -293,12 +294,19 @@ Future multi-turn or resumable workflow intent can be preserved under
          session_id_state_key: session.id
          session_messages_state_key: session.messages
 
-The current runtime preserves and validates this metadata only. It does not yet
-implement runner-owned session storage, transcript replay, summary generation,
-or automatic cross-run message reuse. Persisted policies must still satisfy the
-implemented fail-closed validation rules, including a required
-``session_id_state_key`` when ``persist`` is not ``none`` and omission of
-``session_messages_state_key`` when ``history`` is ``none``.
+``AgentSession`` with ``InMemorySessionStore`` provides runner-owned
+process-local session storage, current-state retrieval, snapshot restart, and
+cross-prompt transcript replay. ``history`` controls what is replayed into the
+next bounded run: ``none`` replays no prior messages, ``last_turn`` replays only
+the previous user/assistant pair, ``full`` replays all retained user/assistant
+messages, and v1 ``summary`` preserves caller-supplied summary metadata without
+generating summaries.
+
+Persisted policies must still satisfy fail-closed validation rules, including a
+required ``session_id_state_key`` when ``persist`` is not ``none`` and omission
+of ``session_messages_state_key`` when ``history`` is ``none``. Durable
+filesystem, database, Redis, cloud, OCI, or external-checkpoint stores remain
+out of scope for v1.
 
 .. header2:: Sandbox runtime metadata
 

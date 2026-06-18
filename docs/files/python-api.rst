@@ -350,6 +350,42 @@ share a loaded workflow and runtime collaborators:
 When ``execution_context`` is supplied to high-level APIs, do not also pass
 artifact paths or runtime collaborators as separate keyword arguments.
 
+.. header2:: Persistent agent sessions
+
+Use ``AgentSession`` with ``InMemorySessionStore`` when several prompts should
+reuse the same workflow context and retained user/assistant transcript:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       AgentSession,
+       InMemorySessionStore,
+       WorkflowExecutionContext,
+       load_agent_package_workflow,
+   )
+
+   context = WorkflowExecutionContext(
+       workflow=load_agent_package_workflow("path/to/agent-package"),
+       tool_registry=my_tool_registry,
+       model_adapter=my_model_adapter,
+   )
+   store = InMemorySessionStore()
+   session = AgentSession.create(
+       execution_context=context,
+       session_store=store,
+       session_id="thread-123",
+   )
+
+   first = await session.accept("Inspect the repository.")
+   second = await session.accept("Now summarize the risky parts.")
+   snapshot = session.current_state().to_mapping()
+
+Each ``accept(...)`` call remains a normal bounded workflow run. Input
+guardrails, approval interruption, step limits, tracing, retry behavior, and
+context preparation still run per prompt. The v1 store is process-local only;
+callers own any external persistence and redaction for snapshots. Raw tool
+arguments and raw tool outputs are not retained in chat history by default.
+
 .. header2:: Inspecting detailed execution state
 
 Use ``execute_workflow(...)`` or ``execute_workflow_async(...)`` when you need the
