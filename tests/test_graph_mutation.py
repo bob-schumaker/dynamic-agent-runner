@@ -137,7 +137,9 @@ def test_apply_workflow_mutations_aggregates_context_pruning_mutation_results() 
 
     assert result.workflow is workflow
     assert result.bundle.mutation_ids == ("context-pruning-answer",)
-    assert result.notices == ("context-pruning-answer ready for node 'answer'",)
+    assert result.notices == (
+        "context-pruning-answer ready for llm_step_interaction attachment 'answer'",
+    )
 
 
 def test_pruning_context_injection_result_names_attachment_point() -> None:
