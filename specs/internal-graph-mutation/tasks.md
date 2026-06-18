@@ -1,6 +1,7 @@
 # Internal Graph Mutation Task List
 
-Status: first implementation checkpoint complete through T3.2
+Status: first implementation checkpoint complete through T3.2; Slice 4 follow-up
+planned for pruning-context graph injection
 
 ## Prerequisites
 
@@ -15,9 +16,8 @@ Status: first implementation checkpoint complete through T3.2
 - State: authoritative spec and implementation plan exist; T1.1, T1.2, and T2.1
   RED coverage plus the T1.3, T1.4, T1.5, T2.2, T2.3, and T2.4 implementation
   slices are now committed
-- Current execution gate: no pending tasks remain in this first implementation
-  checkpoint; the focused mutation validation evidence and spec-artifact refresh
-  are both recorded
+- Current execution gate: the first implementation checkpoint is closed; the next
+  executable work is Slice 4 and must start with RED tests
 - Current GREEN evidence:
   - `poetry run pytest tests/test_graph_mutation.py -q` -> `5 passed`
   - `poetry run pytest tests/test_validation.py -q` -> `55 passed`
@@ -29,7 +29,7 @@ Status: first implementation checkpoint complete through T3.2
   - `poetry run pytest tests/test_graph_mutation.py tests/test_validation.py`
     `tests/test_executor.py -q` -> `115 passed`
 - Next implementation steps:
-  - No additional tasks are currently scheduled in this artifact set
+  - Start T4.1 and verify RED before production changes
 - Scope rule: keep the first completed checkpoint input-transform-only; do not
   introduce public mutation-package artifacts, true graph surgery, or
   llama.cpp/local-embedding transport ownership into these tasks. Future
@@ -237,3 +237,89 @@ Status: first implementation checkpoint complete through T3.2
   closed context-pruning checkpoint.
 - Semantic ranking, embedding selection, and local-model transport follow-up
   should remain separate from this first mutation slice.
+
+## Slice 4 — Pruning-context graph injection follow-up
+
+- [ ] T4.1 [tests] Add RED graph-mutation coverage for pruning-context
+      injection around eligible `llm_step` interactions.
+  - Spec: Follow-up Target: Pruning-Context Injection; FR-1, FR-3, FR-4, FR-5,
+    FR-6
+  - Plan: Slice 4 — Pruning-context graph injection follow-up
+  - Files/components: `tests/test_graph_mutation.py`,
+    `src/dynamic_agent_runner/graph_mutation.py`
+  - Cover immutable base workflow artifacts, eligible `llm_step` attachment,
+    no-op behavior when no attachment policy exists, and mutation diagnostics
+    naming the attachment point.
+  - Depends on: T3.2
+  - Validation:
+    `poetry run pytest tests/test_graph_mutation.py -q -k pruning_context_injection`
+  - RED expectation: fail because the current mutation tests do not yet cover
+    pruning-context injection as a reusable follow-up contract.
+
+- [ ] T4.2 [tests] Add RED executor coverage proving injected
+      pruning-context behavior is applied before the target `llm_step` model
+      call.
+  - Spec: Follow-up Target: Pruning-Context Injection; FR-3, FR-4
+  - Plan: Slice 4 — Pruning-context graph injection follow-up
+  - Files/components: `tests/test_executor.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Cover supplied `WorkflowExecutionState.session_messages`, prepared input
+    receiving pruned or compacted context, unchanged behavior with no
+    graph-mutation policy, and redacted diagnostics.
+  - Depends on: T4.1
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k pruning_context_injection`
+  - RED expectation: fail because the executor does not yet expose a focused
+    pruning-context-injection behavior contract for session-message input.
+
+- [ ] T4.3 [tests] Add RED validation coverage for any new narrow attachment or
+      link-level metadata needed by the follow-up.
+  - Spec: FR-4, FR-5
+  - Plan: Slice 4 — Pruning-context graph injection follow-up
+  - Files/components: `tests/test_validation.py`,
+    `src/dynamic_agent_runner/validation.py`
+  - Cover only metadata proven necessary by T4.1/T4.2. If the existing
+    `context_pipeline`, `context_sources`, and `context_contract` contract is
+    sufficient, record this task as not needed rather than adding metadata.
+  - Depends on: T4.1, T4.2
+  - Validation:
+    `poetry run pytest tests/test_validation.py -q -k context_pipeline`
+  - RED expectation: fail only when new metadata is required; otherwise no code
+    change should be made for this task.
+
+- [ ] T4.4 [implementation] Implement the smallest graph-mutation change that
+      satisfies the RED pruning-context injection tests.
+  - Spec: Follow-up Target: Pruning-Context Injection
+  - Plan: Slice 4 — Pruning-context graph injection follow-up
+  - Files/components: `src/dynamic_agent_runner/graph_mutation.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Keep graph mutation responsible for deriving attachment/injection behavior
+    only; delegate pruning, compaction, and prompt assembly to
+    `context-management-prepare-stage`.
+  - Depends on: T4.1, T4.2, T4.3 if needed
+  - Validation:
+
+    ```bash
+    poetry run pytest tests/test_graph_mutation.py tests/test_executor.py \
+      -q -k pruning_context_injection
+    ```
+
+  - GREEN expectation: focused graph-mutation and executor injection tests pass
+    without public mutation schemas or durable-memory behavior.
+
+- [ ] T4.5 [tests] Run the combined follow-up validation checkpoint and record
+      evidence.
+  - Spec: Follow-up Target: Pruning-Context Injection
+  - Plan: Validation Strategy
+  - Files/components: `tests/test_graph_mutation.py`, `tests/test_executor.py`,
+    `tests/test_validation.py`, `tests/test_agent_sessions.py`
+  - Depends on: T4.4
+  - Validation:
+
+    ```bash
+    poetry run pytest tests/test_graph_mutation.py tests/test_executor.py \
+      tests/test_validation.py tests/test_agent_sessions.py -q
+    ```
+
+  - Completion evidence: record observed pass/fail counts in this task list
+    before closing the follow-up slice.

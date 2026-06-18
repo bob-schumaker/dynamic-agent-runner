@@ -1,6 +1,7 @@
 # Internal Graph Mutation Implementation Plan
 
-Status: first implementation checkpoint complete through T3.2
+Status: first implementation checkpoint complete through T3.2; follow-up Slice 4
+planned for pruning-context graph injection
 
 - Current checkpoint: T3.2 spec-artifact refresh is recorded after the T3.1
   focused mutation validation evidence and the earlier T2.4
@@ -27,10 +28,11 @@ Status: first implementation checkpoint complete through T3.2
     `tests/test_executor.py -q` passes with `115 passed`, proving the mutation
     datamodel, validation, executor integration, and diagnostics checkpoints
     remain green together as one focused validation slice.
-- Next overall task gate: no additional tasks are currently scheduled inside
-  this first implementation checkpoint.
+- Next overall task gate: start follow-up Slice 4 with RED tests for
+  pruning-context graph injection around eligible `llm_step` interactions.
 - Next implementation steps at the current GREEN checkpoint:
-  - future follow-up work, if any, should start from a new approved task or spec
+  - implement only from the new Slice 4 task list and keep durable memory,
+    public mutation schemas, and broad graph surgery out of scope
 
 ## Planning Gate
 
@@ -164,6 +166,29 @@ Only after Slices 1 and 2 are stable should later work consider:
 
 This later slice must remain separate from llama.cpp transport ownership and any
 public mutation-schema stabilization.
+
+### Slice 4 — Pruning-context graph injection follow-up
+
+Status: planned.
+
+Start the next work stream with test-first coverage for injecting
+context-management behavior around eligible `llm_step` interactions. Prefer the
+existing attachment/input-transform seam first. Add a narrow internal
+link-level operation only if RED tests prove the existing seam cannot represent
+the required `llm_step` interaction, such as a ReAct loopback path.
+
+This slice should:
+
+- keep the base workflow package immutable
+- derive pruning-context behavior during preparation
+- route supplied session messages toward `context-management-prepare-stage`
+  rather than implementing pruning semantics in graph mutation
+- fail closed for missing or ineligible attachment metadata
+- emit mutation diagnostics that identify the attachment point and derived
+  behavior without leaking full transcript content
+
+It must not add public mutation-package artifacts, durable memory backends,
+embedding/vector retrieval, or model-backed summarization.
 
 ## Architectural Decision
 
@@ -329,6 +354,24 @@ Primary targeted checks for the first implementation slice:
 
 ```bash
 poetry run pytest tests/test_graph_mutation.py -q
+```
+
+For follow-up Slice 4, use TDD and capture RED before implementation:
+
+```bash
+poetry run pytest tests/test_graph_mutation.py -q -k pruning_context_injection
+poetry run pytest tests/test_executor.py -q -k pruning_context_injection
+poetry run pytest tests/test_validation.py -q -k context_pipeline
+```
+
+Expected GREEN checkpoint for the follow-up:
+
+```bash
+poetry run pytest \
+  tests/test_graph_mutation.py \
+  tests/test_executor.py \
+  tests/test_validation.py \
+  tests/test_agent_sessions.py -q
 ```
 
 Current recorded checkpoint:

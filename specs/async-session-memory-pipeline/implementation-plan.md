@@ -2,16 +2,19 @@
 
 ## Goal
 
-Describe the next coherent expansion slice for OA8 now that the runner already
+Prepare the next coherent work target that depends on OA8 session metadata:
+pruning-context graph injection for `llm_step` interactions. The runtime already
 preserves validated `runtime.execution_policy.async_session` metadata without
-adding durable runner-owned session storage or broader memory behavior. Live
+adding durable runner-owned session storage or broader memory behavior, and live
 in-memory session continuity is implemented separately by
 `specs/persistent-agent-sessions/spec.md`.
 
 ## Scope Boundary
 
-This plan is for the **next expansion pass after the implemented metadata-only
-baseline**. It does not replace the implemented `AgentSession` v1 surface.
+This plan is a **handoff plan for the next work target**, not an authorization
+to expand OA8 into live memory execution. It does not replace the implemented
+`AgentSession` v1 surface and does not move context-management or graph-mutation
+ownership into the async-session feature package.
 
 Already implemented baseline:
 
@@ -19,22 +22,26 @@ Already implemented baseline:
 - validate the mapping fail-closed
 - surface the metadata through compiled/prepared workflow structures
 
-In scope for the next expansion pass:
+In scope for the next work-target handoff:
 
-- reconcile the spec package with the implemented field names
-- decide whether to keep `session_messages_state_key` as the durable baseline or
-  expand toward richer split fields such as summary-backed continuity metadata
-- add any newly approved metadata fields without changing live runtime behavior
-- extend tests only for the approved metadata expansion
+- confirm the async-session metadata consumed by pruning-context injection
+- route implementation ownership to `context-management-prepare-stage` and
+  `internal-graph-mutation`
+- define the TDD entry point for injecting pruning-context behavior around
+  eligible `llm_step` interactions
+- verify that existing `AgentSession` session messages can flow into the
+  prepare-stage path without adding a durable memory backend
 
 Out of scope:
 
 - durable session storage
 - transcript replay
-- context pruning execution
-- summary generation
+- runner-owned context pruning execution inside OA8
+- runner-owned summary generation inside OA8
 - API changes that add first-class session objects
 - host-managed continuity helpers for `power-marimo`
+- public graph-mutation package schemas
+- structural graph insertion beyond the approved graph-mutation slice
 
 ## Proposed Artifact Shape
 
@@ -54,78 +61,122 @@ runtime:
 Future expansion candidates should build from this exact baseline rather than
 replacing it informally in the docs.
 
+## Owning Feature Boundaries
+
+- `async-session-memory-pipeline` supplies the metadata seam for session
+  identity and retained-history intent.
+- `persistent-agent-sessions` supplies live in-memory session state and restart
+  snapshots through `AgentSession` and `InMemorySessionStore`.
+- `context-management-prepare-stage` supplies pruning, compaction, lane assembly,
+  prompt-context injection, and preparation diagnostics.
+- `internal-graph-mutation` supplies graph-level attachment or insertion around
+  eligible `llm_step` nodes and edges.
+
+The next work stream should start from the context-management or graph-mutation
+artifacts while keeping this package as a boundary reference.
+
 ## Implementation Files
 
-### 1. `src/dynamic_agent_runner/models.py`
+### 1. `src/dynamic_agent_runner/executor.py`
 
-The typed model support already exists. Future work here should extend it only if
-new approved metadata fields are added.
+This is the integration point where session messages, prepared input, and
+mutation-derived context currently meet.
+
+Expected work:
+
+- add RED coverage first for an eligible `llm_step` interaction receiving pruned
+  session context from existing session messages
+- keep `WorkflowExecutionState.session_messages` as the input source for this
+  pass
+- preserve current behavior when no context-management or graph-mutation policy
+  is enabled
+- emit preparation diagnostics through the existing prepared-input metadata path
+
+### 2. `src/dynamic_agent_runner/graph_mutation.py`
+
+This owns the graph-injection seam for eligible `llm_step` interactions.
+
+Expected work:
+
+- start with the existing input-transform mutation checkpoint
+- add only the narrow metadata or runtime shape needed to select pruning-context
+  behavior for an `llm_step` interaction
+- leave true edge rewiring or inserted nodes for a later approved structural
+  graph-mutation slice unless the new tests prove the existing attachment seam is
+  insufficient
+
+### 3. `src/dynamic_agent_runner/models.py`
+
+The async-session typed model support already exists. Future work here should
+extend it only if the next work stream proves the current metadata shape cannot
+identify the relevant session input.
 
 Expected work:
 
 - preserve compatibility for the existing `AsyncSessionPolicy`
-- extend `AsyncSessionPolicy` only if new approved metadata fields are added
+- avoid new durable-memory fields unless a separate OA8 expansion is approved
 - keep `RuntimeManifest` / `ExecutionPlan` propagation aligned with the existing
   metadata-only seam
 
-### 2. `src/dynamic_agent_runner/validation.py`
+### 4. `tests/test_executor.py`
 
-The fail-closed validation path already exists. Future work here should extend
-it only for newly approved metadata fields.
+This should be the primary TDD surface for proving model-input behavior.
 
-Expected work:
+Expected RED tests:
 
-- keep the current mapping/enum validation intact
-- keep non-empty string validation for:
-  - `session_id_state_key`
-  - `session_messages_state_key`
-- keep current coupling rules intact
-- extend validation only after the docs approve any new metadata fields
+- an eligible `llm_step` interaction receives pruned context from supplied
+  session messages before the model call
+- a workflow with no pruning-context policy remains unchanged
+- diagnostics identify included, pruned, compacted, or omitted session context
+  without leaking full transcript content
 
-### 3. `src/dynamic_agent_runner/executor.py`
+### 5. `tests/test_graph_mutation.py`
 
-No live behavior changes are expected in the first pass.
+This should prove any graph-level injection shape remains a derived runtime
+operation rather than an in-place package edit.
 
-Possible minimal work only if needed for consistency:
+Expected RED tests:
 
-- ensure prepared execution-plan metadata carries validated async-session policy
-  forward in the same style as OA5/OA7/OA10 metadata-only seams
-
-### 4. `tests/test_validation.py`
-
-The existing validation coverage already includes:
-
-- valid metadata-only policy
-- invalid enum values
-- missing required `session_id_state_key` when `persist != none`
-- stray session state keys when `persist == none`
-- stray `session_messages_state_key` when `history == none`
-
-Future validation coverage may add:
-
-- any newly approved summary-backed or richer retention metadata fields
-
-### 5. `tests/test_artifacts.py` and/or `tests/test_executor.py`
-
-The existing artifact/executor coverage already shows that:
-
-- loaded workflow artifacts preserve validated async-session metadata
-- compiled/prepared workflow structures keep the metadata available where
-  expected
-- current execution behavior remains unchanged
+- the base workflow artifact remains unchanged after pruning-context attachment
+- eligible `llm_step` interactions receive the derived mutation behavior
+- ineligible nodes fail closed through existing validation or mutation checks
 
 ## Suggested Task Breakdown
 
-1. Align the OA8 feature-spec package with the implemented metadata-only seam.
-2. Decide whether any additional metadata fields are truly needed.
-3. Extend `AsyncSessionPolicy` only for approved new fields.
-4. Extend validation only for those approved fields.
-5. Extend artifact/executor preservation tests only where the metadata grows.
-6. Re-run targeted validation for models, validation, artifacts, and executor.
+1. Add RED executor coverage for pruning-context behavior fed by existing
+   `session_messages`.
+2. Add RED graph-mutation coverage only if the current context-pipeline
+   attachment seam cannot express the target `llm_step` interaction.
+3. Implement the narrowest prepare-stage integration that prunes or compacts
+   supplied session messages before the model call.
+4. Keep async-session metadata unchanged unless tests prove a missing
+   declaration is required.
+5. Record diagnostics through existing prepared-input and mutation metadata.
+6. Re-run targeted validation for executor, graph mutation, session, and
+   validation surfaces.
 
 ## Suggested Validation Commands
 
 Primary targeted checks:
+
+```bash
+poetry run pytest \
+  tests/test_executor.py \
+  tests/test_graph_mutation.py \
+  tests/test_agent_sessions.py \
+  tests/test_validation.py -q
+```
+
+If only documentation changes are made while preparing the stream, run:
+
+```bash
+pre-commit run --files \
+  specs/async-session-memory-pipeline/spec.md \
+  specs/async-session-memory-pipeline/implementation-plan.md \
+  specs/README.md
+```
+
+If model metadata changes are later approved, widen to:
 
 ```bash
 poetry run pytest \
@@ -134,7 +185,7 @@ poetry run pytest \
   tests/test_executor.py -q
 ```
 
-If model-specific fixtures are touched, optionally widen to:
+If model-specific fixtures are touched, also include:
 
 ```bash
 poetry run pytest \
@@ -146,8 +197,10 @@ poetry run pytest \
 
 ## Expected Deliverable
 
-After the next expansion pass, the repository should keep the existing
-validated, portable, metadata-only `runtime.execution_policy.async_session`
-seam and, if approved, extend it in a way that remains compatible with future
-host integrations and the separate in-memory `AgentSession` API while leaving
-durable memory behavior out of OA8 until a new slice is approved.
+After the next work stream, eligible `llm_step` interactions should be able to
+receive pruning-context preparation from supplied session messages through the
+existing context-management and graph-mutation seams. The repository should keep
+the validated, portable, metadata-only
+`runtime.execution_policy.async_session` seam unchanged unless a concrete test
+proves an additional declaration is required, and durable memory behavior should
+remain out of OA8 until a separate slice is approved.
