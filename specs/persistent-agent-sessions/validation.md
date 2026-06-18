@@ -23,8 +23,7 @@ Repository discovery for this preparation pass confirmed the intended seams:
 
 ## TDD Validation Log
 
-No RED/GREEN implementation cycles have run yet. Future implementation slices
-must append exact outcomes in this format:
+Future implementation slices must append exact outcomes in this format:
 
 ```text
 Slice N / Task Tn.n:
@@ -32,6 +31,14 @@ Slice N / Task Tn.n:
 - GREEN: `<command>` — pass — <observed result>
 - Refactor: `<command>` — pass|not run — <observed result>
 ```
+
+Slice 1 / Tasks T1.1-T1.8:
+
+- RED: `poetry run pytest tests/test_agent_sessions.py -q` - fail - import
+  failed because `AgentSessionError` and the session surface did not exist.
+- GREEN: `poetry run pytest tests/test_agent_sessions.py -q` - pass - six
+  session state/store tests passed.
+- Refactor: not run - no post-GREEN refactor was needed.
 
 ## Planned Commands
 

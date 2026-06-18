@@ -25,6 +25,10 @@ class GuardrailExecutionError(DynamicAgentRunnerError):
     """Raised when guardrail execution blocks or fails a workflow."""
 
 
+class AgentSessionError(DynamicAgentRunnerError):
+    """Raised when persistent agent session state is invalid or unavailable."""
+
+
 class HuggingFaceModelSearchError(DynamicAgentRunnerError):
     """Raised when Hugging Face model discovery fails."""
 

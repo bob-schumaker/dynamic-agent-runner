@@ -21,22 +21,22 @@ Record command outcomes in `validation.md` as slices complete.
 
 ## Slice 1: Session State and Store
 
-- [ ] T1.1 Add a failing `tests/test_agent_sessions.py` test proving a new
+- [x] T1.1 Add a failing `tests/test_agent_sessions.py` test proving a new
       `AgentSession` can be created with an explicit session id and returns an
       empty `AgentSessionState`.
-- [ ] T1.2 Add `src/dynamic_agent_runner/sessions.py` with `AgentSessionState`,
+- [x] T1.2 Add `src/dynamic_agent_runner/sessions.py` with `AgentSessionState`,
       `InMemorySessionStore`, and minimal `AgentSession.create(...)` behavior.
-- [ ] T1.3 Add RED/GREEN coverage for generated session ids when no id is
+- [x] T1.3 Add RED/GREEN coverage for generated session ids when no id is
       supplied.
-- [ ] T1.4 Add RED/GREEN coverage proving `current_state()` and store lookups
+- [x] T1.4 Add RED/GREEN coverage proving `current_state()` and store lookups
       return copy-safe snapshots.
-- [ ] T1.5 Add RED/GREEN coverage proving two session ids in one
+- [x] T1.5 Add RED/GREEN coverage proving two session ids in one
       `InMemorySessionStore` remain isolated.
-- [ ] T1.6 Add RED/GREEN coverage for missing session lookup, malformed
+- [x] T1.6 Add RED/GREEN coverage for missing session lookup, malformed
       snapshot, and unsupported snapshot schema version failures using
       package-owned errors.
-- [ ] T1.7 Export public session types from `dynamic_agent_runner.__init__`.
-- [ ] T1.8 Run targeted validation:
+- [x] T1.7 Export public session types from `dynamic_agent_runner.__init__`.
+- [x] T1.8 Run targeted validation:
       `poetry run pytest tests/test_agent_sessions.py -q`.
 
 ## Slice 2: Bounded `accept(...)` Continuity

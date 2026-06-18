@@ -31,6 +31,12 @@ from dynamic_agent_runner.prompt_cache import (
     build_prompt_cache_observation,
     prompt_cache_policy_from_value,
 )
+from dynamic_agent_runner.sessions import (
+    AGENT_SESSION_STATE_SCHEMA_VERSION,
+    AgentSession,
+    AgentSessionState,
+    InMemorySessionStore,
+)
 from dynamic_agent_runner.skill_sources import (
     RejectedSkillSource,
     ResolvedSkillSource,
@@ -139,6 +145,7 @@ from dynamic_agent_runner.errors import (
     DynamicAgentRunnerError,
     GuardrailExecutionError,
     HuggingFaceModelSearchError,
+    AgentSessionError,
     LlamaCppMemoryFitProfileError,
     LocalModelError,
     ModelExecutionError,
@@ -149,6 +156,10 @@ from dynamic_agent_runner.errors import (
 
 __all__ = [
     "ArtifactLoadError",
+    "AGENT_SESSION_STATE_SCHEMA_VERSION",
+    "AgentSession",
+    "AgentSessionError",
+    "AgentSessionState",
     "AsyncOpenAIClientAdapter",
     "AsyncOpenAIClientProtocol",
     "AsyncOpenAIResponsesResource",
@@ -241,6 +252,7 @@ __all__ = [
     "TokenUsageRecord",
     "InMemoryToolRegistry",
     "InMemoryGuardrailRegistry",
+    "InMemorySessionStore",
     "InMemoryTraceSink",
     "estimate_messages_tokens",
     "inspect_agent_package_capabilities",
