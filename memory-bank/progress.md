@@ -126,6 +126,10 @@
   cross-prompt continuity through a public session object,
   `InMemorySessionStore`, state retrieval, and restart from saved state while
   keeping each prompt as a bounded executor run.
+- `model-event-streaming` is specified as a proposed post-persistent-session
+  feature for caller-facing `llm_step` and model-tool-loop event streaming,
+  final-result authority, session-level `accept_stream(...)`, cancellation and
+  backpressure semantics, and streaming capability/status reporting.
 
 ## Latest Milestones
 
@@ -188,6 +192,8 @@
   session setup.
 - `4782099` added the persistent agent sessions feature spec and spec index
   coverage.
+- `c52b4cc` added the model event streaming feature spec and spec index
+  coverage.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -210,6 +216,10 @@
   plan/tasks artifacts for the `AgentSession` API, `InMemorySessionStore`,
   snapshot/restart contract, workflow compatibility policy, concurrency
   behavior, and integration with async-session metadata.
+- Model event streaming remains spec-only and post-persistent-session. Before
+  implementation, create plan/tasks artifacts for the event contract, adapter
+  streaming, session `accept_stream(...)`, cancellation/backpressure behavior,
+  redaction/tool payload policy, and capability/status reporting.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering

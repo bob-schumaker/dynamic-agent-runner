@@ -79,10 +79,15 @@
   public `AgentSession`-style API, `InMemorySessionStore`, current session-state
   retrieval, and restart from saved state while preserving bounded per-prompt
   workflow runs instead of a long-running graph executor.
+- `model-event-streaming` is now specified as a proposed
+  post-persistent-session feature: caller-facing `llm_step` and model-tool-loop
+  event streaming, final-result authority, and `AgentSession.accept_stream(...)`
+  as the intended primary surface after persistent sessions exist.
 - The next ROI action is no longer skill-source, RAG orchestration v1, or
   context-management prepare-stage v1. LiteLLM provider implementation now has
-  a draft spec, and persistent agent sessions now have a proposed v1 spec, but
-  code work for either should wait for an approved implementation plan.
+  a draft spec, and persistent agent sessions plus post-session model event
+  streaming now have proposed specs, but code work for any of these should wait
+  for an approved implementation plan.
   Local-model advisory implementation should happen only when local-model
   ergonomics is the immediate driver.
 
@@ -168,6 +173,9 @@
 - Persistent agent session planning is captured in
   `specs/persistent-agent-sessions/spec.md`; it is proposed v1 only and not yet
   implementation authorization.
+- Model event streaming planning is captured in
+  `specs/model-event-streaming/spec.md`; it is proposed only after persistent
+  sessions and is not yet implementation authorization.
 - Sphinx configuration refresh is committed separately from the LiteLLM spec.
 
 ## Current Spec Authority Map
@@ -189,6 +197,7 @@
   - `specs/litellm-provider-adapter/spec.md`
 - Proposed feature packages:
   - `specs/persistent-agent-sessions/spec.md`
+  - `specs/model-event-streaming/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
 - Later feature packages:
@@ -209,6 +218,10 @@
   slice from `specs/persistent-agent-sessions/spec.md` that decides API return
   shape, sync-wrapper scope, workflow compatibility checks, `history: summary`
   behavior, and where `session_id_state_key` writes.
+- If implementing model event streaming, do it only after persistent sessions
+  have an approved plan and baseline. Create plan/tasks that decide event
+  iterator vs sink shape, adapter streaming protocol, redaction/tool payload
+  policy, cancellation/backpressure behavior, and terminal event/result shape.
 - If continuing local-model advisory work, decide whether the pending
   `pyproject.toml` / `poetry.lock` optional llama.cpp metadata edits should be
   committed, revised, or discarded before executing another slice.

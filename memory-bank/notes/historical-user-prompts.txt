@@ -445,3 +445,15 @@ evaluate adding a persistent agent graph that can remain running, for example a 
 ---
 
 create a featire spec from the recommendation. make sure that the caller can retrieve current session state and be able to restart a session from the saved state. InMemorySessionStore is enough for this pass
+
+---
+
+evaluate optionally streaming the non-result messages from the llm_step to the caller
+
+---
+
+should this be a new feature spec
+
+---
+
+create a new feature spec for this work and mark it as post-persistent-session
