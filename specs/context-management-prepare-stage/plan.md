@@ -47,14 +47,26 @@ Implemented by this plan:
 - quality and efficiency metrics such as lane utilization, information density,
   redundancy ratio, coverage completeness, and summary fidelity proxies
 
-Still future:
+Prepared follow-up specs:
 
-- provider-backed remote compaction, including `/responses/compact` when
-  available through the configured provider
-- compaction window ids and provider token baselines
-- model-backed summary-generation adapters
-- richer profile-specific lane priority behavior
-- semantic selection through injected collaborators
+- `specs/provider-backed-context-compaction/spec.md` owns provider-backed
+  remote compaction, `/responses/compact`-style capabilities when available,
+  compaction window ids, token baselines, and remote-compaction capability
+  reporting.
+- `specs/model-backed-context-summaries/spec.md` owns explicit summarizer
+  collaborators, bounded summary prompts, prior-summary folding, and summary
+  provenance.
+- `specs/semantic-context-profiles/spec.md` owns richer profile behavior,
+  injected semantic selectors, exact-plus-semantic scoring, optional
+  memory-kind labels, stale/redundant context omission, and
+  prompt-cache-aware ordering.
+
+Still future outside those prepared specs:
+
+- built-in embedding/vector retrieval infrastructure
+- runner-owned durable memory or background summary jobs
+- provider-specific live integration without fake-first tests and capability
+  gating
 
 ## Codex Reference Summary
 

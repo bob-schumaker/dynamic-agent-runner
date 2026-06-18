@@ -12,6 +12,9 @@
   - `specs/dynamic-agent-runner/tasks.md`
   - `specs/internal-graph-mutation/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
+  - `specs/provider-backed-context-compaction/spec.md`
+  - `specs/model-backed-context-summaries/spec.md`
+  - `specs/semantic-context-profiles/spec.md`
   - `specs/context-management-prepare-stage/references/context-pruning-pipeline-summary.md`
   - `src/dynamic_agent_runner/executor.py`
   - `src/dynamic_agent_runner/graph_mutation.py`
@@ -995,27 +998,28 @@ selection, rolling summaries, and injected compactor seams. It must not create a
 new durable memory backend, embedding/vector retrieval system, model-backed
 summary dependency, or graph-injection mechanism.
 
-Future approved slices may add:
+Prepared follow-up specs now own:
 
-- named compression-profile policy with optional `llm_step` overrides
-- injected semantic selectors behind fake-only unit tests
-- richer required-vs-optional lane policy and lost-in-the-middle-aware ordering
+- `specs/provider-backed-context-compaction/spec.md`:
+  provider-backed remote compaction, `/responses/compact`-style capabilities,
+  compaction window ids, token baselines, and remote-compaction capability
+  reporting
+- `specs/model-backed-context-summaries/spec.md`: explicit model-backed
+  summarizer adapters, bounded summary prompts, prior-summary folding, and
+  summary provenance
+- `specs/semantic-context-profiles/spec.md`: richer compression-profile
+  behavior, injected semantic selectors, exact-plus-semantic scoring, optional
+  memory-kind labels, stale/redundant context omission, and
+  prompt-cache-aware ordering
+
+Future approved slices may still add:
+
 - overflowing-history evaluation fixtures that check retained facts, decisions,
   constraints, and current-turn state, not just final token counts
-- summary-generation adapters with explicit model/tool boundaries
-- OpenAI/provider-backed remote compaction, including `/responses/compact` when
-  available through the configured provider
 - richer retention audit policies for complex tool-call/result pairs
-- prompt-cache-aware ordering rules
 - host-provided context packets that are already summarized or ranked
-- caller-provided memory-kind labels such as semantic, episodic, procedural, or
-  source-context segments, used only as selection/scoring hints
-- access-frequency, recency, and last-selected metadata as optional scoring
-  inputs for injected or deterministic selectors
 - compression and forgetting policy that removes redundant or stale context
   from prompt candidates without creating runner-owned durable memory
-- hybrid exact-plus-semantic retrieval through injected selectors for workflows
-  that need both literal identifiers and semantic relevance
 
 Those future slices should start from this spec and update it before
 implementation if their behavior changes these boundaries.
