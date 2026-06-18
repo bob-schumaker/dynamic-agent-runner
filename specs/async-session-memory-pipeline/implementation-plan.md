@@ -2,19 +2,19 @@
 
 ## Goal
 
-Prepare the next coherent work target that depends on OA8 session metadata:
-pruning-context graph injection for `llm_step` interactions. The runtime already
-preserves validated `runtime.execution_policy.async_session` metadata without
-adding durable runner-owned session storage or broader memory behavior, and live
-in-memory session continuity is implemented separately by
+Record the completed adjacent work target that depended on OA8 session metadata:
+pruning-context graph injection for `llm_step` interactions. The runtime
+continues to preserve validated `runtime.execution_policy.async_session`
+metadata without adding durable runner-owned session storage or broader memory
+behavior, and live in-memory session continuity is implemented separately by
 `specs/persistent-agent-sessions/spec.md`.
 
 ## Scope Boundary
 
-This plan is a **handoff plan for the next work target**, not an authorization
-to expand OA8 into live memory execution. It does not replace the implemented
-`AgentSession` v1 surface and does not move context-management or graph-mutation
-ownership into the async-session feature package.
+This plan is a **completed handoff record**, not an authorization to expand OA8
+into live memory execution. It does not replace the implemented `AgentSession`
+v1 surface and does not move context-management or graph-mutation ownership into
+the async-session feature package.
 
 Already implemented baseline:
 
@@ -22,14 +22,14 @@ Already implemented baseline:
 - validate the mapping fail-closed
 - surface the metadata through compiled/prepared workflow structures
 
-In scope for the next work-target handoff:
+Completed handoff scope:
 
-- confirm the async-session metadata consumed by pruning-context injection
-- route implementation ownership to `context-management-prepare-stage` and
+- confirmed the async-session metadata consumed by pruning-context injection
+- routed implementation ownership to `context-management-prepare-stage` and
   `internal-graph-mutation`
-- define the TDD entry point for injecting pruning-context behavior around
+- defined the TDD entry point for injecting pruning-context behavior around
   eligible `llm_step` interactions
-- verify that existing `AgentSession` session messages can flow into the
+- verified that existing `AgentSession` session messages can flow into the
   prepare-stage path without adding a durable memory backend
 
 Out of scope:
@@ -72,7 +72,7 @@ replacing it informally in the docs.
 - `internal-graph-mutation` supplies graph-level attachment or insertion around
   eligible `llm_step` nodes and edges.
 
-The next work stream should start from the context-management or graph-mutation
+Future work streams should start from the context-management or graph-mutation
 artifacts while keeping this package as a boundary reference.
 
 ## Implementation Files
@@ -82,7 +82,7 @@ artifacts while keeping this package as a boundary reference.
 This is the integration point where session messages, prepared input, and
 mutation-derived context currently meet.
 
-Expected work:
+Completed work:
 
 - add RED coverage first for an eligible `llm_step` interaction receiving pruned
   session context from existing session messages
@@ -96,7 +96,7 @@ Expected work:
 
 This owns the graph-injection seam for eligible `llm_step` interactions.
 
-Expected work:
+Completed work:
 
 - start with the existing input-transform mutation checkpoint
 - add only the narrow metadata or runtime shape needed to select pruning-context
@@ -108,10 +108,10 @@ Expected work:
 ### 3. `src/dynamic_agent_runner/models.py`
 
 The async-session typed model support already exists. Future work here should
-extend it only if the next work stream proves the current metadata shape cannot
+extend it only if a later work stream proves the current metadata shape cannot
 identify the relevant session input.
 
-Expected work:
+Retained boundary:
 
 - preserve compatibility for the existing `AsyncSessionPolicy`
 - avoid new durable-memory fields unless a separate OA8 expansion is approved
@@ -120,9 +120,9 @@ Expected work:
 
 ### 4. `tests/test_executor.py`
 
-This should be the primary TDD surface for proving model-input behavior.
+This was the primary TDD surface for proving model-input behavior.
 
-Expected RED tests:
+Executed RED tests:
 
 - an eligible `llm_step` interaction receives pruned context from supplied
   session messages before the model call
@@ -132,27 +132,27 @@ Expected RED tests:
 
 ### 5. `tests/test_graph_mutation.py`
 
-This should prove any graph-level injection shape remains a derived runtime
+This proved graph-level injection shape remains a derived runtime
 operation rather than an in-place package edit.
 
-Expected RED tests:
+Executed RED tests:
 
 - the base workflow artifact remains unchanged after pruning-context attachment
 - eligible `llm_step` interactions receive the derived mutation behavior
 - ineligible nodes fail closed through existing validation or mutation checks
 
-## Suggested Task Breakdown
+## Executed Task Breakdown
 
-1. Add RED executor coverage for pruning-context behavior fed by existing
+1. Added RED executor coverage for pruning-context behavior fed by existing
    `session_messages`.
-2. Add RED graph-mutation coverage only if the current context-pipeline
-   attachment seam cannot express the target `llm_step` interaction.
-3. Implement the narrowest prepare-stage integration that prunes or compacts
+2. Added RED graph-mutation coverage for the attachment diagnostics needed by
+   the target `llm_step` interaction.
+3. Implemented the narrowest prepare-stage integration that prunes or compacts
    supplied session messages before the model call.
-4. Keep async-session metadata unchanged unless tests prove a missing
+4. Kept async-session metadata unchanged because tests did not prove a missing
    declaration is required.
-5. Record diagnostics through existing prepared-input and mutation metadata.
-6. Re-run targeted validation for executor, graph mutation, session, and
+5. Recorded diagnostics through existing prepared-input and mutation metadata.
+6. Re-ran targeted validation for executor, graph mutation, session, and
    validation surfaces.
 
 ## Suggested Validation Commands
@@ -195,12 +195,12 @@ poetry run pytest \
   tests/test_power_marimo_fixture.py -q
 ```
 
-## Expected Deliverable
+## Delivered Result
 
-After the next work stream, eligible `llm_step` interactions should be able to
-receive pruning-context preparation from supplied session messages through the
-existing context-management and graph-mutation seams. The repository should keep
-the validated, portable, metadata-only
+Eligible `llm_step` interactions can now receive pruning-context preparation
+from supplied session messages through the existing context-management and
+graph-mutation seams. The repository should keep the validated, portable,
+metadata-only
 `runtime.execution_policy.async_session` seam unchanged unless a concrete test
 proves an additional declaration is required, and durable memory behavior should
 remain out of OA8 until a separate slice is approved.

@@ -299,7 +299,7 @@ calls.
 
 - [x] T10.1 [tests] Add RED executor coverage for pruning supplied session
       messages before an eligible `llm_step` model call.
-  - Spec: Follow-up Target: Pruning-Context Injection
+  - Spec: Completed Follow-up: Pruning-Context Injection
   - Plan: Slice 10 — Pruning-context injection behavior
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -315,7 +315,7 @@ calls.
 
 - [x] T10.2 [tests] Add RED executor coverage for no-policy preservation and
       redacted diagnostics.
-  - Spec: Follow-up Target: Pruning-Context Injection
+  - Spec: Completed Follow-up: Pruning-Context Injection
   - Plan: Slice 10 — Pruning-context injection behavior
   - Files/components: `tests/test_executor.py`
   - Cover unchanged prompt rendering when no pruning-context policy is enabled,
@@ -329,7 +329,7 @@ calls.
 
 - [x] T10.3 [implementation] Implement the smallest prepare-stage behavior that
       satisfies the RED pruning-context injection tests.
-  - Spec: Follow-up Target: Pruning-Context Injection
+  - Spec: Completed Follow-up: Pruning-Context Injection
   - Plan: Slice 10 — Pruning-context injection behavior
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Reuse existing turn grouping, lane budgets, deterministic older-turn
@@ -344,7 +344,7 @@ calls.
 
 - [x] T10.4 [tests] Verify `AgentSession`-supplied messages can feed the
       prepare-stage behavior without changing session persistence semantics.
-  - Spec: Follow-up Target: Pruning-Context Injection
+  - Spec: Completed Follow-up: Pruning-Context Injection
   - Plan: Slice 10 — Pruning-context injection behavior
   - Files/components: `tests/test_agent_sessions.py`,
     `tests/test_executor.py`, `src/dynamic_agent_runner/sessions.py`
@@ -365,7 +365,7 @@ calls.
 
 - [x] T10.5 [tests] Run the combined context-management follow-up checkpoint and
       record evidence.
-  - Spec: Follow-up Target: Pruning-Context Injection
+  - Spec: Completed Follow-up: Pruning-Context Injection
   - Plan: Validation Strategy
   - Files/components: `tests/test_executor.py`, `tests/test_agent_sessions.py`,
     `tests/test_graph_mutation.py`, `tests/test_validation.py`

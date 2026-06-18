@@ -1,7 +1,6 @@
 # Internal Graph Mutation Implementation Plan
 
-Status: first implementation checkpoint complete through T3.2; follow-up Slice 4
-planned for pruning-context graph injection
+Status: complete through Slice 4 pruning-context graph injection follow-up
 
 - Current checkpoint: T3.2 spec-artifact refresh is recorded after the T3.1
   focused mutation validation evidence and the earlier T2.4
@@ -28,19 +27,19 @@ planned for pruning-context graph injection
     `tests/test_executor.py -q` passes with `115 passed`, proving the mutation
     datamodel, validation, executor integration, and diagnostics checkpoints
     remain green together as one focused validation slice.
-- Next overall task gate: start follow-up Slice 4 with RED tests for
-  pruning-context graph injection around eligible `llm_step` interactions.
+- Next overall task gate: no graph-mutation pruning-context tasks are open.
 - Next implementation steps at the current GREEN checkpoint:
-  - implement only from the new Slice 4 task list and keep durable memory,
-    public mutation schemas, and broad graph surgery out of scope
+  - future structural graph work must start from a new approved task slice and
+    keep durable memory, public mutation schemas, and broad graph surgery out of
+    scope until explicitly approved
 
 ## Planning Gate
 
 This plan remains the accepted implementation-planning artifact for the first
 internal graph-mutation checkpoint, and that checkpoint is now complete through
 T3.2. Future graph-mutation work should begin from a newly approved scoped
-follow-up rather than continuing this closed checkpoint as if it were still
-active.
+follow-up rather than continuing the closed Slice 4 checkpoint as if it were
+still active.
 
 ## Goal
 
@@ -169,25 +168,24 @@ public mutation-schema stabilization.
 
 ### Slice 4 — Pruning-context graph injection follow-up
 
-Status: planned.
+Status: complete.
 
-Start the next work stream with test-first coverage for injecting
-context-management behavior around eligible `llm_step` interactions. Prefer the
-existing attachment/input-transform seam first. Add a narrow internal
-link-level operation only if RED tests prove the existing seam cannot represent
-the required `llm_step` interaction, such as a ReAct loopback path.
+This slice added test-first coverage and implementation for graph-level
+attachment diagnostics around eligible `llm_step` interactions. The existing
+attachment/input-transform seam was sufficient; no new validation metadata,
+public schema, or structural graph-rewiring primitive was added.
 
-This slice should:
+This slice:
 
-- keep the base workflow package immutable
-- derive pruning-context behavior during preparation
-- route supplied session messages toward `context-management-prepare-stage`
+- kept the base workflow package immutable
+- derived pruning-context behavior during preparation
+- routed supplied session messages toward `context-management-prepare-stage`
   rather than implementing pruning semantics in graph mutation
-- fail closed for missing or ineligible attachment metadata
-- emit mutation diagnostics that identify the attachment point and derived
+- failed closed for missing or ineligible attachment metadata
+- emitted mutation diagnostics that identify the attachment point and derived
   behavior without leaking full transcript content
 
-It must not add public mutation-package artifacts, durable memory backends,
+It did not add public mutation-package artifacts, durable memory backends,
 embedding/vector retrieval, or model-backed summarization.
 
 ## Architectural Decision
@@ -356,23 +354,17 @@ Primary targeted checks for the first implementation slice:
 poetry run pytest tests/test_graph_mutation.py -q
 ```
 
-For follow-up Slice 4, use TDD and capture RED before implementation:
+Slice 4 validation evidence:
 
 ```bash
 poetry run pytest tests/test_graph_mutation.py -q -k pruning_context_injection
-poetry run pytest tests/test_executor.py -q -k pruning_context_injection
-poetry run pytest tests/test_validation.py -q -k context_pipeline
+poetry run pytest tests/test_graph_mutation.py tests/test_executor.py \
+  -q -k pruning_context_injection
+poetry run pytest tests/test_graph_mutation.py tests/test_executor.py -q
 ```
 
-Expected GREEN checkpoint for the follow-up:
-
-```bash
-poetry run pytest \
-  tests/test_graph_mutation.py \
-  tests/test_executor.py \
-  tests/test_validation.py \
-  tests/test_agent_sessions.py -q
-```
+The focused graph/executor selector passed with `4 passed, 110 deselected`, and
+the combined graph/executor suite passed with `114 passed`.
 
 Current recorded checkpoint:
 
@@ -501,13 +493,13 @@ poetry run pre-commit run --files \
 - If node insertion is attempted too early, graph complexity may overshadow the
   higher-ROI input-transform path.
 
-## Expected Deliverable
+## Delivered Result
 
-After the first implementation pass, the repository should have an authoritative
-internal graph-mutation seam, explicit fail-closed attachment metadata for
-eligible `llm_step` nodes, and a narrow context-pruning-oriented input transform
-that integrates with existing preparation and execution boundaries without
-changing the immutable portable workflow package contract.
+The repository has an authoritative internal graph-mutation seam, explicit
+fail-closed attachment metadata for eligible `llm_step` nodes, and a narrow
+context-pruning-oriented input transform that integrates with existing
+preparation and execution boundaries without changing the immutable portable
+workflow package contract.
 
 At the current checkpoint, the repository has GREEN evidence for the internal
 mutation datamodel layer, the execution-plan mutation seam, fail-closed
@@ -517,4 +509,6 @@ rendering, and a first live `ContextPruningMutation` runtime owned by
 
 The repository now also has a focused combined validation checkpoint showing
 that the graph-mutation, validation, and executor surfaces pass together with
-`115 passed`.
+`115 passed`, plus Slice 4 evidence for pruning-context graph injection with
+`4 passed, 110 deselected` for the focused selector and `114 passed` for the
+combined graph/executor suite.

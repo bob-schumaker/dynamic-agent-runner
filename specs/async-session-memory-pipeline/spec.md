@@ -61,15 +61,15 @@ This spec also records whether the current API surface is already sufficient for
 the first expected customer, `power-marimo`, when continuity is managed by the
 host across repeated runner calls.
 
-## Next Work Target
+## Completed Adjacent Work Target
 
-The next work target that depends on this package is **pruning-context graph
-injection for `llm_step` interactions**. That target is intentionally routed to
-adjacent owners rather than implemented inside OA8:
+The adjacent work target that depended on this package was **pruning-context
+graph injection for `llm_step` interactions**. That target was intentionally
+routed to adjacent owners rather than implemented inside OA8:
 
 - `async-session-memory-pipeline` owns the declarative session identity and
-  history-retention metadata that can describe which session material may feed a
-  future pruning pass.
+  history-retention metadata that can describe which session material may feed
+  pruning.
 - `persistent-agent-sessions` owns the live in-memory session state and saved
   snapshots that can provide cross-prompt messages to a run.
 - `context-management-prepare-stage` owns pruning, compaction, prompt-context
@@ -78,10 +78,10 @@ adjacent owners rather than implemented inside OA8:
   or later insert context-management behavior around selected `llm_step`
   interactions, including loopback-style ReAct flows.
 
-For the next implementation stream, use this spec as the async-session boundary
-reference only. The executable TDD plan should live in the context-management or
-graph-mutation artifact set and should consume existing session messages rather
-than adding durable storage or a new runner-owned memory backend here.
+The implementation was completed through the context-management and
+graph-mutation artifact sets. This spec remains the async-session boundary
+reference only; pruning-context injection consumed existing session messages
+without adding durable storage or a new runner-owned memory backend here.
 
 ## Problem Statement
 

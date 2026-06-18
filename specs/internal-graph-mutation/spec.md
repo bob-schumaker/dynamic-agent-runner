@@ -5,8 +5,7 @@
 - Feature slug: `internal-graph-mutation`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: first implementation checkpoint complete through T3.2; follow-up
-  Slice 4 planned for pruning-context graph injection
+- Status: complete through Slice 4 pruning-context graph injection follow-up
   - initial internal graph-mutation datamodel implementation now exists in
     `src/dynamic_agent_runner/graph_mutation.py`
   - T3.2 spec-artifact refresh evidence now exists in
@@ -256,17 +255,16 @@ Acceptance criteria:
 - Treat context management as one consumer of mutation, not the reason the
   mutation layer exists.
 
-## Follow-up Target: Pruning-Context Injection
+## Completed Follow-up: Pruning-Context Injection
 
-The next approved follow-up target is graph-level injection for pruning context
-around eligible `llm_step` interactions. This target builds on the completed
-input-transform checkpoint and keeps graph mutation responsible for **where**
-context-management behavior is attached or inserted, while
+The completed follow-up target adds graph-level attachment diagnostics for
+pruning context around eligible `llm_step` interactions. This target builds on
+the completed input-transform checkpoint and keeps graph mutation responsible
+for **where** context-management behavior is attached or inserted, while
 `context-management-prepare-stage` remains responsible for **what** pruning,
 compaction, and prompt-context assembly do.
 
-The follow-up should be implemented with TDD and should begin with tests that
-prove:
+The follow-up was implemented with TDD and proves:
 
 - base workflow artifacts remain immutable after pruning-context injection
 - eligible `llm_step` interactions receive derived pruning-context behavior
@@ -276,10 +274,10 @@ prove:
 - mutation diagnostics identify the attachment point and derived behavior
   without exposing full transcript content
 
-This follow-up does not authorize a public mutation schema, durable memory
+This follow-up did not authorize a public mutation schema, durable memory
 backend, model-backed summarizer, embedding selector, or general graph-surgery
 API. If the current attachment seam cannot represent the needed interaction,
-the next slice may add the narrowest internal link-level operation shape needed
+future slices may add the narrowest internal link-level operation shape needed
 for `llm_step` interactions and must leave broader structural insertion for a
 separate approval.
 

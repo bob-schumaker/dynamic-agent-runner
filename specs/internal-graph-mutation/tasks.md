@@ -207,7 +207,7 @@ Status: complete through Slice 4 pruning-context graph injection follow-up
 - [x] T3.2 [docs] Update the graph-mutation spec artifacts to record the first
       implementation checkpoint and validation evidence.
   - Spec: FR-1 through FR-5
-  - Plan: Expected Deliverable
+  - Plan: Delivered Result
   - Files/components: `specs/internal-graph-mutation/spec.md`,
     `specs/internal-graph-mutation/plan.md`,
     `specs/internal-graph-mutation/tasks.md`
@@ -241,8 +241,8 @@ Status: complete through Slice 4 pruning-context graph injection follow-up
 
 - [x] T4.1 [tests] Add RED graph-mutation coverage for pruning-context
       injection around eligible `llm_step` interactions.
-  - Spec: Follow-up Target: Pruning-Context Injection; FR-1, FR-3, FR-4, FR-5,
-    FR-6
+  - Spec: Completed Follow-up: Pruning-Context Injection; FR-1, FR-3, FR-4,
+    FR-5, FR-6
   - Plan: Slice 4 — Pruning-context graph injection follow-up
   - Files/components: `tests/test_graph_mutation.py`,
     `src/dynamic_agent_runner/graph_mutation.py`
@@ -258,7 +258,7 @@ Status: complete through Slice 4 pruning-context graph injection follow-up
 - [x] T4.2 [tests] Add RED executor coverage proving injected
       pruning-context behavior is applied before the target `llm_step` model
       call.
-  - Spec: Follow-up Target: Pruning-Context Injection; FR-3, FR-4
+  - Spec: Completed Follow-up: Pruning-Context Injection; FR-3, FR-4
   - Plan: Slice 4 — Pruning-context graph injection follow-up
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -290,7 +290,7 @@ Status: complete through Slice 4 pruning-context graph injection follow-up
 
 - [x] T4.4 [implementation] Implement the smallest graph-mutation change that
       satisfies the RED pruning-context injection tests.
-  - Spec: Follow-up Target: Pruning-Context Injection
+  - Spec: Completed Follow-up: Pruning-Context Injection
   - Plan: Slice 4 — Pruning-context graph injection follow-up
   - Files/components: `src/dynamic_agent_runner/graph_mutation.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -312,7 +312,7 @@ Status: complete through Slice 4 pruning-context graph injection follow-up
 
 - [x] T4.5 [tests] Run the combined follow-up validation checkpoint and record
       evidence.
-  - Spec: Follow-up Target: Pruning-Context Injection
+  - Spec: Completed Follow-up: Pruning-Context Injection
   - Plan: Validation Strategy
   - Files/components: `tests/test_graph_mutation.py`, `tests/test_executor.py`,
     `tests/test_validation.py`, `tests/test_agent_sessions.py`

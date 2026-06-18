@@ -25,16 +25,17 @@ or treating partial deltas as authoritative workflow output.
 
 This feature is explicitly post-`persistent-agent-sessions`. The first intended
 public composition is a session-level streaming call such as
-`AgentSession.accept_stream(...)`, with lower-level executor support defined only
-as needed to implement that session API cleanly.
+`AgentSession.accept_stream(...)`. Lower-level executor event iterator APIs
+remain deferred.
 
 ## Problem Statement
 
 The current OpenAI adapter can request provider streaming and normalize streamed
 text into a final `ModelResponse`, but the executor receives only the completed
-response. Callers who build UI or interactive agent hosts cannot observe
-assistant text deltas, tool-call progress, or loop progress until the workflow
-run finishes.
+response. The v1 session event stream exposes redacted execution lifecycle and
+prepared-input events while a run is active; callers still cannot observe
+provider-native assistant text deltas, tool-call deltas, or specialized loop
+progress events until future expansion work is approved.
 
 This is especially limiting for persistent agent sessions: a caller may want to
 keep a session alive across prompts while rendering the current prompt's
@@ -98,8 +99,7 @@ That API depends on the session feature owning:
 
 Implementing streaming first would have forced ad hoc run/session semantics into
 the streaming API. `persistent-agent-sessions` now provides the required
-in-memory session baseline, so this spec can be planned next when streaming is
-the active priority.
+in-memory session baseline, and v1 streaming is implemented on that surface.
 
 ## Users and User Stories
 
@@ -114,19 +114,16 @@ the active priority.
 - As a model-adapter implementer, I can support streaming where the provider
   supports it and cleanly fall back when it does not.
 
-## Proposed Public Shape
+## Implemented Public Shape
 
-Names are subject to implementation planning, but the v1 target should be close
-to:
+The implemented v1 surface is:
 
 ```python
 async for event in session.accept_stream("Continue the analysis."):
-    if event.event_type == "output_text_delta":
-        ui.append(event.text_delta)
-    elif event.event_type == "tool_call_started":
-        ui.show_tool(event.tool_name)
-
-result = event.final_result  # only on terminal event, if exposed that way
+    if event.event_type == "model_input_prepared":
+        ui.show_context_status(event.payload)
+    elif event.event_type == "run_completed":
+        result = event.final_result
 ```
 
 A lower-level executor surface may exist as:
@@ -140,32 +137,41 @@ async for event in execute_workflow_events_async(
 ```
 
 The session API is the primary product surface for v1. The lower-level executor
-API should be added only if it avoids special-case plumbing in sessions.
+API should be added only if a future slice proves it avoids special-case
+plumbing in sessions.
 
 ## Event Contract
 
-The implementation plan should define concrete dataclasses, but the public event
-contract must be provider-neutral and structured.
+The public event contract is provider-neutral and structured.
 
-Candidate fields:
+Implemented v1 fields:
 
-- schema version
 - event id or sequence
 - event type
-- session id, when available
+- session id
 - run id
 - node id
+- redacted metadata
+- terminal final result on `run_completed`
+
+Future candidate fields:
+
+- schema version
 - model id, when relevant
 - iteration number for model-tool loops
 - text delta for assistant output
 - tool id/name for tool progress
-- redacted metadata
-- terminal final result or interruption metadata, when relevant
+- interruption metadata, when relevant
 - error metadata for terminal failures
 
-Candidate event types:
+Implemented v1 event types include existing redacted execution events plus:
 
 - `run_started`
+- `model_input_prepared`
+- `run_completed`
+
+Future candidate event types:
+
 - `model_request_started`
 - `message_started`
 - `output_text_delta`
@@ -186,8 +192,10 @@ the public event type must be normalized.
 
 ### FR-1: Stream optional model events from `llm_step`
 
-The runtime must be able to emit incremental model events from `llm_step` nodes
-when streaming is requested and the selected adapter supports streaming.
+Future runtime expansion should be able to emit incremental model events from
+`llm_step` nodes when streaming is requested and the selected adapter supports
+streaming. The implemented v1 baseline streams redacted execution events and
+prepared-input diagnostics, not provider-native token deltas.
 
 Acceptance criteria:
 
@@ -233,8 +241,8 @@ Acceptance criteria:
 
 ### FR-4: Stream model-tool loop progress
 
-Streaming must expose useful progress for bounded model-tool loops without
-weakening loop safety.
+Future streaming expansion should expose useful progress for bounded model-tool
+loops without weakening loop safety.
 
 Acceptance criteria:
 
@@ -370,7 +378,7 @@ Implementation provides focused tests for the v1 baseline:
 - redacted context-preparation diagnostics are streamed without transcript text
 - pruning-context and graph-mutation diagnostics compose with the stream
 
-Future implementation should provide focused tests for:
+Future streaming expansion slices should provide focused tests for:
 
 - non-streaming execution remains unchanged
 - text deltas emit in provider order and final result remains authoritative
@@ -393,13 +401,16 @@ poetry run ruff check src tests
 
 - Should the lower-level executor expose an async event iterator, a stream sink,
   or both?
-- Should event streams include prepared-input diagnostics, or should those
-  remain trace-only?
 - Should text deltas be emitted before or after any redaction/filtering layer
   once output guardrails exist?
 - How should structured output streaming interact with final JSON validation?
-- Should terminal events carry the full `WorkflowResult`, a session-specific
-  result wrapper, or only a result reference?
+
+## Settled V1 Decisions
+
+- Session event streams include redacted prepared-input diagnostics, including
+  pruning-context metadata, rather than leaving those diagnostics trace-only.
+- Terminal `run_completed` events carry the authoritative final result, not the
+  full `WorkflowResult`.
 
 ## Approval State
 

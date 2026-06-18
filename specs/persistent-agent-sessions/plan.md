@@ -57,7 +57,8 @@ Do not implement:
 - raw tool transcript replay by default
 - durable approval resume
 - cross-process locking
-- model event streaming
+- model event streaming inside this spec; session streaming is owned by
+  `model-event-streaming`
 
 ## Runtime Contract
 
@@ -256,4 +257,5 @@ MCP, Hugging Face, Marimo, llama.cpp, MLX, or local model calls.
 V1 implementation is complete. Future expansions should start from a new plan
 or an explicit amendment before adding durable stores, model-backed summaries,
 long-running graph executors, raw tool transcript replay, durable approval
-resume, cross-process locking, or event streaming.
+resume, or cross-process locking. Session event streaming is owned by the
+separate `model-event-streaming` spec.

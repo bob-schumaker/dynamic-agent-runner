@@ -5,8 +5,8 @@
 - Feature slug: `context-management-prepare-stage`
 - Mode: `light`
 - Artifact type: authoritative SDD feature specification
-- Status: implemented through context-management prepare-stage Slice 9; follow-up
-  Slice 10 planned for pruning-context injection behavior
+- Status: implemented through context-management prepare-stage Slice 10,
+  including pruning-context injection behavior
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/tasks.md`
@@ -710,8 +710,9 @@ Acceptance criteria:
 - Given an iterative model-tool loop needs more model work after a response and
   the threshold is reached, when mid-turn compaction is enabled, then it must
   preserve pending tool/approval state and record `phase: mid_turn`.
-- Given mid-turn compaction is not implemented, when that condition occurs, then
-  the runtime must fail or stop explicitly rather than silently dropping history.
+- Given mid-turn compaction is unavailable or disabled, when more model work
+  would require it, then the runtime must fail or stop explicitly rather than
+  silently dropping history.
 
 ### FR9 — Treat provider compaction as an optional capability
 
@@ -969,16 +970,15 @@ session-memory policy.
 
 ## Future Work
 
-### Follow-up Target: Pruning-Context Injection
+### Completed Follow-up: Pruning-Context Injection
 
-The next approved follow-up target is prepare-stage support for pruning context
-that graph mutation can inject around eligible `llm_step` interactions.
+The completed follow-up adds prepare-stage support for pruning context that graph
+mutation can inject around eligible `llm_step` interactions.
 `internal-graph-mutation` owns the attachment or insertion point; this spec owns
 the behavior that turns supplied session messages and context sources into a
 bounded model input.
 
-The follow-up should be implemented with TDD and should begin with tests that
-prove:
+The follow-up was implemented with TDD and proves:
 
 - supplied `WorkflowExecutionState.session_messages` can be pruned or compacted
   before a target model call
@@ -990,7 +990,7 @@ prove:
 - `AgentSession` can provide the session-message input without this feature
   creating durable storage or replay behavior
 
-This follow-up may reuse existing lane budgeting, turn grouping, deterministic
+This follow-up reuses existing lane budgeting, turn grouping, deterministic
 selection, rolling summaries, and injected compactor seams. It must not create a
 new durable memory backend, embedding/vector retrieval system, model-backed
 summary dependency, or graph-injection mechanism.

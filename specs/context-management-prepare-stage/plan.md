@@ -1,7 +1,7 @@
 # Context Management Prepare Stage Implementation Plan
 
-Status: implemented through Slice 9; Slice 10 planned for pruning-context
-injection behavior used by graph mutation
+Status: implemented through Slice 10 pruning-context injection behavior used by
+graph mutation
 
 ## Goal
 
@@ -243,14 +243,14 @@ Added defensive error handling after pre-turn compaction became available:
 
 ### Slice 10 — Pruning-context injection behavior
 
-Status: planned.
+Status: complete.
 
-Add the prepare-stage behavior needed when graph mutation attaches or inserts
-pruning context around eligible `llm_step` interactions. This slice should use
-the existing session-message, lane-budget, deterministic selection, rolling
-summary, and injected compactor seams before adding new mechanisms.
+This slice added the prepare-stage behavior needed when graph mutation attaches
+pruning context around eligible `llm_step` interactions. It uses the existing
+session-message, lane-budget, deterministic selection, rolling summary, and
+injected compactor seams rather than adding new mechanisms.
 
-This slice should:
+This slice:
 
 - consume supplied `WorkflowExecutionState.session_messages`
 - prepare bounded context before the target `llm_step` prompt is rendered
@@ -259,8 +259,8 @@ This slice should:
 - remain independent from durable memory, embedding retrieval, and graph
   attachment mechanics
 
-Use TDD. The first changes should be RED tests in `tests/test_executor.py`; only
-add implementation once the expected failure has been observed.
+It was implemented with TDD through RED tests in `tests/test_executor.py` before
+production changes.
 
 ## Design Decisions
 
