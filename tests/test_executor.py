@@ -1099,6 +1099,155 @@ def test_prepare_model_input_applies_hierarchy_pruning_and_compaction() -> None:
     assert prepared_input.preparation.context_compaction_applied is True
 
 
+def test_pruning_context_injection_uses_bounded_session_messages() -> None:
+    """Injected pruning context should use prepare-stage bounded session history."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "pruning-context-bounded-session-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "summary_message",
+                            "summary_role": "developer",
+                            "summary_prefix": "Earlier session:",
+                            "max_chars_per_message": 20,
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "prepared_context",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="What should I do next?",
+        session_messages=(
+            OpenAIMessage(role="user", content="pruned older secret request"),
+            OpenAIMessage(role="assistant", content="pruned older secret answer"),
+            OpenAIMessage(role="user", content="recent user request"),
+            OpenAIMessage(role="assistant", content="recent assistant answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+    user_prompt = prepared_input.named_parts["user_prompt"].content
+
+    assert "recent user request" in user_prompt
+    assert "recent assistant answer" in user_prompt
+    assert "What should I do next?" in user_prompt
+    assert "pruned older secret request" not in user_prompt
+    assert "pruned older secret answer" not in user_prompt
+    assert prepared_input.preparation.session_messages_included == 2
+    assert prepared_input.preparation.session_messages_pruned == 2
+
+
+def test_pruning_context_injection_reports_bounded_context_diagnostics() -> None:
+    """Injected context diagnostics should report counts without transcript text."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "pruning-context-diagnostics-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 1},
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        }
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "output_slot": "prepared_context",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Continue.",
+        session_messages=(
+            OpenAIMessage(role="user", content="secret old content"),
+            OpenAIMessage(role="assistant", content="visible recent content"),
+        ),
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepare_model_input(plan.nodes_by_id["answer"], plan, state, tracer=tracer)
+
+    [prepared_event] = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    payload = prepared_event.payload
+
+    assert payload["mutation_context"] == {
+        "session_messages_included": 1,
+        "session_messages_pruned": 1,
+        "context_compaction_applied": False,
+    }
+    assert "secret old content" not in repr(payload)
+    assert "visible recent content" not in repr(payload)
+
+
 def test_prepare_model_input_groups_session_messages_into_turn_units() -> None:
     """prepare_model_input records stable turn/segment diagnostics for sessions."""
 
