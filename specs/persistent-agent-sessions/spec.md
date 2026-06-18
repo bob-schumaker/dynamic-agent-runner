@@ -5,7 +5,7 @@
 - Feature slug: `persistent-agent-sessions`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: proposed v1 implementation slice; not implemented
+- Status: prepared v1 implementation slice; not implemented
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature packages:
   - `specs/async-session-memory-pipeline/spec.md`
@@ -370,7 +370,11 @@ poetry run ruff check src tests
 
 ## Approval State
 
-This is a proposed light-mode feature spec. It is not implementation
-authorization by itself. A later implementation pass should either create an
-approved `plan.md` and `tasks.md` or explicitly record a user waiver for a
-small implementation slice.
+This feature now has a TDD-first implementation plan and task list:
+
+- `specs/persistent-agent-sessions/plan.md`
+- `specs/persistent-agent-sessions/tasks.md`
+- `specs/persistent-agent-sessions/validation.md`
+
+Implementation should proceed from those artifacts one RED/GREEN/refactor slice
+at a time.
