@@ -457,3 +457,23 @@ should this be a new feature spec
 ---
 
 create a new feature spec for this work and mark it as post-persistent-session
+
+---
+
+prepare  persistent-agent-sessions for the next work stream, use TDD
+
+---
+
+execute persistent-agent-sessions and commit after each slice
+
+---
+
+split docs and specs into separate commits
+
+---
+
+make the spec docs internally consistent
+
+---
+
+make the full spec surface internally consistent

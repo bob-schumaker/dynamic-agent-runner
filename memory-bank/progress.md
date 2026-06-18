@@ -6,7 +6,8 @@
   async-first APIs, sync wrappers, tool registry/overrides, OpenAI-compatible
   adapters/providers, retry, output contracts, token budgeting, tracing, hooks,
   prompt preparation, validation, runtime behavior overrides, model adapter
-  coverage, local model helpers, and metadata-only future surfaces.
+  coverage, local model helpers, in-memory persistent sessions, and
+  metadata-only future surfaces.
 - Default OpenAI/Codex auth discovery and ChatGPT/Codex backend compatibility
   are implemented.
 - llama.cpp and MLX local-model adapters are implemented through their current
@@ -122,10 +123,13 @@
   spec. It proposes making LiteLLM the core OpenAI-compatible transport,
   preserving repository-owned OpenAI/Codex auth discovery, and mapping default
   Codex behavior through `create_litellm_codex_adapter_from_codex_auth(...)`.
-- `persistent-agent-sessions` is specified as a proposed v1 feature for
-  cross-prompt continuity through a public session object,
-  `InMemorySessionStore`, state retrieval, and restart from saved state while
-  keeping each prompt as a bounded executor run.
+- `persistent-agent-sessions` is implemented as a v1 feature for
+  cross-prompt continuity through public `AgentSession`,
+  `AgentSessionState`, `AgentSessionResult`, and `InMemorySessionStore`, with
+  state retrieval, copy-safe snapshots, snapshot restart, history policies,
+  session-id state injection, same-session concurrency rejection, sync wrapper
+  parity, docs, and live capability/status reporting while keeping each prompt
+  as a bounded executor run.
 - `model-event-streaming` is specified as a proposed post-persistent-session
   feature for caller-facing `llm_step` and model-tool-loop event streaming,
   final-result authority, session-level `accept_stream(...)`, cancellation and
@@ -194,6 +198,13 @@
   coverage.
 - `c52b4cc` added the model event streaming feature spec and spec index
   coverage.
+- `ecada0d` prepared the persistent-session TDD work stream.
+- `53cad69`, `68f0d0b`, `08c9b76`, and `8c02300` implemented persistent
+  sessions across state/store, bounded `accept(...)`, history/snapshot restart,
+  concurrency guard, sync wrapper parity, and capability/status reporting.
+- `cf8050e`, `10c71fc`, and `918c601` documented the persistent-session API,
+  marked the spec implemented, and reconciled async-session versus
+  persistent-session ownership across the spec surface.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -212,10 +223,6 @@
   plan/tasks artifacts for the core dependency change, default provider
   selection, Codex auth adaptation, request/response mapping, fake-test
   strategy, and packaging implications.
-- Persistent agent sessions remain spec-only. Before implementation, create
-  plan/tasks artifacts for the `AgentSession` API, `InMemorySessionStore`,
-  snapshot/restart contract, workflow compatibility policy, concurrency
-  behavior, and integration with async-session metadata.
 - Model event streaming remains spec-only and post-persistent-session. Before
   implementation, create plan/tasks artifacts for the event contract, adapter
   streaming, session `accept_stream(...)`, cancellation/backpressure behavior,
