@@ -251,6 +251,7 @@ async def execute_workflow_async(
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
+    initial_node_outputs: Mapping[str, Any] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt asynchronously."""
 
@@ -276,6 +277,7 @@ async def execute_workflow_async(
         prompt=prompt,
         run_id=run_id or _new_run_id(),
         session_messages=tuple(session_messages),
+        node_outputs=dict(initial_node_outputs or {}),
     )
     tracer = WorkflowTracer(
         events=state.trace_events,
@@ -407,6 +409,7 @@ def execute_workflow(
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
+    initial_node_outputs: Mapping[str, Any] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -425,6 +428,7 @@ def execute_workflow(
             run_id=run_id,
             context_compactor=context_compactor,
             session_messages=session_messages,
+            initial_node_outputs=initial_node_outputs,
         )
     )
 

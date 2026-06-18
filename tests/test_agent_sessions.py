@@ -105,6 +105,65 @@ def make_execution_context(
     )
 
 
+def make_policy_execution_context(
+    *,
+    history: str,
+    model_adapter: OpenAIClientAdapter,
+    user_template: str = "Use {prepared_context} to answer {prompt}",
+) -> WorkflowExecutionContext:
+    async_session: dict[str, object] = {
+        "mode": "create_or_resume",
+        "persist": "in_memory",
+        "history": history,
+        "session_id_state_key": "session_id",
+    }
+    if history != "none":
+        async_session["session_messages_state_key"] = "session_messages"
+    manifest = load_runtime_manifest(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": f"session-{history}-agent",
+            "name": "Session Policy Agent",
+            "entrypoint": "answer",
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "async_session": async_session,
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": user_template},
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "prepared_context",
+                    },
+                }
+            ],
+        }
+    )
+    return WorkflowExecutionContext(
+        workflow=LoadedAgentWorkflow(manifest),
+        model_adapter=model_adapter,
+    )
+
+
 def test_create_session_with_explicit_id_returns_empty_state() -> None:
     store = InMemorySessionStore()
 
@@ -359,3 +418,216 @@ async def _accept_preserves_input_guardrail_behavior() -> None:
 
 def test_accept_preserves_input_guardrail_behavior() -> None:
     asyncio.run(_accept_preserves_input_guardrail_behavior())
+
+
+async def _history_none_stores_but_does_not_replay_messages() -> None:
+    adapter = make_adapter(
+        [
+            {"id": "first", "output_text": "first answer"},
+            {"id": "second", "output_text": "second answer"},
+        ]
+    )
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="none",
+            model_adapter=adapter,
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    await session.accept("first prompt")
+    await session.accept("second prompt")
+
+    second_content = "\n".join(
+        str(message["content"])
+        for message in adapter.client.responses.calls[1]["input"]
+    )
+    assert "first prompt" not in second_content
+    assert "first answer" not in second_content
+    assert len(session.current_state().messages) == 4
+
+
+def test_history_none_stores_but_does_not_replay_messages() -> None:
+    asyncio.run(_history_none_stores_but_does_not_replay_messages())
+
+
+async def _history_last_turn_replays_only_previous_pair() -> None:
+    adapter = make_adapter(
+        [
+            {"id": "first", "output_text": "first answer"},
+            {"id": "second", "output_text": "second answer"},
+            {"id": "third", "output_text": "third answer"},
+        ]
+    )
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="last_turn",
+            model_adapter=adapter,
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    await session.accept("first prompt")
+    await session.accept("second prompt")
+    await session.accept("third prompt")
+
+    third_content = "\n".join(
+        str(message["content"])
+        for message in adapter.client.responses.calls[2]["input"]
+    )
+    assert "first prompt" not in third_content
+    assert "first answer" not in third_content
+    assert "second prompt" in third_content
+    assert "second answer" in third_content
+
+
+def test_history_last_turn_replays_only_previous_pair() -> None:
+    asyncio.run(_history_last_turn_replays_only_previous_pair())
+
+
+async def _history_full_replays_all_messages() -> None:
+    adapter = make_adapter(
+        [
+            {"id": "first", "output_text": "first answer"},
+            {"id": "second", "output_text": "second answer"},
+            {"id": "third", "output_text": "third answer"},
+        ]
+    )
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="full",
+            model_adapter=adapter,
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    await session.accept("first prompt")
+    await session.accept("second prompt")
+    await session.accept("third prompt")
+
+    third_content = "\n".join(
+        str(message["content"])
+        for message in adapter.client.responses.calls[2]["input"]
+    )
+    assert "first prompt" in third_content
+    assert "first answer" in third_content
+    assert "second prompt" in third_content
+    assert "second answer" in third_content
+
+
+def test_history_full_replays_all_messages() -> None:
+    asyncio.run(_history_full_replays_all_messages())
+
+
+async def _history_summary_preserves_metadata_without_summary_generation() -> None:
+    adapter = make_adapter(
+        [
+            {"id": "first", "output_text": "first answer"},
+            {"id": "second", "output_text": "second answer"},
+        ]
+    )
+    store = InMemorySessionStore()
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="summary",
+            model_adapter=adapter,
+        ),
+        session_store=store,
+        session_id="thread-123",
+    )
+    store.save(
+        AgentSessionState(
+            session_id="thread-123",
+            workflow_identity=session.current_state().workflow_identity,
+            metadata={"summary": "caller supplied"},
+        )
+    )
+
+    await session.accept("first prompt")
+    await session.accept("second prompt")
+
+    second_content = "\n".join(
+        str(message["content"])
+        for message in adapter.client.responses.calls[1]["input"]
+    )
+    assert "first prompt" not in second_content
+    assert session.current_state().metadata == {"summary": "caller supplied"}
+    assert len(adapter.client.responses.calls) == 2
+
+
+def test_history_summary_preserves_metadata_without_summary_generation() -> None:
+    asyncio.run(_history_summary_preserves_metadata_without_summary_generation())
+
+
+async def _session_id_state_key_is_available_to_run_state() -> None:
+    adapter = make_adapter([{"id": "first", "output_text": "ok"}])
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="none",
+            model_adapter=adapter,
+            user_template="Session {session_id}: {prompt}",
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    await session.accept("hello")
+
+    first_content = "\n".join(
+        str(message["content"])
+        for message in adapter.client.responses.calls[0]["input"]
+    )
+    assert "Session thread-123: hello" in first_content
+
+
+def test_session_id_state_key_is_available_to_run_state() -> None:
+    asyncio.run(_session_id_state_key_is_available_to_run_state())
+
+
+async def _session_restarts_from_snapshot_with_restored_messages() -> None:
+    adapter = make_adapter([{"id": "next", "output_text": "next answer"}])
+    snapshot = AgentSessionState(
+        session_id="thread-123",
+        workflow_identity="session-agent:answer",
+        messages=(
+            OpenAIMessage(role="user", content="saved prompt"),
+            OpenAIMessage(role="assistant", content="saved answer"),
+        ),
+        turn_count=1,
+    ).to_mapping()
+
+    session = AgentSession.from_snapshot(
+        snapshot,
+        execution_context=make_execution_context(model_adapter=adapter),
+        session_store=InMemorySessionStore(),
+    )
+    await session.accept("next prompt")
+
+    content = "\n".join(
+        str(message["content"])
+        for message in adapter.client.responses.calls[0]["input"]
+    )
+    assert "saved prompt" in content
+    assert "saved answer" in content
+    assert session.current_state().turn_count == 2
+
+
+def test_session_restarts_from_snapshot_with_restored_messages() -> None:
+    asyncio.run(_session_restarts_from_snapshot_with_restored_messages())
+
+
+def test_session_restart_rejects_incompatible_workflow_identity() -> None:
+    snapshot = AgentSessionState(
+        session_id="thread-123",
+        workflow_identity="other-agent:answer",
+    ).to_mapping()
+
+    with pytest.raises(AgentSessionError, match="does not match workflow"):
+        AgentSession.from_snapshot(
+            snapshot,
+            execution_context=make_execution_context(),
+            session_store=InMemorySessionStore(),
+        )

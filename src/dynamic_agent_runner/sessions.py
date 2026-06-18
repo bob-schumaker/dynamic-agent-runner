@@ -184,6 +184,34 @@ class AgentSession:
             )
         return session
 
+    @classmethod
+    def from_snapshot(
+        cls,
+        snapshot: AgentSessionState | dict[str, Any],
+        *,
+        execution_context: WorkflowExecutionContext,
+        session_store: InMemorySessionStore,
+    ) -> AgentSession:
+        """Restart a session from a saved state snapshot."""
+
+        state = (
+            snapshot
+            if isinstance(snapshot, AgentSessionState)
+            else AgentSessionState.from_mapping(snapshot)
+        )
+        workflow_identity = _workflow_identity(execution_context)
+        if state.workflow_identity != workflow_identity:
+            raise AgentSessionError(
+                f"session snapshot workflow {state.workflow_identity!r} "
+                f"does not match workflow {workflow_identity!r}"
+            )
+        session_store.save(state)
+        return cls(
+            execution_context=execution_context,
+            session_store=session_store,
+            session_id=state.session_id,
+        )
+
     def current_state(self) -> AgentSessionState:
         """Return a copy-safe snapshot of the current session state."""
 
@@ -196,7 +224,14 @@ class AgentSession:
         result = await execute_workflow_async(
             self.execution_context,
             prompt=prompt,
-            session_messages=current.messages,
+            session_messages=_messages_for_replay(
+                current.messages,
+                self.execution_context,
+            ),
+            initial_node_outputs=_initial_node_outputs(
+                self.session_id,
+                self.execution_context,
+            ),
         )
         if isinstance(result, WorkflowInterruptedResult):
             return AgentSessionResult(workflow_result=result, state=current)
@@ -235,6 +270,31 @@ def _assistant_content(final_result: Any) -> str:
     if isinstance(final_result, str):
         return final_result
     return str(final_result)
+
+
+def _messages_for_replay(
+    messages: tuple[OpenAIMessage, ...],
+    execution_context: WorkflowExecutionContext,
+) -> tuple[OpenAIMessage, ...]:
+    policy = execution_context.workflow.runtime_manifest.async_session_policy
+    history = policy.history if policy is not None else None
+    if history == "none":
+        return ()
+    if history == "last_turn":
+        return messages[-2:]
+    if history == "summary":
+        return ()
+    return messages
+
+
+def _initial_node_outputs(
+    session_id: str,
+    execution_context: WorkflowExecutionContext,
+) -> dict[str, Any]:
+    policy = execution_context.workflow.runtime_manifest.async_session_policy
+    if policy is None or not policy.session_id_state_key:
+        return {}
+    return {policy.session_id_state_key: session_id}
 
 
 def _message_from_snapshot(message: Any) -> OpenAIMessage:

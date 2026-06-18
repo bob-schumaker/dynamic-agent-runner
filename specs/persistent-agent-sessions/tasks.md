@@ -61,23 +61,23 @@ Record command outcomes in `validation.md` as slices complete.
 
 ## Slice 3: Retention Policy and Snapshot Restart
 
-- [ ] T3.1 Add RED/GREEN coverage for `history: none` proving prior turns are
+- [x] T3.1 Add RED/GREEN coverage for `history: none` proving prior turns are
       stored if needed for inspection but not replayed into future runs.
-- [ ] T3.2 Add RED/GREEN coverage for `history: last_turn` proving only the
+- [x] T3.2 Add RED/GREEN coverage for `history: last_turn` proving only the
       previous user/assistant pair is replayed.
-- [ ] T3.3 Add RED/GREEN coverage for `history: full` proving all retained
+- [x] T3.3 Add RED/GREEN coverage for `history: full` proving all retained
       user/assistant messages are replayed.
-- [ ] T3.4 Add RED/GREEN coverage for `history: summary` proving v1 preserves
+- [x] T3.4 Add RED/GREEN coverage for `history: summary` proving v1 preserves
       caller-supplied summary metadata only and does not call a model to create
       summaries.
-- [ ] T3.5 Add RED/GREEN coverage proving `session_id_state_key` makes the
+- [x] T3.5 Add RED/GREEN coverage proving `session_id_state_key` makes the
       session id available through the documented run-state mechanism chosen in
       implementation.
-- [ ] T3.6 Add RED/GREEN coverage proving `AgentSession.from_snapshot(...)`
+- [x] T3.6 Add RED/GREEN coverage proving `AgentSession.from_snapshot(...)`
       restarts a session with restored messages.
-- [ ] T3.7 Add RED/GREEN coverage proving incompatible workflow identity,
+- [x] T3.7 Add RED/GREEN coverage proving incompatible workflow identity,
       malformed snapshots, and unsupported schema versions fail clearly.
-- [ ] T3.8 Run targeted validation:
+- [x] T3.8 Run targeted validation:
       `poetry run pytest tests/test_agent_sessions.py tests/test_validation.py -q`.
 
 ## Slice 4: Concurrency, Public API, and Capability Status

@@ -53,6 +53,16 @@ Slice 2 / Tasks T2.1-T2.7:
   fetch a missing encoding cache; rerunning the same command with network
   access passed.
 
+Slice 3 / Tasks T3.1-T3.8:
+
+- RED: `poetry run pytest tests/test_agent_sessions.py -q` - fail - six
+  history, state-key, and snapshot restart tests failed because replay policy,
+  `session_id_state_key` injection, and `from_snapshot(...)` were missing.
+- GREEN: `poetry run pytest tests/test_agent_sessions.py -q` - pass - 17
+  session tests passed.
+- Refactor: `poetry run pytest tests/test_agent_sessions.py`
+  `tests/test_validation.py -q` - pass - 81 tests passed.
+
 ## Planned Commands
 
 Targeted implementation commands:
