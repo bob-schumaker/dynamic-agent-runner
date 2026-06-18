@@ -570,6 +570,79 @@ def test_history_full_feeds_bounded_pruning_context() -> None:
     asyncio.run(_history_full_feeds_bounded_pruning_context())
 
 
+async def _accept_stream_yields_events_and_preserves_final_authority() -> None:
+    adapter = make_adapter([{"id": "first", "output_text": "streamed answer"}])
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="full",
+            model_adapter=adapter,
+            prepare_model_input={"session_pruning": {"max_messages": 1}},
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    stream = session.accept_stream("first prompt")
+    first_event = await anext(stream)
+
+    assert first_event.event_type == "run_started"
+    assert first_event.session_id == "thread-123"
+    assert session.current_state().messages == ()
+
+    events = [first_event]
+    async for event in stream:
+        events.append(event)
+
+    assert events[-1].event_type == "run_completed"
+    assert events[-1].final_result == "streamed answer"
+    assert session.current_state().messages == (
+        OpenAIMessage(role="user", content="first prompt"),
+        OpenAIMessage(role="assistant", content="streamed answer"),
+    )
+
+
+def test_accept_stream_yields_events_and_preserves_final_authority() -> None:
+    asyncio.run(_accept_stream_yields_events_and_preserves_final_authority())
+
+
+async def _accept_stream_reports_redacted_context_preparation_events() -> None:
+    adapter = make_adapter(
+        [
+            {"id": "first", "output_text": "first answer"},
+            {"id": "second", "output_text": "second answer"},
+        ]
+    )
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="full",
+            model_adapter=adapter,
+            prepare_model_input={"session_pruning": {"max_messages": 1}},
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    await session.accept("secret old prompt")
+    events = [event async for event in session.accept_stream("visible next prompt")]
+    prepared_events = [
+        event for event in events if event.event_type == "model_input_prepared"
+    ]
+
+    assert prepared_events
+    assert prepared_events[-1].payload["mutation_context"] == {
+        "session_messages_included": 1,
+        "session_messages_pruned": 1,
+        "context_compaction_applied": False,
+    }
+    assert "secret old prompt" not in repr(prepared_events[-1].payload)
+    assert events[-1].event_type == "run_completed"
+    assert events[-1].final_result == "second answer"
+
+
+def test_accept_stream_reports_redacted_context_preparation_events() -> None:
+    asyncio.run(_accept_stream_reports_redacted_context_preparation_events())
+
+
 async def _history_summary_preserves_metadata_without_summary_generation() -> None:
     adapter = make_adapter(
         [
