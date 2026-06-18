@@ -1,7 +1,6 @@
 # Context Management Prepare Stage Task List
 
-Status: implemented through Slice 9; Slice 10 follow-up planned for
-pruning-context injection behavior
+Status: implemented through Slice 10 pruning-context injection behavior
 
 ## Prerequisites
 
@@ -298,7 +297,7 @@ calls.
 
 ## Slice 10 — Pruning-context injection behavior
 
-- [ ] T10.1 [tests] Add RED executor coverage for pruning supplied session
+- [x] T10.1 [tests] Add RED executor coverage for pruning supplied session
       messages before an eligible `llm_step` model call.
   - Spec: Follow-up Target: Pruning-Context Injection
   - Plan: Slice 10 — Pruning-context injection behavior
@@ -311,10 +310,10 @@ calls.
     fixture that can drive the prepare-stage behavior directly
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k pruning_context_injection`
-  - RED expectation: fail because prepare-stage behavior is not yet covered as a
-    reusable pruning-context injection contract.
+  - Evidence: RED failed as expected because `{prepared_context}` received raw
+    session history before prepare-stage pruning.
 
-- [ ] T10.2 [tests] Add RED executor coverage for no-policy preservation and
+- [x] T10.2 [tests] Add RED executor coverage for no-policy preservation and
       redacted diagnostics.
   - Spec: Follow-up Target: Pruning-Context Injection
   - Plan: Slice 10 — Pruning-context injection behavior
@@ -325,10 +324,10 @@ calls.
   - Depends on: T10.1
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k pruning_context_injection`
-  - RED expectation: fail for missing diagnostics or missing no-policy coverage,
-    not for live-provider setup.
+  - Evidence: RED failed as expected because mutation context diagnostics were
+    missing from `model_input_prepared` trace payloads.
 
-- [ ] T10.3 [implementation] Implement the smallest prepare-stage behavior that
+- [x] T10.3 [implementation] Implement the smallest prepare-stage behavior that
       satisfies the RED pruning-context injection tests.
   - Spec: Follow-up Target: Pruning-Context Injection
   - Plan: Slice 10 — Pruning-context injection behavior
@@ -340,10 +339,10 @@ calls.
   - Depends on: T10.1, T10.2
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k pruning_context_injection`
-  - GREEN expectation: focused executor tests pass with fake adapters and no
-    external calls.
+  - Evidence: GREEN passed with `3 passed, 105 deselected`; full executor
+    validation passed with `108 passed`.
 
-- [ ] T10.4 [tests] Verify `AgentSession`-supplied messages can feed the
+- [x] T10.4 [tests] Verify `AgentSession`-supplied messages can feed the
       prepare-stage behavior without changing session persistence semantics.
   - Spec: Follow-up Target: Pruning-Context Injection
   - Plan: Slice 10 — Pruning-context injection behavior
@@ -360,10 +359,11 @@ calls.
       -q -k pruning_context_injection
     ```
 
-  - GREEN expectation: session-fed pruning context works with
-    `InMemorySessionStore` and existing history policies.
+  - Evidence: focused session validation passed with `1 passed, 21 deselected`,
+    proving `AgentSession` history can feed bounded pruning context while the
+    store still retains the full in-memory session state.
 
-- [ ] T10.5 [tests] Run the combined context-management follow-up checkpoint and
+- [x] T10.5 [tests] Run the combined context-management follow-up checkpoint and
       record evidence.
   - Spec: Follow-up Target: Pruning-Context Injection
   - Plan: Validation Strategy
@@ -377,5 +377,6 @@ calls.
       tests/test_graph_mutation.py tests/test_validation.py -q
     ```
 
-  - Completion evidence: record observed pass/fail counts before closing Slice
-    10.
+  - Completion evidence: `poetry run pytest tests/test_executor.py`
+    `tests/test_agent_sessions.py tests/test_graph_mutation.py`
+    `tests/test_validation.py -q` passed with `200 passed`.

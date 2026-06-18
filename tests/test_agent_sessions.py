@@ -114,6 +114,7 @@ def make_policy_execution_context(
     history: str,
     model_adapter: OpenAIClientAdapter,
     user_template: str = "Use {prepared_context} to answer {prompt}",
+    prepare_model_input: dict[str, object] | None = None,
 ) -> WorkflowExecutionContext:
     async_session: dict[str, object] = {
         "mode": "create_or_resume",
@@ -134,6 +135,11 @@ def make_policy_execution_context(
                 "execution_policy": {
                     "model": "gpt-test",
                     "async_session": async_session,
+                    **(
+                        {"prepare_model_input": prepare_model_input}
+                        if prepare_model_input is not None
+                        else {}
+                    ),
                 }
             },
             "nodes": [
@@ -524,6 +530,44 @@ async def _history_full_replays_all_messages() -> None:
 
 def test_history_full_replays_all_messages() -> None:
     asyncio.run(_history_full_replays_all_messages())
+
+
+async def _history_full_feeds_bounded_pruning_context() -> None:
+    adapter = make_adapter(
+        [
+            {"id": "first", "output_text": "first answer"},
+            {"id": "second", "output_text": "second answer"},
+            {"id": "third", "output_text": "third answer"},
+        ]
+    )
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="full",
+            model_adapter=adapter,
+            prepare_model_input={"session_pruning": {"max_messages": 2}},
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    await session.accept("first prompt")
+    await session.accept("second prompt")
+    await session.accept("third prompt")
+
+    third_content = "\n".join(
+        str(message["content"])
+        for message in adapter.client.responses.calls[2]["input"]
+    )
+    assert "first prompt" not in third_content
+    assert "first answer" not in third_content
+    assert "second prompt" in third_content
+    assert "second answer" in third_content
+    assert session.current_state().turn_count == 3
+    assert len(session.current_state().messages) == 6
+
+
+def test_history_full_feeds_bounded_pruning_context() -> None:
+    asyncio.run(_history_full_feeds_bounded_pruning_context())
 
 
 async def _history_summary_preserves_metadata_without_summary_generation() -> None:
