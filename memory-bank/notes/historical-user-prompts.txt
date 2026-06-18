@@ -437,3 +437,11 @@ we need to add this to our pyinstaller hook
 
 +# Tiktoken discovers tokenizer encodings from namespace-package plugins.
 +hidden_imports.extend(collect_submodules("tiktoken_ext"))
+
+---
+
+evaluate adding a persistent agent graph that can remain running, for example a ReAct pattern, and be reused so that we manintain the context and just accpet new prompts
+
+---
+
+create a featire spec from the recommendation. make sure that the caller can retrieve current session state and be able to restart a session from the saved state. InMemorySessionStore is enough for this pass

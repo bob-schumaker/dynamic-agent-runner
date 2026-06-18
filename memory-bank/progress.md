@@ -122,6 +122,10 @@
   spec. It proposes making LiteLLM the core OpenAI-compatible transport,
   preserving repository-owned OpenAI/Codex auth discovery, and mapping default
   Codex behavior through `create_litellm_codex_adapter_from_codex_auth(...)`.
+- `persistent-agent-sessions` is specified as a proposed v1 feature for
+  cross-prompt continuity through a public session object,
+  `InMemorySessionStore`, state retrieval, and restart from saved state while
+  keeping each prompt as a bounded executor run.
 
 ## Latest Milestones
 
@@ -182,6 +186,8 @@
   index coverage.
 - `eca1436` updated Sphinx configuration metadata loading and Confluence SSO
   session setup.
+- `4782099` added the persistent agent sessions feature spec and spec index
+  coverage.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -200,6 +206,10 @@
   plan/tasks artifacts for the core dependency change, default provider
   selection, Codex auth adaptation, request/response mapping, fake-test
   strategy, and packaging implications.
+- Persistent agent sessions remain spec-only. Before implementation, create
+  plan/tasks artifacts for the `AgentSession` API, `InMemorySessionStore`,
+  snapshot/restart contract, workflow compatibility policy, concurrency
+  behavior, and integration with async-session metadata.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering

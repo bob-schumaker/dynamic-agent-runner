@@ -75,9 +75,14 @@
   `skill_refs` are derived, with bounded UTF-8 loading, redacted provenance,
   fail-closed validation, and capability/status reporting for metadata-only,
   live, and rejected states.
+- `persistent-agent-sessions` is now specified as a proposed v1 feature:
+  public `AgentSession`-style API, `InMemorySessionStore`, current session-state
+  retrieval, and restart from saved state while preserving bounded per-prompt
+  workflow runs instead of a long-running graph executor.
 - The next ROI action is no longer skill-source, RAG orchestration v1, or
   context-management prepare-stage v1. LiteLLM provider implementation now has
-  a draft spec, but code work should wait for an approved implementation plan.
+  a draft spec, and persistent agent sessions now have a proposed v1 spec, but
+  code work for either should wait for an approved implementation plan.
   Local-model advisory implementation should happen only when local-model
   ergonomics is the immediate driver.
 
@@ -160,6 +165,9 @@
 - Core LiteLLM adapter planning is captured in
   `specs/litellm-provider-adapter/spec.md`; it is draft-only and not yet
   implementation authorization.
+- Persistent agent session planning is captured in
+  `specs/persistent-agent-sessions/spec.md`; it is proposed v1 only and not yet
+  implementation authorization.
 - Sphinx configuration refresh is committed separately from the LiteLLM spec.
 
 ## Current Spec Authority Map
@@ -179,6 +187,8 @@
   - `specs/pyinstaller-packaging-support/spec.md`
 - Draft feature packages:
   - `specs/litellm-provider-adapter/spec.md`
+- Proposed feature packages:
+  - `specs/persistent-agent-sessions/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
 - Later feature packages:
@@ -195,6 +205,10 @@
   that decide request mapping, Codex auth adaptation, model-id aliasing,
   Responses API support, PyInstaller handling, and official OpenAI SDK
   compatibility/fallback behavior before editing runtime code.
+- If implementing persistent agent sessions, first create an approved plan/tasks
+  slice from `specs/persistent-agent-sessions/spec.md` that decides API return
+  shape, sync-wrapper scope, workflow compatibility checks, `history: summary`
+  behavior, and where `session_id_state_key` writes.
 - If continuing local-model advisory work, decide whether the pending
   `pyproject.toml` / `poetry.lock` optional llama.cpp metadata edits should be
   committed, revised, or discarded before executing another slice.
