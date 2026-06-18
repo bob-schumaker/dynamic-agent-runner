@@ -250,6 +250,7 @@ async def execute_workflow_async(
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
+    session_messages: Sequence[OpenAIMessage] = (),
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt asynchronously."""
 
@@ -271,7 +272,11 @@ async def execute_workflow_async(
     if not plan.entrypoint_id or plan.entrypoint_id not in nodes:
         raise WorkflowExecutionError("workflow entrypoint does not reference a node")
     adapters = _normalize_model_adapters(context.model_adapter)
-    state = WorkflowExecutionState(prompt=prompt, run_id=run_id or _new_run_id())
+    state = WorkflowExecutionState(
+        prompt=prompt,
+        run_id=run_id or _new_run_id(),
+        session_messages=tuple(session_messages),
+    )
     tracer = WorkflowTracer(
         events=state.trace_events,
         sink=context.trace_sink,
@@ -401,6 +406,7 @@ def execute_workflow(
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
+    session_messages: Sequence[OpenAIMessage] = (),
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -418,6 +424,7 @@ def execute_workflow(
             model_adapter_coverage=model_adapter_coverage,
             run_id=run_id,
             context_compactor=context_compactor,
+            session_messages=session_messages,
         )
     )
 

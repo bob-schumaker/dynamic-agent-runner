@@ -34,6 +34,7 @@ from dynamic_agent_runner.prompt_cache import (
 from dynamic_agent_runner.sessions import (
     AGENT_SESSION_STATE_SCHEMA_VERSION,
     AgentSession,
+    AgentSessionResult,
     AgentSessionState,
     InMemorySessionStore,
 )
@@ -159,6 +160,7 @@ __all__ = [
     "AGENT_SESSION_STATE_SCHEMA_VERSION",
     "AgentSession",
     "AgentSessionError",
+    "AgentSessionResult",
     "AgentSessionState",
     "AsyncOpenAIClientAdapter",
     "AsyncOpenAIClientProtocol",

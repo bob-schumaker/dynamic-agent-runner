@@ -41,22 +41,22 @@ Record command outcomes in `validation.md` as slices complete.
 
 ## Slice 2: Bounded `accept(...)` Continuity
 
-- [ ] T2.1 Add a failing test proving the second `await session.accept(...)`
+- [x] T2.1 Add a failing test proving the second `await session.accept(...)`
       call passes the first prompt/result as `session_messages` into the next
       bounded workflow run.
-- [ ] T2.2 Implement async `AgentSession.accept(...)` by loading current state,
+- [x] T2.2 Implement async `AgentSession.accept(...)` by loading current state,
       invoking `execute_workflow_async(...)`, and saving retained messages only
       after success.
-- [ ] T2.3 Add RED/GREEN coverage proving a successful run appends exactly one
+- [x] T2.3 Add RED/GREEN coverage proving a successful run appends exactly one
       user message and one assistant message.
-- [ ] T2.4 Add RED/GREEN coverage proving workflow execution failures do not
+- [x] T2.4 Add RED/GREEN coverage proving workflow execution failures do not
       append an assistant turn.
-- [ ] T2.5 Add RED/GREEN coverage proving approval interruption returns or
+- [x] T2.5 Add RED/GREEN coverage proving approval interruption returns or
       exposes the interruption consistently and does not append a normal
       assistant turn.
-- [ ] T2.6 Add RED/GREEN coverage proving existing input guardrail behavior
+- [x] T2.6 Add RED/GREEN coverage proving existing input guardrail behavior
       still runs before model/tool execution inside `accept(...)`.
-- [ ] T2.7 Run targeted validation:
+- [x] T2.7 Run targeted validation:
       `poetry run pytest tests/test_agent_sessions.py tests/test_executor.py -q`.
 
 ## Slice 3: Retention Policy and Snapshot Restart

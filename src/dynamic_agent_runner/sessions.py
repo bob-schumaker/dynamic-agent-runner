@@ -10,10 +10,29 @@ from uuid import uuid4
 
 from dynamic_agent_runner.context import WorkflowExecutionContext
 from dynamic_agent_runner.errors import AgentSessionError
+from dynamic_agent_runner.executor import (
+    WorkflowInterruptedResult,
+    WorkflowResult,
+    execute_workflow_async,
+)
 from dynamic_agent_runner.openai_client import OpenAIMessage
 
 
 AGENT_SESSION_STATE_SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class AgentSessionResult:
+    """Result returned after a session accepts one prompt."""
+
+    workflow_result: WorkflowResult | WorkflowInterruptedResult
+    state: AgentSessionState
+
+    @property
+    def final_result(self) -> Any:
+        """Return the bounded workflow final result."""
+
+        return self.workflow_result.final_result
 
 
 @dataclass(frozen=True)
@@ -170,12 +189,52 @@ class AgentSession:
 
         return self.session_store.load(self.session_id)
 
+    async def accept(self, prompt: str) -> AgentSessionResult:
+        """Accept a prompt and execute it as one bounded workflow run."""
+
+        current = self.current_state()
+        result = await execute_workflow_async(
+            self.execution_context,
+            prompt=prompt,
+            session_messages=current.messages,
+        )
+        if isinstance(result, WorkflowInterruptedResult):
+            return AgentSessionResult(workflow_result=result, state=current)
+
+        updated = AgentSessionState(
+            session_id=current.session_id,
+            workflow_identity=current.workflow_identity,
+            messages=(
+                *current.messages,
+                OpenAIMessage(role="user", content=prompt),
+                OpenAIMessage(
+                    role="assistant",
+                    content=_assistant_content(result.final_result),
+                ),
+            ),
+            turn_count=current.turn_count + 1,
+            last_run_id=result.state.run_id,
+            last_result=deepcopy(result.final_result),
+            metadata=current.metadata,
+        )
+        self.session_store.save(updated)
+        return AgentSessionResult(
+            workflow_result=result,
+            state=self.current_state(),
+        )
+
 
 def _workflow_identity(execution_context: WorkflowExecutionContext) -> str:
     manifest = execution_context.workflow.runtime_manifest
     package_id = manifest.package_id or "<anonymous>"
     entrypoint = manifest.entrypoint or "<no-entrypoint>"
     return f"{package_id}:{entrypoint}"
+
+
+def _assistant_content(final_result: Any) -> str:
+    if isinstance(final_result, str):
+        return final_result
+    return str(final_result)
 
 
 def _message_from_snapshot(message: Any) -> OpenAIMessage:

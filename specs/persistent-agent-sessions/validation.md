@@ -40,6 +40,19 @@ Slice 1 / Tasks T1.1-T1.8:
   session state/store tests passed.
 - Refactor: not run - no post-GREEN refactor was needed.
 
+Slice 2 / Tasks T2.1-T2.7:
+
+- RED: `poetry run pytest tests/test_agent_sessions.py -q` - fail - four
+  `accept(...)` tests failed because `AgentSession.accept` did not exist.
+- GREEN: `poetry run pytest tests/test_agent_sessions.py -q` - pass - ten
+  session tests passed after adding bounded `accept(...)` execution and the
+  executor `session_messages` seam.
+- Refactor: `poetry run pytest tests/test_agent_sessions.py`
+  `tests/test_executor.py -q` - pass - 115 tests passed. The first sandboxed
+  run failed in two existing token-budget tests because `tiktoken` attempted to
+  fetch a missing encoding cache; rerunning the same command with network
+  access passed.
+
 ## Planned Commands
 
 Targeted implementation commands:

@@ -2,13 +2,26 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from dynamic_agent_runner.artifacts import load_runtime_manifest
 from dynamic_agent_runner.context import WorkflowExecutionContext
-from dynamic_agent_runner.errors import AgentSessionError
-from dynamic_agent_runner.models import LoadedAgentWorkflow
-from dynamic_agent_runner.openai_client import OpenAIMessage
+from dynamic_agent_runner.errors import (
+    AgentSessionError,
+    GuardrailExecutionError,
+    ModelExecutionError,
+)
+from dynamic_agent_runner.executor import WorkflowInterruptedResult
+from dynamic_agent_runner.guardrails import (
+    GuardrailDecision,
+    GuardrailResult,
+    InMemoryGuardrailRegistry,
+)
+from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
+from dynamic_agent_runner.openai_client import OpenAIClientAdapter, OpenAIMessage
+from dynamic_agent_runner.registry import InMemoryToolRegistry, RegisteredTool
 from dynamic_agent_runner.sessions import (
     AGENT_SESSION_STATE_SCHEMA_VERSION,
     AgentSession,
@@ -17,8 +30,37 @@ from dynamic_agent_runner.sessions import (
 )
 
 
+class FakeResponses:
+    def __init__(self, responses: list[object]):
+        self.responses = list(responses)
+        self.calls: list[dict[str, object]] = []
+
+    def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+class FakeClient:
+    def __init__(self, responses: list[object]):
+        self.responses = FakeResponses(responses)
+
+
+def make_adapter(responses: list[object]) -> OpenAIClientAdapter:
+    return OpenAIClientAdapter(FakeClient(responses))
+
+
+def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
+    return LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
+
+
 def make_execution_context(
     package_id: str = "session-agent",
+    *,
+    model_adapter: OpenAIClientAdapter | None = None,
+    guardrail_registry: InMemoryGuardrailRegistry | None = None,
 ) -> WorkflowExecutionContext:
     manifest = load_runtime_manifest(
         {
@@ -27,16 +69,40 @@ def make_execution_context(
             "package_id": package_id,
             "name": "Session Agent",
             "entrypoint": "answer",
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
             "nodes": [
                 {
                     "id": "answer",
                     "kind": "llm_step",
-                    "prompt": {"user_template": "{prompt}"},
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "prepared_context",
+                    },
                 }
             ],
         }
     )
-    return WorkflowExecutionContext(workflow=LoadedAgentWorkflow(manifest))
+    return WorkflowExecutionContext(
+        workflow=LoadedAgentWorkflow(manifest),
+        model_adapter=model_adapter,
+        guardrail_registry=guardrail_registry,
+    )
 
 
 def test_create_session_with_explicit_id_returns_empty_state() -> None:
@@ -129,3 +195,167 @@ def test_session_state_rejects_malformed_snapshots() -> None:
                 "messages": [],
             }
         )
+
+
+async def _accept_passes_prior_messages_to_next_bounded_run() -> None:
+    adapter = make_adapter(
+        [
+            {"id": "first", "output_text": "first answer"},
+            {"id": "second", "output_text": "second answer"},
+        ]
+    )
+    session = AgentSession.create(
+        execution_context=make_execution_context(model_adapter=adapter),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    first = await session.accept("first prompt")
+    second = await session.accept("second prompt")
+
+    assert first.final_result == "first answer"
+    assert second.final_result == "second answer"
+    second_input = adapter.client.responses.calls[1]["input"]
+    second_content = "\n".join(str(message["content"]) for message in second_input)
+    assert "first prompt" in second_content
+    assert "first answer" in second_content
+    state = session.current_state()
+    assert state.messages == (
+        OpenAIMessage(role="user", content="first prompt"),
+        OpenAIMessage(role="assistant", content="first answer"),
+        OpenAIMessage(role="user", content="second prompt"),
+        OpenAIMessage(role="assistant", content="second answer"),
+    )
+    assert state.turn_count == 2
+    assert state.last_run_id is not None
+    assert state.last_result == "second answer"
+
+
+def test_accept_passes_prior_messages_to_next_bounded_run() -> None:
+    asyncio.run(_accept_passes_prior_messages_to_next_bounded_run())
+
+
+async def _accept_does_not_append_assistant_turn_after_failure() -> None:
+    adapter = make_adapter([RuntimeError("model down")])
+    session = AgentSession.create(
+        execution_context=make_execution_context(model_adapter=adapter),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    with pytest.raises(ModelExecutionError, match="model down"):
+        await session.accept("first prompt")
+
+    assert session.current_state().messages == ()
+    assert session.current_state().turn_count == 0
+
+
+def test_accept_does_not_append_assistant_turn_after_failure() -> None:
+    asyncio.run(_accept_does_not_append_assistant_turn_after_failure())
+
+
+async def _accept_exposes_interruption_without_appending_assistant_turn() -> None:
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {"id": "workspace_write", "approval_required": "yes"}
+                ),
+                lambda _args: {"ok": True},
+            )
+        ]
+    )
+    context = WorkflowExecutionContext(
+        workflow=workflow_from(
+            {
+                "format_version": 1,
+                "package_type": "dynamic_agent_design",
+                "package_id": "approval-session-agent",
+                "entrypoint": "write",
+                "nodes": [
+                    {
+                        "id": "write",
+                        "kind": "tool_use_step",
+                        "tool_id": "workspace_write",
+                        "inputs": {"path": "notes.txt"},
+                    }
+                ],
+                "tools": [{"id": "workspace_write", "approval_required": "yes"}],
+            }
+        ),
+        tool_registry=registry,
+    )
+    session = AgentSession.create(
+        execution_context=context,
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    result = await session.accept("write file")
+
+    assert isinstance(result.workflow_result, WorkflowInterruptedResult)
+    assert result.final_result is None
+    assert session.current_state().messages == ()
+
+
+def test_accept_exposes_interruption_without_appending_assistant_turn() -> None:
+    asyncio.run(_accept_exposes_interruption_without_appending_assistant_turn())
+
+
+async def _accept_preserves_input_guardrail_behavior() -> None:
+    adapter = make_adapter([{"id": "unused", "output_text": "done"}])
+    guardrails = InMemoryGuardrailRegistry(
+        {
+            "no_secrets": lambda _subject: GuardrailResult(
+                guardrail_id="no_secrets",
+                decision=GuardrailDecision.ABORT,
+                reason_code="secret_detected",
+            )
+        }
+    )
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "guardrail-session-agent",
+            "entrypoint": "answer",
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "extensions": {
+                "guardrails": {
+                    "declarations": [
+                        {
+                            "id": "no_secrets",
+                            "phase": "input",
+                            "behavior_on_tripwire": "abort",
+                        }
+                    ]
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+        }
+    )
+    session = AgentSession.create(
+        execution_context=WorkflowExecutionContext(
+            workflow=workflow,
+            model_adapter=adapter,
+            guardrail_registry=guardrails,
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    with pytest.raises(GuardrailExecutionError, match="secret_detected"):
+        await session.accept("secret")
+
+    assert adapter.client.responses.calls == []
+    assert session.current_state().messages == ()
+
+
+def test_accept_preserves_input_guardrail_behavior() -> None:
+    asyncio.run(_accept_preserves_input_guardrail_behavior())
