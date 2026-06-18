@@ -1225,7 +1225,7 @@ def test_pruning_context_injection_reports_bounded_context_diagnostics() -> None
         prompt="Continue.",
         session_messages=(
             OpenAIMessage(role="user", content="secret old content"),
-            OpenAIMessage(role="assistant", content="visible recent content"),
+            OpenAIMessage(role="user", content="visible recent content"),
         ),
     )
     tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")

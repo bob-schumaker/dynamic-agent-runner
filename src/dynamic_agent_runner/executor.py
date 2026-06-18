@@ -178,6 +178,8 @@ class PreparedInputMetadata:
     mutation_applied: bool = False
     mutation_id: str | None = None
     mutation_output_slots: tuple[str, ...] = ()
+    mutation_attachment: Mapping[str, Any] = field(default_factory=dict)
+    mutation_context: Mapping[str, Any] = field(default_factory=dict)
     skill_sources_loaded: tuple[Mapping[str, Any], ...] = ()
     skill_sources_omitted: tuple[Mapping[str, Any], ...] = ()
     skill_sources_rejected: tuple[Mapping[str, Any], ...] = ()
@@ -455,7 +457,7 @@ def prepare_model_input(
         model_adapter_coverage=model_adapter_coverage,
     )
     render_context, mutation_preparation = _prepare_model_input_render_context(
-        node, state
+        node, plan, state
     )
     rendered_parts = _render_message_parts_with_skill_sources(
         behavior,
@@ -501,6 +503,8 @@ def prepare_model_input(
                 "mutation_applied": preparation.mutation_applied,
                 "mutation_id": preparation.mutation_id,
                 "mutation_output_slots": preparation.mutation_output_slots,
+                "mutation_attachment": preparation.mutation_attachment,
+                "mutation_context": preparation.mutation_context,
                 "skill_sources_loaded": preparation.skill_sources_loaded,
                 "skill_sources_omitted": preparation.skill_sources_omitted,
                 "skill_sources_rejected": preparation.skill_sources_rejected,
@@ -1838,31 +1842,69 @@ def _skill_instruction_message(
 
 def _prepare_model_input_render_context(
     node: PreparedNode,
+    plan: ExecutionPlan,
     state: WorkflowExecutionState,
 ) -> tuple[dict[str, Any], PreparedInputMetadata]:
     context = _format_context(state)
-    mutation_context = _mutation_render_context(node, state)
+    mutation_session_messages, mutation_context_metadata = (
+        _mutation_context_session_messages(plan, state)
+    )
+    mutation_context = _mutation_render_context(
+        node,
+        state,
+        session_messages=mutation_session_messages,
+    )
     context.update(mutation_context)
-    return context, _mutation_preparation_metadata(node, mutation_context)
+    return context, _mutation_preparation_metadata(
+        node,
+        mutation_context,
+        mutation_context_metadata,
+    )
 
 
 def _mutation_render_context(
     node: PreparedNode,
     state: WorkflowExecutionState,
+    *,
+    session_messages: Sequence[OpenAIMessage],
 ) -> dict[str, Any]:
     spec = node.mutation_spec
     if spec is None or spec.kind != "context_pruning":
         return {}
     return ContextPruningMutation(spec).render_context(
         prompt=state.prompt,
-        session_messages=state.session_messages,
+        session_messages=session_messages,
         resolve_source=lambda binding: _resolve_mutation_render_source(binding, state),
     )
+
+
+def _mutation_context_session_messages(
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+) -> tuple[tuple[OpenAIMessage, ...], Mapping[str, Any]]:
+    policy = _prepare_model_input_policy(plan.execution_policy)
+    if not policy:
+        return state.session_messages, {}
+    kept_session, pruned_session = _pruned_session_messages(
+        state.session_messages,
+        policy,
+    )
+    summary_message = (
+        _compacted_session_message(pruned_session, policy, state)
+        if pruned_session
+        else None
+    )
+    return kept_session, {
+        "session_messages_included": len(kept_session),
+        "session_messages_pruned": len(pruned_session),
+        "context_compaction_applied": summary_message is not None,
+    }
 
 
 def _mutation_preparation_metadata(
     node: PreparedNode,
     mutation_context: Mapping[str, Any],
+    mutation_context_metadata: Mapping[str, Any],
 ) -> PreparedInputMetadata:
     spec = node.mutation_spec
     if spec is None or spec.kind != "context_pruning" or not mutation_context:
@@ -1871,7 +1913,20 @@ def _mutation_preparation_metadata(
         mutation_applied=True,
         mutation_id=spec.mutation_id,
         mutation_output_slots=tuple(mutation_context.keys()),
+        mutation_attachment=_mutation_attachment_metadata(spec),
+        mutation_context=dict(mutation_context_metadata),
     )
+
+
+def _mutation_attachment_metadata(spec: Any) -> Mapping[str, Any]:
+    config = spec.config if isinstance(spec.config, Mapping) else {}
+    attachment = config.get("attachment")
+    if isinstance(attachment, Mapping):
+        return dict(attachment)
+    return {
+        "type": "llm_step_interaction",
+        "target_node_id": spec.target_node_id,
+    }
 
 
 def _merge_prepared_input_metadata(
@@ -1896,6 +1951,8 @@ def _merge_prepared_input_metadata(
         mutation_applied=overlay.mutation_applied,
         mutation_id=overlay.mutation_id,
         mutation_output_slots=overlay.mutation_output_slots,
+        mutation_attachment=overlay.mutation_attachment,
+        mutation_context=overlay.mutation_context,
         skill_sources_loaded=base.skill_sources_loaded,
         skill_sources_omitted=base.skill_sources_omitted,
         skill_sources_rejected=base.skill_sources_rejected,
@@ -1938,6 +1995,8 @@ def _merge_skill_source_preparation(
         mutation_applied=base.mutation_applied,
         mutation_id=base.mutation_id,
         mutation_output_slots=base.mutation_output_slots,
+        mutation_attachment=base.mutation_attachment,
+        mutation_context=base.mutation_context,
         skill_sources_loaded=skill_sources.loaded,
         skill_sources_omitted=skill_sources.omitted,
         skill_sources_rejected=skill_sources.rejected,
