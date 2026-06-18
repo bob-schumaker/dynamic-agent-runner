@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
 from copy import deepcopy
 from dataclasses import dataclass, field
 from threading import RLock
@@ -17,6 +19,7 @@ from dynamic_agent_runner.executor import (
     execute_workflow_async,
 )
 from dynamic_agent_runner.openai_client import OpenAIMessage
+from dynamic_agent_runner.tracing import TraceEvent, TraceSink
 
 
 AGENT_SESSION_STATE_SCHEMA_VERSION = 1
@@ -34,6 +37,19 @@ class AgentSessionResult:
         """Return the bounded workflow final result."""
 
         return self.workflow_result.final_result
+
+
+@dataclass(frozen=True)
+class AgentSessionStreamEvent:
+    """Caller-facing event emitted while a session accepts one prompt."""
+
+    sequence: int
+    event_type: str
+    session_id: str
+    run_id: str | None = None
+    node_id: str | None = None
+    payload: dict[str, Any] = field(default_factory=dict)
+    final_result: Any = None
 
 
 @dataclass(frozen=True)
@@ -273,12 +289,157 @@ class AgentSession:
 
         return _run_async_from_sync(lambda: self.accept(prompt))
 
+    async def accept_stream(
+        self,
+        prompt: str,
+    ) -> AsyncIterator[AgentSessionStreamEvent]:
+        """Accept a prompt and stream redacted execution events."""
+
+        if self._accepting:
+            raise AgentSessionError(
+                f"session {self.session_id!r} is already accepting a prompt"
+            )
+        self._accepting = True
+        last_sequence = 0
+        try:
+            current = self.current_state()
+            queue: asyncio.Queue[AgentSessionStreamEvent] = asyncio.Queue()
+            execution_context = _execution_context_with_stream_sink(
+                self.execution_context,
+                _SessionStreamTraceSink(
+                    queue=queue,
+                    session_id=self.session_id,
+                    downstream=self.execution_context.trace_sink,
+                ),
+            )
+            task = asyncio.create_task(
+                execute_workflow_async(
+                    execution_context,
+                    prompt=prompt,
+                    session_messages=_messages_for_replay(
+                        current.messages,
+                        self.execution_context,
+                    ),
+                    initial_node_outputs=_initial_node_outputs(
+                        self.session_id,
+                        self.execution_context,
+                    ),
+                )
+            )
+
+            while not task.done():
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=0.01)
+                except TimeoutError:
+                    continue
+                last_sequence = event.sequence
+                yield event
+
+            result = await task
+            while not queue.empty():
+                event = queue.get_nowait()
+                last_sequence = event.sequence
+                yield event
+
+            if isinstance(result, WorkflowInterruptedResult):
+                yield AgentSessionStreamEvent(
+                    sequence=last_sequence + 1,
+                    event_type="approval_interrupted",
+                    session_id=self.session_id,
+                    run_id=result.state.run_id,
+                    payload={"reason": result.interruption.reason},
+                )
+                return
+
+            updated = AgentSessionState(
+                session_id=current.session_id,
+                workflow_identity=current.workflow_identity,
+                messages=(
+                    *current.messages,
+                    OpenAIMessage(role="user", content=prompt),
+                    OpenAIMessage(
+                        role="assistant",
+                        content=_assistant_content(result.final_result),
+                    ),
+                ),
+                turn_count=current.turn_count + 1,
+                last_run_id=result.state.run_id,
+                last_result=deepcopy(result.final_result),
+                metadata=current.metadata,
+            )
+            self.session_store.save(updated)
+            yield AgentSessionStreamEvent(
+                sequence=last_sequence + 1,
+                event_type="run_completed",
+                session_id=self.session_id,
+                run_id=result.state.run_id,
+                final_result=deepcopy(result.final_result),
+            )
+        finally:
+            self._accepting = False
+
 
 def _workflow_identity(execution_context: WorkflowExecutionContext) -> str:
     manifest = execution_context.workflow.runtime_manifest
     package_id = manifest.package_id or "<anonymous>"
     entrypoint = manifest.entrypoint or "<no-entrypoint>"
     return f"{package_id}:{entrypoint}"
+
+
+class _SessionStreamTraceSink:
+    def __init__(
+        self,
+        *,
+        queue: asyncio.Queue[AgentSessionStreamEvent],
+        session_id: str,
+        downstream: TraceSink | None,
+    ) -> None:
+        self._queue = queue
+        self._session_id = session_id
+        self._downstream = downstream
+
+    def emit(self, event: TraceEvent) -> None:
+        redacted = event.redacted()
+        if self._downstream is not None:
+            self._downstream.emit(redacted)
+        self._queue.put_nowait(_stream_event_from_trace(redacted, self._session_id))
+
+
+def _stream_event_from_trace(
+    event: TraceEvent,
+    session_id: str,
+) -> AgentSessionStreamEvent:
+    return AgentSessionStreamEvent(
+        sequence=event.sequence,
+        event_type=_stream_event_type(event.event_type),
+        session_id=session_id,
+        run_id=event.run_id,
+        node_id=event.node_id,
+        payload=dict(event.payload),
+    )
+
+
+def _stream_event_type(trace_event_type: str) -> str:
+    if trace_event_type == "workflow_started":
+        return "run_started"
+    return trace_event_type
+
+
+def _execution_context_with_stream_sink(
+    execution_context: WorkflowExecutionContext,
+    trace_sink: TraceSink,
+) -> WorkflowExecutionContext:
+    return WorkflowExecutionContext(
+        workflow=execution_context.workflow,
+        tool_registry=execution_context.tool_registry,
+        guardrail_registry=execution_context.guardrail_registry,
+        model_adapter=execution_context.model_adapter,
+        max_steps=execution_context.max_steps,
+        trace_sink=trace_sink,
+        prompt_cache=execution_context.prompt_cache,
+        lifecycle_hooks=execution_context.lifecycle_hooks,
+        model_adapter_coverage=execution_context.model_adapter_coverage,
+    )
 
 
 def _assistant_content(final_result: Any) -> str:

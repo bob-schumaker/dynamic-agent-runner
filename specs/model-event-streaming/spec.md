@@ -4,8 +4,10 @@
 
 - Feature slug: `model-event-streaming`
 - Mode: `light`
-- Artifact type: future feature specification
-- Status: proposed post-`persistent-agent-sessions` feature; not implemented
+- Artifact type: implemented-baseline plus future expansion specification
+- Status: implemented v1 session event-stream baseline; provider-native text
+  deltas, model-tool-loop progress specialization, cancellation/backpressure
+  expansion, and capability/status reporting remain deferred
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Required predecessor:
   - `specs/persistent-agent-sessions/spec.md`
@@ -55,6 +57,26 @@ It is not:
 The final workflow result remains authoritative. Session history must be updated
 only after the run completes successfully and the final output is selected and
 validated.
+
+## Implemented V1 Boundary
+
+The implemented v1 baseline adds session-level event streaming through
+`AgentSession.accept_stream(...)`.
+
+V1 behavior:
+
+- streams redacted execution events while a session accepts one prompt
+- correlates events with `session_id`, `run_id`, sequence, and `node_id`
+- maps `workflow_started` to caller-facing `run_started`
+- emits existing prepared-input diagnostics, including pruning-context and
+  graph-mutation metadata, through redacted event payloads
+- emits a terminal `run_completed` event carrying the authoritative final result
+- updates `AgentSessionState` only after successful bounded-run completion
+- preserves same-session concurrency rejection
+
+V1 does not add provider-native token deltas, raw provider event passthrough,
+tool-progress specialization, sync streaming wrappers, durable partial-delta
+storage, or streaming capability/status reporting.
 
 ## Why This Is Post-Persistent-Session
 
@@ -278,15 +300,18 @@ Acceptance criteria:
 
 ## In Scope
 
-- Provider-neutral `ModelStreamEvent` or equivalent event contract.
-- Optional adapter streaming protocol.
-- Session-level `accept_stream(...)` API after persistent sessions exist.
-- Lower-level executor stream API only if needed for session implementation.
-- Text delta events from model output.
-- Structured tool-progress events for model-tool loops.
-- Fallback behavior for non-streaming adapters.
-- Cancellation/backpressure semantics.
-- Capability/status reporting for streaming support.
+- Provider-neutral `AgentSessionStreamEvent` event contract.
+- Session-level `AgentSession.accept_stream(...)` API after persistent sessions
+  exist.
+- Redacted execution-event streaming from the existing trace seam.
+- Terminal final-result authority through a `run_completed` event.
+- Session-state commit only after successful bounded-run completion.
+- Future optional adapter streaming protocol.
+- Future text delta events from model output.
+- Future structured tool-progress events for model-tool loops.
+- Future fallback behavior for non-streaming adapters.
+- Future cancellation/backpressure semantics.
+- Future capability/status reporting for streaming support.
 
 ## Out of Scope
 
@@ -337,7 +362,15 @@ future explicit policy enables raw payloads.
 
 ## Validation Checklist
 
-Implementation should provide focused tests for:
+Implementation provides focused tests for the v1 baseline:
+
+- session `accept_stream(...)` correlation with session id and run id
+- no session history update before terminal success
+- final result remains authoritative on `run_completed`
+- redacted context-preparation diagnostics are streamed without transcript text
+- pruning-context and graph-mutation diagnostics compose with the stream
+
+Future implementation should provide focused tests for:
 
 - non-streaming execution remains unchanged
 - text deltas emit in provider order and final result remains authoritative
@@ -345,17 +378,14 @@ Implementation should provide focused tests for:
 - model-tool loop progress event ordering
 - approval interruption event emission without tool invocation
 - cancellation behavior for a fake async stream
-- session `accept_stream(...)` correlation with session id and run id
-- no session history update from partial deltas before final success
 - no raw tool arguments/results in default stream events
 - capability/status reporting for supported, fallback, and missing streaming
 
 Validation commands should include at least:
 
 ```bash
-poetry run pytest tests/test_model_event_streaming.py -q
-poetry run pytest tests/test_openai_client.py -q
-poetry run pytest tests/test_executor.py -q
+poetry run pytest tests/test_agent_sessions.py -q -k accept_stream
+poetry run pytest tests/test_agent_sessions.py tests/test_executor.py -q
 poetry run ruff check src tests
 ```
 
@@ -373,7 +403,7 @@ poetry run ruff check src tests
 
 ## Approval State
 
-This is a proposed post-`persistent-agent-sessions` feature spec. It is not
-implementation authorization. Persistent agent sessions now have an implemented
-baseline; do not implement streaming until this spec has its own approved
-implementation plan/tasks or explicit user waiver.
+The v1 session event-stream baseline is implemented by explicit user request.
+Further provider-native streaming, model-tool-loop progress events,
+capability/status reporting, and cancellation/backpressure expansion require a
+new approved plan/tasks slice before implementation.

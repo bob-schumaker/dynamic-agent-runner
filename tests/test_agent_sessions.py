@@ -271,6 +271,7 @@ async def _accept_passes_prior_messages_to_next_bounded_run() -> None:
         [
             {"id": "first", "output_text": "first answer"},
             {"id": "second", "output_text": "second answer"},
+            {"id": "third", "output_text": "third answer"},
         ]
     )
     session = AgentSession.create(
@@ -435,6 +436,7 @@ async def _history_none_stores_but_does_not_replay_messages() -> None:
         [
             {"id": "first", "output_text": "first answer"},
             {"id": "second", "output_text": "second answer"},
+            {"id": "third", "output_text": "third answer"},
         ]
     )
     session = AgentSession.create(
@@ -610,19 +612,21 @@ async def _accept_stream_reports_redacted_context_preparation_events() -> None:
         [
             {"id": "first", "output_text": "first answer"},
             {"id": "second", "output_text": "second answer"},
+            {"id": "third", "output_text": "third answer"},
         ]
     )
     session = AgentSession.create(
         execution_context=make_policy_execution_context(
             history="full",
             model_adapter=adapter,
-            prepare_model_input={"session_pruning": {"max_messages": 1}},
+            prepare_model_input={"session_pruning": {"max_messages": 2}},
         ),
         session_store=InMemorySessionStore(),
         session_id="thread-123",
     )
 
     await session.accept("secret old prompt")
+    await session.accept("visible middle prompt")
     events = [event async for event in session.accept_stream("visible next prompt")]
     prepared_events = [
         event for event in events if event.event_type == "model_input_prepared"
@@ -630,13 +634,13 @@ async def _accept_stream_reports_redacted_context_preparation_events() -> None:
 
     assert prepared_events
     assert prepared_events[-1].payload["mutation_context"] == {
-        "session_messages_included": 1,
-        "session_messages_pruned": 1,
+        "session_messages_included": 2,
+        "session_messages_pruned": 2,
         "context_compaction_applied": False,
     }
     assert "secret old prompt" not in repr(prepared_events[-1].payload)
     assert events[-1].event_type == "run_completed"
-    assert events[-1].final_result == "second answer"
+    assert events[-1].final_result == "third answer"
 
 
 def test_accept_stream_reports_redacted_context_preparation_events() -> None:

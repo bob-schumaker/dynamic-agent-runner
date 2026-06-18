@@ -36,6 +36,7 @@ from dynamic_agent_runner.sessions import (
     AgentSession,
     AgentSessionResult,
     AgentSessionState,
+    AgentSessionStreamEvent,
     InMemorySessionStore,
 )
 from dynamic_agent_runner.skill_sources import (
@@ -162,6 +163,7 @@ __all__ = [
     "AgentSessionError",
     "AgentSessionResult",
     "AgentSessionState",
+    "AgentSessionStreamEvent",
     "AsyncOpenAIClientAdapter",
     "AsyncOpenAIClientProtocol",
     "AsyncOpenAIResponsesResource",
