@@ -5,7 +5,7 @@
 - Feature slug: `persistent-agent-sessions`
 - Spec: `specs/persistent-agent-sessions/spec.md`
 - Plan: `specs/persistent-agent-sessions/plan.md`
-- Status: prepared for TDD implementation
+- Status: v1 implemented
 
 ## TDD Rule
 
@@ -102,22 +102,22 @@ Record command outcomes in `validation.md` as slices complete.
 
 ## Slice 5: Documentation and Completion Evidence
 
-- [ ] T5.1 Update `README.md` and relevant `docs/files/` pages with the public
+- [x] T5.1 Update `README.md` and relevant `docs/files/` pages with the public
       session API, in-memory-only limitation, snapshot sensitivity, and
       bounded-run behavior.
-- [ ] T5.2 Update `specs/README.md` to mark the implemented baseline only after
+- [x] T5.2 Update `specs/README.md` to mark the implemented baseline only after
       the code and tests pass.
-- [ ] T5.3 Update this task list with completed checkboxes as slices land.
-- [ ] T5.4 Update `validation.md` with exact RED/GREEN/refactor command
+- [x] T5.3 Update this task list with completed checkboxes as slices land.
+- [x] T5.4 Update `validation.md` with exact RED/GREEN/refactor command
       outcomes.
-- [ ] T5.5 Run final focused validation:
+- [x] T5.5 Run final focused validation:
       `poetry run pytest tests/test_agent_sessions.py tests/test_executor.py`
       `tests/test_capabilities.py -q`.
-- [ ] T5.6 Run final lint:
+- [x] T5.6 Run final lint:
       `poetry run ruff check src tests`.
-- [ ] T5.7 Run `pre-commit run --files ...` for all changed files in the
+- [x] T5.7 Run `pre-commit run --files ...` for all changed files in the
       implementation slice.
-- [ ] T5.8 Refresh `memory-bank/activeContext.md` and `memory-bank/progress.md`
+- [x] T5.8 Refresh `memory-bank/activeContext.md` and `memory-bank/progress.md`
       after implementation milestones if requested by the active workflow.
 
 ## Done Definition

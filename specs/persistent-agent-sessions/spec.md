@@ -5,7 +5,7 @@
 - Feature slug: `persistent-agent-sessions`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: prepared v1 implementation slice; not implemented
+- Status: implemented v1 baseline
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature packages:
   - `specs/async-session-memory-pipeline/spec.md`
@@ -368,13 +368,16 @@ poetry run ruff check src tests
 - Should `session_id_state_key` write into `node_outputs`, a dedicated state
   field, or prepared prompt context?
 
-## Approval State
+## Implementation State
 
-This feature now has a TDD-first implementation plan and task list:
+The v1 baseline is implemented with TDD evidence in:
 
 - `specs/persistent-agent-sessions/plan.md`
 - `specs/persistent-agent-sessions/tasks.md`
 - `specs/persistent-agent-sessions/validation.md`
 
-Implementation should proceed from those artifacts one RED/GREEN/refactor slice
-at a time.
+Implemented scope includes public `AgentSession`, `AgentSessionState`,
+`AgentSessionResult`, `InMemorySessionStore`, bounded `accept(...)`, current
+state retrieval, copy-safe snapshots, snapshot restart, history policies,
+session-id state injection, same-session concurrency rejection, sync wrapper
+parity, documentation, and live in-memory session capability/status reporting.

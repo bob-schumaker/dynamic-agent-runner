@@ -6,7 +6,7 @@
 - Spec: `specs/persistent-agent-sessions/spec.md`
 - Plan: `specs/persistent-agent-sessions/plan.md`
 - Tasks: `specs/persistent-agent-sessions/tasks.md`
-- Status: preparation validation only; implementation has not started
+- Status: v1 implementation validation complete
 
 ## Preparation Evidence
 
@@ -75,6 +75,14 @@ Slice 4 / Tasks T4.1-T4.7:
   `tests/test_capabilities.py -q` - pass - 35 tests passed after extracting
   async-session capability item construction to keep complexity within the
   lint threshold.
+
+Slice 5 / Tasks T5.1-T5.8:
+
+- RED: not applicable - Slice 5 was documentation, status, and completion
+  evidence for already implemented behavior.
+- GREEN: `poetry run pytest tests/test_agent_sessions.py tests/test_executor.py`
+  `tests/test_capabilities.py -q` - pass - 140 tests passed.
+- Refactor: `poetry run ruff check src tests` - pass - all checks passed.
 
 ## Planned Commands
 

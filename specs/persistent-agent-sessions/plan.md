@@ -10,8 +10,8 @@ bounded workflow-run executor model.
 
 ## Implementation Status
 
-Prepared for implementation. No runtime code has been changed for this feature
-yet.
+V1 is implemented. The remaining scope in this document describes deferred
+expansions beyond in-memory persistent agent sessions.
 
 ## Current Baseline
 
