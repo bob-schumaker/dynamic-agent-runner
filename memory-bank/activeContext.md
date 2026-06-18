@@ -2,21 +2,25 @@
 
 ## Current Focus
 
-- No implementation slice is currently active, but the next prepared work target
-  is pruning-context graph injection for `llm_step` interactions.
-- `specs/async-session-memory-pipeline/` now records this target as an
-  adjacent handoff rather than an OA8 memory expansion: async-session owns
-  session identity/history metadata only; live sessions are owned by
-  `persistent-agent-sessions`; pruning behavior is owned by
+- No implementation slice is currently active. The latest completed stream
+  implemented pruning-context graph injection for `llm_step` interactions,
+  added the v1 session event stream, and reconciled the related spec surface.
+- `specs/async-session-memory-pipeline/` is now a completed boundary handoff:
+  async-session owns session identity/history metadata only; live sessions are
+  owned by `persistent-agent-sessions`; pruning behavior is owned by
   `context-management-prepare-stage`; graph attachment/injection is owned by
   `internal-graph-mutation`.
-- `specs/internal-graph-mutation/` now has planned follow-up Slice 4 with TDD
-  tasks T4.1-T4.5 for pruning-context graph injection around eligible
-  `llm_step` interactions.
-- `specs/context-management-prepare-stage/` now has planned follow-up Slice 10
-  with TDD tasks T10.1-T10.5 for prepare-stage pruning-context behavior fed by
-  supplied `WorkflowExecutionState.session_messages` and `AgentSession`
-  message flow.
+- `specs/internal-graph-mutation/` is complete through Slice 4 for
+  pruning-context attachment diagnostics around eligible `llm_step`
+  interactions.
+- `specs/context-management-prepare-stage/` is complete through Slice 10 for
+  bounded pruning-context preparation from supplied
+  `WorkflowExecutionState.session_messages` and `AgentSession` history.
+- `specs/model-event-streaming/` is implemented for the v1
+  `AgentSession.accept_stream(...)` surface. It streams redacted session/run
+  lifecycle and prepared-input diagnostics with terminal final-result authority;
+  provider-native token deltas and richer loop-progress streaming remain
+  future work.
 - A new draft spec package, `specs/litellm-provider-adapter/`, now proposes
   making LiteLLM the package's core OpenAI-compatible transport while
   preserving repository-owned OpenAI/Codex auth discovery and mapping default
@@ -95,18 +99,11 @@
   retrieval, copy-safe snapshots, snapshot restart, history policies,
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
-- `model-event-streaming` is now specified as a proposed
-  post-persistent-session feature: caller-facing `llm_step` and model-tool-loop
-  event streaming, final-result authority, and `AgentSession.accept_stream(...)`
-  as the intended primary surface after the implemented persistent-session
-  baseline.
-- The next ROI action is now prepared as pruning-context graph injection:
-  start with graph-mutation T4.1/T4.2 RED tests, then context-management
-  T10.1/T10.2 RED tests, before production changes. LiteLLM provider
-  implementation remains draft-only, model event streaming remains proposed
-  until it has its own approved implementation plan, and local-model advisory
-  implementation should happen only when local-model ergonomics is the
-  immediate driver.
+- `model-event-streaming` v1 is implemented on top of persistent sessions.
+- The next ROI action is no longer pinned. Likely candidates are LiteLLM
+  provider implementation, local-model advisory work, provider-native streaming
+  expansion, or deferred host/runtime integrations, each requiring a scoped
+  plan before code changes.
 
 ## Recent Completed Work
 
@@ -190,17 +187,19 @@
 - Persistent agent sessions v1 is implemented and documented; completion
   evidence is captured in `specs/persistent-agent-sessions/validation.md`, and
   cross-spec ownership wording was reconciled across the spec surface.
-- Model event streaming planning is captured in
-  `specs/model-event-streaming/spec.md`; it is proposed only after persistent
-  sessions and is not yet implementation authorization.
-- Pruning-context graph injection is prepared for the next implementation
-  stream through:
-  - `386daa3` — `docs(specs): plan pruning context injection follow-up`
-  - async-session handoff wording in
-    `specs/async-session-memory-pipeline/spec.md`
-  - graph-mutation Slice 4 tasks in `specs/internal-graph-mutation/tasks.md`
-  - context-management Slice 10 tasks in
-    `specs/context-management-prepare-stage/tasks.md`
+- Pruning-context graph injection is implemented:
+  - `4a67119` captured RED graph-mutation diagnostics coverage.
+  - `184e6eb` captured RED context-management injection coverage.
+  - `e4e94d5` bounded injected pruning context before prompt rendering.
+  - `7d00fe2` reported pruning-context attachment points.
+  - `a71d8e6` verified `AgentSession` history can feed bounded pruning context.
+- Model event streaming v1 is implemented:
+  - `db2df00` captured the session stream contract with tests.
+  - `77dee3c` added `AgentSession.accept_stream(...)` and exported
+    `AgentSessionStreamEvent`.
+- `9ccfc3c` reconciled the completed async-session, graph-mutation,
+  context-management, model-event-streaming, and persistent-session spec
+  surfaces.
 - Sphinx configuration refresh is committed separately from the LiteLLM spec.
 
 ## Current Spec Authority Map
@@ -219,10 +218,9 @@
   - `specs/context-management-prepare-stage/spec.md`
   - `specs/pyinstaller-packaging-support/spec.md`
   - `specs/persistent-agent-sessions/spec.md`
+  - `specs/model-event-streaming/spec.md`
 - Draft feature packages:
   - `specs/litellm-provider-adapter/spec.md`
-- Proposed feature packages:
-  - `specs/model-event-streaming/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
 - Later feature packages:
@@ -239,10 +237,10 @@
   that decide request mapping, Codex auth adaptation, model-id aliasing,
   Responses API support, PyInstaller handling, and official OpenAI SDK
   compatibility/fallback behavior before editing runtime code.
-- If implementing model event streaming, do it only after persistent sessions
-  v1. Create plan/tasks that decide event iterator vs sink shape, adapter
-  streaming protocol, redaction/tool payload policy, cancellation/backpressure
-  behavior, and terminal event/result shape.
+- If extending model event streaming beyond v1, create plan/tasks for
+  provider-native token deltas, adapter streaming protocol, model-tool-loop
+  progress events, cancellation/backpressure behavior, redaction/tool payload
+  policy, and capability/status reporting.
 - If continuing local-model advisory work, decide whether the pending
   `pyproject.toml` / `poetry.lock` optional llama.cpp metadata edits should be
   committed, revised, or discarded before executing another slice.
@@ -250,9 +248,7 @@
   external roots, `source_path` reads, support-file prompt loading, network
   fetching, Markdown frontmatter parsing, or raw-body debugging modes.
 - If extending context growth management beyond the implemented prepare-stage
-  slices, the prepared next slice is pruning-context graph injection. Start with
-  graph-mutation T4.1/T4.2 RED tests and context-management T10.1/T10.2 RED
-  tests. Provider-backed remote compaction, semantic selectors, model-backed
+  slices, provider-backed remote compaction, semantic selectors, model-backed
   summaries, richer profile behavior, and prompt-cache-aware ordering remain
   separate future work.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,

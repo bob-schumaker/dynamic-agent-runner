@@ -489,3 +489,19 @@ do we need a new feature spec to do the actual work
 ---
 
 add the follow-up sections and TDD implementtion tasks to graph-mutation and context-management-prepare-stage
+
+---
+
+what order should we do the work to complete context pruning, graph injection for llm steps, and model-event-streaming
+
+---
+
+execute this ordering with the recommended commit rhythm
+
+---
+
+run a full consistency pass on the specs
+
+---
+
+commit spec changes and then refresh memory-bank and commit separately

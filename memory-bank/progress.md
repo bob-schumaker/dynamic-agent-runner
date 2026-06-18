@@ -6,7 +6,8 @@
   async-first APIs, sync wrappers, tool registry/overrides, OpenAI-compatible
   adapters/providers, retry, output contracts, token budgeting, tracing, hooks,
   prompt preparation, validation, runtime behavior overrides, model adapter
-  coverage, local model helpers, in-memory persistent sessions, and
+  coverage, local model helpers, in-memory persistent sessions, session event
+  streaming, bounded pruning-context graph injection, and
   metadata-only future surfaces.
 - Default OpenAI/Codex auth discovery and ChatGPT/Codex backend compatibility
   are implemented.
@@ -81,6 +82,9 @@
 - `context-management-prepare-stage` now owns the prompt-preparation feature
   spec for session pruning, context compaction, hierarchical prompt-context
   injection, and provider-neutral hierarchical context compression.
+- `context-management-prepare-stage` is implemented through Slice 10, including
+  bounded pruning-context preparation from supplied session messages before
+  eligible `llm_step` prompt rendering.
 - The preferred future compression architecture is turn-aware lane assembly:
   pinned hierarchy, current turn, recent turns, rolling structured summary,
   selected older turns, bounded file/tool context, chronological reassembly,
@@ -98,6 +102,9 @@
 - The spec inventory and completion matrix now include
   `context-management-prepare-stage`, and graph mutation is documented as the
   derived workflow-operation layer rather than a context-management helper.
+- `internal-graph-mutation` is complete through Slice 4, with attachment
+  diagnostics for pruning-context behavior around eligible `llm_step`
+  interactions while keeping base workflow artifacts immutable.
 - Cross-cutting future-work ideas from Micheal Lanham's `AI Agents in Action,
   Second Edition: Intelligent Workflows With LLMs, MCP, A2A, and More`
   (Manning, ISBN `9781633434530`) are tracked in the owning specs without
@@ -130,22 +137,35 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting while keeping each prompt
   as a bounded executor run.
-- `model-event-streaming` is specified as a proposed post-persistent-session
-  feature for caller-facing `llm_step` and model-tool-loop event streaming,
-  final-result authority, session-level `accept_stream(...)`, cancellation and
-  backpressure semantics, and streaming capability/status reporting.
-- Pruning-context graph injection is prepared as the next implementation target
-  without creating a new feature spec:
-  - `async-session-memory-pipeline` is the metadata/session-boundary reference
-  - `internal-graph-mutation` owns planned Slice 4 for graph attachment or
-    narrow link-level injection around eligible `llm_step` interactions
-  - `context-management-prepare-stage` owns planned Slice 10 for pruning,
-    compaction, prompt-context assembly, and diagnostics from supplied session
-    messages
-  - both planned slices require TDD RED tests before production changes
+- `model-event-streaming` v1 is implemented through
+  `AgentSession.accept_stream(...)`, with redacted session/run lifecycle events,
+  prepared-input diagnostics, session/run correlation, and terminal
+  final-result authority.
+- `async-session-memory-pipeline` remains a metadata/session-boundary reference.
+  Pruning-context graph injection was completed through
+  `internal-graph-mutation` and `context-management-prepare-stage` without
+  adding durable runner-owned memory to OA8.
 
 ## Latest Milestones
 
+- `9ccfc3c` aligned the completed async-session, graph-mutation,
+  context-management, model-event-streaming, and persistent-session spec
+  surfaces.
+- `77dee3c` implemented v1 session event streaming through
+  `AgentSession.accept_stream(...)`.
+- `db2df00` captured the session event stream contract with RED tests.
+- `a71d8e6` verified that `AgentSession` history can feed bounded pruning
+  context without changing session persistence semantics.
+- `7d00fe2` reported pruning-context attachment points through graph-mutation
+  diagnostics.
+- `e4e94d5` bounded injected pruning context before eligible `llm_step` prompt
+  rendering.
+- `184e6eb` captured RED context-management coverage for bounded
+  pruning-context injection.
+- `4a67119` captured RED graph-mutation coverage for pruning-context attachment
+  diagnostics.
+- `4620e52` refreshed memory-bank state after preparing pruning-context
+  follow-up work.
 - `386daa3` prepared pruning-context graph injection as follow-up Slice 4 in
   `internal-graph-mutation` and Slice 10 in
   `context-management-prepare-stage`, with async-session recorded as a boundary
@@ -228,18 +248,14 @@
 
 ## Remaining
 
-- Next highest-ROI implementation slice is pinned as pruning-context graph
-  injection for `llm_step` interactions. Start with graph-mutation T4.1/T4.2
-  RED tests, then context-management T10.1/T10.2 RED tests, before production
-  changes.
 - LiteLLM provider work remains spec-only. Before implementation, create
   plan/tasks artifacts for the core dependency change, default provider
   selection, Codex auth adaptation, request/response mapping, fake-test
   strategy, and packaging implications.
-- Model event streaming remains spec-only and post-persistent-session. Before
-  implementation, create plan/tasks artifacts for the event contract, adapter
-  streaming, session `accept_stream(...)`, cancellation/backpressure behavior,
-  redaction/tool payload policy, and capability/status reporting.
+- Model event streaming v1 is complete, but provider-native token deltas,
+  model-tool-loop progress events, cancellation/backpressure expansion,
+  lower-level executor event APIs, and streaming capability/status reporting
+  remain deferred.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering
@@ -261,10 +277,9 @@
   roots, `source_path` reads, support-file prompt loading, network fetching,
   executable skill files, Markdown frontmatter parsing, or raw skill-body trace
   payloads.
-- Context-management prepare-stage v1 is implemented through Slice 9. Slice 10
-  is now planned for pruning-context injection behavior. Provider-backed remote
-  compaction, semantic selectors, model-backed summaries, richer profile
-  behavior, and prompt-cache-aware ordering remain later work.
+- Context-management prepare-stage v1 is implemented through Slice 10.
+  Provider-backed remote compaction, semantic selectors, model-backed summaries,
+  richer profile behavior, and prompt-cache-aware ordering remain later work.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.
 
