@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
 from threading import RLock
@@ -50,6 +50,15 @@ class AgentSessionStreamEvent:
     node_id: str | None = None
     payload: dict[str, Any] = field(default_factory=dict)
     final_result: Any = None
+    session_result: AgentSessionResult | None = None
+
+    @property
+    def workflow_result(self) -> WorkflowResult | WorkflowInterruptedResult | None:
+        """Return the terminal workflow result when one is attached."""
+
+        if self.session_result is None:
+            return None
+        return self.session_result.workflow_result
 
 
 @dataclass(frozen=True)
@@ -292,6 +301,11 @@ class AgentSession:
     async def accept_stream(
         self,
         prompt: str,
+        *,
+        include_progress_events: bool = True,
+        include_terminal_event: bool = True,
+        include_terminal_session_result: bool = True,
+        progress_event_types: Iterable[str] | None = None,
     ) -> AsyncIterator[AgentSessionStreamEvent]:
         """Accept a prompt and stream redacted execution events."""
 
@@ -303,6 +317,11 @@ class AgentSession:
         last_sequence = 0
         try:
             current = self.current_state()
+            included_event_types = (
+                frozenset(progress_event_types)
+                if progress_event_types is not None
+                else None
+            )
             queue: asyncio.Queue[AgentSessionStreamEvent] = asyncio.Queue()
             execution_context = _execution_context_with_stream_sink(
                 self.execution_context,
@@ -333,22 +352,39 @@ class AgentSession:
                 except TimeoutError:
                     continue
                 last_sequence = event.sequence
-                yield event
+                if _should_yield_progress_event(
+                    event,
+                    include_progress_events=include_progress_events,
+                    included_event_types=included_event_types,
+                ):
+                    yield event
 
             result = await task
             while not queue.empty():
                 event = queue.get_nowait()
                 last_sequence = event.sequence
-                yield event
+                if _should_yield_progress_event(
+                    event,
+                    include_progress_events=include_progress_events,
+                    included_event_types=included_event_types,
+                ):
+                    yield event
 
             if isinstance(result, WorkflowInterruptedResult):
-                yield AgentSessionStreamEvent(
-                    sequence=last_sequence + 1,
-                    event_type="approval_interrupted",
-                    session_id=self.session_id,
-                    run_id=result.state.run_id,
-                    payload={"reason": result.interruption.reason},
-                )
+                if include_terminal_event:
+                    session_result = (
+                        AgentSessionResult(workflow_result=result, state=current)
+                        if include_terminal_session_result
+                        else None
+                    )
+                    yield AgentSessionStreamEvent(
+                        sequence=last_sequence + 1,
+                        event_type="approval_interrupted",
+                        session_id=self.session_id,
+                        run_id=result.state.run_id,
+                        payload={"reason": result.interruption.reason},
+                        session_result=session_result,
+                    )
                 return
 
             updated = AgentSessionState(
@@ -368,15 +404,38 @@ class AgentSession:
                 metadata=current.metadata,
             )
             self.session_store.save(updated)
-            yield AgentSessionStreamEvent(
-                sequence=last_sequence + 1,
-                event_type="run_completed",
-                session_id=self.session_id,
-                run_id=result.state.run_id,
-                final_result=deepcopy(result.final_result),
-            )
+            if include_terminal_event:
+                session_result = (
+                    AgentSessionResult(
+                        workflow_result=result,
+                        state=self.current_state(),
+                    )
+                    if include_terminal_session_result
+                    else None
+                )
+                yield AgentSessionStreamEvent(
+                    sequence=last_sequence + 1,
+                    event_type="run_completed",
+                    session_id=self.session_id,
+                    run_id=result.state.run_id,
+                    final_result=deepcopy(result.final_result),
+                    session_result=session_result,
+                )
         finally:
             self._accepting = False
+
+
+def _should_yield_progress_event(
+    event: AgentSessionStreamEvent,
+    *,
+    include_progress_events: bool,
+    included_event_types: frozenset[str] | None,
+) -> bool:
+    if not include_progress_events:
+        return False
+    if included_event_types is None:
+        return True
+    return event.event_type in included_event_types
 
 
 def _workflow_identity(execution_context: WorkflowExecutionContext) -> str:
