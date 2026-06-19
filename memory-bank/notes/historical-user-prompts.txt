@@ -528,3 +528,43 @@ commit AGENTS and .agents
 ---
 
 refresh memory-bank and commit
+
+---
+
+revisit graphify
+
+---
+
+update the docs to the latest repo state
+
+---
+
+are any of the docs large enough or contain enough disparate information that we should do a size or context split?
+
+---
+
+commit docs changes
+
+---
+
+add docs/source/_static/.gitkeep and merge it with the previous docs commit
+
+---
+
+what are the remaining features that are not yet implemented
+
+---
+
+evaluate power-marimo-host-automation against the existing ../power-marimo repo
+
+---
+
+this repo has been updated to 3.14.6
+
+---
+
+DAR does not own marimo in any sense, not does it use any Qt-related functionality. those are pure downstream client concerns
+
+---
+
+update power-marimo-host-automation against the existing ../power-marimo repo and our new focus on running dynamic agent workflows only

@@ -154,9 +154,18 @@
   `graphify-out/`. The current graph is AST/code-only and queryable through
   `graphify query`, `graphify path`, and `graphify explain`; semantic
   docs/spec extraction requires an LLM API key.
+- Power-Marimo is now documented as a downstream DAR client boundary, not a
+  DAR-owned automation feature. DAR owns generic dynamic-agent workflow
+  execution with host-provided registries/adapters/context; `../power-marimo`
+  owns Marimo, Qt/QExt, hosted lifecycle, app safety policy, SDK/session
+  behavior, and live validation.
 
 ## Latest Milestones
 
+- `9b17bc1` aligned the Power-Marimo spec with the downstream dynamic-workflow
+  client boundary.
+- `b296dd8` recorded the AGENTS.md project learning that Marimo, Qt, hosted UI,
+  and app-specific automation remain downstream concerns.
 - `fc7ad78` added graphify guidance to `AGENTS.md` and the repo-local
   `.agents/skills/graphify-noise-reduction/SKILL.md` addon.
 - `bc7dff7` ignored generated `graphify-out/` artifacts.
@@ -282,8 +291,9 @@
   support PR, branch synchronization, and `tiktoken_ext` hidden-import update.
 - Pending package metadata from earlier local-model work may still need review
   if local-model dependency packaging resumes.
-- Power-Marimo host automation remains deferred until approval/sandbox and
-  host-managed continuity boundaries are clear.
+- Power-Marimo-specific automation remains outside DAR. If `../power-marimo`
+  exposes new needs, route them through generic runner contracts rather than
+  DAR-owned Marimo, Qt, SDK, or app-lifecycle code.
 - Runner-owned durable session storage remains deferred until a concrete
   workflow proves the need.
 - Runner-owned RAG infrastructure remains out of scope. Future RAG work should

@@ -31,6 +31,12 @@
   semantic extraction for specs/docs requires an LLM API key. `AGENTS.md` now
   records graphify query/path/explain guidance and points to the repo-local
   addon skill `.agents/skills/graphify-noise-reduction/SKILL.md`.
+- Power-Marimo has been reclassified as a downstream dynamic-workflow client,
+  not a DAR-owned automation feature. DAR must stay a generic workflow runner
+  with host-provided tools, model adapters, execution context collaborators,
+  traces, and runtime policy; Marimo, Qt/QExt, hosted UI lifecycle,
+  Power-Marimo safety policy, SDK/session behavior, and live validation belong
+  in `../power-marimo`.
 - A new draft spec package, `specs/litellm-provider-adapter/`, now proposes
   making LiteLLM the package's core OpenAI-compatible transport while
   preserving repository-owned OpenAI/Codex auth discovery and mapping default
@@ -241,8 +247,9 @@
   - `specs/provider-backed-context-compaction/spec.md`
   - `specs/model-backed-context-summaries/spec.md`
   - `specs/semantic-context-profiles/spec.md`
-- Later feature packages:
+- Downstream boundary/reference packages:
   - `specs/power-marimo-host-automation/spec.md`
+- Later feature packages:
   - `specs/async-session-memory-pipeline/spec.md`
   - `specs/llm-step-interpreter-middleware/spec.md`
   - optional local-model advisory specs:
