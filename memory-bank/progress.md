@@ -12,8 +12,10 @@
 - Default OpenAI/Codex auth discovery and ChatGPT/Codex backend compatibility
   are implemented.
 - llama.cpp and MLX local-model adapters are implemented through their current
-  scoped baselines, with regression coverage for optional direct llama.cpp
-  dependency absence and MLX unsupported-platform short-circuit behavior.
+  scoped baselines. The MLX adapter now supports converted-MLX and GGUF model
+  formats, resolved-path loading, filtered generation kwargs with request-level
+  overrides, conservative capability metadata, and focused regression coverage
+  for those behaviors plus unsupported-platform short-circuit behavior.
 - Capability status reporting is implemented for:
   - finite execution
   - metadata-only declarations
@@ -159,9 +161,24 @@
   execution with host-provided registries/adapters/context; `../power-marimo`
   owns Marimo, Qt/QExt, hosted lifecycle, app safety policy, SDK/session
   behavior, and live validation.
+- Downstream Power-Marimo implementation handoff notes now exist under
+  `../power-marimo/cline-tasks/` for the expanded MLX API surface and for
+  host-automation migration toward the implemented DAR host-integration APIs.
+- The Python 3.14.6 `.mise.toml`/`poetry.lock` refresh was committed and then
+  reverted. A fresh redo commit is intentionally pending after the memory-bank
+  refresh so downstream build automation sees a new triggering commit.
 
 ## Latest Milestones
 
+- `582cf85` reverted the earlier Python 3.14.6 mise/lock refresh so it can be
+  redone after the memory-bank refresh and trigger a new build.
+- `4b1b0c1` temporarily refreshed `.mise.toml` to Python 3.14.6 and updated the
+  Poetry lockfile before that revert.
+- `6361e05` added tests for the expanded MLX adapter surface, including GGUF,
+  generation kwargs, request overrides, and capabilities.
+- `3fbfd63` expanded the MLX local adapter surface in source.
+- `682b14f` documented the expanded MLX adapter API surface.
+- `cda44d1` updated the MLX adapter completion spec surface.
 - `9b17bc1` aligned the Power-Marimo spec with the downstream dynamic-workflow
   client boundary.
 - `b296dd8` recorded the AGENTS.md project learning that Marimo, Qt, hosted UI,

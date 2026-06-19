@@ -3,8 +3,24 @@
 ## Current Focus
 
 - No implementation slice is currently active. The latest completed stream
-  implemented pruning-context graph injection for `llm_step` interactions,
-  added the v1 session event stream, and reconciled the related spec surface.
+  expanded the MLX local-model adapter surface, documented the completion state,
+  and prepared downstream Power-Marimo handoff notes for MLX migration and
+  host-automation adoption of generic DAR host surfaces.
+- The expanded MLX surface is implemented and committed in source/test slices:
+  explicit converted-MLX vs GGUF model formats, GGUF path validation, resolved
+  path loading for the default `mlx_lm` backend, filtered generation kwargs
+  with request-level overrides, and conservative adapter capabilities.
+- Downstream handoff notes were created under `../power-marimo/cline-tasks/`
+  for:
+  - migrating Power Marimo to the expanded MLX API surface
+  - moving Power Marimo host automation toward implemented DAR host surfaces
+    such as `HostToolBinding`, `create_host_tool_registry`,
+    `ResolvedModelSelection`, `summarize_trace_events`, and
+    `summarize_capability_report`
+- The Python 3.14.6 `.mise.toml`/`poetry.lock` refresh was committed and then
+  reverted. The next requested action is to refresh memory-bank state, commit
+  it, and then redo that dependency/environment commit so the build triggers
+  from a new SHA.
 - `specs/async-session-memory-pipeline/` is now a completed boundary handoff:
   async-session owns session identity/history metadata only; live sessions are
   owned by `persistent-agent-sessions`; pruning behavior is owned by
@@ -221,6 +237,11 @@
 - `bc7dff7` ignored `graphify-out/` so generated graph artifacts stay local.
 - `fc7ad78` added repo-local graphify usage guidance in `AGENTS.md` and
   `.agents/skills/graphify-noise-reduction/SKILL.md`.
+- `3fbfd63` implemented the expanded MLX local adapter surface.
+- `6361e05` added focused tests for the expanded MLX surface.
+- `4b1b0c1` temporarily refreshed the Python 3.14.6 mise/lock state and
+  `582cf85` reverted it; redo is intentionally pending after this memory-bank
+  refresh.
 - Sphinx configuration refresh is committed separately from the LiteLLM spec.
 
 ## Current Spec Authority Map
@@ -257,7 +278,10 @@
 
 ## Next Steps
 
-- If implementing LiteLLM support, first approve or refine
+- Commit this memory-bank targeted refresh.
+- Reapply the `.mise.toml` and `poetry.lock` Python 3.14.6 refresh as a new
+  commit to trigger the build.
+- If implementing LiteLLM support later, first approve or refine
   `specs/litellm-provider-adapter/spec.md`, then create plan/tasks artifacts
   that decide request mapping, Codex auth adaptation, model-id aliasing,
   Responses API support, PyInstaller handling, and official OpenAI SDK
