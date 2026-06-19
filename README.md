@@ -192,13 +192,22 @@ async for event in session.accept_stream("Continue the analysis."):
         handle_context_status(event.payload)
     elif event.event_type == "run_completed":
         final_result = event.final_result
+        workflow_result = event.workflow_result
 ```
+
+Hosts can limit the stream surface with
+`include_progress_events=False`, `include_terminal_event=False`,
+`include_terminal_session_result=False`, or
+`progress_event_types=("model_input_prepared",)`.
 
 `accept_stream(...)` yields redacted `AgentSessionStreamEvent` values with
 sequence, event type, session ID, run ID, node ID, payload, and terminal final
-result fields. The terminal `run_completed` event is the authoritative final
-result for successful runs. Provider-native token deltas, lower-level executor
-stream APIs, and specialized model-tool loop progress events remain future work.
+result fields. The terminal `run_completed` event also carries
+`session_result`, matching `AgentSession.accept(...)`, and
+`event.workflow_result` for callers that need full execution state such as tool
+results. Intermediate stream events stay redacted. Provider-native token deltas,
+lower-level executor stream APIs, and specialized model-tool loop progress
+events remain future work.
 
 Model adapter coverage defaults to augmented behavior. With
 `model_adapter_coverage="augmented"` or an omitted coverage policy, supplied

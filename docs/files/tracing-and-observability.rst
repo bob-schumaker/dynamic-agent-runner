@@ -30,8 +30,17 @@ an optional ``trace_sink`` so callers can receive events as they are emitted.
 bounded prompt. The stream forwards redacted trace-derived events with session
 and run correlation, maps ``workflow_started`` to ``run_started``, and emits a
 terminal ``run_completed`` event with the authoritative final result after
-successful state persistence. Approval interruptions emit
-``approval_interrupted`` with the interruption reason.
+successful state persistence. The terminal event also carries
+``session_result`` and ``workflow_result`` access for callers that need the full
+``WorkflowResult`` state, including structured tool results. Approval
+interruptions emit ``approval_interrupted`` with the interruption reason and the
+interrupted session result.
+
+Callers can choose how much of the stream to consume with
+``include_progress_events``, ``include_terminal_event``,
+``include_terminal_session_result``, and ``progress_event_types``. This supports
+terminal-only callers, progress-only observers, and renderers that want only a
+small subset of redacted lifecycle events.
 
 This is provider-neutral event streaming, not provider-native token streaming.
 Token deltas, lower-level executor iterators, and specialized model-tool loop

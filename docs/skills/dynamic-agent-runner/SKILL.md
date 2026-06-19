@@ -64,6 +64,19 @@ loaded workflow, registry, adapter set, hooks, max-step policy, or trace sink.
 When passing an execution context, do not also pass artifact paths or runtime
 collaborators as separate keyword arguments.
 
+Use `AgentSession` with `InMemorySessionStore` when several bounded prompts
+should reuse a retained user/assistant transcript. `accept(...)` returns
+`AgentSessionResult`, including the bounded `WorkflowResult` or
+`WorkflowInterruptedResult` plus current session state.
+
+Use `accept_stream(...)` when the host needs live progress events for one
+bounded prompt. Progress events are redacted. Terminal `run_completed` and
+`approval_interrupted` events carry `session_result` by default, and
+`event.workflow_result` is available when the host needs full execution state
+such as `workflow_result.state.tool_results`. Control stream volume with
+`include_progress_events`, `include_terminal_event`,
+`include_terminal_session_result`, and `progress_event_types`.
+
 ## CLI Usage
 
 For shell integration, use the console script:
@@ -253,8 +266,8 @@ The runtime preserves and validates metadata such as:
 - `metadata.rag_pipeline`
 
 Do not pass these fields directly as OpenAI API parameters. Do not infer live
-session storage, approval pause/resume, sandbox execution, MCP discovery, or
-guardrail enforcement from metadata alone.
+durable session storage, approval pause/resume, sandbox execution, MCP
+discovery, or guardrail enforcement from metadata alone.
 
 ## Observability and Failure Handling
 
@@ -316,7 +329,7 @@ documents them as implemented:
 
 - automatic prompt truncation
 - model-assisted repair of malformed outputs
-- runner-owned transcript replay or async-session storage
+- durable external transcript/session storage
 - live approval interruption/resume
 - writable workspace or sandbox command execution
 - live MCP lifecycle management and tool discovery
