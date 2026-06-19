@@ -306,6 +306,7 @@ def _capability_items(
     items.append(_local_workspace_pack_item(built_in_tool_packs))
     items.append(_web_pack_item(built_in_tool_packs))
     items.append(_workspace_data_pack_item(built_in_tool_packs))
+    items.append(_subagent_pack_item(built_in_tool_packs))
     return tuple(items)
 
 
@@ -962,6 +963,25 @@ def _workspace_data_pack_item(
             "The workspace_data tool pack is enabled."
             if enabled
             else "The workspace_data tool pack is disabled by default."
+        ),
+        owner=_OWNER_DYNAMIC_AGENT_RUNNER,
+    )
+
+
+def _subagent_pack_item(
+    built_in_tool_packs: Iterable[str] | None,
+) -> CapabilityStatusItem:
+    enabled_packs = {str(pack) for pack in built_in_tool_packs or ()}
+    enabled = "subagent" in enabled_packs
+    return CapabilityStatusItem(
+        id="built_in.subagent",
+        label="subagent tool pack",
+        state=CapabilityState.LIVE if enabled else CapabilityState.DISABLED,
+        category="built_in_tool_pack",
+        summary=(
+            "The subagent delegation tool pack is enabled."
+            if enabled
+            else "The subagent delegation tool pack is disabled by default."
         ),
         owner=_OWNER_DYNAMIC_AGENT_RUNNER,
     )

@@ -44,6 +44,12 @@ from dynamic_agent_runner.skill_sources import (
     ResolvedSkillSource,
     SkillSourceResolutionPolicy,
 )
+from dynamic_agent_runner.subagents import (
+    SubagentPreset,
+    SubagentResult,
+    SubagentToolPolicy,
+    create_subagent_registry,
+)
 from dynamic_agent_runner.local_models import (
     LlamaCppMemoryFitMeasurement,
     LlamaCppMemoryFitProfileResult,
@@ -247,6 +253,7 @@ __all__ = [
     "create_local_workspace_registry",
     "create_web_registry",
     "create_workspace_data_registry",
+    "create_subagent_registry",
     "summarize_capability_report",
     "summarize_trace_events",
     "ToolResult",
@@ -271,6 +278,9 @@ __all__ = [
     "RuntimeBehaviorOverrides",
     "RetryRecord",
     "SkillSourceResolutionPolicy",
+    "SubagentPreset",
+    "SubagentResult",
+    "SubagentToolPolicy",
     "TokenBudgetPolicy",
     "TokenEstimate",
     "TokenUsageRecord",
