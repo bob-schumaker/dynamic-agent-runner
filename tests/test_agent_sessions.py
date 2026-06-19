@@ -607,6 +607,152 @@ def test_accept_stream_yields_events_and_preserves_final_authority() -> None:
     asyncio.run(_accept_stream_yields_events_and_preserves_final_authority())
 
 
+async def _accept_stream_terminal_event_exposes_session_result() -> None:
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "lookup"}),
+                lambda _args: {"answer": "42", "table": [{"name": "alpha"}]},
+            )
+        ]
+    )
+    context = WorkflowExecutionContext(
+        workflow=workflow_from(
+            {
+                "format_version": 1,
+                "package_type": "dynamic_agent_design",
+                "package_id": "stream-tool-session-agent",
+                "entrypoint": "lookup",
+                "nodes": [
+                    {
+                        "id": "lookup",
+                        "kind": "tool_use_step",
+                        "tool_id": "lookup",
+                        "inputs": {"query": "analysis"},
+                    }
+                ],
+                "tools": [{"id": "lookup"}],
+            }
+        ),
+        tool_registry=registry,
+    )
+    session = AgentSession.create(
+        execution_context=context,
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    events = [event async for event in session.accept_stream("render analysis")]
+    terminal = events[-1]
+
+    assert terminal.event_type == "run_completed"
+    assert terminal.session_result is not None
+    assert terminal.workflow_result is terminal.session_result.workflow_result
+    assert terminal.session_result.workflow_result.state.tool_results[
+        "lookup"
+    ].output == {
+        "answer": "42",
+        "table": [{"name": "alpha"}],
+    }
+    assert terminal.session_result.state == session.current_state()
+
+
+def test_accept_stream_terminal_event_exposes_session_result() -> None:
+    asyncio.run(_accept_stream_terminal_event_exposes_session_result())
+
+
+async def _accept_stream_can_emit_only_terminal_result() -> None:
+    adapter = make_adapter([{"id": "first", "output_text": "terminal only"}])
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="full",
+            model_adapter=adapter,
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    events = [
+        event
+        async for event in session.accept_stream(
+            "first prompt",
+            include_progress_events=False,
+        )
+    ]
+
+    assert [event.event_type for event in events] == ["run_completed"]
+    assert events[0].final_result == "terminal only"
+    assert events[0].session_result is not None
+
+
+def test_accept_stream_can_emit_only_terminal_result() -> None:
+    asyncio.run(_accept_stream_can_emit_only_terminal_result())
+
+
+async def _accept_stream_can_omit_terminal_session_result() -> None:
+    adapter = make_adapter([{"id": "first", "output_text": "final only"}])
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="full",
+            model_adapter=adapter,
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    events = [
+        event
+        async for event in session.accept_stream(
+            "first prompt",
+            include_terminal_session_result=False,
+        )
+    ]
+
+    assert events[-1].event_type == "run_completed"
+    assert events[-1].final_result == "final only"
+    assert events[-1].session_result is None
+    assert events[-1].workflow_result is None
+
+
+def test_accept_stream_can_omit_terminal_session_result() -> None:
+    asyncio.run(_accept_stream_can_omit_terminal_session_result())
+
+
+async def _accept_stream_can_filter_progress_event_types() -> None:
+    adapter = make_adapter(
+        [
+            {"id": "first", "output_text": "first answer"},
+            {"id": "second", "output_text": "second answer"},
+        ]
+    )
+    session = AgentSession.create(
+        execution_context=make_policy_execution_context(
+            history="full",
+            model_adapter=adapter,
+            prepare_model_input={"session_pruning": {"max_messages": 1}},
+        ),
+        session_store=InMemorySessionStore(),
+        session_id="thread-123",
+    )
+
+    await session.accept("first prompt")
+    events = [
+        event
+        async for event in session.accept_stream(
+            "second prompt",
+            progress_event_types=("model_input_prepared",),
+        )
+    ]
+
+    assert "run_started" not in [event.event_type for event in events]
+    assert "model_input_prepared" in [event.event_type for event in events]
+    assert events[-1].event_type == "run_completed"
+
+
+def test_accept_stream_can_filter_progress_event_types() -> None:
+    asyncio.run(_accept_stream_can_filter_progress_event_types())
+
+
 async def _accept_stream_reports_redacted_context_preparation_events() -> None:
     adapter = make_adapter(
         [
