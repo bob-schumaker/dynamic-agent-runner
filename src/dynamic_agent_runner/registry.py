@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -149,6 +150,15 @@ class WebToolPolicy:
     allowed_domains: tuple[str, ...] = ()
     max_search_results: int = 10
     max_fetch_chars: int = 4000
+
+
+@dataclass(frozen=True)
+class WorkspaceDataToolPolicy:
+    """Policy for the opt-in built-in workspace_data tool pack."""
+
+    max_item_bytes: int = 128_000
+    default_search_limit: int = 20
+    require_delete_approval: bool = True
 
 
 class InMemoryToolRegistry:
@@ -792,6 +802,92 @@ def create_web_registry(
     )
 
 
+def create_workspace_data_registry(
+    *,
+    store: Any | None = None,
+    policy: WorkspaceDataToolPolicy | None = None,
+) -> InMemoryToolRegistry:
+    """Create the opt-in workspace_data built-in tool pack."""
+
+    if store is None:
+        raise ToolRegistryError("workspace_data tool pack requires store")
+    workspace_data = _WorkspaceDataGuard(store, policy or WorkspaceDataToolPolicy())
+    return InMemoryToolRegistry(
+        [
+            _builtin_tool(
+                "workspace_data_write",
+                "Workspace data write",
+                "Create or update one JSON-compatible workspace data item.",
+                {
+                    "id": {"type": "string"},
+                    "kind": {"type": "string"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "labels": {"type": "array", "items": {"type": "string"}},
+                    "data": {},
+                },
+                (),
+                workspace_data.write,
+                tool_type="structured_data_query",
+                source_id="workspace_data",
+                side_effect="write",
+            ),
+            _builtin_tool(
+                "workspace_data_read",
+                "Workspace data read",
+                "Read one workspace data item by id.",
+                {"id": {"type": "string"}},
+                ("id",),
+                workspace_data.read,
+                tool_type="structured_data_query",
+                source_id="workspace_data",
+            ),
+            _builtin_tool(
+                "workspace_data_search",
+                "Workspace data search",
+                "Search workspace data items with metadata-first results.",
+                {
+                    "query": {"type": "string"},
+                    "include_data": {"type": "boolean"},
+                    "limit": {"type": "integer"},
+                },
+                ("query",),
+                workspace_data.search,
+                tool_type="structured_data_query",
+                source_id="workspace_data",
+            ),
+            _builtin_tool(
+                "workspace_data_list",
+                "Workspace data list",
+                "List workspace data item metadata.",
+                {
+                    "include_data": {"type": "boolean"},
+                    "limit": {"type": "integer"},
+                },
+                (),
+                workspace_data.list_items,
+                tool_type="structured_data_query",
+                source_id="workspace_data",
+            ),
+            _builtin_tool(
+                "workspace_data_delete",
+                "Workspace data delete",
+                "Delete one workspace data item by id.",
+                {"id": {"type": "string"}},
+                ("id",),
+                workspace_data.delete,
+                tool_type="structured_data_query",
+                source_id="workspace_data",
+                side_effect="write",
+                approval_required=(
+                    "yes" if workspace_data.policy.require_delete_approval else "no"
+                ),
+            ),
+        ]
+    )
+
+
 def _builtin_tool(
     tool_id: str,
     label: str,
@@ -802,6 +898,8 @@ def _builtin_tool(
     *,
     tool_type: str = "file_read",
     source_id: str = "local_workspace",
+    side_effect: str = "read",
+    approval_required: str = "no",
 ) -> RegisteredTool:
     raw = {
         "id": tool_id,
@@ -813,8 +911,8 @@ def _builtin_tool(
             "properties": dict(properties),
             "required": list(required),
         },
-        "side_effect": "read",
-        "approval_required": "no",
+        "side_effect": side_effect,
+        "approval_required": approval_required,
         "timeout": "runtime_default",
         "retry_policy": "none",
         "failure_behavior": "error",
@@ -885,6 +983,114 @@ class _WebToolGuard:
         host = parsed.hostname or ""
         if self.policy.allowed_domains and host not in self.policy.allowed_domains:
             raise ToolRegistryError(f"URL host {host!r} is not allowed")
+
+
+class _WorkspaceDataGuard:
+    def __init__(self, store: Any, policy: WorkspaceDataToolPolicy) -> None:
+        self.store = store
+        self.policy = policy
+
+    def write(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        item = dict(args)
+        self._validate_json_item(item)
+        stored = self.store.write(item)
+        if not isinstance(stored, Mapping):
+            raise ToolRegistryError(
+                "workspace_data_write store returned a non-mapping item"
+            )
+        return {"status": "ok", "item": _workspace_data_item(stored)}
+
+    def read(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        item_id = str(args["id"])
+        item = self.store.read(item_id)
+        if item is None:
+            return {
+                "status": "not_found",
+                "id": item_id,
+                "next_steps": ["write the item before reading it"],
+            }
+        if not isinstance(item, Mapping):
+            raise ToolRegistryError(
+                "workspace_data_read store returned a non-mapping item"
+            )
+        return {"status": "ok", "item": _workspace_data_item(item)}
+
+    def search(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        query = str(args["query"])
+        limit = self._limit(args.get("limit"))
+        include_data = bool(args.get("include_data", False))
+        rows = self.store.search(query, limit=limit)
+        return {
+            "status": "ok",
+            "items": [
+                _workspace_data_item(row, include_data=include_data)
+                for row in rows or ()
+                if isinstance(row, Mapping)
+            ],
+        }
+
+    def list_items(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        limit = self._limit(args.get("limit"))
+        include_data = bool(args.get("include_data", False))
+        rows = self.store.list(limit=limit)
+        return {
+            "status": "ok",
+            "items": [
+                _workspace_data_item(row, include_data=include_data)
+                for row in rows or ()
+                if isinstance(row, Mapping)
+            ],
+        }
+
+    def delete(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        item_id = str(args["id"])
+        deleted = bool(self.store.delete(item_id))
+        if not deleted:
+            return {"status": "not_found", "id": item_id}
+        return {"status": "deleted", "id": item_id}
+
+    def _limit(self, value: Any) -> int:
+        if value is None:
+            return self.policy.default_search_limit
+        return max(1, min(int(value), self.policy.default_search_limit))
+
+    def _validate_json_item(self, item: Mapping[str, Any]) -> None:
+        try:
+            encoded = json.dumps(item, sort_keys=True, separators=(",", ":")).encode()
+        except (TypeError, ValueError) as exc:
+            raise ToolRegistryError(
+                "workspace_data_write payload must be JSON-compatible"
+            ) from exc
+        if len(encoded) > self.policy.max_item_bytes:
+            raise ToolRegistryError(
+                "workspace_data_write payload exceeds max_item_bytes "
+                f"({self.policy.max_item_bytes})"
+            )
+
+
+def _workspace_data_item(
+    item: Mapping[str, Any],
+    *,
+    include_data: bool = True,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key in (
+        "id",
+        "kind",
+        "title",
+        "description",
+        "tags",
+        "labels",
+        "created_at",
+        "updated_at",
+        "actor",
+        "content_type",
+    ):
+        if key in item:
+            result[key] = item[key]
+    if include_data and "data" in item:
+        result["data"] = item["data"]
+    return result
 
 
 class _WorkspaceGuard:

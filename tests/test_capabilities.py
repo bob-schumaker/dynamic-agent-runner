@@ -401,6 +401,7 @@ def test_inspect_agent_package_capabilities_reports_collaborator_coverage(
     )
     assert missing_items["built_in.local_workspace"].state == CapabilityState.DISABLED
     assert missing_items["built_in.web"].state == CapabilityState.DISABLED
+    assert missing_items["built_in.workspace_data"].state == CapabilityState.DISABLED
 
     registry = InMemoryToolRegistry(
         [
@@ -416,13 +417,14 @@ def test_inspect_agent_package_capabilities_reports_collaborator_coverage(
     disabled_report = inspect_agent_package_capabilities(
         package_directory=package_dir,
         tool_registry=registry,
-        built_in_tool_packs=("local_workspace", "web"),
+        built_in_tool_packs=("local_workspace", "web", "workspace_data"),
     )
     disabled_items = {item.id: item for item in disabled_report.items}
 
     assert disabled_items["tool.search_repo"].state == CapabilityState.DISABLED
     assert disabled_items["built_in.local_workspace"].state == CapabilityState.LIVE
     assert disabled_items["built_in.web"].state == CapabilityState.LIVE
+    assert disabled_items["built_in.workspace_data"].state == CapabilityState.LIVE
 
 
 def test_inspect_agent_package_capabilities_reports_rag_readiness(

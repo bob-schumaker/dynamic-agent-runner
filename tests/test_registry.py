@@ -24,10 +24,12 @@ from dynamic_agent_runner.registry import (
     RegisteredTool,
     ToolResult,
     WebToolPolicy,
+    WorkspaceDataToolPolicy,
     ToolExposureOverride,
     ToolRegistryOverrides,
     create_web_registry,
     create_local_workspace_registry,
+    create_workspace_data_registry,
     openai_tool_schema,
     tool_from_function,
     validate_registry_tool_references,
@@ -680,6 +682,123 @@ def test_web_tool_pack_requires_injected_clients() -> None:
 
     with pytest.raises(ToolRegistryError, match="requires fetch_client"):
         create_web_registry(search_client=FakeSearchClient())
+
+
+class FakeWorkspaceDataStore:
+    def __init__(self) -> None:
+        self.items: dict[str, dict[str, object]] = {}
+
+    def write(self, item: dict[str, object]) -> dict[str, object]:
+        item_id = str(item.get("id") or f"item-{len(self.items) + 1}")
+        stored = {"id": item_id, **item}
+        self.items[item_id] = stored
+        return stored
+
+    def read(self, item_id: str) -> dict[str, object] | None:
+        return self.items.get(item_id)
+
+    def search(self, query: str, *, limit: int) -> list[dict[str, object]]:
+        del query
+        return list(self.items.values())[:limit]
+
+    def list(self, *, limit: int) -> list[dict[str, object]]:
+        return list(self.items.values())[:limit]
+
+    def delete(self, item_id: str) -> bool:
+        return self.items.pop(item_id, None) is not None
+
+
+def test_workspace_data_tool_pack_writes_reads_and_lists_metadata_first() -> None:
+    store = FakeWorkspaceDataStore()
+    registry = create_workspace_data_registry(
+        store=store,
+        policy=WorkspaceDataToolPolicy(default_search_limit=5),
+    )
+
+    assert (
+        registry.get_tool("workspace_data_write").definition.tool_type
+        is ToolType.STRUCTURED_DATA_QUERY
+    )
+    assert [tool["name"] for tool in registry.to_openai_tools()] == [
+        "workspace_data_write",
+        "workspace_data_read",
+        "workspace_data_search",
+        "workspace_data_list",
+        "workspace_data_delete",
+    ]
+
+    write = registry.invoke_tool(
+        "workspace_data_write",
+        {
+            "id": "note-1",
+            "kind": "note",
+            "title": "Finding",
+            "tags": ["agent"],
+            "data": {"body": "large result"},
+        },
+    )
+    read = registry.invoke_tool("workspace_data_read", {"id": "note-1"})
+    listing = registry.invoke_tool("workspace_data_list", {})
+
+    assert write.success is True
+    assert write.output["status"] == "ok"
+    assert write.output["item"]["id"] == "note-1"
+    assert read.output["item"]["data"] == {"body": "large result"}
+    assert listing.output == {
+        "status": "ok",
+        "items": [
+            {
+                "id": "note-1",
+                "kind": "note",
+                "title": "Finding",
+                "tags": ["agent"],
+            }
+        ],
+    }
+
+
+def test_workspace_data_tool_pack_search_can_include_data_and_delete() -> None:
+    store = FakeWorkspaceDataStore()
+    registry = create_workspace_data_registry(
+        store=store,
+        policy=WorkspaceDataToolPolicy(require_delete_approval=False),
+    )
+    registry.invoke_tool(
+        "workspace_data_write",
+        {"id": "note-1", "title": "Finding", "data": {"body": "kept"}},
+    )
+
+    search = registry.invoke_tool(
+        "workspace_data_search", {"query": "Finding", "include_data": True}
+    )
+    delete = registry.invoke_tool("workspace_data_delete", {"id": "note-1"})
+    missing = registry.invoke_tool("workspace_data_read", {"id": "note-1"})
+
+    assert search.output["items"][0]["data"] == {"body": "kept"}
+    assert delete.output == {"status": "deleted", "id": "note-1"}
+    assert missing.output == {
+        "status": "not_found",
+        "id": "note-1",
+        "next_steps": ["write the item before reading it"],
+    }
+
+
+def test_workspace_data_tool_pack_rejects_missing_store_and_oversized_payload() -> None:
+    with pytest.raises(ToolRegistryError, match="requires store"):
+        create_workspace_data_registry()
+
+    registry = create_workspace_data_registry(
+        store=FakeWorkspaceDataStore(),
+        policy=WorkspaceDataToolPolicy(max_item_bytes=10),
+    )
+
+    blocked = registry.invoke_tool(
+        "workspace_data_write",
+        {"id": "too-large", "data": {"text": "this is too large"}},
+    )
+
+    assert blocked.success is False
+    assert "exceeds max_item_bytes" in str(blocked.error)
 
 
 def test_tool_source_defaults_origin_from_existing_kind_values() -> None:
