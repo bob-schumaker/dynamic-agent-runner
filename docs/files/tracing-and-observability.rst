@@ -24,6 +24,19 @@ observability dependencies.
 High-level ``run_agent_workflow(...)`` returns only the final result, but accepts
 an optional ``trace_sink`` so callers can receive events as they are emitted.
 
+.. header2:: Session event streaming
+
+``AgentSession.accept_stream(...)`` exposes a session-level event stream for one
+bounded prompt. The stream forwards redacted trace-derived events with session
+and run correlation, maps ``workflow_started`` to ``run_started``, and emits a
+terminal ``run_completed`` event with the authoritative final result after
+successful state persistence. Approval interruptions emit
+``approval_interrupted`` with the interruption reason.
+
+This is provider-neutral event streaming, not provider-native token streaming.
+Token deltas, lower-level executor iterators, and specialized model-tool loop
+progress events remain future work.
+
 .. header2:: Event coverage
 
 Current trace events cover:

@@ -48,6 +48,8 @@ Current tests cover:
 - workflow execution, retries, output contracts, route validation, token budgets,
   prompt-cache observations, provider cache telemetry, prepare-model-input
   policy, and traces
+- persistent in-memory agent sessions, snapshot restart, and session event
+  streaming
 - CLI execution and error reporting
 - all 11 hello-world agent-pattern fixture packages
 - the placeholder-safe Power-Marimo first-customer fixture
@@ -69,3 +71,11 @@ in ``docs/source/``. Use the docs Makefile as the build source of truth:
 
 The ``clean`` target removes generated pages under ``docs/source/*.rst`` and the
 build output. Treat it as destructive for generated docs output.
+
+.. header2:: Graphify navigation
+
+Generated Graphify state lives under ignored ``graphify-out/``. Refresh the code
+graph with ``graphify update .`` after structural changes, then use
+``graphify query``, ``graphify path``, and ``graphify explain`` for codebase
+navigation. The current graph is AST/code-only unless semantic extraction is run
+with an LLM API key.

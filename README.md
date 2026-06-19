@@ -165,13 +165,36 @@ session = AgentSession.create(
 first = await session.accept("Inspect the repository.")
 second = await session.accept("Now summarize the risky parts.")
 snapshot = session.current_state().to_mapping()
+
+restored = AgentSession.from_snapshot(
+    snapshot,
+    execution_context=context,
+    session_store=InMemorySessionStore(),
+)
 ```
 
 Each `accept(...)` call is still a bounded workflow run with normal guardrails,
 approval checks, step limits, tracing, and retry behavior. The v1 store is
 process-local only; snapshots contain user prompts and model outputs, so callers
-own any external persistence and redaction. Raw tool arguments and raw tool
-outputs are not retained in chat history by default.
+own any external persistence and redaction before restart. Raw tool arguments
+and raw tool outputs are not retained in chat history by default.
+
+Callers that need progress events while a prompt runs can use
+`accept_stream(...)`:
+
+```python
+async for event in session.accept_stream("Continue the analysis."):
+    if event.event_type == "model_input_prepared":
+        handle_context_status(event.payload)
+    elif event.event_type == "run_completed":
+        final_result = event.final_result
+```
+
+`accept_stream(...)` yields redacted `AgentSessionStreamEvent` values with
+sequence, event type, session ID, run ID, node ID, payload, and terminal final
+result fields. The terminal `run_completed` event is the authoritative final
+result for successful runs. Provider-native token deltas, lower-level executor
+stream APIs, and specialized model-tool loop progress events remain future work.
 
 Model adapter coverage defaults to augmented behavior. With
 `model_adapter_coverage="augmented"` or an omitted coverage policy, supplied
@@ -343,6 +366,11 @@ hierarchy messages, package-bounded file context, retrieved context supplied in
 execution state, session pruning and compaction metadata, lane budgets, selected
 older turns, and preparation diagnostics. Unsupported compaction, compression,
 lane, selection, and file-context values fail validation before execution.
+Provider-backed remote compaction, model-backed summary adapters, and richer
+semantic/profile behavior are prepared as future feature specs under
+`specs/provider-backed-context-compaction/`,
+`specs/model-backed-context-summaries/`, and
+`specs/semantic-context-profiles/`; they are not live runtime behavior yet.
 
 `extensions.guardrails.declarations` is live for `phase: input` when callers
 provide an `InMemoryGuardrailRegistry` through the lower-level executor or a
@@ -521,3 +549,11 @@ Current tests cover:
 - loading hello-world fixture packages for all 11 supported agent-pattern IDs
 - running the CLI with package-directory input, prompt input, fake model
   clients, and clear error reporting
+
+## Graphify Navigation
+
+This repository is initialized for Graphify. Generated graph state lives under
+ignored `graphify-out/`; refresh it with `graphify update .` after structural
+code changes. Use `graphify query`, `graphify path`, and `graphify explain` for
+codebase navigation. The current graph is AST/code-only unless semantic
+extraction is run with an LLM API key.

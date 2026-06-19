@@ -380,11 +380,34 @@ reuse the same workflow context and retained user/assistant transcript:
    second = await session.accept("Now summarize the risky parts.")
    snapshot = session.current_state().to_mapping()
 
+   restored = AgentSession.from_snapshot(
+       snapshot,
+       execution_context=context,
+       session_store=InMemorySessionStore(),
+   )
+
 Each ``accept(...)`` call remains a normal bounded workflow run. Input
 guardrails, approval interruption, step limits, tracing, retry behavior, and
 context preparation still run per prompt. The v1 store is process-local only;
-callers own any external persistence and redaction for snapshots. Raw tool
+callers own any external persistence and redaction before restart. Raw tool
 arguments and raw tool outputs are not retained in chat history by default.
+
+Callers that need progress events while a prompt runs can stream one bounded
+session prompt:
+
+.. code-block:: python
+
+   async for event in session.accept_stream("Continue the analysis."):
+       if event.event_type == "model_input_prepared":
+           handle_context_status(event.payload)
+       elif event.event_type == "run_completed":
+           final_result = event.final_result
+
+``accept_stream(...)`` yields ``AgentSessionStreamEvent`` values with sequence,
+event type, session ID, run ID, node ID, redacted payload, and terminal final
+result fields. Session state is saved only after successful completion.
+Provider-native token deltas, lower-level executor stream APIs, and specialized
+model-tool loop progress events remain future work.
 
 .. header2:: Inspecting detailed execution state
 

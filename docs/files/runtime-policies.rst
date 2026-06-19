@@ -177,10 +177,19 @@ lane budgets, select older turns, and emit preparation metadata.
              enabled: true
              threshold_ratio: 0.8
              reserve_tokens: 1024
-             scope: session
-             implementation: rolling_summary
-             strategy: rolling_summary
+             scope: current_run
+             implementation: metadata_only
+             strategy: basic
+             mode: auto
+             manual_mode: allowed
+             trigger: token_threshold
              reset_behavior: new_window
+             lifecycle_stages:
+             - validate
+             - segment
+             - report
+             metrics:
+             - lane_utilization
          context_compression:
            profile: balanced
            lanes:
@@ -194,6 +203,12 @@ lane budgets, select older turns, and emit preparation metadata.
 Validation rejects unsupported compaction, compression, lane, and selection
 values. File context remains package-root bounded; paths that escape the package
 root fail closed.
+
+Provider-backed remote compaction, model-backed summary adapters, and richer
+semantic/profile behavior are prepared as future specs, not live runtime
+behavior. See ``specs/provider-backed-context-compaction/``,
+``specs/model-backed-context-summaries/``, and
+``specs/semantic-context-profiles/`` for those planned follow-up surfaces.
 
 .. header2:: Runtime behavior overrides
 
