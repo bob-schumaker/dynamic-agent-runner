@@ -82,6 +82,10 @@ ContextCompactor = Callable[
     [tuple[OpenAIMessage, ...], Mapping[str, Any]],
     tuple[OpenAIMessage, ...],
 ]
+ContextSummarizer = Callable[
+    [tuple[OpenAIMessage, ...], Mapping[str, Any]],
+    str | OpenAIMessage,
+]
 
 
 @dataclass(frozen=True)
@@ -252,6 +256,7 @@ async def execute_workflow_async(
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
+    context_summarizer: ContextSummarizer | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
     initial_node_outputs: Mapping[str, Any] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
@@ -340,6 +345,7 @@ async def execute_workflow_async(
                     hooks,
                     context.model_adapter_coverage,
                     context_compactor,
+                    context_summarizer,
                 )
             except Exception as exc:
                 tracer.emit(
@@ -410,6 +416,7 @@ def execute_workflow(
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
+    context_summarizer: ContextSummarizer | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
     initial_node_outputs: Mapping[str, Any] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
@@ -429,6 +436,7 @@ def execute_workflow(
             model_adapter_coverage=model_adapter_coverage,
             run_id=run_id,
             context_compactor=context_compactor,
+            context_summarizer=context_summarizer,
             session_messages=session_messages,
             initial_node_outputs=initial_node_outputs,
         )
@@ -445,6 +453,7 @@ def prepare_model_input(
     prompt_cache: bool | None = None,
     model_adapter_coverage: str = "augmented",
     context_compactor: ContextCompactor | None = None,
+    context_summarizer: ContextSummarizer | None = None,
 ) -> PreparedModelInput:
     """Prepare rendered model input for an ``llm_step`` node."""
 
@@ -473,6 +482,7 @@ def prepare_model_input(
         model=model,
         adapter=adapter,
         context_compactor=context_compactor,
+        context_summarizer=context_summarizer,
     )
     preparation = _merge_prepared_input_metadata(preparation, mutation_preparation)
     preparation = _merge_skill_source_preparation(
@@ -621,6 +631,7 @@ async def _execute_node_async(
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str,
     context_compactor: ContextCompactor | None,
+    context_summarizer: ContextSummarizer | None,
 ) -> Any:
     if node.kind == "llm_step":
         return await _execute_llm_step_async(
@@ -634,6 +645,7 @@ async def _execute_node_async(
             lifecycle_hooks,
             model_adapter_coverage,
             context_compactor,
+            context_summarizer,
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
@@ -751,6 +763,7 @@ async def _execute_llm_step_async(
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str,
     context_compactor: ContextCompactor | None,
+    context_summarizer: ContextSummarizer | None,
 ) -> ModelResponse:
     prepared_input = prepare_model_input(
         node,
@@ -761,6 +774,7 @@ async def _execute_llm_step_async(
         prompt_cache=prompt_cache,
         model_adapter_coverage=model_adapter_coverage,
         context_compactor=context_compactor,
+        context_summarizer=context_summarizer,
     )
     tools: list[dict[str, Any]] = []
     exposed_tools: tuple[RegisteredTool, ...] = ()
@@ -1889,11 +1903,23 @@ def _mutation_context_session_messages(
         state.session_messages,
         policy,
     )
-    summary_message = (
-        _compacted_session_message(pruned_session, policy, state)
-        if pruned_session
-        else None
-    )
+    compaction = policy.get("context_compaction")
+    if (
+        isinstance(compaction, Mapping)
+        and compaction.get("strategy") == "model_summary"
+    ):
+        summary_message = None
+    else:
+        summary_message = (
+            _compacted_session_message(
+                pruned_session,
+                policy,
+                state,
+                context_summarizer=None,
+            )
+            if pruned_session
+            else None
+        )
     return kept_session, {
         "session_messages_included": len(kept_session),
         "session_messages_pruned": len(pruned_session),
@@ -2034,6 +2060,7 @@ def _apply_prepare_model_input_stage(
     model: str,
     adapter: ModelAdapter,
     context_compactor: ContextCompactor | None,
+    context_summarizer: ContextSummarizer | None,
 ) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
     """Apply optional prepare-stage hierarchy and session shaping."""
 
@@ -2113,7 +2140,12 @@ def _apply_prepare_model_input_stage(
     compaction_metadata: Mapping[str, Any] = {}
     context_reset = _context_reset_metadata(pruned_session, policy)
     if pruned_session:
-        summary_message = _compacted_session_message(pruned_session, policy, state)
+        summary_message = _compacted_session_message(
+            pruned_session,
+            policy,
+            state,
+            context_summarizer=context_summarizer,
+        )
         if summary_message is not None:
             result_parts.append(("session_summary", summary_message))
             context_compaction_applied = True
@@ -2963,6 +2995,8 @@ def _compacted_session_message(
     pruned_session: Sequence[OpenAIMessage],
     policy: Mapping[str, Any],
     state: WorkflowExecutionState,
+    *,
+    context_summarizer: ContextSummarizer | None,
 ) -> OpenAIMessage | None:
     compaction = policy.get("context_compaction")
     if not isinstance(compaction, Mapping):
@@ -2972,6 +3006,12 @@ def _compacted_session_message(
     strategy = str(compaction.get("strategy") or "summary_message")
     if strategy == "rolling_summary":
         return _rolling_summary_message(pruned_session, compaction, state)
+    if strategy == "model_summary":
+        return _model_summary_message(
+            pruned_session,
+            compaction,
+            context_summarizer=context_summarizer,
+        )
     if strategy not in {"summary_message", "basic"}:
         return None
     role = str(compaction.get("summary_role") or "developer")
@@ -2983,6 +3023,36 @@ def _compacted_session_message(
     for message in pruned_session:
         lines.append(f"- {message.role}: {_truncate_text(message.content, max_chars)}")
     return OpenAIMessage(role=role, content="\n".join(lines))
+
+
+def _model_summary_message(
+    pruned_session: Sequence[OpenAIMessage],
+    compaction: Mapping[str, Any],
+    *,
+    context_summarizer: ContextSummarizer | None,
+) -> OpenAIMessage | None:
+    config = compaction.get("model_summary")
+    if not isinstance(config, Mapping) or config.get("enabled") is not True:
+        return None
+    if context_summarizer is None:
+        raise WorkflowExecutionError(
+            "context_compaction strategy 'model_summary' requires context_summarizer"
+        )
+    role = str(compaction.get("summary_role") or "developer")
+    max_chars = _optional_positive_int(config.get("max_summary_chars")) or 4000
+    metadata = {
+        "strategy": "model_summary",
+        "source_message_count": len(pruned_session),
+        "max_summary_chars": max_chars,
+    }
+    raw_summary = context_summarizer(tuple(pruned_session), metadata)
+    if isinstance(raw_summary, OpenAIMessage):
+        content = raw_summary.content
+        role = raw_summary.role
+    else:
+        content = str(raw_summary)
+    content = content[:max_chars]
+    return OpenAIMessage(role=role, content=content)
 
 
 def _context_reset_metadata(
@@ -3100,8 +3170,20 @@ def _compaction_metadata(
         "tokens_before": before_tokens,
         "tokens_after": after_tokens,
         "compression_ratio": after_tokens / before_tokens if before_tokens else 1,
+        **_model_summary_metadata(summary_message, compaction),
         **_rolling_summary_metadata(pruned_session, compaction),
     }
+
+
+def _model_summary_metadata(
+    summary_message: OpenAIMessage,
+    compaction: Any,
+) -> Mapping[str, Any]:
+    if not isinstance(compaction, Mapping):
+        return {}
+    if str(compaction.get("strategy") or "") != "model_summary":
+        return {}
+    return {"summary_chars": len(summary_message.content)}
 
 
 def _rolling_summary_metadata(

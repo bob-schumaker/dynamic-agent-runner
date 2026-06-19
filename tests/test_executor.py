@@ -1682,6 +1682,127 @@ def test_prepare_model_input_local_compaction_builds_rolling_summary() -> None:
     assert adapter.client.responses.calls == []
 
 
+def test_prepare_model_input_model_summary_uses_injected_summarizer() -> None:
+    """Model-backed summaries use an explicit collaborator, not the main adapter."""
+
+    adapter = make_adapter([])
+    calls: list[dict[str, object]] = []
+
+    def summarizer(messages, metadata):
+        calls.append({"messages": messages, "metadata": metadata})
+        return "Model-backed summary of older context."
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "model-summary-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "model_summary",
+                            "summary_role": "developer",
+                            "model_summary": {
+                                "enabled": True,
+                                "max_summary_chars": 120,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="older request"),
+            OpenAIMessage(role="assistant", content="older answer"),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        context_summarizer=summarizer,
+    )
+
+    assert prepared_input.named_parts["session_summary"].content == (
+        "Model-backed summary of older context."
+    )
+    assert prepared_input.preparation.compaction["strategy"] == "model_summary"
+    assert prepared_input.preparation.compaction["summary_chars"] == 38
+    assert prepared_input.preparation.compaction["messages_before"] == 2
+    assert calls[0]["messages"] == (
+        OpenAIMessage(role="user", content="older request"),
+        OpenAIMessage(role="assistant", content="older answer"),
+    )
+    assert calls[0]["metadata"]["strategy"] == "model_summary"
+    assert adapter.client.responses.calls == []
+
+
+def test_prepare_model_input_model_summary_fails_closed_without_summarizer() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "missing-model-summary-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 1},
+                        "context_compaction": {
+                            "strategy": "model_summary",
+                            "model_summary": {"enabled": True},
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="old request"),
+            OpenAIMessage(role="assistant", content="old answer"),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="requires context_summarizer"):
+        prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+
 def test_prepare_model_input_local_compaction_skips_summary_without_eviction() -> None:
     """Rolling-summary compaction is a no-op when no history is evicted."""
 
