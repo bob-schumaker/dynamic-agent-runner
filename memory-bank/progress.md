@@ -85,6 +85,11 @@
 - `context-management-prepare-stage` is implemented through Slice 10, including
   bounded pruning-context preparation from supplied session messages before
   eligible `llm_step` prompt rendering.
+- Future context-window handling has three prepared feature specs:
+  `provider-backed-context-compaction` for `/responses/compact`-style provider
+  compaction plus window ids/baselines, `model-backed-context-summaries` for
+  explicit summarizer collaborators, and `semantic-context-profiles` for richer
+  profile/selector behavior.
 - The preferred future compression architecture is turn-aware lane assembly:
   pinned hierarchy, current turn, recent turns, rolling structured summary,
   selected older turns, bounded file/tool context, chronological reassembly,
@@ -145,9 +150,18 @@
   Pruning-context graph injection was completed through
   `internal-graph-mutation` and `context-management-prepare-stage` without
   adding durable runner-owned memory to OA8.
+- Graphify is initialized for the repo with ignored generated output in
+  `graphify-out/`. The current graph is AST/code-only and queryable through
+  `graphify query`, `graphify path`, and `graphify explain`; semantic
+  docs/spec extraction requires an LLM API key.
 
 ## Latest Milestones
 
+- `fc7ad78` added graphify guidance to `AGENTS.md` and the repo-local
+  `.agents/skills/graphify-noise-reduction/SKILL.md` addon.
+- `bc7dff7` ignored generated `graphify-out/` artifacts.
+- `957f673` prepared context-window follow-up specs for provider-backed
+  compaction, model-backed summaries, and semantic context profiles.
 - `9ccfc3c` aligned the completed async-session, graph-mutation,
   context-management, model-event-streaming, and persistent-session spec
   surfaces.
@@ -256,6 +270,9 @@
   model-tool-loop progress events, cancellation/backpressure expansion,
   lower-level executor event APIs, and streaming capability/status reporting
   remain deferred.
+- Context-window follow-up implementation remains future. Start from the
+  prepared specs for provider-backed context compaction, model-backed context
+  summaries, or semantic context profiles before editing runtime code.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering
@@ -277,9 +294,9 @@
   roots, `source_path` reads, support-file prompt loading, network fetching,
   executable skill files, Markdown frontmatter parsing, or raw skill-body trace
   payloads.
-- Context-management prepare-stage v1 is implemented through Slice 10.
-  Provider-backed remote compaction, semantic selectors, model-backed summaries,
-  richer profile behavior, and prompt-cache-aware ordering remain later work.
+- Context-management prepare-stage v1 is implemented through Slice 10. The
+  richer remote-compaction, model-summary, and semantic/profile tracks are now
+  prepared as separate future specs.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.
 

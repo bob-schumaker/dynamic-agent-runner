@@ -505,3 +505,26 @@ run a full consistency pass on the specs
 ---
 
 commit spec changes and then refresh memory-bank and commit separately
+
+---
+
+where is the automatic compact/condense context window work
+
+---
+
+prepare the specs for context window handling with provider-backed remote compaction like /responses/compact,
+provider compaction window ids/baselines, model-backed summary adapters, and richer semantic/profile behavior
+
+create new feature specs where warranted
+
+---
+
+initialize graphify for this repo
+
+---
+
+commit AGENTS and .agents
+
+---
+
+refresh memory-bank and commit

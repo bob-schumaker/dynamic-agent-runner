@@ -21,6 +21,16 @@
   lifecycle and prepared-input diagnostics with terminal final-result authority;
   provider-native token deltas and richer loop-progress streaming remain
   future work.
+- Context-window follow-up work now has three prepared future feature specs:
+  `provider-backed-context-compaction`, `model-backed-context-summaries`, and
+  `semantic-context-profiles`. They split remote `/responses/compact`-style
+  provider compaction/window baselines, explicit model-backed summarizer
+  adapters, and richer semantic/profile selection behavior.
+- Graphify is initialized for this repository. Generated graph artifacts live
+  under ignored `graphify-out/`; current graph output is AST/code-only because
+  semantic extraction for specs/docs requires an LLM API key. `AGENTS.md` now
+  records graphify query/path/explain guidance and points to the repo-local
+  addon skill `.agents/skills/graphify-noise-reduction/SKILL.md`.
 - A new draft spec package, `specs/litellm-provider-adapter/`, now proposes
   making LiteLLM the package's core OpenAI-compatible transport while
   preserving repository-owned OpenAI/Codex auth discovery and mapping default
@@ -102,8 +112,8 @@
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
 - The next ROI action is no longer pinned. Likely candidates are LiteLLM
   provider implementation, local-model advisory work, provider-native streaming
-  expansion, or deferred host/runtime integrations, each requiring a scoped
-  plan before code changes.
+  expansion, one of the prepared context-window follow-up specs, or deferred
+  host/runtime integrations. Each requires a scoped plan before code changes.
 
 ## Recent Completed Work
 
@@ -200,6 +210,11 @@
 - `9ccfc3c` reconciled the completed async-session, graph-mutation,
   context-management, model-event-streaming, and persistent-session spec
   surfaces.
+- `957f673` prepared three context-window follow-up specs for provider-backed
+  compaction, model-backed summaries, and semantic context profiles.
+- `bc7dff7` ignored `graphify-out/` so generated graph artifacts stay local.
+- `fc7ad78` added repo-local graphify usage guidance in `AGENTS.md` and
+  `.agents/skills/graphify-noise-reduction/SKILL.md`.
 - Sphinx configuration refresh is committed separately from the LiteLLM spec.
 
 ## Current Spec Authority Map
@@ -223,6 +238,9 @@
   - `specs/litellm-provider-adapter/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
+  - `specs/provider-backed-context-compaction/spec.md`
+  - `specs/model-backed-context-summaries/spec.md`
+  - `specs/semantic-context-profiles/spec.md`
 - Later feature packages:
   - `specs/power-marimo-host-automation/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
@@ -248,9 +266,12 @@
   external roots, `source_path` reads, support-file prompt loading, network
   fetching, Markdown frontmatter parsing, or raw-body debugging modes.
 - If extending context growth management beyond the implemented prepare-stage
-  slices, provider-backed remote compaction, semantic selectors, model-backed
-  summaries, richer profile behavior, and prompt-cache-aware ordering remain
-  separate future work.
+  slices, start from one of the prepared follow-up specs:
+  `provider-backed-context-compaction`, `model-backed-context-summaries`, or
+  `semantic-context-profiles`.
+- For codebase questions, prefer `graphify query`, `graphify path`, or
+  `graphify explain` when `graphify-out/graph.json` exists. The current graph
+  is code-only unless semantic extraction is rerun with an LLM API key.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.
