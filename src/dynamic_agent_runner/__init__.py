@@ -14,6 +14,12 @@ from dynamic_agent_runner.capabilities import (
     CapabilityStatusSummary,
     inspect_agent_package_capabilities,
 )
+from dynamic_agent_runner.collaboration import (
+    ChildAgentState,
+    CollaborativeAgentPreset,
+    CollaborativeAgentSessionManager,
+    CollaborativeAgentSessionState,
+)
 from dynamic_agent_runner.context import RunContext, WorkflowExecutionContext
 from dynamic_agent_runner.executor import (
     ApprovalInterruption,
@@ -190,6 +196,10 @@ __all__ = [
     "CapabilityStatusItem",
     "CapabilityStatusReport",
     "CapabilityStatusSummary",
+    "ChildAgentState",
+    "CollaborativeAgentPreset",
+    "CollaborativeAgentSessionManager",
+    "CollaborativeAgentSessionState",
     "CompiledAgentWorkflow",
     "compile_agent_workflow",
     "DynamicAgentRunnerError",
