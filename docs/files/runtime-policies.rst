@@ -177,10 +177,19 @@ lane budgets, select older turns, and emit preparation metadata.
              enabled: true
              threshold_ratio: 0.8
              reserve_tokens: 1024
-             scope: session
-             implementation: rolling_summary
-             strategy: rolling_summary
+             scope: current_run
+             implementation: metadata_only
+             strategy: basic
+             mode: auto
+             manual_mode: allowed
+             trigger: token_threshold
              reset_behavior: new_window
+             lifecycle_stages:
+             - validate
+             - segment
+             - report
+             metrics:
+             - lane_utilization
          context_compression:
            profile: balanced
            lanes:
@@ -194,6 +203,12 @@ lane budgets, select older turns, and emit preparation metadata.
 Validation rejects unsupported compaction, compression, lane, and selection
 values. File context remains package-root bounded; paths that escape the package
 root fail closed.
+
+Provider-backed remote compaction, model-backed summary adapters, and richer
+semantic/profile behavior are prepared as future specs, not live runtime
+behavior. See ``specs/provider-backed-context-compaction/``,
+``specs/model-backed-context-summaries/``, and
+``specs/semantic-context-profiles/`` for those planned follow-up surfaces.
 
 .. header2:: Runtime behavior overrides
 
@@ -279,8 +294,9 @@ checkpoint storage, resume-token persistence, or an external approval service.
 
 .. header2:: Async-session metadata
 
-Future multi-turn or resumable workflow intent can be preserved under
-``runtime.execution_policy.async_session``.
+Multi-turn or resumable workflow intent can be preserved under
+``runtime.execution_policy.async_session`` and used by ``AgentSession`` for
+in-memory v1 session continuity.
 
 .. code-block:: yaml
 
@@ -293,12 +309,19 @@ Future multi-turn or resumable workflow intent can be preserved under
          session_id_state_key: session.id
          session_messages_state_key: session.messages
 
-The current runtime preserves and validates this metadata only. It does not yet
-implement runner-owned session storage, transcript replay, summary generation,
-or automatic cross-run message reuse. Persisted policies must still satisfy the
-implemented fail-closed validation rules, including a required
-``session_id_state_key`` when ``persist`` is not ``none`` and omission of
-``session_messages_state_key`` when ``history`` is ``none``.
+``AgentSession`` with ``InMemorySessionStore`` provides runner-owned
+process-local session storage, current-state retrieval, snapshot restart, and
+cross-prompt transcript replay. ``history`` controls what is replayed into the
+next bounded run: ``none`` replays no prior messages, ``last_turn`` replays only
+the previous user/assistant pair, ``full`` replays all retained user/assistant
+messages, and v1 ``summary`` preserves caller-supplied summary metadata without
+generating summaries.
+
+Persisted policies must still satisfy fail-closed validation rules, including a
+required ``session_id_state_key`` when ``persist`` is not ``none`` and omission
+of ``session_messages_state_key`` when ``history`` is ``none``. Durable
+filesystem, database, Redis, cloud, OCI, or external-checkpoint stores remain
+out of scope for v1.
 
 .. header2:: Sandbox runtime metadata
 

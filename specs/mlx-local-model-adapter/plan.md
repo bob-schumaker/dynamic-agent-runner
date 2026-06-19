@@ -49,8 +49,9 @@ lifecycle behavior.
   adapter protocol rather than adding executor-specific MLX routing.
 - Use a small internal backend protocol for model loading and generation so
   tests can inject fake loaders/generators.
-- Implement converted MLX model directory support first. Defer GGUF as a
-  follow-up unless a later user request explicitly moves it into scope.
+- Implement converted MLX model directory and explicit GGUF file support while
+  keeping conversion, server lifecycle, embeddings, multimodal IO, streaming,
+  tool calling, and structured output outside this text-generation slice.
 - Preserve Hugging Face references through existing local-model reference types
   where possible, but test network behavior only with injected fake download
   callables.
@@ -74,8 +75,11 @@ lifecycle behavior.
 - lazy platform/dependency checks
 - backend protocol/type aliases for loading and generation
 - model path/reference preflight
+- model format preflight for converted MLX directories and explicit GGUF files
 - identity validation integration
 - request feature validation
+- supported generation-parameter mapping
+- conservative capability metadata
 - conversion from backend generation output to `ModelResponse`
 
 The first implementation can keep the backend small:

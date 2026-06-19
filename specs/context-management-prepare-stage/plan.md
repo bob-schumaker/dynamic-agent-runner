@@ -1,7 +1,7 @@
 # Context Management Prepare Stage Implementation Plan
 
-Status: implemented through Slice 9; future behavior changes require a new
-approved plan or task slice
+Status: implemented through Slice 10 pruning-context injection behavior used by
+graph mutation
 
 ## Goal
 
@@ -47,14 +47,26 @@ Implemented by this plan:
 - quality and efficiency metrics such as lane utilization, information density,
   redundancy ratio, coverage completeness, and summary fidelity proxies
 
-Still future:
+Prepared follow-up specs:
 
-- provider-backed remote compaction, including `/responses/compact` when
-  available through the configured provider
-- compaction window ids and provider token baselines
-- model-backed summary-generation adapters
-- richer profile-specific lane priority behavior
-- semantic selection through injected collaborators
+- `specs/provider-backed-context-compaction/spec.md` owns provider-backed
+  remote compaction, `/responses/compact`-style capabilities when available,
+  compaction window ids, token baselines, and remote-compaction capability
+  reporting.
+- `specs/model-backed-context-summaries/spec.md` owns explicit summarizer
+  collaborators, bounded summary prompts, prior-summary folding, and summary
+  provenance.
+- `specs/semantic-context-profiles/spec.md` owns richer profile behavior,
+  injected semantic selectors, exact-plus-semantic scoring, optional
+  memory-kind labels, stale/redundant context omission, and
+  prompt-cache-aware ordering.
+
+Still future outside those prepared specs:
+
+- built-in embedding/vector retrieval infrastructure
+- runner-owned durable memory or background summary jobs
+- provider-specific live integration without fake-first tests and capability
+  gating
 
 ## Codex Reference Summary
 
@@ -241,6 +253,27 @@ Added defensive error handling after pre-turn compaction became available:
 - make retry-after-compaction opt-in and one-shot only
 - preserve original provider error context in diagnostics
 
+### Slice 10 — Pruning-context injection behavior
+
+Status: complete.
+
+This slice added the prepare-stage behavior needed when graph mutation attaches
+pruning context around eligible `llm_step` interactions. It uses the existing
+session-message, lane-budget, deterministic selection, rolling summary, and
+injected compactor seams rather than adding new mechanisms.
+
+This slice:
+
+- consume supplied `WorkflowExecutionState.session_messages`
+- prepare bounded context before the target `llm_step` prompt is rendered
+- preserve current behavior when no pruning-context policy is enabled
+- report included/pruned/compacted/omitted context through redacted diagnostics
+- remain independent from durable memory, embedding retrieval, and graph
+  attachment mechanics
+
+It was implemented with TDD through RED tests in `tests/test_executor.py` before
+production changes.
+
 ## Design Decisions
 
 - The prepare stage owns prompt shaping; model adapters execute prepared model
@@ -278,6 +311,8 @@ Focused validation uses fake adapters and injected compactors only:
   compaction, pre-turn compaction, trace diagnostics, and failure behavior
 - targeted tests for RAG retrieved-context lane assembly using caller-supplied
   fake evidence mappings only
+- targeted Slice 10 tests for pruning-context injection from supplied
+  `session_messages`
 
 Full validation for completed implementation slices:
 

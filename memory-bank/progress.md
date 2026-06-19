@@ -6,12 +6,16 @@
   async-first APIs, sync wrappers, tool registry/overrides, OpenAI-compatible
   adapters/providers, retry, output contracts, token budgeting, tracing, hooks,
   prompt preparation, validation, runtime behavior overrides, model adapter
-  coverage, local model helpers, and metadata-only future surfaces.
+  coverage, local model helpers, in-memory persistent sessions, session event
+  streaming, bounded pruning-context graph injection, and
+  metadata-only future surfaces.
 - Default OpenAI/Codex auth discovery and ChatGPT/Codex backend compatibility
   are implemented.
 - llama.cpp and MLX local-model adapters are implemented through their current
-  scoped baselines, with regression coverage for optional direct llama.cpp
-  dependency absence and MLX unsupported-platform short-circuit behavior.
+  scoped baselines. The MLX adapter now supports converted-MLX and GGUF model
+  formats, resolved-path loading, filtered generation kwargs with request-level
+  overrides, conservative capability metadata, and focused regression coverage
+  for those behaviors plus unsupported-platform short-circuit behavior.
 - Capability status reporting is implemented for:
   - finite execution
   - metadata-only declarations
@@ -80,6 +84,14 @@
 - `context-management-prepare-stage` now owns the prompt-preparation feature
   spec for session pruning, context compaction, hierarchical prompt-context
   injection, and provider-neutral hierarchical context compression.
+- `context-management-prepare-stage` is implemented through Slice 10, including
+  bounded pruning-context preparation from supplied session messages before
+  eligible `llm_step` prompt rendering.
+- Future context-window handling has three prepared feature specs:
+  `provider-backed-context-compaction` for `/responses/compact`-style provider
+  compaction plus window ids/baselines, `model-backed-context-summaries` for
+  explicit summarizer collaborators, and `semantic-context-profiles` for richer
+  profile/selector behavior.
 - The preferred future compression architecture is turn-aware lane assembly:
   pinned hierarchy, current turn, recent turns, rolling structured summary,
   selected older turns, bounded file/tool context, chronological reassembly,
@@ -97,6 +109,9 @@
 - The spec inventory and completion matrix now include
   `context-management-prepare-stage`, and graph mutation is documented as the
   derived workflow-operation layer rather than a context-management helper.
+- `internal-graph-mutation` is complete through Slice 4, with attachment
+  diagnostics for pruning-context behavior around eligible `llm_step`
+  interactions while keeping base workflow artifacts immutable.
 - Cross-cutting future-work ideas from Micheal Lanham's `AI Agents in Action,
   Second Edition: Intelligent Workflows With LLMs, MCP, A2A, and More`
   (Manning, ISBN `9781633434530`) are tracked in the owning specs without
@@ -122,9 +137,79 @@
   spec. It proposes making LiteLLM the core OpenAI-compatible transport,
   preserving repository-owned OpenAI/Codex auth discovery, and mapping default
   Codex behavior through `create_litellm_codex_adapter_from_codex_auth(...)`.
+- `persistent-agent-sessions` is implemented as a v1 feature for
+  cross-prompt continuity through public `AgentSession`,
+  `AgentSessionState`, `AgentSessionResult`, and `InMemorySessionStore`, with
+  state retrieval, copy-safe snapshots, snapshot restart, history policies,
+  session-id state injection, same-session concurrency rejection, sync wrapper
+  parity, docs, and live capability/status reporting while keeping each prompt
+  as a bounded executor run.
+- `model-event-streaming` v1 is implemented through
+  `AgentSession.accept_stream(...)`, with redacted session/run lifecycle events,
+  prepared-input diagnostics, session/run correlation, and terminal
+  final-result authority.
+- `async-session-memory-pipeline` remains a metadata/session-boundary reference.
+  Pruning-context graph injection was completed through
+  `internal-graph-mutation` and `context-management-prepare-stage` without
+  adding durable runner-owned memory to OA8.
+- Graphify is initialized for the repo with ignored generated output in
+  `graphify-out/`. The current graph is AST/code-only and queryable through
+  `graphify query`, `graphify path`, and `graphify explain`; semantic
+  docs/spec extraction requires an LLM API key.
+- Power-Marimo is now documented as a downstream DAR client boundary, not a
+  DAR-owned automation feature. DAR owns generic dynamic-agent workflow
+  execution with host-provided registries/adapters/context; `../power-marimo`
+  owns Marimo, Qt/QExt, hosted lifecycle, app safety policy, SDK/session
+  behavior, and live validation.
+- Downstream Power-Marimo implementation handoff notes now exist under
+  `../power-marimo/cline-tasks/` for the expanded MLX API surface and for
+  host-automation migration toward the implemented DAR host-integration APIs.
+- The Python 3.14.6 `.mise.toml`/`poetry.lock` refresh was committed and then
+  reverted. A fresh redo commit is intentionally pending after the memory-bank
+  refresh so downstream build automation sees a new triggering commit.
 
 ## Latest Milestones
 
+- `582cf85` reverted the earlier Python 3.14.6 mise/lock refresh so it can be
+  redone after the memory-bank refresh and trigger a new build.
+- `4b1b0c1` temporarily refreshed `.mise.toml` to Python 3.14.6 and updated the
+  Poetry lockfile before that revert.
+- `6361e05` added tests for the expanded MLX adapter surface, including GGUF,
+  generation kwargs, request overrides, and capabilities.
+- `3fbfd63` expanded the MLX local adapter surface in source.
+- `682b14f` documented the expanded MLX adapter API surface.
+- `cda44d1` updated the MLX adapter completion spec surface.
+- `9b17bc1` aligned the Power-Marimo spec with the downstream dynamic-workflow
+  client boundary.
+- `b296dd8` recorded the AGENTS.md project learning that Marimo, Qt, hosted UI,
+  and app-specific automation remain downstream concerns.
+- `fc7ad78` added graphify guidance to `AGENTS.md` and the repo-local
+  `.agents/skills/graphify-noise-reduction/SKILL.md` addon.
+- `bc7dff7` ignored generated `graphify-out/` artifacts.
+- `957f673` prepared context-window follow-up specs for provider-backed
+  compaction, model-backed summaries, and semantic context profiles.
+- `9ccfc3c` aligned the completed async-session, graph-mutation,
+  context-management, model-event-streaming, and persistent-session spec
+  surfaces.
+- `77dee3c` implemented v1 session event streaming through
+  `AgentSession.accept_stream(...)`.
+- `db2df00` captured the session event stream contract with RED tests.
+- `a71d8e6` verified that `AgentSession` history can feed bounded pruning
+  context without changing session persistence semantics.
+- `7d00fe2` reported pruning-context attachment points through graph-mutation
+  diagnostics.
+- `e4e94d5` bounded injected pruning context before eligible `llm_step` prompt
+  rendering.
+- `184e6eb` captured RED context-management coverage for bounded
+  pruning-context injection.
+- `4a67119` captured RED graph-mutation coverage for pruning-context attachment
+  diagnostics.
+- `4620e52` refreshed memory-bank state after preparing pruning-context
+  follow-up work.
+- `386daa3` prepared pruning-context graph injection as follow-up Slice 4 in
+  `internal-graph-mutation` and Slice 10 in
+  `context-management-prepare-stage`, with async-session recorded as a boundary
+  handoff rather than the implementation owner.
 - `128acc2` recorded capability-status v1 completion.
 - `6ee9d43` recorded approval/sandbox v1 completion.
 - `2786e52` recorded MCP explicit registry-injection v1 completion.
@@ -182,6 +267,17 @@
   index coverage.
 - `eca1436` updated Sphinx configuration metadata loading and Confluence SSO
   session setup.
+- `4782099` added the persistent agent sessions feature spec and spec index
+  coverage.
+- `c52b4cc` added the model event streaming feature spec and spec index
+  coverage.
+- `ecada0d` prepared the persistent-session TDD work stream.
+- `53cad69`, `68f0d0b`, `08c9b76`, and `8c02300` implemented persistent
+  sessions across state/store, bounded `accept(...)`, history/snapshot restart,
+  concurrency guard, sync wrapper parity, and capability/status reporting.
+- `cf8050e`, `10c71fc`, and `918c601` documented the persistent-session API,
+  marked the spec implemented, and reconciled async-session versus
+  persistent-session ownership across the spec surface.
 - The commits between those checkpoints implemented:
   - capability-status report contract, metadata-only reporting, collaborator
     coverage, approval/MCP/guardrail status
@@ -192,14 +288,17 @@
 
 ## Remaining
 
-- Next highest-ROI implementation slice is not currently pinned in the memory
-  bank. Use `specs/README.md` plus the user's immediate priority to choose
-  between local-model advisory work, context-management implementation, or a
-  new scoped feature slice.
 - LiteLLM provider work remains spec-only. Before implementation, create
   plan/tasks artifacts for the core dependency change, default provider
   selection, Codex auth adaptation, request/response mapping, fake-test
   strategy, and packaging implications.
+- Model event streaming v1 is complete, but provider-native token deltas,
+  model-tool-loop progress events, cancellation/backpressure expansion,
+  lower-level executor event APIs, and streaming capability/status reporting
+  remain deferred.
+- Context-window follow-up implementation remains future. Start from the
+  prepared specs for provider-backed context compaction, model-backed context
+  summaries, or semantic context profiles before editing runtime code.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering
@@ -209,8 +308,9 @@
   support PR, branch synchronization, and `tiktoken_ext` hidden-import update.
 - Pending package metadata from earlier local-model work may still need review
   if local-model dependency packaging resumes.
-- Power-Marimo host automation remains deferred until approval/sandbox and
-  host-managed continuity boundaries are clear.
+- Power-Marimo-specific automation remains outside DAR. If `../power-marimo`
+  exposes new needs, route them through generic runner contracts rather than
+  DAR-owned Marimo, Qt, SDK, or app-lifecycle code.
 - Runner-owned durable session storage remains deferred until a concrete
   workflow proves the need.
 - Runner-owned RAG infrastructure remains out of scope. Future RAG work should
@@ -221,10 +321,9 @@
   roots, `source_path` reads, support-file prompt loading, network fetching,
   executable skill files, Markdown frontmatter parsing, or raw skill-body trace
   payloads.
-- Context-management prepare-stage v1 is implemented through Slice 9. Future
-  work should start from a new approved plan for provider-backed remote
-  compaction, semantic selectors, model-backed summaries, richer profile
-  behavior, or prompt-cache-aware ordering.
+- Context-management prepare-stage v1 is implemented through Slice 10. The
+  richer remote-compaction, model-summary, and semantic/profile tracks are now
+  prepared as separate future specs.
 - LLM step interpreter middleware remains deferred until sandbox, approval,
   guardrails, tracing, redaction, and capability reporting are stable.
 

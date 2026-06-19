@@ -82,6 +82,10 @@ ContextCompactor = Callable[
     [tuple[OpenAIMessage, ...], Mapping[str, Any]],
     tuple[OpenAIMessage, ...],
 ]
+ContextSummarizer = Callable[
+    [tuple[OpenAIMessage, ...], Mapping[str, Any]],
+    str | OpenAIMessage,
+]
 
 
 @dataclass(frozen=True)
@@ -178,6 +182,8 @@ class PreparedInputMetadata:
     mutation_applied: bool = False
     mutation_id: str | None = None
     mutation_output_slots: tuple[str, ...] = ()
+    mutation_attachment: Mapping[str, Any] = field(default_factory=dict)
+    mutation_context: Mapping[str, Any] = field(default_factory=dict)
     skill_sources_loaded: tuple[Mapping[str, Any], ...] = ()
     skill_sources_omitted: tuple[Mapping[str, Any], ...] = ()
     skill_sources_rejected: tuple[Mapping[str, Any], ...] = ()
@@ -250,6 +256,9 @@ async def execute_workflow_async(
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
+    context_summarizer: ContextSummarizer | None = None,
+    session_messages: Sequence[OpenAIMessage] = (),
+    initial_node_outputs: Mapping[str, Any] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt asynchronously."""
 
@@ -271,7 +280,12 @@ async def execute_workflow_async(
     if not plan.entrypoint_id or plan.entrypoint_id not in nodes:
         raise WorkflowExecutionError("workflow entrypoint does not reference a node")
     adapters = _normalize_model_adapters(context.model_adapter)
-    state = WorkflowExecutionState(prompt=prompt, run_id=run_id or _new_run_id())
+    state = WorkflowExecutionState(
+        prompt=prompt,
+        run_id=run_id or _new_run_id(),
+        session_messages=tuple(session_messages),
+        node_outputs=dict(initial_node_outputs or {}),
+    )
     tracer = WorkflowTracer(
         events=state.trace_events,
         sink=context.trace_sink,
@@ -331,6 +345,7 @@ async def execute_workflow_async(
                     hooks,
                     context.model_adapter_coverage,
                     context_compactor,
+                    context_summarizer,
                 )
             except Exception as exc:
                 tracer.emit(
@@ -401,6 +416,9 @@ def execute_workflow(
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
+    context_summarizer: ContextSummarizer | None = None,
+    session_messages: Sequence[OpenAIMessage] = (),
+    initial_node_outputs: Mapping[str, Any] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -418,6 +436,9 @@ def execute_workflow(
             model_adapter_coverage=model_adapter_coverage,
             run_id=run_id,
             context_compactor=context_compactor,
+            context_summarizer=context_summarizer,
+            session_messages=session_messages,
+            initial_node_outputs=initial_node_outputs,
         )
     )
 
@@ -432,6 +453,7 @@ def prepare_model_input(
     prompt_cache: bool | None = None,
     model_adapter_coverage: str = "augmented",
     context_compactor: ContextCompactor | None = None,
+    context_summarizer: ContextSummarizer | None = None,
 ) -> PreparedModelInput:
     """Prepare rendered model input for an ``llm_step`` node."""
 
@@ -444,7 +466,7 @@ def prepare_model_input(
         model_adapter_coverage=model_adapter_coverage,
     )
     render_context, mutation_preparation = _prepare_model_input_render_context(
-        node, state
+        node, plan, state
     )
     rendered_parts = _render_message_parts_with_skill_sources(
         behavior,
@@ -460,6 +482,7 @@ def prepare_model_input(
         model=model,
         adapter=adapter,
         context_compactor=context_compactor,
+        context_summarizer=context_summarizer,
     )
     preparation = _merge_prepared_input_metadata(preparation, mutation_preparation)
     preparation = _merge_skill_source_preparation(
@@ -490,6 +513,8 @@ def prepare_model_input(
                 "mutation_applied": preparation.mutation_applied,
                 "mutation_id": preparation.mutation_id,
                 "mutation_output_slots": preparation.mutation_output_slots,
+                "mutation_attachment": preparation.mutation_attachment,
+                "mutation_context": preparation.mutation_context,
                 "skill_sources_loaded": preparation.skill_sources_loaded,
                 "skill_sources_omitted": preparation.skill_sources_omitted,
                 "skill_sources_rejected": preparation.skill_sources_rejected,
@@ -606,6 +631,7 @@ async def _execute_node_async(
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str,
     context_compactor: ContextCompactor | None,
+    context_summarizer: ContextSummarizer | None,
 ) -> Any:
     if node.kind == "llm_step":
         return await _execute_llm_step_async(
@@ -619,6 +645,7 @@ async def _execute_node_async(
             lifecycle_hooks,
             model_adapter_coverage,
             context_compactor,
+            context_summarizer,
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
@@ -736,6 +763,7 @@ async def _execute_llm_step_async(
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str,
     context_compactor: ContextCompactor | None,
+    context_summarizer: ContextSummarizer | None,
 ) -> ModelResponse:
     prepared_input = prepare_model_input(
         node,
@@ -746,6 +774,7 @@ async def _execute_llm_step_async(
         prompt_cache=prompt_cache,
         model_adapter_coverage=model_adapter_coverage,
         context_compactor=context_compactor,
+        context_summarizer=context_summarizer,
     )
     tools: list[dict[str, Any]] = []
     exposed_tools: tuple[RegisteredTool, ...] = ()
@@ -1827,31 +1856,81 @@ def _skill_instruction_message(
 
 def _prepare_model_input_render_context(
     node: PreparedNode,
+    plan: ExecutionPlan,
     state: WorkflowExecutionState,
 ) -> tuple[dict[str, Any], PreparedInputMetadata]:
     context = _format_context(state)
-    mutation_context = _mutation_render_context(node, state)
+    mutation_session_messages, mutation_context_metadata = (
+        _mutation_context_session_messages(plan, state)
+    )
+    mutation_context = _mutation_render_context(
+        node,
+        state,
+        session_messages=mutation_session_messages,
+    )
     context.update(mutation_context)
-    return context, _mutation_preparation_metadata(node, mutation_context)
+    return context, _mutation_preparation_metadata(
+        node,
+        mutation_context,
+        mutation_context_metadata,
+    )
 
 
 def _mutation_render_context(
     node: PreparedNode,
     state: WorkflowExecutionState,
+    *,
+    session_messages: Sequence[OpenAIMessage],
 ) -> dict[str, Any]:
     spec = node.mutation_spec
     if spec is None or spec.kind != "context_pruning":
         return {}
     return ContextPruningMutation(spec).render_context(
         prompt=state.prompt,
-        session_messages=state.session_messages,
+        session_messages=session_messages,
         resolve_source=lambda binding: _resolve_mutation_render_source(binding, state),
     )
+
+
+def _mutation_context_session_messages(
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+) -> tuple[tuple[OpenAIMessage, ...], Mapping[str, Any]]:
+    policy = _prepare_model_input_policy(plan.execution_policy)
+    if not policy:
+        return state.session_messages, {}
+    kept_session, pruned_session = _pruned_session_messages(
+        state.session_messages,
+        policy,
+    )
+    compaction = policy.get("context_compaction")
+    if (
+        isinstance(compaction, Mapping)
+        and compaction.get("strategy") == "model_summary"
+    ):
+        summary_message = None
+    else:
+        summary_message = (
+            _compacted_session_message(
+                pruned_session,
+                policy,
+                state,
+                context_summarizer=None,
+            )
+            if pruned_session
+            else None
+        )
+    return kept_session, {
+        "session_messages_included": len(kept_session),
+        "session_messages_pruned": len(pruned_session),
+        "context_compaction_applied": summary_message is not None,
+    }
 
 
 def _mutation_preparation_metadata(
     node: PreparedNode,
     mutation_context: Mapping[str, Any],
+    mutation_context_metadata: Mapping[str, Any],
 ) -> PreparedInputMetadata:
     spec = node.mutation_spec
     if spec is None or spec.kind != "context_pruning" or not mutation_context:
@@ -1860,7 +1939,20 @@ def _mutation_preparation_metadata(
         mutation_applied=True,
         mutation_id=spec.mutation_id,
         mutation_output_slots=tuple(mutation_context.keys()),
+        mutation_attachment=_mutation_attachment_metadata(spec),
+        mutation_context=dict(mutation_context_metadata),
     )
+
+
+def _mutation_attachment_metadata(spec: Any) -> Mapping[str, Any]:
+    config = spec.config if isinstance(spec.config, Mapping) else {}
+    attachment = config.get("attachment")
+    if isinstance(attachment, Mapping):
+        return dict(attachment)
+    return {
+        "type": "llm_step_interaction",
+        "target_node_id": spec.target_node_id,
+    }
 
 
 def _merge_prepared_input_metadata(
@@ -1885,6 +1977,8 @@ def _merge_prepared_input_metadata(
         mutation_applied=overlay.mutation_applied,
         mutation_id=overlay.mutation_id,
         mutation_output_slots=overlay.mutation_output_slots,
+        mutation_attachment=overlay.mutation_attachment,
+        mutation_context=overlay.mutation_context,
         skill_sources_loaded=base.skill_sources_loaded,
         skill_sources_omitted=base.skill_sources_omitted,
         skill_sources_rejected=base.skill_sources_rejected,
@@ -1927,6 +2021,8 @@ def _merge_skill_source_preparation(
         mutation_applied=base.mutation_applied,
         mutation_id=base.mutation_id,
         mutation_output_slots=base.mutation_output_slots,
+        mutation_attachment=base.mutation_attachment,
+        mutation_context=base.mutation_context,
         skill_sources_loaded=skill_sources.loaded,
         skill_sources_omitted=skill_sources.omitted,
         skill_sources_rejected=skill_sources.rejected,
@@ -1964,6 +2060,7 @@ def _apply_prepare_model_input_stage(
     model: str,
     adapter: ModelAdapter,
     context_compactor: ContextCompactor | None,
+    context_summarizer: ContextSummarizer | None,
 ) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
     """Apply optional prepare-stage hierarchy and session shaping."""
 
@@ -2043,7 +2140,12 @@ def _apply_prepare_model_input_stage(
     compaction_metadata: Mapping[str, Any] = {}
     context_reset = _context_reset_metadata(pruned_session, policy)
     if pruned_session:
-        summary_message = _compacted_session_message(pruned_session, policy, state)
+        summary_message = _compacted_session_message(
+            pruned_session,
+            policy,
+            state,
+            context_summarizer=context_summarizer,
+        )
         if summary_message is not None:
             result_parts.append(("session_summary", summary_message))
             context_compaction_applied = True
@@ -2394,7 +2496,8 @@ def _selected_older_turn_parts(
     tuple[Mapping[str, Any], ...],
     tuple[Mapping[str, Any], ...],
 ]:
-    if selection_policy.get("strategy") != "deterministic_overlap":
+    strategy = str(selection_policy.get("strategy") or "")
+    if strategy not in {"deterministic_overlap", "hybrid_exact_semantic", "exact"}:
         return (), (), (), ()
     max_selected_turns = selection_policy.get("max_selected_turns")
     if (
@@ -2404,7 +2507,8 @@ def _selected_older_turn_parts(
     ):
         return (), (), (), ()
 
-    prompt_tokens = _selection_tokens(prompt)
+    use_exact_tokens = strategy in {"hybrid_exact_semantic", "exact"}
+    prompt_tokens = _selection_tokens(prompt, exact=use_exact_tokens)
     if not prompt_tokens:
         return (), (), (), ()
 
@@ -2412,7 +2516,9 @@ def _selected_older_turn_parts(
     rejected_turns: list[Mapping[str, Any]] = []
     for turn_index, messages in enumerate(_session_turns(pruned_session), start=1):
         turn_text = "\n".join(message.content for message in messages)
-        score = len(prompt_tokens & _selection_tokens(turn_text))
+        score = len(
+            prompt_tokens & _selection_tokens(turn_text, exact=use_exact_tokens)
+        )
         if score > 0:
             scored_turns.append((score, turn_index, f"turn_{turn_index}", messages))
         else:
@@ -2420,7 +2526,7 @@ def _selected_older_turn_parts(
                 {
                     "turn_id": f"turn_{turn_index}",
                     "selection_status": "rejected",
-                    "selection_reason": "no_deterministic_overlap",
+                    "selection_reason": f"no_{strategy}_overlap",
                     "relevance_score": 0,
                 }
             )
@@ -2449,7 +2555,7 @@ def _selected_older_turn_parts(
             {
                 "turn_id": turn_id,
                 "selection_status": "selected",
-                "selection_reason": "deterministic_overlap",
+                "selection_reason": strategy,
                 "relevance_score": score,
             }
         )
@@ -2480,10 +2586,9 @@ def _session_turns(
     return tuple(tuple(turn) for turn in turns)
 
 
-def _selection_tokens(value: str) -> set[str]:
-    return {
-        token for token in re.findall(r"[A-Za-z]+", value.lower()) if len(token) >= 4
-    }
+def _selection_tokens(value: str, *, exact: bool = False) -> set[str]:
+    pattern = r"[A-Za-z0-9][A-Za-z0-9_.:/-]*" if exact else r"[A-Za-z]+"
+    return {token for token in re.findall(pattern, value.lower()) if len(token) >= 4}
 
 
 def _context_lane_metadata(
@@ -2573,10 +2678,13 @@ def _selection_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:
     compression = policy.get("context_compression")
     if not isinstance(compression, Mapping):
         return {}
+    profile = str(compression.get("profile") or "")
     selection = compression.get("selection")
     if not isinstance(selection, Mapping):
         return {}
     result: dict[str, Any] = {}
+    if profile in {"exact", "semantic"}:
+        result["profile"] = profile
     for key in ("strategy", "max_selected_turns", "chronological_reassembly"):
         if key in selection:
             result[key] = selection[key]
@@ -2893,6 +3001,8 @@ def _compacted_session_message(
     pruned_session: Sequence[OpenAIMessage],
     policy: Mapping[str, Any],
     state: WorkflowExecutionState,
+    *,
+    context_summarizer: ContextSummarizer | None,
 ) -> OpenAIMessage | None:
     compaction = policy.get("context_compaction")
     if not isinstance(compaction, Mapping):
@@ -2902,6 +3012,12 @@ def _compacted_session_message(
     strategy = str(compaction.get("strategy") or "summary_message")
     if strategy == "rolling_summary":
         return _rolling_summary_message(pruned_session, compaction, state)
+    if strategy == "model_summary":
+        return _model_summary_message(
+            pruned_session,
+            compaction,
+            context_summarizer=context_summarizer,
+        )
     if strategy not in {"summary_message", "basic"}:
         return None
     role = str(compaction.get("summary_role") or "developer")
@@ -2913,6 +3029,36 @@ def _compacted_session_message(
     for message in pruned_session:
         lines.append(f"- {message.role}: {_truncate_text(message.content, max_chars)}")
     return OpenAIMessage(role=role, content="\n".join(lines))
+
+
+def _model_summary_message(
+    pruned_session: Sequence[OpenAIMessage],
+    compaction: Mapping[str, Any],
+    *,
+    context_summarizer: ContextSummarizer | None,
+) -> OpenAIMessage | None:
+    config = compaction.get("model_summary")
+    if not isinstance(config, Mapping) or config.get("enabled") is not True:
+        return None
+    if context_summarizer is None:
+        raise WorkflowExecutionError(
+            "context_compaction strategy 'model_summary' requires context_summarizer"
+        )
+    role = str(compaction.get("summary_role") or "developer")
+    max_chars = _optional_positive_int(config.get("max_summary_chars")) or 4000
+    metadata = {
+        "strategy": "model_summary",
+        "source_message_count": len(pruned_session),
+        "max_summary_chars": max_chars,
+    }
+    raw_summary = context_summarizer(tuple(pruned_session), metadata)
+    if isinstance(raw_summary, OpenAIMessage):
+        content = raw_summary.content
+        role = raw_summary.role
+    else:
+        content = str(raw_summary)
+    content = content[:max_chars]
+    return OpenAIMessage(role=role, content=content)
 
 
 def _context_reset_metadata(
@@ -3030,8 +3176,20 @@ def _compaction_metadata(
         "tokens_before": before_tokens,
         "tokens_after": after_tokens,
         "compression_ratio": after_tokens / before_tokens if before_tokens else 1,
+        **_model_summary_metadata(summary_message, compaction),
         **_rolling_summary_metadata(pruned_session, compaction),
     }
+
+
+def _model_summary_metadata(
+    summary_message: OpenAIMessage,
+    compaction: Any,
+) -> Mapping[str, Any]:
+    if not isinstance(compaction, Mapping):
+        return {}
+    if str(compaction.get("strategy") or "") != "model_summary":
+        return {}
+    return {"summary_chars": len(summary_message.content)}
 
 
 def _rolling_summary_metadata(

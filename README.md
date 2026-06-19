@@ -61,8 +61,9 @@ Known configuration:
 - workflow tracing uses package-owned trace events and optional trace sinks
 - async execution, lifecycle hooks, prompt-cache observation, capability
   inspection, input guardrail execution, explicit MCP registry bindings, local
-  OpenAI-compatible endpoint helpers, and context-pipeline graph-mutation helpers
-  are implemented behind package-owned interfaces
+  OpenAI-compatible endpoint helpers, context-pipeline graph-mutation helpers,
+  and in-memory persistent agent sessions are implemented behind package-owned
+  interfaces
 - local model asset, endpoint, and direct in-process llama.cpp support is
   represented through package-owned local-model helpers; `llama-cpp-python` is a
   `llamacpp` extra and `huggingface-hub` is available through the `huggingface`
@@ -137,6 +138,63 @@ result = run_agent_workflow(
 Use `run_agent_workflow_async(...)` in async applications, or construct a
 `WorkflowExecutionContext` when several runs share the same loaded workflow and
 runtime collaborators.
+
+Use `AgentSession` with `InMemorySessionStore` when several prompts should reuse
+the same workflow context and retained user/assistant transcript:
+
+```python
+from dynamic_agent_runner import (
+    AgentSession,
+    InMemorySessionStore,
+    WorkflowExecutionContext,
+    load_agent_package_workflow,
+)
+
+context = WorkflowExecutionContext(
+    workflow=load_agent_package_workflow("path/to/agent-package"),
+    tool_registry=my_tool_registry,
+    model_adapter=my_model_adapter,
+)
+store = InMemorySessionStore()
+session = AgentSession.create(
+    execution_context=context,
+    session_store=store,
+    session_id="thread-123",
+)
+
+first = await session.accept("Inspect the repository.")
+second = await session.accept("Now summarize the risky parts.")
+snapshot = session.current_state().to_mapping()
+
+restored = AgentSession.from_snapshot(
+    snapshot,
+    execution_context=context,
+    session_store=InMemorySessionStore(),
+)
+```
+
+Each `accept(...)` call is still a bounded workflow run with normal guardrails,
+approval checks, step limits, tracing, and retry behavior. The v1 store is
+process-local only; snapshots contain user prompts and model outputs, so callers
+own any external persistence and redaction before restart. Raw tool arguments
+and raw tool outputs are not retained in chat history by default.
+
+Callers that need progress events while a prompt runs can use
+`accept_stream(...)`:
+
+```python
+async for event in session.accept_stream("Continue the analysis."):
+    if event.event_type == "model_input_prepared":
+        handle_context_status(event.payload)
+    elif event.event_type == "run_completed":
+        final_result = event.final_result
+```
+
+`accept_stream(...)` yields redacted `AgentSessionStreamEvent` values with
+sequence, event type, session ID, run ID, node ID, payload, and terminal final
+result fields. The terminal `run_completed` event is the authoritative final
+result for successful runs. Provider-native token deltas, lower-level executor
+stream APIs, and specialized model-tool loop progress events remain future work.
 
 Model adapter coverage defaults to augmented behavior. With
 `model_adapter_coverage="augmented"` or an omitted coverage policy, supplied
@@ -251,6 +309,7 @@ mlx_adapter = create_mlx_local_adapter(
         model_aliases=("mlx-local-chat",),
         model_path="path/to/mlx-model-directory",
         expected_model_id="mlx-community/example-model",
+        generation_kwargs={"max_tokens": 512, "temperature": 0.2},
     )
 )
 
@@ -265,10 +324,13 @@ result = run_agent_workflow(
 The MLX helper is macOS-only, but importing the package and constructing an
 adapter remain safe on other platforms. Generation on non-macOS fails before
 model resolution or dependency loading. The default in-process backend lazily
-imports `mlx-lm`, expects a caller-controlled converted MLX model directory or
-explicit Hugging Face reference, and does not start a server or wrap MLX as
-hosted OpenAI. Install with the `huggingface` extra before using
-Hugging Face-backed model discovery or asset downloads.
+imports `mlx-lm`, expects a caller-controlled converted MLX model directory,
+explicit `.gguf` file (`model_format="gguf"`), or explicit Hugging Face
+reference, and does not start a server or wrap MLX as hosted OpenAI. Install
+with the `huggingface` extra before using Hugging Face-backed model discovery
+or asset downloads. The in-process adapter remains plain text generation only:
+tool calling, structured output, embeddings, multimodal IO, streaming public
+APIs, conversion, and server lifecycle helpers are separate feature surfaces.
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls.
@@ -296,18 +358,23 @@ lane with bounded byte limits and redacted provenance metadata. `source_path`
 remains provenance-only, and support files are validated as package artifacts but
 are not prompt-loaded.
 
-The current runtime also preserves and validates a metadata-only async-session
-policy seam under `runtime.execution_policy.async_session`. This seam supports
-portable future multi-turn or resumable workflow metadata such as `mode`,
-`persist`, `history`, `session_id_state_key`, and
-`session_messages_state_key`, but it does not yet provide runner-owned session
-storage, automatic replay, or automatic cross-run message reuse.
+The runtime preserves and validates async-session policy under
+`runtime.execution_policy.async_session`. `AgentSession` uses this metadata for
+in-memory v1 behavior when present: `history` controls replay (`none`,
+`last_turn`, `full`, or v1 `summary` without model-generated summaries), and
+`session_id_state_key` injects the session id into run state. Durable external
+checkpoint stores remain out of scope.
 
 `runtime.execution_policy.prepare_model_input` is implemented for prompt
 hierarchy messages, package-bounded file context, retrieved context supplied in
 execution state, session pruning and compaction metadata, lane budgets, selected
 older turns, and preparation diagnostics. Unsupported compaction, compression,
 lane, selection, and file-context values fail validation before execution.
+Provider-backed remote compaction, model-backed summary adapters, and richer
+semantic/profile behavior are prepared as future feature specs under
+`specs/provider-backed-context-compaction/`,
+`specs/model-backed-context-summaries/`, and
+`specs/semantic-context-profiles/`; they are not live runtime behavior yet.
 
 `extensions.guardrails.declarations` is live for `phase: input` when callers
 provide an `InMemoryGuardrailRegistry` through the lower-level executor or a
@@ -411,8 +478,8 @@ executing model, tool, guardrail, or retriever calls. The report marks current
 surfaces as `live`, `metadata_only`, `missing_collaborator`, `disabled`,
 `unsupported`, or `invalid`, and summarizes counts by state. Pass the same
 collaborators you plan to execute with, such as a tool registry, guardrail
-registry, model adapter, and strict model-adapter coverage, to see readiness
-instead of just manifest shape.
+registry, model adapter, strict model-adapter coverage, and
+`InMemorySessionStore`, to see readiness instead of just manifest shape.
 
 ## CLI Usage
 
@@ -486,3 +553,11 @@ Current tests cover:
 - loading hello-world fixture packages for all 11 supported agent-pattern IDs
 - running the CLI with package-directory input, prompt input, fake model
   clients, and clear error reporting
+
+## Graphify Navigation
+
+This repository is initialized for Graphify. Generated graph state lives under
+ignored `graphify-out/`; refresh it with `graphify update .` after structural
+code changes. Use `graphify query`, `graphify path`, and `graphify explain` for
+codebase navigation. The current graph is AST/code-only unless semantic
+extraction is run with an LLM API key.

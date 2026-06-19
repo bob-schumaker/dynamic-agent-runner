@@ -13,8 +13,8 @@
   identifies `../power-marimo` as the first-customer fit for the next runtime
   capabilities.
 - Readiness verdict: runtime-package simplification follow-up is complete; not
-  ready for unrestricted MCP, durable session, approval-resume, or PyQt-widget
-  automation work without a new scoped follow-up.
+  ready for unrestricted MCP, durable session, approval-resume, or downstream
+  host-automation work without a new scoped follow-up.
 - Next active slice: none — OA11 is complete and the original OA follow-up
   sequence is finished.
 - Current focus: all planned implementation slices through OA11 are complete;
@@ -53,8 +53,8 @@
   for shared Hugging Face Hub import/call/error mechanics across search and
   local-model download routing.
 - `specs/async-session-memory-pipeline/` — implemented metadata-only OA8
-  baseline plus future expansion analysis; no runner-owned session behavior is
-  implemented.
+  baseline plus future expansion analysis; live in-memory sessions are owned by
+  `specs/persistent-agent-sessions/`.
 - `specs/llm-step-interpreter-middleware/` — future investigation spec; no
   interpreter backend is selected and no implementation is authorized yet.
 - `specs/capability-status-report/` — implemented feature; public preflight
@@ -101,9 +101,9 @@
   opt-in serial model-tool loops inside eligible `llm_step` nodes; state-field
   final selectors, durable resume, output/tool guardrails, parallel tool calls,
   and durable transcripts remain deferred.
-- `specs/power-marimo-host-automation/` — future downstream integration spec for
-  live Marimo-session tools, power-domain adapters, PyQt-widget automation, and
-  host safety policy; current runtime only has placeholder-safe fixture coverage.
+- `specs/power-marimo-host-automation/` — downstream boundary record showing
+  that live Marimo-session tools, power-domain adapters, host lifecycle, and
+  host safety policy remain outside DAR-owned implementation scope.
 
 ## Active follow-up implementation order
 
@@ -145,9 +145,14 @@ needs a scoped plan and task slice before code changes begin.
     complete through injected evaluators. Implement `llmfit-model-fit-filter`
     and any concrete llama.cpp command/metadata probing only when local-model
     ergonomics becomes the immediate product driver.
-11. **Power-Marimo host automation:** build live host automation only after
-    approval/sandbox and host-managed continuity boundaries are clear; keep app
-    lifecycle ownership in Power-Marimo or caller tools.
+11. **Complete for v1 host/tool/collaboration surfaces:** host workflow
+    integration, web tools, workspace data tools, subagent tools, model-backed
+    summaries, exact/hybrid semantic selection, and in-memory collaborative
+    sessions have v1 baselines. Remaining work is narrower follow-up: inline
+    preflight, richer capability/status reporting, trace correlation,
+    streaming/wait/resume, provider-backed compaction, and richer semantic
+    selectors. Keep `power-marimo-host-automation` as a downstream-boundary
+    record rather than a DAR implementation target.
 12. **Async session memory pipeline:** keep v1 host-managed. Add runner-owned
     durable session storage only after a concrete workflow proves host-managed
     continuity is insufficient.
@@ -163,7 +168,7 @@ status visibility
 → MCP/guardrails
 → loops/skills/RAG declarations
 → context-management packing
-→ host integrations
+→ host workflow integration and standard tool packs
 → durable memory
 → interpreter
 ```
@@ -203,13 +208,13 @@ status visibility
 - OA8 scope clarification: the implemented metadata-only seam preserves
   `runtime.execution_policy.async_session` for future async multi-turn runtimes,
   including the current `mode`, `persist`, `history`, `session_id_state_key`,
-  and `session_messages_state_key` fields, but it still does not add live
-  session storage, automatic cross-run history replay, or broader
-  memory/runtime behavior in the current executor. The repository-local feature
-  spec at `specs/async-session-memory-pipeline/spec.md` records the current
-  implemented baseline plus future expansion analysis, with packaged supporting
-  references, a Power-Marimo readiness memo, and a host-managed multi-call
-  continuity sketch.
+  and `session_messages_state_key` fields. Live in-memory cross-prompt
+  continuity is now implemented by `specs/persistent-agent-sessions/`; OA8 still
+  does not add durable session storage or broader memory/runtime behavior in the
+  current executor. The repository-local feature spec at
+  `specs/async-session-memory-pipeline/spec.md` records the current implemented
+  baseline plus future expansion analysis, with packaged supporting references,
+  a Power-Marimo readiness memo, and a host-managed multi-call continuity sketch.
 
 ## Slice 0 — Planning and documentation readiness checkpoint
 

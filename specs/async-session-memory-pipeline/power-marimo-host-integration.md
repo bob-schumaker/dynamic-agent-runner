@@ -143,8 +143,8 @@ Avoid in v1:
 
 - `WorkflowExecutionContext` is intentionally reusable across runs.
 - prompts are already per-run inputs.
-- no runner-owned session abstraction needs to be invented to get a useful
-  multi-turn workflow.
+- the implemented `AgentSession` abstraction is available, but Power-Marimo can
+  still use host-managed continuity when it needs host-owned notebook state.
 
 ## Relationship to OA8
 

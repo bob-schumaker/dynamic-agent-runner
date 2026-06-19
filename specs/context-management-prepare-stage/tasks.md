@@ -1,6 +1,6 @@
 # Context Management Prepare Stage Task List
 
-Status: implemented through Slice 9; no open task-list items remain
+Status: implemented through Slice 10 pruning-context injection behavior
 
 ## Prerequisites
 
@@ -294,3 +294,89 @@ Completed implementation slices were validated with:
 Unit tests must not make live OpenAI, `/responses/compact`, Hugging Face,
 Marimo, MCP, embedding/vector retrieval, local summarizer, or local model
 calls.
+
+## Slice 10 — Pruning-context injection behavior
+
+- [x] T10.1 [tests] Add RED executor coverage for pruning supplied session
+      messages before an eligible `llm_step` model call.
+  - Spec: Completed Follow-up: Pruning-Context Injection
+  - Plan: Slice 10 — Pruning-context injection behavior
+  - Files/components: `tests/test_executor.py`,
+    `src/dynamic_agent_runner/executor.py`
+  - Cover supplied `WorkflowExecutionState.session_messages`, turn-aware
+    pruning, context budget enforcement, and prepared input visible to the
+    target prompt before adapter invocation.
+  - Depends on: internal graph mutation T4.1/T4.2, or an existing attachment
+    fixture that can drive the prepare-stage behavior directly
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k pruning_context_injection`
+  - Evidence: RED failed as expected because `{prepared_context}` received raw
+    session history before prepare-stage pruning.
+
+- [x] T10.2 [tests] Add RED executor coverage for no-policy preservation and
+      redacted diagnostics.
+  - Spec: Completed Follow-up: Pruning-Context Injection
+  - Plan: Slice 10 — Pruning-context injection behavior
+  - Files/components: `tests/test_executor.py`
+  - Cover unchanged prompt rendering when no pruning-context policy is enabled,
+    included/pruned/compacted/omitted counts, stable ids where available, and no
+    full transcript text in trace metadata.
+  - Depends on: T10.1
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k pruning_context_injection`
+  - Evidence: RED failed as expected because mutation context diagnostics were
+    missing from `model_input_prepared` trace payloads.
+
+- [x] T10.3 [implementation] Implement the smallest prepare-stage behavior that
+      satisfies the RED pruning-context injection tests.
+  - Spec: Completed Follow-up: Pruning-Context Injection
+  - Plan: Slice 10 — Pruning-context injection behavior
+  - Files/components: `src/dynamic_agent_runner/executor.py`
+  - Reuse existing turn grouping, lane budgets, deterministic older-turn
+    selection, rolling summary, and injected compactor seams. Do not introduce a
+    durable store, embedding selector, live model summarizer, or graph-mutation
+    attachment mechanism here.
+  - Depends on: T10.1, T10.2
+  - Validation:
+    `poetry run pytest tests/test_executor.py -q -k pruning_context_injection`
+  - Evidence: GREEN passed with `3 passed, 105 deselected`; full executor
+    validation passed with `108 passed`.
+
+- [x] T10.4 [tests] Verify `AgentSession`-supplied messages can feed the
+      prepare-stage behavior without changing session persistence semantics.
+  - Spec: Completed Follow-up: Pruning-Context Injection
+  - Plan: Slice 10 — Pruning-context injection behavior
+  - Files/components: `tests/test_agent_sessions.py`,
+    `tests/test_executor.py`, `src/dynamic_agent_runner/sessions.py`
+  - Cover the existing `AgentSession` message flow into
+    `WorkflowExecutionState.session_messages`; do not add durable store behavior
+    or transcript replay.
+  - Depends on: T10.3
+  - Validation:
+
+    ```bash
+    poetry run pytest tests/test_agent_sessions.py tests/test_executor.py \
+      -q -k pruning_context_injection
+    ```
+
+  - Evidence: focused session validation passed with `1 passed, 21 deselected`,
+    proving `AgentSession` history can feed bounded pruning context while the
+    store still retains the full in-memory session state.
+
+- [x] T10.5 [tests] Run the combined context-management follow-up checkpoint and
+      record evidence.
+  - Spec: Completed Follow-up: Pruning-Context Injection
+  - Plan: Validation Strategy
+  - Files/components: `tests/test_executor.py`, `tests/test_agent_sessions.py`,
+    `tests/test_graph_mutation.py`, `tests/test_validation.py`
+  - Depends on: T10.4 and graph-mutation T4.5
+  - Validation:
+
+    ```bash
+    poetry run pytest tests/test_executor.py tests/test_agent_sessions.py \
+      tests/test_graph_mutation.py tests/test_validation.py -q
+    ```
+
+  - Completion evidence: `poetry run pytest tests/test_executor.py`
+    `tests/test_agent_sessions.py tests/test_graph_mutation.py`
+    `tests/test_validation.py -q` passed with `200 passed`.

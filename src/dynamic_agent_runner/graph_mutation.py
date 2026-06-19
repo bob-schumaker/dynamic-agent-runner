@@ -78,11 +78,17 @@ class ContextPruningMutation:
     ) -> MutationResult:
         """Return a narrow mutation result without altering the base workflow."""
 
-        target = self.spec.target_node_id or "<unknown>"
+        attachment = _context_pruning_attachment(self.spec)
+        target = (
+            attachment.get("target_node_id") or self.spec.target_node_id or "<unknown>"
+        )
+        attachment_type = attachment.get("type") or "llm_step_interaction"
         return MutationResult(
             workflow=workflow,
             bundle=WorkflowMutationBundle(mutations=(self.spec,)),
-            notices=(f"{self.mutation_id} ready for node {target!r}",),
+            notices=(
+                f"{self.mutation_id} ready for {attachment_type} attachment {target!r}",
+            ),
         )
 
     def render_context(
@@ -183,6 +189,17 @@ def _prepared_context_output_slot(spec: GraphMutationSpec) -> str:
     contract = _as_mapping(config.get("context_contract")) or {}
     output_slot = contract.get("output_slot")
     return str(output_slot) if output_slot is not None else "prepared_context"
+
+
+def _context_pruning_attachment(spec: GraphMutationSpec) -> Mapping[str, Any]:
+    config = spec.config if isinstance(spec.config, Mapping) else {}
+    attachment = config.get("attachment")
+    if isinstance(attachment, Mapping):
+        return attachment
+    return {
+        "type": "llm_step_interaction",
+        "target_node_id": spec.target_node_id,
+    }
 
 
 def _prepared_context_value(

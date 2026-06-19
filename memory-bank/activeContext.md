@@ -2,7 +2,57 @@
 
 ## Current Focus
 
-- No implementation slice is currently active.
+- No implementation slice is currently active. The latest completed stream
+  expanded the MLX local-model adapter surface, documented the completion state,
+  and prepared downstream Power-Marimo handoff notes for MLX migration and
+  host-automation adoption of generic DAR host surfaces.
+- The expanded MLX surface is implemented and committed in source/test slices:
+  explicit converted-MLX vs GGUF model formats, GGUF path validation, resolved
+  path loading for the default `mlx_lm` backend, filtered generation kwargs
+  with request-level overrides, and conservative adapter capabilities.
+- Downstream handoff notes were created under `../power-marimo/cline-tasks/`
+  for:
+  - migrating Power Marimo to the expanded MLX API surface
+  - moving Power Marimo host automation toward implemented DAR host surfaces
+    such as `HostToolBinding`, `create_host_tool_registry`,
+    `ResolvedModelSelection`, `summarize_trace_events`, and
+    `summarize_capability_report`
+- The Python 3.14.6 `.mise.toml`/`poetry.lock` refresh was committed and then
+  reverted. The next requested action is to refresh memory-bank state, commit
+  it, and then redo that dependency/environment commit so the build triggers
+  from a new SHA.
+- `specs/async-session-memory-pipeline/` is now a completed boundary handoff:
+  async-session owns session identity/history metadata only; live sessions are
+  owned by `persistent-agent-sessions`; pruning behavior is owned by
+  `context-management-prepare-stage`; graph attachment/injection is owned by
+  `internal-graph-mutation`.
+- `specs/internal-graph-mutation/` is complete through Slice 4 for
+  pruning-context attachment diagnostics around eligible `llm_step`
+  interactions.
+- `specs/context-management-prepare-stage/` is complete through Slice 10 for
+  bounded pruning-context preparation from supplied
+  `WorkflowExecutionState.session_messages` and `AgentSession` history.
+- `specs/model-event-streaming/` is implemented for the v1
+  `AgentSession.accept_stream(...)` surface. It streams redacted session/run
+  lifecycle and prepared-input diagnostics with terminal final-result authority;
+  provider-native token deltas and richer loop-progress streaming remain
+  future work.
+- Context-window follow-up work now has three prepared future feature specs:
+  `provider-backed-context-compaction`, `model-backed-context-summaries`, and
+  `semantic-context-profiles`. They split remote `/responses/compact`-style
+  provider compaction/window baselines, explicit model-backed summarizer
+  adapters, and richer semantic/profile selection behavior.
+- Graphify is initialized for this repository. Generated graph artifacts live
+  under ignored `graphify-out/`; current graph output is AST/code-only because
+  semantic extraction for specs/docs requires an LLM API key. `AGENTS.md` now
+  records graphify query/path/explain guidance and points to the repo-local
+  addon skill `.agents/skills/graphify-noise-reduction/SKILL.md`.
+- Power-Marimo has been reclassified as a downstream dynamic-workflow client,
+  not a DAR-owned automation feature. DAR must stay a generic workflow runner
+  with host-provided tools, model adapters, execution context collaborators,
+  traces, and runtime policy; Marimo, Qt/QExt, hosted UI lifecycle,
+  Power-Marimo safety policy, SDK/session behavior, and live validation belong
+  in `../power-marimo`.
 - A new draft spec package, `specs/litellm-provider-adapter/`, now proposes
   making LiteLLM the package's core OpenAI-compatible transport while
   preserving repository-owned OpenAI/Codex auth discovery and mapping default
@@ -75,11 +125,17 @@
   `skill_refs` are derived, with bounded UTF-8 loading, redacted provenance,
   fail-closed validation, and capability/status reporting for metadata-only,
   live, and rejected states.
-- The next ROI action is no longer skill-source, RAG orchestration v1, or
-  context-management prepare-stage v1. LiteLLM provider implementation now has
-  a draft spec, but code work should wait for an approved implementation plan.
-  Local-model advisory implementation should happen only when local-model
-  ergonomics is the immediate driver.
+- `persistent-agent-sessions` v1 is implemented:
+  public `AgentSession`, `AgentSessionState`, `AgentSessionResult`, and
+  `InMemorySessionStore` provide bounded cross-prompt continuity, current-state
+  retrieval, copy-safe snapshots, snapshot restart, history policies,
+  session-id state injection, same-session concurrency rejection, sync wrapper
+  parity, docs, and live capability/status reporting.
+- `model-event-streaming` v1 is implemented on top of persistent sessions.
+- The next ROI action is no longer pinned. Likely candidates are LiteLLM
+  provider implementation, local-model advisory work, provider-native streaming
+  expansion, one of the prepared context-window follow-up specs, or deferred
+  host/runtime integrations. Each requires a scoped plan before code changes.
 
 ## Recent Completed Work
 
@@ -160,6 +216,32 @@
 - Core LiteLLM adapter planning is captured in
   `specs/litellm-provider-adapter/spec.md`; it is draft-only and not yet
   implementation authorization.
+- Persistent agent sessions v1 is implemented and documented; completion
+  evidence is captured in `specs/persistent-agent-sessions/validation.md`, and
+  cross-spec ownership wording was reconciled across the spec surface.
+- Pruning-context graph injection is implemented:
+  - `4a67119` captured RED graph-mutation diagnostics coverage.
+  - `184e6eb` captured RED context-management injection coverage.
+  - `e4e94d5` bounded injected pruning context before prompt rendering.
+  - `7d00fe2` reported pruning-context attachment points.
+  - `a71d8e6` verified `AgentSession` history can feed bounded pruning context.
+- Model event streaming v1 is implemented:
+  - `db2df00` captured the session stream contract with tests.
+  - `77dee3c` added `AgentSession.accept_stream(...)` and exported
+    `AgentSessionStreamEvent`.
+- `9ccfc3c` reconciled the completed async-session, graph-mutation,
+  context-management, model-event-streaming, and persistent-session spec
+  surfaces.
+- `957f673` prepared three context-window follow-up specs for provider-backed
+  compaction, model-backed summaries, and semantic context profiles.
+- `bc7dff7` ignored `graphify-out/` so generated graph artifacts stay local.
+- `fc7ad78` added repo-local graphify usage guidance in `AGENTS.md` and
+  `.agents/skills/graphify-noise-reduction/SKILL.md`.
+- `3fbfd63` implemented the expanded MLX local adapter surface.
+- `6361e05` added focused tests for the expanded MLX surface.
+- `4b1b0c1` temporarily refreshed the Python 3.14.6 mise/lock state and
+  `582cf85` reverted it; redo is intentionally pending after this memory-bank
+  refresh.
 - Sphinx configuration refresh is committed separately from the LiteLLM spec.
 
 ## Current Spec Authority Map
@@ -177,12 +259,18 @@
   - `specs/rag-orchestration-contract/spec.md`
   - `specs/context-management-prepare-stage/spec.md`
   - `specs/pyinstaller-packaging-support/spec.md`
+  - `specs/persistent-agent-sessions/spec.md`
+  - `specs/model-event-streaming/spec.md`
 - Draft feature packages:
   - `specs/litellm-provider-adapter/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
-- Later feature packages:
+  - `specs/provider-backed-context-compaction/spec.md`
+  - `specs/model-backed-context-summaries/spec.md`
+  - `specs/semantic-context-profiles/spec.md`
+- Downstream boundary/reference packages:
   - `specs/power-marimo-host-automation/spec.md`
+- Later feature packages:
   - `specs/async-session-memory-pipeline/spec.md`
   - `specs/llm-step-interpreter-middleware/spec.md`
   - optional local-model advisory specs:
@@ -190,11 +278,18 @@
 
 ## Next Steps
 
-- If implementing LiteLLM support, first approve or refine
+- Commit this memory-bank targeted refresh.
+- Reapply the `.mise.toml` and `poetry.lock` Python 3.14.6 refresh as a new
+  commit to trigger the build.
+- If implementing LiteLLM support later, first approve or refine
   `specs/litellm-provider-adapter/spec.md`, then create plan/tasks artifacts
   that decide request mapping, Codex auth adaptation, model-id aliasing,
   Responses API support, PyInstaller handling, and official OpenAI SDK
   compatibility/fallback behavior before editing runtime code.
+- If extending model event streaming beyond v1, create plan/tasks for
+  provider-native token deltas, adapter streaming protocol, model-tool-loop
+  progress events, cancellation/backpressure behavior, redaction/tool payload
+  policy, and capability/status reporting.
 - If continuing local-model advisory work, decide whether the pending
   `pyproject.toml` / `poetry.lock` optional llama.cpp metadata edits should be
   committed, revised, or discarded before executing another slice.
@@ -202,9 +297,12 @@
   external roots, `source_path` reads, support-file prompt loading, network
   fetching, Markdown frontmatter parsing, or raw-body debugging modes.
 - If extending context growth management beyond the implemented prepare-stage
-  slices, create a new approved plan before adding provider-backed remote
-  compaction, semantic selectors, model-backed summaries, richer profile
-  behavior, or prompt-cache-aware ordering.
+  slices, start from one of the prepared follow-up specs:
+  `provider-backed-context-compaction`, `model-backed-context-summaries`, or
+  `semantic-context-profiles`.
+- For codebase questions, prefer `graphify query`, `graphify path`, or
+  `graphify explain` when `graphify-out/graph.json` exists. The current graph
+  is code-only unless semantic extraction is rerun with an LLM API key.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.

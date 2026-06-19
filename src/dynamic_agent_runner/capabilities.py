@@ -27,6 +27,7 @@ _OWNER_ASYNC_SESSION = "async-session-memory-pipeline"
 _OWNER_CONTEXT_MANAGEMENT = "context-management-prepare-stage"
 _OWNER_GUARDRAILS = "live-guardrail-execution"
 _OWNER_MCP = "mcp-runtime-integration"
+_OWNER_PERSISTENT_SESSIONS = "persistent-agent-sessions"
 _OWNER_RAG = "rag-orchestration-contract"
 _OWNER_SANDBOX = "sandbox-workspace-runtime"
 _OWNER_SKILL_SOURCE = "skill-source-resolution"
@@ -125,6 +126,7 @@ def inspect_agent_package_capabilities(
     model_adapter: Any | None = None,
     model_adapter_coverage: str | None = None,
     built_in_tool_packs: Iterable[str] | None = None,
+    session_store: object | None = None,
     strict: bool = False,
 ) -> CapabilityStatusReport:
     """Inspect a workflow package's capabilities without executing it."""
@@ -154,6 +156,7 @@ def inspect_agent_package_capabilities(
             model_adapter=model_adapter,
             model_adapter_coverage=model_adapter_coverage,
             built_in_tool_packs=built_in_tool_packs,
+            session_store=session_store,
         ),
     )
 
@@ -205,6 +208,7 @@ def _capability_items(
     model_adapter: object | None,
     model_adapter_coverage: str | None,
     built_in_tool_packs: Iterable[str] | None,
+    session_store: object | None,
 ) -> tuple[CapabilityStatusItem, ...]:
     manifest = workflow.runtime_manifest
     items: list[CapabilityStatusItem] = [
@@ -229,15 +233,12 @@ def _capability_items(
         approval_item = _approval_interruption_item(plan, tool_registry=tool_registry)
         if approval_item is not None:
             items.append(approval_item)
-    if manifest.async_session_policy is not None:
-        items.append(
-            _metadata_only_item(
-                "metadata.async_session",
-                "Async session metadata",
-                _OWNER_ASYNC_SESSION,
-                "Async session declarations are preserved but no session store runs.",
-            )
+    items.extend(
+        _async_session_items(
+            manifest.async_session_policy,
+            session_store=session_store,
         )
+    )
     if manifest.sandbox_runtime_policy is not None:
         items.append(
             _metadata_only_item(
@@ -303,6 +304,9 @@ def _capability_items(
     items.extend(_tool_coverage_items(plan, tool_registry=tool_registry))
     items.extend(_mcp_registry_items(plan, tool_registry=tool_registry))
     items.append(_local_workspace_pack_item(built_in_tool_packs))
+    items.append(_web_pack_item(built_in_tool_packs))
+    items.append(_workspace_data_pack_item(built_in_tool_packs))
+    items.append(_subagent_pack_item(built_in_tool_packs))
     return tuple(items)
 
 
@@ -371,6 +375,52 @@ def _metadata_only_item(
         summary=summary,
         owner=owner,
     )
+
+
+def _async_session_items(
+    policy: object | None,
+    *,
+    session_store: object | None,
+) -> tuple[CapabilityStatusItem, ...]:
+    if policy is None:
+        return ()
+    items = [
+        _metadata_only_item(
+            "metadata.async_session",
+            "Async session metadata",
+            _OWNER_ASYNC_SESSION,
+            "Async session declarations are preserved but no session store runs.",
+        )
+    ]
+    if _has_live_in_memory_session_store(policy, session_store):
+        items.append(
+            CapabilityStatusItem(
+                id="runtime.async_session.in_memory",
+                label="In-memory agent sessions",
+                state=CapabilityState.LIVE,
+                category="runtime",
+                summary=(
+                    "In-memory persistent agent sessions are available through "
+                    "AgentSession and InMemorySessionStore."
+                ),
+                owner=_OWNER_PERSISTENT_SESSIONS,
+                required_collaborator="InMemorySessionStore",
+            )
+        )
+    return tuple(items)
+
+
+def _has_live_in_memory_session_store(
+    policy: object,
+    session_store: object | None,
+) -> bool:
+    if getattr(policy, "persist", None) != "in_memory":
+        return False
+    if session_store is None:
+        return False
+    from dynamic_agent_runner.sessions import InMemorySessionStore
+
+    return isinstance(session_store, InMemorySessionStore)
 
 
 def _skill_source_resolution_item(
@@ -875,6 +925,63 @@ def _local_workspace_pack_item(
             "The read-only local_workspace tool pack is enabled."
             if enabled
             else "The read-only local_workspace tool pack is disabled by default."
+        ),
+        owner=_OWNER_DYNAMIC_AGENT_RUNNER,
+    )
+
+
+def _web_pack_item(
+    built_in_tool_packs: Iterable[str] | None,
+) -> CapabilityStatusItem:
+    enabled_packs = {str(pack) for pack in built_in_tool_packs or ()}
+    enabled = "web" in enabled_packs
+    return CapabilityStatusItem(
+        id="built_in.web",
+        label="web tool pack",
+        state=CapabilityState.LIVE if enabled else CapabilityState.DISABLED,
+        category="built_in_tool_pack",
+        summary=(
+            "The read-only web search/fetch tool pack is enabled."
+            if enabled
+            else "The read-only web search/fetch tool pack is disabled by default."
+        ),
+        owner=_OWNER_DYNAMIC_AGENT_RUNNER,
+    )
+
+
+def _workspace_data_pack_item(
+    built_in_tool_packs: Iterable[str] | None,
+) -> CapabilityStatusItem:
+    enabled_packs = {str(pack) for pack in built_in_tool_packs or ()}
+    enabled = "workspace_data" in enabled_packs
+    return CapabilityStatusItem(
+        id="built_in.workspace_data",
+        label="workspace_data tool pack",
+        state=CapabilityState.LIVE if enabled else CapabilityState.DISABLED,
+        category="built_in_tool_pack",
+        summary=(
+            "The workspace_data tool pack is enabled."
+            if enabled
+            else "The workspace_data tool pack is disabled by default."
+        ),
+        owner=_OWNER_DYNAMIC_AGENT_RUNNER,
+    )
+
+
+def _subagent_pack_item(
+    built_in_tool_packs: Iterable[str] | None,
+) -> CapabilityStatusItem:
+    enabled_packs = {str(pack) for pack in built_in_tool_packs or ()}
+    enabled = "subagent" in enabled_packs
+    return CapabilityStatusItem(
+        id="built_in.subagent",
+        label="subagent tool pack",
+        state=CapabilityState.LIVE if enabled else CapabilityState.DISABLED,
+        category="built_in_tool_pack",
+        summary=(
+            "The subagent delegation tool pack is enabled."
+            if enabled
+            else "The subagent delegation tool pack is disabled by default."
         ),
         owner=_OWNER_DYNAMIC_AGENT_RUNNER,
     )

@@ -46,6 +46,6 @@
   behavior from metadata-only declarations?
 - Which `NEEDS CLARIFICATION` items must be resolved before implementing live
   approval/resume, sandbox/workspace, MCP, guardrail, skill-source, loop, or
-  Power-Marimo automation behavior?
+  generic host-integration behavior?
 - What customer-facing commitments should be made for host-managed continuity
   before runner-owned session memory exists?

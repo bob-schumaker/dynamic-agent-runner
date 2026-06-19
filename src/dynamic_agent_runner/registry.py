@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from threading import RLock
 from typing import Any, Protocol, get_args, get_origin, get_type_hints
+from urllib.parse import urlparse
 
 from dynamic_agent_runner.errors import ToolRegistryError
 from dynamic_agent_runner.models import (
@@ -138,6 +140,25 @@ class ToolRegistryOverrides:
     replacement_tools: tuple[RegisteredTool, ...] = ()
     disabled_tools: tuple[str, ...] = ()
     node_overrides: Mapping[str, ToolExposureOverride] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class WebToolPolicy:
+    """Policy for the opt-in built-in web tool pack."""
+
+    allowed_schemes: tuple[str, ...] = ("https",)
+    allowed_domains: tuple[str, ...] = ()
+    max_search_results: int = 10
+    max_fetch_chars: int = 4000
+
+
+@dataclass(frozen=True)
+class WorkspaceDataToolPolicy:
+    """Policy for the opt-in built-in workspace_data tool pack."""
+
+    max_item_bytes: int = 128_000
+    default_search_limit: int = 20
+    require_delete_approval: bool = True
 
 
 class InMemoryToolRegistry:
@@ -736,6 +757,137 @@ def create_local_workspace_registry(
     )
 
 
+def create_web_registry(
+    *,
+    search_client: Any | None = None,
+    fetch_client: Any | None = None,
+    policy: WebToolPolicy | None = None,
+) -> InMemoryToolRegistry:
+    """Create the opt-in read-only web search/fetch built-in tool pack."""
+
+    if search_client is None:
+        raise ToolRegistryError("web tool pack requires search_client")
+    if fetch_client is None:
+        raise ToolRegistryError("web tool pack requires fetch_client")
+    web = _WebToolGuard(search_client, fetch_client, policy or WebToolPolicy())
+    return InMemoryToolRegistry(
+        [
+            _builtin_tool(
+                "web_search",
+                "Web search",
+                "Search the web and return bounded source metadata.",
+                {
+                    "query": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+                ("query",),
+                lambda args: web.search(
+                    str(args["query"]),
+                    limit=int(args.get("limit") or web.policy.max_search_results),
+                ),
+                tool_type="web_search",
+                source_id="web",
+            ),
+            _builtin_tool(
+                "web_fetch",
+                "Web fetch",
+                "Fetch a URL and return bounded normalized content.",
+                {"url": {"type": "string"}},
+                ("url",),
+                lambda args: web.fetch(str(args["url"])),
+                tool_type="web_fetch",
+                source_id="web",
+            ),
+        ]
+    )
+
+
+def create_workspace_data_registry(
+    *,
+    store: Any | None = None,
+    policy: WorkspaceDataToolPolicy | None = None,
+) -> InMemoryToolRegistry:
+    """Create the opt-in workspace_data built-in tool pack."""
+
+    if store is None:
+        raise ToolRegistryError("workspace_data tool pack requires store")
+    workspace_data = _WorkspaceDataGuard(store, policy or WorkspaceDataToolPolicy())
+    return InMemoryToolRegistry(
+        [
+            _builtin_tool(
+                "workspace_data_write",
+                "Workspace data write",
+                "Create or update one JSON-compatible workspace data item.",
+                {
+                    "id": {"type": "string"},
+                    "kind": {"type": "string"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "labels": {"type": "array", "items": {"type": "string"}},
+                    "data": {},
+                },
+                (),
+                workspace_data.write,
+                tool_type="structured_data_query",
+                source_id="workspace_data",
+                side_effect="write",
+            ),
+            _builtin_tool(
+                "workspace_data_read",
+                "Workspace data read",
+                "Read one workspace data item by id.",
+                {"id": {"type": "string"}},
+                ("id",),
+                workspace_data.read,
+                tool_type="structured_data_query",
+                source_id="workspace_data",
+            ),
+            _builtin_tool(
+                "workspace_data_search",
+                "Workspace data search",
+                "Search workspace data items with metadata-first results.",
+                {
+                    "query": {"type": "string"},
+                    "include_data": {"type": "boolean"},
+                    "limit": {"type": "integer"},
+                },
+                ("query",),
+                workspace_data.search,
+                tool_type="structured_data_query",
+                source_id="workspace_data",
+            ),
+            _builtin_tool(
+                "workspace_data_list",
+                "Workspace data list",
+                "List workspace data item metadata.",
+                {
+                    "include_data": {"type": "boolean"},
+                    "limit": {"type": "integer"},
+                },
+                (),
+                workspace_data.list_items,
+                tool_type="structured_data_query",
+                source_id="workspace_data",
+            ),
+            _builtin_tool(
+                "workspace_data_delete",
+                "Workspace data delete",
+                "Delete one workspace data item by id.",
+                {"id": {"type": "string"}},
+                ("id",),
+                workspace_data.delete,
+                tool_type="structured_data_query",
+                source_id="workspace_data",
+                side_effect="write",
+                approval_required=(
+                    "yes" if workspace_data.policy.require_delete_approval else "no"
+                ),
+            ),
+        ]
+    )
+
+
 def _builtin_tool(
     tool_id: str,
     label: str,
@@ -743,19 +895,24 @@ def _builtin_tool(
     properties: Mapping[str, Any],
     required: Sequence[str],
     handler: ToolHandler,
+    *,
+    tool_type: str = "file_read",
+    source_id: str = "local_workspace",
+    side_effect: str = "read",
+    approval_required: str = "no",
 ) -> RegisteredTool:
     raw = {
         "id": tool_id,
         "label": label,
         "description_for_llm": description,
-        "tool_type": "file_read",
+        "tool_type": tool_type,
         "input_schema": {
             "type": "object",
             "properties": dict(properties),
             "required": list(required),
         },
-        "side_effect": "read",
-        "approval_required": "no",
+        "side_effect": side_effect,
+        "approval_required": approval_required,
         "timeout": "runtime_default",
         "retry_policy": "none",
         "failure_behavior": "error",
@@ -765,11 +922,175 @@ def _builtin_tool(
         source=ToolSource(
             kind=ToolSourceKind.BUILT_IN,
             origin=ToolOriginKind.BUILT_IN,
-            source_id="local_workspace",
+            source_id=source_id,
             detail=tool_id,
         ),
     )
     return RegisteredTool(definition, handler)
+
+
+class _WebToolGuard:
+    def __init__(
+        self,
+        search_client: Any,
+        fetch_client: Any,
+        policy: WebToolPolicy,
+    ) -> None:
+        self.search_client = search_client
+        self.fetch_client = fetch_client
+        self.policy = policy
+
+    def search(self, query: str, *, limit: int) -> dict[str, Any]:
+        limit = max(1, min(limit, self.policy.max_search_results))
+        rows = self.search_client.search(query, limit=limit)
+        results: list[dict[str, Any]] = []
+        for rank, row in enumerate(rows or (), start=1):
+            if not isinstance(row, Mapping):
+                continue
+            url = str(row.get("url") or "")
+            self._validate_url(url)
+            results.append(
+                {
+                    "rank": rank,
+                    "title": str(row.get("title") or ""),
+                    "url": url,
+                    "snippet": str(row.get("snippet") or ""),
+                }
+            )
+        return {"query": query, "results": results}
+
+    def fetch(self, url: str) -> dict[str, Any]:
+        self._validate_url(url)
+        raw = self.fetch_client.fetch(url)
+        if not isinstance(raw, Mapping):
+            raise ToolRegistryError("web_fetch client returned a non-mapping result")
+        text = str(raw.get("text") or "")
+        max_chars = max(0, self.policy.max_fetch_chars)
+        truncated = len(text) > max_chars
+        return {
+            "url": str(raw.get("url") or url),
+            "status": int(raw.get("status") or 0),
+            "content_type": str(raw.get("content_type") or ""),
+            "title": str(raw.get("title") or ""),
+            "text": text[:max_chars],
+            "truncated": truncated,
+        }
+
+    def _validate_url(self, url: str) -> None:
+        parsed = urlparse(url)
+        if parsed.scheme not in self.policy.allowed_schemes:
+            raise ToolRegistryError(f"URL scheme {parsed.scheme!r} is not allowed")
+        host = parsed.hostname or ""
+        if self.policy.allowed_domains and host not in self.policy.allowed_domains:
+            raise ToolRegistryError(f"URL host {host!r} is not allowed")
+
+
+class _WorkspaceDataGuard:
+    def __init__(self, store: Any, policy: WorkspaceDataToolPolicy) -> None:
+        self.store = store
+        self.policy = policy
+
+    def write(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        item = dict(args)
+        self._validate_json_item(item)
+        stored = self.store.write(item)
+        if not isinstance(stored, Mapping):
+            raise ToolRegistryError(
+                "workspace_data_write store returned a non-mapping item"
+            )
+        return {"status": "ok", "item": _workspace_data_item(stored)}
+
+    def read(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        item_id = str(args["id"])
+        item = self.store.read(item_id)
+        if item is None:
+            return {
+                "status": "not_found",
+                "id": item_id,
+                "next_steps": ["write the item before reading it"],
+            }
+        if not isinstance(item, Mapping):
+            raise ToolRegistryError(
+                "workspace_data_read store returned a non-mapping item"
+            )
+        return {"status": "ok", "item": _workspace_data_item(item)}
+
+    def search(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        query = str(args["query"])
+        limit = self._limit(args.get("limit"))
+        include_data = bool(args.get("include_data", False))
+        rows = self.store.search(query, limit=limit)
+        return {
+            "status": "ok",
+            "items": [
+                _workspace_data_item(row, include_data=include_data)
+                for row in rows or ()
+                if isinstance(row, Mapping)
+            ],
+        }
+
+    def list_items(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        limit = self._limit(args.get("limit"))
+        include_data = bool(args.get("include_data", False))
+        rows = self.store.list(limit=limit)
+        return {
+            "status": "ok",
+            "items": [
+                _workspace_data_item(row, include_data=include_data)
+                for row in rows or ()
+                if isinstance(row, Mapping)
+            ],
+        }
+
+    def delete(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        item_id = str(args["id"])
+        deleted = bool(self.store.delete(item_id))
+        if not deleted:
+            return {"status": "not_found", "id": item_id}
+        return {"status": "deleted", "id": item_id}
+
+    def _limit(self, value: Any) -> int:
+        if value is None:
+            return self.policy.default_search_limit
+        return max(1, min(int(value), self.policy.default_search_limit))
+
+    def _validate_json_item(self, item: Mapping[str, Any]) -> None:
+        try:
+            encoded = json.dumps(item, sort_keys=True, separators=(",", ":")).encode()
+        except (TypeError, ValueError) as exc:
+            raise ToolRegistryError(
+                "workspace_data_write payload must be JSON-compatible"
+            ) from exc
+        if len(encoded) > self.policy.max_item_bytes:
+            raise ToolRegistryError(
+                "workspace_data_write payload exceeds max_item_bytes "
+                f"({self.policy.max_item_bytes})"
+            )
+
+
+def _workspace_data_item(
+    item: Mapping[str, Any],
+    *,
+    include_data: bool = True,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key in (
+        "id",
+        "kind",
+        "title",
+        "description",
+        "tags",
+        "labels",
+        "created_at",
+        "updated_at",
+        "actor",
+        "content_type",
+    ):
+        if key in item:
+            result[key] = item[key]
+    if include_data and "data" in item:
+        result["data"] = item["data"]
+    return result
 
 
 class _WorkspaceGuard:

@@ -437,3 +437,134 @@ we need to add this to our pyinstaller hook
 
 +# Tiktoken discovers tokenizer encodings from namespace-package plugins.
 +hidden_imports.extend(collect_submodules("tiktoken_ext"))
+
+---
+
+evaluate adding a persistent agent graph that can remain running, for example a ReAct pattern, and be reused so that we manintain the context and just accpet new prompts
+
+---
+
+create a featire spec from the recommendation. make sure that the caller can retrieve current session state and be able to restart a session from the saved state. InMemorySessionStore is enough for this pass
+
+---
+
+evaluate optionally streaming the non-result messages from the llm_step to the caller
+
+---
+
+should this be a new feature spec
+
+---
+
+create a new feature spec for this work and mark it as post-persistent-session
+
+---
+
+prepare  persistent-agent-sessions for the next work stream, use TDD
+
+---
+
+execute persistent-agent-sessions and commit after each slice
+
+---
+
+split docs and specs into separate commits
+
+---
+
+make the spec docs internally consistent
+
+---
+
+make the full spec surface internally consistent
+
+---
+
+prepare async-session-memory-pipeline for the next work target, prioritizing the "pruning context" feature that we can inject into graphs with llm_step interactions
+
+---
+
+do we need a new feature spec to do the actual work
+
+---
+
+add the follow-up sections and TDD implementtion tasks to graph-mutation and context-management-prepare-stage
+
+---
+
+what order should we do the work to complete context pruning, graph injection for llm steps, and model-event-streaming
+
+---
+
+execute this ordering with the recommended commit rhythm
+
+---
+
+run a full consistency pass on the specs
+
+---
+
+commit spec changes and then refresh memory-bank and commit separately
+
+---
+
+where is the automatic compact/condense context window work
+
+---
+
+prepare the specs for context window handling with provider-backed remote compaction like /responses/compact,
+provider compaction window ids/baselines, model-backed summary adapters, and richer semantic/profile behavior
+
+create new feature specs where warranted
+
+---
+
+initialize graphify for this repo
+
+---
+
+commit AGENTS and .agents
+
+---
+
+refresh memory-bank and commit
+
+---
+
+revisit graphify
+
+---
+
+update the docs to the latest repo state
+
+---
+
+are any of the docs large enough or contain enough disparate information that we should do a size or context split?
+
+---
+
+commit docs changes
+
+---
+
+add docs/source/_static/.gitkeep and merge it with the previous docs commit
+
+---
+
+what are the remaining features that are not yet implemented
+
+---
+
+evaluate power-marimo-host-automation against the existing ../power-marimo repo
+
+---
+
+this repo has been updated to 3.14.6
+
+---
+
+DAR does not own marimo in any sense, not does it use any Qt-related functionality. those are pure downstream client concerns
+
+---
+
+update power-marimo-host-automation against the existing ../power-marimo repo and our new focus on running dynamic agent workflows only

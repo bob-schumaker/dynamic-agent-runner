@@ -105,6 +105,13 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - PyInstaller integration should keep freeze hooks inside the package so
   downstream clients discover them from installed distribution metadata instead
   of needing `--additional-hooks-dir`.
+- Graphify is installed as a local CLI and initialized for this checkout.
+  Generated graph state lives under ignored `graphify-out/`; use
+  `graphify query`, `graphify path`, and `graphify explain` for codebase
+  navigation when `graphify-out/graph.json` exists. The current graph is
+  AST/code-only with zero API token cost; semantic extraction over specs/docs
+  requires an LLM API key. Repo-local graphify guidance lives in `AGENTS.md` and
+  `.agents/skills/graphify-noise-reduction/SKILL.md`.
 
 ## Documentation Tooling
 

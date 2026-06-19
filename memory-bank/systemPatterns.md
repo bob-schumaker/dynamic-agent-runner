@@ -309,7 +309,7 @@
   integration, live guardrail execution, `SKILL.md` source resolution,
   iterative agent-loop runtime, context-management prepare stage,
   RAG orchestration contract, local-model advisory fit features, Power-Marimo
-  host automation, async session memory, and interpreter middleware.
+  downstream client boundary, async session memory, and interpreter middleware.
 - Capability/status expansion is split by ownership: each feature spec owns the
   domain facts it contributes, while
   `specs/capability-status-report/spec.md` owns shared report shape, status

@@ -177,6 +177,51 @@ def test_inspect_agent_package_capabilities_reports_metadata_only_features(
     assert report.summary.counts_by_state["metadata_only"] == 8
 
 
+def test_inspect_agent_package_capabilities_reports_live_in_memory_sessions(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import (
+        InMemorySessionStore,
+        inspect_agent_package_capabilities,
+    )
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: live-session-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            async_session:
+              mode: create_or_resume
+              persist: in_memory
+              history: full
+              session_id_state_key: session_id
+              session_messages_state_key: session_messages
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+        edges: []
+        """,
+    )
+
+    report = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        session_store=InMemorySessionStore(),
+    )
+
+    items = {item.id: item for item in report.items}
+    assert items["metadata.async_session"].state == "metadata_only"
+    assert items["runtime.async_session.in_memory"].state == "live"
+
+
 def test_inspect_agent_package_capabilities_reports_live_skill_sources(
     tmp_path: Path,
 ) -> None:
@@ -355,6 +400,9 @@ def test_inspect_agent_package_capabilities_reports_collaborator_coverage(
         missing_items["tool.search_repo"].state == CapabilityState.MISSING_COLLABORATOR
     )
     assert missing_items["built_in.local_workspace"].state == CapabilityState.DISABLED
+    assert missing_items["built_in.web"].state == CapabilityState.DISABLED
+    assert missing_items["built_in.workspace_data"].state == CapabilityState.DISABLED
+    assert missing_items["built_in.subagent"].state == CapabilityState.DISABLED
 
     registry = InMemoryToolRegistry(
         [
@@ -370,12 +418,15 @@ def test_inspect_agent_package_capabilities_reports_collaborator_coverage(
     disabled_report = inspect_agent_package_capabilities(
         package_directory=package_dir,
         tool_registry=registry,
-        built_in_tool_packs=("local_workspace",),
+        built_in_tool_packs=("local_workspace", "web", "workspace_data", "subagent"),
     )
     disabled_items = {item.id: item for item in disabled_report.items}
 
     assert disabled_items["tool.search_repo"].state == CapabilityState.DISABLED
     assert disabled_items["built_in.local_workspace"].state == CapabilityState.LIVE
+    assert disabled_items["built_in.web"].state == CapabilityState.LIVE
+    assert disabled_items["built_in.workspace_data"].state == CapabilityState.LIVE
+    assert disabled_items["built_in.subagent"].state == CapabilityState.LIVE
 
 
 def test_inspect_agent_package_capabilities_reports_rag_readiness(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import platform
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -31,7 +31,7 @@ DependencyLoaderCallable = Callable[[], object]
 class MLXLocalBackend(Protocol):
     """Minimal backend interface for MLX text generation."""
 
-    def generate(self, request: OpenAIModelRequest) -> str:
+    def generate(self, request: OpenAIModelRequest, **kwargs: object) -> str:
         """Generate final text for a normalized model request."""
 
 
@@ -46,6 +46,8 @@ class MLXLocalModelConfig:
     huggingface_file: HuggingFaceModelFileReference | None = None
     huggingface_snapshot: HuggingFaceSnapshotReference | None = None
     expected_model_id: str | None = None
+    model_format: str = "mlx"
+    generation_kwargs: Mapping[str, object] | None = None
 
     def __init__(
         self,
@@ -57,7 +59,12 @@ class MLXLocalModelConfig:
         huggingface_file: HuggingFaceModelFileReference | None = None,
         huggingface_snapshot: HuggingFaceSnapshotReference | None = None,
         expected_model_id: str | None = None,
+        model_format: str = "mlx",
+        generation_kwargs: Mapping[str, object] | None = None,
     ) -> None:
+        normalized_model_format = str(model_format)
+        if normalized_model_format not in {"mlx", "gguf", "auto"}:
+            raise ValueError("MLX model_format must be 'mlx', 'gguf', or 'auto'")
         object.__setattr__(
             self,
             "model_aliases",
@@ -73,6 +80,12 @@ class MLXLocalModelConfig:
         object.__setattr__(self, "huggingface_file", huggingface_file)
         object.__setattr__(self, "huggingface_snapshot", huggingface_snapshot)
         object.__setattr__(self, "expected_model_id", expected_model_id)
+        object.__setattr__(self, "model_format", normalized_model_format)
+        object.__setattr__(
+            self,
+            "generation_kwargs",
+            dict(generation_kwargs) if generation_kwargs is not None else None,
+        )
 
 
 class MLXLocalModelAdapter:
@@ -100,8 +113,8 @@ class MLXLocalModelAdapter:
 
         _ensure_supported_platform(self._platform_system())
         _validate_supported_request(request)
-        model_path = self._resolve_model_directory()
-        backend = self._get_backend()
+        model_path = self._resolve_model_path()
+        backend = self._get_backend(model_path)
         validate_local_model_identity(
             requested_model=request.model,
             expected_model_id=self._config.expected_model_id,
@@ -111,7 +124,8 @@ class MLXLocalModelAdapter:
             huggingface_snapshot=self._config.huggingface_snapshot,
         )
         try:
-            content = backend.generate(request)
+            generation_kwargs = _generation_kwargs(self._config, request)
+            content = _generate_with_backend(backend, request, generation_kwargs)
         except ModelExecutionError:
             raise
         except Exception as exc:  # noqa: BLE001 - backend errors vary.
@@ -132,13 +146,33 @@ class MLXLocalModelAdapter:
 
         return True
 
-    def _get_backend(self) -> MLXLocalBackend:
+    @property
+    def capabilities(self) -> Mapping[str, object]:
+        """Return conservative MLX adapter capability metadata."""
+
+        return {
+            "provider": "mlx",
+            "execution": "in_process",
+            "local": True,
+            "model_format": (
+                "mlx"
+                if self._config.model_format == "auto"
+                else self._config.model_format
+            ),
+            "streaming": False,
+            "tool_calling": False,
+            "structured_output": False,
+            "embeddings": False,
+            "multimodal": False,
+        }
+
+    def _get_backend(self, model_path: Path) -> MLXLocalBackend:
         if self._backend is None:
             try:
                 loaded = (
                     self._dependency_loader()
                     if self._dependency_loader is not None
-                    else _load_default_mlx_lm_backend(self._config)
+                    else _load_default_mlx_lm_backend(self._config, model_path)
                 )
             except ModelExecutionError:
                 raise
@@ -154,24 +188,25 @@ class MLXLocalModelAdapter:
             self._backend = loaded
         return self._backend
 
-    def _resolve_model_directory(self) -> Path:
+    def _resolve_model_path(self) -> Path:
         configured_path = self._config.model_path
         if configured_path.exists():
-            model_directory = (
-                configured_path if configured_path.is_dir() else configured_path.parent
+            return _validate_resolved_mlx_model_path(
+                configured_path,
+                model_format=self._config.model_format,
             )
-            _validate_converted_mlx_model_directory(model_directory)
-            return model_directory
 
         if (
             self._config.huggingface_file is None
             and self._config.huggingface_snapshot is None
         ):
+            if self._config.model_format == "gguf":
+                _validate_gguf_model_file(configured_path)
             raise LocalModelResolutionError(
                 f"MLX local model directory {configured_path!s} does not exist"
             )
 
-        resolved_file = resolve_local_model_path(
+        resolved_path = resolve_local_model_path(
             LocalModelPathConfig(
                 model_filename=self._config.model_filename,
                 model_cache_root=self._config.model_cache_root,
@@ -181,9 +216,10 @@ class MLXLocalModelAdapter:
             download_file=self._download_file,
             download_snapshot=self._download_snapshot,
         )
-        model_directory = resolved_file.parent
-        _validate_converted_mlx_model_directory(model_directory)
-        return model_directory
+        return _validate_resolved_mlx_model_path(
+            resolved_path,
+            model_format=self._config.model_format,
+        )
 
 
 class AsyncMLXLocalModelAdapter:
@@ -224,6 +260,12 @@ class AsyncMLXLocalModelAdapter:
         """Return whether this adapter is local execution."""
 
         return True
+
+    @property
+    def capabilities(self) -> Mapping[str, object]:
+        """Return conservative MLX adapter capability metadata."""
+
+        return self._sync_adapter.capabilities
 
 
 def create_mlx_local_adapter(
@@ -288,6 +330,41 @@ def _validate_supported_request(request: OpenAIModelRequest) -> None:
         )
 
 
+def _validate_resolved_mlx_model_path(
+    model_path: Path,
+    *,
+    model_format: str,
+) -> Path:
+    effective_format = _effective_model_format(model_path, model_format)
+    if effective_format == "gguf":
+        _validate_gguf_model_file(model_path)
+        return model_path
+    model_directory = model_path if model_path.is_dir() else model_path.parent
+    _validate_converted_mlx_model_directory(model_directory)
+    return model_directory
+
+
+def _effective_model_format(model_path: Path, model_format: str) -> str:
+    if model_format != "auto":
+        return model_format
+    return "gguf" if model_path.suffix.lower() == ".gguf" else "mlx"
+
+
+def _validate_gguf_model_file(model_path: Path) -> None:
+    if not model_path.exists():
+        raise LocalModelResolutionError(
+            f"MLX GGUF local model file {model_path!s} does not exist"
+        )
+    if not model_path.is_file():
+        raise LocalModelResolutionError(
+            f"MLX GGUF local model path {model_path!s} is not a file"
+        )
+    if model_path.suffix.lower() != ".gguf":
+        raise LocalModelResolutionError(
+            f"MLX GGUF local model path {model_path!s} must use a .gguf suffix"
+        )
+
+
 def _validate_converted_mlx_model_directory(model_directory: Path) -> None:
     if not model_directory.is_dir():
         raise LocalModelResolutionError(
@@ -324,7 +401,7 @@ class _MLXLMBackend:
         self._model = model
         self._tokenizer = tokenizer
 
-    def generate(self, request: OpenAIModelRequest) -> str:
+    def generate(self, request: OpenAIModelRequest, **kwargs: object) -> str:
         try:
             from mlx_lm import generate
         except Exception as exc:  # noqa: BLE001 - import errors vary.
@@ -333,10 +410,14 @@ class _MLXLMBackend:
                 "mlx-lm before using the default MLX backend"
             ) from exc
         prompt = _prompt_from_request(request)
-        return str(generate(self._model, self._tokenizer, prompt=prompt, verbose=False))
+        kwargs.setdefault("verbose", False)
+        return str(generate(self._model, self._tokenizer, prompt=prompt, **kwargs))
 
 
-def _load_default_mlx_lm_backend(config: MLXLocalModelConfig) -> object:
+def _load_default_mlx_lm_backend(
+    config: MLXLocalModelConfig,
+    model_path: Path,
+) -> object:
     try:
         from mlx_lm import load
     except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
@@ -345,12 +426,55 @@ def _load_default_mlx_lm_backend(config: MLXLocalModelConfig) -> object:
             "before using the default MLX backend"
         ) from exc
     try:
-        model, tokenizer = load(str(config.model_path))
+        model, tokenizer = load(str(model_path))
     except Exception as exc:  # noqa: BLE001 - MLX load errors vary.
         raise ModelExecutionError(
-            f"MLX local model load failed for {config.model_path!s}: {exc}"
+            f"MLX local model load failed for {model_path!s}: {exc}"
         ) from exc
     return _MLXLMBackend(model=model, tokenizer=tokenizer)
+
+
+_SUPPORTED_GENERATION_KWARGS = frozenset(
+    {
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "repetition_penalty",
+        "repetition_context_size",
+        "seed",
+    }
+)
+
+
+def _generation_kwargs(
+    config: MLXLocalModelConfig,
+    request: OpenAIModelRequest,
+) -> dict[str, object]:
+    kwargs = {
+        key: value
+        for key, value in dict(config.generation_kwargs or {}).items()
+        if key in _SUPPORTED_GENERATION_KWARGS
+    }
+    kwargs.update(
+        {
+            key: value
+            for key, value in dict(request.extra).items()
+            if key in _SUPPORTED_GENERATION_KWARGS
+        }
+    )
+    return kwargs
+
+
+def _generate_with_backend(
+    backend: MLXLocalBackend,
+    request: OpenAIModelRequest,
+    generation_kwargs: Mapping[str, object],
+) -> str:
+    if generation_kwargs:
+        return backend.generate(request, **dict(generation_kwargs))
+    return backend.generate(request)
 
 
 def _prompt_from_request(request: OpenAIModelRequest) -> str:

@@ -888,6 +888,73 @@ def test_prepare_model_input_records_mutation_preparation_diagnostics() -> None:
     assert prepared_payloads["plain"]["mutation_output_slots"] == ()
 
 
+def test_pruning_context_injection_trace_reports_redacted_attachment() -> None:
+    """Mutation traces should identify injection points without transcript text."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "pruning-context-injection-trace-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "prepared_context",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="What changed?",
+        session_messages=(
+            OpenAIMessage(role="user", content="secret earlier question"),
+            OpenAIMessage(role="assistant", content="secret earlier answer"),
+        ),
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepare_model_input(plan.nodes_by_id["answer"], plan, state, tracer=tracer)
+
+    [prepared_event] = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    payload = prepared_event.payload
+
+    assert payload["mutation_attachment"] == {
+        "type": "llm_step_interaction",
+        "target_node_id": "answer",
+    }
+    assert "secret earlier question" not in repr(payload)
+    assert "secret earlier answer" not in repr(payload)
+
+
 def test_prepare_model_input_renders_messages_and_named_parts() -> None:
     workflow = workflow_from(
         {
@@ -1030,6 +1097,155 @@ def test_prepare_model_input_applies_hierarchy_pruning_and_compaction() -> None:
     assert prepared_input.preparation.session_messages_included == 2
     assert prepared_input.preparation.session_messages_pruned == 2
     assert prepared_input.preparation.context_compaction_applied is True
+
+
+def test_pruning_context_injection_uses_bounded_session_messages() -> None:
+    """Injected pruning context should use prepare-stage bounded session history."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "pruning-context-bounded-session-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "summary_message",
+                            "summary_role": "developer",
+                            "summary_prefix": "Earlier session:",
+                            "max_chars_per_message": 20,
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        },
+                        {"kind": "latest_user_prompt", "source": "prompt"},
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "current_prompt_input": "prompt",
+                        "output_slot": "prepared_context",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="What should I do next?",
+        session_messages=(
+            OpenAIMessage(role="user", content="pruned older secret request"),
+            OpenAIMessage(role="assistant", content="pruned older secret answer"),
+            OpenAIMessage(role="user", content="recent user request"),
+            OpenAIMessage(role="assistant", content="recent assistant answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+    user_prompt = prepared_input.named_parts["user_prompt"].content
+
+    assert "recent user request" in user_prompt
+    assert "recent assistant answer" in user_prompt
+    assert "What should I do next?" in user_prompt
+    assert "pruned older secret request" not in user_prompt
+    assert "pruned older secret answer" not in user_prompt
+    assert prepared_input.preparation.session_messages_included == 2
+    assert prepared_input.preparation.session_messages_pruned == 2
+
+
+def test_pruning_context_injection_reports_bounded_context_diagnostics() -> None:
+    """Injected context diagnostics should report counts without transcript text."""
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "pruning-context-diagnostics-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 1},
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {
+                        "user_template": "Use {prepared_context} to answer {prompt}"
+                    },
+                    "context_pipeline": {
+                        "enabled": True,
+                        "strategy": "semantic_pruning",
+                        "profile": "default",
+                    },
+                    "context_sources": [
+                        {
+                            "kind": "conversation_history",
+                            "source": "state.chat_history",
+                        }
+                    ],
+                    "context_contract": {
+                        "history_input": "state.chat_history",
+                        "output_slot": "prepared_context",
+                    },
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Continue.",
+        session_messages=(
+            OpenAIMessage(role="user", content="secret old content"),
+            OpenAIMessage(role="user", content="visible recent content"),
+        ),
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepare_model_input(plan.nodes_by_id["answer"], plan, state, tracer=tracer)
+
+    [prepared_event] = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    payload = prepared_event.payload
+
+    assert payload["mutation_context"] == {
+        "session_messages_included": 1,
+        "session_messages_pruned": 1,
+        "context_compaction_applied": False,
+    }
+    assert "secret old content" not in repr(payload)
+    assert "visible recent content" not in repr(payload)
 
 
 def test_prepare_model_input_groups_session_messages_into_turn_units() -> None:
@@ -1464,6 +1680,127 @@ def test_prepare_model_input_local_compaction_builds_rolling_summary() -> None:
     assert prepared_input.preparation.compaction["retained_turn_count"] == 1
     assert prepared_input.preparation.compaction["information_retention_proxy"] > 0
     assert adapter.client.responses.calls == []
+
+
+def test_prepare_model_input_model_summary_uses_injected_summarizer() -> None:
+    """Model-backed summaries use an explicit collaborator, not the main adapter."""
+
+    adapter = make_adapter([])
+    calls: list[dict[str, object]] = []
+
+    def summarizer(messages, metadata):
+        calls.append({"messages": messages, "metadata": metadata})
+        return "Model-backed summary of older context."
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "model-summary-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {
+                            "strategy": "model_summary",
+                            "summary_role": "developer",
+                            "model_summary": {
+                                "enabled": True,
+                                "max_summary_chars": 120,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="older request"),
+            OpenAIMessage(role="assistant", content="older answer"),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        context_summarizer=summarizer,
+    )
+
+    assert prepared_input.named_parts["session_summary"].content == (
+        "Model-backed summary of older context."
+    )
+    assert prepared_input.preparation.compaction["strategy"] == "model_summary"
+    assert prepared_input.preparation.compaction["summary_chars"] == 38
+    assert prepared_input.preparation.compaction["messages_before"] == 2
+    assert calls[0]["messages"] == (
+        OpenAIMessage(role="user", content="older request"),
+        OpenAIMessage(role="assistant", content="older answer"),
+    )
+    assert calls[0]["metadata"]["strategy"] == "model_summary"
+    assert adapter.client.responses.calls == []
+
+
+def test_prepare_model_input_model_summary_fails_closed_without_summarizer() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "missing-model-summary-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 1},
+                        "context_compaction": {
+                            "strategy": "model_summary",
+                            "model_summary": {"enabled": True},
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="finish",
+        session_messages=(
+            OpenAIMessage(role="user", content="old request"),
+            OpenAIMessage(role="assistant", content="old answer"),
+            OpenAIMessage(role="user", content="latest request"),
+            OpenAIMessage(role="assistant", content="latest answer"),
+        ),
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="requires context_summarizer"):
+        prepare_model_input(plan.nodes_by_id["answer"], plan, state)
 
 
 def test_prepare_model_input_local_compaction_skips_summary_without_eviction() -> None:
@@ -1931,6 +2268,71 @@ def test_prepare_model_input_older_turn_selection_selects_relevant_turns() -> No
         lane["lane_id"]: lane for lane in prepared_input.preparation.context_lanes
     }
     assert lane_map["selected_older_turns"]["part_count"] == 1
+
+
+def test_prepare_model_input_exact_profile_preserves_identifier_matches() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "exact-profile-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {"auto": {"enabled": True}},
+                        "context_compression": {
+                            "profile": "exact",
+                            "selection": {
+                                "strategy": "hybrid_exact_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Resolve BUG-1234 without losing the exact issue key",
+        session_messages=(
+            OpenAIMessage(role="user", content="BUG-1234 failed in auth_v2.py"),
+            OpenAIMessage(role="assistant", content="Issue-key evidence"),
+            OpenAIMessage(role="user", content="Unrelated billing issue"),
+            OpenAIMessage(role="assistant", content="Other evidence"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "BUG-1234 failed" in prepared_input.named_parts["selected_turn_1"].content
+    assert prepared_input.preparation.selection_policy == {
+        "profile": "exact",
+        "strategy": "hybrid_exact_semantic",
+        "max_selected_turns": 1,
+    }
+    assert prepared_input.preparation.selected_turns == (
+        {
+            "turn_id": "turn_1",
+            "selection_status": "selected",
+            "selection_reason": "hybrid_exact_semantic",
+            "relevance_score": 1,
+        },
+    )
 
 
 def test_prepare_model_input_chronological_reassembly_orders_selected_turns() -> None:

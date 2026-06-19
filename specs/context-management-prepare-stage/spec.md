@@ -5,13 +5,16 @@
 - Feature slug: `context-management-prepare-stage`
 - Mode: `light`
 - Artifact type: authoritative SDD feature specification
-- Status: implemented through context-management prepare-stage Slice 9; future
-  expansion requires a new approved plan or task slice
+- Status: implemented through context-management prepare-stage Slice 10,
+  including pruning-context injection behavior
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/tasks.md`
   - `specs/internal-graph-mutation/spec.md`
   - `specs/async-session-memory-pipeline/spec.md`
+  - `specs/provider-backed-context-compaction/spec.md`
+  - `specs/model-backed-context-summaries/spec.md`
+  - `specs/semantic-context-profiles/spec.md`
   - `specs/context-management-prepare-stage/references/context-pruning-pipeline-summary.md`
   - `src/dynamic_agent_runner/executor.py`
   - `src/dynamic_agent_runner/graph_mutation.py`
@@ -61,8 +64,9 @@ However, that behavior does not have a standalone feature spec.
 Without an owning feature package, context-growth work can drift into the wrong
 places:
 
-- long-term async-session memory, which should own session identity and durable
-  continuity metadata, not per-call prompt shaping
+- long-term async-session memory and persistent sessions, which own session
+  identity, cross-run continuity, and durable continuity metadata, not per-call
+  prompt shaping
 - graph mutation, which owns high-level derived workflow operations such as
   inserting context-management steps onto edges between `llm_step` nodes, not
   the prompt-preparation behavior those inserted steps perform
@@ -106,9 +110,10 @@ prompt rendering for selected `llm_step` nodes; future mutation slices may
 insert explicit context-management operations on links between LLM steps, such
 as a ReAct loopback connection.
 
-`async-session-memory-pipeline` can declare future session identity and
-history-retention metadata, but it is not the owner of live pruning,
-compaction, or prompt-context injection.
+`async-session-memory-pipeline` declares session identity and history-retention
+metadata, and `persistent-agent-sessions` owns live in-memory cross-run
+continuity. Neither is the owner of live pruning, compaction, or prompt-context
+injection.
 
 ## Scope
 
@@ -708,8 +713,9 @@ Acceptance criteria:
 - Given an iterative model-tool loop needs more model work after a response and
   the threshold is reached, when mid-turn compaction is enabled, then it must
   preserve pending tool/approval state and record `phase: mid_turn`.
-- Given mid-turn compaction is not implemented, when that condition occurs, then
-  the runtime must fail or stop explicitly rather than silently dropping history.
+- Given mid-turn compaction is unavailable or disabled, when more model work
+  would require it, then the runtime must fail or stop explicitly rather than
+  silently dropping history.
 
 ### FR9 — Treat provider compaction as an optional capability
 
@@ -883,11 +889,13 @@ Acceptance criteria:
 ### Async session memory pipeline
 
 `async-session-memory-pipeline` owns declarative session identity and
-history-retention metadata for future cross-run continuity. It must not own live
+history-retention metadata for cross-run continuity. `persistent-agent-sessions`
+owns the live in-memory session object and store. Neither spec owns live
 pruning, compaction, or prompt-context injection.
 
 This spec may consume current-run `WorkflowExecutionState.session_messages` and
-future caller-provided messages, but it does not create a durable session store.
+messages provided by `AgentSession`, but it does not create a durable session
+store.
 
 ### Internal graph mutation
 
@@ -965,27 +973,53 @@ session-memory policy.
 
 ## Future Work
 
-Future approved slices may add:
+### Completed Follow-up: Pruning-Context Injection
 
-- named compression-profile policy with optional `llm_step` overrides
-- injected semantic selectors behind fake-only unit tests
-- richer required-vs-optional lane policy and lost-in-the-middle-aware ordering
+The completed follow-up adds prepare-stage support for pruning context that graph
+mutation can inject around eligible `llm_step` interactions.
+`internal-graph-mutation` owns the attachment or insertion point; this spec owns
+the behavior that turns supplied session messages and context sources into a
+bounded model input.
+
+The follow-up was implemented with TDD and proves:
+
+- supplied `WorkflowExecutionState.session_messages` can be pruned or compacted
+  before a target model call
+- an eligible `llm_step` receives the prepared pruning context before prompt
+  rendering
+- no pruning-context policy preserves existing prompt behavior
+- diagnostics report included, pruned, compacted, selected, and omitted context
+  without exposing full transcript content
+- `AgentSession` can provide the session-message input without this feature
+  creating durable storage or replay behavior
+
+This follow-up reuses existing lane budgeting, turn grouping, deterministic
+selection, rolling summaries, and injected compactor seams. It must not create a
+new durable memory backend, embedding/vector retrieval system, model-backed
+summary dependency, or graph-injection mechanism.
+
+Prepared follow-up specs now own:
+
+- `specs/provider-backed-context-compaction/spec.md`:
+  provider-backed remote compaction, `/responses/compact`-style capabilities,
+  compaction window ids, token baselines, and remote-compaction capability
+  reporting
+- `specs/model-backed-context-summaries/spec.md`: explicit model-backed
+  summarizer adapters, bounded summary prompts, prior-summary folding, and
+  summary provenance
+- `specs/semantic-context-profiles/spec.md`: richer compression-profile
+  behavior, injected semantic selectors, exact-plus-semantic scoring, optional
+  memory-kind labels, stale/redundant context omission, and
+  prompt-cache-aware ordering
+
+Future approved slices may still add:
+
 - overflowing-history evaluation fixtures that check retained facts, decisions,
   constraints, and current-turn state, not just final token counts
-- summary-generation adapters with explicit model/tool boundaries
-- OpenAI/provider-backed remote compaction, including `/responses/compact` when
-  available through the configured provider
 - richer retention audit policies for complex tool-call/result pairs
-- prompt-cache-aware ordering rules
 - host-provided context packets that are already summarized or ranked
-- caller-provided memory-kind labels such as semantic, episodic, procedural, or
-  source-context segments, used only as selection/scoring hints
-- access-frequency, recency, and last-selected metadata as optional scoring
-  inputs for injected or deterministic selectors
 - compression and forgetting policy that removes redundant or stale context
   from prompt candidates without creating runner-owned durable memory
-- hybrid exact-plus-semantic retrieval through injected selectors for workflows
-  that need both literal identifiers and semantic relevance
 
 Those future slices should start from this spec and update it before
 implementation if their behavior changes these boundaries.

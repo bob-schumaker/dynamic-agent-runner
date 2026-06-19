@@ -274,6 +274,7 @@ contract:
            model_aliases=("mlx-local-chat",),
            model_path="path/to/mlx-model-directory",
            expected_model_id="mlx-community/example-model",
+           generation_kwargs={"max_tokens": 512, "temperature": 0.2},
        )
    )
 
@@ -287,11 +288,15 @@ contract:
 MLX helpers are macOS-only, but importing the package and constructing an adapter
 remain safe on other platforms. Generation on non-macOS fails before model
 resolution or dependency loading. The default in-process backend lazily imports
-``mlx-lm``. MLX helpers validate converted model directories before generation,
-normalize generated text into the package ``ModelResponse`` contract, and reject
-unsupported tool-call or structured-output requests. Use strict coverage for
-local-only execution. If a caller already exposes an MLX model through an
-OpenAI-compatible local server, use ``LocalOpenAIEndpointConfig`` instead.
+``mlx-lm``. MLX helpers validate converted model directories, explicit ``.gguf``
+files with ``model_format="gguf"``, and Hugging Face-resolved assets before
+generation. They normalize generated text into the package ``ModelResponse``
+contract and reject unsupported tool-call or structured-output requests. Use
+strict coverage for local-only execution. If a caller already exposes an MLX
+model through an OpenAI-compatible local server, use
+``LocalOpenAIEndpointConfig`` instead. Embeddings, multimodal IO, streaming
+public APIs, conversion, and server lifecycle helpers are separate feature
+surfaces.
 
 .. header2:: Hugging Face model discovery
 
@@ -349,6 +354,65 @@ share a loaded workflow and runtime collaborators:
 
 When ``execution_context`` is supplied to high-level APIs, do not also pass
 artifact paths or runtime collaborators as separate keyword arguments.
+
+.. header2:: Persistent agent sessions
+
+Use ``AgentSession`` with ``InMemorySessionStore`` when several prompts should
+reuse the same workflow context and retained user/assistant transcript:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       AgentSession,
+       InMemorySessionStore,
+       WorkflowExecutionContext,
+       load_agent_package_workflow,
+   )
+
+   context = WorkflowExecutionContext(
+       workflow=load_agent_package_workflow("path/to/agent-package"),
+       tool_registry=my_tool_registry,
+       model_adapter=my_model_adapter,
+   )
+   store = InMemorySessionStore()
+   session = AgentSession.create(
+       execution_context=context,
+       session_store=store,
+       session_id="thread-123",
+   )
+
+   first = await session.accept("Inspect the repository.")
+   second = await session.accept("Now summarize the risky parts.")
+   snapshot = session.current_state().to_mapping()
+
+   restored = AgentSession.from_snapshot(
+       snapshot,
+       execution_context=context,
+       session_store=InMemorySessionStore(),
+   )
+
+Each ``accept(...)`` call remains a normal bounded workflow run. Input
+guardrails, approval interruption, step limits, tracing, retry behavior, and
+context preparation still run per prompt. The v1 store is process-local only;
+callers own any external persistence and redaction before restart. Raw tool
+arguments and raw tool outputs are not retained in chat history by default.
+
+Callers that need progress events while a prompt runs can stream one bounded
+session prompt:
+
+.. code-block:: python
+
+   async for event in session.accept_stream("Continue the analysis."):
+       if event.event_type == "model_input_prepared":
+           handle_context_status(event.payload)
+       elif event.event_type == "run_completed":
+           final_result = event.final_result
+
+``accept_stream(...)`` yields ``AgentSessionStreamEvent`` values with sequence,
+event type, session ID, run ID, node ID, redacted payload, and terminal final
+result fields. Session state is saved only after successful completion.
+Provider-native token deltas, lower-level executor stream APIs, and specialized
+model-tool loop progress events remain future work.
 
 .. header2:: Inspecting detailed execution state
 

@@ -22,6 +22,17 @@ def test_package_imports() -> None:
     assert dynamic_agent_runner.ToolExposure is not None
     assert dynamic_agent_runner.ToolPolicy is not None
     assert dynamic_agent_runner.ToolType is not None
+    assert dynamic_agent_runner.WebToolPolicy is not None
+    assert dynamic_agent_runner.create_web_registry is not None
+    assert dynamic_agent_runner.WorkspaceDataToolPolicy is not None
+    assert dynamic_agent_runner.create_workspace_data_registry is not None
+    assert dynamic_agent_runner.SubagentPreset is not None
+    assert dynamic_agent_runner.SubagentResult is not None
+    assert dynamic_agent_runner.SubagentToolPolicy is not None
+    assert dynamic_agent_runner.create_subagent_registry is not None
+    assert dynamic_agent_runner.CollaborativeAgentPreset is not None
+    assert dynamic_agent_runner.CollaborativeAgentSessionManager is not None
+    assert dynamic_agent_runner.CollaborativeAgentSessionState is not None
     assert dynamic_agent_runner.RegisteredLifecycleHook is not None
     assert dynamic_agent_runner.invoke_lifecycle_hook_async is not None
     assert dynamic_agent_runner.DynamicAgentRunnerError is not None
@@ -40,6 +51,11 @@ def test_package_imports() -> None:
     assert dynamic_agent_runner.search_hugging_face_models is not None
     assert dynamic_agent_runner.HuggingFaceModelSearchResult is not None
     assert dynamic_agent_runner.HuggingFaceModelSearchError is not None
+    assert dynamic_agent_runner.HostToolBinding is not None
+    assert dynamic_agent_runner.ResolvedModelSelection is not None
+    assert dynamic_agent_runner.create_host_tool_registry is not None
+    assert dynamic_agent_runner.summarize_capability_report is not None
+    assert dynamic_agent_runner.summarize_trace_events is not None
     assert dynamic_agent_runner.MCPToolBinding is not None
     assert dynamic_agent_runner.registered_tool_from_mcp_binding is not None
     assert dynamic_agent_runner.create_mcp_registry is not None

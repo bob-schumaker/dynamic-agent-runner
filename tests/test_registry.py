@@ -23,9 +23,13 @@ from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
     ToolResult,
+    WebToolPolicy,
+    WorkspaceDataToolPolicy,
     ToolExposureOverride,
     ToolRegistryOverrides,
+    create_web_registry,
     create_local_workspace_registry,
+    create_workspace_data_registry,
     openai_tool_schema,
     tool_from_function,
     validate_registry_tool_references,
@@ -589,6 +593,212 @@ def test_local_workspace_tool_pack_is_opt_in_and_path_restricted(
 
     assert blocked.success is False
     assert "outside approved workspace roots" in str(blocked.error)
+
+
+class FakeSearchClient:
+    def search(self, query: str, *, limit: int) -> list[dict[str, object]]:
+        return [
+            {
+                "title": "Result",
+                "url": "https://example.com/result",
+                "snippet": f"Found {query}",
+                "extra": "ignored",
+            }
+        ][:limit]
+
+
+class FakeFetchClient:
+    def fetch(self, url: str) -> dict[str, object]:
+        return {
+            "url": url,
+            "status": 200,
+            "content_type": "text/html",
+            "title": "Fetched",
+            "text": "abcdef",
+            "raw": "ignored",
+        }
+
+
+def test_web_tool_pack_uses_fake_clients_and_normalizes_results() -> None:
+    registry = create_web_registry(
+        search_client=FakeSearchClient(),
+        fetch_client=FakeFetchClient(),
+        policy=WebToolPolicy(
+            allowed_domains=("example.com",),
+            max_search_results=3,
+            max_fetch_chars=4,
+        ),
+    )
+
+    assert registry.get_tool("web_search").definition.tool_type is ToolType.WEB_SEARCH
+    assert registry.get_tool("web_fetch").definition.tool_type is ToolType.WEB_FETCH
+    assert [tool["name"] for tool in registry.to_openai_tools()] == [
+        "web_search",
+        "web_fetch",
+    ]
+
+    search = registry.invoke_tool("web_search", {"query": "agents"})
+    fetch = registry.invoke_tool("web_fetch", {"url": "https://example.com/page"})
+
+    assert search.success is True
+    assert search.output == {
+        "query": "agents",
+        "results": [
+            {
+                "rank": 1,
+                "title": "Result",
+                "url": "https://example.com/result",
+                "snippet": "Found agents",
+            }
+        ],
+    }
+    assert fetch.success is True
+    assert fetch.output == {
+        "url": "https://example.com/page",
+        "status": 200,
+        "content_type": "text/html",
+        "title": "Fetched",
+        "text": "abcd",
+        "truncated": True,
+    }
+
+
+def test_web_tool_pack_rejects_disallowed_urls() -> None:
+    registry = create_web_registry(
+        search_client=FakeSearchClient(),
+        fetch_client=FakeFetchClient(),
+        policy=WebToolPolicy(allowed_domains=("example.com",)),
+    )
+
+    blocked = registry.invoke_tool("web_fetch", {"url": "http://evil.test/page"})
+
+    assert blocked.success is False
+    assert "scheme 'http' is not allowed" in str(blocked.error)
+
+
+def test_web_tool_pack_requires_injected_clients() -> None:
+    with pytest.raises(ToolRegistryError, match="requires search_client"):
+        create_web_registry(fetch_client=FakeFetchClient())
+
+    with pytest.raises(ToolRegistryError, match="requires fetch_client"):
+        create_web_registry(search_client=FakeSearchClient())
+
+
+class FakeWorkspaceDataStore:
+    def __init__(self) -> None:
+        self.items: dict[str, dict[str, object]] = {}
+
+    def write(self, item: dict[str, object]) -> dict[str, object]:
+        item_id = str(item.get("id") or f"item-{len(self.items) + 1}")
+        stored = {"id": item_id, **item}
+        self.items[item_id] = stored
+        return stored
+
+    def read(self, item_id: str) -> dict[str, object] | None:
+        return self.items.get(item_id)
+
+    def search(self, query: str, *, limit: int) -> list[dict[str, object]]:
+        del query
+        return list(self.items.values())[:limit]
+
+    def list(self, *, limit: int) -> list[dict[str, object]]:
+        return list(self.items.values())[:limit]
+
+    def delete(self, item_id: str) -> bool:
+        return self.items.pop(item_id, None) is not None
+
+
+def test_workspace_data_tool_pack_writes_reads_and_lists_metadata_first() -> None:
+    store = FakeWorkspaceDataStore()
+    registry = create_workspace_data_registry(
+        store=store,
+        policy=WorkspaceDataToolPolicy(default_search_limit=5),
+    )
+
+    assert (
+        registry.get_tool("workspace_data_write").definition.tool_type
+        is ToolType.STRUCTURED_DATA_QUERY
+    )
+    assert [tool["name"] for tool in registry.to_openai_tools()] == [
+        "workspace_data_write",
+        "workspace_data_read",
+        "workspace_data_search",
+        "workspace_data_list",
+        "workspace_data_delete",
+    ]
+
+    write = registry.invoke_tool(
+        "workspace_data_write",
+        {
+            "id": "note-1",
+            "kind": "note",
+            "title": "Finding",
+            "tags": ["agent"],
+            "data": {"body": "large result"},
+        },
+    )
+    read = registry.invoke_tool("workspace_data_read", {"id": "note-1"})
+    listing = registry.invoke_tool("workspace_data_list", {})
+
+    assert write.success is True
+    assert write.output["status"] == "ok"
+    assert write.output["item"]["id"] == "note-1"
+    assert read.output["item"]["data"] == {"body": "large result"}
+    assert listing.output == {
+        "status": "ok",
+        "items": [
+            {
+                "id": "note-1",
+                "kind": "note",
+                "title": "Finding",
+                "tags": ["agent"],
+            }
+        ],
+    }
+
+
+def test_workspace_data_tool_pack_search_can_include_data_and_delete() -> None:
+    store = FakeWorkspaceDataStore()
+    registry = create_workspace_data_registry(
+        store=store,
+        policy=WorkspaceDataToolPolicy(require_delete_approval=False),
+    )
+    registry.invoke_tool(
+        "workspace_data_write",
+        {"id": "note-1", "title": "Finding", "data": {"body": "kept"}},
+    )
+
+    search = registry.invoke_tool(
+        "workspace_data_search", {"query": "Finding", "include_data": True}
+    )
+    delete = registry.invoke_tool("workspace_data_delete", {"id": "note-1"})
+    missing = registry.invoke_tool("workspace_data_read", {"id": "note-1"})
+
+    assert search.output["items"][0]["data"] == {"body": "kept"}
+    assert delete.output == {"status": "deleted", "id": "note-1"}
+    assert missing.output == {
+        "status": "not_found",
+        "id": "note-1",
+        "next_steps": ["write the item before reading it"],
+    }
+
+
+def test_workspace_data_tool_pack_rejects_missing_store_and_oversized_payload() -> None:
+    with pytest.raises(ToolRegistryError, match="requires store"):
+        create_workspace_data_registry()
+
+    registry = create_workspace_data_registry(
+        store=FakeWorkspaceDataStore(),
+        policy=WorkspaceDataToolPolicy(max_item_bytes=10),
+    )
+
+    blocked = registry.invoke_tool(
+        "workspace_data_write",
+        {"id": "too-large", "data": {"text": "this is too large"}},
+    )
+
+    assert blocked.success is False
+    assert "exceeds max_item_bytes" in str(blocked.error)
 
 
 def test_tool_source_defaults_origin_from_existing_kind_values() -> None:
