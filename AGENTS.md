@@ -205,6 +205,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 
 - Keep default OpenAI/Codex auth discovery inside `src/dynamic_agent_runner/openai_client.py`; ChatGPT/Codex auth is an OpenAI auth pattern, not a separate module.
 - When both Codex API-key/auth-token auth and ChatGPT auth are available, default to API-key/auth-token auth first; use `codex_auth_preference="chatgpt_first"` to prefer ChatGPT auth when it exists.
+- Treat Marimo, Qt, hosted UI lifecycle, and app-specific automation as downstream client concerns; DAR must stay a generic workflow runner with host-provided tools only.
 
 ---
 
