@@ -1,196 +1,213 @@
-# Power-Marimo Host Automation Specification
+# Power-Marimo Dynamic Workflow Client Specification
 
 ## Metadata
 
 - Feature slug: `power-marimo-host-automation`
 - Mode: `light`
-- Artifact type: future downstream integration feature specification
-- Status: proposed future feature; placeholder-safe fixture baseline exists, live
-  Marimo/PyQt automation is not implemented
+- Artifact type: downstream-client alignment specification
+- Status: downstream client evaluated; no DAR implementation is authorized
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
-- Related artifacts:
-  - `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
+- Related DAR artifacts:
   - `tests/fixtures/power-marimo/agent-runtime.yaml`
   - `tests/test_power_marimo_fixture.py`
-  - `specs/async-session-memory-pipeline/spec.md`
-  - `specs/approval-interruption-resume/spec.md`
-  - `specs/sandbox-workspace-runtime/spec.md`
-  - `specs/skill-source-resolution/spec.md`
+  - `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
+  - `specs/async-session-memory-pipeline/power-marimo-host-integration.md`
+  - `specs/dynamic-agent-runner/spec.md`
+- Downstream evidence from `../power-marimo`:
+  - `src/power_marimo/tools/service.py`
+  - `src/power_marimo/tools/runtime_registry.py`
+  - `src/power_marimo/notebook/chat_workspace.py`
+  - `src/power_marimo/runtime/llm_power_experiment.py`
+  - `src/power_marimo/notebook/marimo_server.py`
+  - `tests/test_marimo_dynamic_agent_e2e.py`
+  - `tests/test_qext_marimo_chat_workspace.py`
+  - `tests/test_t27_app_llm_workflow.py`
+  - `specs/README.md`
 
 ## Objective
 
-Define the future runtime integration contract for a supervised Power-Marimo
-workflow that can use Marimo-session tools, power-domain adapters, and optional
-PyQt-widget automation without turning `dynamic-agent-runner` into an
-unbounded notebook or desktop automation agent.
+Record the correct boundary between `dynamic-agent-runner` and the downstream
+`power-marimo` application after evaluating the current sibling repository.
 
-## Existing Baseline
+`dynamic-agent-runner` only owns generic dynamic-agent workflow loading,
+validation, execution, model/tool adapter boundaries, tracing, runtime policy,
+and fake-testable package behavior. It does not own Marimo, Qt, hosted UI
+lifecycle, desktop automation, Power-Marimo domain semantics, SDK-session state,
+or application safety policy.
 
-The runtime-package simplification sequence produced a placeholder-safe
-Power-Marimo fixture with fake-tool execution coverage. The current runtime can
-load and execute bounded workflow packages, preserve tool provenance, prepare
-model input, and run fake tools. It does not implement live Marimo server
-discovery, notebook session control, PyQt widget automation, domain SDK adapters,
-or direct manipulation of running notebooks.
+## Boundary Decision
 
-Council roadmap note: keep the first Power-Marimo story host-managed. The
-current runner can be useful for bounded workflow execution if Power-Marimo
-supplies live tools, continuity state, and approval policy. Do not make
-Power-Marimo the reason to add runner-owned durable memory, unrestricted desktop
-automation, or broad sandbox behavior before the approval/sandbox/status slices
-are proven.
+Power-Marimo is a downstream client of DAR, not a DAR feature surface. The
+downstream application may build Marimo, Qt, SDK, project-data, AppleScript, or
+other host-specific capabilities, but those capabilities must enter DAR only as:
 
-## Scope
+1. generated or inline runtime manifests
+2. caller-provided tool registries
+3. caller-provided model adapters
+4. caller-provided execution contexts, trace sinks, and lifecycle hooks
+5. ordinary prompts, runtime overrides, and session/history inputs
 
-This feature covers:
+DAR must not add Power-Marimo-specific modules, dependencies, tool packs,
+notebook helpers, Qt helpers, server discovery, process lifecycle management,
+desktop automation, SDK adapters, or live app validation.
 
-1. Marimo-session tool contracts for server discovery, notebook inspection,
-   scratchpad execution, and cell creation/editing
-2. power-domain adapter contracts for room selection, SLD loading, live room data,
-   TETRIS/power analysis, results-table production, and plotting
-3. safety policy for notebook file edits, cell deletion, package installation,
-   token handling, and approval-sensitive operations
-4. prepared model input assembled from notebook state, SLD summaries, user goals,
-   domain tool results, and Marimo-specific gotchas
-5. optional PyQt-widget automation boundaries
-6. tool provenance and downstream agent-as-tool metadata for `marimo-pair`
+## Current Downstream State
+
+The earlier DAR-side spec described Power-Marimo host automation as mostly
+future work. That is no longer an accurate description of the sibling repo.
+`../power-marimo` now owns a concrete host-side integration:
+
+- `ToolService` registers namespaced application tools, including notebook,
+  domain, project-data, and surface-update tools.
+- `runtime_registry.py` adapts that service into a DAR-compatible tool registry
+  from manifest-facing tool IDs and aliases.
+- hosted notebook chat builds a runtime manifest, selects a model adapter,
+  performs capability preflight, captures redacted traces, and calls
+  `execute_workflow_async(...)`.
+- desktop LLM workflow code builds a bounded runtime manifest and calls
+  `execute_workflow(...)` with the app-owned tool service.
+- live or app-specific Marimo/QExt/AppleScript validation lives in
+  `../power-marimo`, gated by that repository's environment variables and test
+  policy.
+
+This proves the intended architecture: downstream clients own host behavior and
+DAR remains a generic execution engine.
+
+## DAR-Owned Scope
+
+This feature records only the DAR-facing contract required by downstream clients
+such as Power-Marimo:
+
+1. load and validate runtime packages or inline workflow definitions
+2. execute bounded dynamic-agent workflows
+3. call tools supplied by a caller-owned registry
+4. preserve tool provenance and manifest-facing tool IDs
+5. expose runtime policy controls such as retries, token budgeting,
+   tool-call completion, model adapter coverage, and prepared model input
+6. emit redacted trace events and capability/status reports
+7. support fake-tool validation in this repository without live downstream
+   applications
+
+## Downstream-Owned Scope
+
+Power-Marimo, or any other client, owns all host-specific concerns:
+
+- Marimo server discovery, startup, shutdown, session attachment,
+  authentication, and notebook mutation
+- Qt, PySide, QExt, WebEngine, widget lifecycle, and desktop UI automation
+- app-specific AppleScript commands and packaged app smoke paths
+- Power-Tetris SDK session construction, persistence, restore, analysis
+  execution, and result normalization
+- project file state, project-data tools, dirty-state integration, and UI
+  rendering
+- application approval policy, safety policy, redaction policy, and live
+  integration tests
+- packaged prompt/skill assets used by the app
+
+These may be exposed to DAR only through host-provided tool registries, manifests,
+model adapters, and execution context collaborators.
 
 ## Functional Requirements
 
-### FR-1: Treat Power-Marimo as a bounded host integration
+### FR-1: Keep DAR host-agnostic
 
-The runtime must execute a generated workflow that calls host-provided tools; it
-must not own the Power-Marimo application lifecycle.
-
-Acceptance criteria:
-
-- The host supplies Marimo-session and domain tools through the registry.
-- The workflow package references tool ids and metadata but does not embed live
-  server credentials, process ids, GUI handles, or absolute notebook paths.
-- If required host tools are missing, preparation or execution fails clearly
-  before pretending the workflow can operate live.
-- Unit validation uses fake tools and fixtures without launching Marimo or PyQt.
-
-### FR-2: Define Marimo-session tool contracts
-
-Marimo-session tools must expose narrow, approval-aware operations.
+DAR must not import, depend on, or special-case Power-Marimo, Marimo, Qt, PySide,
+QExt, AppleScript, Power-Tetris SDK, or related desktop/runtime packages.
 
 Acceptance criteria:
 
-- Server discovery reports candidate sessions without leaking tokens in process
-  listings, traces, or model-visible output.
-- Notebook inspection returns bounded notebook state, cell metadata, and
-  execution status summaries.
-- Scratchpad execution runs isolated exploratory code without editing the running
-  notebook file.
-- Cell creation/editing uses Marimo-approved APIs such as `_code_mode` when
-  available and does not write directly to the running notebook `.py` file.
-- Cell deletion and package installation are approval-sensitive.
+- DAR unit tests do not import or launch downstream applications.
+- DAR package metadata does not add downstream host dependencies.
+- Runtime behavior remains expressed through generic workflow, model, tool,
+  trace, capability, and policy interfaces.
 
-### FR-3: Define power-domain adapter contracts
+### FR-2: Accept host-provided tool registries
 
-Domain tools must return structured, bounded results suitable for model context.
+Downstream clients must be able to adapt their local tool services into DAR's
+generic `ToolRegistry` contract.
 
 Acceptance criteria:
 
-- Room selection returns selected room identifiers, confidence, and reason.
-- SLD loading returns a bounded summary and provenance rather than dumping large
-  raw files.
-- Real-time room data retrieval returns timestamped data with source metadata.
-- TETRIS/power analysis returns structured intermediate and final calculations.
-- `RoomPowerResultsTable` production returns a stable structured table payload.
-- Total-power plotting returns plot artifact metadata or a bounded preview rather
-  than large binary data in model-visible output.
+- DAR validates missing manifest tool references against the supplied registry.
+- Manifest-facing tool IDs can remain aliases resolved by the downstream host.
+- DAR does not inspect host tool internals beyond the generic registered-tool
+  contract.
+- Tool results are treated as caller-owned payloads and surfaced through normal
+  workflow state, trace redaction, and final-result handling.
 
-### FR-4: Enforce notebook and desktop safety policy
+### FR-3: Run bounded dynamic-agent workflows only
 
-Live automation must be supervised and approval-aware.
-
-Acceptance criteria:
-
-- Direct writes to a running notebook `.py` file are forbidden.
-- Cell deletion, package installation, shell execution, and PyQt widget mutation
-  require approval policy.
-- PyQt automation, if enabled, is limited to explicitly granted widgets/actions
-  and cannot perform arbitrary desktop control.
-- Tool arguments and trace events redact tokens, file paths, and data fields
-  according to host policy.
-
-### FR-5: Prepare model input from bounded host state
-
-The workflow must provide enough context without flooding prompt history.
+DAR's role is to execute a bounded workflow, not to become a persistent host
+automation agent.
 
 Acceptance criteria:
 
-- Prepared input can include user goal, notebook state summary, SLD summary,
-  domain tool summaries, current result table state, plot artifact references,
-  and Marimo gotchas.
-- Large notebooks, SLDs, and domain data are summarized or referenced through
-  bounded file/context metadata.
-- Prepared input records source provenance and truncation metadata.
-- Host-managed continuity may be used across repeated runner calls without
-  claiming runner-owned durable memory.
+- Workflow bounds come from existing runtime policy fields such as `max_steps`,
+  `max_iterations`, retry policy, token budget, and tool-call completion.
+- Long-running host lifecycle, UI readiness, live server state, and durable app
+  session state remain outside DAR.
+- Reusable `WorkflowExecutionContext`, `AgentSession`, or host-managed continuity
+  may be used only as generic runner surfaces.
 
-### FR-6: Preserve tool provenance and agent-as-tool boundaries
+### FR-4: Keep client safety policy outside DAR
 
-The integration must keep host tools distinguishable.
+DAR may enforce its generic approval, guardrail, sandbox, and tracing boundaries,
+but it must not define Power-Marimo-specific safety policy.
 
 Acceptance criteria:
 
-- Tool provenance distinguishes built-in tools, Marimo-session tools, domain SDK
-  adapters, runtime overrides, MCP tools, and downstream agent-as-tool sources.
-- The downstream `marimo-pair` capability is represented through metadata or a
-  registered tool/agent adapter without adding a new primitive node kind.
-- `SKILL.md` content for `marimo-pair` is not loaded from external paths unless
-  the skill-source-resolution feature authorizes that behavior.
+- Notebook edits, package installation, UI mutation, shell execution, project
+  persistence, and SDK operations are downstream tool semantics.
+- If a downstream operation requires approval, the host models that through its
+  tool registry, manifest, or DAR's generic approval surfaces.
+- DAR docs and specs do not claim ownership over host permission policy.
+
+### FR-5: Preserve fake-only core validation
+
+DAR's own validation for Power-Marimo-shaped packages must stay fixture-based.
+
+Acceptance criteria:
+
+- `tests/fixtures/power-marimo/agent-runtime.yaml` remains a placeholder-safe
+  package fixture.
+- `tests/test_power_marimo_fixture.py` validates generic package loading and fake
+  tool execution only.
+- Live Marimo, Qt, SDK, AppleScript, or packaged-app tests live in
+  `../power-marimo`, not in DAR.
+
+### FR-6: Document downstream evidence without copying ownership
+
+DAR specs may cite downstream files as evidence for integration shape, but must
+not duplicate downstream specs or make their implementation state a DAR
+maintenance obligation.
+
+Acceptance criteria:
+
+- This spec records the boundary and observed downstream integration shape.
+- Future changes to Power-Marimo live behavior are routed to Power-Marimo specs.
+- DAR changes are made only when a generic runner contract is missing or
+  incorrect.
 
 ## Non-Goals
 
-- No free-form autonomous notebook agent.
-- No runtime ownership of Marimo server startup, shutdown, authentication, or
-  browser/UI lifecycle in the first version.
-- No arbitrary PyQt or desktop automation.
-- No direct edits to running notebook source files.
-- No live Power-Marimo validation in core unit tests.
-- No durable session memory beyond host-managed continuity unless a session
-  feature explicitly implements it.
-
-## Design Constraints
-
-- Keep the dynamic-agent-runner library host-agnostic.
-- Keep live app/session details in caller-owned tool adapters.
-- Fail closed for missing host tools, missing approval policy, or ambiguous
-  notebook/session targets.
-- Keep token and credential handling out of process listings and model-visible
-  output.
-- Preserve fake-tool validation as the core repository test path.
-
-## NEEDS CLARIFICATION
-
-- Which Marimo APIs are stable enough for cell creation/editing in v1?
-- Should server discovery be implemented by Power-Marimo, by caller tools, or by
-  a runner-provided optional tool pack?
-- What exact token-redaction policy is required for Marimo session URLs and
-  process metadata?
-- What operations should PyQt-widget automation support, if any?
-- What approval policy applies to cell creation, cell editing, cell deletion,
-  package installation, scratchpad execution, and widget mutation?
-- What structured schema should `RoomPowerResultsTable` use?
-- How should plot artifacts be represented: file paths, opaque host ids, images,
-  or model-facing summaries?
-- What host-managed continuity state should Power-Marimo pass between runner
-  calls?
-- How should downstream `marimo-pair` behavior be supplied: tool, agent-as-tool,
-  skill source, or separate workflow package?
-- What live integration tests, if any, belong outside core unit tests?
+- No Marimo support layer in DAR.
+- No Qt, PySide, QExt, WebEngine, or desktop automation support in DAR.
+- No Power-Marimo, Power-Tetris SDK, project-data, AppleScript, or app-specific
+  tool pack in DAR.
+- No runner-owned live server discovery, startup, shutdown, auth, browser, or UI
+  lifecycle.
+- No live downstream application tests in DAR unit or integration suites.
+- No durable downstream app memory beyond generic runner/session surfaces.
+- No special runtime behavior keyed to Power-Marimo package IDs, tool names, or
+  manifests.
 
 ## Validation Checklist
 
-- [ ] Missing required Marimo-session tools fail clearly.
-- [ ] Fake Marimo-session tools can execute the bounded fixture workflow.
-- [ ] Direct notebook file edit attempts are forbidden.
-- [ ] Cell deletion and package installation require approval.
-- [ ] Token-like values are redacted from traces and model-visible output.
-- [ ] Domain tools return bounded structured outputs.
-- [ ] Prepared input includes provenance and truncation metadata.
-- [ ] PyQt automation is unavailable unless explicitly granted.
+- [x] DAR has a placeholder-safe Power-Marimo fixture and fake-tool test path.
+- [x] `../power-marimo` has a caller-owned tool-service adapter into DAR.
+- [x] `../power-marimo` owns live Marimo/QExt/app validation surfaces.
+- [x] DAR remains dependency-free with respect to Marimo, Qt, and Power-Marimo.
+- [x] The intended boundary is host-provided tools plus bounded workflow
+      execution.
+- [ ] Future DAR work changes this area only for generic runner contracts, not
+      client-specific automation.
