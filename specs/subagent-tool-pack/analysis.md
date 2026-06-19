@@ -53,10 +53,13 @@ The `agents-squad` example in Cline's SDK shows a more persistent direction:
 - handoff files live under a conversation-scoped directory
 - recursion controls disable spawning inside child agents by default
 
-This supports the split between:
+This supported the split between:
 
 - first-stage `subagent-tool-pack` for bounded fanout
-- later `collaborative-agent-sessions` for persistent spawned agents
+- `collaborative-agent-sessions` for persistent spawned agents
+
+Both now have v1 baselines; this collateral remains useful for why the
+boundaries stay separate.
 
 ## Codex Evidence
 
@@ -72,18 +75,23 @@ The Codex app-server protocol has explicit collaboration-agent concepts:
 - JSONL event mapping for collaboration tool calls and state
 
 The portable lesson is that persistent collaboration needs lifecycle and thread
-state. That is beyond the first subagent tool pack and belongs in
-`collaborative-agent-sessions`.
+state. That remains beyond the subagent tool pack and belongs in
+`collaborative-agent-sessions`, whose v1 baseline now covers in-memory manager
+state while wait/resume/streaming remain deferred.
 
 ## Recommendation
 
-Implement in two stages:
+The recommended staging was:
 
 1. `subagent-tool-pack`: bounded callable specialist fanout through
    `ToolRegistry`, using fakeable child-runner interfaces and structured
    aggregate `ToolResult` output.
 2. `collaborative-agent-sessions`: persistent child agents with spawn,
    message, wait, resume, close, inspect, and restart-from-state APIs.
+
+Both stages now have v1 baselines. Remaining work should stay within the same
+boundary: subagent tools own bounded delegation; collaborative sessions own
+persistent lifecycle state.
 
 Do not add a primitive `subagent_step` first. That would duplicate existing
 registry and workflow execution boundaries and make safety/capability reporting
@@ -98,6 +106,7 @@ harder to keep coherent.
 - workflow as tool: child DAR workflow execution
 - session as tool: persistent child session interaction
 
-The first pack should support workflow-as-tool and may optionally provide an
-LLM-as-tool adapter. Persistent session-as-tool behavior should wait for
-`collaborative-agent-sessions` unless a caller registers it manually.
+The first pack supports workflow-as-tool style delegation through an injected
+runner and may still grow an optional LLM-as-tool adapter. Persistent
+session-as-tool behavior belongs to `collaborative-agent-sessions` unless a
+caller registers it manually.

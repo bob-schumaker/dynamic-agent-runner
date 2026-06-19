@@ -4,8 +4,8 @@
 
 - Feature slug: `host-workflow-integration`
 - Mode: `light`
-- Artifact type: future feature specification
-- Status: proposed from downstream Power-Marimo evidence
+- Artifact type: implemented feature specification
+- Status: implemented v1 baseline from downstream Power-Marimo evidence
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related existing specs:
   - `specs/capability-status-report/spec.md`
@@ -45,6 +45,30 @@ ergonomics.
 
 No Power-Marimo-specific Marimo, Qt, SDK, project-file, or room-power behavior is
 in scope for this spec.
+
+## Implementation Status
+
+The v1 baseline is implemented in `src/dynamic_agent_runner/host_integration.py`
+with exports from `dynamic_agent_runner`.
+
+Completed:
+
+- `HostToolBinding` adapts host-owned handlers into `ToolRegistry` entries.
+- Canonical host ids, model-facing ids, aliases, and collision checks are
+  supported.
+- `ResolvedModelSelection` provides a provider-neutral execution handoff and
+  redacted diagnostic payload.
+- `summarize_capability_report(...)` and `summarize_trace_events(...)` provide
+  bounded redacted diagnostics.
+- Focused fake tests cover the helper surface.
+
+Deferred:
+
+- inline/generated manifest capability preflight without temporary package dirs
+- capability-report extensions that expose canonical/model-facing ids in every
+  relevant report path
+- fuller public lifecycle examples for direct execution, reusable contexts, and
+  `AgentSession`
 
 ## Problem Statement
 
@@ -196,28 +220,31 @@ Acceptance criteria:
 
 ## TDD Implementation Tasks
 
-Future implementation should proceed in slices:
+Completed v1 slices:
 
-1. RED: host catalog adapter tests; GREEN: create registry from host catalog and
-   manifest-facing definitions.
-2. RED: alias/collision tests; GREEN: canonical id plus model-facing id mapping.
-3. RED: inline capability preflight tests; GREEN: inspect manifest string or
-   loaded workflow without temporary package dirs.
-4. RED: diagnostic summary tests; GREEN: redacted bounded trace and capability
+1. RED/GREEN: host catalog adapter tests and registry creation from host
+   bindings.
+2. RED/GREEN: alias/collision tests and canonical id plus model-facing id
+   mapping.
+3. RED/GREEN: diagnostic summary tests and redacted bounded trace/capability
    payload helpers.
-5. RED: resolved model selection tests; GREEN: small dataclass/protocol and
-   execution-context handoff helpers.
-6. RED: docs/API examples; GREEN: host lifecycle guidance for direct execution,
+4. RED/GREEN: resolved model selection tests and execution-entrypoint kwargs.
+
+Deferred slices:
+
+1. RED: inline capability preflight tests; GREEN: inspect manifest string or
+   loaded workflow without temporary package dirs.
+2. RED: docs/API examples; GREEN: host lifecycle guidance for direct execution,
    reusable context, and `AgentSession`.
 
 ## Validation Checklist
 
-Suggested commands:
+Implemented v1 validation:
 
 ```bash
-poetry run pytest tests/test_registry.py tests/test_capabilities.py -q
-poetry run pytest tests/test_agent_sessions.py tests/test_executor.py -q
+poetry run pytest tests/test_host_integration.py -q
+poetry run pytest tests/test_import.py -q
 ```
 
-Future tests must use fake host catalogs, fake model adapters, fake trace events,
-and no live host application.
+Future deferred tests must use fake host catalogs, fake model adapters, fake
+trace events, and no live host application.

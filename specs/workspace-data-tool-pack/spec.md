@@ -4,8 +4,8 @@
 
 - Feature slug: `workspace-data-tool-pack`
 - Mode: `light`
-- Artifact type: future feature specification
-- Status: proposed from downstream Power-Marimo evidence
+- Artifact type: implemented feature specification
+- Status: implemented v1 baseline from downstream Power-Marimo evidence
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related existing specs:
   - `specs/sandbox-workspace-runtime/spec.md`
@@ -43,6 +43,33 @@ Power-Marimo shows the reusable pattern:
 - host persistence and dirty-state behavior remain downstream-owned
 
 DAR should own the portable tool pack contract, not the host storage backend.
+
+## Implementation Status
+
+The v1 baseline is implemented by `create_workspace_data_registry(...)`,
+`WorkspaceDataToolPolicy`, and related registry helpers in
+`src/dynamic_agent_runner/registry.py`, with exports from
+`dynamic_agent_runner`.
+
+Completed:
+
+- opt-in `workspace_data_write`, `workspace_data_read`,
+  `workspace_data_search`, `workspace_data_list`, and
+  `workspace_data_delete` tools
+- required injected store
+- JSON-compatible write validation and maximum item size policy
+- metadata-first search/list defaults
+- stable `not_found` read/delete results
+- delete approval flag in tool metadata
+- fake-store tests and import coverage
+
+Deferred:
+
+- runner-owned durable storage, indexing, vector search, and host dirty-state
+- richer approval/resume integration beyond delete metadata
+- trace redaction beyond ordinary registry/tool behavior
+- capability/status states for disabled, missing-store, live, write-disabled,
+  delete-approval-required, and policy-rejected configurations
 
 ## Scope
 
@@ -216,26 +243,31 @@ large data blobs or secrets.
 
 ## TDD Implementation Tasks
 
-Future implementation should proceed in slices:
+Completed v1 slices:
 
 1. RED: disabled/missing-store tests; GREEN: opt-in registry and capability
-   status.
+   missing-store failure.
 2. RED: write/read tests; GREEN: fake-store write/upsert/read with JSON
    compatibility checks.
 3. RED: search/list tests; GREEN: metadata-only defaults, filters, and limits.
-4. RED: delete policy tests; GREEN: approval-required/disabled/live delete
-   states.
-5. RED: trace redaction tests; GREEN: bounded operation summaries without large
-   blobs.
-6. RED: executor integration tests; GREEN: model tool calls use workspace data
+4. RED: delete policy tests; GREEN: approval-required delete metadata and
+   delete/not-found results.
+5. RED: executor integration tests; GREEN: model tool calls use workspace data
    tools through ordinary registry dispatch.
+
+Deferred slices:
+
+1. RED: capability/status tests; GREEN: disabled, missing-store, live,
+   write-disabled, delete-approval-required, and policy-rejected states.
+2. RED: trace redaction tests; GREEN: bounded operation summaries without large
+   blobs.
 
 ## Validation Checklist
 
-Suggested commands:
+Relevant commands:
 
 ```bash
-poetry run pytest tests/test_registry.py tests/test_capabilities.py -q
+poetry run pytest tests/test_registry.py tests/test_import.py -q
 poetry run pytest tests/test_executor.py -q
 ```
 

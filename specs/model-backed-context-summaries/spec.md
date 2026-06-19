@@ -4,8 +4,8 @@
 
 - Feature slug: `model-backed-context-summaries`
 - Mode: `light`
-- Artifact type: future feature specification
-- Status: prepared for future implementation planning
+- Artifact type: implemented feature specification
+- Status: implemented v1 baseline
 - Owner: context-management prepare stage plus caller-supplied summarizer
   adapters
 - Primary predecessor:
@@ -26,6 +26,27 @@ compaction is unavailable, disabled, or configured as non-required.
 The runtime should own the summary contract, prompt boundaries, diagnostics, and
 installation rules. The caller or provider layer should supply the summarizer
 adapter.
+
+## Implementation Status
+
+The v1 baseline is implemented in `src/dynamic_agent_runner/executor.py` through
+the `context_summarizer` collaborator and `model_summary` compaction strategy.
+
+Completed:
+
+- explicit injected summarizer collaborator
+- fail-closed missing-summarizer behavior
+- bounded summary output insertion into prepared input
+- summary metadata in prepared-input compaction data
+- fake summarizer tests with no live model calls
+
+Deferred:
+
+- richer prior-summary folding for model-backed summaries
+- source/file/tool provenance diagnostics beyond the current bounded metadata
+- explicit fallback-order policy across provider remote compaction, model
+  summary, deterministic summary, and fail
+- capability/status reporting for missing/live summarizer coverage
 
 ## Problem Statement
 
@@ -157,20 +178,25 @@ provenance count, and summary strategy.
 
 ## Validation Checklist
 
-Future implementation should include:
+Implemented v1 validation includes:
 
 - validation tests for `model_summary` policy shape
-- executor tests for success, missing summarizer, failed summarizer, oversized
-  source, oversized summary, prior-summary folding, and provenance retention
 - tests proving no live provider/model calls are made
+- executor tests for successful injected summarization and missing summarizer
+  failure
+
+Deferred validation should include:
+
+- failed summarizer, oversized source, oversized summary, richer prior-summary
+  folding, and provenance retention tests
 - trace redaction tests
 - capability/status tests for missing/live summarizer coverage
 
-Suggested commands:
+Relevant commands:
 
 ```bash
 poetry run pytest \
-  tests/test_validation.py tests/test_executor.py tests/test_capabilities.py -q
+  tests/test_validation.py tests/test_executor.py -q
 poetry run ruff check src tests
 ```
 

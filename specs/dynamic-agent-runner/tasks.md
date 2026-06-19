@@ -145,10 +145,13 @@ needs a scoped plan and task slice before code changes begin.
     complete through injected evaluators. Implement `llmfit-model-fit-filter`
     and any concrete llama.cpp command/metadata probing only when local-model
     ergonomics becomes the immediate product driver.
-11. **Host workflow integration:** add generic host-facing adapter surfaces for
-    host-owned tool catalogs, model-facing aliases, inline preflight,
-    diagnostics, resolved model selection, and context/session lifecycle
-    guidance. Keep `power-marimo-host-automation` as a downstream-boundary
+11. **Complete for v1 host/tool/collaboration surfaces:** host workflow
+    integration, web tools, workspace data tools, subagent tools, model-backed
+    summaries, exact/hybrid semantic selection, and in-memory collaborative
+    sessions have v1 baselines. Remaining work is narrower follow-up: inline
+    preflight, richer capability/status reporting, trace correlation,
+    streaming/wait/resume, provider-backed compaction, and richer semantic
+    selectors. Keep `power-marimo-host-automation` as a downstream-boundary
     record rather than a DAR implementation target.
 12. **Async session memory pipeline:** keep v1 host-managed. Add runner-owned
     durable session storage only after a concrete workflow proves host-managed

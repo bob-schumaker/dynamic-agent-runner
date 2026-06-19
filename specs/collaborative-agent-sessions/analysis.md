@@ -14,9 +14,12 @@ Bounded subagent fanout and persistent collaboration solve different problems:
 - `collaborative-agent-sessions` answers "can the caller keep this child agent
   alive, inspect it, message it again, and restart it later?"
 
-Mixing both in one first slice would force lifecycle state, streaming,
+Mixing both in one first slice would have forced lifecycle state, streaming,
 restartability, and parent/child topology into the initial tool-pack contract.
-The safer order is bounded subagent tools first, then persistent collaboration.
+The chosen order was bounded subagent tools first, then persistent
+collaboration. Both now have v1 baselines; the boundary remains useful because
+subagent tools own bounded delegation while collaborative sessions own
+persistent lifecycle state.
 
 ## DAR Fit
 
@@ -29,9 +32,9 @@ The current `AgentSession` baseline already provides:
 - same-session concurrency rejection
 - session event streaming through `accept_stream(...)`
 
-Collaborative sessions should compose those pieces by managing several
-`AgentSession` instances under one parent session rather than creating a second
-executor.
+Collaborative sessions compose those pieces by managing several
+`AgentSession`-style child sessions under one parent session rather than
+creating a second executor.
 
 ## Codex Protocol Evidence
 
@@ -63,16 +66,18 @@ API makes child ids, statuses, handoff/state, and recursion policy explicit.
 
 ## Recommended Boundary
 
-For DAR, the recommended v1 boundary is:
+For DAR, the implemented v1 boundary is:
 
 - parent-owned manager over child `AgentSession` objects
 - `InMemorySessionStore` enough for first pass
-- explicit child presets for workflow, tools, model requirements, and policy
+- explicit child presets for roles, tool metadata, and policy inputs
 - direct host APIs first
-- optional manager tools second, registered through `ToolRegistry`
 - no durable external store
 - no recursive spawn by default
 - no always-running executor loop
+
+Optional manager tools, wait/resume, child event streaming, and stronger
+compatibility checks remain deferred.
 
 ## Relationship to LLM-as-Tool
 

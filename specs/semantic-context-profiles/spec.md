@@ -4,8 +4,8 @@
 
 - Feature slug: `semantic-context-profiles`
 - Mode: `light`
-- Artifact type: future feature specification
-- Status: prepared for future implementation planning
+- Artifact type: partially implemented feature specification
+- Status: partial v1 baseline; richer semantic selectors deferred
 - Owner: context-management prepare stage plus caller-supplied selectors
 - Primary predecessor:
   - `specs/context-management-prepare-stage/spec.md`
@@ -41,7 +41,31 @@ profile-specific behavior remains intentionally deferred:
   semantic scoring
 - retrieved RAG evidence and session history need predictable lane interaction
 
-This feature makes those policy meanings explicit before implementation.
+This feature makes those policy meanings explicit while tracking the partial v1
+implementation now present in the prepare stage.
+
+## Implementation Status
+
+The partial v1 baseline is implemented in `src/dynamic_agent_runner/executor.py`
+for exact and `hybrid_exact_semantic` older-turn selection.
+
+Completed:
+
+- exact-token preservation for issue keys, filenames, tool ids, function names,
+  quoted strings, and similar identifiers
+- `hybrid_exact_semantic` selection-policy support
+- selected/omitted/rejected metadata for older-turn selection
+- tests proving exact identifier preservation
+
+Deferred:
+
+- injected semantic selector collaborator
+- profile-specific lane priority for `semantic`, `recency_weighted`, and
+  `instruction_weighted`
+- memory-kind hints, access-frequency scoring, stale/redundant omission, and
+  prompt-cache-aware ordering
+- RAG lane borrowing policies beyond existing retrieved-context lane packing
+- capability/status reporting for semantic selector availability and fallback
 
 ## Scope
 
@@ -189,21 +213,24 @@ turn or safety constraints.
 
 ## Validation Checklist
 
-Future implementation should include:
+Implemented partial-v1 validation includes:
 
 - validation tests for supported profile and selection policy values
+- tests for exact identifier preservation
+
+Deferred validation should include:
+
 - executor tests for each profile's visible behavior
 - fake semantic-selector tests for selected/omitted diagnostics
-- tests for exact identifier preservation
 - RAG lane composition tests
 - capability/status tests for semantic selector live, missing, fallback, and
   disabled states
 
-Suggested commands:
+Relevant commands:
 
 ```bash
 poetry run pytest \
-  tests/test_validation.py tests/test_executor.py tests/test_capabilities.py -q
+  tests/test_validation.py tests/test_executor.py -q
 poetry run ruff check src tests
 ```
 

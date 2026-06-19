@@ -4,8 +4,8 @@
 
 - Feature slug: `web-tool-pack`
 - Mode: `light`
-- Artifact type: future feature specification
-- Status: proposed for future implementation planning
+- Artifact type: implemented feature specification
+- Status: implemented v1 baseline
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related artifacts:
   - `specs/capability-status-report/spec.md`
@@ -26,6 +26,30 @@ permission.
 
 The feature fills the current gap between portable `tool_type` metadata such as
 `web_search` and `web_fetch` and actual callable tools available to workflows.
+
+## Implementation Status
+
+The v1 baseline is implemented by `create_web_registry(...)`,
+`WebToolPolicy`, and related registry helpers in
+`src/dynamic_agent_runner/registry.py`, with exports from
+`dynamic_agent_runner`.
+
+Completed:
+
+- opt-in `web_search` and `web_fetch` registry pack
+- required injected search and fetch clients
+- bounded normalized search and fetch result mappings
+- URL scheme and exact-domain policy checks
+- fake-client tests and import coverage
+
+Deferred:
+
+- redirects, timeout enforcement, local/private network rejection, response
+  byte limits, robots/terms posture, and provider adapters
+- trace redaction beyond ordinary registry/tool behavior
+- capability/status states for disabled, missing-client, live, and
+  policy-rejected web pack configurations
+- optional `web_extract`/readability behavior
 
 ## Problem Statement
 
@@ -221,23 +245,24 @@ provider payloads, credentials, cookies, authorization headers, or query secrets
 
 ## Validation Checklist
 
-Future implementation should include:
+Implemented v1 validation includes:
 
-- tests for disabled web pack and unavailable referenced tools
 - tests for enabled pack with fake clients
 - tests for missing client failures
 - tests for search result normalization and maximum-result limits
-- tests for fetch content normalization, truncation, unsupported content, and
-  decode failures
+- tests for fetch content normalization and truncation
+- tests for scheme and exact-domain policy
+
+Deferred validation should include:
+
 - tests for scheme, domain, redirect, local-network, timeout, and size policy
 - tests for trace redaction
 - tests for capability/status web pack states
 
-Suggested commands:
+Relevant commands:
 
 ```bash
-poetry run pytest tests/test_registry.py tests/test_capabilities.py -q
-poetry run pytest tests/test_executor.py -q
+poetry run pytest tests/test_registry.py tests/test_import.py -q
 poetry run ruff check src tests
 ```
 

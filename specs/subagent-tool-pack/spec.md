@@ -4,8 +4,8 @@
 
 - Feature slug: `subagent-tool-pack`
 - Mode: `light`
-- Artifact type: future feature specification
-- Status: proposed first-stage subagent feature
+- Artifact type: implemented feature specification
+- Status: implemented v1 baseline
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Required predecessors:
   - `specs/persistent-agent-sessions/spec.md`
@@ -32,6 +32,31 @@ The first implementation target is Cline-style callable specialist fanout:
 short-lived child executions with constrained tools, budgets, and structured
 aggregate results. Persistent spawned child sessions are intentionally deferred
 to `collaborative-agent-sessions`.
+
+## Implementation Status
+
+The v1 baseline is implemented in `src/dynamic_agent_runner/subagents.py` with
+exports from `dynamic_agent_runner`.
+
+Completed:
+
+- opt-in `run_subagent` and `run_subagents` registry pack
+- required injected `SubagentRunner`
+- explicit `SubagentPreset` and `SubagentToolPolicy`
+- maximum child-count enforcement
+- normalized `SubagentResult` and aggregate child result mapping
+- fake-runner tests and import coverage
+
+Deferred:
+
+- parallel execution and `max_parallel` enforcement
+- per-child timeout, iteration, token, or cost-budget enforcement
+- parent/child trace correlation and capability/status reporting
+- approval, sandbox, guardrail, and recursive-spawn policy enforcement beyond
+  metadata defaults
+- optional `ask_llm`
+- durable child sessions, lifecycle APIs, and parent/child topology, which
+  remain owned by `collaborative-agent-sessions`
 
 ## Problem Statement
 
@@ -78,9 +103,8 @@ The stack is:
 The first subagent pack should support workflow-as-tool and may include a
 smaller LLM-as-tool adapter pattern for classification, summarization,
 extraction, review, compaction, or "ask a specialist model once" use cases.
-Session-as-tool behavior belongs to the later collaborative-session feature
-unless the child session is caller-owned and already registered as an ordinary
-tool.
+Session-as-tool behavior belongs to `collaborative-agent-sessions` unless the
+child session is caller-owned and already registered as an ordinary tool.
 
 ## Scope
 
@@ -296,30 +320,33 @@ and metadata-only subagent declarations.
 
 ## TDD Implementation Tasks
 
-Future implementation should use small commits by vertical slice:
+Completed v1 slices:
 
 1. RED: pack disabled/unavailable tests; GREEN: opt-in registry registration and
    missing-runner failure.
 2. RED: child runner protocol tests; GREEN: fake runner invocation and
    normalized single-child result.
-3. RED: fanout tests; GREEN: bounded parallel child execution with deterministic
+3. RED: fanout tests; GREEN: bounded serial child execution with deterministic
    aggregate ordering.
-4. RED: policy-limit tests; GREEN: max children, max parallel, timeout, output
-   limit, and recursion-disabled enforcement.
-5. RED: trace/capability tests; GREEN: parent/child correlation, redaction, and
-   capability/status states.
-6. RED: executor integration test; GREEN: parent `llm_step` model tool call uses
+4. RED: policy-limit tests; GREEN: max children enforcement.
+5. RED: executor integration test; GREEN: parent `llm_step` model tool call uses
    the subagent tool through ordinary registry dispatch.
+
+Deferred slices:
+
+1. RED: policy-limit tests; GREEN: max parallel, timeout, iteration, output
+   limit, and recursion-disabled enforcement.
+2. RED: trace/capability tests; GREEN: parent/child correlation, redaction, and
+   capability/status states.
 
 ## Validation Checklist
 
-Suggested commands:
+Relevant commands:
 
 ```bash
-poetry run pytest tests/test_registry.py tests/test_capabilities.py -q
+poetry run pytest tests/test_subagents.py tests/test_import.py -q
 poetry run pytest tests/test_executor.py -q
-poetry run pytest tests/test_agent_sessions.py -q
 ```
 
-Future validation must confirm no live model, web, MCP, shell, or filesystem
+Deferred validation must confirm no live model, web, MCP, shell, or filesystem
 dependency appears in unit tests unless explicitly faked.

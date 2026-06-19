@@ -4,8 +4,8 @@
 
 - Feature slug: `collaborative-agent-sessions`
 - Mode: `light`
-- Artifact type: future feature specification
-- Status: proposed post-`subagent-tool-pack` feature
+- Artifact type: implemented feature specification
+- Status: implemented v1 baseline after `subagent-tool-pack`
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Required predecessors:
   - `specs/persistent-agent-sessions/spec.md`
@@ -32,6 +32,32 @@ This feature is the stateful successor to `subagent-tool-pack`. Where the
 subagent tool pack returns bounded child results to a parent tool call,
 collaborative sessions keep named child agents alive across turns and expose
 their current state to the caller.
+
+## Implementation Status
+
+The v1 baseline is implemented in `src/dynamic_agent_runner/collaboration.py`
+with exports from `dynamic_agent_runner`.
+
+Completed:
+
+- `CollaborativeAgentSessionManager` for in-memory parent/child session
+  coordination
+- `CollaborativeAgentPreset`, `ChildAgentState`, and
+  `CollaborativeAgentSessionState`
+- child spawn, list, get-state, send-input, close, current-state, and
+  from-snapshot APIs
+- child session construction through an injected `session_factory`
+- copy-safe serializable state mappings
+- fake-session tests and import coverage
+
+Deferred:
+
+- wait/resume APIs and interruption-specific resume data
+- child event streaming
+- capability/status reporting
+- durable external storage and cross-process locking
+- stronger parent/child workflow compatibility validation
+- explicit child tool-policy enforcement beyond preset metadata
 
 ## Problem Statement
 
@@ -294,34 +320,38 @@ manager, policy-rejected configuration, and durable-storage-not-supported.
 
 ## TDD Implementation Tasks
 
-Future implementation should use small commits by vertical slice:
+Completed v1 slices:
 
 1. RED: manager creation and empty state tests; GREEN: collaboration state
    dataclass, snapshot serialization, and parent id recording.
 2. RED: spawn tests; GREEN: child `AgentSession` creation from explicit preset,
    stable agent ids, and missing-preset failures.
-3. RED: send/wait tests; GREEN: prompt routing through bounded child
-   `AgentSession.accept(...)`, status transitions, and same-child concurrency
-   rejection.
+3. RED: send tests; GREEN: prompt routing through bounded child
+   `AgentSession.accept(...)` and status transitions.
 4. RED: close/list/get-state tests; GREEN: closed-state rejection and copy-safe
    child state retrieval.
-5. RED: restart tests; GREEN: `from_snapshot(...)` compatibility checks for
-   parent workflow, child workflow, preset ids, and schema version.
-6. RED: streaming tests; GREEN: optional redacted child event forwarding using
+5. RED: restart tests; GREEN: `from_snapshot(...)` restoration of child state
+   with injected presets and session factory.
+
+Deferred slices:
+
+1. RED: wait/resume/concurrency tests; GREEN: wait APIs, interruption resume,
+   and same-child concurrency rejection.
+2. RED: compatibility tests; GREEN: parent workflow, child workflow, preset id,
+   and schema-version checks.
+3. RED: streaming tests; GREEN: optional redacted child event forwarding using
    `AgentSession.accept_stream(...)`.
-7. RED: capability/status tests; GREEN: live in-memory, metadata-only,
+4. RED: capability/status tests; GREEN: live in-memory, metadata-only,
    missing-collaborator, policy-rejected, and durable-storage-deferred states.
 
 ## Validation Checklist
 
-Suggested commands:
+Relevant commands:
 
 ```bash
-poetry run pytest tests/test_agent_sessions.py -q
-poetry run pytest tests/test_capabilities.py -q
-poetry run pytest tests/test_executor.py -q
+poetry run pytest tests/test_collaborative_sessions.py tests/test_import.py -q
 ```
 
-Future validation must confirm unit tests use fake model adapters and fake tool
+Deferred validation must confirm unit tests use fake model adapters and fake tool
 registries only, with no live OpenAI, MCP, web, shell, filesystem mutation, or
 local-model dependency.
