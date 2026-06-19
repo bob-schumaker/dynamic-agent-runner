@@ -226,6 +226,19 @@ not mean the model is downloaded, runnable, or compatible with the workflow.
 Install the package with the `huggingface` extra before using Hub-backed model
 discovery or Hub-backed local asset downloads.
 
+Built-in tool packs are opt-in and require injected collaborators:
+
+- `create_web_registry(...)` exposes `web_search` and `web_fetch` through
+  caller-provided search/fetch clients.
+- `create_workspace_data_registry(...)` exposes JSON-compatible
+  `workspace_data_*` tools through a caller-provided store.
+- `create_subagent_registry(...)` exposes `run_subagent` and `run_subagents`
+  through a caller-provided bounded child runner and presets.
+- `create_host_tool_registry(...)` adapts host-owned tool bindings with
+  provider-safe model-facing ids; `summarize_trace_events(...)`,
+  `summarize_capability_report(...)`, and `ResolvedModelSelection` support
+  bounded host handoff payloads.
+
 ## Runtime Metadata the Client Should Not Overinterpret
 
 The runtime preserves and validates metadata such as:

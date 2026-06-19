@@ -82,6 +82,74 @@ contract:
 MCP-bound tools default to hidden exposure and approval required. Trusted callers
 may override policy metadata in the binding ``metadata`` mapping.
 
+.. header2:: Host-owned tool bindings
+
+Host applications can adapt their own callable tools into the registry without
+renaming their internal catalog:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import HostToolBinding, create_host_tool_registry
+
+   registry = create_host_tool_registry(
+       [
+           HostToolBinding(
+               canonical_id="power_marimo.analyze_notebook",
+               model_id="analyze_notebook",
+               handler=analyze_notebook,
+               description="Analyze the active notebook.",
+               input_schema={"type": "object", "properties": {}},
+           )
+       ]
+   )
+
+``canonical_id`` remains the host-facing id. ``model_id`` and aliases are the
+provider-safe ids exposed to workflow models. ``summarize_trace_events(...)``,
+``summarize_capability_report(...)``, and ``ResolvedModelSelection`` provide
+bounded handoff helpers for hosts that need redacted status or model-selection
+payloads.
+
+.. header2:: Opt-in built-in tool packs
+
+Built-in packs are disabled unless the caller explicitly creates and supplies
+their registries. They require injected clients or stores so unit tests do not
+make live external calls:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       SubagentPreset,
+       WebToolPolicy,
+       WorkspaceDataToolPolicy,
+       create_subagent_registry,
+       create_web_registry,
+       create_workspace_data_registry,
+   )
+
+   web_registry = create_web_registry(
+       search_client=my_search_client,
+       fetch_client=my_fetch_client,
+       policy=WebToolPolicy(allowed_domains=("example.com",)),
+   )
+
+   workspace_data_registry = create_workspace_data_registry(
+       store=my_json_store,
+       policy=WorkspaceDataToolPolicy(default_search_limit=5),
+   )
+
+   subagent_registry = create_subagent_registry(
+       runner=my_subagent_runner,
+       presets={"reviewer": SubagentPreset(id="reviewer")},
+   )
+
+``create_web_registry(...)`` exposes ``web_search`` and ``web_fetch``.
+``create_workspace_data_registry(...)`` exposes ``workspace_data_write``,
+``workspace_data_read``, ``workspace_data_search``, ``workspace_data_list``, and
+``workspace_data_delete``. ``create_subagent_registry(...)`` exposes
+``run_subagent`` and ``run_subagents``. These helpers normalize model-facing
+results, but network access, durable storage, child lifecycle, and host dirty
+state remain caller-owned.
+
 .. header2:: Async tool handlers
 
 Registered tools record whether their handler is synchronous or asynchronous.

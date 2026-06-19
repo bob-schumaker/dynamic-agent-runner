@@ -13,7 +13,7 @@ Install the project dependencies with Poetry:
 
    poetry install --with dev --with docs
 
-If you use mise, enter the repository so ``.mise.toml`` can select Python 3.13,
+If you use mise, enter the repository so ``.mise.toml`` can select Python 3.14.6,
 configure Poetry to use the in-project ``.venv``, and source ``env_setup``. The
 repository also provides ``env_setup`` for manual shell setup:
 

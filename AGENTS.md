@@ -157,7 +157,7 @@ and conventions.
 
 ### Stack
 
-- Language and version: Python `>=3.13,<3.14.1 || >3.14.1,<3.15`; `.mise.toml` selects Python `3.13`.
+- Language and version: Python `>=3.13,<3.14.1 || >3.14.1,<3.15`; `.mise.toml` selects Python `3.14.6`.
 - Framework(s): library package with Sphinx docs generated from `docs/files/` through `vaguely-literate`.
 - Package manager: Poetry, with dependencies defined in `pyproject.toml`.
 - Runtime / deployment target: Python package and `dynamic-agent-runner` console script for generated agent workflow packages.
