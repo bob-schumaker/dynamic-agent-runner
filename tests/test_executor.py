@@ -2270,6 +2270,71 @@ def test_prepare_model_input_older_turn_selection_selects_relevant_turns() -> No
     assert lane_map["selected_older_turns"]["part_count"] == 1
 
 
+def test_prepare_model_input_exact_profile_preserves_identifier_matches() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "exact-profile-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compaction": {"auto": {"enabled": True}},
+                        "context_compression": {
+                            "profile": "exact",
+                            "selection": {
+                                "strategy": "hybrid_exact_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Resolve BUG-1234 without losing the exact issue key",
+        session_messages=(
+            OpenAIMessage(role="user", content="BUG-1234 failed in auth_v2.py"),
+            OpenAIMessage(role="assistant", content="Issue-key evidence"),
+            OpenAIMessage(role="user", content="Unrelated billing issue"),
+            OpenAIMessage(role="assistant", content="Other evidence"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert "BUG-1234 failed" in prepared_input.named_parts["selected_turn_1"].content
+    assert prepared_input.preparation.selection_policy == {
+        "profile": "exact",
+        "strategy": "hybrid_exact_semantic",
+        "max_selected_turns": 1,
+    }
+    assert prepared_input.preparation.selected_turns == (
+        {
+            "turn_id": "turn_1",
+            "selection_status": "selected",
+            "selection_reason": "hybrid_exact_semantic",
+            "relevance_score": 1,
+        },
+    )
+
+
 def test_prepare_model_input_chronological_reassembly_orders_selected_turns() -> None:
     """Selected older turns render in original order even when scores differ."""
 

@@ -2496,7 +2496,8 @@ def _selected_older_turn_parts(
     tuple[Mapping[str, Any], ...],
     tuple[Mapping[str, Any], ...],
 ]:
-    if selection_policy.get("strategy") != "deterministic_overlap":
+    strategy = str(selection_policy.get("strategy") or "")
+    if strategy not in {"deterministic_overlap", "hybrid_exact_semantic", "exact"}:
         return (), (), (), ()
     max_selected_turns = selection_policy.get("max_selected_turns")
     if (
@@ -2506,7 +2507,8 @@ def _selected_older_turn_parts(
     ):
         return (), (), (), ()
 
-    prompt_tokens = _selection_tokens(prompt)
+    use_exact_tokens = strategy in {"hybrid_exact_semantic", "exact"}
+    prompt_tokens = _selection_tokens(prompt, exact=use_exact_tokens)
     if not prompt_tokens:
         return (), (), (), ()
 
@@ -2514,7 +2516,9 @@ def _selected_older_turn_parts(
     rejected_turns: list[Mapping[str, Any]] = []
     for turn_index, messages in enumerate(_session_turns(pruned_session), start=1):
         turn_text = "\n".join(message.content for message in messages)
-        score = len(prompt_tokens & _selection_tokens(turn_text))
+        score = len(
+            prompt_tokens & _selection_tokens(turn_text, exact=use_exact_tokens)
+        )
         if score > 0:
             scored_turns.append((score, turn_index, f"turn_{turn_index}", messages))
         else:
@@ -2522,7 +2526,7 @@ def _selected_older_turn_parts(
                 {
                     "turn_id": f"turn_{turn_index}",
                     "selection_status": "rejected",
-                    "selection_reason": "no_deterministic_overlap",
+                    "selection_reason": f"no_{strategy}_overlap",
                     "relevance_score": 0,
                 }
             )
@@ -2551,7 +2555,7 @@ def _selected_older_turn_parts(
             {
                 "turn_id": turn_id,
                 "selection_status": "selected",
-                "selection_reason": "deterministic_overlap",
+                "selection_reason": strategy,
                 "relevance_score": score,
             }
         )
@@ -2582,10 +2586,9 @@ def _session_turns(
     return tuple(tuple(turn) for turn in turns)
 
 
-def _selection_tokens(value: str) -> set[str]:
-    return {
-        token for token in re.findall(r"[A-Za-z]+", value.lower()) if len(token) >= 4
-    }
+def _selection_tokens(value: str, *, exact: bool = False) -> set[str]:
+    pattern = r"[A-Za-z0-9][A-Za-z0-9_.:/-]*" if exact else r"[A-Za-z]+"
+    return {token for token in re.findall(pattern, value.lower()) if len(token) >= 4}
 
 
 def _context_lane_metadata(
@@ -2675,10 +2678,13 @@ def _selection_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:
     compression = policy.get("context_compression")
     if not isinstance(compression, Mapping):
         return {}
+    profile = str(compression.get("profile") or "")
     selection = compression.get("selection")
     if not isinstance(selection, Mapping):
         return {}
     result: dict[str, Any] = {}
+    if profile in {"exact", "semantic"}:
+        result["profile"] = profile
     for key in ("strategy", "max_selected_turns", "chronological_reassembly"):
         if key in selection:
             result[key] = selection[key]
