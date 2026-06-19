@@ -5,8 +5,9 @@
 - Feature slug: `mlx-local-model-adapter`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: implemented; public adapter helpers, path/Hub resolution,
-  identity validation, executor coverage, docs, and focused validation complete
+- Status: implemented; public adapter helpers, converted-directory/GGUF/Hub
+  resolution, generation kwargs, capability metadata, identity validation,
+  executor coverage, docs, and focused validation complete
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/llama-cpp-local-model/spec.md`
@@ -119,8 +120,8 @@ This feature specification covers:
    local execution
 3. in-process generation through documented or stable MLX/MLX LLM helper
    surfaces, with lazy imports
-4. local model asset references for converted MLX directories, MLX Community
-   Hugging Face snapshots, and selected GGUF files
+4. local model asset references for converted MLX directories, explicit GGUF
+   files, and MLX Community Hugging Face snapshots
 5. repository-owned error translation for unsupported platform, missing
    dependencies, model resolution, load failures, generation failures, and model
    identity mismatch
@@ -139,14 +140,15 @@ This feature specification covers:
 - No Linux or Windows support for this feature, even if upstream MLX has
   non-macOS packages.
 - No embeddings, reranking, multimodal, Whisper, image, or audio runtime
-  behavior in the first adapter feature.
+  behavior in the text-generation adapter feature.
 - No OpenAI-compatible server wrapper unless the caller provides one through the
   existing local OpenAI-compatible endpoint helpers.
 
 ## Implementation Readiness Decisions
 
-- The first implementation targets converted MLX model directories and
-  injected fake backend tests. GGUF support remains documented but deferred.
+- The implementation targets converted MLX model directories, explicit GGUF
+  files, injected fake backend tests, and conservative text-generation
+  capability metadata.
 - The public helper names for the first implementation are authoritative:
   `MLXLocalModelConfig`, `create_mlx_local_adapter(...)`, and
   `create_mlx_local_async_adapter(...)`.
@@ -159,9 +161,9 @@ This feature specification covers:
 - Sync support and async support should ship together. The async adapter may
   dispatch blocking local generation through the executor-friendly thread path
   or an adapter-owned async wrapper; it must not block the event loop directly.
-- Capability metadata for the first implementation is conservative: plain text
-  generation only. Tool calling, structured output, embeddings, multimodal, and
-  streaming public contracts are unsupported unless later specs add them.
+- Capability metadata is conservative: plain text generation only. Tool
+  calling, structured output, embeddings, multimodal IO, and streaming public
+  contracts are unsupported unless later specs add them.
 
 ## Proposed Public API
 
@@ -180,6 +182,7 @@ adapter = create_mlx_local_adapter(
         model_aliases=("mlx-local-chat",),
         model_path="path/to/mlx-model-directory",
         expected_model_id="mlx-community/example-model",
+        generation_kwargs={"max_tokens": 512, "temperature": 0.2},
     )
 )
 
@@ -340,20 +343,23 @@ Acceptance criteria:
       missing coverage.
 - [x] Explicit local model-path resolution succeeds and missing assets fail
       before generation.
+- [x] Explicit GGUF file references are validated before generation.
 - [x] Hugging Face snapshot/file reference behavior is tested without network
       by injected fake download functions.
 - [x] Model identity mismatch failures preserve requested alias and
       authoritative identity.
 - [x] MLX generation output is normalized to `ModelResponse`.
+- [x] Supported generation kwargs such as `max_tokens`, `temperature`, and
+      `top_p` propagate to compatible backends.
 - [x] Unsupported tool-call or structured-output requests fail clearly.
+- [x] Conservative capability metadata reports local in-process text generation
+      and fail-closed unsupported advanced features.
 - [x] Documentation explains macOS-only support, strict local-only usage, and
       the distinction between in-process MLX adapters and OpenAI-compatible
       endpoint adapters.
 
 ## Deferred Questions
 
-- Whether GGUF support should become first-class after converted MLX directory
-  support lands.
 - Whether a future MLX-specific OpenAI-compatible server helper is useful.
 - What capability metadata should be advertised for structured output, tool
   calling, embeddings, multimodal models, context length, and local memory

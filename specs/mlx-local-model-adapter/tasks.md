@@ -1,6 +1,6 @@
 # macOS MLX Local-Model Adapter Task List
 
-Status: implemented; Slices 1-4 complete
+Status: implemented; Slices 1-5 complete
 
 ## Prerequisites
 
@@ -245,3 +245,58 @@ fields.
   - Validation: `pre-commit run --files <changed files>`
   - GREEN: targeted pre-commit passed for MLX implementation, docs, spec, and
     memory files.
+
+## Slice 5 — Complete Text-Generation Adapter Surface
+
+- [x] T5.1 [tests] Add RED tests for explicit GGUF model-file preflight.
+  - Spec: FR-3
+  - Plan: Implementation Shape
+  - Files/components: `tests/test_mlx_models.py`,
+    `src/dynamic_agent_runner/mlx_models.py`
+  - Cases:
+    - explicit `.gguf` file succeeds as a model asset
+    - missing GGUF file fails with a package-owned resolution error
+    - non-`.gguf` files are rejected when `model_format="gguf"`
+  - RED: targeted MLX tests failed because `MLXLocalModelConfig` did not accept
+    `model_format`.
+  - GREEN: `poetry run pytest tests/test_mlx_models.py -q` passed with 18 tests.
+
+- [x] T5.2 [implementation] Add model-format handling for converted MLX
+      directories and explicit GGUF files.
+  - Spec: FR-3
+  - Plan: Implementation Shape
+  - Files/components: `src/dynamic_agent_runner/mlx_models.py`
+  - Depends on: T5.1
+  - GREEN: `poetry run pytest tests/test_mlx_models.py -q` passed with 18 tests.
+
+- [x] T5.3 [tests] Add RED tests for generation kwargs and conservative
+      capability metadata.
+  - Spec: FR-5
+  - Plan: Implementation Shape
+  - Files/components: `tests/test_mlx_models.py`,
+    `src/dynamic_agent_runner/mlx_models.py`
+  - Cases:
+    - config-level `generation_kwargs` reach compatible backends
+    - request `extra` overrides supported config-level generation kwargs
+    - unrelated request extras are ignored
+    - adapter reports local in-process plain-text capabilities and unsupported
+      advanced surfaces
+  - RED: targeted MLX tests failed because config did not accept
+    `generation_kwargs` and adapter capability metadata did not exist.
+  - GREEN: `poetry run pytest tests/test_mlx_models.py -q` passed with 18 tests.
+
+- [x] T5.4 [implementation] Map supported generation kwargs and expose
+      conservative capability metadata.
+  - Spec: FR-5
+  - Plan: Implementation Shape
+  - Files/components: `src/dynamic_agent_runner/mlx_models.py`
+  - Depends on: T5.3
+  - GREEN: `poetry run pytest tests/test_mlx_models.py -q` passed with 18 tests.
+
+- [x] T5.5 [docs/spec-maintenance] Update public docs and spec matrix for the
+      completed text-generation adapter surface.
+  - Files/components: `README.md`, `docs/files/python-api.rst`,
+    `docs/skills/dynamic-agent-runner/SKILL.md`,
+    `specs/mlx-local-model-adapter/spec.md`,
+    `specs/mlx-local-model-adapter/plan.md`,
+    `specs/mlx-local-model-adapter/tasks.md`, `specs/README.md`
