@@ -568,3 +568,30 @@ DAR does not own marimo in any sense, not does it use any Qt-related functionali
 ---
 
 update power-marimo-host-automation against the existing ../power-marimo repo and our new focus on running dynamic agent workflows only
+
+---
+
+downstream issue:
+
+```text
+NCS3 is blocked by the current dynamic-agent-runner API.
+AgentSession.accept_stream() only emits redacted stream events plus a terminal final_result. It does not return the full WorkflowResult, and the redacted stream deliberately removes raw tool outputs. Power Marimo’s existing notebook renderer depends on workflow_result.state.tool_results to render analysis tables and save structured payloads. If I replace execute_workflow_async(...) with accept_stream(...) as-is, analysis results regress to plain chat text and the table/project-data behavior breaks.
+So I’m stopping before making a broken slice commit. The viable options are:
+Add/consume an upstream accept_stream() terminal event that includes an AgentSessionResult or full workflow_result.
+```
+
+---
+
+can we add flags so that the downstream client can determine how much of the event stream they want to consume?
+
+---
+
+add this work as a task to the appropriate spec with a note about being a client request
+
+---
+
+make the spec corpus internally consistent
+
+---
+
+make docs corpus internally self consistent

@@ -146,8 +146,11 @@
   as a bounded executor run.
 - `model-event-streaming` v1 is implemented through
   `AgentSession.accept_stream(...)`, with redacted session/run lifecycle events,
-  prepared-input diagnostics, session/run correlation, and terminal
-  final-result authority.
+  prepared-input diagnostics, session/run correlation, terminal final-result
+  authority, terminal `AgentSessionResult`/`WorkflowResult` access for trusted
+  in-process consumers, and caller-controlled stream filters for progress
+  events, terminal events, terminal session-result attachment, and progress
+  event types.
 - `async-session-memory-pipeline` remains a metadata/session-boundary reference.
   Pruning-context graph injection was completed through
   `internal-graph-mutation` and `context-management-prepare-stage` without
@@ -170,10 +173,17 @@
 
 ## Latest Milestones
 
-- `582cf85` reverted the earlier Python 3.14.6 mise/lock refresh so it can be
-  redone after the memory-bank refresh and trigger a new build.
-- `4b1b0c1` temporarily refreshed `.mise.toml` to Python 3.14.6 and updated the
-  Poetry lockfile before that revert.
+- `9b45bf5` added regression tests for terminal stream
+  `AgentSessionResult`/`WorkflowResult` access, terminal-only streaming,
+  terminal-result omission, and progress event-type filtering.
+- `0237b42` expanded `AgentSession.accept_stream(...)` with terminal
+  `session_result`/`workflow_result` access and stream-consumption flags.
+- `bdf29ef` aligned README, Sphinx API/observability docs, and the
+  repo-local client skill with the stream-result/filter contract.
+- `e1676c5` aligned the model-event-streaming specs and spec index with the
+  Power-Marimo client-requested terminal-result/filter follow-up.
+- `29d528d` aligned docs with the current repository status, including Python
+  3.14.6 setup wording and implemented host/tool-pack surfaces.
 - `6361e05` added tests for the expanded MLX adapter surface, including GGUF,
   generation kwargs, request overrides, and capabilities.
 - `3fbfd63` expanded the MLX local adapter surface in source.
@@ -296,6 +306,10 @@
   model-tool-loop progress events, cancellation/backpressure expansion,
   lower-level executor event APIs, and streaming capability/status reporting
   remain deferred.
+- An unrelated `poetry.lock` drift is currently unstaged after the stream work:
+  `huggingface-hub` and `pytest` lockfile entries moved forward. Treat that as
+  separate dependency maintenance, not part of the stream API or memory-bank
+  commits.
 - Context-window follow-up implementation remains future. Start from the
   prepared specs for provider-backed context compaction, model-backed context
   summaries, or semantic context profiles before editing runtime code.
