@@ -274,6 +274,7 @@ contract:
            model_aliases=("mlx-local-chat",),
            model_path="path/to/mlx-model-directory",
            expected_model_id="mlx-community/example-model",
+           generation_kwargs={"max_tokens": 512, "temperature": 0.2},
        )
    )
 
@@ -287,11 +288,15 @@ contract:
 MLX helpers are macOS-only, but importing the package and constructing an adapter
 remain safe on other platforms. Generation on non-macOS fails before model
 resolution or dependency loading. The default in-process backend lazily imports
-``mlx-lm``. MLX helpers validate converted model directories before generation,
-normalize generated text into the package ``ModelResponse`` contract, and reject
-unsupported tool-call or structured-output requests. Use strict coverage for
-local-only execution. If a caller already exposes an MLX model through an
-OpenAI-compatible local server, use ``LocalOpenAIEndpointConfig`` instead.
+``mlx-lm``. MLX helpers validate converted model directories, explicit ``.gguf``
+files with ``model_format="gguf"``, and Hugging Face-resolved assets before
+generation. They normalize generated text into the package ``ModelResponse``
+contract and reject unsupported tool-call or structured-output requests. Use
+strict coverage for local-only execution. If a caller already exposes an MLX
+model through an OpenAI-compatible local server, use
+``LocalOpenAIEndpointConfig`` instead. Embeddings, multimodal IO, streaming
+public APIs, conversion, and server lifecycle helpers are separate feature
+surfaces.
 
 .. header2:: Hugging Face model discovery
 

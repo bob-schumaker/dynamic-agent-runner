@@ -309,6 +309,7 @@ mlx_adapter = create_mlx_local_adapter(
         model_aliases=("mlx-local-chat",),
         model_path="path/to/mlx-model-directory",
         expected_model_id="mlx-community/example-model",
+        generation_kwargs={"max_tokens": 512, "temperature": 0.2},
     )
 )
 
@@ -323,10 +324,13 @@ result = run_agent_workflow(
 The MLX helper is macOS-only, but importing the package and constructing an
 adapter remain safe on other platforms. Generation on non-macOS fails before
 model resolution or dependency loading. The default in-process backend lazily
-imports `mlx-lm`, expects a caller-controlled converted MLX model directory or
-explicit Hugging Face reference, and does not start a server or wrap MLX as
-hosted OpenAI. Install with the `huggingface` extra before using
-Hugging Face-backed model discovery or asset downloads.
+imports `mlx-lm`, expects a caller-controlled converted MLX model directory,
+explicit `.gguf` file (`model_format="gguf"`), or explicit Hugging Face
+reference, and does not start a server or wrap MLX as hosted OpenAI. Install
+with the `huggingface` extra before using Hugging Face-backed model discovery
+or asset downloads. The in-process adapter remains plain text generation only:
+tool calling, structured output, embeddings, multimodal IO, streaming public
+APIs, conversion, and server lifecycle helpers are separate feature surfaces.
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls.

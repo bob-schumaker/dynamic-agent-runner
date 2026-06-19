@@ -203,6 +203,7 @@ adapter = create_mlx_local_adapter(
         model_aliases=("mlx-local-chat",),
         model_path="path/to/mlx-model-directory",
         expected_model_id="mlx-community/example-model",
+        generation_kwargs={"max_tokens": 512, "temperature": 0.2},
     )
 )
 ```
@@ -211,10 +212,14 @@ Pass MLX adapters as a list with `model_adapter_coverage="strict"` when the run
 must stay local. MLX helpers are macOS-only, but importing the package and
 constructing adapters remain safe on other platforms; generation on non-macOS
 fails before model resolution or dependency loading. They validate converted
-model directories and normalize plain generated text into the runner response
-contract. The default in-process backend lazily uses `mlx-lm` when installed;
-tests and hosts can inject a fake or custom backend. The helpers do not start a
-server, and they are distinct from the OpenAI-compatible endpoint helpers.
+model directories, explicit `.gguf` files with `model_format="gguf"`, and
+Hugging Face-resolved assets before generation. They normalize plain generated
+text into the runner response contract. The default in-process backend lazily
+uses `mlx-lm` when installed; tests and hosts can inject a fake or custom
+backend. The helpers do not start a server, and they are distinct from the
+OpenAI-compatible endpoint helpers. Tool calling, structured output,
+embeddings, multimodal IO, streaming, conversion, and server lifecycle remain
+separate feature surfaces.
 
 `search_hugging_face_models(...)` is read-only discovery. A matching result does
 not mean the model is downloaded, runnable, or compatible with the workflow.
