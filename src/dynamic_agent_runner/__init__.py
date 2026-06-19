@@ -111,6 +111,13 @@ from dynamic_agent_runner.hooks import (
     WorkflowLifecycleHooks,
     invoke_lifecycle_hook_async,
 )
+from dynamic_agent_runner.host_integration import (
+    HostToolBinding,
+    ResolvedModelSelection,
+    create_host_tool_registry,
+    summarize_capability_report,
+    summarize_trace_events,
+)
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
@@ -181,6 +188,7 @@ __all__ = [
     "GuardrailResult",
     "HuggingFaceModelSearchError",
     "HuggingFaceModelSearchResult",
+    "HostToolBinding",
     "LlamaCppMemoryFitMeasurement",
     "LlamaCppMemoryFitProfileError",
     "LlamaCppMemoryFitProfileResult",
@@ -222,6 +230,7 @@ __all__ = [
     "create_mlx_local_adapter",
     "create_mlx_local_async_adapter",
     "create_mcp_registry",
+    "create_host_tool_registry",
     "create_default_async_openai_client",
     "create_default_openai_provider",
     "create_default_openai_client",
@@ -232,6 +241,8 @@ __all__ = [
     "openai_tool_schema",
     "tool_from_function",
     "create_local_workspace_registry",
+    "summarize_capability_report",
+    "summarize_trace_events",
     "ToolResult",
     "ToolRegistryOverrides",
     "ToolRegistry",
@@ -245,6 +256,7 @@ __all__ = [
     "PermissionHookContext",
     "RegisteredLifecycleHook",
     "RejectedSkillSource",
+    "ResolvedModelSelection",
     "ResolvedSkillSource",
     "RunContext",
     "RetryPolicy",
