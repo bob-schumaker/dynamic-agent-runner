@@ -71,7 +71,12 @@ V1 behavior:
 - maps `workflow_started` to caller-facing `run_started`
 - emits existing prepared-input diagnostics, including pruning-context and
   graph-mutation metadata, through redacted event payloads
-- emits a terminal `run_completed` event carrying the authoritative final result
+- emits a terminal `run_completed` event carrying the authoritative final result,
+  the same `AgentSessionResult` shape returned by `accept(...)`, and convenient
+  `workflow_result` access for callers that need full execution state such as
+  structured tool results
+- lets callers choose progress events, terminal events, terminal session-result
+  attachment, and progress event-type filters
 - updates `AgentSessionState` only after successful bounded-run completion
 - preserves same-session concurrency rejection
 
@@ -109,6 +114,9 @@ in-memory session baseline, and v1 streaming is implemented on that surface.
   raw tool arguments or raw tool outputs by default.
 - As a workflow caller, I can still receive the same final result after
   streaming completes.
+- As an application host, I can optionally receive the terminal
+  `AgentSessionResult`/`WorkflowResult` when structured run state is needed, or
+  omit that attachment when only scalar final output is needed.
 - As a safety reviewer, I can verify partial events do not bypass output
   contracts, approval checks, guardrails, or redaction policy.
 - As a model-adapter implementer, I can support streaming where the provider
@@ -124,7 +132,12 @@ async for event in session.accept_stream("Continue the analysis."):
         ui.show_context_status(event.payload)
     elif event.event_type == "run_completed":
         result = event.final_result
+        workflow_result = event.workflow_result
 ```
+
+Callers can use `include_progress_events`, `include_terminal_event`,
+`include_terminal_session_result`, and `progress_event_types` to reduce the
+surface they consume.
 
 A lower-level executor surface may exist as:
 
@@ -153,6 +166,10 @@ Implemented v1 fields:
 - node id
 - redacted metadata
 - terminal final result on `run_completed`
+- terminal `session_result` and `workflow_result` access on completed or
+  interrupted runs
+- caller-controlled stream flags for progress events, terminal events,
+  terminal result attachment, and progress event-type filters
 
 Future candidate fields:
 
@@ -300,8 +317,12 @@ Acceptance criteria:
 - Streaming APIs must be async-first.
 - Sync wrappers for streaming are out of scope unless a later plan proves a
   clean iterator-safe design.
-- Event objects must be serializable using ordinary Python data structures.
-- Event payloads must avoid raw sensitive tool data by default.
+- Redacted progress-event payloads must be serializable using ordinary Python
+  data structures.
+- Terminal `AgentSessionResult`/`WorkflowResult` attachments are in-process
+  result handoffs, not redacted external telemetry payloads; callers can omit
+  them with `include_terminal_session_result=False`.
+- Progress-event payloads must avoid raw sensitive tool data by default.
 - Unit tests must use fake streaming adapters and fake tool registries.
 - Tests must not make live OpenAI, MCP, Hugging Face, Marimo, or local model
   calls.
@@ -312,7 +333,10 @@ Acceptance criteria:
 - Session-level `AgentSession.accept_stream(...)` API after persistent sessions
   exist.
 - Redacted execution-event streaming from the existing trace seam.
-- Terminal final-result authority through a `run_completed` event.
+- Terminal final-result authority through a `run_completed` event, with optional
+  terminal `AgentSessionResult`/`WorkflowResult` access.
+- Caller controls for progress events, terminal events, terminal session-result
+  attachment, and progress event-type filtering.
 - Session-state commit only after successful bounded-run completion.
 - Future optional adapter streaming protocol.
 - Future text delta events from model output.
@@ -326,7 +350,7 @@ Acceptance criteria:
 - Implementing streaming before persistent sessions have an approved plan or
   baseline.
 - Raw provider event passthrough as the public API.
-- Streaming raw tool arguments/results by default.
+- Streaming raw tool arguments/results in progress-event payloads by default.
 - Durable storage of partial deltas.
 - UI rendering components.
 - WebSocket, SSE, HTTP server, or CLI-specific streaming transports.
@@ -349,9 +373,12 @@ Streaming exposes sensitive model output earlier than final-result handling.
 Callers own user-facing display and persistence of streamed content.
 
 Raw tool arguments and raw tool outputs may contain secrets, workspace data, or
-private source context. They must not be streamed by default. Tool-progress
-events should use ids, names, status, and redacted/summarized metadata unless a
-future explicit policy enables raw payloads.
+private source context. They must not appear in redacted progress-event payloads
+by default. Tool-progress events should use ids, names, status, and
+redacted/summarized metadata unless a future explicit policy enables raw
+payloads. Terminal `WorkflowResult` access can expose ordinary execution state,
+including `tool_results`; that is an in-process result handoff for trusted
+callers and can be disabled per stream.
 
 ## Relationship to Existing Specs
 
@@ -389,6 +416,23 @@ Future streaming expansion slices should provide focused tests for:
 - no raw tool arguments/results in default stream events
 - capability/status reporting for supported, fallback, and missing streaming
 
+### Completed Client-Requested Follow-Up: Terminal Results and Stream Filters
+
+Power Marimo reported that consuming `AgentSession.accept_stream(...)` would
+regress notebook analysis rendering because terminal events previously exposed
+only redacted stream events plus `final_result`, while its renderer needs
+`WorkflowResult.state.tool_results` for structured tables and project-data
+payloads. In response, the implemented v1 stream contract now:
+
+- attaches terminal `session_result` and `workflow_result` access by default
+- keeps intermediate progress events redacted
+- supports terminal-only, progress-only, no-terminal-session-result, and
+  progress-event-type-filtered consumption through `accept_stream(...)` flags
+
+The client-requested regression coverage lives in `tests/test_agent_sessions.py`
+and verifies terminal workflow-result access, terminal-only streaming,
+omitting terminal session-result attachment, and progress event-type filtering.
+
 Validation commands should include at least:
 
 ```bash
@@ -409,12 +453,15 @@ poetry run ruff check src tests
 
 - Session event streams include redacted prepared-input diagnostics, including
   pruning-context metadata, rather than leaving those diagnostics trace-only.
-- Terminal `run_completed` events carry the authoritative final result, not the
-  full `WorkflowResult`.
+- Terminal `run_completed` and `approval_interrupted` events carry the
+  authoritative final result when available and, by default, the same
+  `AgentSessionResult` shape returned by `accept(...)`; intermediate progress
+  events remain redacted.
 
 ## Approval State
 
-The v1 session event-stream baseline is implemented by explicit user request.
+The v1 session event-stream baseline and the Power Marimo client-requested
+terminal-result/filter follow-up are implemented by explicit user request.
 Further provider-native streaming, model-tool-loop progress events,
 capability/status reporting, and cancellation/backpressure expansion require a
 new approved plan/tasks slice before implementation.

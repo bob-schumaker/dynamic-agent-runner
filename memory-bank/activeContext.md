@@ -3,9 +3,20 @@
 ## Current Focus
 
 - No implementation slice is currently active. The latest completed stream
-  expanded the MLX local-model adapter surface, documented the completion state,
-  and prepared downstream Power-Marimo handoff notes for MLX migration and
-  host-automation adoption of generic DAR host surfaces.
+  resolved a downstream Power-Marimo blocker in
+  `AgentSession.accept_stream(...)`: terminal stream events can now expose the
+  same `AgentSessionResult`/`WorkflowResult` shape as `accept(...)`, and callers
+  can choose progress events, terminal events, terminal session-result
+  attachment, and progress event-type filters.
+- The stream-result work is committed in separate slices:
+  - `0237b42` added the source API behavior in `sessions.py`
+  - `9b45bf5` added focused session-stream regression tests
+  - `e1676c5` aligned the model-event-streaming spec surface
+  - `bdf29ef` aligned README/Sphinx/skill docs with the new client contract
+- A memory-bank refresh is in progress after those commits. An unrelated
+  `poetry.lock` drift remains unstaged (`huggingface-hub` and `pytest` lockfile
+  version bumps) and should not be bundled with the memory refresh unless the
+  user explicitly asks for dependency lock maintenance.
 - The expanded MLX surface is implemented and committed in source/test slices:
   explicit converted-MLX vs GGUF model formats, GGUF path validation, resolved
   path loading for the default `mlx_lm` backend, filtered generation kwargs
@@ -17,10 +28,6 @@
     such as `HostToolBinding`, `create_host_tool_registry`,
     `ResolvedModelSelection`, `summarize_trace_events`, and
     `summarize_capability_report`
-- The Python 3.14.6 `.mise.toml`/`poetry.lock` refresh was committed and then
-  reverted. The next requested action is to refresh memory-bank state, commit
-  it, and then redo that dependency/environment commit so the build triggers
-  from a new SHA.
 - `specs/async-session-memory-pipeline/` is now a completed boundary handoff:
   async-session owns session identity/history metadata only; live sessions are
   owned by `persistent-agent-sessions`; pruning behavior is owned by
@@ -34,9 +41,11 @@
   `WorkflowExecutionState.session_messages` and `AgentSession` history.
 - `specs/model-event-streaming/` is implemented for the v1
   `AgentSession.accept_stream(...)` surface. It streams redacted session/run
-  lifecycle and prepared-input diagnostics with terminal final-result authority;
-  provider-native token deltas and richer loop-progress streaming remain
-  future work.
+  lifecycle and prepared-input diagnostics, preserves terminal final-result
+  authority, exposes terminal `session_result`/`workflow_result` for trusted
+  in-process consumers by default, and supports caller-controlled stream
+  filters. Provider-native token deltas and richer loop-progress streaming
+  remain future work.
 - Context-window follow-up work now has three prepared future feature specs:
   `provider-backed-context-compaction`, `model-backed-context-summaries`, and
   `semantic-context-profiles`. They split remote `/responses/compact`-style

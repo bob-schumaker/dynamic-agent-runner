@@ -50,9 +50,9 @@ Known configuration:
 
 - Python package managed by Poetry
 - Python compatibility: `>=3.13,<3.14.1 || >3.14.1,<3.15`
-- local mise configuration selects Python `3.13`, uses an in-project `.venv`,
+- local mise configuration selects Python `3.14.6`, uses an in-project `.venv`,
   and sources `env_setup` on shell entry
-- primary runtime dependencies on `roschumalib` and the official `openai` package
+- primary runtime dependency on the official `openai` package
 - CLI parsing uses `argparse` through the package-owned console entry point
 - retry support uses `tenacity` behind package-owned retry policy interfaces
 - token estimation uses `tiktoken` behind package-owned token-budget interfaces
@@ -64,6 +64,10 @@ Known configuration:
   OpenAI-compatible endpoint helpers, context-pipeline graph-mutation helpers,
   and in-memory persistent agent sessions are implemented behind package-owned
   interfaces
+- opt-in tool packs cover read-only local workspace access, injected web
+  search/fetch clients, injected workspace data stores, and injected bounded
+  subagent runners; host integration helpers adapt caller-owned tools and
+  summarize trace/capability payloads without taking over host lifecycle
 - local model asset, endpoint, and direct in-process llama.cpp support is
   represented through package-owned local-model helpers; `llama-cpp-python` is a
   `llamacpp` extra and `huggingface-hub` is available through the `huggingface`
@@ -110,7 +114,7 @@ poetry install --with dev --with docs
 ```
 
 If using mise, enter the project normally so `.mise.toml` can select Python
-3.13, configure Poetry to use the in-project `.venv`, and source `env_setup`.
+3.14.6, configure Poetry to use the in-project `.venv`, and source `env_setup`.
 The repository also provides `env_setup` for manual shells; it must be sourced
 rather than executed directly:
 
@@ -188,13 +192,22 @@ async for event in session.accept_stream("Continue the analysis."):
         handle_context_status(event.payload)
     elif event.event_type == "run_completed":
         final_result = event.final_result
+        workflow_result = event.workflow_result
 ```
+
+Hosts can limit the stream surface with
+`include_progress_events=False`, `include_terminal_event=False`,
+`include_terminal_session_result=False`, or
+`progress_event_types=("model_input_prepared",)`.
 
 `accept_stream(...)` yields redacted `AgentSessionStreamEvent` values with
 sequence, event type, session ID, run ID, node ID, payload, and terminal final
-result fields. The terminal `run_completed` event is the authoritative final
-result for successful runs. Provider-native token deltas, lower-level executor
-stream APIs, and specialized model-tool loop progress events remain future work.
+result fields. The terminal `run_completed` event also carries
+`session_result`, matching `AgentSession.accept(...)`, and
+`event.workflow_result` for callers that need full execution state such as tool
+results. Intermediate stream events stay redacted. Provider-native token deltas,
+lower-level executor stream APIs, and specialized model-tool loop progress
+events remain future work.
 
 Model adapter coverage defaults to augmented behavior. With
 `model_adapter_coverage="augmented"` or an omitted coverage policy, supplied

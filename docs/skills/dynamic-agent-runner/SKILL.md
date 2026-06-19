@@ -64,6 +64,19 @@ loaded workflow, registry, adapter set, hooks, max-step policy, or trace sink.
 When passing an execution context, do not also pass artifact paths or runtime
 collaborators as separate keyword arguments.
 
+Use `AgentSession` with `InMemorySessionStore` when several bounded prompts
+should reuse a retained user/assistant transcript. `accept(...)` returns
+`AgentSessionResult`, including the bounded `WorkflowResult` or
+`WorkflowInterruptedResult` plus current session state.
+
+Use `accept_stream(...)` when the host needs live progress events for one
+bounded prompt. Progress events are redacted. Terminal `run_completed` and
+`approval_interrupted` events carry `session_result` by default, and
+`event.workflow_result` is available when the host needs full execution state
+such as `workflow_result.state.tool_results`. Control stream volume with
+`include_progress_events`, `include_terminal_event`,
+`include_terminal_session_result`, and `progress_event_types`.
+
 ## CLI Usage
 
 For shell integration, use the console script:
@@ -226,6 +239,19 @@ not mean the model is downloaded, runnable, or compatible with the workflow.
 Install the package with the `huggingface` extra before using Hub-backed model
 discovery or Hub-backed local asset downloads.
 
+Built-in tool packs are opt-in and require injected collaborators:
+
+- `create_web_registry(...)` exposes `web_search` and `web_fetch` through
+  caller-provided search/fetch clients.
+- `create_workspace_data_registry(...)` exposes JSON-compatible
+  `workspace_data_*` tools through a caller-provided store.
+- `create_subagent_registry(...)` exposes `run_subagent` and `run_subagents`
+  through a caller-provided bounded child runner and presets.
+- `create_host_tool_registry(...)` adapts host-owned tool bindings with
+  provider-safe model-facing ids; `summarize_trace_events(...)`,
+  `summarize_capability_report(...)`, and `ResolvedModelSelection` support
+  bounded host handoff payloads.
+
 ## Runtime Metadata the Client Should Not Overinterpret
 
 The runtime preserves and validates metadata such as:
@@ -240,8 +266,8 @@ The runtime preserves and validates metadata such as:
 - `metadata.rag_pipeline`
 
 Do not pass these fields directly as OpenAI API parameters. Do not infer live
-session storage, approval pause/resume, sandbox execution, MCP discovery, or
-guardrail enforcement from metadata alone.
+durable session storage, approval pause/resume, sandbox execution, MCP
+discovery, or guardrail enforcement from metadata alone.
 
 ## Observability and Failure Handling
 
@@ -303,7 +329,7 @@ documents them as implemented:
 
 - automatic prompt truncation
 - model-assisted repair of malformed outputs
-- runner-owned transcript replay or async-session storage
+- durable external transcript/session storage
 - live approval interruption/resume
 - writable workspace or sandbox command execution
 - live MCP lifecycle management and tool discovery

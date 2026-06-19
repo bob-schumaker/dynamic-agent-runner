@@ -407,12 +407,22 @@ session prompt:
            handle_context_status(event.payload)
        elif event.event_type == "run_completed":
            final_result = event.final_result
+           workflow_result = event.workflow_result
+
+Hosts can limit the stream surface with
+``include_progress_events=False``, ``include_terminal_event=False``,
+``include_terminal_session_result=False``, or
+``progress_event_types=("model_input_prepared",)``.
 
 ``accept_stream(...)`` yields ``AgentSessionStreamEvent`` values with sequence,
 event type, session ID, run ID, node ID, redacted payload, and terminal final
-result fields. Session state is saved only after successful completion.
-Provider-native token deltas, lower-level executor stream APIs, and specialized
-model-tool loop progress events remain future work.
+result fields. The terminal ``run_completed`` event also carries
+``session_result``, matching ``AgentSession.accept(...)``, and
+``event.workflow_result`` for callers that need full execution state such as
+tool results. Intermediate stream events stay redacted. Session state is saved
+only after successful completion. Provider-native token deltas, lower-level
+executor stream APIs, and specialized model-tool loop progress events remain
+future work.
 
 .. header2:: Inspecting detailed execution state
 
