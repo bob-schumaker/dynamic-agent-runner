@@ -22,6 +22,8 @@ def test_package_imports() -> None:
     assert dynamic_agent_runner.ToolExposure is not None
     assert dynamic_agent_runner.ToolPolicy is not None
     assert dynamic_agent_runner.ToolType is not None
+    assert dynamic_agent_runner.WebToolPolicy is not None
+    assert dynamic_agent_runner.create_web_registry is not None
     assert dynamic_agent_runner.RegisteredLifecycleHook is not None
     assert dynamic_agent_runner.invoke_lifecycle_hook_async is not None
     assert dynamic_agent_runner.DynamicAgentRunnerError is not None

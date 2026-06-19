@@ -304,6 +304,7 @@ def _capability_items(
     items.extend(_tool_coverage_items(plan, tool_registry=tool_registry))
     items.extend(_mcp_registry_items(plan, tool_registry=tool_registry))
     items.append(_local_workspace_pack_item(built_in_tool_packs))
+    items.append(_web_pack_item(built_in_tool_packs))
     return tuple(items)
 
 
@@ -922,6 +923,25 @@ def _local_workspace_pack_item(
             "The read-only local_workspace tool pack is enabled."
             if enabled
             else "The read-only local_workspace tool pack is disabled by default."
+        ),
+        owner=_OWNER_DYNAMIC_AGENT_RUNNER,
+    )
+
+
+def _web_pack_item(
+    built_in_tool_packs: Iterable[str] | None,
+) -> CapabilityStatusItem:
+    enabled_packs = {str(pack) for pack in built_in_tool_packs or ()}
+    enabled = "web" in enabled_packs
+    return CapabilityStatusItem(
+        id="built_in.web",
+        label="web tool pack",
+        state=CapabilityState.LIVE if enabled else CapabilityState.DISABLED,
+        category="built_in_tool_pack",
+        summary=(
+            "The read-only web search/fetch tool pack is enabled."
+            if enabled
+            else "The read-only web search/fetch tool pack is disabled by default."
         ),
         owner=_OWNER_DYNAMIC_AGENT_RUNNER,
     )

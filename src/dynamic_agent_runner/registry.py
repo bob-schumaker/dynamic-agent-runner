@@ -10,6 +10,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from threading import RLock
 from typing import Any, Protocol, get_args, get_origin, get_type_hints
+from urllib.parse import urlparse
 
 from dynamic_agent_runner.errors import ToolRegistryError
 from dynamic_agent_runner.models import (
@@ -138,6 +139,16 @@ class ToolRegistryOverrides:
     replacement_tools: tuple[RegisteredTool, ...] = ()
     disabled_tools: tuple[str, ...] = ()
     node_overrides: Mapping[str, ToolExposureOverride] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class WebToolPolicy:
+    """Policy for the opt-in built-in web tool pack."""
+
+    allowed_schemes: tuple[str, ...] = ("https",)
+    allowed_domains: tuple[str, ...] = ()
+    max_search_results: int = 10
+    max_fetch_chars: int = 4000
 
 
 class InMemoryToolRegistry:
@@ -736,6 +747,51 @@ def create_local_workspace_registry(
     )
 
 
+def create_web_registry(
+    *,
+    search_client: Any | None = None,
+    fetch_client: Any | None = None,
+    policy: WebToolPolicy | None = None,
+) -> InMemoryToolRegistry:
+    """Create the opt-in read-only web search/fetch built-in tool pack."""
+
+    if search_client is None:
+        raise ToolRegistryError("web tool pack requires search_client")
+    if fetch_client is None:
+        raise ToolRegistryError("web tool pack requires fetch_client")
+    web = _WebToolGuard(search_client, fetch_client, policy or WebToolPolicy())
+    return InMemoryToolRegistry(
+        [
+            _builtin_tool(
+                "web_search",
+                "Web search",
+                "Search the web and return bounded source metadata.",
+                {
+                    "query": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+                ("query",),
+                lambda args: web.search(
+                    str(args["query"]),
+                    limit=int(args.get("limit") or web.policy.max_search_results),
+                ),
+                tool_type="web_search",
+                source_id="web",
+            ),
+            _builtin_tool(
+                "web_fetch",
+                "Web fetch",
+                "Fetch a URL and return bounded normalized content.",
+                {"url": {"type": "string"}},
+                ("url",),
+                lambda args: web.fetch(str(args["url"])),
+                tool_type="web_fetch",
+                source_id="web",
+            ),
+        ]
+    )
+
+
 def _builtin_tool(
     tool_id: str,
     label: str,
@@ -743,12 +799,15 @@ def _builtin_tool(
     properties: Mapping[str, Any],
     required: Sequence[str],
     handler: ToolHandler,
+    *,
+    tool_type: str = "file_read",
+    source_id: str = "local_workspace",
 ) -> RegisteredTool:
     raw = {
         "id": tool_id,
         "label": label,
         "description_for_llm": description,
-        "tool_type": "file_read",
+        "tool_type": tool_type,
         "input_schema": {
             "type": "object",
             "properties": dict(properties),
@@ -765,11 +824,67 @@ def _builtin_tool(
         source=ToolSource(
             kind=ToolSourceKind.BUILT_IN,
             origin=ToolOriginKind.BUILT_IN,
-            source_id="local_workspace",
+            source_id=source_id,
             detail=tool_id,
         ),
     )
     return RegisteredTool(definition, handler)
+
+
+class _WebToolGuard:
+    def __init__(
+        self,
+        search_client: Any,
+        fetch_client: Any,
+        policy: WebToolPolicy,
+    ) -> None:
+        self.search_client = search_client
+        self.fetch_client = fetch_client
+        self.policy = policy
+
+    def search(self, query: str, *, limit: int) -> dict[str, Any]:
+        limit = max(1, min(limit, self.policy.max_search_results))
+        rows = self.search_client.search(query, limit=limit)
+        results: list[dict[str, Any]] = []
+        for rank, row in enumerate(rows or (), start=1):
+            if not isinstance(row, Mapping):
+                continue
+            url = str(row.get("url") or "")
+            self._validate_url(url)
+            results.append(
+                {
+                    "rank": rank,
+                    "title": str(row.get("title") or ""),
+                    "url": url,
+                    "snippet": str(row.get("snippet") or ""),
+                }
+            )
+        return {"query": query, "results": results}
+
+    def fetch(self, url: str) -> dict[str, Any]:
+        self._validate_url(url)
+        raw = self.fetch_client.fetch(url)
+        if not isinstance(raw, Mapping):
+            raise ToolRegistryError("web_fetch client returned a non-mapping result")
+        text = str(raw.get("text") or "")
+        max_chars = max(0, self.policy.max_fetch_chars)
+        truncated = len(text) > max_chars
+        return {
+            "url": str(raw.get("url") or url),
+            "status": int(raw.get("status") or 0),
+            "content_type": str(raw.get("content_type") or ""),
+            "title": str(raw.get("title") or ""),
+            "text": text[:max_chars],
+            "truncated": truncated,
+        }
+
+    def _validate_url(self, url: str) -> None:
+        parsed = urlparse(url)
+        if parsed.scheme not in self.policy.allowed_schemes:
+            raise ToolRegistryError(f"URL scheme {parsed.scheme!r} is not allowed")
+        host = parsed.hostname or ""
+        if self.policy.allowed_domains and host not in self.policy.allowed_domains:
+            raise ToolRegistryError(f"URL host {host!r} is not allowed")
 
 
 class _WorkspaceGuard:

@@ -23,8 +23,10 @@ from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
     ToolResult,
+    WebToolPolicy,
     ToolExposureOverride,
     ToolRegistryOverrides,
+    create_web_registry,
     create_local_workspace_registry,
     openai_tool_schema,
     tool_from_function,
@@ -589,6 +591,95 @@ def test_local_workspace_tool_pack_is_opt_in_and_path_restricted(
 
     assert blocked.success is False
     assert "outside approved workspace roots" in str(blocked.error)
+
+
+class FakeSearchClient:
+    def search(self, query: str, *, limit: int) -> list[dict[str, object]]:
+        return [
+            {
+                "title": "Result",
+                "url": "https://example.com/result",
+                "snippet": f"Found {query}",
+                "extra": "ignored",
+            }
+        ][:limit]
+
+
+class FakeFetchClient:
+    def fetch(self, url: str) -> dict[str, object]:
+        return {
+            "url": url,
+            "status": 200,
+            "content_type": "text/html",
+            "title": "Fetched",
+            "text": "abcdef",
+            "raw": "ignored",
+        }
+
+
+def test_web_tool_pack_uses_fake_clients_and_normalizes_results() -> None:
+    registry = create_web_registry(
+        search_client=FakeSearchClient(),
+        fetch_client=FakeFetchClient(),
+        policy=WebToolPolicy(
+            allowed_domains=("example.com",),
+            max_search_results=3,
+            max_fetch_chars=4,
+        ),
+    )
+
+    assert registry.get_tool("web_search").definition.tool_type is ToolType.WEB_SEARCH
+    assert registry.get_tool("web_fetch").definition.tool_type is ToolType.WEB_FETCH
+    assert [tool["name"] for tool in registry.to_openai_tools()] == [
+        "web_search",
+        "web_fetch",
+    ]
+
+    search = registry.invoke_tool("web_search", {"query": "agents"})
+    fetch = registry.invoke_tool("web_fetch", {"url": "https://example.com/page"})
+
+    assert search.success is True
+    assert search.output == {
+        "query": "agents",
+        "results": [
+            {
+                "rank": 1,
+                "title": "Result",
+                "url": "https://example.com/result",
+                "snippet": "Found agents",
+            }
+        ],
+    }
+    assert fetch.success is True
+    assert fetch.output == {
+        "url": "https://example.com/page",
+        "status": 200,
+        "content_type": "text/html",
+        "title": "Fetched",
+        "text": "abcd",
+        "truncated": True,
+    }
+
+
+def test_web_tool_pack_rejects_disallowed_urls() -> None:
+    registry = create_web_registry(
+        search_client=FakeSearchClient(),
+        fetch_client=FakeFetchClient(),
+        policy=WebToolPolicy(allowed_domains=("example.com",)),
+    )
+
+    blocked = registry.invoke_tool("web_fetch", {"url": "http://evil.test/page"})
+
+    assert blocked.success is False
+    assert "scheme 'http' is not allowed" in str(blocked.error)
+
+
+def test_web_tool_pack_requires_injected_clients() -> None:
+    with pytest.raises(ToolRegistryError, match="requires search_client"):
+        create_web_registry(fetch_client=FakeFetchClient())
+
+    with pytest.raises(ToolRegistryError, match="requires fetch_client"):
+        create_web_registry(search_client=FakeSearchClient())
 
 
 def test_tool_source_defaults_origin_from_existing_kind_values() -> None:
