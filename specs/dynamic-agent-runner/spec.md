@@ -775,9 +775,10 @@ prepared model input, S4 added tool provenance, and S5 added the placeholder-saf
 Power-Marimo fixture under `tests/fixtures/power-marimo/` with fake-tool execution
 coverage in `tests/test_power_marimo_fixture.py`.
 
-Live Marimo-session automation, MCP integration, durable session state,
-approval-resume behavior, PyQt-widget automation, and broader agent-as-tool
-registry sources remain out of scope until a new scoped follow-up selects them.
+Live Marimo-session automation and UI automation remain downstream concerns.
+MCP integration, durable session state, approval-resume behavior, and broader
+agent-as-tool registry sources remain out of scope until a new scoped DAR
+follow-up selects them.
 
 ## Non-Functional Requirements
 

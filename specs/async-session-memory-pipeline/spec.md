@@ -105,9 +105,13 @@ The current planning notes already identify the narrow desired capability:
 - do **not** add durable session storage in OA8
 - do **not** broaden executor-owned durable memory/runtime behavior in OA8
 
-That narrow protocol seam is useful because the current runtime executes one
-bounded workflow per call, while likely first-customer use cases such as
-`power-marimo` may still need:
+Since this metadata seam was created, `persistent-agent-sessions` added live
+in-memory `AgentSession` behavior for cross-prompt continuity, current-state
+retrieval, and snapshot restart. OA8 still owns only metadata and memory-pipeline
+analysis; it does not own the live session API or durable memory.
+
+That narrow protocol seam remains useful because bounded workflow runs and
+host-managed applications may still need:
 
 - continuity across multiple user turns
 - continuity across notebook-oriented analysis steps
@@ -138,6 +142,11 @@ boundary for a first implementation:
 
 These surfaces suggest that OA8 should stay declarative in the first pass and
 avoid introducing a new execution abstraction.
+
+For current live in-memory session behavior, use
+`specs/persistent-agent-sessions/spec.md`. For generic downstream host
+composition and context/session lifecycle guidance, use
+`specs/host-workflow-integration/spec.md`.
 
 ## Proposed Capability Shape
 
@@ -280,12 +289,14 @@ The first OA8 implementation must not introduce:
 
 Those belong to later slices or adjacent workflow areas such as OA7.
 
-## First-Customer Readiness Assessment for Power-Marimo
+## Historical First-Customer Readiness Assessment for Power-Marimo
 
 ### Decision
 
-The current API surface is sufficient for a first-customer `power-marimo`
-workflow **if continuity is managed by the host/client across repeated calls**.
+The earlier API surface was sufficient for a first-customer `power-marimo`
+workflow when continuity was managed by the host/client across repeated calls.
+That historical assessment remains useful as downstream evidence, but it no
+longer describes the full current DAR surface because `AgentSession` now exists.
 
 ### Why
 
@@ -296,10 +307,12 @@ workflow **if continuity is managed by the host/client across repeated calls**.
 - the likely first customer needs supervised bounded notebook/power-analysis
   orchestration more than runner-native durable multi-turn memory
 
-### Constraint
+### Current constraint
 
-The current API is **not** yet a native runner-owned multi-turn session
-platform. Product and implementation language should stay honest about that.
+DAR now has a native in-memory session surface, but durable host/app state,
+external checkpointing, and downstream lifecycle ownership remain outside OA8.
+Product and implementation language should distinguish host-managed continuity,
+`AgentSession` continuity, and future durable memory.
 
 See `specs/async-session-memory-pipeline/decision-memo.md` for the full memo.
 
@@ -319,12 +332,13 @@ when validation is implemented from this spec,
 then unsupported enums, missing required state-key fields, and stray inactive
 fields from the implemented baseline must be rejected.
 
-### AC3 — Power-Marimo host-managed continuity remains a supported v1 story
+### AC3 — Host-managed and AgentSession continuity remain distinct stories
 
 Given the current public API surface,
-when `power-marimo` manages continuity in the host across multiple calls,
-then the runner can honestly be used for a first-customer bounded multi-turn
-workflow without waiting for OA8 implementation.
+when a downstream host manages continuity across multiple calls,
+then the runner can still support that host-managed pattern; when callers need
+runner-owned in-memory continuity, they should use `AgentSession` rather than
+expanding OA8.
 
 ### AC4 — Portable supporting references are repo-local
 
@@ -340,15 +354,17 @@ machine-specific paths.
   richer retention-aware continuity.
 - If OA8 tries to solve storage, replay, context preparation, and
   approval-resume in one step, it will likely exceed its intended narrow scope.
-- If host-managed continuity is not documented for `power-marimo`, users may
-  infer runner-native memory support that does not exist yet.
+- If host-managed continuity, `AgentSession`, and future durable memory are not
+  kept distinct, users may assume runner-owned durable memory is required before
+  first-customer value.
 
 ## Recommended Next Steps
 
 1. Keep OA8 as an implemented metadata seam plus future feature-spec expansion
    package.
-2. Do not block first-customer `power-marimo` delivery on OA8 implementation.
-3. Document host-managed continuity as the v1 multi-turn pattern.
+2. Do not block downstream host delivery on OA8 implementation.
+3. Document host-managed continuity and `AgentSession` as separate supported
+   patterns.
 4. Prioritize safe tool adapters and, if needed, OA7 before treating OA8 as a
    customer-facing requirement.
 5. Use `capability-status-report` so callers can distinguish host-managed

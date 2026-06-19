@@ -8,6 +8,8 @@
 - Status: downstream client evaluated; no DAR implementation is authorized
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related DAR artifacts:
+  - `specs/host-workflow-integration/spec.md`
+  - `specs/workspace-data-tool-pack/spec.md`
   - `tests/fixtures/power-marimo/agent-runtime.yaml`
   - `tests/test_power_marimo_fixture.py`
   - `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
@@ -72,6 +74,21 @@ future work. That is no longer an accurate description of the sibling repo.
 
 This proves the intended architecture: downstream clients own host behavior and
 DAR remains a generic execution engine.
+
+## Generic Follow-Up Routing
+
+The latest downstream review found reusable gaps, but those gaps are not
+Power-Marimo features. Route them as follows:
+
+- host-owned tool catalogs, model-facing aliases, inline preflight, diagnostic
+  summaries, resolved model selection, and direct/context/session lifecycle
+  guidance are owned by `host-workflow-integration`
+- generic JSON-compatible workspace/session data tools are owned by
+  `workspace-data-tool-pack`
+- live in-memory cross-prompt continuity remains owned by
+  `persistent-agent-sessions`
+- durable memory, external checkpointing, and broader session-memory behavior
+  remain outside this Power-Marimo boundary spec
 
 ## DAR-Owned Scope
 

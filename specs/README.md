@@ -32,7 +32,9 @@ Companion planning artifacts:
 | llmfit model-fit filter | [`spec.md`](llmfit-model-fit-filter/spec.md) | Future optional advisory feature | Proposed optional `llmfit`-on-`PATH` pre-download filter; keep recommended plus unknown models without bundling or installing llmfit |
 | llama.cpp memory fit profile | [`spec.md`](llama-cpp-memory-fit-profile/spec.md) | Implemented v1 baseline | Optional post-resolution GGUF memory-fit profiler with injected evaluators, fail-open advisory results, strict-mode errors, deterministic fit math, suggested `n_ctx`, tests, and evidence complete |
 | Capability status report | [`spec.md`](capability-status-report/spec.md) | Implemented | Public preflight report distinguishes live, metadata-only, missing-collaborator, disabled, and invalid runtime capabilities; CLI rendering and future collaborator types remain deferred |
+| Host workflow integration | [`spec.md`](host-workflow-integration/spec.md) | Future feature specification | Proposed generic host-facing integration layer for host tool catalog adapters, model-facing aliases, inline/generated manifest preflight, redacted diagnostic summaries, resolved model-selection handoff, and session/context lifecycle guidance |
 | Web tool pack | [`spec.md`](web-tool-pack/spec.md) | Future feature specification | Proposed opt-in built-in `web` registry pack for `web_search` and `web_fetch`, with injected clients, network policy, bounded result normalization, redacted traces, and fake-only tests |
+| Workspace data tool pack | [`spec.md`](workspace-data-tool-pack/spec.md) | Future feature specification | Proposed opt-in `workspace_data` registry pack for JSON-compatible write/read/search/list/delete over caller-provided workspace or session stores, with metadata-first search, approval policy, capability/status reporting, and fake-only tests |
 | Subagent tool pack | [`spec.md`](subagent-tool-pack/spec.md) | Future feature specification | Proposed opt-in `subagent` registry pack for bounded callable specialist fanout through existing `ToolRegistry` dispatch, with injected child runners, explicit child tool allowlists, budgets, aggregate results, redacted parent/child traces, and fake-only tests |
 | Async session memory pipeline | [`spec.md`](async-session-memory-pipeline/spec.md) | Metadata baseline plus completed handoff | Metadata-only OA8 baseline implemented; live in-memory session behavior is owned by `persistent-agent-sessions`; pruning-context graph-injection work was completed through `context-management-prepare-stage` and `internal-graph-mutation` without expanding OA8 into durable memory |
 | Persistent agent sessions | [`spec.md`](persistent-agent-sessions/spec.md) | Implemented v1 baseline | Public `AgentSession`, `AgentSessionState`, `AgentSessionResult`, and `InMemorySessionStore` provide bounded cross-prompt continuity, current-state retrieval, snapshot restart, history policies, same-session concurrency rejection, sync wrapper parity, and live capability/status reporting |
@@ -70,7 +72,9 @@ Companion planning artifacts:
 | Optional local model fit filtering | `llmfit-model-fit-filter` | None | Future optional `llmfit` CLI JSON advisory layer to preserve recommended and unknown models before explicit Hub asset downloads |
 | Optional llama.cpp memory fit profiling | `llama-cpp-memory-fit-profile` | Injected-evaluator, fail-open profiling for resolved local GGUF assets complete | Concrete llama.cpp command integration, metadata probing, automatic budget discovery, caching, GPU/offload recommendations, and execution gating remain deferred |
 | Capability/status reporting | `capability-status-report` | Public report contract, package inspection, metadata-only declarations, model adapter coverage, tool registry coverage, built-in tool-pack status, invalid package reporting, tests, and completion evidence complete | Future CLI rendering and additional collaborator types remain deferred until there is a concrete caller |
+| Host workflow integration | `host-workflow-integration` | None | Future host-facing adapter layer for host-owned tool catalogs, canonical/model-facing tool id mapping, inline capability preflight, bounded diagnostics, resolved model selection, and execution lifecycle guidance over direct runs, reusable contexts, and sessions |
 | Web tool pack | `web-tool-pack` | None | Future opt-in `web` registry pack for standard web search/fetch tools, injected fake-testable clients, URL/network policy, normalized bounded results, trace redaction, and capability/status reporting |
+| Workspace data tool pack | `workspace-data-tool-pack` | None | Future opt-in `workspace_data` registry pack for JSON-compatible workspace/session data operations over caller-provided stores; durable storage, indexing, and host dirty-state remain caller-owned |
 | Subagent tool pack | `subagent-tool-pack` | None | Future opt-in `subagent` registry pack for bounded child workflow/model/session delegation through `ToolRegistry`, explicit child tool isolation, concurrency/budget limits, structured aggregate results, parent/child trace correlation, and capability/status reporting |
 | Async session metadata | `async-session-memory-pipeline` | `runtime.execution_policy.async_session` metadata preservation and fail-closed validation complete | Durable external storage, broader memory replay, and summary generation are deferred; live in-memory sessions are owned by `persistent-agent-sessions`; pruning-context graph injection is complete through `context-management-prepare-stage` plus `internal-graph-mutation` |
 | Persistent agent sessions | `persistent-agent-sessions` | Public `AgentSession` and `InMemorySessionStore` v1 complete with state snapshots, bounded `accept(...)`, history policies, session-id state injection, snapshot restart, same-session concurrency rejection, sync wrapper parity, and capability/status reporting | Durable external stores, model-backed summaries, long-running graph executors, raw tool transcript replay, durable approval resume, and cross-process locking remain deferred |
@@ -219,8 +223,11 @@ item still needs a scoped plan and task slice before code changes begin.
     pre-download filtering, plus any concrete llama.cpp command or metadata
     probing beyond the completed injected-evaluator
     `llama-cpp-memory-fit-profile` v1 baseline.
-11. Add `power-marimo-host-automation` after approval/sandbox and host-managed
-    continuity boundaries are clear.
+11. Add `host-workflow-integration` before more downstream clients duplicate
+    host-tool registry adapters, inline preflight, diagnostic summaries, model-
+    selection handoff, or context/session lifecycle glue. Keep
+    `power-marimo-host-automation` as a downstream-boundary record, not an
+    implementation target.
 12. Keep `async-session-memory-pipeline` host-managed in v1. Pruning-context
     graph injection and the v1 session event stream are complete through their
     owning specs; add runner-owned durable session storage only after a concrete
@@ -235,7 +242,7 @@ status visibility
 → approval/sandbox mutation policy
 → MCP/guardrails
 → loops/skills
-→ host integrations
+→ host workflow integration and standard tool packs
 → durable memory
 → interpreter
 ```
