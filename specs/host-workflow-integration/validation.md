@@ -7,6 +7,38 @@ without fake package directories, host-bound tool reports expose useful id
 metadata, and public docs explain the supported lifecycle choices without adding
 new semantics.
 
+## Implementation Evidence
+
+Focused checks passed:
+
+```bash
+poetry run pytest \
+  tests/test_capabilities.py \
+  tests/test_host_integration.py \
+  tests/test_import.py \
+  -q
+```
+
+Observed result:
+
+```text
+25 passed
+```
+
+Final checks passed:
+
+```bash
+poetry run ruff check src tests
+poetry run pytest -q
+```
+
+Observed results:
+
+```text
+All checks passed!
+552 passed
+```
+
 ## Focused Checks
 
 ```bash

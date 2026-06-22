@@ -143,6 +143,10 @@ Use `run_agent_workflow_async(...)` in async applications, or construct a
 `WorkflowExecutionContext` when several runs share the same loaded workflow and
 runtime collaborators.
 
+Use direct execution for a single stateless run, `WorkflowExecutionContext` for
+reusing a loaded workflow with stable collaborators, and `AgentSession` when the
+caller needs retained prompt history or restartable in-memory session state.
+
 Use `AgentSession` with `InMemorySessionStore` when several prompts should reuse
 the same workflow context and retained user/assistant transcript:
 
@@ -503,6 +507,11 @@ surfaces as `live`, `metadata_only`, `missing_collaborator`, `disabled`,
 collaborators you plan to execute with, such as a tool registry, guardrail
 registry, model adapter, strict model-adapter coverage, and
 `InMemorySessionStore`, to see readiness instead of just manifest shape.
+Hosts that generate workflows in memory can use
+`inspect_agent_workflow_capabilities(...)` with an inline runtime manifest or an
+already loaded `LoadedAgentWorkflow` instead of materializing a temporary package
+directory. Capability items for tools registered through `HostToolBinding`
+include the host canonical id, model-facing id, and aliases when available.
 
 ## CLI Usage
 

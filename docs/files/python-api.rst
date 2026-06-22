@@ -85,9 +85,29 @@ executing model, tool, or retriever calls:
    for item in report.items:
        print(item.id, item.state, item.summary)
 
+Hosts that generate manifests in memory can use
+``inspect_agent_workflow_capabilities(...)`` instead of creating a temporary
+package directory:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import inspect_agent_workflow_capabilities
+
+   report = inspect_agent_workflow_capabilities(
+       runtime_manifest=generated_runtime_manifest,
+       tool_registry=my_tool_registry,
+       model_adapter=my_model_adapter,
+   )
+
+The same helper also accepts an already loaded ``LoadedAgentWorkflow`` through
+the ``workflow`` argument.
+
 The report marks implemented runtime surfaces as ``live``, preserved metadata as
 ``metadata_only``, missing collaborators as ``missing_collaborator``, and invalid
-packages as ``invalid``. It is a readiness report, not an execution trace.
+packages or inline workflows as ``invalid``. It is a readiness report, not an
+execution trace. Tool capability details include host canonical ids,
+model-facing ids, and aliases when the supplied registry was built from
+``HostToolBinding``.
 
 .. header2:: Input guardrails
 
@@ -354,6 +374,9 @@ share a loaded workflow and runtime collaborators:
 
 When ``execution_context`` is supplied to high-level APIs, do not also pass
 artifact paths or runtime collaborators as separate keyword arguments.
+Use direct execution for a single stateless run, ``WorkflowExecutionContext``
+for stable collaborators across bounded runs, and ``AgentSession`` when retained
+prompt history or restartable in-memory session state is required.
 
 .. header2:: Persistent agent sessions
 

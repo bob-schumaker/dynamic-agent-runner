@@ -7,8 +7,9 @@ from textwrap import dedent
 
 import pytest
 
-from dynamic_agent_runner.errors import ArtifactLoadError
-from dynamic_agent_runner.models import ToolDefinition
+from dynamic_agent_runner.artifacts import load_runtime_manifest
+from dynamic_agent_runner.errors import ArtifactLoadError, DynamicAgentRunnerError
+from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
 from dynamic_agent_runner.registry import InMemoryToolRegistry, RegisteredTool
 
 
@@ -31,6 +32,193 @@ def test_capability_report_types_are_package_exports() -> None:
     assert dynamic_agent_runner.CapabilityStatusReport is not None
     assert dynamic_agent_runner.CapabilityStatusSummary is not None
     assert dynamic_agent_runner.inspect_agent_package_capabilities is not None
+    assert dynamic_agent_runner.inspect_agent_workflow_capabilities is not None
+
+
+def test_inspect_agent_workflow_capabilities_accepts_inline_manifest_mapping() -> None:
+    from dynamic_agent_runner import inspect_agent_workflow_capabilities
+
+    report = inspect_agent_workflow_capabilities(
+        runtime_manifest={
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "inline-capability-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    items = {item.id: item for item in report.items}
+    assert report.package_id == "inline-capability-agent"
+    assert report.valid is True
+    assert items["runtime.execution"].state == "live"
+    assert items["model.answer"].details == {
+        "model": "gpt-test",
+        "coverage": "augmented",
+    }
+
+
+def test_inspect_agent_workflow_capabilities_accepts_inline_manifest_yaml() -> None:
+    from dynamic_agent_runner import (
+        CapabilityStatusReport,
+        inspect_agent_workflow_capabilities,
+    )
+
+    report = inspect_agent_workflow_capabilities(
+        runtime_manifest=dedent(
+            """
+            format_version: 1
+            package_type: dynamic_agent_design
+            package_id: inline-yaml-capability-agent
+            entrypoint: answer
+            packaging:
+              mode: hybrid_bundle
+            runtime:
+              execution_policy:
+                model: gpt-test
+            nodes:
+              - id: answer
+                kind: llm_step
+                prompt:
+                  user_template: "Answer {prompt}"
+            edges: []
+            """
+        )
+    )
+
+    assert isinstance(report, CapabilityStatusReport)
+    assert report.package_id == "inline-yaml-capability-agent"
+    assert report.valid is True
+
+
+def test_inspect_agent_workflow_capabilities_accepts_loaded_workflow() -> None:
+    from dynamic_agent_runner import InMemorySessionStore
+    from dynamic_agent_runner.capabilities import (
+        CapabilityState,
+        inspect_agent_workflow_capabilities,
+    )
+
+    workflow = LoadedAgentWorkflow(
+        runtime_manifest=load_runtime_manifest(
+            {
+                "format_version": 1,
+                "package_type": "dynamic_agent_design",
+                "package_id": "loaded-workflow-capability-agent",
+                "entrypoint": "answer",
+                "packaging": {"mode": "hybrid_bundle"},
+                "runtime": {
+                    "execution_policy": {
+                        "model": "gpt-test",
+                        "async_session": {
+                            "mode": "create_or_resume",
+                            "persist": "in_memory",
+                            "history": "last_turn",
+                            "session_id_state_key": "session_id",
+                            "session_messages_state_key": "session_messages",
+                        },
+                    }
+                },
+                "nodes": [
+                    {
+                        "id": "answer",
+                        "kind": "llm_step",
+                        "prompt": {"user_template": "Answer {prompt}"},
+                    }
+                ],
+                "edges": [],
+            }
+        )
+    )
+
+    report = inspect_agent_workflow_capabilities(
+        workflow=workflow,
+        session_store=InMemorySessionStore(),
+    )
+    items = {item.id: item for item in report.items}
+
+    assert report.package_id == "loaded-workflow-capability-agent"
+    assert items["runtime.async_session.in_memory"].state == CapabilityState.LIVE
+
+
+def test_inspect_agent_workflow_capabilities_reports_invalid_inline_manifest() -> None:
+    from dynamic_agent_runner import (
+        CapabilityState,
+        inspect_agent_workflow_capabilities,
+    )
+
+    report = inspect_agent_workflow_capabilities(
+        runtime_manifest={"package_id": "invalid-inline-agent"}
+    )
+
+    items = {item.id: item for item in report.items}
+    assert report.package_id == "invalid-inline-agent"
+    assert report.valid is False
+    assert report.validation_error is not None
+    assert items["package.validation"].state == CapabilityState.INVALID
+
+    with pytest.raises(DynamicAgentRunnerError):
+        inspect_agent_workflow_capabilities(
+            runtime_manifest={"package_id": "invalid-inline-agent"},
+            strict=True,
+        )
+
+
+def test_inspect_agent_workflow_capabilities_reports_host_tool_ids() -> None:
+    from dynamic_agent_runner import (
+        HostToolBinding,
+        create_host_tool_registry,
+        inspect_agent_workflow_capabilities,
+    )
+
+    registry = create_host_tool_registry(
+        [
+            HostToolBinding(
+                canonical_id="project.tools.search-docs",
+                model_id="search_docs",
+                aliases=("find_docs",),
+                description="Search host project documents.",
+                handler=lambda _args: {"ok": True},
+            )
+        ]
+    )
+
+    report = inspect_agent_workflow_capabilities(
+        runtime_manifest={
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "host-tool-capability-agent",
+            "entrypoint": "search",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "search",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_docs",
+                    "inputs": {"query": "agent"},
+                }
+            ],
+            "edges": [],
+            "tools": [{"id": "search_docs"}],
+        },
+        tool_registry=registry,
+    )
+
+    items = {item.id: item for item in report.items}
+    assert items["tool.search_docs"].state == "live"
+    assert items["tool.search_docs"].details == {
+        "host_canonical_id": "project.tools.search-docs",
+        "host_model_id": "search_docs",
+        "host_aliases": ("find_docs",),
+    }
 
 
 def test_capability_status_report_summarizes_items_deterministically() -> None:
