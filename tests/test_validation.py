@@ -1435,6 +1435,53 @@ def test_tool_use_completion_policy_passes_with_supported_metadata() -> None:
     validate_mapping(data)
 
 
+def test_tool_choice_policy_passes_with_supported_runtime_and_node_metadata() -> None:
+    """Tool-choice policy accepts runtime defaults and llm_step overrides."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "tool_choice_policy": {
+                "initial": "required",
+                "after_tool_result": "auto",
+            },
+        }
+    }
+    data["nodes"][0]["tool_choice_policy"] = {
+        "initial": "auto",
+        "after_tool_result": "required",
+    }
+
+    validate_mapping(data)
+
+
+def test_tool_choice_policy_fails_closed_for_bad_values_and_conflicts() -> None:
+    """Tool-choice policy rejects malformed values and legacy node conflicts."""
+
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "tool_choice_policy": {
+                "initial": "always",
+                "after_tool_result": "never",
+            },
+        }
+    }
+    data["nodes"][0]["tool_choice"] = "required"
+    data["nodes"][0]["tool_choice_policy"] = {"initial": "sometimes"}
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert ".initial has unsupported value 'always'" in message
+    assert ".after_tool_result has unsupported value 'never'" in message
+    assert "nodes[0].tool_choice_policy.initial has unsupported value" in message
+    assert "nodes[0] cannot set both tool_choice and tool_choice_policy" in message
+
+
 def test_skill_source_resolution_policy_passes_with_supported_metadata() -> None:
     """Skill-source resolution accepts the prepared package-local v1 policy."""
 

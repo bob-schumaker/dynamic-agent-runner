@@ -222,6 +222,7 @@ SUPPORTED_TOOL_USE_COMPLETION_FINAL_OUTPUT_VALUES = {
     "tool_result",
     "state_field",
 }
+SUPPORTED_TOOL_CHOICE_POLICY_VALUES = {"auto", "required"}
 SUPPORTED_APPROVAL_INTERRUPTION_MODE_VALUES = {
     "metadata_only",
     "pause_on_approval",
@@ -484,6 +485,8 @@ def validate_runtime_manifest(
     _extend(errors, _tool_descriptor_budget_policy_errors(manifest))
     _extend(errors, _tool_descriptor_budget_node_errors(manifest.nodes))
     _extend(errors, _tool_use_completion_policy_errors(manifest))
+    _extend(errors, _tool_choice_policy_errors(manifest))
+    _extend(errors, _tool_choice_policy_node_errors(manifest.nodes))
     _extend(errors, _approval_interruption_policy_errors(manifest))
     _extend(errors, _async_session_policy_errors(manifest))
     _extend(errors, _sandbox_runtime_policy_errors(manifest))
@@ -1561,6 +1564,63 @@ def _tool_use_completion_policy_errors(manifest: RuntimeManifest) -> list[str]:
         errors.append(
             f"{label}.final_output_state_key is only allowed when final_output is 'state_field'"
         )
+    return errors
+
+
+def _tool_choice_policy_errors(manifest: RuntimeManifest) -> list[str]:
+    policy = manifest.execution_policy.get("tool_choice_policy")
+    if policy is None:
+        return []
+    if not isinstance(policy, Mapping):
+        return ["runtime.execution_policy.tool_choice_policy must be a mapping"]
+    return _tool_choice_policy_mapping_errors(
+        policy,
+        "runtime.execution_policy.tool_choice_policy",
+    )
+
+
+def _tool_choice_policy_node_errors(
+    nodes: Iterable[RuntimeNode],
+) -> list[str]:
+    errors: list[str] = []
+    for index, node in enumerate(nodes):
+        policy = node.raw.get("tool_choice_policy")
+        if policy is None:
+            continue
+        label = f"nodes[{index}].tool_choice_policy"
+        if node.kind != "llm_step":
+            errors.append(f"{label} is only allowed on llm_step nodes")
+            continue
+        if node.raw.get("tool_choice") is not None:
+            errors.append(
+                f"nodes[{index}] cannot set both tool_choice and tool_choice_policy"
+            )
+        if not isinstance(policy, Mapping):
+            errors.append(f"{label} must be a mapping")
+            continue
+        errors.extend(_tool_choice_policy_mapping_errors(policy, label))
+    return errors
+
+
+def _tool_choice_policy_mapping_errors(
+    policy: Mapping[str, Any],
+    label: str,
+) -> list[str]:
+    errors: list[str] = []
+    _validate_optional_enum(
+        policy,
+        "initial",
+        SUPPORTED_TOOL_CHOICE_POLICY_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum(
+        policy,
+        "after_tool_result",
+        SUPPORTED_TOOL_CHOICE_POLICY_VALUES,
+        label,
+        errors,
+    )
     return errors
 
 

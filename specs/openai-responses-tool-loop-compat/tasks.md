@@ -80,7 +80,7 @@
   - Evidence: provider-specific request preparation and non-Codex loop tests
     pass together with 10 OpenAI adapter tests and 4 executor tests.
 
-- [ ] R1.6 RED: Add validation tests for `tool_choice_policy`.
+- [x] R1.6 RED: Add validation tests for `tool_choice_policy`.
   - Spec: FR-4
   - Files/components: `tests/test_validation.py`,
     `src/dynamic_agent_runner/validation.py`
@@ -88,9 +88,11 @@
     node-local `tool_choice` plus `tool_choice_policy` conflict.
   - Validation:
     `poetry run pytest tests/test_validation.py -q -k "tool_choice_policy or tool_choice"`
-  - Evidence: failing tests define the manifest contract.
+  - Evidence: `poetry run pytest tests/test_validation.py -q -k
+    "tool_choice_policy or tool_choice"` failed before validation rejected bad
+    policy values and legacy node conflicts.
 
-- [ ] R1.7 RED: Add plan/prepared-node tests for `tool_choice_policy`.
+- [x] R1.7 RED: Add plan/prepared-node tests for `tool_choice_policy`.
   - Spec: FR-4
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/models.py`
@@ -99,9 +101,11 @@
     policy is configured.
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k "tool_choice_policy or prepare_execution_plan"`
-  - Evidence: failing tests identify preparation plumbing gaps.
+  - Evidence: `poetry run pytest tests/test_executor.py -q -k
+    "tool_choice_policy or prepare_execution_plan"` failed before
+    `ExecutionPlan` and `PreparedNode` preserved the policy.
 
-- [ ] R1.8 GREEN: Add `tool_choice_policy` parsing and validation.
+- [x] R1.8 GREEN: Add `tool_choice_policy` parsing and validation.
   - Spec: FR-4
   - Files/components: `src/dynamic_agent_runner/models.py`,
     `src/dynamic_agent_runner/validation.py`
@@ -116,9 +120,10 @@
       -k "tool_choice_policy or tool_choice or prepare_execution_plan"
     ```
 
-  - Evidence: validation and plan-preparation tests pass.
+  - Evidence: validation and plan-preparation tests pass with runtime policy,
+    node policy, invalid enum, and conflict coverage.
 
-- [ ] R1.9 RED: Add executor tests for phase-aware `tool_choice_policy`.
+- [x] R1.9 RED: Add executor tests for phase-aware `tool_choice_policy`.
   - Spec: FR-4, FR-6
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -128,15 +133,17 @@
     without explicit policy.
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k "tool_choice_policy or model_tool_loop"`
-  - Evidence: failing tests define request-phase behavior.
+  - Evidence: executor tests failed before initial and post-tool requests used
+    phase-aware policy resolution.
 
-- [ ] R1.10 GREEN: Implement phase-aware tool choice resolution.
+- [x] R1.10 GREEN: Implement phase-aware tool choice resolution.
   - Spec: FR-4, FR-6
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Depends on: R1.8, R1.9
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k "tool_choice_policy or model_tool_loop"`
-  - Evidence: initial and follow-up request assertions pass.
+  - Evidence: initial, follow-up, node override, and legacy fallback request
+    assertions pass.
 
 - [ ] R1.11 RED: Add prompt-formatting tests for top-level `tool_results`.
   - Spec: FR-5

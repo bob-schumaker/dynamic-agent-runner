@@ -604,6 +604,58 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
     assert route.allowed_routes == frozenset({"done"})
 
 
+def test_prepare_execution_plan_preserves_tool_choice_policy() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-choice-policy-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-default",
+                    "tool_choice_policy": {
+                        "initial": "required",
+                        "after_tool_result": "auto",
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "available_tools": ["search_repo"],
+                    "tool_choice_policy": {
+                        "initial": "auto",
+                        "after_tool_result": "required",
+                    },
+                },
+                {
+                    "id": "legacy",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Legacy {prompt}"},
+                    "tool_choice": "required",
+                },
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+
+    plan = prepare_execution_plan(workflow)
+
+    assert plan.tool_choice_policy is not None
+    assert plan.tool_choice_policy.initial == "required"
+    assert plan.tool_choice_policy.after_tool_result == "auto"
+    answer = plan.nodes_by_id["answer"]
+    assert answer.tool_choice_policy is not None
+    assert answer.tool_choice_policy.initial == "auto"
+    assert answer.tool_choice_policy.after_tool_result == "required"
+    assert plan.nodes_by_id["legacy"].tool_choice == "required"
+
+
 def test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes() -> (
     None
 ):
@@ -3998,6 +4050,122 @@ def test_execute_workflow_renders_chatgpt_codex_tool_loop_follow_up_items() -> N
     ]
 
 
+def test_execute_workflow_applies_runtime_tool_choice_policy_by_loop_phase() -> None:
+    workflow = loop_tool_workflow(
+        execution_policy_extra={
+            "tool_choice_policy": {
+                "initial": "required",
+                "after_tool_result": "auto",
+            }
+        }
+    )
+    registry = InMemoryToolRegistry([make_tool("search_repo")])
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    assert adapter.client.responses.calls[0]["tool_choice"] == "required"
+    assert "tool_choice" not in adapter.client.responses.calls[1]
+
+
+def test_execute_workflow_node_tool_choice_policy_overrides_runtime_policy() -> None:
+    workflow = loop_tool_workflow(
+        execution_policy_extra={
+            "tool_choice_policy": {
+                "initial": "auto",
+                "after_tool_result": "required",
+            }
+        },
+        node_extra={
+            "tool_choice_policy": {
+                "initial": "required",
+                "after_tool_result": "auto",
+            }
+        },
+    )
+    registry = InMemoryToolRegistry([make_tool("search_repo")])
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    assert adapter.client.responses.calls[0]["tool_choice"] == "required"
+    assert "tool_choice" not in adapter.client.responses.calls[1]
+
+
+def test_execute_workflow_preserves_legacy_tool_choice_without_policy() -> None:
+    workflow = loop_tool_workflow(node_extra={"tool_choice": "required"})
+    registry = InMemoryToolRegistry([make_tool("search_repo")])
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    assert adapter.client.responses.calls[0]["tool_choice"] == "required"
+    assert adapter.client.responses.calls[1]["tool_choice"] == "required"
+
+
 def test_execute_workflow_mid_turn_compaction_fails_without_compactor() -> None:
     workflow = loop_tool_workflow()
     workflow.runtime_manifest.execution_policy["prepare_model_input"] = {
@@ -4407,6 +4575,8 @@ def loop_tool_workflow(
     tools: list[dict[str, object]] | None = None,
     available_tools: list[str] | None = None,
     max_steps: int | None = None,
+    execution_policy_extra: dict[str, object] | None = None,
+    node_extra: dict[str, object] | None = None,
 ) -> LoadedAgentWorkflow:
     execution_policy: dict[str, object] = {
         "model": "gpt-test",
@@ -4416,9 +4586,19 @@ def loop_tool_workflow(
             "final_output": "default",
         },
     }
+    execution_policy.update(execution_policy_extra or {})
     if max_steps is not None:
         execution_policy["max_steps"] = max_steps
     tool_entries = tools or [{"id": "search_repo"}]
+    llm_node: dict[str, object] = {
+        "id": "analyze",
+        "kind": "llm_step",
+        "prompt": {"user_template": "Question: {prompt}"},
+        "available_tools": (
+            available_tools if available_tools is not None else ["search_repo"]
+        ),
+    }
+    llm_node.update(node_extra or {})
     return workflow_from(
         {
             "format_version": 1,
@@ -4427,18 +4607,7 @@ def loop_tool_workflow(
             "entrypoint": "analyze",
             "packaging": {"mode": "hybrid_bundle"},
             "runtime": {"execution_policy": execution_policy},
-            "nodes": [
-                {
-                    "id": "analyze",
-                    "kind": "llm_step",
-                    "prompt": {"user_template": "Question: {prompt}"},
-                    "available_tools": (
-                        available_tools
-                        if available_tools is not None
-                        else ["search_repo"]
-                    ),
-                }
-            ],
+            "nodes": [llm_node],
             "edges": [],
             "tools": tool_entries,
         }

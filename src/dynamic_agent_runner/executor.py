@@ -260,6 +260,7 @@ class PreparedModelInput:
     preparation: PreparedInputMetadata = field(default_factory=PreparedInputMetadata)
     model_parameters: Mapping[str, Any] = field(default_factory=dict)
     tool_choice: Any = None
+    tool_choice_policy: Any = None
     response_format: Mapping[str, Any] | None = None
     context_compactor: ContextCompactor | None = None
 
@@ -592,6 +593,7 @@ def prepare_model_input(
         preparation=preparation,
         model_parameters=_model_parameters(node),
         tool_choice=node.tool_choice,
+        tool_choice_policy=node.tool_choice_policy,
         response_format=node.response_format,
         context_compactor=context_compactor,
     )
@@ -828,7 +830,11 @@ async def _execute_llm_step_async(
         model=prepared_input.model,
         messages=prepared_input.messages,
         tools=tools,
-        tool_choice=prepared_input.tool_choice,
+        tool_choice=_tool_choice_for_phase(
+            plan,
+            prepared_input,
+            phase="initial",
+        ),
         response_format=prepared_input.response_format,
         **prepared_input.model_parameters,
     )
@@ -1002,7 +1008,11 @@ async def _retry_model_after_context_overflow_async(
         model=prepared_input.model,
         messages=replacement_messages,
         tools=tools,
-        tool_choice=prepared_input.tool_choice,
+        tool_choice=_tool_choice_for_phase(
+            plan,
+            prepared_input,
+            phase="initial",
+        ),
         response_format=prepared_input.response_format,
         **prepared_input.model_parameters,
     )
@@ -1021,6 +1031,23 @@ async def _retry_model_after_context_overflow_async(
 def _iterative_loop_enabled(plan: ExecutionPlan) -> bool:
     policy = plan.tool_use_completion_policy
     return bool(policy is not None and policy.run_again == "required")
+
+
+def _tool_choice_for_phase(
+    plan: ExecutionPlan,
+    prepared_input: PreparedModelInput,
+    *,
+    phase: str,
+) -> Any:
+    for policy in (prepared_input.tool_choice_policy, plan.tool_choice_policy):
+        if policy is None:
+            continue
+        value = getattr(policy, phase, None)
+        if value == "auto":
+            return None
+        if value == "required":
+            return "required"
+    return prepared_input.tool_choice
 
 
 async def _execute_model_tool_loop_async(
@@ -1166,7 +1193,11 @@ async def _request_loop_model_response_async(
         model=prepared_input.model,
         messages=messages,
         tools=tools,
-        tool_choice=prepared_input.tool_choice,
+        tool_choice=_tool_choice_for_phase(
+            plan,
+            prepared_input,
+            phase="after_tool_result",
+        ),
         response_format=prepared_input.response_format,
         **prepared_input.model_parameters,
     )
