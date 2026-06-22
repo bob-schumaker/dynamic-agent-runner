@@ -67,6 +67,14 @@
   - redacted `model_request` trace diagnostics
   - no NLTK, embeddings, vector stores, model-backed selection, or live-service
     dependency
+- Host workflow integration is implemented through Slice H2:
+  - `HostToolBinding` adapts host-owned tools into model-facing registries
+  - `ResolvedModelSelection` provides a provider-neutral execution handoff
+  - bounded trace and capability summaries are public helpers
+  - `inspect_agent_workflow_capabilities(...)` preflights inline manifests and
+    loaded workflows without temporary package directories
+  - host-bound tool capability details include canonical host ids,
+    model-facing ids, and aliases when available
 - Package-owned PyInstaller support now includes a hook provider and bundled
   `openai_model_registry` hook that collects registry data files and
   distribution metadata for frozen downstream clients. The hook also collects
@@ -171,6 +179,10 @@
 - `tool-descriptor-budgeting` is implemented through Slice T1. Completion
   evidence is recorded in `specs/tool-descriptor-budgeting/validation.md`;
   NLTK parser work remains a benchmarked future experiment.
+- `host-workflow-integration` is implemented through Slice H2. Completion
+  evidence is recorded in `specs/host-workflow-integration/validation.md`;
+  future work is only expected if another downstream host integration gap
+  appears.
 - `memory-aware-context-pipeline` is captured as a proposed future feature spec.
   It adapts useful `memlayer` ideas into a DAR-native, caller-owned contract
   for durable agent/user memory retrieval, provenance, traceability, and
@@ -200,6 +212,15 @@
 
 ## Latest Milestones
 
+- `0fa4d47` aligned host-workflow H2 status across the spec corpus after
+  implementation.
+- `278c933` implemented host workflow inline/generated and loaded-workflow
+  preflight, host id capability details, docs, specs, and fake tests.
+- `a29ad7b` prepared `host-workflow-integration` H2 as the next feasible
+  implementation slice while LiteLLM remained paused.
+- `3c5ee5b` aligned descriptor-budgeting status and ROI ordering after Slice T1
+  completion.
+- `5b95125` refreshed memory-bank state after descriptor budgeting.
 - `f7ab5d5` recorded descriptor-budgeting completion across README, runtime
   policy docs, spec index, task checklist, and validation evidence.
 - `fd1b54c` implemented opt-in tool descriptor budgeting with policy

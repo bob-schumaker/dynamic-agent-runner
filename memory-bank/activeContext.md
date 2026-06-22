@@ -3,7 +3,12 @@
 ## Current Focus
 
 - No implementation slice is currently active. The latest completed runtime
-  work implemented `specs/tool-descriptor-budgeting/` Slice T1. The feature is
+  work implemented `specs/host-workflow-integration/` Slice H2. DAR now exposes
+  `inspect_agent_workflow_capabilities(...)` for inline runtime manifests and
+  already loaded workflows, reuses the existing `CapabilityStatusReport`
+  contract, and reports host canonical/model-facing ids for tools registered
+  through `HostToolBinding`.
+- `specs/tool-descriptor-budgeting/` Slice T1 is complete. The feature is
   opt-in and deterministic: it validates runtime/node policy, ranks only
   registry-exposed model tools, packs descriptors within token/count limits,
   enforces required tools before dispatch, and emits redacted diagnostics.
@@ -31,6 +36,17 @@
   can choose progress events, terminal events, terminal session-result
   attachment, and progress event-type filters.
 - Recent commits:
+  - `0fa4d47` aligned the spec corpus after host-workflow H2 completion so the
+    plan, index, and dynamic-agent-runner roadmap no longer describe inline
+    preflight as pending work.
+  - `278c933` implemented host-workflow H2: inline/generated and loaded-workflow
+    capability preflight, host id capability details, API exports, docs, specs,
+    and fake tests.
+  - `a29ad7b` prepared host-workflow integration H2 with plan/tasks/validation
+    artifacts.
+  - `3c5ee5b` aligned descriptor-budgeting status after implementation and
+    removed it from the outstanding ROI queue.
+  - `5b95125` refreshed memory-bank state after descriptor budgeting.
   - `f7ab5d5` recorded descriptor-budgeting completion in README, runtime
     policy docs, spec index, and validation artifacts.
   - `fd1b54c` implemented opt-in tool descriptor budgeting in registry,
@@ -99,6 +115,10 @@
 - `specs/tool-descriptor-budgeting/` is implemented through Slice T1. NLTK,
   embeddings, vector stores, descriptor compression, model-backed selection,
   capability/status reporting, and richer fallback behavior remain deferred.
+- `specs/host-workflow-integration/` is implemented through Slice H2. The v1
+  helper surface now includes host tool binding, model-facing aliases, resolved
+  model-selection handoff, bounded diagnostics, inline/generated and
+  loaded-workflow capability preflight, and host id capability details.
 - `docs/source/conf.py` was refreshed and committed separately to derive Sphinx
   project metadata from `pyproject.toml`/git config and to simplify the
   Confluence SSO session override path.
@@ -181,7 +201,9 @@
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
 - The next ROI action should be selected from the remaining outstanding queue.
   LiteLLM Slice L1 remains prepared but paused until Python 3.14-compatible
-  dependency metadata is available.
+  dependency metadata is available; `semantic-context-profiles` and the
+  `memory-aware-context-pipeline` first-slice validation are the next notable
+  non-paused roadmap candidates.
 
 ## Recent Completed Work
 
