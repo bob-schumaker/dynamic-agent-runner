@@ -4179,7 +4179,10 @@ def _format_context(state: WorkflowExecutionState) -> dict[str, Any]:
     context: dict[str, Any] = {
         "prompt": state.prompt,
         "node_outputs": state.node_outputs,
-        "tool_results": state.tool_results,
+        "tool_results": {
+            key: result.model_facing_output
+            for key, result in state.tool_results.items()
+        },
     }
     for key, value in state.node_outputs.items():
         if isinstance(value, ModelResponse):

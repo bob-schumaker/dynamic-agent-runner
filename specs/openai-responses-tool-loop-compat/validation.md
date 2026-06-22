@@ -75,6 +75,7 @@ Run targeted pre-commit on actual changed files before committing.
 | `poetry run pytest tests/test_executor.py -q -k "model_tool_loop or chatgpt_codex"` | fail, then pass | R1.4 RED failed before structured loop transcript rendering; R1.5 GREEN passed with 4 focused executor tests |
 | `poetry run pytest tests/test_validation.py -q -k "tool_choice_policy or tool_choice"` | fail, then pass | R1.6 RED failed before policy validation; R1.8 GREEN passed with runtime, node, invalid-value, and conflict coverage |
 | `poetry run pytest tests/test_executor.py -q -k "tool_choice_policy or prepare_execution_plan or model_tool_loop"` | fail, then pass | R1.7/R1.9 RED failed before plan/runtime policy plumbing; R1.10 GREEN passed with 8 focused executor tests |
+| `poetry run pytest tests/test_executor.py -q -k "tool_results or model_facing_output"` | fail, then pass | R1.11 RED failed before top-level `tool_results` used model-facing output; R1.12 GREEN passed with state raw output preserved |
 
 ## Current Implementation Baseline
 

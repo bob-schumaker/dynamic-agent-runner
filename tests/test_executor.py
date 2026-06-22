@@ -4694,6 +4694,65 @@ def test_execute_workflow_uses_model_facing_tool_output_in_context_and_trace() -
     assert set(tool_result_events[0].sensitive_fields) == {"output", "raw_output"}
 
 
+def test_execute_workflow_formats_top_level_tool_results_as_model_facing_output() -> (
+    None
+):
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-results-context-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                },
+                {
+                    "id": "final",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Use {tool_results}"},
+                },
+            ],
+            "edges": [
+                {"source": "lookup", "target": "final", "edge_kind": "sequential"}
+            ],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry(
+        [
+            make_tool(
+                "search_repo",
+                output=ToolResult(
+                    tool_id="search_repo",
+                    success=True,
+                    output={"raw": "large raw result"},
+                    model_output={"summary": "compact summary"},
+                ),
+            )
+        ]
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+
+    result = execute_workflow(
+        workflow,
+        prompt="Run",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "done"
+    assert result.state.tool_results["lookup"].output == {"raw": "large raw result"}
+    assert adapter.client.responses.calls[0]["input"][-1]["content"] == (
+        "Use {'lookup': {'summary': 'compact summary'}}"
+    )
+
+
 def test_execute_workflow_accepts_execution_context() -> None:
     workflow = workflow_from(
         {

@@ -145,7 +145,7 @@
   - Evidence: initial, follow-up, node override, and legacy fallback request
     assertions pass.
 
-- [ ] R1.11 RED: Add prompt-formatting tests for top-level `tool_results`.
+- [x] R1.11 RED: Add prompt-formatting tests for top-level `tool_results`.
   - Spec: FR-5
   - Files/components: `tests/test_executor.py`,
     `src/dynamic_agent_runner/executor.py`
@@ -154,9 +154,11 @@
     existing direct output unwrapping remains compatible.
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k "tool_results or model_facing_output"`
-  - Evidence: failing test reproduces the raw `ToolResult` prompt-context leak.
+  - Evidence: `poetry run pytest tests/test_executor.py -q -k
+    "tool_results or model_facing_output"` failed before implementation because
+    top-level `tool_results` rendered raw `ToolResult` reprs.
 
-- [ ] R1.12 GREEN: Render top-level `tool_results` with model-facing output.
+- [x] R1.12 GREEN: Render top-level `tool_results` with model-facing output.
   - Spec: FR-5
   - Files/components: `src/dynamic_agent_runner/executor.py`
   - Depends on: R1.11
@@ -164,13 +166,14 @@
     `poetry run pytest tests/test_executor.py -q -k "tool_results or model_facing_output"`
   - Evidence: prompt-formatting tests pass without mutating workflow state.
 
-- [ ] R1.13 Update docs only for public manifest policy.
+- [x] R1.13 Update docs only for public manifest policy.
   - Spec: FR-4, downstream migration plan
   - Files/components: `README.md`, `docs/files/runtime-policies.rst` if needed
   - Depends on: R1.10
   - Validation:
     `pre-commit run --files README.md docs/files/runtime-policies.rst`
-  - Evidence: `tool_choice_policy` is documented if public behavior is shipped.
+  - Evidence: `README.md` and `docs/files/runtime-policies.rst` document
+    runtime and node-local `tool_choice_policy` behavior.
 
 - [ ] R1.14 Update spec status and validation evidence.
   - Spec: completion criteria

@@ -362,6 +362,7 @@ Runtime manifests may also declare provider-neutral metadata for:
 - `runtime.execution_policy.skill_source_resolution`
 - `runtime.execution_policy.async_session`
 - `runtime.execution_policy.tool_descriptor_budget`
+- `runtime.execution_policy.tool_choice_policy`
 - `llm_step.model_requirements`
 - `metadata.patterns_present`
 - `metadata.rag_pipeline`
@@ -406,6 +407,23 @@ or fail before the model request. Diagnostics on `model_request` traces include
 tool ids, reasons, counts, and token estimates, not raw prompt content or full
 schemas. Node-local `tool_descriptor_budget` mappings can override scalar
 limits and add required tools for a specific `llm_step`.
+
+`runtime.execution_policy.tool_choice_policy` is opt-in for tool-capable
+`llm_step` requests. It separates first-turn tool forcing from post-tool
+follow-up behavior:
+
+```yaml
+runtime:
+  execution_policy:
+    tool_choice_policy:
+      initial: required
+      after_tool_result: auto
+```
+
+Node-local `tool_choice_policy` overrides the runtime default for that node.
+Supported values are `required` and `auto`; `auto` omits forced `tool_choice`.
+Legacy node-level `tool_choice` remains supported when no explicit policy is
+configured, but a node cannot set both fields.
 
 `extensions.guardrails.declarations` is live for `phase: input` when callers
 provide an `InMemoryGuardrailRegistry` through the lower-level executor or a
