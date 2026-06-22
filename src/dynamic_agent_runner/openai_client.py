@@ -32,6 +32,9 @@ CHATGPT_CODEX_PROVIDER_NAME = "chatgpt-codex"
 CHATGPT_CODEX_FALLBACK_CLIENT_VERSION = "0.137.0"
 CODEX_AUTH_API_KEY_FIRST = "api_key_first"
 CODEX_AUTH_CHATGPT_FIRST = "chatgpt_first"
+_DAR_TRANSCRIPT_TYPE_KEY = "_dar_transcript_type"
+_DAR_MODEL_TOOL_CALL = "model_tool_call"
+_DAR_MODEL_TOOL_RESULT = "model_tool_result"
 
 
 class OpenAIResponsesResource(Protocol):
@@ -188,7 +191,9 @@ class OpenAIModelRequest:
 
         kwargs: dict[str, Any] = {
             "model": self.model,
-            "input": list(self.messages),
+            "input": [
+                _request_message_to_provider_input(message) for message in self.messages
+            ],
         }
         if self.tools:
             kwargs["tools"] = [dict(tool) for tool in self.tools]
@@ -864,6 +869,10 @@ def _prepare_chatgpt_codex_request(
     input_messages: list[Mapping[str, Any]] = []
     instruction_parts: list[str] = []
     for message in request.messages:
+        transcript_item = _chatgpt_codex_transcript_input_item(message)
+        if transcript_item is not None:
+            input_messages.append(transcript_item)
+            continue
         role = str(message.get("role") or "")
         content = message.get("content")
         if role in {"system", "developer"}:
@@ -892,6 +901,40 @@ def _prepare_chatgpt_codex_request(
         response_format=request.response_format,
         extra=extra,
     )
+
+
+def _chatgpt_codex_transcript_input_item(
+    message: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    transcript_type = message.get(_DAR_TRANSCRIPT_TYPE_KEY)
+    if transcript_type == _DAR_MODEL_TOOL_CALL:
+        return {
+            "type": "function_call",
+            "call_id": str(message.get("call_id") or message.get("tool_call_id") or ""),
+            "name": str(message.get("name") or ""),
+            "arguments": str(message.get("arguments") or "{}"),
+        }
+    if transcript_type == _DAR_MODEL_TOOL_RESULT:
+        return {
+            "type": "function_call_output",
+            "call_id": str(message.get("call_id") or message.get("tool_call_id") or ""),
+            "output": str(message.get("output") or message.get("content") or ""),
+        }
+    return None
+
+
+def _request_message_to_provider_input(message: Mapping[str, Any]) -> Mapping[str, Any]:
+    if message.get(_DAR_TRANSCRIPT_TYPE_KEY) is None:
+        return dict(message)
+    if message.get(_DAR_TRANSCRIPT_TYPE_KEY) == _DAR_MODEL_TOOL_CALL:
+        return {
+            key: value for key, value in message.items() if key in {"role", "content"}
+        }
+    return {
+        key: value
+        for key, value in message.items()
+        if key in {"role", "tool_call_id", "name", "content"}
+    }
 
 
 def _chatgpt_codex_models_extra_query() -> dict[str, str]:

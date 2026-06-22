@@ -34,7 +34,7 @@
   - Evidence: `poetry run pytest tests/test_openai_client.py -q -k
     "stream or responses"` passed with 5 tests after implementation.
 
-- [ ] R1.3 RED: Add ChatGPT/Codex request-preparation tests for structured
+- [x] R1.3 RED: Add ChatGPT/Codex request-preparation tests for structured
       tool-loop transcript items.
   - Spec: FR-2, FR-3
   - Files/components: `tests/test_openai_client.py`,
@@ -44,10 +44,11 @@
     preserved; system/developer instructions still hoist.
   - Validation:
     `poetry run pytest tests/test_openai_client.py -q -k "chatgpt or codex"`
-  - Evidence: failing tests show current request preparation cannot render the
-    needed Responses follow-up shape.
+  - Evidence: `poetry run pytest tests/test_openai_client.py -q -k
+    "chatgpt or codex"` failed before implementation because structured
+    transcript items were passed through unchanged.
 
-- [ ] R1.4 RED: Add executor loop transcript tests that preserve original tool
+- [x] R1.4 RED: Add executor loop transcript tests that preserve original tool
       call data while keeping non-Codex fake adapter compatibility.
   - Spec: FR-2
   - Files/components: `tests/test_executor.py`,
@@ -57,9 +58,11 @@
     used; original tool-call arguments are available to provider rendering.
   - Validation:
     `poetry run pytest tests/test_executor.py -q -k "model_tool_loop"`
-  - Evidence: tests pin compatibility before changing transcript internals.
+  - Evidence: `poetry run pytest tests/test_executor.py -q -k
+    "model_tool_loop or chatgpt_codex"` failed before implementation because
+    ChatGPT/Codex follow-up input still used assistant/tool messages.
 
-- [ ] R1.5 GREEN: Implement internal structured tool-loop transcript rendering.
+- [x] R1.5 GREEN: Implement internal structured tool-loop transcript rendering.
   - Spec: FR-2, FR-3
   - Files/components: `src/dynamic_agent_runner/executor.py`,
     `src/dynamic_agent_runner/openai_client.py`
@@ -75,7 +78,7 @@
     ```
 
   - Evidence: provider-specific request preparation and non-Codex loop tests
-    pass together.
+    pass together with 10 OpenAI adapter tests and 4 executor tests.
 
 - [ ] R1.6 RED: Add validation tests for `tool_choice_policy`.
   - Spec: FR-4

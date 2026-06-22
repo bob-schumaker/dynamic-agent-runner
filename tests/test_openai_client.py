@@ -539,6 +539,67 @@ def test_chatgpt_codex_adapter_moves_prompt_messages_to_instructions() -> None:
     assert result.content == "via provider"
 
 
+def test_chatgpt_codex_adapter_converts_structured_tool_loop_transcript() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels({"models": [{"slug": "codex-mini-latest"}]})
+    provider = FakeProvider(
+        responses,
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=models,
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+    request = build_openai_request(
+        model="codex-mini-latest",
+        messages=[
+            OpenAIMessage("system", "System rules."),
+            OpenAIMessage("user", "Find agents."),
+            {
+                "role": "assistant",
+                "content": "Tool call call_1: search_repo",
+                "_dar_transcript_type": "model_tool_call",
+                "call_id": "call_1",
+                "name": "search_repo",
+                "arguments": '{"query":"agents"}',
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "name": "search_repo",
+                "content": '{"summary":"agents found"}',
+                "_dar_transcript_type": "model_tool_result",
+                "call_id": "call_1",
+                "output": '{"summary":"agents found"}',
+            },
+        ],
+    )
+
+    result = adapter.create_response(request)
+
+    assert result.content == "via provider"
+    assert responses.calls == [
+        {
+            "model": "codex-mini-latest",
+            "input": [
+                {"role": "user", "content": "Find agents."},
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "search_repo",
+                    "arguments": '{"query":"agents"}',
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": '{"summary":"agents found"}',
+                },
+            ],
+            "instructions": "System rules.",
+            "store": False,
+            "stream": True,
+        }
+    ]
+
+
 def test_chatgpt_codex_adapter_rejects_unlisted_model_before_request() -> None:
     responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
     models = FakeModels({"data": [{"id": "codex-mini-latest"}]})

@@ -71,6 +71,8 @@ Run targeted pre-commit on actual changed files before committing.
 | `rg "tool_choice_policy\|tool_choice\|function_call_output\|response.output_item.done\|role\\\": \\\"tool\|_normalize_openai_stream_events\|_prepare_chatgpt_codex_request\|_model_tool_result_messages\|_format_context\|ToolResult.model_facing_output" -n src tests specs/openai-responses-tool-loop-compat` | pass | Confirmed current source touch points and absence of existing `tool_choice_policy` |
 | `poetry run pytest tests/test_openai_client.py -q -k "stream or responses"` | fail, then pass | R1.1 RED failed on dropped streamed function-call output items; R1.2 GREEN passed with 5 tests after `_normalize_openai_stream_events(...)` collected `response.output_item.done` items |
 | `pre-commit run --files src/dynamic_agent_runner/openai_client.py tests/test_openai_client.py` | pass | R1.1/R1.2 source and test files passed Ruff and formatting after hook rewrite |
+| `poetry run pytest tests/test_openai_client.py -q -k "chatgpt or codex"` | fail, then pass | R1.3 RED failed before ChatGPT/Codex transcript conversion; R1.5 GREEN passed with 10 focused adapter tests |
+| `poetry run pytest tests/test_executor.py -q -k "model_tool_loop or chatgpt_codex"` | fail, then pass | R1.4 RED failed before structured loop transcript rendering; R1.5 GREEN passed with 4 focused executor tests |
 
 ## Current Implementation Baseline
 

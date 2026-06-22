@@ -1450,16 +1450,29 @@ def _model_tool_call_id(tool_call: ModelToolCall, iteration: int) -> str:
 def _model_tool_result_messages(
     tool_call: ModelToolCall, tool_call_id: str, result: ToolResult
 ) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+    model_output = json.dumps(result.model_facing_output)
+    arguments = (
+        tool_call.arguments
+        if isinstance(tool_call.arguments, str)
+        else json.dumps(tool_call.arguments)
+    )
     return (
         {
             "role": "assistant",
             "content": f"Tool call {tool_call_id}: {tool_call.name}",
+            "_dar_transcript_type": "model_tool_call",
+            "call_id": tool_call_id,
+            "name": tool_call.name,
+            "arguments": arguments,
         },
         {
             "role": "tool",
             "tool_call_id": tool_call_id,
             "name": tool_call.name,
-            "content": json.dumps(result.model_facing_output),
+            "content": model_output,
+            "_dar_transcript_type": "model_tool_result",
+            "call_id": tool_call_id,
+            "output": model_output,
         },
     )
 

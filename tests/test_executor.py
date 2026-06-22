@@ -62,6 +62,7 @@ from dynamic_agent_runner.openai_client import (
     ModelResponse,
     OpenAIClientAdapter,
     OpenAIMessage,
+    OpenAIProviderConfig,
 )
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
@@ -99,6 +100,22 @@ class FakeModels:
     def list(self, **kwargs: object) -> object:
         self.calls.append(dict(kwargs))
         return self.models
+
+
+class FakeProvider:
+    def __init__(
+        self,
+        responses: list[object],
+        config: OpenAIProviderConfig,
+        models: object | None = None,
+    ) -> None:
+        self.config = config
+        self.client = FakeClient(responses, models=models)
+        self.calls = 0
+
+    def get_client(self) -> FakeClient:
+        self.calls += 1
+        return self.client
 
 
 class AsyncFakeResponses:
@@ -3920,6 +3937,65 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     assert result.state.tool_results["analyze.call_1"].model_facing_output == {
         "summary": "agents found"
     }
+
+
+def test_execute_workflow_renders_chatgpt_codex_tool_loop_follow_up_items() -> None:
+    workflow = loop_tool_workflow()
+    registry = InMemoryToolRegistry(
+        [
+            make_tool(
+                "search_repo",
+                output=ToolResult(
+                    tool_id="search_repo",
+                    success=True,
+                    output={"raw": "secret raw"},
+                    model_output={"summary": "agents found"},
+                ),
+            )
+        ]
+    )
+    provider = FakeProvider(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ],
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=FakeModels({"models": [{"slug": "gpt-test"}]}),
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    second_input = adapter.client.responses.calls[1]["input"]
+    assert second_input[-2:] == [
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "search_repo",
+            "arguments": '{"query":"agents"}',
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_1",
+            "output": '{"summary": "agents found"}',
+        },
+    ]
 
 
 def test_execute_workflow_mid_turn_compaction_fails_without_compactor() -> None:
