@@ -42,6 +42,9 @@ SUPPORTED_EDGE_KINDS = (
 )
 SUPPORTED_TOOL_INDEX_TYPE = "agent_runtime_tool_index"
 SUPPORTED_OVERRIDE_TYPE = "dynamic_agent_runtime_overrides"
+SUPPORTED_TOOL_DESCRIPTOR_BUDGET_STRATEGIES = {"deterministic_metadata"}
+SUPPORTED_TOOL_DESCRIPTOR_BUDGET_LOW_CONFIDENCE_VALUES = {"include_all_within_budget"}
+SUPPORTED_TOOL_DESCRIPTOR_BUDGET_DIAGNOSTICS_VALUES = {"redacted"}
 SUPPORTED_TOOL_TYPES = {
     "file_read",
     "file_write",
@@ -478,6 +481,8 @@ def validate_runtime_manifest(
     _extend(errors, _model_requirements_errors(manifest))
     _extend(errors, _rag_pipeline_errors(manifest))
     _extend(errors, _react_loop_errors(manifest))
+    _extend(errors, _tool_descriptor_budget_policy_errors(manifest))
+    _extend(errors, _tool_descriptor_budget_node_errors(manifest.nodes))
     _extend(errors, _tool_use_completion_policy_errors(manifest))
     _extend(errors, _approval_interruption_policy_errors(manifest))
     _extend(errors, _async_session_policy_errors(manifest))
@@ -1559,6 +1564,73 @@ def _tool_use_completion_policy_errors(manifest: RuntimeManifest) -> list[str]:
     return errors
 
 
+def _tool_descriptor_budget_policy_errors(manifest: RuntimeManifest) -> list[str]:
+    policy = manifest.execution_policy.get("tool_descriptor_budget")
+    if policy is None:
+        return []
+    if not isinstance(policy, Mapping):
+        return ["runtime.execution_policy.tool_descriptor_budget must be a mapping"]
+    return _tool_descriptor_budget_mapping_errors(
+        policy,
+        "runtime.execution_policy.tool_descriptor_budget",
+    )
+
+
+def _tool_descriptor_budget_node_errors(
+    nodes: Iterable[RuntimeNode],
+) -> list[str]:
+    errors: list[str] = []
+    for index, node in enumerate(nodes):
+        policy = node.raw.get("tool_descriptor_budget")
+        if policy is None:
+            continue
+        label = f"nodes[{index}].tool_descriptor_budget"
+        if node.kind != "llm_step":
+            errors.append(f"{label} is only allowed on llm_step nodes")
+            continue
+        if not isinstance(policy, Mapping):
+            errors.append(f"{label} must be a mapping")
+            continue
+        errors.extend(_tool_descriptor_budget_mapping_errors(policy, label))
+    return errors
+
+
+def _tool_descriptor_budget_mapping_errors(
+    policy: Mapping[str, Any],
+    label: str,
+) -> list[str]:
+    errors: list[str] = []
+    _validate_optional_bool(policy, "enabled", label, errors)
+    _validate_optional_positive_int(policy, "max_tokens", label, errors)
+    _validate_optional_positive_int(policy, "max_tools", label, errors)
+    _validate_optional_nonblank_string(policy, "model", label, errors)
+    _validate_optional_enum_one_of(
+        policy,
+        "strategy",
+        SUPPORTED_TOOL_DESCRIPTOR_BUDGET_STRATEGIES,
+        label,
+        errors,
+    )
+    _validate_optional_enum_one_of(
+        policy,
+        "low_confidence_behavior",
+        SUPPORTED_TOOL_DESCRIPTOR_BUDGET_LOW_CONFIDENCE_VALUES,
+        label,
+        errors,
+    )
+    _validate_optional_enum_one_of(
+        policy,
+        "diagnostics",
+        SUPPORTED_TOOL_DESCRIPTOR_BUDGET_DIAGNOSTICS_VALUES,
+        label,
+        errors,
+    )
+    required_tools = policy.get("required_tools")
+    if required_tools is not None and not _is_string_list(required_tools):
+        errors.append(f"{label}.required_tools must be a list of strings")
+    return errors
+
+
 def _handoff_metadata_errors(manifest: RuntimeManifest) -> list[str]:
     raw_handoffs = manifest.metadata.get("handoffs")
     if raw_handoffs is None:
@@ -2384,6 +2456,20 @@ def _validate_optional_enum(
         return
     if value not in supported:
         errors.append(f"{label}.{field_name} has unsupported value {value!r}")
+
+
+def _validate_optional_enum_one_of(
+    mapping: Mapping[str, Any],
+    field_name: str,
+    supported: set[str],
+    label: str,
+    errors: list[str],
+) -> None:
+    value = mapping.get(field_name)
+    if value is None:
+        return
+    if value not in supported:
+        errors.append(f"{label}.{field_name} must be one of {sorted(supported)!r}")
 
 
 def _validate_optional_bool(

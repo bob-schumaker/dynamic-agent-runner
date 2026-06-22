@@ -2897,6 +2897,146 @@ def test_execute_workflow_runs_llm_tool_and_final_llm_steps() -> None:
     assert first_call["tools"][0]["name"] == "search_repo"
 
 
+def test_execute_workflow_preserves_tool_schema_without_descriptor_budget() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-budget-default-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "available_tools": ["search_repo", "read_file"],
+                }
+            ],
+            "edges": [],
+        }
+    )
+    registry = InMemoryToolRegistry([make_tool("search_repo"), make_tool("read_file")])
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "done"
+    assert [tool["name"] for tool in adapter.client.responses.calls[0]["tools"]] == [
+        "search_repo",
+        "read_file",
+    ]
+    model_request = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "model_request"
+    )
+    assert "tool_descriptor_budget" not in model_request.payload
+
+
+def test_execute_workflow_applies_descriptor_budget_to_model_tools() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-budget-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "tool_descriptor_budget": {
+                        "enabled": True,
+                        "max_tools": 1,
+                        "required_tools": ["read_file"],
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "available_tools": ["search_repo", "read_file"],
+                    "tool_descriptor_budget": {"required_tools": ["read_file"]},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    registry = InMemoryToolRegistry([make_tool("search_repo"), make_tool("read_file")])
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+
+    result = execute_workflow(
+        workflow,
+        prompt="Read pyproject.toml",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert [tool["name"] for tool in adapter.client.responses.calls[0]["tools"]] == [
+        "read_file"
+    ]
+    model_request = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "model_request"
+    )
+    diagnostics = model_request.payload["tool_descriptor_budget"]
+    assert diagnostics["selected_tool_ids"] == ["read_file"]
+    assert diagnostics["omitted"][0]["tool_id"] == "search_repo"
+    assert diagnostics["omitted"][0]["reason"] == "max_tools"
+    assert "Read pyproject" not in repr(diagnostics)
+    assert "parameters" not in repr(diagnostics)
+
+
+def test_execute_workflow_fails_before_dispatch_when_required_tool_excluded() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-budget-required-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "tool_descriptor_budget": {
+                        "enabled": True,
+                        "required_tools": ["write_file"],
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "available_tools": ["read_file"],
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+
+    with pytest.raises(WorkflowExecutionError, match="required tool 'write_file'"):
+        execute_workflow(
+            workflow,
+            prompt="Write file",
+            tool_registry=InMemoryToolRegistry([make_tool("read_file")]),
+            model_adapter=adapter,
+        )
+
+    assert adapter.client.responses.calls == []
+
+
 def test_execute_workflow_does_not_loop_model_tool_calls_without_policy() -> None:
     tool_invocations: list[object] = []
 

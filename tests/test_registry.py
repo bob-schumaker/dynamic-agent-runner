@@ -22,7 +22,9 @@ from dynamic_agent_runner.models import (
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
+    ToolDescriptorBudgetPolicy,
     ToolResult,
+    ToolSelector,
     WebToolPolicy,
     WorkspaceDataToolPolicy,
     ToolExposureOverride,
@@ -41,6 +43,7 @@ def make_tool(
     output: object | None = None,
     *,
     exposure: str = "direct",
+    raw: dict[str, object] | None = None,
 ) -> RegisteredTool:
     raw = {
         "id": tool_id,
@@ -57,6 +60,7 @@ def make_tool(
         "timeout": "runtime_default",
         "retry_policy": "none",
         "failure_behavior": "error",
+        **(raw or {}),
     }
     return RegisteredTool(
         ToolDefinition.from_mapping(raw),
@@ -534,6 +538,154 @@ def test_tool_exposure_states_control_model_visibility_and_invocation() -> None:
     assert blocked.success is False
     assert "not callable for direct execution" in str(blocked.error)
     assert internal.success is True
+
+
+def test_tool_selector_only_selects_registry_exposed_model_tools() -> None:
+    """Descriptor budgeting starts after registry exposure filtering."""
+
+    registry = InMemoryToolRegistry(
+        [
+            make_tool("direct_tool", exposure="direct"),
+            make_tool("deferred_tool", exposure="deferred"),
+            make_tool("model_only_tool", exposure="direct_model_only"),
+            make_tool("hidden_tool", exposure="hidden"),
+        ]
+    )
+    node = RuntimeNode.from_mapping(
+        {
+            "id": "llm",
+            "kind": "llm_step",
+            "prompt_source": "inline",
+            "available_tools": [
+                "direct_tool",
+                "deferred_tool",
+                "model_only_tool",
+                "hidden_tool",
+            ],
+        }
+    )
+    exposed_tools = registry.list_tools_for_node(node)
+
+    result = ToolSelector().select(
+        messages=[{"role": "user", "content": "Use hidden_tool"}],
+        tools=exposed_tools,
+        policy=ToolDescriptorBudgetPolicy(enabled=True, max_tools=10),
+        model="gpt-test",
+    )
+
+    assert [schema["name"] for schema in result.tools] == [
+        "direct_tool",
+        "model_only_tool",
+    ]
+    assert {item.tool_id for item in result.diagnostics.included} == {
+        "direct_tool",
+        "model_only_tool",
+    }
+    assert "hidden_tool" not in repr(result.diagnostics)
+    assert "deferred_tool" not in repr(result.diagnostics)
+
+
+def test_tool_selector_keeps_required_tools_and_reports_budget_omissions() -> None:
+    """Required descriptors are packed first and optional omissions are explained."""
+
+    required = make_tool("read_file")
+    optional = make_tool(
+        "summarize_repository",
+        raw={
+            "description_for_llm": "Summarize repository architecture and tests.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "repository_path": {"type": "string"},
+                    "include_tests": {"type": "boolean"},
+                },
+                "required": ["repository_path"],
+            },
+        },
+    )
+
+    result = ToolSelector().select(
+        messages=[{"role": "user", "content": "Read a file"}],
+        tools=(optional, required),
+        policy=ToolDescriptorBudgetPolicy(
+            enabled=True,
+            max_tools=1,
+            required_tools=("read_file",),
+        ),
+        model="gpt-test",
+    )
+
+    assert [schema["name"] for schema in result.tools] == ["read_file"]
+    assert [item.tool_id for item in result.diagnostics.included] == ["read_file"]
+    omitted = {item.tool_id: item.reason for item in result.diagnostics.omitted}
+    assert omitted["summarize_repository"] == "max_tools"
+
+
+def test_tool_selector_fails_when_required_tool_is_not_exposed() -> None:
+    with pytest.raises(
+        ToolRegistryError, match="required tool 'write_file' is not exposed"
+    ):
+        ToolSelector().select(
+            messages=[{"role": "user", "content": "Write the file"}],
+            tools=(make_tool("read_file"),),
+            policy=ToolDescriptorBudgetPolicy(
+                enabled=True,
+                required_tools=("write_file",),
+            ),
+            model="gpt-test",
+        )
+
+
+def test_tool_selector_fails_when_required_tool_cannot_fit_budget() -> None:
+    with pytest.raises(ToolRegistryError, match="required tool 'read_file'.*budget"):
+        ToolSelector().select(
+            messages=[{"role": "user", "content": "Read the file"}],
+            tools=(make_tool("read_file"),),
+            policy=ToolDescriptorBudgetPolicy(
+                enabled=True,
+                max_tokens=1,
+                required_tools=("read_file",),
+            ),
+            model="gpt-test",
+        )
+
+
+def test_tool_selector_scores_prompt_and_schema_metadata() -> None:
+    read_file = make_tool(
+        "read_file",
+        raw={
+            "description_for_llm": "Read workspace files by path.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+        },
+    )
+    search_web = make_tool(
+        "search_web",
+        raw={
+            "description_for_llm": "Search the web for public pages.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"],
+            },
+        },
+    )
+
+    result = ToolSelector().select(
+        messages=[
+            {"role": "system", "content": "You can use tools."},
+            {"role": "user", "content": "Read ./pyproject.toml from the path."},
+        ],
+        tools=(search_web, read_file),
+        policy=ToolDescriptorBudgetPolicy(enabled=True, max_tools=1),
+        model="gpt-test",
+    )
+
+    assert [schema["name"] for schema in result.tools] == ["read_file"]
+    assert result.diagnostics.omitted[0].tool_id == "search_web"
 
 
 def test_unknown_tool_exposure_fails_closed() -> None:

@@ -54,7 +54,13 @@ from dynamic_agent_runner.prompt_cache import (
     build_prompt_cache_observation,
     prompt_cache_policy_from_value,
 )
-from dynamic_agent_runner.registry import RegisteredTool, ToolRegistry, ToolResult
+from dynamic_agent_runner.registry import (
+    RegisteredTool,
+    ToolRegistry,
+    ToolResult,
+    ToolSelector,
+    tool_descriptor_budget_policy_from_values,
+)
 from dynamic_agent_runner.retry import (
     RetryPolicy,
     RetryRecord,
@@ -776,15 +782,12 @@ async def _execute_llm_step_async(
         context_compactor=context_compactor,
         context_summarizer=context_summarizer,
     )
-    tools: list[dict[str, Any]] = []
-    exposed_tools: tuple[RegisteredTool, ...] = ()
-    if node.available_tools:
-        if registry is None:
-            raise WorkflowExecutionError(
-                f"llm_step node {node.id!r} exposes tools but no registry was provided"
-            )
-        exposed_tools = registry.list_tools_for_node(node.source_node)
-        tools = registry.to_openai_tools(tool.id for tool in exposed_tools)
+    tools, exposed_tools, tool_descriptor_budget_payload = _llm_step_tools(
+        node,
+        plan,
+        prepared_input,
+        registry,
+    )
     request = build_openai_request(
         model=prepared_input.model,
         messages=prepared_input.messages,
@@ -793,17 +796,20 @@ async def _execute_llm_step_async(
         response_format=prepared_input.response_format,
         **prepared_input.model_parameters,
     )
+    model_request_payload = {
+        "model": prepared_input.model,
+        "message_count": len(prepared_input.messages),
+        "tool_count": len(tools),
+        "tool_sources": _tool_sources_payload(exposed_tools),
+        "request": request.to_kwargs(),
+    }
+    if tool_descriptor_budget_payload is not None:
+        model_request_payload["tool_descriptor_budget"] = tool_descriptor_budget_payload
     state.node_inputs[str(node.id)] = request.to_kwargs()
     tracer.emit(
         "model_request",
         node_id=str(node.id),
-        payload={
-            "model": prepared_input.model,
-            "message_count": len(prepared_input.messages),
-            "tool_count": len(tools),
-            "tool_sources": _tool_sources_payload(exposed_tools),
-            "request": request.to_kwargs(),
-        },
+        payload=model_request_payload,
         sensitive_fields=("request",),
     )
     await invoke_lifecycle_hook_async(
@@ -891,6 +897,41 @@ async def _execute_llm_step_async(
         response = loop_output
     _validate_model_output_contract(node, plan, response, prepared_input.prompt)
     return response
+
+
+def _llm_step_tools(
+    node: PreparedNode,
+    plan: ExecutionPlan,
+    prepared_input: PreparedModelInput,
+    registry: ToolRegistry | None,
+) -> tuple[list[dict[str, Any]], tuple[RegisteredTool, ...], dict[str, Any] | None]:
+    if not node.available_tools:
+        return [], (), None
+    if registry is None:
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} exposes tools but no registry was provided"
+        )
+    exposed_tools = registry.list_tools_for_node(node.source_node)
+    budget_policy = tool_descriptor_budget_policy_from_values(
+        plan.execution_policy.get("tool_descriptor_budget"),
+        node.source_node.raw.get("tool_descriptor_budget"),
+    )
+    if not budget_policy.enabled:
+        return (
+            registry.to_openai_tools(tool.id for tool in exposed_tools),
+            exposed_tools,
+            None,
+        )
+    try:
+        selection = ToolSelector().select(
+            messages=prepared_input.messages,
+            tools=exposed_tools,
+            policy=budget_policy,
+            model=prepared_input.model,
+        )
+    except ToolRegistryError as exc:
+        raise WorkflowExecutionError(str(exc)) from exc
+    return selection.tools, exposed_tools, selection.diagnostics.to_trace_payload()
 
 
 async def _retry_model_after_context_overflow_async(

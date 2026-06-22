@@ -23,6 +23,7 @@ from dynamic_agent_runner.models import (
     ToolSource,
     ToolSourceKind,
 )
+from dynamic_agent_runner.token_budget import estimate_text_tokens
 
 ToolHandler = Callable[[Mapping[str, Any]], Any]
 
@@ -121,6 +122,253 @@ class RegisteredTool:
         if not self.definition.id:
             raise ToolRegistryError("registered tool definition is missing id")
         return self.definition.id
+
+
+@dataclass(frozen=True)
+class ToolDescriptorBudgetPolicy:
+    """Opt-in policy for selecting model-facing tool descriptors."""
+
+    enabled: bool = False
+    max_tokens: int | None = None
+    max_tools: int | None = None
+    model: str | None = None
+    strategy: str = "deterministic_metadata"
+    low_confidence_behavior: str = "include_all_within_budget"
+    required_tools: tuple[str, ...] = ()
+    diagnostics: str = "redacted"
+
+
+@dataclass(frozen=True)
+class ToolDescriptorBudgetDiagnosticItem:
+    """Trace-safe diagnostic for one selected or omitted descriptor."""
+
+    tool_id: str
+    reason: str
+    token_count: int
+    score: int
+
+    def to_payload(self) -> dict[str, Any]:
+        """Return a redacted trace payload for this descriptor."""
+
+        return {
+            "tool_id": self.tool_id,
+            "reason": self.reason,
+            "token_count": self.token_count,
+            "score": self.score,
+        }
+
+
+@dataclass(frozen=True)
+class ToolDescriptorBudgetDiagnostics:
+    """Trace-safe descriptor budgeting result metadata."""
+
+    selected_tool_ids: tuple[str, ...]
+    included: tuple[ToolDescriptorBudgetDiagnosticItem, ...]
+    omitted: tuple[ToolDescriptorBudgetDiagnosticItem, ...]
+    estimated_tokens: int
+    max_tokens: int | None
+    max_tools: int | None
+    strategy: str
+    encoding_name: str | None = None
+    used_fallback_encoding: bool = False
+
+    def to_trace_payload(self) -> dict[str, Any]:
+        """Return redacted diagnostics for workflow traces."""
+
+        return {
+            "selected_tool_ids": list(self.selected_tool_ids),
+            "included": [item.to_payload() for item in self.included],
+            "omitted": [item.to_payload() for item in self.omitted],
+            "estimated_tokens": self.estimated_tokens,
+            "max_tokens": self.max_tokens,
+            "max_tools": self.max_tools,
+            "strategy": self.strategy,
+            "encoding_name": self.encoding_name,
+            "used_fallback_encoding": self.used_fallback_encoding,
+        }
+
+
+@dataclass(frozen=True)
+class ToolSelectionResult:
+    """Selected OpenAI-compatible tool descriptors and diagnostics."""
+
+    tools: list[dict[str, Any]]
+    diagnostics: ToolDescriptorBudgetDiagnostics
+
+
+@dataclass(frozen=True)
+class _ToolCandidate:
+    tool: RegisteredTool
+    schema: dict[str, Any]
+    token_count: int
+    score: int
+    order: int
+    encoding_name: str
+    used_fallback_encoding: bool
+
+
+class ToolSelector:
+    """Select and pack model-facing tool descriptors within a policy budget."""
+
+    def select(
+        self,
+        *,
+        messages: Sequence[Mapping[str, Any]],
+        tools: Sequence[RegisteredTool],
+        policy: ToolDescriptorBudgetPolicy,
+        model: str,
+    ) -> ToolSelectionResult:
+        """Return selected descriptor schemas and redacted diagnostics."""
+
+        effective_model = policy.model or model
+        required_ids = set(policy.required_tools)
+        exposed_by_id = {tool.id: tool for tool in tools}
+        missing = sorted(
+            tool_id for tool_id in required_ids if tool_id not in exposed_by_id
+        )
+        if missing:
+            raise ToolRegistryError(f"required tool {missing[0]!r} is not exposed")
+
+        prompt_terms = _normalized_terms(_messages_text(messages))
+        candidates = [
+            self._candidate(tool, index, prompt_terms, effective_model)
+            for index, tool in enumerate(tools)
+        ]
+        candidates_by_id = {candidate.tool.id: candidate for candidate in candidates}
+
+        selected: list[_ToolCandidate] = []
+        omitted: list[ToolDescriptorBudgetDiagnosticItem] = []
+        used_tokens = 0
+        encoding_name: str | None = None
+        used_fallback_encoding = False
+
+        for candidate in sorted(
+            (candidates_by_id[tool_id] for tool_id in required_ids),
+            key=lambda item: item.order,
+        ):
+            if policy.max_tokens is not None and (
+                used_tokens + candidate.token_count > policy.max_tokens
+            ):
+                raise ToolRegistryError(
+                    f"required tool {candidate.tool.id!r} cannot fit descriptor budget"
+                )
+            selected.append(candidate)
+            used_tokens += candidate.token_count
+            encoding_name = encoding_name or candidate.encoding_name
+            used_fallback_encoding = (
+                used_fallback_encoding or candidate.used_fallback_encoding
+            )
+
+        remaining = [
+            candidate
+            for candidate in candidates
+            if candidate.tool.id not in required_ids
+        ]
+        remaining.sort(key=lambda item: (-item.score, item.order))
+
+        for candidate in remaining:
+            if policy.max_tools is not None and len(selected) >= policy.max_tools:
+                omitted.append(_diagnostic_item(candidate, "max_tools"))
+                continue
+            if policy.max_tokens is not None and (
+                used_tokens + candidate.token_count > policy.max_tokens
+            ):
+                omitted.append(_diagnostic_item(candidate, "over_budget"))
+                continue
+            selected.append(candidate)
+            used_tokens += candidate.token_count
+            encoding_name = encoding_name or candidate.encoding_name
+            used_fallback_encoding = (
+                used_fallback_encoding or candidate.used_fallback_encoding
+            )
+
+        included = tuple(
+            _diagnostic_item(candidate, "selected") for candidate in selected
+        )
+        diagnostics = ToolDescriptorBudgetDiagnostics(
+            selected_tool_ids=tuple(candidate.tool.id for candidate in selected),
+            included=included,
+            omitted=tuple(omitted),
+            estimated_tokens=used_tokens,
+            max_tokens=policy.max_tokens,
+            max_tools=policy.max_tools,
+            strategy=policy.strategy,
+            encoding_name=encoding_name,
+            used_fallback_encoding=used_fallback_encoding,
+        )
+        return ToolSelectionResult(
+            tools=[candidate.schema for candidate in selected],
+            diagnostics=diagnostics,
+        )
+
+    def _candidate(
+        self,
+        tool: RegisteredTool,
+        order: int,
+        prompt_terms: set[str],
+        model: str,
+    ) -> _ToolCandidate:
+        schema = openai_tool_schema(tool.definition)
+        estimate = estimate_text_tokens(
+            json.dumps(schema, sort_keys=True, separators=(",", ":")),
+            model=model,
+        )
+        return _ToolCandidate(
+            tool=tool,
+            schema=schema,
+            token_count=estimate.token_count,
+            score=_tool_score(tool.definition, prompt_terms),
+            order=order,
+            encoding_name=estimate.encoding_name,
+            used_fallback_encoding=estimate.used_fallback_encoding,
+        )
+
+
+def tool_descriptor_budget_policy_from_values(
+    runtime_value: Any,
+    node_value: Any = None,
+) -> ToolDescriptorBudgetPolicy:
+    """Parse runtime and node-local descriptor budgeting metadata."""
+
+    runtime_policy = _policy_mapping(runtime_value)
+    node_policy = _policy_mapping(node_value)
+    if runtime_policy is None and node_policy is None:
+        return ToolDescriptorBudgetPolicy()
+
+    merged: dict[str, Any] = {}
+    if runtime_policy is not None:
+        merged.update(runtime_policy)
+    if node_policy is not None:
+        for key, value in node_policy.items():
+            if key == "required_tools":
+                continue
+            merged[key] = value
+    required_tools = _dedupe(
+        [
+            *_string_sequence(
+                runtime_policy.get("required_tools") if runtime_policy else None
+            ),
+            *_string_sequence(
+                node_policy.get("required_tools") if node_policy else None
+            ),
+        ]
+    )
+    if runtime_policy is None and node_policy is not None:
+        enabled = True
+    else:
+        enabled = bool(merged.get("enabled", False))
+    return ToolDescriptorBudgetPolicy(
+        enabled=enabled,
+        max_tokens=_optional_positive_int(merged.get("max_tokens")),
+        max_tools=_optional_positive_int(merged.get("max_tools")),
+        model=str(merged["model"]) if merged.get("model") is not None else None,
+        strategy=str(merged.get("strategy") or "deterministic_metadata"),
+        low_confidence_behavior=str(
+            merged.get("low_confidence_behavior") or "include_all_within_budget"
+        ),
+        required_tools=required_tools,
+        diagnostics=str(merged.get("diagnostics") or "redacted"),
+    )
 
 
 @dataclass(frozen=True)
@@ -1239,6 +1487,107 @@ def _tool_exposure(definition: ToolDefinition) -> ToolExposure:
     raise ToolRegistryError(
         f"tool {definition.id!r} has unsupported exposure {exposure!r}"
     )
+
+
+def _diagnostic_item(
+    candidate: _ToolCandidate,
+    reason: str,
+) -> ToolDescriptorBudgetDiagnosticItem:
+    return ToolDescriptorBudgetDiagnosticItem(
+        tool_id=candidate.tool.id,
+        reason=reason,
+        token_count=candidate.token_count,
+        score=candidate.score,
+    )
+
+
+def _tool_score(definition: ToolDefinition, prompt_terms: set[str]) -> int:
+    metadata_terms = _normalized_terms(
+        " ".join(
+            str(value)
+            for value in (
+                definition.id,
+                definition.label,
+                definition.tool_type,
+                definition.raw.get("description_for_llm"),
+            )
+            if value is not None
+        )
+    )
+    schema = _normalized_input_schema(definition)
+    metadata_terms.update(_schema_terms(schema))
+    overlap = metadata_terms & prompt_terms
+    score = len(overlap)
+    if definition.id and str(definition.id).lower() in _terms_text(prompt_terms):
+        score += 4
+    return score
+
+
+def _schema_terms(value: Any) -> set[str]:
+    terms: set[str] = set()
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            terms.update(_normalized_terms(str(key)))
+            terms.update(_schema_terms(item))
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        for item in value:
+            terms.update(_schema_terms(item))
+    elif isinstance(value, str):
+        terms.update(_normalized_terms(value))
+    return terms
+
+
+def _messages_text(messages: Sequence[Mapping[str, Any]]) -> str:
+    parts: list[str] = []
+    for message in messages:
+        if isinstance(message, Mapping):
+            content = message.get("content")
+        else:
+            content = getattr(message, "content", None)
+        if isinstance(content, str):
+            parts.append(content)
+        elif isinstance(content, Sequence) and not isinstance(
+            content, (bytes, bytearray)
+        ):
+            parts.extend(str(item) for item in content)
+        elif content is not None:
+            parts.append(str(content))
+    return " ".join(parts)
+
+
+def _normalized_terms(value: str) -> set[str]:
+    return {term for term in re.findall(r"[a-z0-9]+", value.lower()) if term}
+
+
+def _terms_text(terms: set[str]) -> str:
+    return " ".join(sorted(terms))
+
+
+def _policy_mapping(value: Any) -> Mapping[str, Any] | None:
+    if value in (None, False, "", "none"):
+        return None
+    if not isinstance(value, Mapping):
+        raise ToolRegistryError(f"unsupported tool descriptor budget policy {value!r}")
+    return value
+
+
+def _string_sequence(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        raise ToolRegistryError("tool descriptor budget required_tools must be a list")
+    return tuple(str(item) for item in value)
+
+
+def _optional_positive_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    parsed = int(value)
+    if parsed < 1:
+        raise ToolRegistryError(
+            "tool descriptor budget integer values must be positive"
+        )
+    return parsed
 
 
 def _dedupe(values: Iterable[str]) -> tuple[str, ...]:
