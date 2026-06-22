@@ -3,12 +3,14 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: candidate readiness validation; implementation not started
+- Status: candidate readiness validation; implementation paused for Python
+  3.14 dependency support
 - Date: 2026-06-22
 
 ## Readiness Checks
 
 - The spec has a narrow Slice L1 boundary.
+- Slice L1 is paused until LiteLLM supports the package's Python 3.14 target.
 - Slice L1 has no blocking `NEEDS CLARIFICATION` items.
 - ChatGPT/Codex-on-LiteLLM is explicitly deferred to a follow-up slice.
 - LiteLLM Responses API support is explicitly deferred from Slice L1.

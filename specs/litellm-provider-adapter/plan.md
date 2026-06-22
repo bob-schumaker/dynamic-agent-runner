@@ -3,15 +3,16 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: implementation candidate plan for Slice L1
+- Status: prepared Slice L1 plan; paused for Python 3.14 dependency support
 - Date: 2026-06-22
 - Owning spec: `specs/litellm-provider-adapter/spec.md`
 
 ## Scope
 
-Slice L1 makes LiteLLM the default direct SDK transport for ordinary
-OpenAI-format chat-completions dispatch while preserving the existing
-repository-owned adapter boundary.
+Slice L1 remains prepared, but implementation is paused until LiteLLM supports
+the package's Python 3.14 target. When resumed, Slice L1 makes LiteLLM the
+default direct SDK transport for ordinary OpenAI-format chat-completions
+dispatch while preserving the existing repository-owned adapter boundary.
 
 Slice L1 does not implement LiteLLM Responses API dispatch, ChatGPT/Codex helper
 replacement, live LiteLLM gateway calls, LiteLLM-managed OAuth, live model

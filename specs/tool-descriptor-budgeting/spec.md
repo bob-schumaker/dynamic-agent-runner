@@ -4,8 +4,10 @@
 
 - Feature slug: `tool-descriptor-budgeting`
 - Mode: `light`
-- Artifact type: future feature specification / design evaluation
-- Status: future prepared feature; NLTK parser work deferred as experiment
+- Artifact type: implementation candidate specification
+- Status: implementation candidate; Slice T1 prepared
+- Version: 0.2
+- Date: 2026-06-22
 - Owner: tool registry plus context-management prepare stage
 - Source context:
   - `src/dynamic_agent_runner/registry.py`
@@ -23,8 +25,78 @@ Define an optional tool descriptor budgeting capability that keeps model tool
 schema payloads concise by selecting and packing only the descriptors that are
 eligible, relevant, and within a configured token budget.
 
-This specification records the future feature idea only. It does not authorize
-implementation yet and does not add an `nltk` dependency.
+This specification authorizes only the Slice T1 preparation described here and
+in `plan.md`, `tasks.md`, and `validation.md`. It does not add an `nltk`
+dependency.
+
+## Implementation Candidate Decision
+
+`tool-descriptor-budgeting` is the next feasible implementation candidate while
+`litellm-provider-adapter` waits for Python 3.14-compatible dependency support.
+
+The useful first slice is deterministic, opt-in, and fake-testable. It should
+add a package-owned tool descriptor selection path without changing the
+registry's callable inventory, direct `tool_use_step` execution, default model
+request behavior, or dependency set.
+
+Slice T1 is approved for implementation planning with these constraints:
+
+- preserve existing behavior when no policy is configured
+- operate only on tools already exposed by `list_tools_for_node(...)`
+- keep required tools or fail before the model request
+- use local token estimation over serialized descriptor payloads
+- emit redacted diagnostics only
+- avoid NLTK, embeddings, model calls, retrieval indexes, and live services
+
+## Slice T1 Scope
+
+Slice T1 covers:
+
+1. parsing and validation for `runtime.execution_policy.tool_descriptor_budget`
+2. optional node-local `tool_descriptor_budget` overrides on `llm_step` nodes
+3. a small package-owned selector result/policy model
+4. deterministic `ToolSelector` ranking and packing after registry exposure
+5. executor integration after `prepare_model_input(...)` and before
+   `build_openai_request(...)`
+6. redacted trace or prepared-input diagnostics with selected and omitted tool
+   ids, counts, token estimates, and omission reasons
+7. focused fake tests for validation, selector behavior, executor integration,
+   required-tool failures, and default no-op behavior
+
+Slice T1 defers:
+
+- NLTK-backed scoring
+- embeddings, semantic indexes, vector stores, and model-backed selection
+- descriptor summarization or compression
+- persistent learned ranking state
+- default enablement
+- direct `tool_use_step` changes
+- live model or external service validation
+
+## Resolved Design Decisions
+
+- Policy is opt-in only. Absence of `tool_descriptor_budget` must preserve the
+  exact current tool-schema flow.
+- Runtime policy and node-local overrides are both mappings. Node-local scalar
+  controls override global scalar controls. Runtime and node-local
+  `required_tools` are unioned so a node cannot silently weaken global required
+  tool policy.
+- `required_tools` are interpreted after registry exposure filtering. A
+  required tool that is missing, hidden, disabled, non-model-exposable, or too
+  large for the configured budget fails clearly before model dispatch.
+- The initial strategy is `deterministic_metadata`. Unknown strategies fail
+  validation until a new strategy is specified.
+- `low_confidence_behavior` starts with `include_all_within_budget`. The
+  selector may omit optional tools only for explicit reasons such as
+  `over_budget`, `max_tools`, or `low_score`.
+- Token estimation uses the package token-budget machinery over serialized
+  OpenAI-compatible descriptors. Unknown models use the existing fallback
+  encoding path.
+- Diagnostics may include tool ids, reasons, counts, token totals, and whether a
+  fallback encoding was used. They must not include raw prompt text, full
+  descriptors, arguments, secrets, or message content.
+- Only `llm_step` model descriptor exposure is in scope. Direct tool invocation
+  semantics remain registry-owned and unchanged.
 
 ## Background Analysis
 

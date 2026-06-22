@@ -5,12 +5,13 @@
 - Feature slug: `litellm-provider-adapter`
 - Mode: `light`
 - Artifact type: authoritative feature specification
-- Status: implementation candidate; Slice L1 prepared
+- Status: implementation candidate; Slice L1 prepared but paused for Python
+  3.14 dependency support
 - Version: `0.3`
 - Owner: repository maintainers and future implementers of model-provider
   runtime integrations
 - Date: 2026-06-22
-- Next gate: implement Slice L1 from `plan.md` and `tasks.md`
+- Next gate: resume Slice L1 when LiteLLM supports the package's Python 3.14 target
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/openai-compatible-provider-wrapper/spec.md`
@@ -35,9 +36,10 @@ OpenAI/Codex default-auth behavior.
 
 ## Implementation Candidate Decision
 
-This spec is now the next implementation candidate from the outstanding-spec ROI
-review. The first implementation slice must stay narrower than the full future
-surface described below:
+This spec remains a prepared high-ROI implementation candidate, but Slice L1 is
+paused until LiteLLM supports the package's Python 3.14 target. When resumed,
+the first implementation slice must stay narrower than the full future surface
+described below:
 
 - **Slice L1** adds LiteLLM as the default direct SDK transport for ordinary
   OpenAI-format chat-completions dispatch.

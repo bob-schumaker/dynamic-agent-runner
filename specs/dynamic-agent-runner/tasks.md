@@ -1016,10 +1016,10 @@ explicitly instead of leaving them as undocumented future behavior.
       trees, or colorized output.
 - [ ] D2. Revisit Diskcache only when a concrete model/tool/result caching policy
       is specified, including side-effect and staleness semantics.
-- [ ] D3. LiteLLM is now prepared as the next implementation candidate in
-      `specs/litellm-provider-adapter/`. Slice L1 should add the default direct
-      SDK Chat Completions transport while preserving fake-test discipline and
-      deferring ChatGPT/Codex-on-LiteLLM to a Responses-aware follow-up.
+- [ ] D3. LiteLLM is prepared in `specs/litellm-provider-adapter/`, but Slice
+      L1 is paused until LiteLLM supports the package's Python 3.14 target.
+      While paused, `specs/tool-descriptor-budgeting/` is the next feasible
+      implementation candidate.
 - [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
       helper if prompt/artifact hot-reload workflows become valuable.
 
