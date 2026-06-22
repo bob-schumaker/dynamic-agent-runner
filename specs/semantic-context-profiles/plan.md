@@ -4,17 +4,18 @@
 
 - Feature slug: `semantic-context-profiles`
 - Slice: S1 injected semantic selector
-- Status: prepared for implementation
+- Status: implemented
 - Date: 2026-06-22
 - Owning spec: [`spec.md`](spec.md)
 
 ## Objective
 
-Add the smallest useful semantic selector seam to the existing
-`prepare_model_input(...)` older-turn selection path. S1 should let a caller
-inject a fake-testable selector for semantic older-turn ranking, report bounded
-diagnostics, and preserve exact identifier behavior without adding runner-owned
-embeddings, vector stores, memory stores, or retrieval infrastructure.
+Added the smallest useful semantic selector seam to the existing
+`prepare_model_input(...)` older-turn selection path. S1 lets a caller inject a
+fake-testable selector for semantic older-turn ranking, reports bounded
+diagnostics, and preserves exact identifier behavior without adding
+runner-owned embeddings, vector stores, memory stores, or retrieval
+infrastructure.
 
 ## Current Fit
 
@@ -29,12 +30,12 @@ The current runtime already provides the right base:
   `exact`, and `hybrid_exact_semantic` older-turn selection.
 - Retrieved RAG evidence already has a separate retrieved-context lane.
 
-S1 should extend this path rather than introduce a new context subsystem.
+S1 extends this path rather than introducing a new context subsystem.
 
-## Proposed API Shape
+## Implemented API Shape
 
-Add a small package-owned selector contract, preferably in a new focused module
-such as `src/dynamic_agent_runner/context_selection.py`:
+Added a small package-owned selector contract in
+`src/dynamic_agent_runner/context_selection.py`:
 
 ```python
 @dataclass(frozen=True)
@@ -59,8 +60,7 @@ ContextSelector = Callable[
 ]
 ```
 
-The implementation may adjust names to fit local style, but the contract should
-remain:
+The contract is:
 
 - selector input is structured, bounded, and limited to older session turns
 - selector output identifies candidates by `turn_id`
@@ -102,7 +102,7 @@ selector:
 - No capability/status extension unless it falls out naturally from the
   collaborator contract.
 
-## Expected Touch Points
+## Implemented Touch Points
 
 - `src/dynamic_agent_runner/context_selection.py`
 - `src/dynamic_agent_runner/context.py`

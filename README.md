@@ -386,13 +386,17 @@ checkpoint stores remain out of scope.
 `runtime.execution_policy.prepare_model_input` is implemented for prompt
 hierarchy messages, package-bounded file context, retrieved context supplied in
 execution state, session pruning and compaction metadata, lane budgets, selected
-older turns, and preparation diagnostics. Unsupported compaction, compression,
-lane, selection, and file-context values fail validation before execution.
-Provider-backed remote compaction, model-backed summary adapters, and richer
-semantic/profile behavior are prepared as future feature specs under
+older turns, injected semantic older-turn selection, and preparation
+diagnostics. Semantic selection is caller-injected through direct execution or
+`WorkflowExecutionContext`; the runner does not create embeddings, vector
+stores, memory stores, or retrievers for it. Unsupported compaction,
+compression, lane, selection, and file-context values fail validation before
+execution. Provider-backed remote compaction, richer model-backed summary
+behavior, and remaining semantic/profile behavior are prepared as future feature
+specs under
 `specs/provider-backed-context-compaction/`,
 `specs/model-backed-context-summaries/`, and
-`specs/semantic-context-profiles/`; they are not live runtime behavior yet.
+`specs/semantic-context-profiles/`.
 
 `runtime.execution_policy.tool_descriptor_budget` is opt-in for `llm_step`
 model requests. When enabled, the runner first applies normal registry exposure

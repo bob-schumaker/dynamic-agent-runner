@@ -38,14 +38,13 @@ ROI is judged by:
 | Rank | Spec Work | ROI | Rationale |
 | --- | --- | --- | --- |
 | 1 | `litellm-provider-adapter` | Very high, paused | Slice L1 remains prepared, but implementation is paused until LiteLLM supports the package's Python 3.14 target. The prepared scope is default direct SDK Chat Completions transport, fake tests, request/response translation, and an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
-| 2 | `semantic-context-profiles` Slice S1 | Medium-high, prepared next non-paused | Builds on existing context-management behavior and improves prompt quality. Slice S1 is a fake semantic selector protocol plus profile-specific diagnostics, with no embeddings or vector ownership. |
-| 3 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
+| 2 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
+| 3 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from LiteLLM/provider work first. |
 
 ## Conditional ROI
 
 | Spec Work | ROI | Recommendation |
 | --- | --- | --- |
-| `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from LiteLLM/provider work first. |
 | `rag-orchestration-contract` future work | Medium | Declarative v1 is done. Next ROI is answer citation/provenance rendering or live retrieval orchestration only if a caller needs it. Do not build retrieval infrastructure. |
 | `model-event-streaming` deferred work | Medium | Provider-native token deltas are useful UX, but the current terminal-result/filter surface solved the known downstream blocker. Wait for another concrete streaming need. |
 | `workspace-data-tool-pack` deferred work | Medium | Capability/status and host dirty-state are useful. Durable storage and indexing should stay caller-owned unless a host proves the need. |
@@ -69,10 +68,9 @@ ROI is judged by:
 
 1. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
    package's Python target.
-2. Implement `semantic-context-profiles` Slice S1 while LiteLLM remains paused.
-3. Run the `memory-aware-context-pipeline` first-slice validation to decide
+2. Run the `memory-aware-context-pipeline` first-slice validation to decide
    whether it remains separate from RAG.
-4. Add `provider-backed-context-compaction` after provider capability boundaries
+3. Add `provider-backed-context-compaction` after provider capability boundaries
    are clearer.
 
 ## Recently Completed Since This Evaluation
@@ -81,6 +79,7 @@ ROI is judged by:
 | --- | --- | --- |
 | `tool-descriptor-budgeting` | Slice T1 | `fd1b54c` implemented opt-in descriptor budgeting; `f7ab5d5` recorded completion evidence and runtime policy docs |
 | `host-workflow-integration` | Slice H2 | Inline/generated and loaded-workflow capability preflight, host id capability details, lifecycle docs, and fake tests |
+| `semantic-context-profiles` | Slice S1 | Caller-injected semantic older-turn selector, missing-selector fallback diagnostics, exact identifier protection, RAG lane separation, public selector contracts, docs, and fake tests |
 
 ## Deferral Guidance
 

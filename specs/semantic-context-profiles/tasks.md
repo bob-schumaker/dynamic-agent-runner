@@ -2,53 +2,71 @@
 
 ## Status
 
-Prepared for implementation.
+Implemented.
 
 ## Tasks
 
-1. RED: Add tests for injected semantic selection.
+1. [x] RED: Add tests for injected semantic selection.
    - Verification: a fake selector can select an older turn with low lexical
      overlap when `strategy: injected_semantic` and `profile: semantic` are
      configured.
 
-2. RED: Add tests for missing-selector fallback diagnostics.
+2. [x] RED: Add tests for missing-selector fallback diagnostics.
    - Verification: `semantic`/`injected_semantic` without a selector records
      missing-selector status and deterministic fallback metadata without making
      live embedding or model calls.
 
-3. RED: Add tests that exact identifier protection survives semantic ranking.
+3. [x] RED: Add tests that exact identifier protection survives semantic ranking.
    - Verification: exact issue keys, filenames, and quoted identifiers remain
      selectable even if the fake selector ranks another candidate higher.
 
-4. RED: Add tests that retrieved RAG evidence is not passed to the selector.
+4. [x] RED: Add tests that retrieved RAG evidence is not passed to the selector.
    - Verification: fake selector candidates include older session turns only,
      and retrieved context stays in the retrieved-context lane.
 
-5. GREEN: Add a small context selector contract.
+5. [x] GREEN: Add a small context selector contract.
    - Verification: package exports expose stable candidate/selection structures
      or type aliases, and `tests/test_import.py` passes.
 
-6. GREEN: Thread the selector through execution collaborators.
+6. [x] GREEN: Thread the selector through execution collaborators.
    - Verification: direct `execute_workflow_async(...)` kwargs and
      `WorkflowExecutionContext` can carry the selector without conflicting with
      existing runtime kwargs.
 
-7. GREEN: Implement injected semantic older-turn selection.
+7. [x] GREEN: Implement injected semantic older-turn selection.
    - Verification: selected, omitted, and rejected metadata remain bounded and
      trace-safe; chronological reassembly remains the default.
 
-8. GREEN: Preserve existing deterministic and exact behavior.
+8. [x] GREEN: Preserve existing deterministic and exact behavior.
    - Verification: existing `tests/test_executor.py` prepare-model-input tests
      pass unchanged except for explicit metadata additions covered by S1 tests.
 
-9. Optional docs update.
+9. [x] Optional docs update.
    - Verification: if public kwargs or exports are added, README and
      `docs/files/python-api.rst` document that selectors are caller-injected and
      fake-testable, with no built-in embeddings or vector stores.
 
-10. Final validation.
+10. [x] Final validation.
     - Verification: run the focused and final commands in
       [`validation.md`](validation.md).
+
+## Implementation Evidence
+
+- Added public `ContextSelectionCandidate`, `ContextSelection`, and
+  `ContextSelector` contracts.
+- Added `context_selector` support to direct execution and
+  `WorkflowExecutionContext`.
+- Added injected semantic older-turn selection with exact identifier protection,
+  missing-selector deterministic fallback, bounded selected/omitted/rejected
+  metadata, and retrieved-context lane separation.
+- Updated README and authored Python API/runtime policy docs.
+- Passing focused checks so far:
+  - `poetry run pytest tests/test_executor.py -q -k "semantic or older_turn or retrieved_context"`
+  - `poetry run pytest tests/test_import.py -q`
+  - focused Ruff check on touched source and tests
+- Passing final checks:
+  - `poetry run ruff check src tests`
+  - `poetry run pytest -q`
 
 ## Stop Conditions
 

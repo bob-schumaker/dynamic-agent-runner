@@ -354,10 +354,24 @@ share a loaded workflow and runtime collaborators:
 
 .. code-block:: python
 
-   from dynamic_agent_runner import WorkflowExecutionContext, load_agent_workflow
+   from dynamic_agent_runner import (
+       ContextSelection,
+       WorkflowExecutionContext,
+       load_agent_workflow,
+   )
    from dynamic_agent_runner import run_agent_workflow
 
    workflow = load_agent_workflow(package_directory="path/to/agent-package")
+
+   def select_context(query, candidates, metadata):
+       return (
+           ContextSelection(
+               turn_id=candidates[0].turn_id,
+               score=0.8,
+               reason="caller_semantic_score",
+           ),
+       )
+
    context = WorkflowExecutionContext(
        workflow=workflow,
        tool_registry=my_tool_registry,
@@ -365,6 +379,7 @@ share a loaded workflow and runtime collaborators:
        model_adapter_coverage="strict",
        max_steps=20,
        trace_sink=my_trace_sink,
+       context_selector=select_context,
    )
 
    result = run_agent_workflow(
@@ -377,6 +392,10 @@ artifact paths or runtime collaborators as separate keyword arguments.
 Use direct execution for a single stateless run, ``WorkflowExecutionContext``
 for stable collaborators across bounded runs, and ``AgentSession`` when retained
 prompt history or restartable in-memory session state is required.
+``context_selector`` is optional and only used by workflows that configure
+``context_compression.selection.strategy: injected_semantic``. The runner passes
+bounded older-turn candidates to the selector; it does not provide embeddings,
+vector stores, memory stores, or retrievers.
 
 .. header2:: Persistent agent sessions
 

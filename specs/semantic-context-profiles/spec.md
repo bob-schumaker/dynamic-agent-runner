@@ -5,7 +5,7 @@
 - Feature slug: `semantic-context-profiles`
 - Mode: `light`
 - Artifact type: partially implemented feature specification
-- Status: partial v1 baseline; Slice S1 prepared for implementation
+- Status: implemented through Slice S1; richer profile behavior deferred
 - Owner: context-management prepare stage plus caller-supplied selectors
 - Primary predecessor:
   - `specs/context-management-prepare-stage/spec.md`
@@ -29,9 +29,10 @@ needed.
 
 ## Problem Statement
 
-The implemented prepare stage already supports named profile values and
-deterministic older-turn selection. The names exist, but richer
-profile-specific behavior remains intentionally deferred:
+The implemented prepare stage supports named profile values, deterministic
+older-turn selection, exact/hybrid identifier preservation, and injected
+semantic older-turn selection. Richer profile-specific behavior remains
+intentionally deferred:
 
 - `semantic` should use caller-supplied semantic signals, not built-in vector
   retrieval
@@ -46,49 +47,55 @@ implementation now present in the prepare stage.
 
 ## Implementation Status
 
-The partial v1 baseline is implemented in `src/dynamic_agent_runner/executor.py`
-for exact and `hybrid_exact_semantic` older-turn selection.
+The partial v1 baseline and Slice S1 are implemented in
+`src/dynamic_agent_runner/executor.py`, with the public selector contract in
+`src/dynamic_agent_runner/context_selection.py`.
 
 Completed:
 
 - exact-token preservation for issue keys, filenames, tool ids, function names,
   quoted strings, and similar identifiers
 - `hybrid_exact_semantic` selection-policy support
+- `injected_semantic` selection-policy support through caller-supplied
+  `ContextSelector`
+- direct execution and `WorkflowExecutionContext` support for
+  `context_selector`
+- missing-selector fallback to deterministic overlap with visible metadata
+- exact identifier protection before injected semantic scores
+- retrieved RAG evidence exclusion from selector candidate inputs
 - selected/omitted/rejected metadata for older-turn selection
-- tests proving exact identifier preservation
+- tests proving exact identifier preservation, injected selection,
+  missing-selector fallback, RAG lane separation, execution-context threading,
+  and public exports
 
 Deferred:
 
-- injected semantic selector collaborator is prepared as Slice S1
-- visible semantic-profile fallback diagnostics are prepared as Slice S1
 - profile-specific lane priority for `recency_weighted` and
   `instruction_weighted`
 - memory-kind hints, access-frequency scoring, stale/redundant omission, and
   prompt-cache-aware ordering
 - RAG lane borrowing policies beyond existing retrieved-context lane packing
 - capability/status reporting for semantic selector availability and fallback
-  remains deferred beyond Slice S1 unless implementation exposes a stable
-  collaborator contract that capability inspection can safely preflight
+  remains deferred until a concrete caller needs preflight visibility
 
-## Prepared Implementation Slice S1
+## Implemented Slice S1
 
-Slice S1 is the next non-paused implementation candidate after
-`host-workflow-integration` Slice H2. It prepares a small fake-testable selector
-seam for older-turn selection while preserving the current exact/hybrid
-identifier baseline and keeping embeddings, vector stores, memory stores, and
-retrieval infrastructure out of DAR.
+Slice S1 implemented a small fake-testable selector seam for older-turn
+selection while preserving the exact/hybrid identifier baseline and keeping
+embeddings, vector stores, memory stores, and retrieval infrastructure out of
+DAR.
 
-Prepared scope:
+Implemented scope:
 
-1. Add an injected semantic context selector collaborator for
+1. Added an injected semantic context selector collaborator for
    `prepare_model_input(...)` older-turn selection.
-2. Support `context_compression.selection.strategy: injected_semantic` through
+2. Supported `context_compression.selection.strategy: injected_semantic` through
    the injected selector only.
-3. Report selector status, fallback path, selected/omitted/rejected counts, and
+3. Reported selector status, fallback path, selected/omitted/rejected counts, and
    bounded scoring hints in prepared-input metadata.
-4. Preserve exact identifiers and required current/pinned lanes before semantic
+4. Preserved exact identifiers and required current/pinned lanes before semantic
    ranking.
-5. Keep retrieved RAG evidence in the existing retrieved-context lane and out of
+5. Kept retrieved RAG evidence in the existing retrieved-context lane and out of
    selector candidate inputs.
 
 Out of scope for S1:
@@ -258,13 +265,16 @@ Implemented partial-v1 validation includes:
 
 - validation tests for supported profile and selection policy values
 - tests for exact identifier preservation
+- Slice S1 executor tests for injected selector behavior and missing-selector
+  fallback diagnostics
+- fake semantic-selector tests for selected/omitted/rejected diagnostics
+- execution-context and direct-kwarg tests for `context_selector`
+- RAG lane composition tests proving retrieved context is not passed to the
+  selector
+- import tests for public selector contract exports
 
 Deferred validation should include:
 
-- Slice S1 executor tests for injected selector behavior and missing-selector
-  fallback diagnostics
-- fake semantic-selector tests for selected/omitted diagnostics
-- RAG lane composition tests
 - capability/status tests for semantic selector live, missing, fallback, and
   disabled states in a later slice only if selector availability becomes
   preflightable

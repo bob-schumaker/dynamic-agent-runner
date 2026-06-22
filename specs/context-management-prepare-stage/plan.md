@@ -56,10 +56,11 @@ Prepared follow-up specs:
 - `specs/model-backed-context-summaries/spec.md` owns explicit summarizer
   collaborators, bounded summary prompts, prior-summary folding, and summary
   provenance.
-- `specs/semantic-context-profiles/spec.md` owns richer profile behavior,
-  injected semantic selectors, exact-plus-semantic scoring, optional
-  memory-kind labels, stale/redundant context omission, and
-  prompt-cache-aware ordering.
+- `specs/semantic-context-profiles/spec.md` owns implemented injected semantic
+  older-turn selectors and exact-plus-semantic scoring, plus remaining richer
+  profile behavior such as optional memory-kind labels, stale/redundant context
+  omission, RAG lane borrowing, prompt-cache-aware ordering, and selector
+  capability/status reporting.
 
 Still future outside those prepared specs:
 
@@ -117,7 +118,8 @@ ownership boundaries:
 - report quality and efficiency metrics such as lane utilization, information
   density, redundancy ratio, coverage completeness, compression ratio,
   processing duration, and summary fidelity or retention proxies
-- keep semantic/vector retrieval as a future injected selector only
+- keep semantic/vector retrieval out of the runner; semantic older-turn
+  selection is caller-injected through `semantic-context-profiles` Slice S1
 - do not adopt runner-owned durable active/working/long-term memory storage
 
 ## Delivery Record
@@ -281,8 +283,9 @@ production changes.
 - Turn-aware lane assembly is the core compression scheme.
 - Relevance ranking is only a selection mechanism; final selected-turn order is
   chronological.
-- Deterministic overlap selection comes before embedding-backed or model-backed
-  semantic selection.
+- Deterministic overlap selection remains the fallback; semantic older-turn
+  selection is caller-injected and never embedding-backed or model-backed by
+  default.
 - Remote compaction remains a future provider capability, not an assumed OpenAI
   API surface.
 - Deterministic `basic` compaction is the fallback when summary generation is

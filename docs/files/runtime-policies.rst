@@ -208,14 +208,15 @@ observation for a run.
 preparation behavior before a model request. The current runtime can add
 hierarchy messages, include bounded package-local file context, include retrieved
 context supplied in execution state, prune or compact session messages, apply
-lane budgets, select older turns, and emit preparation metadata.
+lane budgets, select older turns, run caller-injected semantic older-turn
+selection, and emit preparation metadata.
 
 .. code-block:: yaml
 
    runtime:
      execution_policy:
        prepare_model_input:
-         hierarchy:
+         prompt_hierarchy:
            system:
            - "Follow the package safety policy."
            developer:
@@ -252,9 +253,18 @@ Validation rejects unsupported compaction, compression, lane, and selection
 values. File context remains package-root bounded; paths that escape the package
 root fail closed.
 
-Provider-backed remote compaction, model-backed summary adapters, and richer
-semantic/profile behavior are prepared as future specs, not live runtime
-behavior. See ``specs/provider-backed-context-compaction/``,
+``context_compression.selection.strategy: injected_semantic`` is live only when
+the caller supplies a context selector through direct execution or
+``WorkflowExecutionContext``. The selector receives bounded older-turn
+candidates and returns turn ids plus scores; retrieved RAG evidence stays in the
+retrieved-context lane and is not passed to the selector. Missing selectors fall
+back to deterministic overlap with visible preparation metadata. The runner does
+not create embeddings, vector stores, memory stores, or retrievers for semantic
+selection.
+
+Provider-backed remote compaction, richer model-backed summary behavior, and
+remaining semantic/profile behavior are prepared as future specs. See
+``specs/provider-backed-context-compaction/``,
 ``specs/model-backed-context-summaries/``, and
 ``specs/semantic-context-profiles/`` for those planned follow-up surfaces.
 

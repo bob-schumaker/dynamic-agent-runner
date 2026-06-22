@@ -152,7 +152,8 @@ needs a scoped plan and task slice before code changes begin.
     inline/generated and loaded-workflow preflight plus host id capability
     details. Remaining work is narrower follow-up: richer capability/status
     reporting for other tool packs, trace correlation, streaming/wait/resume,
-    provider-backed compaction, and richer semantic selectors. Keep
+    provider-backed compaction, and remaining semantic profile behavior beyond
+    the implemented injected selector. Keep
     `power-marimo-host-automation` as a downstream-boundary record rather than a
     DAR implementation target.
 12. **Async session memory pipeline:** keep v1 host-managed. Add runner-owned
@@ -1020,9 +1021,10 @@ explicitly instead of leaving them as undocumented future behavior.
       is specified, including side-effect and staleness semantics.
 - [ ] D3. LiteLLM is prepared in `specs/litellm-provider-adapter/`, but Slice
       L1 is paused until LiteLLM supports the package's Python 3.14 target.
-      While paused, the current next non-paused implementation candidate is
-      `specs/semantic-context-profiles/` Slice S1; `specs/tool-descriptor-budgeting/`
-      Slice T1 is already implemented.
+      While paused, `specs/tool-descriptor-budgeting/` Slice T1 and
+      `specs/semantic-context-profiles/` Slice S1 are implemented; the current
+      next non-paused candidate is the
+      `specs/memory-aware-context-pipeline/` first-slice validation.
 - [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
       helper if prompt/artifact hot-reload workflows become valuable.
 
