@@ -3,7 +3,17 @@
 ## Current Focus
 
 - No implementation slice is currently active. The latest completed spec work
-  added `specs/memory-aware-context-pipeline/spec.md` as a proposed
+  prepared `specs/litellm-provider-adapter/` as the next implementation
+  candidate with Slice L1 plan/tasks/validation artifacts. Slice L1 is scoped to
+  direct LiteLLM Chat Completions transport, request/response translation,
+  public factories, fake tests, and an explicit official-SDK compatibility path;
+  ChatGPT/Codex-on-LiteLLM remains deferred to a Responses-aware follow-up.
+- A first attempt to execute the LiteLLM adapter slice was stopped before code
+  commit because current LiteLLM package metadata declares Python
+  `>=3.10,<3.14`, while DAR currently supports and locally selects Python
+  `3.14.6`. The branch was restored to clean `cb88c53`; pick up implementation
+  after LiteLLM publishes Python 3.14-compatible metadata.
+- `specs/memory-aware-context-pipeline/spec.md` remains a proposed
   caller-owned long-term memory orchestration contract inspired by `memlayer`.
   Its first slice is retrieval-only and fake-testable, with an explicit
   fold-back gate to `metadata.rag_pipeline` if memory-specific identity and
@@ -18,11 +28,14 @@
   can choose progress events, terminal events, terminal session-result
   attachment, and progress event-type filters.
 - Recent commits:
+  - `cb88c53` prepared the LiteLLM provider adapter as the next implementation
+    candidate with plan/tasks/validation artifacts and a narrowed Slice L1.
+  - `2183e74` recorded the outstanding-spec ROI ranking and marked the older
+    roadmap order historical.
+  - `234c4b0` refreshed the memory bank after memory-aware context work.
   - `16a0a19` added the memory-aware context pipeline spec and spec-index
     coverage, including the RAG separation/no-implicit-save constraint.
   - `a5d3209` added the tool descriptor budgeting spec and spec-index coverage.
-  - `7d991cf` refreshed `poetry.lock`.
-  - `ae80bfd` refreshed memory-bank stream-session state.
 - The stream-result work is committed in separate slices:
   - `0237b42` added the source API behavior in `sessions.py`
   - `9b45bf5` added focused session-stream regression tests
@@ -73,11 +86,10 @@
   traces, and runtime policy; Marimo, Qt/QExt, hosted UI lifecycle,
   Power-Marimo safety policy, SDK/session behavior, and live validation belong
   in `../power-marimo`.
-- A new draft spec package, `specs/litellm-provider-adapter/`, now proposes
-  making LiteLLM the package's core OpenAI-compatible transport while
-  preserving repository-owned OpenAI/Codex auth discovery and mapping default
-  Codex behavior through a helper shaped like
-  `create_litellm_codex_adapter_from_codex_auth(...)`.
+- `specs/litellm-provider-adapter/` is the prepared next implementation
+  candidate, but execution is paused until LiteLLM supports Python 3.14. Slice
+  L1 should add the required dependency and default direct SDK transport only
+  after that compatibility issue is gone.
 - `docs/source/conf.py` was refreshed and committed separately to derive Sphinx
   project metadata from `pyproject.toml`/git config and to simplify the
   Confluence SSO session override path.
@@ -158,11 +170,12 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
-- The next ROI action is no longer pinned. Likely candidates are LiteLLM
-  provider implementation, local-model advisory work, provider-native streaming
-  expansion, one of the prepared context-window follow-up specs, the
-  retrieval-only memory-aware first slice, or deferred host/runtime
-  integrations. Each requires a scoped plan before code changes.
+- The next ROI action is LiteLLM once Python 3.14-compatible LiteLLM metadata is
+  available. Until then, likely candidates are tool descriptor budgeting,
+  host-workflow integration polish, local-model advisory work,
+  provider-native streaming expansion, one of the prepared context-window
+  follow-up specs, the retrieval-only memory-aware first slice, or deferred
+  host/runtime integrations. Each requires a scoped plan before code changes.
 
 ## Recent Completed Work
 

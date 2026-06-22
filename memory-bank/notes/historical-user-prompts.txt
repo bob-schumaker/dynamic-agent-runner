@@ -636,3 +636,15 @@ add a constraint to the spec to make a clear distinction from rag-memory., if bo
 ---
 
 make the spec corpus internally consistent and commit
+
+---
+
+prepare the litellm spec as the next implementation candidate
+
+---
+
+execute litellm adapter spec and commit at appropriate points
+
+---
+
+restore the current branch, 3.14 support is coming soon, we will pick it up then

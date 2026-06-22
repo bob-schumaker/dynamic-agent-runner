@@ -133,10 +133,17 @@
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
   optional injected-evaluator advisory profile for resolved GGUF assets.
-- `litellm-provider-adapter` is drafted as a future core provider-transport
-  spec. It proposes making LiteLLM the core OpenAI-compatible transport,
-  preserving repository-owned OpenAI/Codex auth discovery, and mapping default
-  Codex behavior through `create_litellm_codex_adapter_from_codex_auth(...)`.
+- `litellm-provider-adapter` is prepared as the next implementation candidate.
+  Slice L1 has spec, plan, task, and validation artifacts for direct LiteLLM
+  Chat Completions transport, request/response translation, public factories,
+  fake tests, default-provider migration, and an explicit official-SDK
+  compatibility path. ChatGPT/Codex-on-LiteLLM remains deferred to a
+  Responses-aware follow-up slice.
+- Executing LiteLLM Slice L1 is paused because `poetry add litellm` resolved to
+  current LiteLLM metadata requiring Python `>=3.10,<3.14`, which conflicts with
+  DAR's current Python 3.14.6 support. The attempted RED tests were discarded
+  and the branch was restored cleanly to `cb88c53`; retry after LiteLLM supports
+  Python 3.14.
 - `persistent-agent-sessions` is implemented as a v1 feature for
   cross-prompt continuity through public `AgentSession`,
   `AgentSessionState`, `AgentSessionResult`, and `InMemorySessionStore`, with
@@ -185,6 +192,13 @@
 
 ## Latest Milestones
 
+- `cb88c53` prepared the LiteLLM provider adapter as the next implementation
+  candidate with Slice L1 plan/tasks/validation artifacts and explicit deferral
+  of ChatGPT/Codex-on-LiteLLM.
+- `2183e74` added the outstanding-spec ROI evaluation and linked it from the
+  spec index.
+- `234c4b0` refreshed memory-bank state after the memory-aware context pipeline
+  spec work.
 - `16a0a19` added the memory-aware context pipeline spec and spec-index
   coverage, including the explicit rule that RAG-retrieved content is not
   persisted to context memory just because both `metadata.rag_pipeline` and
@@ -319,10 +333,10 @@
 
 ## Remaining
 
-- LiteLLM provider work remains spec-only. Before implementation, create
-  plan/tasks artifacts for the core dependency change, default provider
-  selection, Codex auth adaptation, request/response mapping, fake-test
-  strategy, and packaging implications.
+- LiteLLM provider work remains spec-only but implementation-candidate ready.
+  Before implementation, confirm current LiteLLM releases support Python 3.14.
+  Do not narrow DAR's Python 3.14 support for this feature; pick up Slice L1
+  after LiteLLM compatibility lands.
 - Model event streaming v1 is complete, but provider-native token deltas,
   model-tool-loop progress events, cancellation/backpressure expansion,
   lower-level executor event APIs, and streaming capability/status reporting
@@ -395,3 +409,6 @@
 - Keep MLX local execution macOS-only and lazy on other platforms: adapter
   construction and model alias inspection should not import `mlx_lm`, resolve
   local model assets, or fail until generation is attempted.
+- Do not execute `litellm-provider-adapter` Slice L1 while LiteLLM still
+  declares `Python >=3.10,<3.14`; DAR currently supports Python 3.14.6 and
+  should pick up LiteLLM after upstream metadata supports it.
