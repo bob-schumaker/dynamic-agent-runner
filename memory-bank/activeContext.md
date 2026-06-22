@@ -2,21 +2,71 @@
 
 ## Current Focus
 
-- No implementation slice is currently active. The latest completed stream
-  resolved a downstream Power-Marimo blocker in
+- No implementation slice is currently active. The latest completed runtime
+  work implemented `specs/host-workflow-integration/` Slice H2. DAR now exposes
+  `inspect_agent_workflow_capabilities(...)` for inline runtime manifests and
+  already loaded workflows, reuses the existing `CapabilityStatusReport`
+  contract, and reports host canonical/model-facing ids for tools registered
+  through `HostToolBinding`.
+- `specs/tool-descriptor-budgeting/` Slice T1 is complete. The feature is
+  opt-in and deterministic: it validates runtime/node policy, ranks only
+  registry-exposed model tools, packs descriptors within token/count limits,
+  enforces required tools before dispatch, and emits redacted diagnostics.
+- `specs/litellm-provider-adapter/` remains prepared as a high-ROI Slice L1,
+  but execution is paused until LiteLLM supports DAR's Python 3.14 target.
+  Slice L1 remains scoped to direct LiteLLM Chat Completions transport,
+  request/response translation, public factories, fake tests, and an explicit
+  official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM remains deferred to
+  a Responses-aware follow-up.
+- The first attempt to execute the LiteLLM adapter slice was stopped before code
+  commit because current LiteLLM package metadata declares Python
+  `>=3.10,<3.14`, while DAR currently supports and locally selects Python
+  `3.14.6`. The branch was restored to clean `cb88c53`; pick up implementation
+  after LiteLLM publishes Python 3.14-compatible metadata.
+- `specs/memory-aware-context-pipeline/spec.md` remains a proposed
+  caller-owned long-term memory orchestration contract inspired by `memlayer`.
+  Its first slice is retrieval-only and fake-testable, with an explicit
+  fold-back gate to `metadata.rag_pipeline` if memory-specific identity and
+  provenance do not justify a separate surface.
+- NLTK parser work for tool descriptor selection is explicitly deferred as a
+  future benchmarked experiment, not Slice T1 scope.
+- The previous completed stream resolved a downstream Power-Marimo blocker in
   `AgentSession.accept_stream(...)`: terminal stream events can now expose the
   same `AgentSessionResult`/`WorkflowResult` shape as `accept(...)`, and callers
   can choose progress events, terminal events, terminal session-result
   attachment, and progress event-type filters.
+- Recent commits:
+  - `0fa4d47` aligned the spec corpus after host-workflow H2 completion so the
+    plan, index, and dynamic-agent-runner roadmap no longer describe inline
+    preflight as pending work.
+  - `278c933` implemented host-workflow H2: inline/generated and loaded-workflow
+    capability preflight, host id capability details, API exports, docs, specs,
+    and fake tests.
+  - `a29ad7b` prepared host-workflow integration H2 with plan/tasks/validation
+    artifacts.
+  - `3c5ee5b` aligned descriptor-budgeting status after implementation and
+    removed it from the outstanding ROI queue.
+  - `5b95125` refreshed memory-bank state after descriptor budgeting.
+  - `f7ab5d5` recorded descriptor-budgeting completion in README, runtime
+    policy docs, spec index, and validation artifacts.
+  - `fd1b54c` implemented opt-in tool descriptor budgeting in registry,
+    validation, token estimation, executor integration, and tests.
+  - `c001c3f` prepared tool descriptor budgeting for implementation and aligned
+    the spec corpus around the LiteLLM Python 3.14 pause.
+  - `cb88c53` prepared the LiteLLM provider adapter as the then-current
+    implementation candidate with plan/tasks/validation artifacts and a
+    narrowed Slice L1.
+  - `2183e74` recorded the outstanding-spec ROI ranking and marked the older
+    roadmap order historical.
+  - `234c4b0` refreshed the memory bank after memory-aware context work.
+  - `16a0a19` added the memory-aware context pipeline spec and spec-index
+    coverage, including the RAG separation/no-implicit-save constraint.
+  - `a5d3209` added the tool descriptor budgeting spec and spec-index coverage.
 - The stream-result work is committed in separate slices:
   - `0237b42` added the source API behavior in `sessions.py`
   - `9b45bf5` added focused session-stream regression tests
   - `e1676c5` aligned the model-event-streaming spec surface
   - `bdf29ef` aligned README/Sphinx/skill docs with the new client contract
-- A memory-bank refresh is in progress after those commits. An unrelated
-  `poetry.lock` drift remains unstaged (`huggingface-hub` and `pytest` lockfile
-  version bumps) and should not be bundled with the memory refresh unless the
-  user explicitly asks for dependency lock maintenance.
 - The expanded MLX surface is implemented and committed in source/test slices:
   explicit converted-MLX vs GGUF model formats, GGUF path validation, resolved
   path loading for the default `mlx_lm` backend, filtered generation kwargs
@@ -62,11 +112,13 @@
   traces, and runtime policy; Marimo, Qt/QExt, hosted UI lifecycle,
   Power-Marimo safety policy, SDK/session behavior, and live validation belong
   in `../power-marimo`.
-- A new draft spec package, `specs/litellm-provider-adapter/`, now proposes
-  making LiteLLM the package's core OpenAI-compatible transport while
-  preserving repository-owned OpenAI/Codex auth discovery and mapping default
-  Codex behavior through a helper shaped like
-  `create_litellm_codex_adapter_from_codex_auth(...)`.
+- `specs/tool-descriptor-budgeting/` is implemented through Slice T1. NLTK,
+  embeddings, vector stores, descriptor compression, model-backed selection,
+  capability/status reporting, and richer fallback behavior remain deferred.
+- `specs/host-workflow-integration/` is implemented through Slice H2. The v1
+  helper surface now includes host tool binding, model-facing aliases, resolved
+  model-selection handoff, bounded diagnostics, inline/generated and
+  loaded-workflow capability preflight, and host id capability details.
 - `docs/source/conf.py` was refreshed and committed separately to derive Sphinx
   project metadata from `pyproject.toml`/git config and to simplify the
   Confluence SSO session override path.
@@ -128,6 +180,12 @@
   requirements; `context-management-prepare-stage` owns retrieved-context
   lanes, packing, trimming, compression, diagnostics, and final prompt
   injection.
+- `memory-aware-context-pipeline` is proposed, not implementation-authorized.
+  It deliberately differs from RAG by modeling caller-owned durable agent/user
+  memory with memory identity, temporal provenance, persistence eligibility, and
+  explicit ingestion. If a workflow declares both RAG and memory pipelines, DAR
+  must not persist RAG-retrieved content to context memory unless the workflow
+  explicitly invokes a caller-owned memory ingestion tool with deliberate input.
 - `skill-source-resolution` v1 is implemented. Source loading is opt-in and
   package-local only: referenced bundled `SKILL.md` bodies under
   `skill-bundle/` inject through `skill_instructions` after effective
@@ -141,10 +199,11 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
-- The next ROI action is no longer pinned. Likely candidates are LiteLLM
-  provider implementation, local-model advisory work, provider-native streaming
-  expansion, one of the prepared context-window follow-up specs, or deferred
-  host/runtime integrations. Each requires a scoped plan before code changes.
+- The next ROI action should be selected from the remaining outstanding queue.
+  LiteLLM Slice L1 remains prepared but paused until Python 3.14-compatible
+  dependency metadata is available; `semantic-context-profiles` and the
+  `memory-aware-context-pipeline` first-slice validation are the next notable
+  non-paused roadmap candidates.
 
 ## Recent Completed Work
 

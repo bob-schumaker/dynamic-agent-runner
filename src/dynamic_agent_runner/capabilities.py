@@ -9,7 +9,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from dynamic_agent_runner.api import load_agent_package_workflow
+from dynamic_agent_runner.api import load_agent_package_workflow, load_agent_workflow
+from dynamic_agent_runner.artifacts import ArtifactInput, TextInput
 from dynamic_agent_runner.artifacts import load_agent_package
 from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.errors import DynamicAgentRunnerError
@@ -144,6 +145,101 @@ def inspect_agent_package_capabilities(
             package_directory=package_directory,
         )
 
+    return _inspect_loaded_workflow_capabilities(
+        workflow,
+        tool_registry=tool_registry,
+        guardrail_registry=guardrail_registry,
+        model_adapter=model_adapter,
+        model_adapter_coverage=model_adapter_coverage,
+        built_in_tool_packs=built_in_tool_packs,
+        session_store=session_store,
+    )
+
+
+def inspect_agent_workflow_capabilities(
+    *,
+    workflow: LoadedAgentWorkflow | None = None,
+    runtime_manifest: ArtifactInput | None = None,
+    mermaid_graph: TextInput | None = None,
+    agent_design: TextInput | None = None,
+    tool_index: ArtifactInput | None = None,
+    runtime_overrides: ArtifactInput | None = None,
+    tool_registry: Any | None = None,
+    guardrail_registry: Any | None = None,
+    model_adapter: Any | None = None,
+    model_adapter_coverage: str | None = None,
+    built_in_tool_packs: Iterable[str] | None = None,
+    session_store: object | None = None,
+    strict: bool = False,
+) -> CapabilityStatusReport:
+    """Inspect inline or already loaded workflow capabilities without execution."""
+
+    if workflow is not None:
+        if any(
+            value is not None
+            for value in (
+                runtime_manifest,
+                mermaid_graph,
+                agent_design,
+                tool_index,
+                runtime_overrides,
+            )
+        ):
+            raise TypeError(
+                "workflow cannot be combined with individual artifact inputs"
+            )
+        loaded_workflow = workflow
+    else:
+        if runtime_manifest is None:
+            raise TypeError(
+                "inspect_agent_workflow_capabilities requires workflow or "
+                "runtime_manifest"
+            )
+        try:
+            loaded_workflow = load_agent_workflow(
+                runtime_manifest=runtime_manifest,
+                mermaid_graph=mermaid_graph,
+                agent_design=agent_design,
+                tool_index=tool_index,
+                runtime_overrides=runtime_overrides,
+            )
+        except DynamicAgentRunnerError as exc:
+            if strict:
+                raise
+            return _invalid_report(
+                str(exc),
+                package_id=_inline_package_id(runtime_manifest),
+            )
+
+    try:
+        return _inspect_loaded_workflow_capabilities(
+            loaded_workflow,
+            tool_registry=tool_registry,
+            guardrail_registry=guardrail_registry,
+            model_adapter=model_adapter,
+            model_adapter_coverage=model_adapter_coverage,
+            built_in_tool_packs=built_in_tool_packs,
+            session_store=session_store,
+        )
+    except DynamicAgentRunnerError as exc:
+        if strict:
+            raise
+        return _invalid_report(
+            str(exc),
+            package_id=loaded_workflow.runtime_manifest.package_id,
+        )
+
+
+def _inspect_loaded_workflow_capabilities(
+    workflow: LoadedAgentWorkflow,
+    *,
+    tool_registry: object | None,
+    guardrail_registry: object | None,
+    model_adapter: object | None,
+    model_adapter_coverage: str | None,
+    built_in_tool_packs: Iterable[str] | None,
+    session_store: object | None,
+) -> CapabilityStatusReport:
     plan = prepare_execution_plan(workflow)
     return CapabilityStatusReport.from_items(
         package_id=workflow.runtime_manifest.package_id,
@@ -165,8 +261,8 @@ def _invalid_report(
     validation_error: str,
     *,
     package_directory: str | Path | None = None,
+    package_id: str | None = None,
 ) -> CapabilityStatusReport:
-    package_id: str | None = None
     items: list[CapabilityStatusItem] = [
         CapabilityStatusItem(
             id="package.validation",
@@ -196,6 +292,15 @@ def _invalid_report(
         validation_error=validation_error,
         items=tuple(items),
     )
+
+
+def _inline_package_id(runtime_manifest: ArtifactInput) -> str | None:
+    if not isinstance(runtime_manifest, Mapping):
+        return None
+    package_id = runtime_manifest.get("package_id")
+    if package_id is None:
+        return None
+    return str(package_id)
 
 
 def _capability_items(
@@ -844,13 +949,14 @@ def _tool_coverage_items(
 ) -> tuple[CapabilityStatusItem, ...]:
     items: list[CapabilityStatusItem] = []
     for tool_id in _referenced_tool_ids(plan):
+        details: Mapping[str, object] = {}
         if tool_registry is None:
             state = CapabilityState.MISSING_COLLABORATOR
             summary = f"Tool {tool_id!r} requires a caller-supplied registry."
             required_collaborator = "tool_registry"
         else:
             try:
-                tool_registry.get_tool(tool_id)
+                tool = tool_registry.get_tool(tool_id)
             except ToolRegistryError as exc:
                 if "disabled" in str(exc).lower():
                     state = CapabilityState.DISABLED
@@ -864,6 +970,7 @@ def _tool_coverage_items(
                 state = CapabilityState.LIVE
                 summary = f"Tool {tool_id!r} is registered."
                 required_collaborator = None
+                details = _host_tool_details(tool)
         items.append(
             CapabilityStatusItem(
                 id=f"tool.{tool_id}",
@@ -873,9 +980,27 @@ def _tool_coverage_items(
                 summary=summary,
                 owner=_OWNER_DYNAMIC_AGENT_RUNNER,
                 required_collaborator=required_collaborator,
+                details=details,
             )
         )
     return tuple(items)
+
+
+def _host_tool_details(tool: object) -> dict[str, object]:
+    raw = getattr(getattr(tool, "definition", None), "raw", None)
+    if not isinstance(raw, Mapping):
+        return {}
+    details: dict[str, object] = {}
+    canonical_id = raw.get("host_canonical_id")
+    if canonical_id is not None:
+        details["host_canonical_id"] = str(canonical_id)
+    model_id = raw.get("host_model_id")
+    if model_id is not None:
+        details["host_model_id"] = str(model_id)
+    aliases = raw.get("host_aliases")
+    if isinstance(aliases, Sequence) and not isinstance(aliases, (str, bytes)):
+        details["host_aliases"] = tuple(str(alias) for alias in aliases)
+    return details
 
 
 def _mcp_registry_items(

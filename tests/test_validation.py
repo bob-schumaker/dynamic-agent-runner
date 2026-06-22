@@ -96,6 +96,83 @@ def test_valid_runtime_manifest_passes_validation() -> None:
     validate_mapping(valid_manifest_data())
 
 
+def test_tool_descriptor_budget_policy_accepts_disabled_value() -> None:
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "tool_descriptor_budget": {"enabled": False},
+        }
+    }
+
+    validate_mapping(data)
+
+
+@pytest.mark.parametrize(
+    ("policy", "message"),
+    [
+        (True, "runtime.execution_policy.tool_descriptor_budget must be a mapping"),
+        (
+            {"enabled": True, "max_tokens": 0},
+            "runtime.execution_policy.tool_descriptor_budget.max_tokens "
+            "must be a positive integer",
+        ),
+        (
+            {"enabled": True, "max_tools": 0},
+            "runtime.execution_policy.tool_descriptor_budget.max_tools "
+            "must be a positive integer",
+        ),
+        (
+            {"enabled": True, "strategy": "semantic_embedding"},
+            "runtime.execution_policy.tool_descriptor_budget.strategy must be one of",
+        ),
+    ],
+)
+def test_tool_descriptor_budget_policy_validation_errors(
+    policy: object,
+    message: str,
+) -> None:
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "tool_descriptor_budget": policy,
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError, match=message):
+        validate_mapping(data)
+
+
+def test_tool_descriptor_budget_node_override_accepts_llm_step_mapping() -> None:
+    data = valid_manifest_data()
+    nodes = list(data["nodes"])  # type: ignore[arg-type]
+    llm_node = dict(nodes[0])
+    llm_node["tool_descriptor_budget"] = {
+        "max_tokens": 800,
+        "required_tools": ["search_repo"],
+    }
+    nodes[0] = llm_node
+    data["nodes"] = nodes
+
+    validate_mapping(data)
+
+
+def test_tool_descriptor_budget_node_override_rejected_on_non_llm_step() -> None:
+    data = valid_manifest_data()
+    nodes = list(data["nodes"])  # type: ignore[arg-type]
+    tool_node = dict(nodes[1])
+    tool_node["tool_descriptor_budget"] = {"max_tokens": 800}
+    nodes[1] = tool_node
+    data["nodes"] = nodes
+
+    with pytest.raises(
+        WorkflowValidationError,
+        match="nodes\\[1\\].tool_descriptor_budget is only allowed on llm_step nodes",
+    ):
+        validate_mapping(data)
+
+
 def test_valid_workflow_with_external_tool_index_passes() -> None:
     """Workflow validation includes optional external tool-index validation."""
 

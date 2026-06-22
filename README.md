@@ -143,6 +143,10 @@ Use `run_agent_workflow_async(...)` in async applications, or construct a
 `WorkflowExecutionContext` when several runs share the same loaded workflow and
 runtime collaborators.
 
+Use direct execution for a single stateless run, `WorkflowExecutionContext` for
+reusing a loaded workflow with stable collaborators, and `AgentSession` when the
+caller needs retained prompt history or restartable in-memory session state.
+
 Use `AgentSession` with `InMemorySessionStore` when several prompts should reuse
 the same workflow context and retained user/assistant transcript:
 
@@ -357,6 +361,7 @@ Runtime manifests may also declare provider-neutral metadata for:
 - `runtime.execution_policy.model_map`
 - `runtime.execution_policy.skill_source_resolution`
 - `runtime.execution_policy.async_session`
+- `runtime.execution_policy.tool_descriptor_budget`
 - `llm_step.model_requirements`
 - `metadata.patterns_present`
 - `metadata.rag_pipeline`
@@ -381,13 +386,26 @@ checkpoint stores remain out of scope.
 `runtime.execution_policy.prepare_model_input` is implemented for prompt
 hierarchy messages, package-bounded file context, retrieved context supplied in
 execution state, session pruning and compaction metadata, lane budgets, selected
-older turns, and preparation diagnostics. Unsupported compaction, compression,
-lane, selection, and file-context values fail validation before execution.
-Provider-backed remote compaction, model-backed summary adapters, and richer
-semantic/profile behavior are prepared as future feature specs under
+older turns, injected semantic older-turn selection, and preparation
+diagnostics. Semantic selection is caller-injected through direct execution or
+`WorkflowExecutionContext`; the runner does not create embeddings, vector
+stores, memory stores, or retrievers for it. Unsupported compaction,
+compression, lane, selection, and file-context values fail validation before
+execution. Provider-backed remote compaction, richer model-backed summary
+behavior, and remaining semantic/profile behavior are prepared as future feature
+specs under
 `specs/provider-backed-context-compaction/`,
 `specs/model-backed-context-summaries/`, and
-`specs/semantic-context-profiles/`; they are not live runtime behavior yet.
+`specs/semantic-context-profiles/`.
+
+`runtime.execution_policy.tool_descriptor_budget` is opt-in for `llm_step`
+model requests. When enabled, the runner first applies normal registry exposure
+rules, then ranks and packs only model-exposable tool descriptors that fit the
+configured `max_tokens` or `max_tools` limits. Required tools are included first
+or fail before the model request. Diagnostics on `model_request` traces include
+tool ids, reasons, counts, and token estimates, not raw prompt content or full
+schemas. Node-local `tool_descriptor_budget` mappings can override scalar
+limits and add required tools for a specific `llm_step`.
 
 `extensions.guardrails.declarations` is live for `phase: input` when callers
 provide an `InMemoryGuardrailRegistry` through the lower-level executor or a
@@ -493,6 +511,11 @@ surfaces as `live`, `metadata_only`, `missing_collaborator`, `disabled`,
 collaborators you plan to execute with, such as a tool registry, guardrail
 registry, model adapter, strict model-adapter coverage, and
 `InMemorySessionStore`, to see readiness instead of just manifest shape.
+Hosts that generate workflows in memory can use
+`inspect_agent_workflow_capabilities(...)` with an inline runtime manifest or an
+already loaded `LoadedAgentWorkflow` instead of materializing a temporary package
+directory. Capability items for tools registered through `HostToolBinding`
+include the host canonical id, model-facing id, and aliases when available.
 
 ## CLI Usage
 

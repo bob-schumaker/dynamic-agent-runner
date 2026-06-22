@@ -13,6 +13,7 @@ from dynamic_agent_runner.capabilities import (
     CapabilityStatusReport,
     CapabilityStatusSummary,
     inspect_agent_package_capabilities,
+    inspect_agent_workflow_capabilities,
 )
 from dynamic_agent_runner.collaboration import (
     ChildAgentState,
@@ -21,6 +22,11 @@ from dynamic_agent_runner.collaboration import (
     CollaborativeAgentSessionState,
 )
 from dynamic_agent_runner.context import RunContext, WorkflowExecutionContext
+from dynamic_agent_runner.context_selection import (
+    ContextSelection,
+    ContextSelectionCandidate,
+    ContextSelector,
+)
 from dynamic_agent_runner.executor import (
     ApprovalInterruption,
     ApprovalInterruptionState,
@@ -201,6 +207,9 @@ __all__ = [
     "CollaborativeAgentSessionManager",
     "CollaborativeAgentSessionState",
     "CompiledAgentWorkflow",
+    "ContextSelection",
+    "ContextSelectionCandidate",
+    "ContextSelector",
     "compile_agent_workflow",
     "DynamicAgentRunnerError",
     "GuardrailDecision",
@@ -300,6 +309,7 @@ __all__ = [
     "InMemoryTraceSink",
     "estimate_messages_tokens",
     "inspect_agent_package_capabilities",
+    "inspect_agent_workflow_capabilities",
     "invoke_lifecycle_hook_async",
     "retry_policy_from_value",
     "run_with_retry_async",

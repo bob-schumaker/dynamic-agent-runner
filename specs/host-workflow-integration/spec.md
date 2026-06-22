@@ -5,7 +5,7 @@
 - Feature slug: `host-workflow-integration`
 - Mode: `light`
 - Artifact type: implemented feature specification
-- Status: implemented v1 baseline from downstream Power-Marimo evidence
+- Status: implemented through Slice H2
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related existing specs:
   - `specs/capability-status-report/spec.md`
@@ -62,13 +62,45 @@ Completed:
   bounded redacted diagnostics.
 - Focused fake tests cover the helper surface.
 
-Deferred:
+Completed Slice H2:
 
 - inline/generated manifest capability preflight without temporary package dirs
-- capability-report extensions that expose canonical/model-facing ids in every
-  relevant report path
+- loaded workflow capability preflight
+- capability-report extensions that expose canonical/model-facing ids in host
+  tool report paths
 - fuller public lifecycle examples for direct execution, reusable contexts, and
   `AgentSession`
+
+## Implemented Slice H2
+
+Slice H2 implemented the prepared deferred host-facing preflight and
+documentation pieces while keeping the existing v1 helper surface.
+
+Implemented scope:
+
+1. Add a public preflight helper for inline runtime manifests and already loaded
+   `LoadedAgentWorkflow` objects.
+2. Reuse the existing `CapabilityStatusReport` contract and package-directory
+   invalid/strict behavior.
+3. Surface host canonical ids, model-facing ids, and aliases in relevant tool
+   capability details when the supplied registry was built from
+   `HostToolBinding`.
+4. Update public lifecycle guidance for direct execution, reusable
+   `WorkflowExecutionContext`, and `AgentSession`.
+
+Out of scope for H2:
+
+- new executor or session semantics
+- host-specific behavior from Power-Marimo or any other downstream application
+- live model, network, GUI, or external host calls in tests
+- a second capability report type
+- runner-owned durable host state
+
+Implementation artifacts:
+
+- [`plan.md`](plan.md)
+- [`tasks.md`](tasks.md)
+- [`validation.md`](validation.md)
 
 ## Problem Statement
 
@@ -230,12 +262,13 @@ Completed v1 slices:
    payload helpers.
 4. RED/GREEN: resolved model selection tests and execution-entrypoint kwargs.
 
-Deferred slices:
+Completed Slice H2 tasks:
 
-1. RED: inline capability preflight tests; GREEN: inspect manifest string or
-   loaded workflow without temporary package dirs.
-2. RED: docs/API examples; GREEN: host lifecycle guidance for direct execution,
-   reusable context, and `AgentSession`.
+1. Inline capability preflight tests; inspect manifest string or loaded
+   workflow without temporary package dirs.
+2. Capability report host id details for host-bound tools.
+3. Docs/API examples for direct execution, reusable context, and
+   `AgentSession`.
 
 ## Validation Checklist
 

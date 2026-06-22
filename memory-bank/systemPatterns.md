@@ -153,6 +153,16 @@
 - Tool schema conversion is currently aligned to `client.responses.create(...)`:
   function tools use top-level `type`, `name`, `description`, and `parameters`,
   not Chat Completions-style nested `function.name` payloads.
+- Tool descriptor budgeting is future spec-only. The proposed package-owned
+  `ToolSelector` should operate after registry exposure filtering, rank only
+  eligible model-exposable tools, pack OpenAI-compatible descriptors within a
+  token budget, and keep NLTK parser work as an optional benchmarked experiment.
+- Memory-aware context pipeline is future spec-only. The proposed
+  `metadata.memory_pipeline` surface should model caller-owned durable
+  agent/user memory separately from `metadata.rag_pipeline`, keep retrieval
+  explicit and fake-testable in the first slice, and forbid implicit persistence
+  of RAG-retrieved content into memory unless the workflow invokes an explicit
+  caller-owned ingestion tool.
 - OpenAI response normalization extracts text and function calls into internal
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 - `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,

@@ -58,6 +58,23 @@
   - loop lifecycle/final-output trace events
 - Registry-provided model tools use OpenAI Responses API function-tool shape
   with top-level `name`.
+- Tool descriptor budgeting Slice T1 is implemented:
+  - opt-in `runtime.execution_policy.tool_descriptor_budget` validation
+  - node-local `llm_step.tool_descriptor_budget` overrides
+  - deterministic `ToolSelector` ranking over registry-exposed model tools only
+  - OpenAI-compatible descriptor token/count packing
+  - required-tool enforcement before model dispatch
+  - redacted `model_request` trace diagnostics
+  - no NLTK, embeddings, vector stores, model-backed selection, or live-service
+    dependency
+- Host workflow integration is implemented through Slice H2:
+  - `HostToolBinding` adapts host-owned tools into model-facing registries
+  - `ResolvedModelSelection` provides a provider-neutral execution handoff
+  - bounded trace and capability summaries are public helpers
+  - `inspect_agent_workflow_capabilities(...)` preflights inline manifests and
+    loaded workflows without temporary package directories
+  - host-bound tool capability details include canonical host ids,
+    model-facing ids, and aliases when available
 - Package-owned PyInstaller support now includes a hook provider and bundled
   `openai_model_registry` hook that collects registry data files and
   distribution metadata for frozen downstream clients. The hook also collects
@@ -133,10 +150,18 @@
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
   optional injected-evaluator advisory profile for resolved GGUF assets.
-- `litellm-provider-adapter` is drafted as a future core provider-transport
-  spec. It proposes making LiteLLM the core OpenAI-compatible transport,
-  preserving repository-owned OpenAI/Codex auth discovery, and mapping default
-  Codex behavior through `create_litellm_codex_adapter_from_codex_auth(...)`.
+- `litellm-provider-adapter` is prepared as a high-ROI implementation
+  candidate, but execution is paused until LiteLLM supports DAR's Python 3.14
+  target. Slice L1 has spec, plan, task, and validation artifacts for direct
+  LiteLLM Chat Completions transport, request/response translation, public
+  factories, fake tests, default-provider migration, and an explicit
+  official-SDK compatibility path. ChatGPT/Codex-on-LiteLLM remains deferred to
+  a Responses-aware follow-up slice.
+- Executing LiteLLM Slice L1 is paused because `poetry add litellm` resolved to
+  current LiteLLM metadata requiring Python `>=3.10,<3.14`, which conflicts with
+  DAR's current Python 3.14.6 support. The attempted RED tests were discarded
+  and the branch was restored cleanly to `cb88c53`; retry after LiteLLM supports
+  Python 3.14.
 - `persistent-agent-sessions` is implemented as a v1 feature for
   cross-prompt continuity through public `AgentSession`,
   `AgentSessionState`, `AgentSessionResult`, and `InMemorySessionStore`, with
@@ -151,6 +176,20 @@
   in-process consumers, and caller-controlled stream filters for progress
   events, terminal events, terminal session-result attachment, and progress
   event types.
+- `tool-descriptor-budgeting` is implemented through Slice T1. Completion
+  evidence is recorded in `specs/tool-descriptor-budgeting/validation.md`;
+  NLTK parser work remains a benchmarked future experiment.
+- `host-workflow-integration` is implemented through Slice H2. Completion
+  evidence is recorded in `specs/host-workflow-integration/validation.md`;
+  future work is only expected if another downstream host integration gap
+  appears.
+- `memory-aware-context-pipeline` is captured as a proposed future feature spec.
+  It adapts useful `memlayer` ideas into a DAR-native, caller-owned contract
+  for durable agent/user memory retrieval, provenance, traceability, and
+  no-implicit-save behavior. Its first slice is intentionally retrieval-only
+  and fake-testable; salience execution, ingestion execution, background work,
+  embeddings, durable stores, provider wrappers, and `memlayer` itself remain
+  out of scope.
 - `async-session-memory-pipeline` remains a metadata/session-boundary reference.
   Pruning-context graph injection was completed through
   `internal-graph-mutation` and `context-management-prepare-stage` without
@@ -173,6 +212,39 @@
 
 ## Latest Milestones
 
+- `0fa4d47` aligned host-workflow H2 status across the spec corpus after
+  implementation.
+- `278c933` implemented host workflow inline/generated and loaded-workflow
+  preflight, host id capability details, docs, specs, and fake tests.
+- `a29ad7b` prepared `host-workflow-integration` H2 as the next feasible
+  implementation slice while LiteLLM remained paused.
+- `3c5ee5b` aligned descriptor-budgeting status and ROI ordering after Slice T1
+  completion.
+- `5b95125` refreshed memory-bank state after descriptor budgeting.
+- `f7ab5d5` recorded descriptor-budgeting completion across README, runtime
+  policy docs, spec index, task checklist, and validation evidence.
+- `fd1b54c` implemented opt-in tool descriptor budgeting with policy
+  validation, selector behavior, executor integration, redacted diagnostics,
+  and fake tests.
+- `c001c3f` prepared `tool-descriptor-budgeting` for implementation with
+  Slice T1 plan/tasks/validation artifacts and aligned the spec corpus around
+  LiteLLM's Python 3.14 pause.
+- `cb88c53` prepared the LiteLLM provider adapter as the then-current
+  implementation candidate with Slice L1 plan/tasks/validation artifacts and
+  explicit deferral of ChatGPT/Codex-on-LiteLLM.
+- `2183e74` added the outstanding-spec ROI evaluation and linked it from the
+  spec index.
+- `234c4b0` refreshed memory-bank state after the memory-aware context pipeline
+  spec work.
+- `16a0a19` added the memory-aware context pipeline spec and spec-index
+  coverage, including the explicit rule that RAG-retrieved content is not
+  persisted to context memory just because both `metadata.rag_pipeline` and
+  `metadata.memory_pipeline` are present.
+- `a5d3209` added the tool descriptor budgeting spec and spec-index coverage,
+  naming `ToolSelector` as the future package-owned interface and keeping NLTK
+  parser work experimental.
+- `7d991cf` refreshed `poetry.lock`.
+- `ae80bfd` refreshed memory-bank stream-session state.
 - `9b45bf5` added regression tests for terminal stream
   `AgentSessionResult`/`WorkflowResult` access, terminal-only streaming,
   terminal-result omission, and progress event-type filtering.
@@ -298,18 +370,25 @@
 
 ## Remaining
 
-- LiteLLM provider work remains spec-only. Before implementation, create
-  plan/tasks artifacts for the core dependency change, default provider
-  selection, Codex auth adaptation, request/response mapping, fake-test
-  strategy, and packaging implications.
+- LiteLLM provider work remains spec-only but implementation-candidate ready.
+  Before implementation, confirm current LiteLLM releases support Python 3.14.
+  Do not narrow DAR's Python 3.14 support for this feature; pick up Slice L1
+  after LiteLLM compatibility lands.
 - Model event streaming v1 is complete, but provider-native token deltas,
   model-tool-loop progress events, cancellation/backpressure expansion,
   lower-level executor event APIs, and streaming capability/status reporting
   remain deferred.
-- An unrelated `poetry.lock` drift is currently unstaged after the stream work:
-  `huggingface-hub` and `pytest` lockfile entries moved forward. Treat that as
-  separate dependency maintenance, not part of the stream API or memory-bank
-  commits.
+- Tool descriptor budgeting remains spec-only. Before implementation, create
+  plan/tasks artifacts for `ToolSelector` policy validation, deterministic
+  scoring, token-aware descriptor packing, diagnostics, and fake-test coverage.
+- Memory-aware context pipeline remains spec-only. Before implementation,
+  create plan/tasks artifacts for `metadata.memory_pipeline` validation,
+  capability/status reporting, fake memory retrieval output, retrieved-context
+  handoff, trace payloads, and the first-slice decision about whether the
+  memory-specific surface should remain separate from `metadata.rag_pipeline`.
+  Do not implement salience execution, ingestion execution, background jobs,
+  runner-owned stores, embeddings, or `memlayer` dependencies in the first
+  slice.
 - Context-window follow-up implementation remains future. Start from the
   prepared specs for provider-backed context compaction, model-backed context
   summaries, or semantic context profiles before editing runtime code.
@@ -320,8 +399,6 @@
     profiling
 - No larger PyInstaller packaging work is currently pending after the hook
   support PR, branch synchronization, and `tiktoken_ext` hidden-import update.
-- Pending package metadata from earlier local-model work may still need review
-  if local-model dependency packaging resumes.
 - Power-Marimo-specific automation remains outside DAR. If `../power-marimo`
   exposes new needs, route them through generic runner contracts rather than
   DAR-owned Marimo, Qt, SDK, or app-lifecycle code.
@@ -369,3 +446,6 @@
 - Keep MLX local execution macOS-only and lazy on other platforms: adapter
   construction and model alias inspection should not import `mlx_lm`, resolve
   local model assets, or fail until generation is attempted.
+- Do not execute `litellm-provider-adapter` Slice L1 while LiteLLM still
+  declares `Python >=3.10,<3.14`; DAR currently supports Python 3.14.6 and
+  should pick up LiteLLM after upstream metadata supports it.

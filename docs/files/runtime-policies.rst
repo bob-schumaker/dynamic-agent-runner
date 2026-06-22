@@ -132,6 +132,54 @@ The runtime uses ``tiktoken`` for estimates. Unknown models fall back to a base
 encoding and record the fallback flag. Automatic truncation is not currently
 implemented.
 
+.. header2:: Tool descriptor budgeting
+
+Tool descriptor budgeting is disabled unless configured. When enabled, the
+executor starts from the normal registry-exposed tools for an ``llm_step`` and
+packs only OpenAI-compatible descriptors that fit configured descriptor limits.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       tool_descriptor_budget:
+         enabled: true
+         model: gpt-4o-mini
+         max_tokens: 1200
+         max_tools: 8
+         strategy: deterministic_metadata
+         low_confidence_behavior: include_all_within_budget
+         required_tools:
+         - read_file
+         diagnostics: redacted
+
+Node-local overrides can tighten scalar limits or add required tools:
+
+.. code-block:: yaml
+
+   nodes:
+   - id: answer
+     kind: llm_step
+     available_tools:
+     - search_repo
+     - read_file
+     tool_descriptor_budget:
+       max_tokens: 800
+       required_tools:
+       - search_repo
+
+The selector never exposes tools filtered out by
+``registry.list_tools_for_node(...)``. Required tools are packed first and fail
+before model dispatch if they are unavailable or cannot fit. Optional tools can
+be omitted for explicit reasons such as ``max_tools`` or ``over_budget``.
+
+Diagnostics are redacted on ``model_request`` traces. They include selected and
+omitted tool ids, reasons, counts, token estimates, strategy, and tokenizer
+fallback metadata; they do not include raw prompt content, arguments, or full
+tool schemas. The first implementation uses deterministic metadata scoring only;
+NLTK, embeddings, vector stores, and model-backed selection are not runtime
+dependencies.
+
 .. header2:: Prompt-cache intent
 
 Prompt-cache metadata is provider-neutral intent. It records stable prefix and
@@ -160,14 +208,15 @@ observation for a run.
 preparation behavior before a model request. The current runtime can add
 hierarchy messages, include bounded package-local file context, include retrieved
 context supplied in execution state, prune or compact session messages, apply
-lane budgets, select older turns, and emit preparation metadata.
+lane budgets, select older turns, run caller-injected semantic older-turn
+selection, and emit preparation metadata.
 
 .. code-block:: yaml
 
    runtime:
      execution_policy:
        prepare_model_input:
-         hierarchy:
+         prompt_hierarchy:
            system:
            - "Follow the package safety policy."
            developer:
@@ -204,9 +253,18 @@ Validation rejects unsupported compaction, compression, lane, and selection
 values. File context remains package-root bounded; paths that escape the package
 root fail closed.
 
-Provider-backed remote compaction, model-backed summary adapters, and richer
-semantic/profile behavior are prepared as future specs, not live runtime
-behavior. See ``specs/provider-backed-context-compaction/``,
+``context_compression.selection.strategy: injected_semantic`` is live only when
+the caller supplies a context selector through direct execution or
+``WorkflowExecutionContext``. The selector receives bounded older-turn
+candidates and returns turn ids plus scores; retrieved RAG evidence stays in the
+retrieved-context lane and is not passed to the selector. Missing selectors fall
+back to deterministic overlap with visible preparation metadata. The runner does
+not create embeddings, vector stores, memory stores, or retrievers for semantic
+selection.
+
+Provider-backed remote compaction, richer model-backed summary behavior, and
+remaining semantic/profile behavior are prepared as future specs. See
+``specs/provider-backed-context-compaction/``,
 ``specs/model-backed-context-summaries/``, and
 ``specs/semantic-context-profiles/`` for those planned follow-up surfaces.
 

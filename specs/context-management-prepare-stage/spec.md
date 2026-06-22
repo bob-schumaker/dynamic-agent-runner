@@ -1007,10 +1007,11 @@ Prepared follow-up specs now own:
 - `specs/model-backed-context-summaries/spec.md`: explicit model-backed
   summarizer adapters, bounded summary prompts, prior-summary folding, and
   summary provenance
-- `specs/semantic-context-profiles/spec.md`: richer compression-profile
-  behavior, injected semantic selectors, exact-plus-semantic scoring, optional
-  memory-kind labels, stale/redundant context omission, and
-  prompt-cache-aware ordering
+- `specs/semantic-context-profiles/spec.md`: implemented injected semantic
+  older-turn selectors and exact-plus-semantic scoring; remaining richer
+  compression-profile behavior includes optional memory-kind labels,
+  stale/redundant context omission, RAG lane borrowing, prompt-cache-aware
+  ordering, and selector capability/status reporting
 
 Future approved slices may still add:
 

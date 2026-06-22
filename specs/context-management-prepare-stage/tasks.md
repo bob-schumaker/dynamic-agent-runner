@@ -112,10 +112,10 @@ Status: implemented through Slice 10 pruning-context injection behavior
 - [x] T3.3 [implementation] Add deterministic older-turn selector.
   - Spec: FR6, FR15, FR16, FR17
   - Files/components: `src/dynamic_agent_runner/executor.py`
-  - Use deterministic overlap only, add an injected selector seam for future
-    semantic selectors, make no built-in embedding/vector calls, and report
-    selected/rejected/omitted metadata. Route `semantic` profile behavior
-    through the injected selector seam only.
+  - Use deterministic overlap, make no built-in embedding/vector calls, and
+    report selected/rejected/omitted metadata. The later
+    `semantic-context-profiles` Slice S1 implemented the injected semantic
+    selector seam and keeps `semantic` profile behavior caller-injected.
   - Validation: `poetry run pytest tests/test_executor.py -q`
 
 ## Slice 3A — RAG Retrieved-Context Lane

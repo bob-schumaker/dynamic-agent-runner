@@ -5,7 +5,7 @@
 - Feature slug: `semantic-context-profiles`
 - Mode: `light`
 - Artifact type: partially implemented feature specification
-- Status: partial v1 baseline; richer semantic selectors deferred
+- Status: implemented through Slice S1; richer profile behavior deferred
 - Owner: context-management prepare stage plus caller-supplied selectors
 - Primary predecessor:
   - `specs/context-management-prepare-stage/spec.md`
@@ -29,9 +29,10 @@ needed.
 
 ## Problem Statement
 
-The implemented prepare stage already supports named profile values and
-deterministic older-turn selection. The names exist, but richer
-profile-specific behavior remains intentionally deferred:
+The implemented prepare stage supports named profile values, deterministic
+older-turn selection, exact/hybrid identifier preservation, and injected
+semantic older-turn selection. Richer profile-specific behavior remains
+intentionally deferred:
 
 - `semantic` should use caller-supplied semantic signals, not built-in vector
   retrieval
@@ -46,26 +47,72 @@ implementation now present in the prepare stage.
 
 ## Implementation Status
 
-The partial v1 baseline is implemented in `src/dynamic_agent_runner/executor.py`
-for exact and `hybrid_exact_semantic` older-turn selection.
+The partial v1 baseline and Slice S1 are implemented in
+`src/dynamic_agent_runner/executor.py`, with the public selector contract in
+`src/dynamic_agent_runner/context_selection.py`.
 
 Completed:
 
 - exact-token preservation for issue keys, filenames, tool ids, function names,
   quoted strings, and similar identifiers
 - `hybrid_exact_semantic` selection-policy support
+- `injected_semantic` selection-policy support through caller-supplied
+  `ContextSelector`
+- direct execution and `WorkflowExecutionContext` support for
+  `context_selector`
+- missing-selector fallback to deterministic overlap with visible metadata
+- exact identifier protection before injected semantic scores
+- retrieved RAG evidence exclusion from selector candidate inputs
 - selected/omitted/rejected metadata for older-turn selection
-- tests proving exact identifier preservation
+- tests proving exact identifier preservation, injected selection,
+  missing-selector fallback, RAG lane separation, execution-context threading,
+  and public exports
 
 Deferred:
 
-- injected semantic selector collaborator
-- profile-specific lane priority for `semantic`, `recency_weighted`, and
+- profile-specific lane priority for `recency_weighted` and
   `instruction_weighted`
 - memory-kind hints, access-frequency scoring, stale/redundant omission, and
   prompt-cache-aware ordering
 - RAG lane borrowing policies beyond existing retrieved-context lane packing
 - capability/status reporting for semantic selector availability and fallback
+  remains deferred until a concrete caller needs preflight visibility
+
+## Implemented Slice S1
+
+Slice S1 implemented a small fake-testable selector seam for older-turn
+selection while preserving the exact/hybrid identifier baseline and keeping
+embeddings, vector stores, memory stores, and retrieval infrastructure out of
+DAR.
+
+Implemented scope:
+
+1. Added an injected semantic context selector collaborator for
+   `prepare_model_input(...)` older-turn selection.
+2. Supported `context_compression.selection.strategy: injected_semantic` through
+   the injected selector only.
+3. Reported selector status, fallback path, selected/omitted/rejected counts, and
+   bounded scoring hints in prepared-input metadata.
+4. Preserved exact identifiers and required current/pinned lanes before semantic
+   ranking.
+5. Kept retrieved RAG evidence in the existing retrieved-context lane and out of
+   selector candidate inputs.
+
+Out of scope for S1:
+
+- runner-owned embeddings, vector stores, graph stores, or memory stores
+- live retriever, model, or embedding calls in unit tests
+- memory-kind labels, access-frequency scoring, stale/redundant omission, RAG
+  lane borrowing, and prompt-cache-aware ordering
+- capability/status reporting for selector availability unless the
+  implementation can reuse existing capability report plumbing without a second
+  report type
+
+Implementation artifacts:
+
+- [`plan.md`](plan.md)
+- [`tasks.md`](tasks.md)
+- [`validation.md`](validation.md)
 
 ## Scope
 
@@ -204,9 +251,10 @@ turn or safety constraints.
 
 ## Implementation Planning Notes
 
-- Start with RED tests that prove `balanced`, `fast`, `exact`, and `semantic`
-  produce different selected/omitted metadata on the same fixture.
-- Add a tiny selector protocol only when tests require semantic scoring.
+- Start with RED tests that prove `semantic` plus an injected selector can select
+  an older turn with low lexical overlap, and that missing selector behavior is
+  explicit in metadata.
+- Add a tiny selector protocol only for older-turn scoring.
 - Keep selector input redacted or bounded; selectors should receive structured
   candidates, not arbitrary internal executor state.
 - Treat profile behavior as context-management policy, not graph mutation.
@@ -217,14 +265,19 @@ Implemented partial-v1 validation includes:
 
 - validation tests for supported profile and selection policy values
 - tests for exact identifier preservation
+- Slice S1 executor tests for injected selector behavior and missing-selector
+  fallback diagnostics
+- fake semantic-selector tests for selected/omitted/rejected diagnostics
+- execution-context and direct-kwarg tests for `context_selector`
+- RAG lane composition tests proving retrieved context is not passed to the
+  selector
+- import tests for public selector contract exports
 
 Deferred validation should include:
 
-- executor tests for each profile's visible behavior
-- fake semantic-selector tests for selected/omitted diagnostics
-- RAG lane composition tests
 - capability/status tests for semantic selector live, missing, fallback, and
-  disabled states
+  disabled states in a later slice only if selector availability becomes
+  preflightable
 
 Relevant commands:
 
@@ -236,8 +289,9 @@ poetry run ruff check src tests
 
 ## Open Questions
 
-- Should semantic selector collaborators be registered through the same
-  mechanism as retrievers, or through a context-management-specific registry?
+- Resolved for Slice S1: semantic selector collaborators should use a
+  context-management-specific injected callable/protocol, not the tool registry
+  or RAG retriever registry.
 - Should prompt-cache-aware ordering be its own later feature if provider/model
   metadata becomes complex?
 - Should memory-kind labels be accepted only from caller-supplied context

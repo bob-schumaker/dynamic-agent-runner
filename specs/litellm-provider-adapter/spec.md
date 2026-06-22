@@ -5,12 +5,13 @@
 - Feature slug: `litellm-provider-adapter`
 - Mode: `light`
 - Artifact type: authoritative feature specification
-- Status: draft
-- Version: `0.2`
+- Status: implementation candidate; Slice L1 prepared but paused for Python
+  3.14 dependency support
+- Version: `0.3`
 - Owner: repository maintainers and future implementers of model-provider
   runtime integrations
-- Date: 2026-06-17
-- Next gate: approve scope before implementation
+- Date: 2026-06-22
+- Next gate: resume Slice L1 when LiteLLM supports the package's Python 3.14 target
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/openai-compatible-provider-wrapper/spec.md`
@@ -20,7 +21,9 @@
   - `src/dynamic_agent_runner/executor.py`
   - `tests/test_openai_client.py`
   - `/Users/roschuma/Repos/github/litellm/README.md`
+  - `https://docs.litellm.ai/docs/`
   - `https://docs.litellm.ai/docs/providers/chatgpt`
+  - `https://docs.litellm.ai/docs/routing`
   - `/Users/roschuma/Repos/github/litellm/litellm/responses/main.py`
   - `/Users/roschuma/Repos/github/litellm/litellm/main.py`
 
@@ -30,6 +33,26 @@ Update `dynamic-agent-runner` so LiteLLM becomes the package's core
 OpenAI-compatible model transport while preserving the package-owned
 model-adapter contract, fake-client unit-test discipline, and existing
 OpenAI/Codex default-auth behavior.
+
+## Implementation Candidate Decision
+
+This spec remains a prepared high-ROI implementation candidate, but Slice L1 is
+paused until LiteLLM supports the package's Python 3.14 target. When resumed,
+the first implementation slice must stay narrower than the full future surface
+described below:
+
+- **Slice L1** adds LiteLLM as the default direct SDK transport for ordinary
+  OpenAI-format chat-completions dispatch.
+- Slice L1 preserves repository-owned request construction, response
+  normalization, model-adapter selection, error translation, redaction, and
+  fake-test discipline.
+- Slice L1 may keep the official OpenAI SDK provider as an explicit
+  compatibility path.
+- Slice L1 must not move ChatGPT/Codex auth discovery into LiteLLM and must not
+  require live LiteLLM gateway, ChatGPT OAuth, or provider calls.
+- ChatGPT/Codex-on-LiteLLM is a follow-up slice because current LiteLLM docs
+  recommend the Responses endpoint for Codex models while the first direct SDK
+  slice is intentionally Chat Completions-shaped.
 
 ## Problem Statement
 
@@ -64,6 +87,10 @@ like `create_litellm_codex_adapter_from_codex_auth(...)`: this package still
 owns Codex home discovery, auth precedence, trusted config parsing, model
 selection semantics, and request shaping, while LiteLLM owns the ChatGPT/Codex
 transport.
+
+For Slice L1, the existing SDK-backed ChatGPT/Codex backend may remain in place.
+Replacing it with LiteLLM must wait for the follow-up Codex slice because it
+needs explicit Responses-path request shaping and drift analysis.
 
 ## Users
 
@@ -116,6 +143,32 @@ This feature covers:
 10. unit-test coverage with fake LiteLLM modules/routers and no live network or
     model calls
 
+## Slice L1 Scope
+
+The implementation-candidate slice covers only:
+
+1. adding `litellm` as a required runtime dependency
+2. adding sync and async LiteLLM completion providers that satisfy the existing
+   adapter/provider boundary
+3. translating `OpenAIModelRequest` into LiteLLM Chat Completions kwargs without
+   changing executor behavior
+4. normalizing LiteLLM Chat Completions responses into `ModelResponse`
+5. exposing public sync/async LiteLLM adapter factories
+6. making ordinary default OpenAI-compatible provider creation use LiteLLM
+   when no ChatGPT/Codex backend auth is selected
+7. keeping the official OpenAI SDK compatibility provider/factory available
+8. covering behavior with fake LiteLLM callables, fake routers, and no live
+   network or provider calls
+
+Slice L1 explicitly defers:
+
+- LiteLLM `responses(...)` / `aresponses(...)`
+- ChatGPT/Codex helper replacement
+- LiteLLM-managed ChatGPT OAuth/device flow
+- live model listing from LiteLLM routers or providers
+- PyInstaller hook work unless the dependency addition breaks existing package
+  hook tests
+
 ## Non-Goals
 
 - Do not require implementation to remove the existing official OpenAI
@@ -137,6 +190,9 @@ This feature covers:
 - Do not add live model, gateway, or external provider calls to unit tests.
 - Do not change workflow manifest schema for provider selection in the first
   slice.
+- Do not replace the existing ChatGPT/Codex backend provider in Slice L1.
+- Do not use LiteLLM's gateway, agent platform, MCP gateway, observability,
+  guardrail, cache, or budget features in Slice L1.
 
 ## Functional Requirements
 
@@ -163,6 +219,10 @@ Acceptance criteria:
   dependency, when default provider construction runs, then the runtime raises
   `ModelExecutionError` with a package-owned message naming the missing
   dependency.
+- Given ChatGPT/Codex backend auth is selected before the follow-up Codex slice,
+  when default provider construction runs, then the runtime may continue to use
+  the existing SDK-backed ChatGPT/Codex provider rather than silently routing
+  Codex tokens through LiteLLM's Chat Completions path.
 
 ### FR-2: Preserve current default auth and routing behavior
 
@@ -228,6 +288,16 @@ Acceptance criteria:
   `litellm.aresponses(...)` support, when that path is used, then it must be
   covered by separate tests and must not break the documented
   `completion(...)` path.
+
+Slice L1 must explicitly translate:
+
+- `OpenAIModelRequest.messages` to LiteLLM `messages`
+- supported tool descriptors to the LiteLLM/OpenAI Chat Completions tool shape
+- `tool_choice`, `response_format`, and supported `extra` values only when they
+  can be represented without silent semantic loss
+
+Unsupported request fields must fail with `ModelExecutionError` before a
+provider call.
 
 ### FR-5: Normalize LiteLLM results through package-owned logic
 
@@ -460,6 +530,10 @@ default when the request does not specify one. The implementation plan must
 choose one behavior before coding because silent model replacement affects
 runtime correctness.
 
+Slice L1 chooses this behavior: request model is authoritative. A factory
+`model` value is adapter metadata or a default for future APIs only; it must not
+silently override an `OpenAIModelRequest.model`.
+
 ## Design Constraints
 
 - Keep executor logic provider-agnostic.
@@ -510,6 +584,20 @@ runtime correctness.
   implementation should fail visibly for unsupported semantics rather than
   pretending all providers are equivalent.
 
+## Resolved Candidate Decisions
+
+- **Model override:** factory `model` values do not override request models in
+  Slice L1.
+- **Model listing:** Slice L1 does not require router or provider model listing.
+  Callers should pass explicit `models` metadata when model-aware executor
+  selection needs it.
+- **PyInstaller:** Slice L1 records packaging implications, but new LiteLLM
+  hooks are deferred unless existing package-hook validation breaks.
+- **Responses API:** general LiteLLM Responses support is deferred.
+- **Codex aliases:** follow-up ChatGPT/Codex work should support both
+  unprefixed repository-facing model ids and LiteLLM `chatgpt/` model ids
+  through explicit alias rules.
+
 ## Validation Checklist
 
 - [ ] `poetry run pytest tests/test_openai_client.py -q`
@@ -526,15 +614,7 @@ runtime correctness.
 
 ## Open Questions
 
-- NEEDS CLARIFICATION: Should caller-supplied `model` in LiteLLM config override
-  the request model, provide a default only, or be disallowed when the request
-  already has a model?
-- NEEDS CLARIFICATION: Should LiteLLM router model listing be part of v1, or
-  should v1 require explicit `models` metadata for executor selection?
-- NEEDS CLARIFICATION: Is PyInstaller support for LiteLLM required in the first
-  implementation slice?
-- NEEDS CLARIFICATION: Should LiteLLM Responses API support be deferred until a
-  caller needs it, or included as an additional dispatch path in v1?
-- NEEDS CLARIFICATION: Should the default Codex helper expose only the
-  repository's current unprefixed model ids, only LiteLLM `chatgpt/` model ids,
-  or both through aliases?
+- None blocking Slice L1.
+- Follow-up Codex slice still needs a focused drift review for
+  ChatGPT/Codex-specific request shaping, streaming, token-limit stripping,
+  model aliases, and model-listing behavior.

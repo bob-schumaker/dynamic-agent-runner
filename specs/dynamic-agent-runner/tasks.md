@@ -148,11 +148,14 @@ needs a scoped plan and task slice before code changes begin.
 11. **Complete for v1 host/tool/collaboration surfaces:** host workflow
     integration, web tools, workspace data tools, subagent tools, model-backed
     summaries, exact/hybrid semantic selection, and in-memory collaborative
-    sessions have v1 baselines. Remaining work is narrower follow-up: inline
-    preflight, richer capability/status reporting, trace correlation,
-    streaming/wait/resume, provider-backed compaction, and richer semantic
-    selectors. Keep `power-marimo-host-automation` as a downstream-boundary
-    record rather than a DAR implementation target.
+    sessions have v1 baselines. Host workflow integration now also covers
+    inline/generated and loaded-workflow preflight plus host id capability
+    details. Remaining work is narrower follow-up: richer capability/status
+    reporting for other tool packs, trace correlation, streaming/wait/resume,
+    provider-backed compaction, and remaining semantic profile behavior beyond
+    the implemented injected selector. Keep
+    `power-marimo-host-automation` as a downstream-boundary record rather than a
+    DAR implementation target.
 12. **Async session memory pipeline:** keep v1 host-managed. Add runner-owned
     durable session storage only after a concrete workflow proves host-managed
     continuity is insufficient.
@@ -1016,8 +1019,12 @@ explicitly instead of leaving them as undocumented future behavior.
       trees, or colorized output.
 - [ ] D2. Revisit Diskcache only when a concrete model/tool/result caching policy
       is specified, including side-effect and staleness semantics.
-- [ ] D3. Revisit LiteLLM only if the runtime direction changes from
-      OpenAI-first to multi-provider model routing.
+- [ ] D3. LiteLLM is prepared in `specs/litellm-provider-adapter/`, but Slice
+      L1 is paused until LiteLLM supports the package's Python 3.14 target.
+      While paused, `specs/tool-descriptor-budgeting/` Slice T1 and
+      `specs/semantic-context-profiles/` Slice S1 are implemented; the current
+      next non-paused candidate is the
+      `specs/memory-aware-context-pipeline/` first-slice validation.
 - [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
       helper if prompt/artifact hot-reload workflows become valuable.
 

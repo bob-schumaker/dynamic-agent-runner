@@ -93,6 +93,17 @@ def estimate_messages_tokens(
     )
 
 
+def estimate_text_tokens(text: str, *, model: str) -> TokenEstimate:
+    """Estimate tokens for a plain text payload."""
+
+    encoding, encoding_name, used_fallback = _encoding_for_model(model)
+    return TokenEstimate(
+        token_count=len(encoding.encode(text)),
+        encoding_name=encoding_name,
+        used_fallback_encoding=used_fallback,
+    )
+
+
 def _encoding_for_model(model: str) -> tuple[Any, str, bool]:
     try:
         import tiktoken
