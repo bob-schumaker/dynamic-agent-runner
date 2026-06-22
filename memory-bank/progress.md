@@ -11,6 +11,11 @@
   metadata-only future surfaces.
 - Default OpenAI/Codex auth discovery and ChatGPT/Codex backend compatibility
   are implemented.
+- `openai-responses-tool-loop-compat` is proposed as the upstream response to a
+  downstream Power Marimo feature request. It would replace Power Marimo's
+  local private monkey patch by preserving streamed Responses function calls,
+  rendering Responses-compatible tool-loop follow-up input, adding explicit
+  `tool_choice_policy`, and using model-facing top-level `tool_results`.
 - llama.cpp and MLX local-model adapters are implemented through their current
   scoped baselines. The MLX adapter now supports converted-MLX and GGUF model
   formats, resolved-path loading, filtered generation kwargs with request-level
@@ -194,6 +199,10 @@
   Pruning-context graph injection was completed through
   `internal-graph-mutation` and `context-management-prepare-stage` without
   adding durable runner-owned memory to OA8.
+- `openai-responses-tool-loop-compat` is captured as a proposed future feature
+  spec. Its downstream request note is stored under `cline-tasks/`, and the
+  implementation boundary keeps Power Marimo domain compaction downstream while
+  making DAR own generic OpenAI Responses/tool-loop compatibility.
 - Graphify is initialized for the repo with ignored generated output in
   `graphify-out/`. The current graph is AST/code-only and queryable through
   `graphify query`, `graphify path`, and `graphify explain`; semantic
@@ -212,6 +221,8 @@
 
 ## Latest Milestones
 
+- `17834d1` added the OpenAI Responses tool-loop compatibility spec and the
+  captured downstream Power Marimo feature-request note.
 - `0fa4d47` aligned host-workflow H2 status across the spec corpus after
   implementation.
 - `278c933` implemented host workflow inline/generated and loaded-workflow

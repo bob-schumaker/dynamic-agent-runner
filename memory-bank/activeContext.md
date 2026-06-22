@@ -2,8 +2,16 @@
 
 ## Current Focus
 
-- No implementation slice is currently active. The latest completed runtime
-  work implemented `specs/host-workflow-integration/` Slice H2. DAR now exposes
+- No implementation slice is currently active. The latest spec work captured a
+  downstream Power Marimo feature request as
+  `specs/openai-responses-tool-loop-compat/spec.md` and
+  `cline-tasks/openai-responses-tool-loop-compat-feature-request.md`.
+  The proposed feature would upstream OpenAI Responses tool-loop compatibility:
+  preserve streamed function-call items, render Responses-compatible
+  `function_call_output` follow-ups, add `tool_choice_policy.initial` /
+  `tool_choice_policy.after_tool_result`, and render top-level
+  `tool_results` through `ToolResult.model_facing_output`.
+- `specs/host-workflow-integration/` Slice H2 is complete. DAR now exposes
   `inspect_agent_workflow_capabilities(...)` for inline runtime manifests and
   already loaded workflows, reuses the existing `CapabilityStatusReport`
   contract, and reports host canonical/model-facing ids for tools registered
@@ -36,6 +44,9 @@
   can choose progress events, terminal events, terminal session-result
   attachment, and progress event-type filters.
 - Recent commits:
+  - `17834d1` added the OpenAI Responses tool-loop compatibility feature spec
+    and the downstream Power Marimo feature-request note. The spec is proposed,
+    not implementation-authorized.
   - `0fa4d47` aligned the spec corpus after host-workflow H2 completion so the
     plan, index, and dynamic-agent-runner roadmap no longer describe inline
     preflight as pending work.
@@ -200,9 +211,11 @@
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
 - The next ROI action should be selected from the remaining outstanding queue.
-  LiteLLM Slice L1 remains prepared but paused until Python 3.14-compatible
-  dependency metadata is available; `semantic-context-profiles` and the
-  `memory-aware-context-pipeline` first-slice validation are the next notable
+  `openai-responses-tool-loop-compat` is now a concrete downstream-driven
+  candidate because it would let Power Marimo remove a private DAR monkey
+  patch. LiteLLM Slice L1 remains prepared but paused until Python
+  3.14-compatible dependency metadata is available; `semantic-context-profiles`
+  and the `memory-aware-context-pipeline` first-slice validation remain notable
   non-paused roadmap candidates.
 
 ## Recent Completed Work
