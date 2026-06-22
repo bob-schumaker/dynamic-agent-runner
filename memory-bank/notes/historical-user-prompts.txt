@@ -595,3 +595,8 @@ make the spec corpus internally consistent
 ---
 
 make docs corpus internally self consistent
+
+---
+
+evaluate the usefulness of an NLTK prompt parser that minimizes the tool descriptor load
+to the model so keep the context window clean and concise

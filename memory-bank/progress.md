@@ -151,6 +151,11 @@
   in-process consumers, and caller-controlled stream filters for progress
   events, terminal events, terminal session-result attachment, and progress
   event types.
+- `tool-descriptor-budgeting` is captured as a future prepared feature spec.
+  It proposes an optional `ToolSelector` policy that ranks eligible tools,
+  packs OpenAI-compatible descriptors within a token budget, records redacted
+  omission diagnostics, and leaves NLTK parser work as a benchmarked future
+  experiment.
 - `async-session-memory-pipeline` remains a metadata/session-boundary reference.
   Pruning-context graph injection was completed through
   `internal-graph-mutation` and `context-management-prepare-stage` without
@@ -173,6 +178,11 @@
 
 ## Latest Milestones
 
+- `a5d3209` added the tool descriptor budgeting spec and spec-index coverage,
+  naming `ToolSelector` as the future package-owned interface and keeping NLTK
+  parser work experimental.
+- `7d991cf` refreshed `poetry.lock`.
+- `ae80bfd` refreshed memory-bank stream-session state.
 - `9b45bf5` added regression tests for terminal stream
   `AgentSessionResult`/`WorkflowResult` access, terminal-only streaming,
   terminal-result omission, and progress event-type filtering.
@@ -306,10 +316,9 @@
   model-tool-loop progress events, cancellation/backpressure expansion,
   lower-level executor event APIs, and streaming capability/status reporting
   remain deferred.
-- An unrelated `poetry.lock` drift is currently unstaged after the stream work:
-  `huggingface-hub` and `pytest` lockfile entries moved forward. Treat that as
-  separate dependency maintenance, not part of the stream API or memory-bank
-  commits.
+- Tool descriptor budgeting remains spec-only. Before implementation, create
+  plan/tasks artifacts for `ToolSelector` policy validation, deterministic
+  scoring, token-aware descriptor packing, diagnostics, and fake-test coverage.
 - Context-window follow-up implementation remains future. Start from the
   prepared specs for provider-backed context compaction, model-backed context
   summaries, or semantic context profiles before editing runtime code.
@@ -320,8 +329,6 @@
     profiling
 - No larger PyInstaller packaging work is currently pending after the hook
   support PR, branch synchronization, and `tiktoken_ext` hidden-import update.
-- Pending package metadata from earlier local-model work may still need review
-  if local-model dependency packaging resumes.
 - Power-Marimo-specific automation remains outside DAR. If `../power-marimo`
   exposes new needs, route them through generic runner contracts rather than
   DAR-owned Marimo, Qt, SDK, or app-lifecycle code.

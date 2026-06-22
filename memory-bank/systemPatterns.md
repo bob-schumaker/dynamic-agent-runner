@@ -153,6 +153,10 @@
 - Tool schema conversion is currently aligned to `client.responses.create(...)`:
   function tools use top-level `type`, `name`, `description`, and `parameters`,
   not Chat Completions-style nested `function.name` payloads.
+- Tool descriptor budgeting is future spec-only. The proposed package-owned
+  `ToolSelector` should operate after registry exposure filtering, rank only
+  eligible model-exposable tools, pack OpenAI-compatible descriptors within a
+  token budget, and keep NLTK parser work as an optional benchmarked experiment.
 - OpenAI response normalization extracts text and function calls into internal
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 - `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,

@@ -26,26 +26,25 @@
 - The confirmed runtime direction is an OpenAI-first adapter boundary plus a
   repository-owned tool registry; `ocihelper`, `ai-tools-core`, and
   `openai-tools-core` are intentionally out of scope for the current runtime.
-- The exact package layout, public API, CLI shape, and core workflow execution
-  internals are implemented, but broader multi-agent behavior, approval/resume
-  engines, sessions, and sandbox/workspace runtime separation remain deferred.
+- The exact package layout, public API, CLI shape, core workflow execution
+  internals, approval interruption baseline, in-memory persistent sessions,
+  session event streaming, host-tool integration helpers, and capability/status
+  reporting are implemented. Durable approval resume, full sandbox/workspace
+  runtime, provider-native streaming, and broader multi-agent behavior remain
+  deferred.
 - Deferred live-runtime areas now have separate future-feature specs under
   `specs/`; those specs capture known requirements and open decisions but do not
   authorize implementation by themselves.
-- A June 2026 council roadmap now recommends making one safe live-action path
-  real before broadening the platform: approval interruption plus sandboxed
-  workspace mutation first, capability/status reporting second, then MCP and
-  guardrails behind policy.
 - Treat source code and tests as the authority for concrete API behavior.
 
 ## Open Product Questions
 
-- Should the next active implementation slice be the council-recommended
-  approval/sandbox live-action vertical slice?
-- What exact capability/status report shape should help callers distinguish live
-  behavior from metadata-only declarations?
 - Which `NEEDS CLARIFICATION` items must be resolved before implementing live
-  approval/resume, sandbox/workspace, MCP, guardrail, skill-source, loop, or
-  generic host-integration behavior?
+  approval resume, full sandbox/workspace, MCP transports, output/tool
+  guardrails, skill-source expansions, loop expansions, or generic
+  host-integration behavior?
 - What customer-facing commitments should be made for host-managed continuity
-  before runner-owned session memory exists?
+  before durable runner-owned session storage exists?
+- Should `ToolSelector` descriptor budgeting become the next context-window
+  efficiency slice, or remain behind provider/context follow-ups such as
+  LiteLLM, provider-native streaming, and context compaction?

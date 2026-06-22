@@ -2,21 +2,25 @@
 
 ## Current Focus
 
-- No implementation slice is currently active. The latest completed stream
-  resolved a downstream Power-Marimo blocker in
+- No implementation slice is currently active. The latest completed spec work
+  prepared `specs/tool-descriptor-budgeting/spec.md` as a future
+  `ToolSelector` feature for token-aware, prompt-aware tool descriptor packing.
+  NLTK parser work is explicitly deferred as a future benchmarked experiment,
+  not first-slice scope.
+- The previous completed stream resolved a downstream Power-Marimo blocker in
   `AgentSession.accept_stream(...)`: terminal stream events can now expose the
   same `AgentSessionResult`/`WorkflowResult` shape as `accept(...)`, and callers
   can choose progress events, terminal events, terminal session-result
   attachment, and progress event-type filters.
+- Recent commits:
+  - `a5d3209` added the tool descriptor budgeting spec and spec-index coverage.
+  - `7d991cf` refreshed `poetry.lock`.
+  - `ae80bfd` refreshed memory-bank stream-session state.
 - The stream-result work is committed in separate slices:
   - `0237b42` added the source API behavior in `sessions.py`
   - `9b45bf5` added focused session-stream regression tests
   - `e1676c5` aligned the model-event-streaming spec surface
   - `bdf29ef` aligned README/Sphinx/skill docs with the new client contract
-- A memory-bank refresh is in progress after those commits. An unrelated
-  `poetry.lock` drift remains unstaged (`huggingface-hub` and `pytest` lockfile
-  version bumps) and should not be bundled with the memory refresh unless the
-  user explicitly asks for dependency lock maintenance.
 - The expanded MLX surface is implemented and committed in source/test slices:
   explicit converted-MLX vs GGUF model formats, GGUF path validation, resolved
   path loading for the default `mlx_lm` backend, filtered generation kwargs

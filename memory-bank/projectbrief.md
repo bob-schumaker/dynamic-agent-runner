@@ -27,8 +27,8 @@
 
 ## Constraints
 
-- Use Python `>=3.11,<3.14` per `pyproject.toml`.
-- Local mise configuration selects Python `3.13` and an in-project `.venv`.
+- Use Python `>=3.13,<3.14.1 || >3.14.1,<3.15` per `pyproject.toml`.
+- Local mise configuration selects Python `3.14.6` and an in-project `.venv`.
 - Poetry is the package/dependency manager.
 - Internal OCI Artifactory Poetry sources are configured in `pyproject.toml`.
 - OCI build configuration publishes package artifacts to INDCON release and

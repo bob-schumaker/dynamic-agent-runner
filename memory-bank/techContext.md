@@ -4,7 +4,7 @@
 
 - Python package.
 - Declared Python compatibility: `>=3.13,<3.14.1 || >3.14.1,<3.15`.
-- mise-selected local Python version: `3.13`.
+- mise-selected local Python version: `3.14.6`.
 
 ## Package and Dependency Management
 
@@ -43,9 +43,7 @@ Current committed dependency context includes:
 - `tenacity >=9.1.4`
 - `tiktoken >=0.13.0`
 - `openai-model-registry ^1.0.5`
-- `llama-cpp-python ^0.3.29` without the `server` extra in the baseline
-  dependency state; pending package metadata edits move it behind a `llamacpp`
-  optional extra
+- optional extra `llamacpp`, which installs `llama-cpp-python >=0.3.29,<0.4.0`
 - optional extra `huggingface`, which installs `huggingface-hub >=1.18.0,<2.0.0`
 
 Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
