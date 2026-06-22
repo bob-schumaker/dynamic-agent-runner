@@ -600,3 +600,39 @@ make docs corpus internally self consistent
 
 evaluate the usefulness of an NLTK prompt parser that minimizes the tool descriptor load
 to the model so keep the context window clean and concise
+
+---
+
+evaluate the repo /Users/roschuma/Repos/github/memlayer/ for possible inclusion into our workflow chain
+
+---
+
+show me a spec that adds the useful ideas as applied to our package
+
+---
+
+add this as a feature spec
+
+---
+
+/council evaluate the memory-aware-context-pipeline spec as a useful addition to our package
+
+---
+
+address the council findings
+
+---
+
+debate the memory-aware-context-pipeline spec as a useful addition to our package for three rounds
+
+---
+
+address the debate findings
+
+---
+
+add a constraint to the spec to make a clear distinction from rag-memory., if both are used nothing retrieved from rag will be persisted to the context memory
+
+---
+
+make the spec corpus internally consistent and commit

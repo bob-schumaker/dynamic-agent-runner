@@ -48,3 +48,6 @@
 - Should `ToolSelector` descriptor budgeting become the next context-window
   efficiency slice, or remain behind provider/context follow-ups such as
   LiteLLM, provider-native streaming, and context compaction?
+- Does the first memory-aware context slice prove enough memory-specific value
+  to keep `metadata.memory_pipeline` separate from `metadata.rag_pipeline`, or
+  should the remaining ideas fold back into the RAG/context-management surface?

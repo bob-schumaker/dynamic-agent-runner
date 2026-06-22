@@ -156,6 +156,13 @@
   packs OpenAI-compatible descriptors within a token budget, records redacted
   omission diagnostics, and leaves NLTK parser work as a benchmarked future
   experiment.
+- `memory-aware-context-pipeline` is captured as a proposed future feature spec.
+  It adapts useful `memlayer` ideas into a DAR-native, caller-owned contract
+  for durable agent/user memory retrieval, provenance, traceability, and
+  no-implicit-save behavior. Its first slice is intentionally retrieval-only
+  and fake-testable; salience execution, ingestion execution, background work,
+  embeddings, durable stores, provider wrappers, and `memlayer` itself remain
+  out of scope.
 - `async-session-memory-pipeline` remains a metadata/session-boundary reference.
   Pruning-context graph injection was completed through
   `internal-graph-mutation` and `context-management-prepare-stage` without
@@ -178,6 +185,10 @@
 
 ## Latest Milestones
 
+- `16a0a19` added the memory-aware context pipeline spec and spec-index
+  coverage, including the explicit rule that RAG-retrieved content is not
+  persisted to context memory just because both `metadata.rag_pipeline` and
+  `metadata.memory_pipeline` are present.
 - `a5d3209` added the tool descriptor budgeting spec and spec-index coverage,
   naming `ToolSelector` as the future package-owned interface and keeping NLTK
   parser work experimental.
@@ -319,6 +330,14 @@
 - Tool descriptor budgeting remains spec-only. Before implementation, create
   plan/tasks artifacts for `ToolSelector` policy validation, deterministic
   scoring, token-aware descriptor packing, diagnostics, and fake-test coverage.
+- Memory-aware context pipeline remains spec-only. Before implementation,
+  create plan/tasks artifacts for `metadata.memory_pipeline` validation,
+  capability/status reporting, fake memory retrieval output, retrieved-context
+  handoff, trace payloads, and the first-slice decision about whether the
+  memory-specific surface should remain separate from `metadata.rag_pipeline`.
+  Do not implement salience execution, ingestion execution, background jobs,
+  runner-owned stores, embeddings, or `memlayer` dependencies in the first
+  slice.
 - Context-window follow-up implementation remains future. Start from the
   prepared specs for provider-backed context compaction, model-backed context
   summaries, or semantic context profiles before editing runtime code.

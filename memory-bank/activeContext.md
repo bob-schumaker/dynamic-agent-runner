@@ -3,16 +3,23 @@
 ## Current Focus
 
 - No implementation slice is currently active. The latest completed spec work
-  prepared `specs/tool-descriptor-budgeting/spec.md` as a future
-  `ToolSelector` feature for token-aware, prompt-aware tool descriptor packing.
-  NLTK parser work is explicitly deferred as a future benchmarked experiment,
-  not first-slice scope.
+  added `specs/memory-aware-context-pipeline/spec.md` as a proposed
+  caller-owned long-term memory orchestration contract inspired by `memlayer`.
+  Its first slice is retrieval-only and fake-testable, with an explicit
+  fold-back gate to `metadata.rag_pipeline` if memory-specific identity and
+  provenance do not justify a separate surface.
+- `specs/tool-descriptor-budgeting/spec.md` remains a future `ToolSelector`
+  feature for token-aware, prompt-aware tool descriptor packing. NLTK parser
+  work is explicitly deferred as a future benchmarked experiment, not
+  first-slice scope.
 - The previous completed stream resolved a downstream Power-Marimo blocker in
   `AgentSession.accept_stream(...)`: terminal stream events can now expose the
   same `AgentSessionResult`/`WorkflowResult` shape as `accept(...)`, and callers
   can choose progress events, terminal events, terminal session-result
   attachment, and progress event-type filters.
 - Recent commits:
+  - `16a0a19` added the memory-aware context pipeline spec and spec-index
+    coverage, including the RAG separation/no-implicit-save constraint.
   - `a5d3209` added the tool descriptor budgeting spec and spec-index coverage.
   - `7d991cf` refreshed `poetry.lock`.
   - `ae80bfd` refreshed memory-bank stream-session state.
@@ -132,6 +139,12 @@
   requirements; `context-management-prepare-stage` owns retrieved-context
   lanes, packing, trimming, compression, diagnostics, and final prompt
   injection.
+- `memory-aware-context-pipeline` is proposed, not implementation-authorized.
+  It deliberately differs from RAG by modeling caller-owned durable agent/user
+  memory with memory identity, temporal provenance, persistence eligibility, and
+  explicit ingestion. If a workflow declares both RAG and memory pipelines, DAR
+  must not persist RAG-retrieved content to context memory unless the workflow
+  explicitly invokes a caller-owned memory ingestion tool with deliberate input.
 - `skill-source-resolution` v1 is implemented. Source loading is opt-in and
   package-local only: referenced bundled `SKILL.md` bodies under
   `skill-bundle/` inject through `skill_instructions` after effective
@@ -147,8 +160,9 @@
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
 - The next ROI action is no longer pinned. Likely candidates are LiteLLM
   provider implementation, local-model advisory work, provider-native streaming
-  expansion, one of the prepared context-window follow-up specs, or deferred
-  host/runtime integrations. Each requires a scoped plan before code changes.
+  expansion, one of the prepared context-window follow-up specs, the
+  retrieval-only memory-aware first slice, or deferred host/runtime
+  integrations. Each requires a scoped plan before code changes.
 
 ## Recent Completed Work
 
