@@ -20,6 +20,10 @@ from dynamic_agent_runner.api import (
 )
 from dynamic_agent_runner.artifacts import load_runtime_manifest
 from dynamic_agent_runner.context import WorkflowExecutionContext
+from dynamic_agent_runner.context_selection import (
+    ContextSelection,
+    ContextSelectionCandidate,
+)
 from dynamic_agent_runner.errors import (
     GuardrailExecutionError,
     ModelExecutionError,
@@ -2332,6 +2336,472 @@ def test_prepare_model_input_exact_profile_preserves_identifier_matches() -> Non
             "selection_reason": "hybrid_exact_semantic",
             "relevance_score": 1,
         },
+    )
+
+
+def test_prepare_model_input_injected_semantic_selector_selects_low_overlap_turn() -> (
+    None
+):
+    seen_query: list[str] = []
+    seen_candidates: list[tuple[ContextSelectionCandidate, ...]] = []
+    seen_metadata: list[Mapping[str, object]] = []
+
+    def selector(
+        query: str,
+        candidates: tuple[ContextSelectionCandidate, ...],
+        metadata: Mapping[str, object],
+    ) -> tuple[ContextSelection, ...]:
+        seen_query.append(query)
+        seen_candidates.append(candidates)
+        seen_metadata.append(metadata)
+        return (ContextSelection(turn_id="turn_1", score=0.91, reason="domain_hint"),)
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "semantic-selector-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="How should we recover the tenant audit ledger?",
+        session_messages=(
+            OpenAIMessage(role="user", content="The WAL shard is corrupt"),
+            OpenAIMessage(role="assistant", content="Restore from replica delta"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        context_selector=selector,
+    )
+
+    assert seen_query == ["How should we recover the tenant audit ledger?"]
+    assert seen_candidates == [
+        (
+            ContextSelectionCandidate(
+                turn_id="turn_1",
+                text="The WAL shard is corrupt\nRestore from replica delta",
+                roles=("user", "assistant"),
+                exact_match_count=0,
+                token_estimate=20,
+            ),
+        ),
+    ]
+    assert seen_metadata[0]["profile"] == "semantic"
+    assert prepared_input.named_parts["selected_turn_1"].content.startswith(
+        "Selected older turn turn_1:"
+    )
+    assert prepared_input.preparation.selection_policy == {
+        "profile": "semantic",
+        "strategy": "injected_semantic",
+        "max_selected_turns": 1,
+        "selector_status": "available",
+    }
+    assert prepared_input.preparation.selected_turns == (
+        {
+            "turn_id": "turn_1",
+            "selection_status": "selected",
+            "selection_reason": "domain_hint",
+            "relevance_score": 0.91,
+            "selector": "injected_semantic",
+        },
+    )
+
+
+def test_prepare_model_input_injected_semantic_missing_selector_falls_back() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "missing-semantic-selector-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Explain billing retry behavior",
+        session_messages=(
+            OpenAIMessage(role="user", content="Billing retries fail"),
+            OpenAIMessage(role="assistant", content="Retry evidence"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(plan.nodes_by_id["answer"], plan, state)
+
+    assert (
+        "Billing retries fail" in prepared_input.named_parts["selected_turn_1"].content
+    )
+    assert prepared_input.preparation.selection_policy == {
+        "profile": "semantic",
+        "strategy": "injected_semantic",
+        "max_selected_turns": 1,
+        "selector_status": "missing",
+        "fallback_strategy": "deterministic_overlap",
+    }
+    assert prepared_input.preparation.selected_turns == (
+        {
+            "turn_id": "turn_1",
+            "selection_status": "selected",
+            "selection_reason": "deterministic_overlap",
+            "relevance_score": 2,
+        },
+    )
+
+
+def test_prepare_model_input_injected_semantic_protects_exact_identifier_matches() -> (
+    None
+):
+    def selector(
+        _query: str,
+        _candidates: tuple[ContextSelectionCandidate, ...],
+        _metadata: Mapping[str, object],
+    ) -> tuple[ContextSelection, ...]:
+        return (ContextSelection(turn_id="turn_2", score=0.99, reason="semantic"),)
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "semantic-exact-protection-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Resolve BUG-7777",
+        session_messages=(
+            OpenAIMessage(role="user", content="BUG-7777 blocks release"),
+            OpenAIMessage(role="assistant", content="Exact issue evidence"),
+            OpenAIMessage(role="user", content="Architecture cleanup notes"),
+            OpenAIMessage(role="assistant", content="Broad semantic background"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        context_selector=selector,
+    )
+
+    assert (
+        "BUG-7777 blocks release"
+        in prepared_input.named_parts["selected_turn_1"].content
+    )
+    assert prepared_input.preparation.selected_turns == (
+        {
+            "turn_id": "turn_1",
+            "selection_status": "selected",
+            "selection_reason": "exact_identifier_match",
+            "relevance_score": 1,
+            "selector": "injected_semantic",
+        },
+    )
+    assert prepared_input.preparation.omitted_turns == (
+        {
+            "turn_id": "turn_2",
+            "selection_status": "omitted",
+            "selection_reason": "max_selected_turns_exceeded",
+            "relevance_score": 0.99,
+            "selector": "injected_semantic",
+        },
+    )
+
+
+def test_prepare_model_input_injected_semantic_excludes_retrieved_context_candidates() -> (
+    None
+):
+    seen_candidates: list[tuple[ContextSelectionCandidate, ...]] = []
+
+    def selector(
+        _query: str,
+        candidates: tuple[ContextSelectionCandidate, ...],
+        _metadata: Mapping[str, object],
+    ) -> tuple[ContextSelection, ...]:
+        seen_candidates.append(candidates)
+        return (ContextSelection(turn_id="turn_1", score=0.75),)
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "semantic-rag-boundary-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "retrieved_context": {"enabled": True},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Explain retained memory",
+        node_outputs={
+            "retrieved_context": [
+                {
+                    "source_id": "rag-source",
+                    "chunk_id": "rag-chunk",
+                    "content": "RAG-only evidence must not be scored as a turn.",
+                }
+            ]
+        },
+        session_messages=(
+            OpenAIMessage(role="user", content="Older session turn"),
+            OpenAIMessage(role="assistant", content="Older response"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        context_selector=selector,
+    )
+
+    assert tuple(candidate.turn_id for candidate in seen_candidates[0]) == ("turn_1",)
+    assert "RAG-only evidence" not in seen_candidates[0][0].text
+    assert "retrieved_context_1" in prepared_input.named_parts
+    assert (
+        "RAG-only evidence" in prepared_input.named_parts["retrieved_context_1"].content
+    )
+
+
+def test_execute_workflow_accepts_direct_context_selector_kwarg() -> None:
+    def selector(
+        _query: str,
+        _candidates: tuple[ContextSelectionCandidate, ...],
+        _metadata: Mapping[str, object],
+    ) -> tuple[ContextSelection, ...]:
+        return (ContextSelection(turn_id="turn_1", score=0.8),)
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "direct-context-selector-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_named_adapter(
+        [{"id": "resp", "output_text": "ok"}], models=["gpt-test"]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="question",
+        model_adapter=adapter,
+        context_selector=selector,
+        session_messages=(
+            OpenAIMessage(role="user", content="Older selected session fact"),
+            OpenAIMessage(role="assistant", content="Older selected answer"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    assert result.final_result == "ok"
+    request_messages = adapter.client.responses.calls[0]["input"]
+    assert any(
+        "Older selected session fact" in message["content"]
+        for message in request_messages
+    )
+
+
+def test_execute_workflow_accepts_context_selector_on_execution_context() -> None:
+    def selector(
+        _query: str,
+        _candidates: tuple[ContextSelectionCandidate, ...],
+        _metadata: Mapping[str, object],
+    ) -> tuple[ContextSelection, ...]:
+        return (ContextSelection(turn_id="turn_1", score=0.8),)
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "execution-context-selector-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_named_adapter(
+        [{"id": "resp", "output_text": "ok"}], models=["gpt-test"]
+    )
+    context = WorkflowExecutionContext(
+        workflow=workflow,
+        model_adapter=adapter,
+        context_selector=selector,
+    )
+
+    result = execute_workflow(
+        context,
+        prompt="question",
+        session_messages=(
+            OpenAIMessage(role="user", content="Older context-selected fact"),
+            OpenAIMessage(role="assistant", content="Older context-selected answer"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    assert result.final_result == "ok"
+    request_messages = adapter.client.responses.calls[0]["input"]
+    assert any(
+        "Older context-selected fact" in message["content"]
+        for message in request_messages
     )
 
 
