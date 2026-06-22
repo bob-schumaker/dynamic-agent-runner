@@ -782,6 +782,7 @@ async def _normalize_async_openai_stream(raw_stream: Any) -> ModelResponse:
 
 def _normalize_openai_stream_events(events: Sequence[Any]) -> ModelResponse:
     deltas: list[str] = []
+    output_items: list[Any] = []
     response_id: str | None = None
     completed_response: Any = None
     for event in events:
@@ -791,22 +792,50 @@ def _normalize_openai_stream_events(events: Sequence[Any]) -> ModelResponse:
             if delta is not None:
                 deltas.append(str(delta))
             continue
+        if event_type == "response.output_item.done":
+            item = _read_value(event, "item")
+            if item is not None:
+                output_items.append(item)
+            continue
         response = _read_value(event, "response")
         if response is not None:
             response_id = _optional_str(_read_value(response, "id")) or response_id
             if event_type == "response.completed":
                 completed_response = response
 
+    streamed_response = (
+        normalize_openai_response({"id": response_id, "output": output_items})
+        if output_items
+        else None
+    )
     if completed_response is not None:
         normalized = normalize_openai_response(completed_response)
         return ModelResponse(
-            content=normalized.content or ("".join(deltas) if deltas else None),
-            tool_calls=normalized.tool_calls,
+            content=(
+                normalized.content
+                or (
+                    streamed_response.content if streamed_response is not None else None
+                )
+                or ("".join(deltas) if deltas else None)
+            ),
+            tool_calls=normalized.tool_calls
+            or (
+                streamed_response.tool_calls
+                if streamed_response is not None
+                else normalized.tool_calls
+            ),
             response_id=normalized.response_id or response_id,
             raw=completed_response,
         )
     return ModelResponse(
-        content="".join(deltas) if deltas else None,
+        content=(
+            streamed_response.content
+            if streamed_response is not None and streamed_response.content is not None
+            else ("".join(deltas) if deltas else None)
+        ),
+        tool_calls=(
+            streamed_response.tool_calls if streamed_response is not None else ()
+        ),
         response_id=response_id,
         raw=tuple(events),
     )

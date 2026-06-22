@@ -11,7 +11,7 @@
 
 ## Slice R1: Core Responses Tool-Loop Compatibility
 
-- [ ] R1.1 RED: Add stream normalization tests in
+- [x] R1.1 RED: Add stream normalization tests in
       `tests/test_openai_client.py`.
   - Spec: FR-1
   - Files/components: `tests/test_openai_client.py`,
@@ -20,16 +20,19 @@
     completed output; completed output precedence; async stream parity.
   - Validation:
     `poetry run pytest tests/test_openai_client.py -q -k "stream or responses"`
-  - Evidence: failing tests prove streamed function calls are currently lost.
+  - Evidence: `poetry run pytest tests/test_openai_client.py -q -k
+    "stream or responses"` failed with the new streamed function-call cases
+    before implementation.
 
-- [ ] R1.2 GREEN: Preserve streamed Responses output items in
+- [x] R1.2 GREEN: Preserve streamed Responses output items in
       `_normalize_openai_stream_events(...)`.
   - Spec: FR-1
   - Files/components: `src/dynamic_agent_runner/openai_client.py`
   - Depends on: R1.1
   - Validation:
     `poetry run pytest tests/test_openai_client.py -q -k "stream or responses"`
-  - Evidence: stream tests pass without changing non-stream normalization.
+  - Evidence: `poetry run pytest tests/test_openai_client.py -q -k
+    "stream or responses"` passed with 5 tests after implementation.
 
 - [ ] R1.3 RED: Add ChatGPT/Codex request-preparation tests for structured
       tool-loop transcript items.
