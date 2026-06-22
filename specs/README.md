@@ -15,6 +15,12 @@ Companion planning artifacts:
 - [`specs/dynamic-agent-runner/plan.md`](dynamic-agent-runner/plan.md)
 - [`specs/dynamic-agent-runner/tasks.md`](dynamic-agent-runner/tasks.md)
 
+Portfolio evaluation artifacts:
+
+- [`specs/outstanding-spec-roi/spec.md`](outstanding-spec-roi/spec.md) records
+  the current advisory ROI ranking for outstanding and deferred spec work. It is
+  roadmap memory only, not implementation authorization.
+
 ## Feature Specs
 
 | Feature | Spec | Status | Completion |
@@ -103,11 +109,13 @@ Companion planning artifacts:
 1. Start with the primary [`dynamic-agent-runner/spec.md`](dynamic-agent-runner/spec.md).
 2. Read [`dynamic-agent-runner/tasks.md`](dynamic-agent-runner/tasks.md) for the
    implementation history and feature roadmap index.
-3. For OpenAI adapter default-auth discovery behavior, read
+3. Read [`outstanding-spec-roi/spec.md`](outstanding-spec-roi/spec.md) for the
+   current advisory ROI ranking of outstanding and deferred spec work.
+4. For OpenAI adapter default-auth discovery behavior, read
    [`default-openai-codex-auth/spec.md`](default-openai-codex-auth/spec.md),
    with completion evidence in
    [`default-openai-codex-auth/tasks.md`](default-openai-codex-auth/tasks.md).
-4. Read a feature package when working in that specific area; each feature spec
+5. Read a feature package when working in that specific area; each feature spec
    owns its own scope boundary and completion evidence.
 
 Do not treat future-analysis specs as implementation authorization. Feature
@@ -201,11 +209,13 @@ contract details:
   budgets, cache policy, thresholds, and fallback behavior without making the
   runner own retrieval infrastructure.
 
-## High-ROI Remaining Work Order
+## Historical High-ROI Work Order
 
-The June 2026 council review plus the remaining-spec evaluation recommends this
-dependency order. This is roadmap memory, not implementation authorization; each
-item still needs a scoped plan and task slice before code changes begin.
+The June 2026 council review originally recommended this dependency order. Many
+items are now complete. For the current advisory ROI ranking of still-outstanding
+spec work, read [`outstanding-spec-roi/spec.md`](outstanding-spec-roi/spec.md).
+Neither list is implementation authorization; each item still needs a scoped
+plan and task slice before code changes begin.
 
 1. Keep the spec portfolio status text consistent before new work.
 2. Complete: implement `capability-status-report` so callers can distinguish
