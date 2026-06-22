@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `tool-descriptor-budgeting`
-- Status: candidate readiness validation; implementation not started
+- Status: Slice T1 implementation validation complete
 - Date: 2026-06-22
 
 ## Readiness Checks
@@ -20,22 +20,45 @@
   full descriptors.
 - LiteLLM/provider work is not required for this slice.
 
-## Validation To Run During Implementation
+## Completed Validation
+
+Focused RED/GREEN node-id checks passed, 15 tests across:
+
+- `tests/test_validation.py`
+- `tests/test_registry.py`
+- `tests/test_executor.py`
+
+Affected test files passed, 228 tests:
 
 ```bash
-poetry run pytest tests/test_validation.py -q
-poetry run pytest tests/test_registry.py -q
-poetry run pytest tests/test_executor.py -q
-poetry run pytest -q
-poetry run ruff check src tests
+poetry run pytest tests/test_validation.py tests/test_registry.py \
+  tests/test_executor.py -q
 ```
 
-Run targeted `pre-commit run --files ...` on the actual changed files before
-committing implementation.
+Source/test pre-commit passed:
+
+```bash
+pre-commit run --files \
+  src/dynamic_agent_runner/registry.py \
+  src/dynamic_agent_runner/executor.py \
+  src/dynamic_agent_runner/token_budget.py \
+  src/dynamic_agent_runner/validation.py \
+  tests/test_registry.py tests/test_validation.py tests/test_executor.py
+```
+
+- `graphify update .` — completed after source changes.
+- `make -C docs source/runtime-policies.rst` — regenerated the authored runtime
+  policy page.
+- `poetry run pytest -q` — passed, 547 tests.
+- `poetry run ruff check src tests` — passed.
+
+Implementation commit:
+
+- `fd1b54c feat(registry): add tool descriptor budgeting`
 
 ## Out-of-Scope Confirmation
 
-The candidate preparation does not:
+Slice T1 does not:
 
 - change source behavior
 - add runtime dependencies

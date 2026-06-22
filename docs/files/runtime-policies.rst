@@ -132,6 +132,54 @@ The runtime uses ``tiktoken`` for estimates. Unknown models fall back to a base
 encoding and record the fallback flag. Automatic truncation is not currently
 implemented.
 
+.. header2:: Tool descriptor budgeting
+
+Tool descriptor budgeting is disabled unless configured. When enabled, the
+executor starts from the normal registry-exposed tools for an ``llm_step`` and
+packs only OpenAI-compatible descriptors that fit configured descriptor limits.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       tool_descriptor_budget:
+         enabled: true
+         model: gpt-4o-mini
+         max_tokens: 1200
+         max_tools: 8
+         strategy: deterministic_metadata
+         low_confidence_behavior: include_all_within_budget
+         required_tools:
+         - read_file
+         diagnostics: redacted
+
+Node-local overrides can tighten scalar limits or add required tools:
+
+.. code-block:: yaml
+
+   nodes:
+   - id: answer
+     kind: llm_step
+     available_tools:
+     - search_repo
+     - read_file
+     tool_descriptor_budget:
+       max_tokens: 800
+       required_tools:
+       - search_repo
+
+The selector never exposes tools filtered out by
+``registry.list_tools_for_node(...)``. Required tools are packed first and fail
+before model dispatch if they are unavailable or cannot fit. Optional tools can
+be omitted for explicit reasons such as ``max_tools`` or ``over_budget``.
+
+Diagnostics are redacted on ``model_request`` traces. They include selected and
+omitted tool ids, reasons, counts, token estimates, strategy, and tokenizer
+fallback metadata; they do not include raw prompt content, arguments, or full
+tool schemas. The first implementation uses deterministic metadata scoring only;
+NLTK, embeddings, vector stores, and model-backed selection are not runtime
+dependencies.
+
 .. header2:: Prompt-cache intent
 
 Prompt-cache metadata is provider-neutral intent. It records stable prefix and

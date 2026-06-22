@@ -357,6 +357,7 @@ Runtime manifests may also declare provider-neutral metadata for:
 - `runtime.execution_policy.model_map`
 - `runtime.execution_policy.skill_source_resolution`
 - `runtime.execution_policy.async_session`
+- `runtime.execution_policy.tool_descriptor_budget`
 - `llm_step.model_requirements`
 - `metadata.patterns_present`
 - `metadata.rag_pipeline`
@@ -388,6 +389,15 @@ semantic/profile behavior are prepared as future feature specs under
 `specs/provider-backed-context-compaction/`,
 `specs/model-backed-context-summaries/`, and
 `specs/semantic-context-profiles/`; they are not live runtime behavior yet.
+
+`runtime.execution_policy.tool_descriptor_budget` is opt-in for `llm_step`
+model requests. When enabled, the runner first applies normal registry exposure
+rules, then ranks and packs only model-exposable tool descriptors that fit the
+configured `max_tokens` or `max_tools` limits. Required tools are included first
+or fail before the model request. Diagnostics on `model_request` traces include
+tool ids, reasons, counts, and token estimates, not raw prompt content or full
+schemas. Node-local `tool_descriptor_budget` mappings can override scalar
+limits and add required tools for a specific `llm_step`.
 
 `extensions.guardrails.declarations` is live for `phase: input` when callers
 provide an `InMemoryGuardrailRegistry` through the lower-level executor or a

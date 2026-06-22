@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `tool-descriptor-budgeting`
-- Status: implementation candidate plan for Slice T1
+- Status: Slice T1 implemented plan
 - Date: 2026-06-22
 - Owning spec: `specs/tool-descriptor-budgeting/spec.md`
 

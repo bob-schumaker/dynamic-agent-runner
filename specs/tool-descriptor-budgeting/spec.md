@@ -4,8 +4,8 @@
 
 - Feature slug: `tool-descriptor-budgeting`
 - Mode: `light`
-- Artifact type: implementation candidate specification
-- Status: implementation candidate; Slice T1 prepared
+- Artifact type: authoritative feature specification
+- Status: implemented Slice T1
 - Version: 0.2
 - Date: 2026-06-22
 - Owner: tool registry plus context-management prepare stage
@@ -25,21 +25,19 @@ Define an optional tool descriptor budgeting capability that keeps model tool
 schema payloads concise by selecting and packing only the descriptors that are
 eligible, relevant, and within a configured token budget.
 
-This specification authorizes only the Slice T1 preparation described here and
-in `plan.md`, `tasks.md`, and `validation.md`. It does not add an `nltk`
-dependency.
+Slice T1 is implemented. The implementation does not add an `nltk` dependency.
 
-## Implementation Candidate Decision
+## Implementation Decision
 
-`tool-descriptor-budgeting` is the next feasible implementation candidate while
-`litellm-provider-adapter` waits for Python 3.14-compatible dependency support.
+`tool-descriptor-budgeting` was selected while `litellm-provider-adapter` waited
+for Python 3.14-compatible dependency support.
 
 The useful first slice is deterministic, opt-in, and fake-testable. It should
 add a package-owned tool descriptor selection path without changing the
 registry's callable inventory, direct `tool_use_step` execution, default model
 request behavior, or dependency set.
 
-Slice T1 is approved for implementation planning with these constraints:
+Slice T1 was implemented with these constraints:
 
 - preserve existing behavior when no policy is configured
 - operate only on tools already exposed by `list_tools_for_node(...)`
