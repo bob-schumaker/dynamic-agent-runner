@@ -4,7 +4,7 @@
 
 - Feature slug: `openai-responses-tool-loop-compat`
 - Slice: R1 core compatibility
-- Status: candidate readiness validation
+- Status: Slice R1 implementation validation
 - Date: 2026-06-22
 
 ## Readiness Checks
@@ -76,25 +76,31 @@ Run targeted pre-commit on actual changed files before committing.
 | `poetry run pytest tests/test_validation.py -q -k "tool_choice_policy or tool_choice"` | fail, then pass | R1.6 RED failed before policy validation; R1.8 GREEN passed with runtime, node, invalid-value, and conflict coverage |
 | `poetry run pytest tests/test_executor.py -q -k "tool_choice_policy or prepare_execution_plan or model_tool_loop"` | fail, then pass | R1.7/R1.9 RED failed before plan/runtime policy plumbing; R1.10 GREEN passed with 8 focused executor tests |
 | `poetry run pytest tests/test_executor.py -q -k "tool_results or model_facing_output"` | fail, then pass | R1.11 RED failed before top-level `tool_results` used model-facing output; R1.12 GREEN passed with state raw output preserved |
+| `poetry run pytest tests/test_openai_client.py -q -k "stream or chatgpt or codex or responses"` | pass | R1.15 focused adapter validation passed with 15 tests |
+| `poetry run pytest tests/test_executor.py -q -k "model_tool_loop or tool_choice_policy or tool_results"` | pass | R1.15 focused executor validation passed with 6 tests |
+| `poetry run pytest tests/test_validation.py -q -k "tool_choice_policy or tool_choice"` | pass | R1.15 focused validation passed with 2 tests |
+| `poetry run pytest -q` | pass | R1.16 full test suite passed with 573 tests |
+| `poetry run ruff check src tests` | pass | R1.16 source and test lint passed |
 
-## Current Implementation Baseline
+## Slice R1 Implementation Outcome
 
-The preparation pass observed these current facts:
+The Slice R1 implementation changed the baseline as follows:
 
-- `_normalize_openai_stream_events(...)` tracks text deltas and completed
-  response objects, but not `response.output_item.done` items.
-- `_prepare_chatgpt_codex_request(...)` hoists instructions and sets
-  `store=False` / `stream=True`, but does not translate tool-loop transcript
-  entries into Responses input items.
-- `_model_tool_result_messages(...)` emits assistant text plus `role: tool`
-  messages and does not preserve original tool-call arguments in a
-  provider-neutral transcript entry.
-- `_request_loop_model_response_async(...)` reuses
-  `prepared_input.tool_choice` on follow-up turns.
-- `_format_context(...)` exposes raw `state.tool_results` at the top-level
-  `tool_results` prompt key.
-- `PreparedNode` currently preserves legacy `tool_choice` but has no
-  `tool_choice_policy`.
+- `_normalize_openai_stream_events(...)` collects
+  `response.output_item.done` items and uses them when completed output omits
+  text or tool calls.
+- `_prepare_chatgpt_codex_request(...)` translates internal tool-loop
+  transcript entries into Responses `function_call` and
+  `function_call_output` input items while preserving instruction hoisting,
+  `store=False`, and `stream=True`.
+- `_model_tool_result_messages(...)` keeps Chat Completions-compatible
+  assistant/tool messages for normal providers and adds internal transcript
+  metadata with call id, tool name, original arguments, and model-facing output.
+- `_request_loop_model_response_async(...)` resolves `tool_choice` by phase
+  through node-local policy, runtime policy, and legacy fallback.
+- `_format_context(...)` renders top-level `tool_results` as model-facing output
+  while preserving raw `WorkflowExecutionState.tool_results`.
+- `PreparedNode` and `ExecutionPlan` preserve `tool_choice_policy`.
 
 ## Out-of-Scope Confirmation
 

@@ -175,7 +175,7 @@
   - Evidence: `README.md` and `docs/files/runtime-policies.rst` document
     runtime and node-local `tool_choice_policy` behavior.
 
-- [ ] R1.14 Update spec status and validation evidence.
+- [x] R1.14 Update spec status and validation evidence.
   - Spec: completion criteria
   - Files/components: `specs/openai-responses-tool-loop-compat/spec.md`,
     `specs/openai-responses-tool-loop-compat/tasks.md`,
@@ -192,9 +192,10 @@
       specs/README.md
     ```
 
-  - Evidence: artifacts match implemented behavior and completion state.
+  - Evidence: spec, spec index, ROI artifact, roadmap, task list, and validation
+    artifact match implemented Slice R1 behavior and completion state.
 
-- [ ] R1.15 Run focused implementation validation.
+- [x] R1.15 Run focused implementation validation.
   - Spec: validation plan
   - Files/components: test suite
   - Depends on: R1.1-R1.14
@@ -215,9 +216,10 @@
       -k "tool_choice_policy or tool_choice"
     ```
 
-  - Evidence: all focused tests pass.
+  - Evidence: focused checks passed with 15 OpenAI adapter tests, 6 executor
+    tests, and 2 validation tests.
 
-- [ ] R1.16 Run final validation.
+- [x] R1.16 Run final validation.
   - Spec: completion criteria
   - Files/components: full repository
   - Depends on: R1.15
@@ -225,7 +227,8 @@
     - `poetry run pytest -q`
     - `poetry run ruff check src tests`
     - targeted `pre-commit run --files ...` on actual changed files
-  - Evidence: full test/lint checks pass.
+  - Evidence: `poetry run pytest -q` passed with 573 tests, and
+    `poetry run ruff check src tests` passed.
 
 ## Checkpoints
 

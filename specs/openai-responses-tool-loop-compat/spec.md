@@ -5,8 +5,8 @@
 - Feature slug: `openai-responses-tool-loop-compat`
 - Mode: `guided`
 - Artifact type: authoritative feature specification
-- Status: implementation candidate; Slice R1 prepared
-- Version: `0.2`
+- Status: implemented Slice R1
+- Version: `1.0`
 - Date: 2026-06-22
 - Owner: OpenAI adapter boundary plus iterative agent-loop runtime
 - Downstream feature request:
@@ -412,14 +412,14 @@ Slice R1 resolves the implementation-blocking questions this way:
 
 This feature is complete when:
 
-- Power Marimo no longer needs to patch DAR private functions for OpenAI
+- [x] Power Marimo no longer needs to patch DAR private functions for OpenAI
   Responses tool loops.
-- Streamed OpenAI Responses function calls trigger DAR's existing iterative
+- [x] Streamed OpenAI Responses function calls trigger DAR's existing iterative
   model-tool loop.
-- ChatGPT/Codex follow-up turns use Responses-compatible function-call output
+- [x] ChatGPT/Codex follow-up turns use Responses-compatible function-call output
   items.
-- `tool_choice_policy` can force the first tool call and allow post-tool final
+- [x] `tool_choice_policy` can force the first tool call and allow post-tool final
   answers.
-- `{{tool_results}}` uses model-facing output without removing raw tool results
+- [x] `{{tool_results}}` uses model-facing output without removing raw tool results
   from workflow state.
-- Focused fake tests and the full repository test suite pass.
+- [x] Focused fake tests and the full repository test suite pass.
