@@ -3,12 +3,18 @@
 ## Current Focus
 
 - No implementation slice is currently active. The latest completed spec work
-  prepared `specs/litellm-provider-adapter/` as the next implementation
-  candidate with Slice L1 plan/tasks/validation artifacts. Slice L1 is scoped to
-  direct LiteLLM Chat Completions transport, request/response translation,
-  public factories, fake tests, and an explicit official-SDK compatibility path;
-  ChatGPT/Codex-on-LiteLLM remains deferred to a Responses-aware follow-up.
-- A first attempt to execute the LiteLLM adapter slice was stopped before code
+  prepared `specs/tool-descriptor-budgeting/` as the next feasible
+  implementation candidate with Slice T1 spec/plan/tasks/validation artifacts.
+  Slice T1 is opt-in, deterministic, fake-testable, and scoped to ranking and
+  packing only registry-exposed model tool descriptors before model request
+  construction.
+- `specs/litellm-provider-adapter/` remains prepared as a high-ROI Slice L1,
+  but execution is paused until LiteLLM supports DAR's Python 3.14 target.
+  Slice L1 remains scoped to direct LiteLLM Chat Completions transport,
+  request/response translation, public factories, fake tests, and an explicit
+  official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM remains deferred to
+  a Responses-aware follow-up.
+- The first attempt to execute the LiteLLM adapter slice was stopped before code
   commit because current LiteLLM package metadata declares Python
   `>=3.10,<3.14`, while DAR currently supports and locally selects Python
   `3.14.6`. The branch was restored to clean `cb88c53`; pick up implementation
@@ -18,18 +24,19 @@
   Its first slice is retrieval-only and fake-testable, with an explicit
   fold-back gate to `metadata.rag_pipeline` if memory-specific identity and
   provenance do not justify a separate surface.
-- `specs/tool-descriptor-budgeting/spec.md` remains a future `ToolSelector`
-  feature for token-aware, prompt-aware tool descriptor packing. NLTK parser
-  work is explicitly deferred as a future benchmarked experiment, not
-  first-slice scope.
+- NLTK parser work for tool descriptor selection is explicitly deferred as a
+  future benchmarked experiment, not Slice T1 scope.
 - The previous completed stream resolved a downstream Power-Marimo blocker in
   `AgentSession.accept_stream(...)`: terminal stream events can now expose the
   same `AgentSessionResult`/`WorkflowResult` shape as `accept(...)`, and callers
   can choose progress events, terminal events, terminal session-result
   attachment, and progress event-type filters.
 - Recent commits:
-  - `cb88c53` prepared the LiteLLM provider adapter as the next implementation
-    candidate with plan/tasks/validation artifacts and a narrowed Slice L1.
+  - `c001c3f` prepared tool descriptor budgeting for implementation and aligned
+    the spec corpus around the LiteLLM Python 3.14 pause.
+  - `cb88c53` prepared the LiteLLM provider adapter as the then-current
+    implementation candidate with plan/tasks/validation artifacts and a
+    narrowed Slice L1.
   - `2183e74` recorded the outstanding-spec ROI ranking and marked the older
     roadmap order historical.
   - `234c4b0` refreshed the memory bank after memory-aware context work.
@@ -86,10 +93,10 @@
   traces, and runtime policy; Marimo, Qt/QExt, hosted UI lifecycle,
   Power-Marimo safety policy, SDK/session behavior, and live validation belong
   in `../power-marimo`.
-- `specs/litellm-provider-adapter/` is the prepared next implementation
-  candidate, but execution is paused until LiteLLM supports Python 3.14. Slice
-  L1 should add the required dependency and default direct SDK transport only
-  after that compatibility issue is gone.
+- `specs/tool-descriptor-budgeting/` is the prepared next feasible
+  implementation candidate while LiteLLM is paused for Python 3.14 support.
+  Slice T1 should add only opt-in descriptor budgeting around existing registry,
+  token-budget, and executor seams.
 - `docs/source/conf.py` was refreshed and committed separately to derive Sphinx
   project metadata from `pyproject.toml`/git config and to simplify the
   Confluence SSO session override path.
@@ -170,12 +177,9 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
-- The next ROI action is LiteLLM once Python 3.14-compatible LiteLLM metadata is
-  available. Until then, likely candidates are tool descriptor budgeting,
-  host-workflow integration polish, local-model advisory work,
-  provider-native streaming expansion, one of the prepared context-window
-  follow-up specs, the retrieval-only memory-aware first slice, or deferred
-  host/runtime integrations. Each requires a scoped plan before code changes.
+- The next ROI action is tool descriptor budgeting Slice T1 while LiteLLM waits
+  on Python 3.14-compatible dependency metadata. After LiteLLM is unblocked,
+  resume the prepared provider-adapter Slice L1.
 
 ## Recent Completed Work
 

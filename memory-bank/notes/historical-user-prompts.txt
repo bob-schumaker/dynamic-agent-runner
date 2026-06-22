@@ -648,3 +648,15 @@ execute litellm adapter spec and commit at appropriate points
 ---
 
 restore the current branch, 3.14 support is coming soon, we will pick it up then
+
+---
+
+refresh memory-bank and commit
+
+---
+
+prepare tool-descriptor-budgeting for implementation
+
+---
+
+commit spec corpus then refresh memory-bank and commit separately

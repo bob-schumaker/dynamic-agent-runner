@@ -133,12 +133,13 @@
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
   optional injected-evaluator advisory profile for resolved GGUF assets.
-- `litellm-provider-adapter` is prepared as the next implementation candidate.
-  Slice L1 has spec, plan, task, and validation artifacts for direct LiteLLM
-  Chat Completions transport, request/response translation, public factories,
-  fake tests, default-provider migration, and an explicit official-SDK
-  compatibility path. ChatGPT/Codex-on-LiteLLM remains deferred to a
-  Responses-aware follow-up slice.
+- `litellm-provider-adapter` is prepared as a high-ROI implementation
+  candidate, but execution is paused until LiteLLM supports DAR's Python 3.14
+  target. Slice L1 has spec, plan, task, and validation artifacts for direct
+  LiteLLM Chat Completions transport, request/response translation, public
+  factories, fake tests, default-provider migration, and an explicit
+  official-SDK compatibility path. ChatGPT/Codex-on-LiteLLM remains deferred to
+  a Responses-aware follow-up slice.
 - Executing LiteLLM Slice L1 is paused because `poetry add litellm` resolved to
   current LiteLLM metadata requiring Python `>=3.10,<3.14`, which conflicts with
   DAR's current Python 3.14.6 support. The attempted RED tests were discarded
@@ -158,11 +159,12 @@
   in-process consumers, and caller-controlled stream filters for progress
   events, terminal events, terminal session-result attachment, and progress
   event types.
-- `tool-descriptor-budgeting` is captured as a future prepared feature spec.
-  It proposes an optional `ToolSelector` policy that ranks eligible tools,
-  packs OpenAI-compatible descriptors within a token budget, records redacted
-  omission diagnostics, and leaves NLTK parser work as a benchmarked future
-  experiment.
+- `tool-descriptor-budgeting` is prepared as the next feasible implementation
+  candidate while LiteLLM is paused. Slice T1 has spec, plan, task, and
+  validation artifacts for an opt-in deterministic `ToolSelector` policy that
+  ranks only registry-exposed model tools, packs OpenAI-compatible descriptors
+  within a token budget, enforces required tools, records redacted diagnostics,
+  and leaves NLTK parser work as a benchmarked future experiment.
 - `memory-aware-context-pipeline` is captured as a proposed future feature spec.
   It adapts useful `memlayer` ideas into a DAR-native, caller-owned contract
   for durable agent/user memory retrieval, provenance, traceability, and
@@ -192,9 +194,12 @@
 
 ## Latest Milestones
 
-- `cb88c53` prepared the LiteLLM provider adapter as the next implementation
-  candidate with Slice L1 plan/tasks/validation artifacts and explicit deferral
-  of ChatGPT/Codex-on-LiteLLM.
+- `c001c3f` prepared `tool-descriptor-budgeting` for implementation with
+  Slice T1 plan/tasks/validation artifacts and aligned the spec corpus around
+  LiteLLM's Python 3.14 pause.
+- `cb88c53` prepared the LiteLLM provider adapter as the then-current
+  implementation candidate with Slice L1 plan/tasks/validation artifacts and
+  explicit deferral of ChatGPT/Codex-on-LiteLLM.
 - `2183e74` added the outstanding-spec ROI evaluation and linked it from the
   spec index.
 - `234c4b0` refreshed memory-bank state after the memory-aware context pipeline
