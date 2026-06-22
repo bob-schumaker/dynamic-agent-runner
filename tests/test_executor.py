@@ -2672,6 +2672,292 @@ def test_prepare_model_input_injected_semantic_excludes_retrieved_context_candid
     )
 
 
+def test_prepare_model_input_injected_semantic_rejects_invalid_selector_results() -> (
+    None
+):
+    def selector(
+        _query: str,
+        _candidates: tuple[ContextSelectionCandidate, ...],
+        _metadata: Mapping[str, object],
+    ) -> tuple[object, ...]:
+        return (
+            object(),
+            ContextSelection(turn_id="turn_99", score=0.42, reason="unknown"),
+            ContextSelection(turn_id="turn_2", score="bad"),
+            ContextSelection(turn_id="turn_1", score=0.6, reason="valid"),
+        )
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "invalid-semantic-selector-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Choose the right recovery note",
+        session_messages=(
+            OpenAIMessage(role="user", content="First candidate fact"),
+            OpenAIMessage(role="assistant", content="First candidate answer"),
+            OpenAIMessage(role="user", content="Second candidate fact"),
+            OpenAIMessage(role="assistant", content="Second candidate answer"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        context_selector=selector,
+    )
+
+    assert (
+        "First candidate fact" in prepared_input.named_parts["selected_turn_1"].content
+    )
+    assert prepared_input.preparation.selected_turns == (
+        {
+            "turn_id": "turn_1",
+            "selection_status": "selected",
+            "selection_reason": "valid",
+            "relevance_score": 0.6,
+            "selector": "injected_semantic",
+        },
+    )
+    assert prepared_input.preparation.rejected_turns == (
+        {
+            "selection_status": "rejected",
+            "selection_reason": "invalid_selector_result",
+            "selector": "injected_semantic",
+        },
+        {
+            "turn_id": "turn_99",
+            "selection_status": "rejected",
+            "selection_reason": "unknown_selector_turn",
+            "relevance_score": 0.42,
+            "selector": "injected_semantic",
+        },
+        {
+            "turn_id": "turn_2",
+            "selection_status": "rejected",
+            "selection_reason": "invalid_selector_score",
+            "selector": "injected_semantic",
+        },
+        {
+            "turn_id": "turn_2",
+            "selection_status": "rejected",
+            "selection_reason": "no_injected_semantic_score",
+            "relevance_score": 0,
+            "selector": "injected_semantic",
+        },
+    )
+
+
+def test_prepare_model_input_injected_semantic_selector_error_records_rejection() -> (
+    None
+):
+    def selector(
+        _query: str,
+        _candidates: tuple[ContextSelectionCandidate, ...],
+        _metadata: Mapping[str, object],
+    ) -> tuple[ContextSelection, ...]:
+        raise RuntimeError("secret selector text should not leak")
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "semantic-selector-error-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="question",
+        session_messages=(
+            OpenAIMessage(role="user", content="Older candidate fact"),
+            OpenAIMessage(role="assistant", content="Older candidate answer"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        context_selector=selector,
+    )
+
+    assert "selected_turn_1" not in prepared_input.named_parts
+    assert prepared_input.preparation.selected_turns == ()
+    assert prepared_input.preparation.rejected_turns == (
+        {
+            "selection_status": "rejected",
+            "selection_reason": "selector_error",
+            "error_type": "RuntimeError",
+            "selector": "injected_semantic",
+        },
+        {
+            "turn_id": "turn_1",
+            "selection_status": "rejected",
+            "selection_reason": "no_injected_semantic_score",
+            "relevance_score": 0,
+            "selector": "injected_semantic",
+        },
+    )
+    assert "secret selector text should not leak" not in repr(
+        prepared_input.preparation.rejected_turns
+    )
+
+
+def test_prepare_model_input_injected_semantic_trace_metadata_is_bounded() -> None:
+    def selector(
+        _query: str,
+        _candidates: tuple[ContextSelectionCandidate, ...],
+        _metadata: Mapping[str, object],
+    ) -> tuple[ContextSelection, ...]:
+        return (ContextSelection(turn_id="turn_1", score=0.7, reason="semantic"),)
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "semantic-selector-trace-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="question",
+        session_messages=(
+            OpenAIMessage(role="user", content="SENSITIVE-SELECTOR-CANDIDATE"),
+            OpenAIMessage(role="assistant", content="Selected answer"),
+            OpenAIMessage(role="user", content="Unscored older turn"),
+            OpenAIMessage(role="assistant", content="Unscored answer"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        tracer=tracer,
+        context_selector=selector,
+    )
+
+    [prepared_event] = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    payload = prepared_event.payload
+
+    assert payload["selection_policy"] == {
+        "profile": "semantic",
+        "strategy": "injected_semantic",
+        "max_selected_turns": 1,
+        "selector_status": "available",
+    }
+    assert payload["selected_turns"] == (
+        {
+            "turn_id": "turn_1",
+            "selection_status": "selected",
+            "selection_reason": "semantic",
+            "relevance_score": 0.7,
+            "selector": "injected_semantic",
+        },
+    )
+    assert payload["rejected_turns"] == (
+        {
+            "turn_id": "turn_2",
+            "selection_status": "rejected",
+            "selection_reason": "no_injected_semantic_score",
+            "relevance_score": 0,
+            "selector": "injected_semantic",
+        },
+    )
+    assert "SENSITIVE-SELECTOR-CANDIDATE" not in repr(payload)
+
+
 def test_execute_workflow_accepts_direct_context_selector_kwarg() -> None:
     def selector(
         _query: str,
