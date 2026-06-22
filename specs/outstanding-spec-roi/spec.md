@@ -37,7 +37,7 @@ ROI is judged by:
 
 | Rank | Spec Work | ROI | Rationale |
 | --- | --- | --- | --- |
-| 1 | `litellm-provider-adapter` | Very high | Broadens provider support behind the existing model-adapter boundary. High leverage if DAR is meant to be provider-flexible, but scope must be controlled because it changes the default transport path. |
+| 1 | `litellm-provider-adapter` | Very high | Selected as the next implementation candidate. Slice L1 is scoped to default direct SDK Chat Completions transport, fake tests, request/response translation, and an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
 | 2 | `tool-descriptor-budgeting` | High | Direct context-window win with bounded implementation. It is opt-in, fake-testable, and builds on existing registry and token-budget seams. NLTK remains deferred until benchmark evidence proves value. |
 | 3 | `host-workflow-integration` deferred pieces | High | Inline/generated manifest preflight, clearer lifecycle examples, and capability-report polish reduce downstream duplication. Power-Marimo has already proven the generic need. |
 | 4 | `semantic-context-profiles` deferred selector work | Medium-high | Builds on existing context-management behavior and improves prompt quality. Best next slice is a fake semantic selector protocol plus profile-specific diagnostics, with no embeddings or vector ownership. |
@@ -69,8 +69,8 @@ ROI is judged by:
 
 ## Recommended Order
 
-1. Implement `litellm-provider-adapter` if provider breadth is the main product
-   pressure.
+1. Implement `litellm-provider-adapter` Slice L1 next if provider breadth is
+   the main product pressure.
 2. Implement `tool-descriptor-budgeting` if context efficiency is the main
    product pressure.
 3. Finish `host-workflow-integration` polish, especially inline manifest
