@@ -58,6 +58,15 @@
   - loop lifecycle/final-output trace events
 - Registry-provided model tools use OpenAI Responses API function-tool shape
   with top-level `name`.
+- Tool descriptor budgeting Slice T1 is implemented:
+  - opt-in `runtime.execution_policy.tool_descriptor_budget` validation
+  - node-local `llm_step.tool_descriptor_budget` overrides
+  - deterministic `ToolSelector` ranking over registry-exposed model tools only
+  - OpenAI-compatible descriptor token/count packing
+  - required-tool enforcement before model dispatch
+  - redacted `model_request` trace diagnostics
+  - no NLTK, embeddings, vector stores, model-backed selection, or live-service
+    dependency
 - Package-owned PyInstaller support now includes a hook provider and bundled
   `openai_model_registry` hook that collects registry data files and
   distribution metadata for frozen downstream clients. The hook also collects
@@ -159,12 +168,9 @@
   in-process consumers, and caller-controlled stream filters for progress
   events, terminal events, terminal session-result attachment, and progress
   event types.
-- `tool-descriptor-budgeting` is prepared as the next feasible implementation
-  candidate while LiteLLM is paused. Slice T1 has spec, plan, task, and
-  validation artifacts for an opt-in deterministic `ToolSelector` policy that
-  ranks only registry-exposed model tools, packs OpenAI-compatible descriptors
-  within a token budget, enforces required tools, records redacted diagnostics,
-  and leaves NLTK parser work as a benchmarked future experiment.
+- `tool-descriptor-budgeting` is implemented through Slice T1. Completion
+  evidence is recorded in `specs/tool-descriptor-budgeting/validation.md`;
+  NLTK parser work remains a benchmarked future experiment.
 - `memory-aware-context-pipeline` is captured as a proposed future feature spec.
   It adapts useful `memlayer` ideas into a DAR-native, caller-owned contract
   for durable agent/user memory retrieval, provenance, traceability, and
@@ -194,6 +200,11 @@
 
 ## Latest Milestones
 
+- `f7ab5d5` recorded descriptor-budgeting completion across README, runtime
+  policy docs, spec index, task checklist, and validation evidence.
+- `fd1b54c` implemented opt-in tool descriptor budgeting with policy
+  validation, selector behavior, executor integration, redacted diagnostics,
+  and fake tests.
 - `c001c3f` prepared `tool-descriptor-budgeting` for implementation with
   Slice T1 plan/tasks/validation artifacts and aligned the spec corpus around
   LiteLLM's Python 3.14 pause.

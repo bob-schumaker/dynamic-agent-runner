@@ -660,3 +660,11 @@ prepare tool-descriptor-budgeting for implementation
 ---
 
 commit spec corpus then refresh memory-bank and commit separately
+
+---
+
+execute tool-descriptor-budgeting with commits at appropriate points
+
+---
+
+refresh memory-bank and commit

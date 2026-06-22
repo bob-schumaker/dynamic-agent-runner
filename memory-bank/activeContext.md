@@ -2,12 +2,11 @@
 
 ## Current Focus
 
-- No implementation slice is currently active. The latest completed spec work
-  prepared `specs/tool-descriptor-budgeting/` as the next feasible
-  implementation candidate with Slice T1 spec/plan/tasks/validation artifacts.
-  Slice T1 is opt-in, deterministic, fake-testable, and scoped to ranking and
-  packing only registry-exposed model tool descriptors before model request
-  construction.
+- No implementation slice is currently active. The latest completed runtime
+  work implemented `specs/tool-descriptor-budgeting/` Slice T1. The feature is
+  opt-in and deterministic: it validates runtime/node policy, ranks only
+  registry-exposed model tools, packs descriptors within token/count limits,
+  enforces required tools before dispatch, and emits redacted diagnostics.
 - `specs/litellm-provider-adapter/` remains prepared as a high-ROI Slice L1,
   but execution is paused until LiteLLM supports DAR's Python 3.14 target.
   Slice L1 remains scoped to direct LiteLLM Chat Completions transport,
@@ -32,6 +31,10 @@
   can choose progress events, terminal events, terminal session-result
   attachment, and progress event-type filters.
 - Recent commits:
+  - `f7ab5d5` recorded descriptor-budgeting completion in README, runtime
+    policy docs, spec index, and validation artifacts.
+  - `fd1b54c` implemented opt-in tool descriptor budgeting in registry,
+    validation, token estimation, executor integration, and tests.
   - `c001c3f` prepared tool descriptor budgeting for implementation and aligned
     the spec corpus around the LiteLLM Python 3.14 pause.
   - `cb88c53` prepared the LiteLLM provider adapter as the then-current
@@ -93,10 +96,9 @@
   traces, and runtime policy; Marimo, Qt/QExt, hosted UI lifecycle,
   Power-Marimo safety policy, SDK/session behavior, and live validation belong
   in `../power-marimo`.
-- `specs/tool-descriptor-budgeting/` is the prepared next feasible
-  implementation candidate while LiteLLM is paused for Python 3.14 support.
-  Slice T1 should add only opt-in descriptor budgeting around existing registry,
-  token-budget, and executor seams.
+- `specs/tool-descriptor-budgeting/` is implemented through Slice T1. NLTK,
+  embeddings, vector stores, descriptor compression, model-backed selection,
+  capability/status reporting, and richer fallback behavior remain deferred.
 - `docs/source/conf.py` was refreshed and committed separately to derive Sphinx
   project metadata from `pyproject.toml`/git config and to simplify the
   Confluence SSO session override path.
@@ -177,9 +179,9 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
-- The next ROI action is tool descriptor budgeting Slice T1 while LiteLLM waits
-  on Python 3.14-compatible dependency metadata. After LiteLLM is unblocked,
-  resume the prepared provider-adapter Slice L1.
+- The next ROI action should be selected from the remaining outstanding queue.
+  LiteLLM Slice L1 remains prepared but paused until Python 3.14-compatible
+  dependency metadata is available.
 
 ## Recent Completed Work
 
