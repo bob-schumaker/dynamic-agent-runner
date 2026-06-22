@@ -5,7 +5,7 @@
 - Feature slug: `host-workflow-integration`
 - Mode: `light`
 - Artifact type: implemented feature specification
-- Status: implemented v1 baseline from downstream Power-Marimo evidence
+- Status: implemented v1 baseline; Slice H2 prepared for implementation
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related existing specs:
   - `specs/capability-status-report/spec.md`
@@ -65,10 +65,44 @@ Completed:
 Deferred:
 
 - inline/generated manifest capability preflight without temporary package dirs
-- capability-report extensions that expose canonical/model-facing ids in every
-  relevant report path
+  is prepared as Slice H2
+- capability-report extensions that expose canonical/model-facing ids in host
+  tool report paths are prepared as Slice H2
 - fuller public lifecycle examples for direct execution, reusable contexts, and
-  `AgentSession`
+  `AgentSession` are prepared as Slice H2
+
+## Prepared Implementation Slice H2
+
+Slice H2 is the next implementation candidate for this spec while
+`litellm-provider-adapter` remains paused on Python-version support. The slice
+keeps the existing v1 helper surface and adds only the deferred host-facing
+preflight and documentation pieces that are fake-testable today.
+
+Prepared scope:
+
+1. Add a public preflight helper for inline runtime manifests and already loaded
+   `LoadedAgentWorkflow` objects.
+2. Reuse the existing `CapabilityStatusReport` contract and package-directory
+   invalid/strict behavior.
+3. Surface host canonical ids, model-facing ids, and aliases in relevant tool
+   capability details when the supplied registry was built from
+   `HostToolBinding`.
+4. Update public lifecycle guidance for direct execution, reusable
+   `WorkflowExecutionContext`, and `AgentSession`.
+
+Out of scope for H2:
+
+- new executor or session semantics
+- host-specific behavior from Power-Marimo or any other downstream application
+- live model, network, GUI, or external host calls in tests
+- a second capability report type
+- runner-owned durable host state
+
+Implementation artifacts:
+
+- [`plan.md`](plan.md)
+- [`tasks.md`](tasks.md)
+- [`validation.md`](validation.md)
 
 ## Problem Statement
 
@@ -232,10 +266,11 @@ Completed v1 slices:
 
 Deferred slices:
 
-1. RED: inline capability preflight tests; GREEN: inspect manifest string or
+1. Slice H2: inline capability preflight tests; inspect manifest string or
    loaded workflow without temporary package dirs.
-2. RED: docs/API examples; GREEN: host lifecycle guidance for direct execution,
-   reusable context, and `AgentSession`.
+2. Slice H2: capability report host id details for host-bound tools.
+3. Slice H2: docs/API examples for direct execution, reusable context, and
+   `AgentSession`.
 
 ## Validation Checklist
 

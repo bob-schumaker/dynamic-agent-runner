@@ -38,7 +38,7 @@ ROI is judged by:
 | Rank | Spec Work | ROI | Rationale |
 | --- | --- | --- | --- |
 | 1 | `litellm-provider-adapter` | Very high, paused | Slice L1 remains prepared, but implementation is paused until LiteLLM supports the package's Python 3.14 target. The prepared scope is default direct SDK Chat Completions transport, fake tests, request/response translation, and an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
-| 2 | `host-workflow-integration` deferred pieces | High | Inline/generated manifest preflight, clearer lifecycle examples, and capability-report polish reduce downstream duplication. Power-Marimo has already proven the generic need. |
+| 2 | `host-workflow-integration` Slice H2 | High, prepared next | Inline/generated manifest preflight, clearer lifecycle examples, and host id capability-report polish reduce downstream duplication. The slice is fake-testable now and avoids the paused LiteLLM dependency. |
 | 3 | `semantic-context-profiles` deferred selector work | Medium-high | Builds on existing context-management behavior and improves prompt quality. Best next slice is a fake semantic selector protocol plus profile-specific diagnostics, with no embeddings or vector ownership. |
 | 4 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
 
@@ -68,10 +68,9 @@ ROI is judged by:
 
 ## Recommended Order
 
-1. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
+1. Implement `host-workflow-integration` Slice H2 while LiteLLM remains paused.
+2. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
    package's Python target.
-2. Finish `host-workflow-integration` polish, especially inline manifest
-   preflight.
 3. Add the `semantic-context-profiles` fake-selector slice.
 4. Run the `memory-aware-context-pipeline` first-slice validation to decide
    whether it remains separate from RAG.
