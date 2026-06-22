@@ -148,11 +148,13 @@ needs a scoped plan and task slice before code changes begin.
 11. **Complete for v1 host/tool/collaboration surfaces:** host workflow
     integration, web tools, workspace data tools, subagent tools, model-backed
     summaries, exact/hybrid semantic selection, and in-memory collaborative
-    sessions have v1 baselines. Remaining work is narrower follow-up: inline
-    preflight, richer capability/status reporting, trace correlation,
-    streaming/wait/resume, provider-backed compaction, and richer semantic
-    selectors. Keep `power-marimo-host-automation` as a downstream-boundary
-    record rather than a DAR implementation target.
+    sessions have v1 baselines. Host workflow integration now also covers
+    inline/generated and loaded-workflow preflight plus host id capability
+    details. Remaining work is narrower follow-up: richer capability/status
+    reporting for other tool packs, trace correlation, streaming/wait/resume,
+    provider-backed compaction, and richer semantic selectors. Keep
+    `power-marimo-host-automation` as a downstream-boundary record rather than a
+    DAR implementation target.
 12. **Async session memory pipeline:** keep v1 host-managed. Add runner-owned
     durable session storage only after a concrete workflow proves host-managed
     continuity is insufficient.

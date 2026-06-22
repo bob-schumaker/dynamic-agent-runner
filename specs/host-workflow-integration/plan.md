@@ -4,7 +4,7 @@
 
 - Feature slug: `host-workflow-integration`
 - Slice: H2 inline preflight and host lifecycle polish
-- Status: prepared for implementation
+- Status: implemented
 - Date: 2026-06-22
 - Owning spec: [`spec.md`](spec.md)
 
@@ -31,11 +31,11 @@ The package already has the right lower-level pieces:
 - README and `docs/files/python-api.rst` already describe direct execution,
   reusable contexts, capability preflight, and `AgentSession`.
 
-H2 should connect these pieces; it should not add a new runtime layer.
+H2 connected these pieces without adding a new runtime layer.
 
 ## Proposed API Shape
 
-Add a small public helper in the capability/host integration boundary:
+The implemented public helper in the capability/host integration boundary is:
 
 ```python
 inspect_agent_workflow_capabilities(
@@ -56,8 +56,7 @@ inspect_agent_workflow_capabilities(
 ) -> CapabilityStatusReport
 ```
 
-The implementation may adjust the exact name if local conventions indicate a
-better fit, but the public contract should remain:
+The public contract is:
 
 - accept either `workflow` or inline artifact inputs, not both
 - return `CapabilityStatusReport`
@@ -91,7 +90,7 @@ better fit, but the public contract should remain:
 
 ## Implementation Boundaries
 
-Expected code touch points:
+Implemented code touch points:
 
 - `src/dynamic_agent_runner/capabilities.py`
 - `src/dynamic_agent_runner/host_integration.py`

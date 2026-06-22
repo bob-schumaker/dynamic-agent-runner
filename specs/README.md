@@ -237,8 +237,8 @@ plan and task slice before code changes begin.
     pre-download filtering, plus any concrete llama.cpp command or metadata
     probing beyond the completed injected-evaluator
     `llama-cpp-memory-fit-profile` v1 baseline.
-11. Complete: implement `host-workflow-integration` Slice H2 before more
-    downstream clients duplicate inline preflight, host id report details, or
+11. Complete: `host-workflow-integration` Slice H2 prevents downstream clients
+    from duplicating inline preflight, host id report details, or
     context/session lifecycle glue. Keep
     `power-marimo-host-automation` as a downstream-boundary record, not an
     implementation target.
