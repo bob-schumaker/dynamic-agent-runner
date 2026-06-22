@@ -539,6 +539,67 @@ def test_chatgpt_codex_adapter_moves_prompt_messages_to_instructions() -> None:
     assert result.content == "via provider"
 
 
+def test_chatgpt_codex_adapter_converts_structured_tool_loop_transcript() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels({"models": [{"slug": "codex-mini-latest"}]})
+    provider = FakeProvider(
+        responses,
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=models,
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+    request = build_openai_request(
+        model="codex-mini-latest",
+        messages=[
+            OpenAIMessage("system", "System rules."),
+            OpenAIMessage("user", "Find agents."),
+            {
+                "role": "assistant",
+                "content": "Tool call call_1: search_repo",
+                "_dar_transcript_type": "model_tool_call",
+                "call_id": "call_1",
+                "name": "search_repo",
+                "arguments": '{"query":"agents"}',
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "name": "search_repo",
+                "content": '{"summary":"agents found"}',
+                "_dar_transcript_type": "model_tool_result",
+                "call_id": "call_1",
+                "output": '{"summary":"agents found"}',
+            },
+        ],
+    )
+
+    result = adapter.create_response(request)
+
+    assert result.content == "via provider"
+    assert responses.calls == [
+        {
+            "model": "codex-mini-latest",
+            "input": [
+                {"role": "user", "content": "Find agents."},
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "search_repo",
+                    "arguments": '{"query":"agents"}',
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": '{"summary":"agents found"}',
+                },
+            ],
+            "instructions": "System rules.",
+            "store": False,
+            "stream": True,
+        }
+    ]
+
+
 def test_chatgpt_codex_adapter_rejects_unlisted_model_before_request() -> None:
     responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
     models = FakeModels({"data": [{"id": "codex-mini-latest"}]})
@@ -885,6 +946,84 @@ def test_create_openai_response_normalizes_streaming_text() -> None:
     assert result.content == "hello"
 
 
+def test_create_openai_response_preserves_streamed_function_call_output_item() -> None:
+    responses = FakeResponses(
+        [
+            SimpleNamespace(type="response.created", response={"id": "resp_stream"}),
+            SimpleNamespace(
+                type="response.output_item.done",
+                item={
+                    "type": "function_call",
+                    "call_id": "call_stream",
+                    "name": "search_repo",
+                    "arguments": '{"query":"adapter"}',
+                },
+            ),
+            SimpleNamespace(
+                type="response.completed",
+                response={"id": "resp_stream", "output": []},
+            ),
+        ]
+    )
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+        stream=True,
+    )
+
+    result = create_openai_response(FakeClient(responses), request)
+
+    assert result.response_id == "resp_stream"
+    assert result.content is None
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].id == "call_stream"
+    assert result.tool_calls[0].name == "search_repo"
+    assert result.tool_calls[0].arguments == '{"query":"adapter"}'
+
+
+def test_create_openai_response_prefers_completed_output_over_streamed_items() -> None:
+    responses = FakeResponses(
+        [
+            SimpleNamespace(type="response.created", response={"id": "resp_stream"}),
+            SimpleNamespace(
+                type="response.output_item.done",
+                item={
+                    "type": "function_call",
+                    "call_id": "call_stream",
+                    "name": "stream_tool",
+                    "arguments": '{"source":"stream"}',
+                },
+            ),
+            SimpleNamespace(
+                type="response.completed",
+                response={
+                    "id": "resp_stream",
+                    "output": [
+                        {
+                            "type": "function_call",
+                            "call_id": "call_completed",
+                            "name": "completed_tool",
+                            "arguments": '{"source":"completed"}',
+                        }
+                    ],
+                },
+            ),
+        ]
+    )
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+        stream=True,
+    )
+
+    result = create_openai_response(FakeClient(responses), request)
+
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].id == "call_completed"
+    assert result.tool_calls[0].name == "completed_tool"
+    assert result.tool_calls[0].arguments == '{"source":"completed"}'
+
+
 def test_create_async_openai_response_normalizes_streaming_text() -> None:
     class FakeAsyncStream:
         def __aiter__(self):
@@ -921,6 +1060,53 @@ def test_create_async_openai_response_normalizes_streaming_text() -> None:
     ]
     assert result.response_id == "resp_stream"
     assert result.content == "hello"
+
+
+def test_create_async_openai_response_preserves_streamed_function_call_output_item() -> (
+    None
+):
+    class FakeAsyncStream:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self) -> object:
+            if not events:
+                raise StopAsyncIteration
+            return events.pop(0)
+
+    events = [
+        SimpleNamespace(type="response.created", response={"id": "resp_stream"}),
+        SimpleNamespace(
+            type="response.output_item.done",
+            item={
+                "type": "function_call",
+                "call_id": "call_async_stream",
+                "name": "search_repo",
+                "arguments": '{"query":"async"}',
+            },
+        ),
+        SimpleNamespace(
+            type="response.completed",
+            response={"id": "resp_stream", "output": []},
+        ),
+    ]
+    responses = FakeAsyncResponses(FakeAsyncStream())
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+        stream=True,
+    )
+
+    result = asyncio.run(
+        create_async_openai_response(FakeAsyncClient(responses), request)
+    )
+
+    assert result.response_id == "resp_stream"
+    assert result.content is None
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].id == "call_async_stream"
+    assert result.tool_calls[0].name == "search_repo"
+    assert result.tool_calls[0].arguments == '{"query":"async"}'
 
 
 def test_adapter_wraps_model_failures() -> None:

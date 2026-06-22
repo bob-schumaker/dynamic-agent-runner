@@ -305,6 +305,26 @@ class ToolUseCompletionPolicy:
 
 
 @dataclass(frozen=True)
+class ToolChoicePolicy:
+    """Model tool-choice policy split by initial and post-tool loop phase."""
+
+    initial: str | None = None
+    after_tool_result: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> ToolChoicePolicy:
+        """Build tool-choice policy metadata from a manifest mapping."""
+
+        raw = dict(value)
+        return cls(
+            initial=_optional_str(raw.get("initial")),
+            after_tool_result=_optional_str(raw.get("after_tool_result")),
+            raw=raw,
+        )
+
+
+@dataclass(frozen=True)
 class ApprovalInterruptionPolicy:
     """Deferred approval interruption metadata for future pause/resume runtimes."""
 
@@ -651,6 +671,7 @@ class RuntimeManifest:
     mcp_registry_sources: tuple[MCPRegistrySource, ...] = ()
     mcp_lifecycle_diagnostics: MCPLifecycleDiagnostics | None = None
     tool_use_completion_policy: ToolUseCompletionPolicy | None = None
+    tool_choice_policy: ToolChoicePolicy | None = None
     approval_interruption_policy: ApprovalInterruptionPolicy | None = None
     async_session_policy: AsyncSessionPolicy | None = None
     sandbox_runtime_policy: SandboxRuntimePolicy | None = None
@@ -681,6 +702,7 @@ class RuntimeManifest:
         mcp_registry_sources = _mcp_registry_sources(extensions)
         mcp_lifecycle_diagnostics = _mcp_lifecycle_diagnostics(extensions)
         tool_use_completion = _as_mapping(execution_policy.get("tool_use_completion"))
+        tool_choice_policy = _as_mapping(execution_policy.get("tool_choice_policy"))
         approval_interruption = _as_mapping(
             execution_policy.get("approval_interruption")
         )
@@ -719,6 +741,11 @@ class RuntimeManifest:
             tool_use_completion_policy=(
                 ToolUseCompletionPolicy.from_mapping(tool_use_completion)
                 if tool_use_completion is not None
+                else None
+            ),
+            tool_choice_policy=(
+                ToolChoicePolicy.from_mapping(tool_choice_policy)
+                if tool_choice_policy is not None
                 else None
             ),
             approval_interruption_policy=(
@@ -977,6 +1004,7 @@ class PreparedNode:
     model_parameters: Mapping[str, Any] = field(default_factory=dict)
     model_requirements: Mapping[str, Any] = field(default_factory=dict)
     tool_choice: Any = None
+    tool_choice_policy: ToolChoicePolicy | None = None
     response_format: Mapping[str, Any] | None = None
     inputs: Mapping[str, Any] = field(default_factory=dict)
     inputs_from: Any = None
@@ -1001,6 +1029,7 @@ class ExecutionPlan:
     edges_by_source: Mapping[str, tuple[RuntimeEdge, ...]] = field(default_factory=dict)
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
     tool_use_completion_policy: ToolUseCompletionPolicy | None = None
+    tool_choice_policy: ToolChoicePolicy | None = None
     approval_interruption_policy: ApprovalInterruptionPolicy | None = None
     async_session_policy: AsyncSessionPolicy | None = None
     sandbox_runtime_policy: SandboxRuntimePolicy | None = None
@@ -1036,6 +1065,7 @@ def prepare_execution_plan(
         edges_by_source=_edges_by_source(manifest.edges),
         execution_policy=execution_policy,
         tool_use_completion_policy=manifest.tool_use_completion_policy,
+        tool_choice_policy=manifest.tool_choice_policy,
         approval_interruption_policy=manifest.approval_interruption_policy,
         async_session_policy=manifest.async_session_policy,
         sandbox_runtime_policy=manifest.sandbox_runtime_policy,
@@ -1075,6 +1105,12 @@ def _prepare_node(
         model_parameters=_copy_mapping(_as_mapping(raw.get("model_parameters"))),
         model_requirements=_copy_mapping(_as_mapping(raw.get("model_requirements"))),
         tool_choice=raw.get("tool_choice"),
+        tool_choice_policy=(
+            ToolChoicePolicy.from_mapping(tool_choice_policy)
+            if (tool_choice_policy := _as_mapping(raw.get("tool_choice_policy")))
+            is not None
+            else None
+        ),
         response_format=_as_mapping(raw.get("response_format")),
         inputs=_copy_mapping(_as_mapping(raw.get("inputs"))),
         inputs_from=raw.get("inputs_from"),

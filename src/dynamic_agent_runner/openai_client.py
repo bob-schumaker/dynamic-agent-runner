@@ -32,6 +32,9 @@ CHATGPT_CODEX_PROVIDER_NAME = "chatgpt-codex"
 CHATGPT_CODEX_FALLBACK_CLIENT_VERSION = "0.137.0"
 CODEX_AUTH_API_KEY_FIRST = "api_key_first"
 CODEX_AUTH_CHATGPT_FIRST = "chatgpt_first"
+_DAR_TRANSCRIPT_TYPE_KEY = "_dar_transcript_type"
+_DAR_MODEL_TOOL_CALL = "model_tool_call"
+_DAR_MODEL_TOOL_RESULT = "model_tool_result"
 
 
 class OpenAIResponsesResource(Protocol):
@@ -188,7 +191,9 @@ class OpenAIModelRequest:
 
         kwargs: dict[str, Any] = {
             "model": self.model,
-            "input": list(self.messages),
+            "input": [
+                _request_message_to_provider_input(message) for message in self.messages
+            ],
         }
         if self.tools:
             kwargs["tools"] = [dict(tool) for tool in self.tools]
@@ -782,6 +787,7 @@ async def _normalize_async_openai_stream(raw_stream: Any) -> ModelResponse:
 
 def _normalize_openai_stream_events(events: Sequence[Any]) -> ModelResponse:
     deltas: list[str] = []
+    output_items: list[Any] = []
     response_id: str | None = None
     completed_response: Any = None
     for event in events:
@@ -791,22 +797,50 @@ def _normalize_openai_stream_events(events: Sequence[Any]) -> ModelResponse:
             if delta is not None:
                 deltas.append(str(delta))
             continue
+        if event_type == "response.output_item.done":
+            item = _read_value(event, "item")
+            if item is not None:
+                output_items.append(item)
+            continue
         response = _read_value(event, "response")
         if response is not None:
             response_id = _optional_str(_read_value(response, "id")) or response_id
             if event_type == "response.completed":
                 completed_response = response
 
+    streamed_response = (
+        normalize_openai_response({"id": response_id, "output": output_items})
+        if output_items
+        else None
+    )
     if completed_response is not None:
         normalized = normalize_openai_response(completed_response)
         return ModelResponse(
-            content=normalized.content or ("".join(deltas) if deltas else None),
-            tool_calls=normalized.tool_calls,
+            content=(
+                normalized.content
+                or (
+                    streamed_response.content if streamed_response is not None else None
+                )
+                or ("".join(deltas) if deltas else None)
+            ),
+            tool_calls=normalized.tool_calls
+            or (
+                streamed_response.tool_calls
+                if streamed_response is not None
+                else normalized.tool_calls
+            ),
             response_id=normalized.response_id or response_id,
             raw=completed_response,
         )
     return ModelResponse(
-        content="".join(deltas) if deltas else None,
+        content=(
+            streamed_response.content
+            if streamed_response is not None and streamed_response.content is not None
+            else ("".join(deltas) if deltas else None)
+        ),
+        tool_calls=(
+            streamed_response.tool_calls if streamed_response is not None else ()
+        ),
         response_id=response_id,
         raw=tuple(events),
     )
@@ -835,6 +869,10 @@ def _prepare_chatgpt_codex_request(
     input_messages: list[Mapping[str, Any]] = []
     instruction_parts: list[str] = []
     for message in request.messages:
+        transcript_item = _chatgpt_codex_transcript_input_item(message)
+        if transcript_item is not None:
+            input_messages.append(transcript_item)
+            continue
         role = str(message.get("role") or "")
         content = message.get("content")
         if role in {"system", "developer"}:
@@ -863,6 +901,40 @@ def _prepare_chatgpt_codex_request(
         response_format=request.response_format,
         extra=extra,
     )
+
+
+def _chatgpt_codex_transcript_input_item(
+    message: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    transcript_type = message.get(_DAR_TRANSCRIPT_TYPE_KEY)
+    if transcript_type == _DAR_MODEL_TOOL_CALL:
+        return {
+            "type": "function_call",
+            "call_id": str(message.get("call_id") or message.get("tool_call_id") or ""),
+            "name": str(message.get("name") or ""),
+            "arguments": str(message.get("arguments") or "{}"),
+        }
+    if transcript_type == _DAR_MODEL_TOOL_RESULT:
+        return {
+            "type": "function_call_output",
+            "call_id": str(message.get("call_id") or message.get("tool_call_id") or ""),
+            "output": str(message.get("output") or message.get("content") or ""),
+        }
+    return None
+
+
+def _request_message_to_provider_input(message: Mapping[str, Any]) -> Mapping[str, Any]:
+    if message.get(_DAR_TRANSCRIPT_TYPE_KEY) is None:
+        return dict(message)
+    if message.get(_DAR_TRANSCRIPT_TYPE_KEY) == _DAR_MODEL_TOOL_CALL:
+        return {
+            key: value for key, value in message.items() if key in {"role", "content"}
+        }
+    return {
+        key: value
+        for key, value in message.items()
+        if key in {"role", "tool_call_id", "name", "content"}
+    }
 
 
 def _chatgpt_codex_models_extra_query() -> dict[str, str]:

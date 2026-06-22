@@ -114,6 +114,38 @@ The loop is bounded by ``max_steps`` when configured, otherwise by the runtime's
 internal default. Approval-required tool calls can return an interruption result
 from the lower-level executor APIs.
 
+.. header2:: Tool choice policy
+
+``tool_choice_policy`` is disabled unless configured. It separates first-turn
+tool forcing from follow-up model requests after a tool result has been added to
+the iterative loop transcript.
+
+.. code-block:: yaml
+
+   runtime:
+     execution_policy:
+       tool_choice_policy:
+         initial: required
+         after_tool_result: auto
+
+Supported values are ``required`` and ``auto``. ``required`` sends forced tool
+choice for that phase; ``auto`` omits forced ``tool_choice`` and lets the model
+answer without another tool call. Node-local policy can override the runtime
+default:
+
+.. code-block:: yaml
+
+   nodes:
+   - id: reason
+     kind: llm_step
+     tool_choice_policy:
+       initial: required
+       after_tool_result: auto
+
+Legacy node-level ``tool_choice`` remains supported when no explicit
+``tool_choice_policy`` is configured. A node that sets both fields fails
+validation.
+
 .. header2:: Token budgeting
 
 Token budgeting is disabled unless configured. A policy can fail before a model

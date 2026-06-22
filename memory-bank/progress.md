@@ -11,6 +11,12 @@
   metadata-only future surfaces.
 - Default OpenAI/Codex auth discovery and ChatGPT/Codex backend compatibility
   are implemented.
+- `openai-responses-tool-loop-compat` Slice R1 is implemented as the upstream
+  response to a downstream Power Marimo feature request. It replaces the need
+  for Power Marimo's local private monkey patch by preserving streamed
+  Responses function calls, rendering Responses-compatible tool-loop follow-up
+  input, adding explicit `tool_choice_policy`, and using model-facing top-level
+  `tool_results`.
 - llama.cpp and MLX local-model adapters are implemented through their current
   scoped baselines. The MLX adapter now supports converted-MLX and GGUF model
   formats, resolved-path loading, filtered generation kwargs with request-level
@@ -194,6 +200,10 @@
   Pruning-context graph injection was completed through
   `internal-graph-mutation` and `context-management-prepare-stage` without
   adding durable runner-owned memory to OA8.
+- `openai-responses-tool-loop-compat` is implemented through Slice R1. Its
+  downstream request note is stored under `cline-tasks/`, and the implementation
+  boundary keeps Power Marimo domain compaction downstream while making DAR own
+  generic OpenAI Responses/tool-loop compatibility.
 - Graphify is initialized for the repo with ignored generated output in
   `graphify-out/`. The current graph is AST/code-only and queryable through
   `graphify query`, `graphify path`, and `graphify explain`; semantic
@@ -203,15 +213,33 @@
   execution with host-provided registries/adapters/context; `../power-marimo`
   owns Marimo, Qt/QExt, hosted lifecycle, app safety policy, SDK/session
   behavior, and live validation.
-- Downstream Power-Marimo implementation handoff notes now exist under
-  `../power-marimo/cline-tasks/` for the expanded MLX API surface and for
+- Downstream Power-Marimo implementation handoff notes exist under
+  `../power-marimo/cline-tasks/` for the expanded MLX API surface and
   host-automation migration toward the implemented DAR host-integration APIs.
-- The Python 3.14.6 `.mise.toml`/`poetry.lock` refresh was committed and then
-  reverted. A fresh redo commit is intentionally pending after the memory-bank
-  refresh so downstream build automation sees a new triggering commit.
+  A newer handoff note under `../power-marimo/nonspec-tasks/` explains how to
+  adopt DAR's Responses tool-loop compatibility, remove the temporary
+  `openai_responses_compat` patch, migrate to `tool_choice_policy`, and keep
+  Power Marimo domain compaction downstream.
+- The spec corpus now ranks `memory-aware-context-pipeline` first-slice
+  validation as the next ROI action while LiteLLM remains paused on Python 3.14
+  dependency compatibility.
 
 ## Latest Milestones
 
+- `c263146` completed OpenAI Responses tool-loop Slice R1 across the feature
+  spec, spec index, ROI notes, and dynamic-agent-runner roadmap.
+- `a1e7a20` rendered top-level `{{tool_results}}` using
+  `ToolResult.model_facing_output` while preserving raw state.
+- `0aae18f` added phase-aware runtime/node-local `tool_choice_policy`.
+- `2686de1` rendered structured tool-loop transcripts as Responses
+  `function_call`/`function_call_output` follow-ups for ChatGPT/Codex.
+- `50463ee` preserved streamed Responses function-call output items.
+- `4572d29` refreshed memory-bank state during Responses R1 execution.
+- `8395c58` prepared OpenAI Responses tool-loop compatibility Slice R1 with
+  plan/tasks/validation artifacts and aligned the ROI/spec corpus around it as
+  the then-current highest-value non-paused candidate.
+- `17834d1` added the OpenAI Responses tool-loop compatibility spec and the
+  captured downstream Power Marimo feature-request note.
 - `0fa4d47` aligned host-workflow H2 status across the spec corpus after
   implementation.
 - `278c933` implemented host workflow inline/generated and loaded-workflow

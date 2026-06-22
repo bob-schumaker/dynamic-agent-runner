@@ -77,6 +77,7 @@ ROI is judged by:
 
 | Spec Work | Completed Slice | Evidence |
 | --- | --- | --- |
+| `openai-responses-tool-loop-compat` | Slice R1 | Streamed Responses function-call preservation, structured transcript rendering, ChatGPT/Codex `function_call_output` follow-ups, `tool_choice_policy`, model-facing `tool_results`, docs, and fake tests |
 | `tool-descriptor-budgeting` | Slice T1 | `fd1b54c` implemented opt-in descriptor budgeting; `f7ab5d5` recorded completion evidence and runtime policy docs |
 | `host-workflow-integration` | Slice H2 | Inline/generated and loaded-workflow capability preflight, host id capability details, lifecycle docs, and fake tests |
 | `semantic-context-profiles` | Slice S1 | Caller-injected semantic older-turn selector, missing-selector fallback diagnostics, exact identifier protection, RAG lane separation, public selector contracts, docs, and fake tests |

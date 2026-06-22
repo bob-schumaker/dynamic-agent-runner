@@ -260,6 +260,7 @@ class PreparedModelInput:
     preparation: PreparedInputMetadata = field(default_factory=PreparedInputMetadata)
     model_parameters: Mapping[str, Any] = field(default_factory=dict)
     tool_choice: Any = None
+    tool_choice_policy: Any = None
     response_format: Mapping[str, Any] | None = None
     context_compactor: ContextCompactor | None = None
 
@@ -592,6 +593,7 @@ def prepare_model_input(
         preparation=preparation,
         model_parameters=_model_parameters(node),
         tool_choice=node.tool_choice,
+        tool_choice_policy=node.tool_choice_policy,
         response_format=node.response_format,
         context_compactor=context_compactor,
     )
@@ -828,7 +830,11 @@ async def _execute_llm_step_async(
         model=prepared_input.model,
         messages=prepared_input.messages,
         tools=tools,
-        tool_choice=prepared_input.tool_choice,
+        tool_choice=_tool_choice_for_phase(
+            plan,
+            prepared_input,
+            phase="initial",
+        ),
         response_format=prepared_input.response_format,
         **prepared_input.model_parameters,
     )
@@ -1002,7 +1008,11 @@ async def _retry_model_after_context_overflow_async(
         model=prepared_input.model,
         messages=replacement_messages,
         tools=tools,
-        tool_choice=prepared_input.tool_choice,
+        tool_choice=_tool_choice_for_phase(
+            plan,
+            prepared_input,
+            phase="initial",
+        ),
         response_format=prepared_input.response_format,
         **prepared_input.model_parameters,
     )
@@ -1021,6 +1031,23 @@ async def _retry_model_after_context_overflow_async(
 def _iterative_loop_enabled(plan: ExecutionPlan) -> bool:
     policy = plan.tool_use_completion_policy
     return bool(policy is not None and policy.run_again == "required")
+
+
+def _tool_choice_for_phase(
+    plan: ExecutionPlan,
+    prepared_input: PreparedModelInput,
+    *,
+    phase: str,
+) -> Any:
+    for policy in (prepared_input.tool_choice_policy, plan.tool_choice_policy):
+        if policy is None:
+            continue
+        value = getattr(policy, phase, None)
+        if value == "auto":
+            return None
+        if value == "required":
+            return "required"
+    return prepared_input.tool_choice
 
 
 async def _execute_model_tool_loop_async(
@@ -1166,7 +1193,11 @@ async def _request_loop_model_response_async(
         model=prepared_input.model,
         messages=messages,
         tools=tools,
-        tool_choice=prepared_input.tool_choice,
+        tool_choice=_tool_choice_for_phase(
+            plan,
+            prepared_input,
+            phase="after_tool_result",
+        ),
         response_format=prepared_input.response_format,
         **prepared_input.model_parameters,
     )
@@ -1450,16 +1481,29 @@ def _model_tool_call_id(tool_call: ModelToolCall, iteration: int) -> str:
 def _model_tool_result_messages(
     tool_call: ModelToolCall, tool_call_id: str, result: ToolResult
 ) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+    model_output = json.dumps(result.model_facing_output)
+    arguments = (
+        tool_call.arguments
+        if isinstance(tool_call.arguments, str)
+        else json.dumps(tool_call.arguments)
+    )
     return (
         {
             "role": "assistant",
             "content": f"Tool call {tool_call_id}: {tool_call.name}",
+            "_dar_transcript_type": "model_tool_call",
+            "call_id": tool_call_id,
+            "name": tool_call.name,
+            "arguments": arguments,
         },
         {
             "role": "tool",
             "tool_call_id": tool_call_id,
             "name": tool_call.name,
-            "content": json.dumps(result.model_facing_output),
+            "content": model_output,
+            "_dar_transcript_type": "model_tool_result",
+            "call_id": tool_call_id,
+            "output": model_output,
         },
     )
 
@@ -4135,7 +4179,10 @@ def _format_context(state: WorkflowExecutionState) -> dict[str, Any]:
     context: dict[str, Any] = {
         "prompt": state.prompt,
         "node_outputs": state.node_outputs,
-        "tool_results": state.tool_results,
+        "tool_results": {
+            key: result.model_facing_output
+            for key, result in state.tool_results.items()
+        },
     }
     for key, value in state.node_outputs.items():
         if isinstance(value, ModelResponse):

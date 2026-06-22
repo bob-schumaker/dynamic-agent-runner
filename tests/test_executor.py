@@ -62,6 +62,7 @@ from dynamic_agent_runner.openai_client import (
     ModelResponse,
     OpenAIClientAdapter,
     OpenAIMessage,
+    OpenAIProviderConfig,
 )
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
@@ -99,6 +100,22 @@ class FakeModels:
     def list(self, **kwargs: object) -> object:
         self.calls.append(dict(kwargs))
         return self.models
+
+
+class FakeProvider:
+    def __init__(
+        self,
+        responses: list[object],
+        config: OpenAIProviderConfig,
+        models: object | None = None,
+    ) -> None:
+        self.config = config
+        self.client = FakeClient(responses, models=models)
+        self.calls = 0
+
+    def get_client(self) -> FakeClient:
+        self.calls += 1
+        return self.client
 
 
 class AsyncFakeResponses:
@@ -585,6 +602,58 @@ def test_prepare_execution_plan_resolves_node_indexes_and_defaults() -> None:
     route = plan.nodes_by_id["route"]
     assert route.route_from == "answer"
     assert route.allowed_routes == frozenset({"done"})
+
+
+def test_prepare_execution_plan_preserves_tool_choice_policy() -> None:
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-choice-policy-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-default",
+                    "tool_choice_policy": {
+                        "initial": "required",
+                        "after_tool_result": "auto",
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                    "available_tools": ["search_repo"],
+                    "tool_choice_policy": {
+                        "initial": "auto",
+                        "after_tool_result": "required",
+                    },
+                },
+                {
+                    "id": "legacy",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Legacy {prompt}"},
+                    "tool_choice": "required",
+                },
+            ],
+            "edges": [],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+
+    plan = prepare_execution_plan(workflow)
+
+    assert plan.tool_choice_policy is not None
+    assert plan.tool_choice_policy.initial == "required"
+    assert plan.tool_choice_policy.after_tool_result == "auto"
+    answer = plan.nodes_by_id["answer"]
+    assert answer.tool_choice_policy is not None
+    assert answer.tool_choice_policy.initial == "auto"
+    assert answer.tool_choice_policy.after_tool_result == "required"
+    assert plan.nodes_by_id["legacy"].tool_choice == "required"
 
 
 def test_prepare_execution_plan_keeps_base_workflow_unchanged_for_context_pipeline_nodes() -> (
@@ -2672,6 +2741,292 @@ def test_prepare_model_input_injected_semantic_excludes_retrieved_context_candid
     )
 
 
+def test_prepare_model_input_injected_semantic_rejects_invalid_selector_results() -> (
+    None
+):
+    def selector(
+        _query: str,
+        _candidates: tuple[ContextSelectionCandidate, ...],
+        _metadata: Mapping[str, object],
+    ) -> tuple[object, ...]:
+        return (
+            object(),
+            ContextSelection(turn_id="turn_99", score=0.42, reason="unknown"),
+            ContextSelection(turn_id="turn_2", score="bad"),
+            ContextSelection(turn_id="turn_1", score=0.6, reason="valid"),
+        )
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "invalid-semantic-selector-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="Choose the right recovery note",
+        session_messages=(
+            OpenAIMessage(role="user", content="First candidate fact"),
+            OpenAIMessage(role="assistant", content="First candidate answer"),
+            OpenAIMessage(role="user", content="Second candidate fact"),
+            OpenAIMessage(role="assistant", content="Second candidate answer"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        context_selector=selector,
+    )
+
+    assert (
+        "First candidate fact" in prepared_input.named_parts["selected_turn_1"].content
+    )
+    assert prepared_input.preparation.selected_turns == (
+        {
+            "turn_id": "turn_1",
+            "selection_status": "selected",
+            "selection_reason": "valid",
+            "relevance_score": 0.6,
+            "selector": "injected_semantic",
+        },
+    )
+    assert prepared_input.preparation.rejected_turns == (
+        {
+            "selection_status": "rejected",
+            "selection_reason": "invalid_selector_result",
+            "selector": "injected_semantic",
+        },
+        {
+            "turn_id": "turn_99",
+            "selection_status": "rejected",
+            "selection_reason": "unknown_selector_turn",
+            "relevance_score": 0.42,
+            "selector": "injected_semantic",
+        },
+        {
+            "turn_id": "turn_2",
+            "selection_status": "rejected",
+            "selection_reason": "invalid_selector_score",
+            "selector": "injected_semantic",
+        },
+        {
+            "turn_id": "turn_2",
+            "selection_status": "rejected",
+            "selection_reason": "no_injected_semantic_score",
+            "relevance_score": 0,
+            "selector": "injected_semantic",
+        },
+    )
+
+
+def test_prepare_model_input_injected_semantic_selector_error_records_rejection() -> (
+    None
+):
+    def selector(
+        _query: str,
+        _candidates: tuple[ContextSelectionCandidate, ...],
+        _metadata: Mapping[str, object],
+    ) -> tuple[ContextSelection, ...]:
+        raise RuntimeError("secret selector text should not leak")
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "semantic-selector-error-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="question",
+        session_messages=(
+            OpenAIMessage(role="user", content="Older candidate fact"),
+            OpenAIMessage(role="assistant", content="Older candidate answer"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        context_selector=selector,
+    )
+
+    assert "selected_turn_1" not in prepared_input.named_parts
+    assert prepared_input.preparation.selected_turns == ()
+    assert prepared_input.preparation.rejected_turns == (
+        {
+            "selection_status": "rejected",
+            "selection_reason": "selector_error",
+            "error_type": "RuntimeError",
+            "selector": "injected_semantic",
+        },
+        {
+            "turn_id": "turn_1",
+            "selection_status": "rejected",
+            "selection_reason": "no_injected_semantic_score",
+            "relevance_score": 0,
+            "selector": "injected_semantic",
+        },
+    )
+    assert "secret selector text should not leak" not in repr(
+        prepared_input.preparation.rejected_turns
+    )
+
+
+def test_prepare_model_input_injected_semantic_trace_metadata_is_bounded() -> None:
+    def selector(
+        _query: str,
+        _candidates: tuple[ContextSelectionCandidate, ...],
+        _metadata: Mapping[str, object],
+    ) -> tuple[ContextSelection, ...]:
+        return (ContextSelection(turn_id="turn_1", score=0.7, reason="semantic"),)
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "semantic-selector-trace-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "session_pruning": {"max_messages": 2},
+                        "context_compression": {
+                            "profile": "semantic",
+                            "selection": {
+                                "strategy": "injected_semantic",
+                                "max_selected_turns": 1,
+                            },
+                        },
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(
+        prompt="question",
+        session_messages=(
+            OpenAIMessage(role="user", content="SENSITIVE-SELECTOR-CANDIDATE"),
+            OpenAIMessage(role="assistant", content="Selected answer"),
+            OpenAIMessage(role="user", content="Unscored older turn"),
+            OpenAIMessage(role="assistant", content="Unscored answer"),
+            OpenAIMessage(role="user", content="Recent unrelated"),
+            OpenAIMessage(role="assistant", content="Recent reply"),
+        ),
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id="test-run")
+
+    prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        tracer=tracer,
+        context_selector=selector,
+    )
+
+    [prepared_event] = [
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    ]
+    payload = prepared_event.payload
+
+    assert payload["selection_policy"] == {
+        "profile": "semantic",
+        "strategy": "injected_semantic",
+        "max_selected_turns": 1,
+        "selector_status": "available",
+    }
+    assert payload["selected_turns"] == (
+        {
+            "turn_id": "turn_1",
+            "selection_status": "selected",
+            "selection_reason": "semantic",
+            "relevance_score": 0.7,
+            "selector": "injected_semantic",
+        },
+    )
+    assert payload["rejected_turns"] == (
+        {
+            "turn_id": "turn_2",
+            "selection_status": "rejected",
+            "selection_reason": "no_injected_semantic_score",
+            "relevance_score": 0,
+            "selector": "injected_semantic",
+        },
+    )
+    assert "SENSITIVE-SELECTOR-CANDIDATE" not in repr(payload)
+
+
 def test_execute_workflow_accepts_direct_context_selector_kwarg() -> None:
     def selector(
         _query: str,
@@ -3636,6 +3991,181 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     }
 
 
+def test_execute_workflow_renders_chatgpt_codex_tool_loop_follow_up_items() -> None:
+    workflow = loop_tool_workflow()
+    registry = InMemoryToolRegistry(
+        [
+            make_tool(
+                "search_repo",
+                output=ToolResult(
+                    tool_id="search_repo",
+                    success=True,
+                    output={"raw": "secret raw"},
+                    model_output={"summary": "agents found"},
+                ),
+            )
+        ]
+    )
+    provider = FakeProvider(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ],
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=FakeModels({"models": [{"slug": "gpt-test"}]}),
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    second_input = adapter.client.responses.calls[1]["input"]
+    assert second_input[-2:] == [
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "search_repo",
+            "arguments": '{"query":"agents"}',
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_1",
+            "output": '{"summary": "agents found"}',
+        },
+    ]
+
+
+def test_execute_workflow_applies_runtime_tool_choice_policy_by_loop_phase() -> None:
+    workflow = loop_tool_workflow(
+        execution_policy_extra={
+            "tool_choice_policy": {
+                "initial": "required",
+                "after_tool_result": "auto",
+            }
+        }
+    )
+    registry = InMemoryToolRegistry([make_tool("search_repo")])
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    assert adapter.client.responses.calls[0]["tool_choice"] == "required"
+    assert "tool_choice" not in adapter.client.responses.calls[1]
+
+
+def test_execute_workflow_node_tool_choice_policy_overrides_runtime_policy() -> None:
+    workflow = loop_tool_workflow(
+        execution_policy_extra={
+            "tool_choice_policy": {
+                "initial": "auto",
+                "after_tool_result": "required",
+            }
+        },
+        node_extra={
+            "tool_choice_policy": {
+                "initial": "required",
+                "after_tool_result": "auto",
+            }
+        },
+    )
+    registry = InMemoryToolRegistry([make_tool("search_repo")])
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    assert adapter.client.responses.calls[0]["tool_choice"] == "required"
+    assert "tool_choice" not in adapter.client.responses.calls[1]
+
+
+def test_execute_workflow_preserves_legacy_tool_choice_without_policy() -> None:
+    workflow = loop_tool_workflow(node_extra={"tool_choice": "required"})
+    registry = InMemoryToolRegistry([make_tool("search_repo")])
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    assert adapter.client.responses.calls[0]["tool_choice"] == "required"
+    assert adapter.client.responses.calls[1]["tool_choice"] == "required"
+
+
 def test_execute_workflow_mid_turn_compaction_fails_without_compactor() -> None:
     workflow = loop_tool_workflow()
     workflow.runtime_manifest.execution_policy["prepare_model_input"] = {
@@ -4045,6 +4575,8 @@ def loop_tool_workflow(
     tools: list[dict[str, object]] | None = None,
     available_tools: list[str] | None = None,
     max_steps: int | None = None,
+    execution_policy_extra: dict[str, object] | None = None,
+    node_extra: dict[str, object] | None = None,
 ) -> LoadedAgentWorkflow:
     execution_policy: dict[str, object] = {
         "model": "gpt-test",
@@ -4054,9 +4586,19 @@ def loop_tool_workflow(
             "final_output": "default",
         },
     }
+    execution_policy.update(execution_policy_extra or {})
     if max_steps is not None:
         execution_policy["max_steps"] = max_steps
     tool_entries = tools or [{"id": "search_repo"}]
+    llm_node: dict[str, object] = {
+        "id": "analyze",
+        "kind": "llm_step",
+        "prompt": {"user_template": "Question: {prompt}"},
+        "available_tools": (
+            available_tools if available_tools is not None else ["search_repo"]
+        ),
+    }
+    llm_node.update(node_extra or {})
     return workflow_from(
         {
             "format_version": 1,
@@ -4065,18 +4607,7 @@ def loop_tool_workflow(
             "entrypoint": "analyze",
             "packaging": {"mode": "hybrid_bundle"},
             "runtime": {"execution_policy": execution_policy},
-            "nodes": [
-                {
-                    "id": "analyze",
-                    "kind": "llm_step",
-                    "prompt": {"user_template": "Question: {prompt}"},
-                    "available_tools": (
-                        available_tools
-                        if available_tools is not None
-                        else ["search_repo"]
-                    ),
-                }
-            ],
+            "nodes": [llm_node],
             "edges": [],
             "tools": tool_entries,
         }
@@ -4161,6 +4692,65 @@ def test_execute_workflow_uses_model_facing_tool_output_in_context_and_trace() -
         "event_payload": {"record_count": 1},
     }
     assert set(tool_result_events[0].sensitive_fields) == {"output", "raw_output"}
+
+
+def test_execute_workflow_formats_top_level_tool_results_as_model_facing_output() -> (
+    None
+):
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-results-context-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": "agents"},
+                },
+                {
+                    "id": "final",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Use {tool_results}"},
+                },
+            ],
+            "edges": [
+                {"source": "lookup", "target": "final", "edge_kind": "sequential"}
+            ],
+            "tools": [{"id": "search_repo"}],
+        }
+    )
+    registry = InMemoryToolRegistry(
+        [
+            make_tool(
+                "search_repo",
+                output=ToolResult(
+                    tool_id="search_repo",
+                    success=True,
+                    output={"raw": "large raw result"},
+                    model_output={"summary": "compact summary"},
+                ),
+            )
+        ]
+    )
+    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+
+    result = execute_workflow(
+        workflow,
+        prompt="Run",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "done"
+    assert result.state.tool_results["lookup"].output == {"raw": "large raw result"}
+    assert adapter.client.responses.calls[0]["input"][-1]["content"] == (
+        "Use {'lookup': {'summary': 'compact summary'}}"
+    )
 
 
 def test_execute_workflow_accepts_execution_context() -> None:
