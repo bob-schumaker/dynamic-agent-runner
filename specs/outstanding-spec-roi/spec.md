@@ -37,9 +37,10 @@ ROI is judged by:
 
 | Rank | Spec Work | ROI | Rationale |
 | --- | --- | --- | --- |
-| 1 | `litellm-provider-adapter` | Very high, paused | Slice L1 remains prepared, but implementation is paused until LiteLLM supports the package's Python 3.14 target. The prepared scope is default direct SDK Chat Completions transport, fake tests, request/response translation, and an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
-| 2 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
-| 3 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from LiteLLM/provider work first. |
+| 1 | `openai-responses-tool-loop-compat` | Very high, prepared | Slice R1 is prepared and directly answers a downstream Power Marimo blocker by replacing a private monkey patch with generic DAR behavior: streamed Responses function-call preservation, structured tool-loop transcript rendering, ChatGPT/Codex `function_call_output` follow-ups, explicit `tool_choice_policy`, and model-facing top-level `tool_results`. |
+| 2 | `litellm-provider-adapter` | Very high, paused | Slice L1 remains prepared, but implementation is paused until LiteLLM supports the package's Python 3.14 target. The prepared scope is default direct SDK Chat Completions transport, fake tests, request/response translation, and an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
+| 3 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
+| 4 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from LiteLLM/provider work first. |
 
 ## Conditional ROI
 
@@ -66,11 +67,13 @@ ROI is judged by:
 
 ## Recommended Order
 
-1. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
+1. Implement `openai-responses-tool-loop-compat` Slice R1 as the current
+   highest-value non-paused downstream unblocker.
+2. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
    package's Python target.
-2. Run the `memory-aware-context-pipeline` first-slice validation to decide
+3. Run the `memory-aware-context-pipeline` first-slice validation to decide
    whether it remains separate from RAG.
-3. Add `provider-backed-context-compaction` after provider capability boundaries
+4. Add `provider-backed-context-compaction` after provider capability boundaries
    are clearer.
 
 ## Recently Completed Since This Evaluation

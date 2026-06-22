@@ -3,10 +3,10 @@
 ## Metadata
 
 - Feature slug: `openai-responses-tool-loop-compat`
-- Mode: `light`
+- Mode: `guided`
 - Artifact type: authoritative feature specification
-- Status: proposed; response to downstream feature request
-- Version: `0.1`
+- Status: implementation candidate; Slice R1 prepared
+- Version: `0.2`
 - Date: 2026-06-22
 - Owner: OpenAI adapter boundary plus iterative agent-loop runtime
 - Downstream feature request:
@@ -396,18 +396,17 @@ After this feature is implemented and released, Power Marimo should:
 6. keep using DAR's `WorkflowExecutionContext`, `AgentSession`, host tool
    registry, trace sink, context compaction, token budget, and approval surfaces
 
-## Open Questions
+## Resolved Implementation Decisions
 
-1. Should legacy `tool_choice` plus explicit `tool_choice_policy` fail
-   validation, or should `tool_choice_policy` take precedence with a warning-like
-   diagnostic? The spec currently prefers fail-fast validation.
-2. Should `tool_choice_policy` live only under `llm_step` nodes initially, or
-   should runtime-level defaults be implemented in the first slice? The contract
-   allows both; the first implementation may choose the smallest compatible
-   subset.
-3. Should the structured transcript be a public type, or stay internal until a
-   durable resume/transcript feature needs it? This spec prefers internal for
-   the first slice.
+Slice R1 resolves the implementation-blocking questions this way:
+
+1. A node that configures both legacy `tool_choice` and explicit
+   `tool_choice_policy` fails validation. This avoids hidden precedence rules.
+2. Runtime-level defaults and node-local overrides are both in Slice R1 because
+   the contract already names both and validation/plan plumbing is small.
+3. The structured tool-loop transcript remains internal in Slice R1. Public
+   transcript types are deferred until durable resume or public transcript
+   inspection requires them.
 
 ## Completion Criteria
 

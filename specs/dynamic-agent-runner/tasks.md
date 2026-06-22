@@ -1023,8 +1023,11 @@ explicitly instead of leaving them as undocumented future behavior.
       L1 is paused until LiteLLM supports the package's Python 3.14 target.
       While paused, `specs/tool-descriptor-budgeting/` Slice T1 and
       `specs/semantic-context-profiles/` Slice S1 are implemented; the current
-      next non-paused candidate is the
-      `specs/memory-aware-context-pipeline/` first-slice validation.
+      next non-paused candidate is
+      `specs/openai-responses-tool-loop-compat/` Slice R1, which is prepared as
+      a downstream Power Marimo unblocker. The
+      `specs/memory-aware-context-pipeline/` first-slice validation remains the
+      next notable non-paused roadmap candidate after that.
 - [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
       helper if prompt/artifact hot-reload workflows become valuable.
 
