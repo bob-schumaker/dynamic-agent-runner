@@ -668,3 +668,11 @@ execute tool-descriptor-budgeting with commits at appropriate points
 ---
 
 refresh memory-bank and commit
+
+---
+
+- create a forced commit with pyproject.toml to force a Build
+- use escalation and scm-git to push develop
+- create a detailed devops scm pr
+- if/when the build is successful, merge the pr
+- when the merge is complete, update main and rebase develop
