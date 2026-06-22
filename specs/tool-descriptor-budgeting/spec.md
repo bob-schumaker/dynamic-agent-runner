@@ -202,12 +202,12 @@ nodes:
 Policy should be opt-in. Existing behavior remains unchanged when no descriptor
 budget is configured.
 
-## Proposed Runtime Shape
+## Implemented Runtime Shape
 
-The likely implementation should introduce a small package-owned `ToolSelector`
-near the registry boundary.
+Slice T1 introduced a small package-owned `ToolSelector` near the registry
+boundary.
 
-Expected flow:
+Implemented flow:
 
 1. `_execute_llm_step(...)` gets exposed tools from
    `registry.list_tools_for_node(node.source_node)` as it does today.

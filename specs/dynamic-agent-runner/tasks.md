@@ -1018,8 +1018,8 @@ explicitly instead of leaving them as undocumented future behavior.
       is specified, including side-effect and staleness semantics.
 - [ ] D3. LiteLLM is prepared in `specs/litellm-provider-adapter/`, but Slice
       L1 is paused until LiteLLM supports the package's Python 3.14 target.
-      While paused, `specs/tool-descriptor-budgeting/` is the next feasible
-      implementation candidate.
+      While paused, select the next candidate from the remaining ROI queue;
+      `specs/tool-descriptor-budgeting/` Slice T1 is already implemented.
 - [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
       helper if prompt/artifact hot-reload workflows become valuable.
 

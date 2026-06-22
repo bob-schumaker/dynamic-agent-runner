@@ -38,10 +38,9 @@ ROI is judged by:
 | Rank | Spec Work | ROI | Rationale |
 | --- | --- | --- | --- |
 | 1 | `litellm-provider-adapter` | Very high, paused | Slice L1 remains prepared, but implementation is paused until LiteLLM supports the package's Python 3.14 target. The prepared scope is default direct SDK Chat Completions transport, fake tests, request/response translation, and an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
-| 2 | `tool-descriptor-budgeting` | High, selected next feasible candidate | Direct context-window win with bounded implementation. Slice T1 is opt-in, fake-testable, avoids new dependencies, and builds on existing registry and token-budget seams. NLTK remains deferred until benchmark evidence proves value. |
-| 3 | `host-workflow-integration` deferred pieces | High | Inline/generated manifest preflight, clearer lifecycle examples, and capability-report polish reduce downstream duplication. Power-Marimo has already proven the generic need. |
-| 4 | `semantic-context-profiles` deferred selector work | Medium-high | Builds on existing context-management behavior and improves prompt quality. Best next slice is a fake semantic selector protocol plus profile-specific diagnostics, with no embeddings or vector ownership. |
-| 5 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
+| 2 | `host-workflow-integration` deferred pieces | High | Inline/generated manifest preflight, clearer lifecycle examples, and capability-report polish reduce downstream duplication. Power-Marimo has already proven the generic need. |
+| 3 | `semantic-context-profiles` deferred selector work | Medium-high | Builds on existing context-management behavior and improves prompt quality. Best next slice is a fake semantic selector protocol plus profile-specific diagnostics, with no embeddings or vector ownership. |
+| 4 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
 
 ## Conditional ROI
 
@@ -69,17 +68,21 @@ ROI is judged by:
 
 ## Recommended Order
 
-1. Implement `tool-descriptor-budgeting` Slice T1 while
-   `litellm-provider-adapter` is paused for Python 3.14 dependency support.
-2. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
+1. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
    package's Python target.
-3. Finish `host-workflow-integration` polish, especially inline manifest
+2. Finish `host-workflow-integration` polish, especially inline manifest
    preflight.
-4. Add the `semantic-context-profiles` fake-selector slice.
-5. Run the `memory-aware-context-pipeline` first-slice validation to decide
+3. Add the `semantic-context-profiles` fake-selector slice.
+4. Run the `memory-aware-context-pipeline` first-slice validation to decide
    whether it remains separate from RAG.
-6. Add `provider-backed-context-compaction` after provider capability boundaries
+5. Add `provider-backed-context-compaction` after provider capability boundaries
    are clearer.
+
+## Recently Completed Since This Evaluation
+
+| Spec Work | Completed Slice | Evidence |
+| --- | --- | --- |
+| `tool-descriptor-budgeting` | Slice T1 | `fd1b54c` implemented opt-in descriptor budgeting; `f7ab5d5` recorded completion evidence and runtime policy docs |
 
 ## Deferral Guidance
 
