@@ -22,6 +22,11 @@ from dynamic_agent_runner.collaboration import (
     CollaborativeAgentSessionState,
 )
 from dynamic_agent_runner.context import RunContext, WorkflowExecutionContext
+from dynamic_agent_runner.context_selection import (
+    ContextSelection,
+    ContextSelectionCandidate,
+    ContextSelector,
+)
 from dynamic_agent_runner.executor import (
     ApprovalInterruption,
     ApprovalInterruptionState,
@@ -202,6 +207,9 @@ __all__ = [
     "CollaborativeAgentSessionManager",
     "CollaborativeAgentSessionState",
     "CompiledAgentWorkflow",
+    "ContextSelection",
+    "ContextSelectionCandidate",
+    "ContextSelector",
     "compile_agent_workflow",
     "DynamicAgentRunnerError",
     "GuardrailDecision",

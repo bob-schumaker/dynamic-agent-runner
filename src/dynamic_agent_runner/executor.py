@@ -17,6 +17,11 @@ from openai_model_registry.errors import ModelNotSupportedError
 
 from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.context import WorkflowExecutionContext
+from dynamic_agent_runner.context_selection import (
+    ContextSelection,
+    ContextSelectionCandidate,
+    ContextSelector,
+)
 from dynamic_agent_runner.errors import (
     GuardrailExecutionError,
     ModelExecutionError,
@@ -225,6 +230,23 @@ class _RenderedMessageParts:
 
 
 @dataclass(frozen=True)
+class _SemanticTurnCandidate:
+    turn_index: int
+    candidate: ContextSelectionCandidate
+    messages: tuple[OpenAIMessage, ...]
+
+
+@dataclass(frozen=True)
+class _RankedSemanticTurn:
+    exact_match_count: int
+    score: float
+    turn_index: int
+    turn_id: str
+    reason: str
+    messages: tuple[OpenAIMessage, ...]
+
+
+@dataclass(frozen=True)
 class PreparedModelInput:
     """Rendered model input and named prompt parts for one LLM step."""
 
@@ -263,6 +285,7 @@ async def execute_workflow_async(
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
     context_summarizer: ContextSummarizer | None = None,
+    context_selector: ContextSelector | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
     initial_node_outputs: Mapping[str, Any] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
@@ -280,6 +303,7 @@ async def execute_workflow_async(
         prompt_cache=prompt_cache,
         lifecycle_hooks=lifecycle_hooks,
         model_adapter_coverage=model_adapter_coverage,
+        context_selector=context_selector,
     )
     plan = prepare_execution_plan(context.workflow)
     nodes = plan.nodes_by_id
@@ -352,6 +376,7 @@ async def execute_workflow_async(
                     context.model_adapter_coverage,
                     context_compactor,
                     context_summarizer,
+                    context.context_selector,
                 )
             except Exception as exc:
                 tracer.emit(
@@ -423,6 +448,7 @@ def execute_workflow(
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
     context_summarizer: ContextSummarizer | None = None,
+    context_selector: ContextSelector | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
     initial_node_outputs: Mapping[str, Any] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
@@ -443,6 +469,7 @@ def execute_workflow(
             run_id=run_id,
             context_compactor=context_compactor,
             context_summarizer=context_summarizer,
+            context_selector=context_selector,
             session_messages=session_messages,
             initial_node_outputs=initial_node_outputs,
         )
@@ -460,6 +487,7 @@ def prepare_model_input(
     model_adapter_coverage: str = "augmented",
     context_compactor: ContextCompactor | None = None,
     context_summarizer: ContextSummarizer | None = None,
+    context_selector: ContextSelector | None = None,
 ) -> PreparedModelInput:
     """Prepare rendered model input for an ``llm_step`` node."""
 
@@ -489,6 +517,7 @@ def prepare_model_input(
         adapter=adapter,
         context_compactor=context_compactor,
         context_summarizer=context_summarizer,
+        context_selector=context_selector,
     )
     preparation = _merge_prepared_input_metadata(preparation, mutation_preparation)
     preparation = _merge_skill_source_preparation(
@@ -592,6 +621,7 @@ def _normalize_execution_context(
     prompt_cache: bool | None,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str | None,
+    context_selector: ContextSelector | None,
 ) -> WorkflowExecutionContext:
     if isinstance(workflow, WorkflowExecutionContext):
         if any(
@@ -605,6 +635,7 @@ def _normalize_execution_context(
                 prompt_cache,
                 lifecycle_hooks,
                 model_adapter_coverage,
+                context_selector,
             )
         ):
             raise WorkflowExecutionError(
@@ -623,6 +654,7 @@ def _normalize_execution_context(
         prompt_cache=prompt_cache,
         lifecycle_hooks=lifecycle_hooks,
         model_adapter_coverage=normalized_coverage,
+        context_selector=context_selector,
     )
 
 
@@ -638,6 +670,7 @@ async def _execute_node_async(
     model_adapter_coverage: str,
     context_compactor: ContextCompactor | None,
     context_summarizer: ContextSummarizer | None,
+    context_selector: ContextSelector | None,
 ) -> Any:
     if node.kind == "llm_step":
         return await _execute_llm_step_async(
@@ -652,6 +685,7 @@ async def _execute_node_async(
             model_adapter_coverage,
             context_compactor,
             context_summarizer,
+            context_selector,
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
@@ -770,6 +804,7 @@ async def _execute_llm_step_async(
     model_adapter_coverage: str,
     context_compactor: ContextCompactor | None,
     context_summarizer: ContextSummarizer | None,
+    context_selector: ContextSelector | None,
 ) -> ModelResponse:
     prepared_input = prepare_model_input(
         node,
@@ -781,6 +816,7 @@ async def _execute_llm_step_async(
         model_adapter_coverage=model_adapter_coverage,
         context_compactor=context_compactor,
         context_summarizer=context_summarizer,
+        context_selector=context_selector,
     )
     tools, exposed_tools, tool_descriptor_budget_payload = _llm_step_tools(
         node,
@@ -2102,6 +2138,7 @@ def _apply_prepare_model_input_stage(
     adapter: ModelAdapter,
     context_compactor: ContextCompactor | None,
     context_summarizer: ContextSummarizer | None,
+    context_selector: ContextSelector | None,
 ) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
     """Apply optional prepare-stage hierarchy and session shaping."""
 
@@ -2149,6 +2186,10 @@ def _apply_prepare_model_input_stage(
     turn_metadata, segment_metadata = _session_turn_diagnostics(state.session_messages)
     context_threshold = _context_threshold_metadata(policy, adapter, model)
     selection_policy = _selection_policy(policy)
+    selection_policy = _selection_policy_with_selector_status(
+        selection_policy,
+        context_selector,
+    )
     lifecycle_stages = _lifecycle_stage_status(policy)
     metrics = _context_metrics(policy)
     (
@@ -2176,6 +2217,8 @@ def _apply_prepare_model_input_stage(
         pruned_session,
         state.prompt,
         selection_policy,
+        context_selector=context_selector,
+        model=model,
     )
     context_compaction_applied = False
     compaction_metadata: Mapping[str, Any] = {}
@@ -2531,6 +2574,9 @@ def _selected_older_turn_parts(
     pruned_session: Sequence[OpenAIMessage],
     prompt: str,
     selection_policy: Mapping[str, Any],
+    *,
+    context_selector: ContextSelector | None = None,
+    model: str | None = None,
 ) -> tuple[
     tuple[tuple[str, OpenAIMessage], ...],
     tuple[Mapping[str, Any], ...],
@@ -2538,6 +2584,30 @@ def _selected_older_turn_parts(
     tuple[Mapping[str, Any], ...],
 ]:
     strategy = str(selection_policy.get("strategy") or "")
+    if strategy == "injected_semantic":
+        if context_selector is None:
+            fallback_policy = {
+                key: value
+                for key, value in selection_policy.items()
+                if key
+                in {
+                    "max_selected_turns",
+                    "chronological_reassembly",
+                }
+            }
+            return _selected_older_turn_parts(
+                pruned_session,
+                prompt,
+                {**fallback_policy, "strategy": "deterministic_overlap"},
+                model=model,
+            )
+        return _injected_semantic_older_turn_parts(
+            pruned_session,
+            prompt,
+            selection_policy,
+            context_selector=context_selector,
+            model=model,
+        )
     if strategy not in {"deterministic_overlap", "hybrid_exact_semantic", "exact"}:
         return (), (), (), ()
     max_selected_turns = selection_policy.get("max_selected_turns")
@@ -2610,6 +2680,291 @@ def _selected_older_turn_parts(
         for score, _turn_index, turn_id, _messages in omitted_candidates
     )
     return tuple(parts), tuple(metadata), omitted_turns, tuple(rejected_turns)
+
+
+def _injected_semantic_older_turn_parts(
+    pruned_session: Sequence[OpenAIMessage],
+    prompt: str,
+    selection_policy: Mapping[str, Any],
+    *,
+    context_selector: ContextSelector,
+    model: str | None,
+) -> tuple[
+    tuple[tuple[str, OpenAIMessage], ...],
+    tuple[Mapping[str, Any], ...],
+    tuple[Mapping[str, Any], ...],
+    tuple[Mapping[str, Any], ...],
+]:
+    max_selected_turns = selection_policy.get("max_selected_turns")
+    if not _valid_positive_int(max_selected_turns):
+        return (), (), (), ()
+
+    candidate_by_id = _semantic_turn_candidates(pruned_session, prompt, model=model)
+    if not candidate_by_id:
+        return (), (), (), ()
+
+    rejected_turns: list[Mapping[str, Any]] = []
+    selector_scores, selector_rejections = _semantic_selector_scores(
+        context_selector,
+        prompt,
+        candidate_by_id,
+        selection_policy,
+    )
+    rejected_turns.extend(selector_rejections)
+    ranked_candidates = _rank_semantic_turns(
+        candidate_by_id,
+        selector_scores,
+        rejected_turns,
+    )
+    selected_candidates = ranked_candidates[:max_selected_turns]
+    omitted_candidates = ranked_candidates[max_selected_turns:]
+    if selection_policy.get("chronological_reassembly") is not False:
+        selected_candidates = sorted(
+            selected_candidates,
+            key=lambda item: item.turn_index,
+        )
+    parts, metadata = _semantic_selected_turn_parts(selected_candidates)
+    omitted_turns = _semantic_omitted_turn_metadata(omitted_candidates)
+    return tuple(parts), tuple(metadata), omitted_turns, tuple(rejected_turns)
+
+
+def _valid_positive_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _semantic_turn_candidates(
+    pruned_session: Sequence[OpenAIMessage],
+    prompt: str,
+    *,
+    model: str | None,
+) -> dict[str, _SemanticTurnCandidate]:
+    prompt_exact_tokens = _selection_tokens(prompt, exact=True)
+    candidates: dict[str, _SemanticTurnCandidate] = {}
+    for turn_index, messages in enumerate(_session_turns(pruned_session), start=1):
+        turn_id = f"turn_{turn_index}"
+        text = "\n".join(message.content for message in messages)
+        exact_match_count = len(
+            prompt_exact_tokens & _selection_tokens(text, exact=True)
+        )
+        candidate = ContextSelectionCandidate(
+            turn_id=turn_id,
+            text=text,
+            roles=tuple(message.role for message in messages),
+            exact_match_count=exact_match_count,
+            token_estimate=_semantic_turn_token_estimate(messages, model=model),
+        )
+        candidates[turn_id] = _SemanticTurnCandidate(
+            turn_index=turn_index,
+            candidate=candidate,
+            messages=messages,
+        )
+    return candidates
+
+
+def _semantic_turn_token_estimate(
+    messages: Sequence[OpenAIMessage],
+    *,
+    model: str | None,
+) -> int | None:
+    if model is None:
+        return None
+    return estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content} for message in messages
+        ),
+        model=model,
+    ).token_count
+
+
+def _semantic_selector_scores(
+    context_selector: ContextSelector,
+    prompt: str,
+    candidate_by_id: Mapping[str, _SemanticTurnCandidate],
+    selection_policy: Mapping[str, Any],
+) -> tuple[dict[str, tuple[float, str]], tuple[Mapping[str, Any], ...]]:
+    candidates = tuple(record.candidate for record in candidate_by_id.values())
+    try:
+        raw_selections = tuple(
+            context_selector(
+                prompt,
+                candidates,
+                _semantic_selector_metadata(selection_policy),
+            )
+        )
+    except Exception as exc:
+        return {}, (
+            {
+                "selection_status": "rejected",
+                "selection_reason": "selector_error",
+                "error_type": type(exc).__name__,
+                "selector": "injected_semantic",
+            },
+        )
+
+    selector_scores: dict[str, tuple[float, str]] = {}
+    rejected_turns: list[Mapping[str, Any]] = []
+    for selection in raw_selections:
+        normalized = _normalize_semantic_selection(selection, candidate_by_id)
+        if normalized[0] is None:
+            rejected_turns.append(normalized[1])
+            continue
+        turn_id, score, reason = normalized[0]
+        selector_scores[turn_id] = (score, reason)
+    return selector_scores, tuple(rejected_turns)
+
+
+def _semantic_selector_metadata(
+    selection_policy: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    return {
+        key: value
+        for key, value in selection_policy.items()
+        if key
+        in {
+            "profile",
+            "strategy",
+            "max_selected_turns",
+            "chronological_reassembly",
+        }
+    }
+
+
+def _normalize_semantic_selection(
+    selection: object,
+    candidate_by_id: Mapping[str, _SemanticTurnCandidate],
+) -> tuple[tuple[str, float, str] | None, Mapping[str, Any]]:
+    if not isinstance(selection, ContextSelection):
+        return None, {
+            "selection_status": "rejected",
+            "selection_reason": "invalid_selector_result",
+            "selector": "injected_semantic",
+        }
+    if selection.turn_id not in candidate_by_id:
+        return None, {
+            "turn_id": selection.turn_id,
+            "selection_status": "rejected",
+            "selection_reason": "unknown_selector_turn",
+            "relevance_score": selection.score,
+            "selector": "injected_semantic",
+        }
+    if isinstance(selection.score, bool) or not isinstance(
+        selection.score, int | float
+    ):
+        return None, {
+            "turn_id": selection.turn_id,
+            "selection_status": "rejected",
+            "selection_reason": "invalid_selector_score",
+            "selector": "injected_semantic",
+        }
+    return (
+        (
+            selection.turn_id,
+            float(selection.score),
+            selection.reason or "injected_semantic",
+        ),
+        {},
+    )
+
+
+def _rank_semantic_turns(
+    candidate_by_id: Mapping[str, _SemanticTurnCandidate],
+    selector_scores: Mapping[str, tuple[float, str]],
+    rejected_turns: list[Mapping[str, Any]],
+) -> list[_RankedSemanticTurn]:
+    ranked_candidates: list[_RankedSemanticTurn] = []
+    for turn_id, record in candidate_by_id.items():
+        exact_count = record.candidate.exact_match_count
+        if exact_count > 0:
+            ranked_candidates.append(
+                _RankedSemanticTurn(
+                    exact_match_count=exact_count,
+                    score=float(exact_count),
+                    turn_index=record.turn_index,
+                    turn_id=turn_id,
+                    reason="exact_identifier_match",
+                    messages=record.messages,
+                )
+            )
+            continue
+        selector_score = selector_scores.get(turn_id)
+        if selector_score is None:
+            rejected_turns.append(_semantic_missing_score_metadata(turn_id))
+            continue
+        score, reason = selector_score
+        ranked_candidates.append(
+            _RankedSemanticTurn(
+                exact_match_count=0,
+                score=score,
+                turn_index=record.turn_index,
+                turn_id=turn_id,
+                reason=reason,
+                messages=record.messages,
+            )
+        )
+    return sorted(
+        ranked_candidates,
+        key=lambda item: (-item.exact_match_count, -item.score, item.turn_index),
+    )
+
+
+def _semantic_missing_score_metadata(turn_id: str) -> Mapping[str, Any]:
+    return {
+        "turn_id": turn_id,
+        "selection_status": "rejected",
+        "selection_reason": "no_injected_semantic_score",
+        "relevance_score": 0,
+        "selector": "injected_semantic",
+    }
+
+
+def _semantic_selected_turn_parts(
+    selected_candidates: Sequence[_RankedSemanticTurn],
+) -> tuple[list[tuple[str, OpenAIMessage]], list[Mapping[str, Any]]]:
+    parts: list[tuple[str, OpenAIMessage]] = []
+    metadata: list[Mapping[str, Any]] = []
+    for selected_index, selected in enumerate(
+        selected_candidates,
+        start=1,
+    ):
+        lines = [f"Selected older turn {selected.turn_id}:"]
+        lines.extend(
+            f"- {message.role}: {message.content}" for message in selected.messages
+        )
+        parts.append(
+            (
+                f"selected_turn_{selected_index}",
+                OpenAIMessage(role="developer", content="\n".join(lines)),
+            )
+        )
+        metadata.append(
+            {
+                "turn_id": selected.turn_id,
+                "selection_status": "selected",
+                "selection_reason": selected.reason,
+                "relevance_score": _semantic_score_value(selected.score),
+                "selector": "injected_semantic",
+            }
+        )
+    return parts, metadata
+
+
+def _semantic_omitted_turn_metadata(
+    omitted_candidates: Sequence[_RankedSemanticTurn],
+) -> tuple[Mapping[str, Any], ...]:
+    return tuple(
+        {
+            "turn_id": candidate.turn_id,
+            "selection_status": "omitted",
+            "selection_reason": "max_selected_turns_exceeded",
+            "relevance_score": _semantic_score_value(candidate.score),
+            "selector": "injected_semantic",
+        }
+        for candidate in omitted_candidates
+    )
+
+
+def _semantic_score_value(score: float) -> int | float:
+    return int(score) if score.is_integer() else score
 
 
 def _session_turns(
@@ -2730,6 +3085,21 @@ def _selection_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:
         if key in selection:
             result[key] = selection[key]
     return result
+
+
+def _selection_policy_with_selector_status(
+    selection_policy: Mapping[str, Any],
+    context_selector: ContextSelector | None,
+) -> Mapping[str, Any]:
+    if selection_policy.get("strategy") != "injected_semantic":
+        return selection_policy
+    if context_selector is None:
+        return {
+            **selection_policy,
+            "selector_status": "missing",
+            "fallback_strategy": "deterministic_overlap",
+        }
+    return {**selection_policy, "selector_status": "available"}
 
 
 def _lifecycle_stage_status(policy: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:

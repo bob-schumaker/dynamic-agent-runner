@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from dynamic_agent_runner.context_selection import ContextSelector
 from dynamic_agent_runner.models import CompiledAgentWorkflow, LoadedAgentWorkflow
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
@@ -39,6 +40,7 @@ class WorkflowExecutionContext:
     prompt_cache: bool | None = None
     lifecycle_hooks: WorkflowLifecycleHooks | None = None
     model_adapter_coverage: str = "augmented"
+    context_selector: ContextSelector | None = None
 
 
 RunContext = WorkflowExecutionContext
