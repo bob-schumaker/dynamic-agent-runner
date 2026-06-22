@@ -51,6 +51,7 @@ Companion planning artifacts:
 | MCP runtime integration | [`spec.md`](mcp-runtime-integration/spec.md) | Implemented v1 baseline | Explicit caller-supplied MCP registry injection, MCP provenance, conservative policy defaults, capability status, tests, and evidence complete; live transports, process lifecycle, and discovery remain deferred |
 | Live guardrail execution | [`spec.md`](live-guardrail-execution/spec.md) | Implemented v1 baseline | Caller-registered input guardrail pass/abort, fail-closed missing adapters, redacted traces, capability status, tests, and evidence complete; output/tool phases remain deferred |
 | RAG orchestration contract | [`spec.md`](rag-orchestration-contract/spec.md) | Implemented v1 baseline | Expanded declarative `metadata.rag_pipeline` validation and capability/status reporting cover staged RAG metadata, retriever collaborators, provenance and context-management handoff declarations, source readiness, permissions, cache, and degraded states while keeping prompt packing, ingestion, embeddings, indexes, graph stores, rerankers, compressors, evaluators, and retrieval execution outside RAG ownership |
+| Memory-aware context pipeline | [`spec.md`](memory-aware-context-pipeline/spec.md) | Proposed; roadmap refinement needed | Proposed caller-owned long-term memory orchestration contract inspired by `memlayer`, now refined with a retrieval-only first slice, fold-back gate to `rag_pipeline`, schema/enums, collaborator contracts, invocation points, evidence handoff, invariants, trace payloads, and capability/status states without adding runner-owned memory storage, embeddings, provider wrappers, background services, or `memlayer` as a dependency |
 | SKILL.md source resolution | [`spec.md`](skill-source-resolution/spec.md) | Implemented v1 baseline | Opt-in package-local bundled `SKILL.md` loading under `skill-bundle/`, policy validation, bounded UTF-8 body loading, deterministic skill-ref injection, redacted provenance, capability/status reporting, and fake-adapter tests complete; external roots, `source_path` reads, support-file prompt loading, and network fetching remain deferred |
 | Iterative agent-loop runtime | [`spec.md`](iterative-agent-loop-runtime/spec.md) | Implemented v1 baseline | Bounded opt-in serial model-tool loops execute inside eligible `llm_step` nodes with registry dispatch, approval pauses, fail-closed safety checks, loop traces, tests, and evidence complete; state-field final selectors and durable resume remain deferred |
 | Power-Marimo dynamic workflow client | [`spec.md`](power-marimo-host-automation/spec.md) | Downstream boundary evaluated | DAR owns only generic dynamic workflow execution with host-provided tools; `../power-marimo` owns Marimo, Qt, hosted lifecycle, app safety policy, SDK/session behavior, and live validation |
@@ -92,6 +93,7 @@ Companion planning artifacts:
 | MCP runtime integration | `mcp-runtime-integration` | Metadata-only MCP registry-source and lifecycle diagnostics preservation plus explicit caller-supplied MCP registry injection complete | Live server discovery, process lifecycle, transports, reconnect, schema cache, and diagnostics beyond metadata remain deferred |
 | Live guardrail execution | `live-guardrail-execution` | Metadata-only guardrail declaration preservation plus caller-registered input guardrail aborts before first runtime action complete | Output guardrails, tool guardrails, reject-content behavior, retries, timeouts, and external adapters remain deferred |
 | RAG orchestration contract | `rag-orchestration-contract` | Expanded `metadata.rag_pipeline` validation and capability/status reporting exist for staged retrievers, required collaborators, provenance and context-management handoff declarations, source readiness, permissions, cache, and degraded states | Retrieval infrastructure, prompt packing, ingestion, embeddings, indexes, graph stores, rerankers, compressors, evaluators, answer citation rendering, output guardrails, and live retrieval orchestration remain deferred |
+| Memory-aware context pipeline | `memory-aware-context-pipeline` | None | Future declarative memory pipeline validation, capability/status reporting, fake-testable memory retrieval tiers, provenance, trace events, retrieved-context handoff, no-implicit-save enforcement, and a first-slice decision on whether distinct memory semantics justify remaining separate from RAG; salience and ingestion execution remain future/deferred |
 | SKILL.md source resolution | `skill-source-resolution` | Opt-in package-local bundled `SKILL.md` loading, policy validation, bounded UTF-8 body loading, deterministic prompt injection, redacted provenance, and capability/status reporting complete | External roots, `source_path` reads, support-file prompt loading, network fetching, Markdown frontmatter parsing, and raw-body debugging modes remain deferred |
 | Iterative agent-loop runtime | `iterative-agent-loop-runtime` | Bounded opt-in serial model-tool loop execution complete for eligible `llm_step` nodes | Loop `state_field`/`tool_result` final selectors, durable approval resume, output/tool guardrails, parallel tool calls, and durable transcripts remain deferred |
 | Power-Marimo dynamic workflow client | `power-marimo-host-automation` | Placeholder-safe fixture and fake-tool execution coverage complete; current `../power-marimo` evidence shows the host-owned tool-service and dynamic-agent-runner bridge pattern | No DAR implementation remains unless a generic runner contract is missing; Marimo, Qt, hosted lifecycle, domain adapters, app safety policy, and live validation remain downstream client concerns |
@@ -130,8 +132,8 @@ scope:
   iterative-loop slices.
 - Memory ideas such as semantic/episodic/procedural memory labels,
   access-frequency scoring, compression, and forgetting inform
-  context-management policy inputs without creating runner-owned durable
-  storage.
+  `memory-aware-context-pipeline` and context-management policy inputs without
+  creating runner-owned durable storage.
 - Production ideas such as prompt/tool/model versioning, idempotency,
   timeouts, fallback budgets, observability, and model routing inform
   capability/status, sandbox, and future deployment-oriented specs.
@@ -245,6 +247,6 @@ status visibility
 → MCP/guardrails
 → loops/skills
 → host workflow integration and standard tool packs
-→ durable memory
+→ caller-owned memory orchestration
 → interpreter
 ```
