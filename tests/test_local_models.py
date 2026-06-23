@@ -213,6 +213,64 @@ def test_list_local_model_assets_deduplicates_roots_and_warns_for_bad_roots(
     assert any(str(not_directory) in warning for warning in inventory.warnings)
 
 
+def test_list_local_model_assets_does_not_scan_sibling_or_nested_directories(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import list_local_model_assets
+
+    caller_root = tmp_path / "caller-root"
+    caller_root.mkdir()
+    (caller_root / "direct-model.gguf").write_text("gguf", encoding="utf-8")
+    nested = caller_root / "nested"
+    nested.mkdir()
+    (nested / "nested-model.gguf").write_text("gguf", encoding="utf-8")
+    sibling = tmp_path / "sibling-root"
+    sibling.mkdir()
+    (sibling / "sibling-model.gguf").write_text("gguf", encoding="utf-8")
+
+    inventory = list_local_model_assets(
+        model_cache_roots=(caller_root,),
+        include_default_cache_root=False,
+    )
+
+    assert [asset.path for asset in inventory.assets] == [
+        caller_root / "direct-model.gguf"
+    ]
+
+
+def test_list_local_model_assets_is_read_only_and_offline(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import dynamic_agent_runner.local_models as local_models
+
+    caller_root = tmp_path / "caller-root"
+    caller_root.mkdir()
+    model_path = caller_root / "chat-model.gguf"
+    model_path.write_text("gguf", encoding="utf-8")
+    forbidden_calls: list[str] = []
+
+    def forbidden_call(*_: object, **__: object) -> Path:
+        forbidden_calls.append("called")
+        raise AssertionError("inventory must not call mutating/runtime helpers")
+
+    monkeypatch.setattr(local_models, "download_hub_file", forbidden_call)
+    monkeypatch.setattr(local_models, "download_hub_snapshot", forbidden_call)
+    monkeypatch.setattr(
+        local_models,
+        "_load_default_llama_cpp_backend",
+        forbidden_call,
+    )
+
+    inventory = local_models.list_local_model_assets(
+        model_cache_roots=(caller_root,),
+        include_default_cache_root=False,
+    )
+
+    assert [asset.path for asset in inventory.assets] == [model_path]
+    assert forbidden_calls == []
+
+
 def test_check_local_model_availability_reports_available_explicit_gguf_path(
     tmp_path: Path,
 ) -> None:

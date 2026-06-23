@@ -314,7 +314,7 @@ filesystem-only.
   - GREEN:
     `poetry run pytest tests/test_local_models.py -q` — `45 passed in 0.23s`
 
-- [ ] A4.7 [tests] Add RED safety coverage proving inventory does not scan
+- [x] A4.7 [tests] Add RED safety coverage proving inventory does not scan
       arbitrary sibling/parent directories and does not invoke metadata lookup,
       download helpers, adapter construction, model loading, generation, or
       memory-fit profiling.
@@ -324,14 +324,20 @@ filesystem-only.
   - Depends on: A4.6
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Expected RED: safety guard coverage is not complete.
+  - RED not observed:
+    `poetry run pytest tests/test_local_models.py -q` passed because A4.4-A4.6
+    already kept scanning shallow and avoided runtime/download helpers.
 
-- [ ] A4.8 [implementation] Tighten inventory safety behavior and warnings to
+- [x] A4.8 [implementation] Tighten inventory safety behavior and warnings to
       satisfy read-only, no-network, no-execution boundaries.
   - Spec: FR-7, FR-8, NFR-2
   - Plan: Slice A4 Boundary, Inventory Flow
   - Files/components: `src/dynamic_agent_runner/local_models.py`
   - Depends on: A4.7
   - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - GREEN:
+    No additional implementation change was required; safety coverage passed
+    with `47 passed in 0.25s`.
 
 - [ ] A4.9 [docs] Document the cached inventory API next to local model
       availability preflight.
