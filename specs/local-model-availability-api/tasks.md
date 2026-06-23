@@ -268,7 +268,7 @@ filesystem-only.
     `poetry run pytest tests/test_local_models.py tests/test_import.py -q` —
     `43 passed in 0.21s`
 
-- [ ] A4.3 [tests] Add RED coverage for default cache-root inventory over
+- [x] A4.3 [tests] Add RED coverage for default cache-root inventory over
       direct GGUF files and converted MLX directories.
   - Spec: FR-3, FR-8
   - Plan: Inventory Flow, Inventory Classification Approach
@@ -276,14 +276,19 @@ filesystem-only.
   - Depends on: A4.2
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Expected RED: default cache-root scanning and classification are missing.
+  - RED:
+    `poetry run pytest tests/test_local_models.py -q` failed because default
+    cache-root inventory returned no direct GGUF or converted MLX assets.
 
-- [ ] A4.4 [implementation] Implement read-only default cache-root inventory
+- [x] A4.4 [implementation] Implement read-only default cache-root inventory
       using existing local validation helpers.
   - Spec: FR-3, FR-8, NFR-2, NFR-6
   - Plan: Inventory Flow, Inventory Classification Approach
   - Files/components: `src/dynamic_agent_runner/local_models.py`
   - Depends on: A4.3
   - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py -q` — `43 passed in 0.22s`
 
 - [ ] A4.5 [tests] Add RED coverage for current caller-provided roots,
       root-order precedence, duplicate asset paths, missing/non-directory roots,

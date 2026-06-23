@@ -114,6 +114,45 @@ def test_local_model_inventory_public_contract_shape() -> None:
     assert inventory == LocalModelInventory(assets=(), warnings=())
 
 
+def test_list_local_model_assets_scans_default_cache_root(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAvailabilitySource,
+        LocalModelAvailabilityStatus,
+        list_local_model_assets,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    cache_root = _default_cache_root(home_dir)
+    gguf_model = cache_root / "chat-model.gguf"
+    gguf_model.parent.mkdir(parents=True)
+    gguf_model.write_text("gguf", encoding="utf-8")
+    mlx_model = cache_root / "converted-mlx"
+    mlx_model.mkdir()
+    (mlx_model / "config.json").write_text("{}", encoding="utf-8")
+    (mlx_model / "tokenizer.model").write_text("tokenizer", encoding="utf-8")
+    (mlx_model / "weights.npz").write_text("weights", encoding="utf-8")
+
+    inventory = list_local_model_assets()
+
+    assert [asset.path for asset in inventory.assets] == [gguf_model, mlx_model]
+    assert [asset.cache_root for asset in inventory.assets] == [cache_root, cache_root]
+    assert [asset.source for asset in inventory.assets] == [
+        LocalModelAvailabilitySource.DEFAULT_CACHE_ROOT,
+        LocalModelAvailabilitySource.DEFAULT_CACHE_ROOT,
+    ]
+    assert [asset.model_format for asset in inventory.assets] == ["gguf", "mlx"]
+    assert [asset.backend for asset in inventory.assets] == ["llama_cpp", "mlx"]
+    assert all(
+        asset.status is LocalModelAvailabilityStatus.AVAILABLE
+        for asset in inventory.assets
+    )
+    assert inventory.warnings == ()
+
+
 def test_check_local_model_availability_reports_available_explicit_gguf_path(
     tmp_path: Path,
 ) -> None:

@@ -474,7 +474,21 @@ def list_local_model_assets(
 ) -> LocalModelInventory:
     """List local model assets from package-used roots for this call only."""
 
-    return LocalModelInventory()
+    assets: list[LocalModelInventoryItem] = []
+    warnings: list[str] = []
+    seen_paths: set[Path] = set()
+    if include_default_cache_root:
+        _scan_local_model_inventory_root(
+            cache_root=_default_local_model_cache_root(),
+            source=LocalModelAvailabilitySource.DEFAULT_CACHE_ROOT,
+            assets=assets,
+            warnings=warnings,
+            seen_paths=seen_paths,
+        )
+    return LocalModelInventory(
+        assets=tuple(assets),
+        warnings=tuple(warnings),
+    )
 
 
 def _measurement_is_partial(
@@ -1156,6 +1170,61 @@ def _validate_available_mlx_directory(model_directory: Path) -> str | None:
         return (
             f"MLX local model directory {model_directory!s} is missing "
             f"required file(s): {', '.join(missing_files)}"
+        )
+    return None
+
+
+def _scan_local_model_inventory_root(
+    *,
+    cache_root: Path,
+    source: LocalModelAvailabilitySource,
+    assets: list[LocalModelInventoryItem],
+    warnings: list[str],
+    seen_paths: set[Path],
+) -> None:
+    if not cache_root.exists():
+        return
+    if not cache_root.is_dir():
+        warnings.append(f"Local model inventory root {cache_root!s} is not a directory")
+        return
+    for child in sorted(cache_root.iterdir(), key=lambda path: path.name):
+        if child.name.startswith("."):
+            continue
+        resolved_child = child.resolve()
+        if resolved_child in seen_paths:
+            continue
+        item = _local_model_inventory_item_for_child(
+            child=child,
+            cache_root=cache_root,
+            source=source,
+        )
+        if item is None:
+            continue
+        seen_paths.add(resolved_child)
+        assets.append(item)
+
+
+def _local_model_inventory_item_for_child(
+    *,
+    child: Path,
+    cache_root: Path,
+    source: LocalModelAvailabilitySource,
+) -> LocalModelInventoryItem | None:
+    if child.is_file() and child.suffix.lower() == ".gguf":
+        return LocalModelInventoryItem(
+            path=child,
+            cache_root=cache_root,
+            source=source,
+            model_format="gguf",
+            backend="llama_cpp",
+        )
+    if child.is_dir() and _validate_available_mlx_directory(child) is None:
+        return LocalModelInventoryItem(
+            path=child,
+            cache_root=cache_root,
+            source=source,
+            model_format="mlx",
+            backend="mlx",
         )
     return None
 
