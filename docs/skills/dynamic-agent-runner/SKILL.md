@@ -261,9 +261,26 @@ if availability.status is LocalModelAvailabilityStatus.AVAILABLE:
 Availability checks are read-only. They inspect explicit local paths, explicit
 cache roots, and the default local-model cache root without downloads, adapter
 construction, model loading, or generation. Optional injected remote metadata can
-return `would_download` without downloading. Use `search_hugging_face_models(...)`
-for remote catalog discovery; this preflight API does not provide broad local
-inventory or native Hugging Face cache enumeration.
+return `would_download` without downloading.
+
+Use `list_local_model_assets(...)` for a narrow read-only snapshot of cached
+local model assets:
+
+```python
+from dynamic_agent_runner import list_local_model_assets
+
+inventory = list_local_model_assets(
+    model_cache_roots=("path/to/project-model-cache",),
+    include_default_cache_root=True,
+)
+```
+
+Cached inventory scans only the default local-model cache root and the current
+caller-provided roots passed to that call. It recognizes direct `.gguf` files
+and converted MLX directories. It does not persist roots, scan arbitrary sibling
+directories, inspect native Hugging Face cache internals, download models,
+construct adapters, load weights, or execute generation. Use
+`search_hugging_face_models(...)` for remote catalog discovery.
 
 `search_hugging_face_models(...)` is read-only discovery. A matching result does
 not mean the model is downloaded, runnable, or compatible with the workflow.

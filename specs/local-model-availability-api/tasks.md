@@ -339,7 +339,7 @@ filesystem-only.
     No additional implementation change was required; safety coverage passed
     with `47 passed in 0.25s`.
 
-- [ ] A4.9 [docs] Document the cached inventory API next to local model
+- [x] A4.9 [docs] Document the cached inventory API next to local model
       availability preflight.
   - Spec: FR-5, FR-8
   - Plan: Compatibility
@@ -349,6 +349,8 @@ filesystem-only.
   - Validation:
     `pre-commit run --files docs/files/python-api.rst`
     `docs/skills/dynamic-agent-runner/SKILL.md`
+  - GREEN:
+    Cached inventory API docs added next to local model availability preflight.
 
 - [ ] A4.10 [validation] Run focused affected tests, Ruff, targeted
       pre-commit, and update validation evidence.
