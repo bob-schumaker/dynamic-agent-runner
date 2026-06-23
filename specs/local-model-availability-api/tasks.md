@@ -1,6 +1,6 @@
 # Local Model Availability API Tasks
 
-Status: Slice A1 complete; Slice A2 next
+Status: Slices A1-A2 complete; Slice A3 next
 
 ## Prerequisites
 
@@ -111,7 +111,7 @@ tests, or downstream UI policy.
 
 ## Slice A2 — MLX Validation and Remote Metadata
 
-- [ ] A2.1 [tests] Add RED coverage for MLX GGUF availability and converted MLX
+- [x] A2.1 [tests] Add RED coverage for MLX GGUF availability and converted MLX
       directory availability using temporary fixtures.
   - Spec: FR-3, FR-7
   - Plan: Backend Validation Approach
@@ -123,8 +123,11 @@ tests, or downstream UI policy.
     `poetry run pytest tests/test_mlx_models.py tests/test_local_models.py -q`
   - Expected RED: shared availability validation does not yet recognize
     converted MLX directories.
+  - RED:
+    `poetry run pytest tests/test_mlx_models.py tests/test_local_models.py -q`
+    failed because incomplete converted MLX directories were accepted.
 
-- [ ] A2.2 [implementation] Add or share backend-aware validation for MLX GGUF
+- [x] A2.2 [implementation] Add or share backend-aware validation for MLX GGUF
       files and converted MLX directories.
   - Spec: FR-3
   - Plan: Backend Validation Approach
@@ -133,8 +136,11 @@ tests, or downstream UI policy.
   - Depends on: A2.1
   - Validation:
     `poetry run pytest tests/test_mlx_models.py tests/test_local_models.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_mlx_models.py tests/test_local_models.py`
+    `tests/test_import.py -q` — `63 passed in 0.31s`
 
-- [ ] A2.3 [tests] Add RED coverage for injected remote metadata results:
+- [x] A2.3 [tests] Add RED coverage for injected remote metadata results:
       `would_download`, invalid/inaccessible remote reference, unavailable
       metadata, size reporting, and no metadata call when disabled.
   - Spec: FR-4, FR-7
@@ -147,8 +153,12 @@ tests, or downstream UI policy.
     `tests/test_hugging_face_support.py -q`
   - Expected RED: the availability function does not call or interpret the
     injected metadata seam.
+  - RED:
+    `poetry run pytest tests/test_mlx_models.py tests/test_local_models.py -q`
+    failed because `metadata_lookup` and `LocalModelRemoteMetadata` were
+    missing.
 
-- [ ] A2.4 [implementation] Implement the injected remote metadata seam without
+- [x] A2.4 [implementation] Implement the injected remote metadata seam without
       adding live Hugging Face calls or downloads.
   - Spec: FR-4, NFR-4
   - Plan: Remote Metadata Seam
@@ -157,6 +167,9 @@ tests, or downstream UI policy.
   - Validation:
     `poetry run pytest tests/test_local_models.py`
     `tests/test_hugging_face_support.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py`
+    `tests/test_hugging_face_support.py -q` — `49 passed in 0.20s`
 
 ## Slice A3 — Documentation, Drift Check, and Completion Evidence
 

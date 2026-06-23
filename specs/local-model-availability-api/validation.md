@@ -1,6 +1,6 @@
 # Local Model Availability API Validation Log
 
-Status: Slice A1 complete; Slice A2 next
+Status: Slices A1-A2 complete; Slice A3 next
 
 ## Scope
 
@@ -88,3 +88,22 @@ These are implementation-local decisions, not blockers to starting Slice A1:
 - Observed result: `38 passed in 0.17s`
 - Interpretation: Slice A1 local-model availability behavior and package exports
   are green together.
+
+### Slice A2 — MLX Validation and Remote Metadata
+
+- Command:
+  `poetry run pytest tests/test_mlx_models.py tests/test_local_models.py -q`
+- RED observed result: failed because incomplete converted MLX directories were
+  accepted as available, `metadata_lookup` was not accepted, and
+  `LocalModelRemoteMetadata` did not exist.
+- GREEN observed result:
+  `poetry run pytest tests/test_mlx_models.py tests/test_local_models.py`
+  `tests/test_import.py -q` — `63 passed in 0.31s`
+- Interpretation: MLX GGUF and converted MLX directory availability are
+  validated without importing MLX, and the metadata helper is exported.
+- Command:
+  `poetry run pytest tests/test_local_models.py`
+  `tests/test_hugging_face_support.py -q`
+- Observed result: `49 passed in 0.20s`
+- Interpretation: injected remote metadata supports `would_download`, invalid,
+  and unknown results without live Hugging Face calls or downloads.

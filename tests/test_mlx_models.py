@@ -157,6 +157,83 @@ def test_mlx_adapter_supports_explicit_gguf_model_file(tmp_path: Path) -> None:
     assert backend.requests
 
 
+def test_local_model_availability_supports_mlx_gguf_model_file(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "model.gguf"
+    write_gguf_model(model_path)
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="gguf",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.AVAILABLE
+    assert availability.resolved_path == model_path
+
+
+def test_local_model_availability_supports_converted_mlx_directory(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.AVAILABLE
+    assert availability.resolved_path == model_path
+
+
+def test_local_model_availability_rejects_incomplete_mlx_directory(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    model_path.mkdir()
+    (model_path / "config.json").write_text("{}", encoding="utf-8")
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.INVALID
+    assert "tokenizer.model" in availability.message
+    assert "weights.npz" in availability.message
+
+
 def test_mlx_adapter_rejects_missing_gguf_file(tmp_path: Path) -> None:
     from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
     from dynamic_agent_runner.errors import LocalModelResolutionError

@@ -283,6 +283,113 @@ def test_check_local_model_availability_uses_default_cache_root(
     assert availability.source is LocalModelAvailabilitySource.DEFAULT_CACHE_ROOT
 
 
+def test_check_local_model_availability_skips_metadata_when_disabled() -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    metadata_calls: list[LocalModelAssetReference] = []
+    reference = LocalModelAssetReference(
+        provider="hugging_face",
+        repo_id="Qwen/Qwen3-4B-GGUF",
+        filename="chat-model.gguf",
+        model_format="gguf",
+        backend="llama_cpp",
+    )
+
+    availability = check_local_model_availability(
+        reference,
+        metadata_lookup=metadata_calls.append,
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.MISSING
+    assert metadata_calls == []
+
+
+def test_check_local_model_availability_reports_would_download_from_metadata() -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        LocalModelRemoteMetadata,
+        check_local_model_availability,
+    )
+
+    reference = LocalModelAssetReference(
+        provider="hugging_face",
+        repo_id="Qwen/Qwen3-4B-GGUF",
+        filename="chat-model.gguf",
+        model_format="gguf",
+        backend="llama_cpp",
+    )
+
+    availability = check_local_model_availability(
+        reference,
+        allow_network_metadata=True,
+        metadata_lookup=lambda _: LocalModelRemoteMetadata(
+            exists=True,
+            size_bytes=8_300_000_000,
+            message="remote file exists",
+            warnings=("large download",),
+        ),
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.WOULD_DOWNLOAD
+    assert availability.size_bytes == 8_300_000_000
+    assert availability.message == "remote file exists"
+    assert availability.warnings == ("large download",)
+
+
+def test_check_local_model_availability_reports_invalid_remote_metadata() -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        LocalModelRemoteMetadata,
+        check_local_model_availability,
+    )
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="hugging_face",
+            repo_id="Qwen/Qwen3-4B-GGUF",
+            filename="missing.gguf",
+        ),
+        allow_network_metadata=True,
+        metadata_lookup=lambda _: LocalModelRemoteMetadata(
+            exists=False,
+            message="remote file is missing",
+        ),
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.INVALID
+    assert availability.message == "remote file is missing"
+
+
+def test_check_local_model_availability_reports_unknown_metadata_failure() -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    def failing_metadata(_: LocalModelAssetReference) -> object:
+        raise RuntimeError("metadata unavailable")
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="hugging_face",
+            repo_id="Qwen/Qwen3-4B-GGUF",
+            filename="chat-model.gguf",
+        ),
+        allow_network_metadata=True,
+        metadata_lookup=failing_metadata,
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.UNKNOWN
+    assert "metadata unavailable" in availability.message
+
+
 def test_resolve_local_model_path_prefers_explicit_local_path_over_cache_and_hub(
     tmp_path: Path,
 ) -> None:

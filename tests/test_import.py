@@ -50,6 +50,7 @@ def test_package_imports() -> None:
     assert dynamic_agent_runner.LocalModelAvailability is not None
     assert dynamic_agent_runner.LocalModelAvailabilitySource is not None
     assert dynamic_agent_runner.LocalModelAvailabilityStatus is not None
+    assert dynamic_agent_runner.LocalModelRemoteMetadata is not None
     assert dynamic_agent_runner.check_local_model_availability is not None
     assert dynamic_agent_runner.create_llama_cpp_local_adapter is not None
     assert dynamic_agent_runner.create_llama_cpp_local_async_adapter is not None
