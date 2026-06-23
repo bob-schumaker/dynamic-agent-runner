@@ -1,6 +1,6 @@
 # Local Model Availability API Tasks
 
-Status: prepared for implementation
+Status: Slice A1 complete; Slice A2 next
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ tests, or downstream UI policy.
 
 ## Slice A1 — Public Contract and Local Checks
 
-- [ ] A1.1 [tests] Add RED import and shape coverage for the public
+- [x] A1.1 [tests] Add RED import and shape coverage for the public
       availability contract.
   - Spec: FR-1, FR-5
   - Plan: Public Contract Decisions
@@ -43,8 +43,12 @@ tests, or downstream UI policy.
     `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
   - Expected RED: public value objects and
     `check_local_model_availability(...)` are missing.
+  - RED:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+    failed because `LocalModelAssetReference` and package-root exports were
+    missing.
 
-- [ ] A1.2 [implementation] Add availability value objects, status/source
+- [x] A1.2 [implementation] Add availability value objects, status/source
       vocabularies, placeholder availability function, and package-root exports.
   - Spec: FR-1, FR-5
   - Plan: Public Contract Decisions
@@ -53,8 +57,11 @@ tests, or downstream UI policy.
   - Depends on: A1.1
   - Validation:
     `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q` —
+    `32 passed in 0.21s`
 
-- [ ] A1.3 [tests] Add RED coverage for explicit local path availability,
+- [x] A1.3 [tests] Add RED coverage for explicit local path availability,
       missing explicit paths, invalid GGUF paths, and no fallback from an
       explicit local-path reference.
   - Spec: FR-1, FR-2, FR-3
@@ -64,16 +71,21 @@ tests, or downstream UI policy.
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Expected RED: the placeholder function does not implement local path
     checks or backend validation.
+  - RED:
+    `poetry run pytest tests/test_local_models.py -q` failed because explicit
+    path and GGUF validation returned placeholder missing results.
 
-- [ ] A1.4 [implementation] Implement explicit local-path availability and
+- [x] A1.4 [implementation] Implement explicit local-path availability and
       minimal GGUF validation without model loading.
   - Spec: FR-1, FR-2, FR-3
   - Plan: Availability Flow, Backend Validation Approach
   - Files/components: `src/dynamic_agent_runner/local_models.py`
   - Depends on: A1.3
   - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py -q` — `37 passed in 0.21s`
 
-- [ ] A1.5 [tests] Add RED coverage for explicit cache-root precedence, default
+- [x] A1.5 [tests] Add RED coverage for explicit cache-root precedence, default
       cache-root fallback, local miss without remote metadata, and proof that no
       download helper is called.
   - Spec: FR-2, NFR-2
@@ -82,14 +94,20 @@ tests, or downstream UI policy.
   - Depends on: A1.4
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Expected RED: cache-root lookup and no-download semantics are not complete.
+  - RED:
+    `poetry run pytest tests/test_local_models.py -q` failed because explicit
+    and default cache-root hits returned placeholder missing results.
 
-- [ ] A1.6 [implementation] Implement no-download cache-root precedence for
+- [x] A1.6 [implementation] Implement no-download cache-root precedence for
       explicit cache root and default cache root.
   - Spec: FR-2, NFR-2
   - Plan: Availability Flow
   - Files/components: `src/dynamic_agent_runner/local_models.py`
   - Depends on: A1.5
   - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q` —
+    `38 passed in 0.17s`
 
 ## Slice A2 — MLX Validation and Remote Metadata
 

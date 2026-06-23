@@ -72,6 +72,217 @@ class _FailingLlamaCppBackend:
         raise RuntimeError("llama.cpp generation failed")
 
 
+def test_local_model_availability_public_contract_shape() -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailability,
+        LocalModelAvailabilitySource,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    reference = LocalModelAssetReference(
+        provider="hugging_face",
+        repo_id="Qwen/Qwen3-4B-GGUF",
+        filename="chat-model.gguf",
+        model_format="gguf",
+        backend="llama_cpp",
+    )
+
+    availability = check_local_model_availability(reference)
+
+    assert availability == LocalModelAvailability(
+        status=LocalModelAvailabilityStatus.MISSING,
+        reference=reference,
+        source=LocalModelAvailabilitySource.NOT_FOUND,
+        message="Local model asset 'chat-model.gguf' is not available locally",
+    )
+    assert availability.resolved_path is None
+    assert availability.cache_root is None
+    assert availability.size_bytes is None
+    assert availability.warnings == ()
+
+
+def test_check_local_model_availability_reports_available_explicit_gguf_path(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilitySource,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "chat-model.gguf"
+    model_path.write_text("gguf", encoding="utf-8")
+    reference = LocalModelAssetReference(
+        provider="local_path",
+        explicit_path=model_path,
+        model_format="gguf",
+        backend="llama_cpp",
+    )
+
+    availability = check_local_model_availability(reference)
+
+    assert availability.status is LocalModelAvailabilityStatus.AVAILABLE
+    assert availability.resolved_path == model_path
+    assert availability.cache_root is None
+    assert availability.source is LocalModelAvailabilitySource.EXPLICIT_PATH
+
+
+def test_check_local_model_availability_reports_missing_explicit_path(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilitySource,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "missing.gguf"
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="gguf",
+            backend="llama_cpp",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.MISSING
+    assert availability.resolved_path is None
+    assert availability.source is LocalModelAvailabilitySource.NOT_FOUND
+    assert str(model_path) in availability.message
+
+
+def test_check_local_model_availability_reports_invalid_gguf_path(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "chat-model.bin"
+    model_path.write_text("not gguf", encoding="utf-8")
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="gguf",
+            backend="llama_cpp",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.INVALID
+    assert availability.resolved_path == model_path
+    assert ".gguf" in availability.message
+
+
+def test_check_local_model_availability_does_not_fallback_from_explicit_path(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    cache_root = tmp_path / "cache-root"
+    cache_root.mkdir()
+    cache_hit = cache_root / "chat-model.gguf"
+    cache_hit.write_text("cached", encoding="utf-8")
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=tmp_path / "missing.gguf",
+            model_filename="chat-model.gguf",
+            model_cache_root=cache_root,
+            model_format="gguf",
+            backend="llama_cpp",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.MISSING
+    assert availability.resolved_path is None
+
+
+def test_check_local_model_availability_prefers_explicit_cache_root(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilitySource,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    default_cache_hit = _default_cache_root(home_dir) / "chat-model.gguf"
+    default_cache_hit.parent.mkdir(parents=True)
+    default_cache_hit.write_text("default", encoding="utf-8")
+    explicit_cache_root = tmp_path / "explicit-cache-root"
+    explicit_cache_root.mkdir()
+    explicit_cache_hit = explicit_cache_root / "chat-model.gguf"
+    explicit_cache_hit.write_text("explicit", encoding="utf-8")
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="hugging_face",
+            repo_id="Qwen/Qwen3-4B-GGUF",
+            filename="chat-model.gguf",
+            model_cache_root=explicit_cache_root,
+            model_format="gguf",
+            backend="llama_cpp",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.AVAILABLE
+    assert availability.resolved_path == explicit_cache_hit
+    assert availability.cache_root == explicit_cache_root
+    assert availability.source is LocalModelAvailabilitySource.EXPLICIT_CACHE_ROOT
+
+
+def test_check_local_model_availability_uses_default_cache_root(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilitySource,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    default_cache_hit = _default_cache_root(home_dir) / "chat-model.gguf"
+    default_cache_hit.parent.mkdir(parents=True)
+    default_cache_hit.write_text("default", encoding="utf-8")
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="hugging_face",
+            repo_id="Qwen/Qwen3-4B-GGUF",
+            filename="chat-model.gguf",
+            model_format="gguf",
+            backend="llama_cpp",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.AVAILABLE
+    assert availability.resolved_path == default_cache_hit
+    assert availability.cache_root == _default_cache_root(home_dir)
+    assert availability.source is LocalModelAvailabilitySource.DEFAULT_CACHE_ROOT
+
+
 def test_resolve_local_model_path_prefers_explicit_local_path_over_cache_and_hub(
     tmp_path: Path,
 ) -> None:

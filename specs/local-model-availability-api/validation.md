@@ -1,6 +1,6 @@
 # Local Model Availability API Validation Log
 
-Status: prepared for implementation
+Status: Slice A1 complete; Slice A2 next
 
 ## Scope
 
@@ -65,5 +65,26 @@ These are implementation-local decisions, not blockers to starting Slice A1:
 
 ## Evidence
 
-No implementation validation has run yet. This artifact currently records the
-planned checks and pre-implementation consistency analysis.
+### Slice A1 — Public Contract and Local Checks
+
+- Command:
+  `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+- RED observed result: failed because `LocalModelAssetReference`,
+  `LocalModelAvailability`, status/source enums,
+  `check_local_model_availability(...)`, and package-root exports were missing.
+- GREEN observed result: `32 passed in 0.21s`
+- Interpretation: public availability value objects, status/source enums,
+  placeholder availability function, and package-root exports exist.
+- Command: `poetry run pytest tests/test_local_models.py -q`
+- RED observed result: failed because explicit local path checks, invalid GGUF
+  classification, explicit cache-root hits, and default cache-root hits returned
+  placeholder missing results.
+- GREEN observed result: `37 passed in 0.21s`
+- Interpretation: explicit local path availability, missing path reporting,
+  minimal GGUF validation, no fallback from explicit local paths, and
+  no-download cache-root precedence are implemented.
+- Command:
+  `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+- Observed result: `38 passed in 0.17s`
+- Interpretation: Slice A1 local-model availability behavior and package exports
+  are green together.
