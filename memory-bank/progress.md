@@ -22,6 +22,20 @@
   formats, resolved-path loading, filtered generation kwargs with request-level
   overrides, conservative capability metadata, and focused regression coverage
   for those behaviors plus unsupported-platform short-circuit behavior.
+- Local model availability preflight is implemented through the v1 baseline:
+  - public package-root exports for `LocalModelAssetReference`,
+    `LocalModelAvailability`, `LocalModelAvailabilityStatus`,
+    `LocalModelAvailabilitySource`, `LocalModelRemoteMetadata`, and
+    `check_local_model_availability(...)`
+  - read-only explicit local path, explicit cache root, and default cache root
+    checks
+  - minimal GGUF validation and converted MLX directory validation
+  - injected fake-testable remote metadata for `would_download`, invalid, and
+    unknown states
+  - docs, spec/task/validation evidence, and focused tests
+  - broad inventory, native Hugging Face cache introspection, real metadata
+    integration, strict exception mode, model loading, downloads, and execution
+    remain deferred
 - Capability status reporting is implemented for:
   - finite execution
   - metadata-only declarations
@@ -226,6 +240,16 @@
 
 ## Latest Milestones
 
+- `49291f3` documented the local-model availability preflight API and marked
+  `specs/local-model-availability-api/` as implemented v1.
+- `6cddf46` added MLX GGUF/converted-directory availability validation and an
+  injected remote metadata seam.
+- `43ec3c3` added the local-model availability public contract and read-only
+  explicit path/cache-root checks.
+- `a240730` prepared the local-model availability implementation slice with
+  plan/tasks/validation artifacts.
+- `22000b6` added the local-model availability feature-request note and
+  proposed feature spec.
 - `c263146` completed OpenAI Responses tool-loop Slice R1 across the feature
   spec, spec index, ROI notes, and dynamic-agent-runner roadmap.
 - `a1e7a20` rendered top-level `{{tool_results}}` using
