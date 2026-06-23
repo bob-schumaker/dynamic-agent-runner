@@ -24,12 +24,32 @@
   `tests/test_hugging_face_support.py tests/test_import.py -q` with
   `71 passed`; `poetry run ruff check src tests`; targeted pre-commit; and
   `graphify update .`.
-- Current implementation horizon after local-model availability: broad local
-  inventory, native Hugging Face cache introspection, real metadata integration,
-  and strict exception mode remain deferred. The ROI queue still treats
-  `litellm-provider-adapter` as paused on Python 3.14 dependency support; next
-  feasible spec work should be chosen from the current ROI map rather than
-  expanding local-model availability by default.
+- `local-model-availability-api` Slice A4 is now prepared for implementation as
+  narrow cached inventory. The planned public surface is a read-only
+  `list_local_model_assets(...)` helper with package-owned inventory value
+  objects, default-cache and current-call root scanning, deterministic
+  de-duplication, direct GGUF and converted MLX classification, bounded
+  warnings, package-root exports, docs, and fake filesystem tests.
+- The A4 inventory boundary is strict: scan only DAR-owned/default download
+  cache locations plus current caller-provided roots for that call. Do not scan
+  arbitrary sibling/parent directories, recurse through provider cache
+  internals, persist caller-provided roots, manage/delete/migrate local model
+  directories, perform Hub metadata/search/downloads, construct adapters, load
+  models, run generation, or memory-profile assets.
+- Recent local-model commits:
+  - `5addae5` prepared the cached inventory Slice A4 spec, plan, tasks,
+    validation log, corpus index, and AGENTS learning.
+  - `fbed269` refreshed memory-bank state after local-model availability v1.
+  - `49291f3` documented the local-model availability API and marked the
+    baseline complete.
+  - `6cddf46` added MLX validation and injected no-download remote metadata.
+  - `43ec3c3` added the public availability contract and no-download local
+    checks.
+- Current implementation horizon after local-model availability A4: native
+  Hugging Face cache introspection, real metadata integration, strict exception
+  mode, broad inventory, persistent root management, model loading, downloads,
+  and execution remain deferred. The ROI queue still treats
+  `litellm-provider-adapter` as paused on Python 3.14 dependency support.
 - `specs/openai-responses-tool-loop-compat/` Slice R1 is implemented and
   complete. DAR now upstreams the behavior Power Marimo had been patching
   locally: streamed Responses function-call preservation, internal structured
