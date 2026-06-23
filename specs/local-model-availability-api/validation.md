@@ -1,6 +1,6 @@
 # Local Model Availability API Validation Log
 
-Status: Slice A4 prepared for implementation; Slices A1-A3 complete
+Status: implemented through Slice A4
 
 ## Scope
 
@@ -36,7 +36,7 @@ Status: Slice A4 prepared for implementation; Slices A1-A3 complete
 ## Planning Evidence
 
 - Slice A1 is limited to read-only explicit-reference availability checking.
-- Slice A4 prepares narrow local cached inventory restricted to
+- Slice A4 implements narrow local cached inventory restricted to
   DAR-owned/default download cache locations and current caller-provided roots.
 - Broad local inventory and native Hugging Face cache introspection remain
   deferred.
@@ -60,7 +60,7 @@ Status: Slice A4 prepared for implementation; Slices A1-A3 complete
 - Spec FR-6 is explicitly deferred from Slice A1 in `plan.md` and the scope
   rule in `tasks.md`.
 - Spec FR-7 maps to all RED test tasks and the planned fake metadata seam.
-- Spec FR-8 maps to prepared tasks A4.1-A4.10.
+- Spec FR-8 maps to completed tasks A4.1-A4.10.
 - No implementation task requires live Hugging Face, real MLX, real llama.cpp,
   model weights, or downstream Power Marimo dependencies.
 - No task adds portable workflow manifest fields.
@@ -79,10 +79,12 @@ slice:
 - Whether disabled remote metadata should return `missing` or `unknown` for a
   remote reference that misses local cache. Tests should lock the selected
   behavior before implementation.
-- Whether Slice A4 returns invalid inventory entries or skips them with bounded
-  warnings. Tests should lock the selected behavior before implementation.
-- Whether the public inventory item should be named `LocalModelInventoryItem` or
-  a more availability-aligned name.
+
+Closed during Slice A4:
+
+- Inventory returns supported available assets and skips unsupported or invalid
+  direct children rather than surfacing invalid inventory entries.
+- The public inventory item is named `LocalModelInventoryItem`.
 
 ## Evidence
 
@@ -159,10 +161,61 @@ slice:
 - Interpretation: targeted pre-commit passed for implementation, tests, docs,
   and spec artifacts.
 
+### Slice A4 — Narrow Cached Inventory
+
+- Command:
+  `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+- RED observed result: failed because `LocalModelInventory`,
+  `LocalModelInventoryItem`, and `list_local_model_assets(...)` were missing.
+- GREEN observed result: `43 passed in 0.21s`
+- Interpretation: public cached inventory value objects, placeholder entry
+  point, and package-root exports exist.
+- Command: `poetry run pytest tests/test_local_models.py -q`
+- RED observed result: failed because default cache-root inventory returned no
+  direct GGUF or converted MLX assets.
+- GREEN observed result: `43 passed in 0.22s`
+- Interpretation: default local-model cache inventory recognizes direct GGUF
+  files and converted MLX directories without downloads or model loading.
+- Command: `poetry run pytest tests/test_local_models.py -q`
+- RED observed result: failed because current caller-provided roots were not
+  scanned and bad roots emitted no warnings.
+- GREEN observed result: `45 passed in 0.23s`
+- Interpretation: inventory scans current caller-provided roots for that call,
+  de-duplicates roots and paths, and reports bounded warnings for missing and
+  non-directory roots.
+- Command: `poetry run pytest tests/test_local_models.py -q`
+- RED not observed: the safety tests passed with the existing implementation.
+- GREEN observed result: `47 passed in 0.25s`
+- Interpretation: inventory stays shallow, does not scan sibling or nested
+  directories, and avoids download/runtime helper paths.
+- Command:
+  `pre-commit run --files docs/files/python-api.rst`
+  `docs/skills/dynamic-agent-runner/SKILL.md`
+  `specs/local-model-availability-api/tasks.md`
+- Observed result: passed
+- Interpretation: cached inventory docs pass Markdown checks.
+- Command:
+  `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+- Observed result: `48 passed in 0.22s`
+- Command: `poetry run ruff check src tests`
+- Observed result: passed
+- Command:
+  `pre-commit run --files src/dynamic_agent_runner/local_models.py`
+  `src/dynamic_agent_runner/__init__.py tests/test_local_models.py`
+  `tests/test_import.py docs/files/python-api.rst`
+  `docs/skills/dynamic-agent-runner/SKILL.md`
+  `specs/local-model-availability-api/spec.md`
+  `specs/local-model-availability-api/plan.md`
+  `specs/local-model-availability-api/tasks.md`
+  `specs/local-model-availability-api/validation.md specs/README.md`
+- Observed result: passed
+- Interpretation: Slice A4 implementation, tests, docs, and spec artifacts pass
+  focused validation together.
+
 ## Deferred From V1
 
-- Broad local inventory remains deferred; Slice A4 prepares only narrow cached
-  inventory over DAR-owned/default download cache locations and current
+- Broad local inventory remains deferred; Slice A4 implements only narrow
+  cached inventory over DAR-owned/default download cache locations and current
   caller-provided roots.
 - Native Hugging Face cache introspection remains deferred.
 - Real Hugging Face metadata integration remains deferred; v1 uses an injected

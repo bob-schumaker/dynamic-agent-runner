@@ -1,6 +1,6 @@
 # Local Model Availability API Tasks
 
-Status: Slice A4 prepared for implementation; Slices A1-A3 complete
+Status: implemented through Slice A4
 
 ## Prerequisites
 
@@ -352,7 +352,7 @@ filesystem-only.
   - GREEN:
     Cached inventory API docs added next to local model availability preflight.
 
-- [ ] A4.10 [validation] Run focused affected tests, Ruff, targeted
+- [x] A4.10 [validation] Run focused affected tests, Ruff, targeted
       pre-commit, and update validation evidence.
   - Spec: Validation Plan
   - Plan: Validation Strategy
@@ -364,3 +364,9 @@ filesystem-only.
   - Validation: `poetry run ruff check src tests`
   - Validation:
     `pre-commit run --files <changed implementation, test, docs, and spec files>`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q` —
+    `48 passed in 0.22s`
+  - GREEN: `poetry run ruff check src tests` — passed
+  - GREEN: targeted pre-commit passed for changed implementation, test, docs,
+    and spec files

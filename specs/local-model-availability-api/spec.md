@@ -5,7 +5,7 @@
 - Feature slug: `local-model-availability-api`
 - Mode: `light`
 - Artifact type: proposed feature specification
-- Status: v1 baseline implemented; Slice A4 prepared for implementation
+- Status: implemented through Slice A4
 - Version: `0.1`
 - Date: 2026-06-22
 - Owner: local-model adapter and Hugging Face support boundaries
@@ -582,11 +582,8 @@ them, or scan sibling/parent directories.
   existence only, file size, sibling file listing, or snapshot-level metadata?
 - Should package docs show this API near Hugging Face model search, local-model
   adapter construction, or both?
-- Should inventory return only valid assets, or include invalid entries with
-  status and warnings? Slice A4 should choose one behavior and lock it in tests.
-- What should the public inventory item be named:
-  `LocalModelInventoryItem`, `LocalModelCachedAsset`, or a more availability-
-  aligned name?
+- Future inventory expansion, if any, must preserve the current-call root
+  boundary unless this spec is explicitly revised.
 
 ## Validation Plan
 
@@ -628,8 +625,8 @@ poetry run ruff check src tests
 
 ## Implementation Readiness
 
-The v1 baseline is implemented through Slices A1-A3. Slice A4 is prepared for
-implementation as narrow cached inventory over DAR-owned/default download cache
-locations and current caller-provided roots. Broad inventory, native Hugging
-Face cache introspection, persistent root management, and strict exception
-behavior remain deferred unless this spec is revised.
+The feature is implemented through Slice A4. It now includes explicit-reference
+availability preflight and narrow cached inventory over DAR-owned/default
+download cache locations and current caller-provided roots. Broad inventory,
+native Hugging Face cache introspection, persistent root management, and strict
+exception behavior remain deferred unless this spec is revised.
