@@ -290,7 +290,7 @@ filesystem-only.
   - GREEN:
     `poetry run pytest tests/test_local_models.py -q` — `43 passed in 0.22s`
 
-- [ ] A4.5 [tests] Add RED coverage for current caller-provided roots,
+- [x] A4.5 [tests] Add RED coverage for current caller-provided roots,
       root-order precedence, duplicate asset paths, missing/non-directory roots,
       and proof that roots are not persisted across calls.
   - Spec: FR-8, NFR-6
@@ -299,14 +299,20 @@ filesystem-only.
   - Depends on: A4.4
   - Validation: `poetry run pytest tests/test_local_models.py -q`
   - Expected RED: current-call root handling and de-duplication are missing.
+  - RED:
+    `poetry run pytest tests/test_local_models.py -q` failed because
+    current caller-provided roots were not scanned and bad roots emitted no
+    warnings.
 
-- [ ] A4.6 [implementation] Implement current caller-provided root scanning,
+- [x] A4.6 [implementation] Implement current caller-provided root scanning,
       deterministic root/path de-duplication, and bounded warnings.
   - Spec: FR-8, NFR-6
   - Plan: Inventory Flow
   - Files/components: `src/dynamic_agent_runner/local_models.py`
   - Depends on: A4.5
   - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py -q` — `45 passed in 0.23s`
 
 - [ ] A4.7 [tests] Add RED safety coverage proving inventory does not scan
       arbitrary sibling/parent directories and does not invoke metadata lookup,

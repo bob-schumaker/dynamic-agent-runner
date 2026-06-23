@@ -477,10 +477,26 @@ def list_local_model_assets(
     assets: list[LocalModelInventoryItem] = []
     warnings: list[str] = []
     seen_paths: set[Path] = set()
+    seen_roots: set[Path] = set()
     if include_default_cache_root:
+        default_cache_root = _default_local_model_cache_root()
+        seen_roots.add(default_cache_root.resolve())
         _scan_local_model_inventory_root(
-            cache_root=_default_local_model_cache_root(),
+            cache_root=default_cache_root,
             source=LocalModelAvailabilitySource.DEFAULT_CACHE_ROOT,
+            assets=assets,
+            warnings=warnings,
+            seen_paths=seen_paths,
+        )
+    for cache_root_value in model_cache_roots:
+        cache_root = Path(cache_root_value)
+        resolved_root = cache_root.resolve()
+        if resolved_root in seen_roots:
+            continue
+        seen_roots.add(resolved_root)
+        _scan_local_model_inventory_root(
+            cache_root=cache_root,
+            source=LocalModelAvailabilitySource.CALLER_PROVIDED_ROOT,
             assets=assets,
             warnings=warnings,
             seen_paths=seen_paths,
@@ -1183,6 +1199,7 @@ def _scan_local_model_inventory_root(
     seen_paths: set[Path],
 ) -> None:
     if not cache_root.exists():
+        warnings.append(f"Local model inventory root {cache_root!s} does not exist")
         return
     if not cache_root.is_dir():
         warnings.append(f"Local model inventory root {cache_root!s} is not a directory")

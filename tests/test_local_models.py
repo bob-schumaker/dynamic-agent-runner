@@ -153,6 +153,66 @@ def test_list_local_model_assets_scans_default_cache_root(
     assert inventory.warnings == ()
 
 
+def test_list_local_model_assets_scans_current_caller_roots_without_persisting(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAvailabilitySource,
+        list_local_model_assets,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    caller_root = tmp_path / "caller-root"
+    caller_root.mkdir()
+    caller_model = caller_root / "caller-model.gguf"
+    caller_model.write_text("gguf", encoding="utf-8")
+
+    with_caller_root = list_local_model_assets(
+        model_cache_roots=(caller_root,),
+        include_default_cache_root=False,
+    )
+    without_caller_root = list_local_model_assets(include_default_cache_root=False)
+
+    assert [asset.path for asset in with_caller_root.assets] == [caller_model]
+    assert with_caller_root.assets[0].cache_root == caller_root
+    assert (
+        with_caller_root.assets[0].source
+        is LocalModelAvailabilitySource.CALLER_PROVIDED_ROOT
+    )
+    assert without_caller_root.assets == ()
+
+
+def test_list_local_model_assets_deduplicates_roots_and_warns_for_bad_roots(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAvailabilitySource,
+        list_local_model_assets,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    cache_root = _default_cache_root(home_dir)
+    model_path = cache_root / "chat-model.gguf"
+    model_path.parent.mkdir(parents=True)
+    model_path.write_text("gguf", encoding="utf-8")
+    missing_root = tmp_path / "missing-root"
+    not_directory = tmp_path / "not-directory"
+    not_directory.write_text("not a directory", encoding="utf-8")
+
+    inventory = list_local_model_assets(
+        model_cache_roots=(cache_root, missing_root, not_directory),
+    )
+
+    assert [asset.path for asset in inventory.assets] == [model_path]
+    assert inventory.assets[0].source is LocalModelAvailabilitySource.DEFAULT_CACHE_ROOT
+    assert any(str(missing_root) in warning for warning in inventory.warnings)
+    assert any(str(not_directory) in warning for warning in inventory.warnings)
+
+
 def test_check_local_model_availability_reports_available_explicit_gguf_path(
     tmp_path: Path,
 ) -> None:
