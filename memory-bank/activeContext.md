@@ -24,8 +24,8 @@
   `tests/test_hugging_face_support.py tests/test_import.py -q` with
   `71 passed`; `poetry run ruff check src tests`; targeted pre-commit; and
   `graphify update .`.
-- `local-model-availability-api` Slice A4 is now prepared for implementation as
-  narrow cached inventory. The planned public surface is a read-only
+- `local-model-availability-api` Slice A4 is now implemented as narrow cached
+  inventory. The public surface is a read-only
   `list_local_model_assets(...)` helper with package-owned inventory value
   objects, default-cache and current-call root scanning, deterministic
   de-duplication, direct GGUF and converted MLX classification, bounded
@@ -37,6 +37,12 @@
   directories, perform Hub metadata/search/downloads, construct adapters, load
   models, run generation, or memory-profile assets.
 - Recent local-model commits:
+  - `0f0b671` completed cached inventory Slice A4 evidence and corpus status.
+  - `2efa99a` documented the cached inventory API.
+  - `24f7f79` added cached inventory safety-bound tests.
+  - `c88c9e9` added current caller-provided root scanning.
+  - `71ef5b6` added default cache inventory over direct GGUF and converted MLX.
+  - `63c115b` added the public cached inventory contract.
   - `5addae5` prepared the cached inventory Slice A4 spec, plan, tasks,
     validation log, corpus index, and AGENTS learning.
   - `fbed269` refreshed memory-bank state after local-model availability v1.

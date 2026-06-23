@@ -33,10 +33,10 @@
   - injected fake-testable remote metadata for `would_download`, invalid, and
     unknown states
   - docs, spec/task/validation evidence, and focused tests
-  - narrow cached inventory Slice A4 is prepared for implementation:
-    `list_local_model_assets(...)` should scan only the default download cache
-    and current caller-provided roots, classify direct GGUF files and converted
-    MLX directories, de-duplicate by path, return bounded warnings, and stay
+  - narrow cached inventory Slice A4 is implemented:
+    `list_local_model_assets(...)` scans only the default download cache and
+    current caller-provided roots, classifies direct GGUF files and converted
+    MLX directories, de-duplicates by path, returns bounded warnings, and stays
     read-only with fake filesystem tests
   - broad inventory, native Hugging Face cache introspection, real metadata
     integration, strict exception mode, persistent root management, model
@@ -239,11 +239,11 @@
   adopt DAR's Responses tool-loop compatibility, remove the temporary
   `openai_responses_compat` patch, migrate to `tool_choice_policy`, and keep
   Power Marimo domain compaction downstream.
-- The current local-model availability implementation horizon is Slice A4
-  narrow cached inventory. The spec corpus still keeps broader local inventory,
-  native Hugging Face cache introspection, real metadata integration, and strict
-  exception mode outside this slice while LiteLLM remains paused on Python 3.14
-  dependency compatibility.
+- The current local-model availability implementation is complete through Slice
+  A4 narrow cached inventory. The spec corpus still keeps broader local
+  inventory, native Hugging Face cache introspection, real metadata integration,
+  and strict exception mode outside this slice while LiteLLM remains paused on
+  Python 3.14 dependency compatibility.
 
 ## Latest Milestones
 
