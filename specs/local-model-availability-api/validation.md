@@ -1,6 +1,6 @@
 # Local Model Availability API Validation Log
 
-Status: Slices A1-A2 complete; Slice A3 next
+Status: v1 baseline complete; Slices A1-A3 complete
 
 ## Scope
 
@@ -107,3 +107,44 @@ These are implementation-local decisions, not blockers to starting Slice A1:
 - Observed result: `49 passed in 0.20s`
 - Interpretation: injected remote metadata supports `would_download`, invalid,
   and unknown results without live Hugging Face calls or downloads.
+
+### Slice A3 — Documentation and Final Validation
+
+- Command:
+  `pre-commit run --files docs/files/python-api.rst`
+  `docs/skills/dynamic-agent-runner/SKILL.md`
+- Observed result: passed
+- Interpretation: availability preflight documentation passes Markdown checks.
+- Command:
+  `poetry run pytest tests/test_local_models.py tests/test_mlx_models.py`
+  `tests/test_hugging_face_support.py tests/test_import.py -q`
+- Observed result: `71 passed in 0.27s`
+- Interpretation: local-model availability, MLX validation, Hugging Face support
+  regression coverage, and package exports are green together.
+- Command: `poetry run ruff check src tests`
+- Observed result: passed
+- Interpretation: source and tests pass Ruff linting.
+- Command:
+  `pre-commit run --files src/dynamic_agent_runner/local_models.py`
+  `src/dynamic_agent_runner/mlx_models.py`
+  `src/dynamic_agent_runner/__init__.py tests/test_local_models.py`
+  `tests/test_mlx_models.py tests/test_import.py docs/files/python-api.rst`
+  `docs/skills/dynamic-agent-runner/SKILL.md`
+  `specs/local-model-availability-api/spec.md`
+  `specs/local-model-availability-api/plan.md`
+  `specs/local-model-availability-api/tasks.md`
+  `specs/local-model-availability-api/validation.md specs/README.md`
+- Observed result: passed
+- Interpretation: targeted pre-commit passed for implementation, tests, docs,
+  and spec artifacts.
+
+## Deferred From V1
+
+- `list_local_model_assets(...)` and broad local inventory remain deferred.
+- Native Hugging Face cache introspection remains deferred.
+- Real Hugging Face metadata integration remains deferred; v1 uses an injected
+  fake-testable metadata seam.
+- Strict exception mode for ordinary missing or invalid selected assets remains
+  deferred.
+- Model loading, generation, conversion, deletion, and memory-fit profiling
+  remain outside availability checks.

@@ -1,6 +1,6 @@
 # Local Model Availability API Tasks
 
-Status: Slices A1-A2 complete; Slice A3 next
+Status: v1 baseline complete; Slices A1-A3 complete
 
 ## Prerequisites
 
@@ -173,7 +173,7 @@ tests, or downstream UI policy.
 
 ## Slice A3 — Documentation, Drift Check, and Completion Evidence
 
-- [ ] A3.1 [docs] Document the availability API near local model and Hugging
+- [x] A3.1 [docs] Document the availability API near local model and Hugging
       Face discovery usage.
   - Spec: FR-5, Open Questions
   - Plan: Compatibility
@@ -182,8 +182,11 @@ tests, or downstream UI policy.
   - Depends on: A2.4
   - Validation: `pre-commit run --files docs/files/python-api.rst`
     `docs/skills/dynamic-agent-runner/SKILL.md`
+  - GREEN:
+    `pre-commit run --files docs/files/python-api.rst`
+    `docs/skills/dynamic-agent-runner/SKILL.md` — passed
 
-- [ ] A3.2 [validation] Run focused affected tests and lint.
+- [x] A3.2 [validation] Run focused affected tests and lint.
   - Spec: Validation Plan
   - Plan: Validation Strategy
   - Depends on: A3.1
@@ -191,8 +194,13 @@ tests, or downstream UI policy.
     `poetry run pytest tests/test_local_models.py tests/test_mlx_models.py`
     `tests/test_hugging_face_support.py tests/test_import.py -q`
   - Validation: `poetry run ruff check src tests`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py tests/test_mlx_models.py`
+    `tests/test_hugging_face_support.py tests/test_import.py -q` —
+    `71 passed in 0.27s`
+  - GREEN: `poetry run ruff check src tests` — passed
 
-- [ ] A3.3 [validation] Run targeted pre-commit for changed implementation,
+- [x] A3.3 [validation] Run targeted pre-commit for changed implementation,
       test, docs, and spec files.
   - Spec: Validation Plan
   - Plan: Validation Strategy
@@ -207,8 +215,9 @@ tests, or downstream UI policy.
     `specs/local-model-availability-api/plan.md`
     `specs/local-model-availability-api/tasks.md`
     `specs/local-model-availability-api/validation.md specs/README.md`
+  - GREEN: targeted pre-commit passed
 
-- [ ] A3.4 [spec-maintenance] Record exact validation evidence and update
+- [x] A3.4 [spec-maintenance] Record exact validation evidence and update
       artifact statuses after A1-A3 complete.
   - Spec: Implementation Readiness
   - Plan: Validation Strategy
@@ -217,3 +226,5 @@ tests, or downstream UI policy.
     `specs/local-model-availability-api/validation.md`, `specs/README.md`
   - Depends on: A3.3
   - Validation: `pre-commit run --files <changed spec files>`
+  - GREEN: completion status and evidence recorded in this task list and
+    `validation.md`

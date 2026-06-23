@@ -5,7 +5,7 @@
 - Feature slug: `local-model-availability-api`
 - Mode: `light`
 - Artifact type: proposed feature specification
-- Status: implementation prepared; Slice A1 planned but not started
+- Status: implemented v1 baseline; Slices A1-A3 complete
 - Version: `0.1`
 - Date: 2026-06-22
 - Owner: local-model adapter and Hugging Face support boundaries
@@ -546,8 +546,6 @@ poetry run ruff check src tests
 
 ## Implementation Readiness
 
-This spec is ready for Slice A1 implementation through the companion
-`plan.md`, `tasks.md`, and `validation.md` artifacts. Implementation should
-start with the RED tests in `tasks.md` and keep broad inventory, native Hugging
-Face cache introspection, and strict exception behavior deferred unless the spec
-is revised.
+The v1 baseline is implemented through Slices A1-A3. Future work should keep
+broad inventory, native Hugging Face cache introspection, and strict exception
+behavior deferred unless this spec is revised.

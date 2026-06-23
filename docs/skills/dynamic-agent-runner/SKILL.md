@@ -234,6 +234,37 @@ OpenAI-compatible endpoint helpers. Tool calling, structured output,
 embeddings, multimodal IO, streaming, conversion, and server lifecycle remain
 separate feature surfaces.
 
+Use `check_local_model_availability(...)` to preflight one known local model
+reference before adapter construction or runtime model resolution:
+
+```python
+from dynamic_agent_runner import (
+    LocalModelAssetReference,
+    LocalModelAvailabilityStatus,
+    check_local_model_availability,
+)
+
+availability = check_local_model_availability(
+    LocalModelAssetReference(
+        provider="hugging_face",
+        repo_id="Qwen/Qwen3-4B-GGUF",
+        filename="chat-model.gguf",
+        model_format="gguf",
+        backend="llama_cpp",
+    )
+)
+
+if availability.status is LocalModelAvailabilityStatus.AVAILABLE:
+    model_path = availability.resolved_path
+```
+
+Availability checks are read-only. They inspect explicit local paths, explicit
+cache roots, and the default local-model cache root without downloads, adapter
+construction, model loading, or generation. Optional injected remote metadata can
+return `would_download` without downloading. Use `search_hugging_face_models(...)`
+for remote catalog discovery; this preflight API does not provide broad local
+inventory or native Hugging Face cache enumeration.
+
 `search_hugging_face_models(...)` is read-only discovery. A matching result does
 not mean the model is downloaded, runnable, or compatible with the workflow.
 Install the package with the `huggingface` extra before using Hub-backed model
