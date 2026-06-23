@@ -671,7 +671,7 @@ refresh memory-bank and commit
 
 ---
 
-- create a forced commit with pyproject.toml to force a Build
+- create a forced commit with pyproject.toml to force a build
 - use escalation and scm-git to push develop
 - create a detailed devops scm pr
 - if/when the build is successful, merge the pr
@@ -709,3 +709,7 @@ execut local-model-availability-api and commit after each slice
 ---
 
 refresh memory bank and commit
+
+---
+
+update docs to match current repo state

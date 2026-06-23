@@ -7,8 +7,12 @@
   adapters/providers, retry, output contracts, token budgeting, tracing, hooks,
   prompt preparation, validation, runtime behavior overrides, model adapter
   coverage, local model helpers, in-memory persistent sessions, session event
-  streaming, bounded pruning-context graph injection, and
-  metadata-only future surfaces.
+  streaming, bounded pruning-context graph injection, bounded subagent tool
+  packs, collaborative parent/child session coordination, and metadata-only
+  future surfaces.
+- README and authored Sphinx docs now reflect the current bounded
+  subagent/collaboration surface. The docs refresh is committed in `1f76a9a`,
+  and `make -C docs html` passed before commit.
 - Default OpenAI/Codex auth discovery and ChatGPT/Codex backend compatibility
   are implemented.
 - `openai-responses-tool-loop-compat` Slice R1 is implemented as the upstream

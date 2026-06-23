@@ -2,6 +2,15 @@
 
 ## Current Focus
 
+- Documentation has been refreshed to match the current runtime surface around
+  bounded subagent helpers and collaborative session coordination. Commit
+  `1f76a9a` updated `README.md` and authored Sphinx docs under `docs/files/` to
+  document `CollaborativeAgentSessionManager`, clarify that autonomous
+  multi-agent orchestration remains out of scope, and record validation coverage
+  for subagent packs and collaborative parent/child sessions.
+- Docs validation for that refresh passed with `make -C docs html`. Generated
+  `docs/source/*.rst` output was unchanged after the build; authored docs remain
+  the source of truth.
 - `specs/local-model-availability-api/` is implemented through the v1 baseline.
   The feature started from a downstream Power Marimo request captured in
   `cline-tasks/local-model-availability-api-feature-request.md`, then gained
