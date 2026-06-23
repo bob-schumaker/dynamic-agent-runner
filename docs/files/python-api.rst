@@ -318,6 +318,44 @@ model through an OpenAI-compatible local server, use
 public APIs, conversion, and server lifecycle helpers are separate feature
 surfaces.
 
+.. header2:: Local model availability preflight
+
+Use ``check_local_model_availability(...)`` to inspect one known local model
+reference before constructing an adapter or triggering runtime model resolution:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       LocalModelAssetReference,
+       LocalModelAvailabilityStatus,
+       check_local_model_availability,
+   )
+
+   availability = check_local_model_availability(
+       LocalModelAssetReference(
+           provider="hugging_face",
+           repo_id="Qwen/Qwen3-4B-GGUF",
+           filename="chat-model.gguf",
+           model_format="gguf",
+           backend="llama_cpp",
+       )
+   )
+
+   if availability.status is LocalModelAvailabilityStatus.AVAILABLE:
+       model_path = availability.resolved_path
+
+Availability checks are read-only. They check explicit local paths, explicit
+cache roots, and the default local-model cache root without downloading,
+constructing adapters, loading model weights, or executing generation. Results
+include structured status, source, path, cache root, optional size metadata, a
+message, and warnings.
+
+When ``allow_network_metadata=True`` is supplied with an injected metadata
+lookup, availability can report ``would_download`` for a valid remote asset
+without downloading it. The package does not perform broad local inventory or
+native Hugging Face cache enumeration in this preflight API; use
+``search_hugging_face_models(...)`` for remote catalog discovery.
+
 .. header2:: Hugging Face model discovery
 
 Use ``search_hugging_face_models(...)`` to search Hugging Face models through a

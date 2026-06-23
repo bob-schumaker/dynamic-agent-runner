@@ -38,8 +38,9 @@ ROI is judged by:
 | Rank | Spec Work | ROI | Rationale |
 | --- | --- | --- | --- |
 | 1 | `litellm-provider-adapter` | Very high, paused | Slice L1 remains prepared, but implementation is paused until LiteLLM supports the package's Python 3.14 target. The prepared scope is default direct SDK Chat Completions transport, fake tests, request/response translation, and an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
-| 2 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
-| 3 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from LiteLLM/provider work first. |
+| 2 | `local-model-availability-api` first slice | High | Concrete downstream pressure from Power Marimo local-model selection, narrow read-only boundary, strong fit with existing local-model ownership, and fake-testable implementation path. First slice should focus on explicit-reference availability and defer broad inventory. |
+| 3 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
+| 4 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from LiteLLM/provider work first. |
 
 ## Conditional ROI
 
@@ -68,9 +69,11 @@ ROI is judged by:
 
 1. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
    package's Python target.
-2. Run the `memory-aware-context-pipeline` first-slice validation to decide
+2. Plan `local-model-availability-api` Slice A1 if local-model selection work is
+   active; keep the slice to read-only explicit-reference checks.
+3. Run the `memory-aware-context-pipeline` first-slice validation to decide
    whether it remains separate from RAG.
-3. Add `provider-backed-context-compaction` after provider capability boundaries
+4. Add `provider-backed-context-compaction` after provider capability boundaries
    are clearer.
 
 ## Recently Completed Since This Evaluation

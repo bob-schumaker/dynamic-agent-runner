@@ -676,3 +676,36 @@ refresh memory-bank and commit
 - create a detailed devops scm pr
 - if/when the build is successful, merge the pr
 - when the merge is complete, update main and rebase develop
+
+---
+
+evaluate cline-tasks/local-model-availability-api-feature-request.md as an
+addition to our corpus
+
+---
+
+create a feature spec from the feature request note
+
+---
+
+make the spec corpus internally consistent
+
+---
+
+comit spec changes and the feature request note
+
+---
+
+prepare local-model-availability-api for implementation
+
+---
+
+commit specs
+
+---
+
+execut local-model-availability-api and commit after each slice
+
+---
+
+refresh memory bank and commit

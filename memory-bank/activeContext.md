@@ -2,6 +2,34 @@
 
 ## Current Focus
 
+- `specs/local-model-availability-api/` is implemented through the v1 baseline.
+  The feature started from a downstream Power Marimo request captured in
+  `cline-tasks/local-model-availability-api-feature-request.md`, then gained
+  spec/plan/tasks/validation artifacts and was executed in three committed
+  slices:
+  - `43ec3c3` added the public availability contract and no-download explicit
+    path/cache-root checks.
+  - `6cddf46` added MLX GGUF/converted-directory validation plus an injected
+    remote metadata seam for `would_download`, invalid, and unknown states.
+  - `49291f3` documented the API and marked the spec/corpus as implemented.
+- The public local-model availability API now exposes
+  `LocalModelAssetReference`, `LocalModelAvailability`,
+  `LocalModelAvailabilityStatus`, `LocalModelAvailabilitySource`,
+  `LocalModelRemoteMetadata`, and `check_local_model_availability(...)` from
+  the package root. It is read-only: no downloads, adapter construction, model
+  loading, generation, memory profiling, broad inventory, or native Hugging Face
+  cache introspection.
+- Final local-model availability validation passed:
+  `poetry run pytest tests/test_local_models.py tests/test_mlx_models.py`
+  `tests/test_hugging_face_support.py tests/test_import.py -q` with
+  `71 passed`; `poetry run ruff check src tests`; targeted pre-commit; and
+  `graphify update .`.
+- Current implementation horizon after local-model availability: broad local
+  inventory, native Hugging Face cache introspection, real metadata integration,
+  and strict exception mode remain deferred. The ROI queue still treats
+  `litellm-provider-adapter` as paused on Python 3.14 dependency support; next
+  feasible spec work should be chosen from the current ROI map rather than
+  expanding local-model availability by default.
 - `specs/openai-responses-tool-loop-compat/` Slice R1 is implemented and
   complete. DAR now upstreams the behavior Power Marimo had been patching
   locally: streamed Responses function-call preservation, internal structured

@@ -37,6 +37,10 @@ from dynamic_agent_runner.openai_client import (
 DownloadFileCallable = Callable[["HuggingFaceModelFileReference", Path], Path]
 DownloadSnapshotCallable = Callable[["HuggingFaceSnapshotReference", Path], Path]
 LlamaCppDependencyLoaderCallable = Callable[[Path, "LlamaCppLocalModelConfig"], object]
+RemoteMetadataLookupCallable = Callable[
+    ["LocalModelAssetReference"],
+    "LocalModelRemoteMetadata",
+]
 
 
 class LlamaCppMemoryFitStatus(str, Enum):
@@ -47,6 +51,25 @@ class LlamaCppMemoryFitStatus(str, Enum):
     UNKNOWN = "unknown"
     UNAVAILABLE = "unavailable"
     FAILED_OPEN = "failed_open"
+
+
+class LocalModelAvailabilityStatus(str, Enum):
+    """Read-only local-model availability status."""
+
+    AVAILABLE = "available"
+    MISSING = "missing"
+    WOULD_DOWNLOAD = "would_download"
+    INVALID = "invalid"
+    UNKNOWN = "unknown"
+
+
+class LocalModelAvailabilitySource(str, Enum):
+    """Source checked for a local-model availability result."""
+
+    EXPLICIT_PATH = "explicit_path"
+    EXPLICIT_CACHE_ROOT = "explicit_cache_root"
+    DEFAULT_CACHE_ROOT = "default_cache_root"
+    NOT_FOUND = "not_found"
 
 
 @dataclass(frozen=True)
@@ -101,6 +124,85 @@ class HuggingFaceSnapshotReference:
 
     repo_id: str
     revision: str | None = None
+
+
+@dataclass(frozen=True)
+class LocalModelAssetReference:
+    """Public reference used for read-only local-model availability checks."""
+
+    provider: str
+    repo_id: str | None = None
+    filename: str | None = None
+    revision: str | None = None
+    explicit_path: Path | None = None
+    model_filename: str | None = None
+    model_cache_root: Path | None = None
+    model_format: str = "auto"
+    backend: str = "auto"
+
+    def __init__(
+        self,
+        *,
+        provider: str,
+        repo_id: str | None = None,
+        filename: str | None = None,
+        revision: str | None = None,
+        explicit_path: str | Path | None = None,
+        model_filename: str | None = None,
+        model_cache_root: str | Path | None = None,
+        model_format: str = "auto",
+        backend: str = "auto",
+    ) -> None:
+        normalized_provider = str(provider)
+        if normalized_provider not in {"hugging_face", "local_path"}:
+            raise ValueError("provider must be 'hugging_face' or 'local_path'")
+        normalized_model_format = str(model_format)
+        if normalized_model_format not in {"gguf", "mlx", "auto"}:
+            raise ValueError("model_format must be 'gguf', 'mlx', or 'auto'")
+        normalized_backend = str(backend)
+        if normalized_backend not in {"llama_cpp", "mlx", "auto"}:
+            raise ValueError("backend must be 'llama_cpp', 'mlx', or 'auto'")
+        object.__setattr__(self, "provider", normalized_provider)
+        object.__setattr__(self, "repo_id", repo_id)
+        object.__setattr__(self, "filename", filename)
+        object.__setattr__(self, "revision", revision)
+        object.__setattr__(
+            self,
+            "explicit_path",
+            Path(explicit_path) if explicit_path is not None else None,
+        )
+        object.__setattr__(self, "model_filename", model_filename)
+        object.__setattr__(
+            self,
+            "model_cache_root",
+            Path(model_cache_root) if model_cache_root is not None else None,
+        )
+        object.__setattr__(self, "model_format", normalized_model_format)
+        object.__setattr__(self, "backend", normalized_backend)
+
+
+@dataclass(frozen=True)
+class LocalModelAvailability:
+    """Structured read-only availability result for a local model asset."""
+
+    status: LocalModelAvailabilityStatus
+    reference: LocalModelAssetReference
+    resolved_path: Path | None = None
+    cache_root: Path | None = None
+    source: LocalModelAvailabilitySource | None = None
+    size_bytes: int | None = None
+    message: str = ""
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class LocalModelRemoteMetadata:
+    """Injected read-only remote metadata for a known local-model asset."""
+
+    exists: bool | None
+    size_bytes: int | None = None
+    message: str = ""
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -276,6 +378,69 @@ def profile_llama_cpp_model_memory_fit(
         suggested_model_kwargs=fit["suggested_model_kwargs"],
         diagnostics=tuple(measurement.diagnostics),
         partial=partial,
+    )
+
+
+def check_local_model_availability(
+    reference: LocalModelAssetReference,
+    *,
+    allow_network_metadata: bool = False,
+    metadata_lookup: RemoteMetadataLookupCallable | None = None,
+) -> LocalModelAvailability:
+    """Check local-model asset availability without downloading or loading."""
+
+    model_filename = _availability_model_filename(reference)
+    if model_filename is None:
+        return LocalModelAvailability(
+            status=LocalModelAvailabilityStatus.UNKNOWN,
+            reference=reference,
+            source=LocalModelAvailabilitySource.NOT_FOUND,
+            message="Local model availability requires a concrete model filename",
+        )
+    if reference.explicit_path is not None:
+        return _availability_for_candidate(
+            reference=reference,
+            model_path=reference.explicit_path,
+            source=LocalModelAvailabilitySource.EXPLICIT_PATH,
+            cache_root=None,
+            missing_message=(
+                f"Explicit local model path {reference.explicit_path!s} does not exist"
+            ),
+        )
+    explicit_cache_hit = _resolve_cache_hit(
+        cache_root=reference.model_cache_root,
+        model_filename=model_filename,
+    )
+    if explicit_cache_hit is not None:
+        return _availability_for_candidate(
+            reference=reference,
+            model_path=explicit_cache_hit,
+            source=LocalModelAvailabilitySource.EXPLICIT_CACHE_ROOT,
+            cache_root=reference.model_cache_root,
+        )
+    default_cache_root = _default_local_model_cache_root()
+    default_cache_hit = _resolve_cache_hit(
+        cache_root=default_cache_root,
+        model_filename=model_filename,
+    )
+    if default_cache_hit is not None:
+        return _availability_for_candidate(
+            reference=reference,
+            model_path=default_cache_hit,
+            source=LocalModelAvailabilitySource.DEFAULT_CACHE_ROOT,
+            cache_root=default_cache_root,
+        )
+    if allow_network_metadata and metadata_lookup is not None:
+        return _availability_from_remote_metadata(
+            reference=reference,
+            model_filename=model_filename,
+            metadata_lookup=metadata_lookup,
+        )
+    return LocalModelAvailability(
+        status=LocalModelAvailabilityStatus.MISSING,
+        reference=reference,
+        source=LocalModelAvailabilitySource.NOT_FOUND,
+        message=f"Local model asset {model_filename!r} is not available locally",
     )
 
 
@@ -867,6 +1032,144 @@ def _load_default_llama_cpp_backend(
 
 def _default_local_model_cache_root() -> Path:
     return Path.home() / ".ollama" / "models"
+
+
+def _availability_model_filename(reference: LocalModelAssetReference) -> str | None:
+    if reference.model_filename:
+        return reference.model_filename
+    if reference.filename:
+        return reference.filename
+    if reference.explicit_path is not None:
+        return reference.explicit_path.name
+    return None
+
+
+def _availability_for_candidate(
+    *,
+    reference: LocalModelAssetReference,
+    model_path: Path,
+    source: LocalModelAvailabilitySource,
+    cache_root: Path | None,
+    missing_message: str | None = None,
+) -> LocalModelAvailability:
+    if not model_path.exists():
+        return LocalModelAvailability(
+            status=LocalModelAvailabilityStatus.MISSING,
+            reference=reference,
+            cache_root=cache_root,
+            source=LocalModelAvailabilitySource.NOT_FOUND,
+            message=missing_message or f"Local model asset {model_path!s} is missing",
+        )
+    validation_message = _validate_available_model_path(model_path, reference)
+    if validation_message is not None:
+        return LocalModelAvailability(
+            status=LocalModelAvailabilityStatus.INVALID,
+            reference=reference,
+            resolved_path=model_path,
+            cache_root=cache_root,
+            source=source,
+            message=validation_message,
+        )
+    return LocalModelAvailability(
+        status=LocalModelAvailabilityStatus.AVAILABLE,
+        reference=reference,
+        resolved_path=model_path,
+        cache_root=cache_root,
+        source=source,
+        message=f"Local model asset {model_path!s} is available",
+    )
+
+
+def _validate_available_model_path(
+    model_path: Path,
+    reference: LocalModelAssetReference,
+) -> str | None:
+    effective_format = _availability_effective_model_format(model_path, reference)
+    if effective_format == "gguf":
+        if not model_path.is_file():
+            return f"GGUF local model path {model_path!s} is not a file"
+        if model_path.suffix.lower() != ".gguf":
+            return f"GGUF local model path {model_path!s} must use a .gguf suffix"
+    if effective_format == "mlx":
+        model_directory = model_path if model_path.is_dir() else model_path.parent
+        return _validate_available_mlx_directory(model_directory)
+    return None
+
+
+def _availability_effective_model_format(
+    model_path: Path,
+    reference: LocalModelAssetReference,
+) -> str:
+    if reference.model_format != "auto":
+        return reference.model_format
+    if model_path.suffix.lower() == ".gguf":
+        return "gguf"
+    return "mlx" if reference.backend == "mlx" else "auto"
+
+
+def _validate_available_mlx_directory(model_directory: Path) -> str | None:
+    if not model_directory.is_dir():
+        return f"MLX local model path {model_directory!s} is not a directory"
+    missing_files = [
+        filename
+        for filename in ("config.json", "tokenizer.model")
+        if not (model_directory / filename).exists()
+    ]
+    if not (model_directory / "weights.npz").exists() and not list(
+        model_directory.glob("weights.*.npz")
+    ):
+        missing_files.append("weights.npz")
+    if missing_files:
+        return (
+            f"MLX local model directory {model_directory!s} is missing "
+            f"required file(s): {', '.join(missing_files)}"
+        )
+    return None
+
+
+def _availability_from_remote_metadata(
+    *,
+    reference: LocalModelAssetReference,
+    model_filename: str,
+    metadata_lookup: RemoteMetadataLookupCallable,
+) -> LocalModelAvailability:
+    try:
+        metadata = metadata_lookup(reference)
+    except Exception as exc:  # noqa: BLE001 - metadata backends vary.
+        return LocalModelAvailability(
+            status=LocalModelAvailabilityStatus.UNKNOWN,
+            reference=reference,
+            source=LocalModelAvailabilitySource.NOT_FOUND,
+            message=f"Local model remote metadata lookup failed: {exc}",
+        )
+    if metadata.exists is True:
+        return LocalModelAvailability(
+            status=LocalModelAvailabilityStatus.WOULD_DOWNLOAD,
+            reference=reference,
+            source=LocalModelAvailabilitySource.NOT_FOUND,
+            size_bytes=metadata.size_bytes,
+            message=metadata.message
+            or f"Local model asset {model_filename!r} would require download",
+            warnings=metadata.warnings,
+        )
+    if metadata.exists is False:
+        return LocalModelAvailability(
+            status=LocalModelAvailabilityStatus.INVALID,
+            reference=reference,
+            source=LocalModelAvailabilitySource.NOT_FOUND,
+            message=metadata.message
+            or f"Remote local model asset {model_filename!r} is unavailable",
+            warnings=metadata.warnings,
+        )
+    return LocalModelAvailability(
+        status=LocalModelAvailabilityStatus.UNKNOWN,
+        reference=reference,
+        source=LocalModelAvailabilitySource.NOT_FOUND,
+        size_bytes=metadata.size_bytes,
+        message=metadata.message
+        or f"Local model asset {model_filename!r} availability is unknown",
+        warnings=metadata.warnings,
+    )
 
 
 def _resolve_cache_hit(*, cache_root: Path | None, model_filename: str) -> Path | None:
