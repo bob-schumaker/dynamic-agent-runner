@@ -69,6 +69,7 @@ class LocalModelAvailabilitySource(str, Enum):
     EXPLICIT_PATH = "explicit_path"
     EXPLICIT_CACHE_ROOT = "explicit_cache_root"
     DEFAULT_CACHE_ROOT = "default_cache_root"
+    CALLER_PROVIDED_ROOT = "caller_provided_root"
     NOT_FOUND = "not_found"
 
 
@@ -192,6 +193,28 @@ class LocalModelAvailability:
     source: LocalModelAvailabilitySource | None = None
     size_bytes: int | None = None
     message: str = ""
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class LocalModelInventoryItem:
+    """One read-only local model asset discovered in a scoped cache inventory."""
+
+    path: Path
+    cache_root: Path
+    source: LocalModelAvailabilitySource
+    model_format: str
+    backend: str
+    status: LocalModelAvailabilityStatus = LocalModelAvailabilityStatus.AVAILABLE
+    message: str = ""
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class LocalModelInventory:
+    """Read-only local model inventory for the roots in one caller request."""
+
+    assets: tuple[LocalModelInventoryItem, ...] = ()
     warnings: tuple[str, ...] = ()
 
 
@@ -442,6 +465,16 @@ def check_local_model_availability(
         source=LocalModelAvailabilitySource.NOT_FOUND,
         message=f"Local model asset {model_filename!r} is not available locally",
     )
+
+
+def list_local_model_assets(
+    *,
+    model_cache_roots: Sequence[str | Path] = (),
+    include_default_cache_root: bool = True,
+) -> LocalModelInventory:
+    """List local model assets from package-used roots for this call only."""
+
+    return LocalModelInventory()
 
 
 def _measurement_is_partial(

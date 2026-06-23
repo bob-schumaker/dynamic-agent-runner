@@ -103,6 +103,17 @@ def test_local_model_availability_public_contract_shape() -> None:
     assert availability.warnings == ()
 
 
+def test_local_model_inventory_public_contract_shape() -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelInventory,
+        list_local_model_assets,
+    )
+
+    inventory = list_local_model_assets(include_default_cache_root=False)
+
+    assert inventory == LocalModelInventory(assets=(), warnings=())
+
+
 def test_check_local_model_availability_reports_available_explicit_gguf_path(
     tmp_path: Path,
 ) -> None:

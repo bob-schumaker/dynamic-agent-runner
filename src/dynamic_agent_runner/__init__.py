@@ -71,6 +71,8 @@ from dynamic_agent_runner.local_models import (
     LocalModelAvailability,
     LocalModelAvailabilitySource,
     LocalModelAvailabilityStatus,
+    LocalModelInventory,
+    LocalModelInventoryItem,
     LocalModelRemoteMetadata,
     LocalOpenAIEndpointConfig,
     check_local_model_availability,
@@ -78,6 +80,7 @@ from dynamic_agent_runner.local_models import (
     create_llama_cpp_local_async_adapter,
     create_local_async_openai_adapter,
     create_local_openai_adapter,
+    list_local_model_assets,
     profile_llama_cpp_model_memory_fit,
 )
 from dynamic_agent_runner.mlx_models import (
@@ -233,6 +236,8 @@ __all__ = [
     "LocalModelAvailability",
     "LocalModelAvailabilitySource",
     "LocalModelAvailabilityStatus",
+    "LocalModelInventory",
+    "LocalModelInventoryItem",
     "LocalModelRemoteMetadata",
     "LocalModelError",
     "LocalOpenAIEndpointConfig",
@@ -264,6 +269,7 @@ __all__ = [
     "search_hugging_face_models",
     "profile_llama_cpp_model_memory_fit",
     "check_local_model_availability",
+    "list_local_model_assets",
     "create_llama_cpp_local_adapter",
     "create_llama_cpp_local_async_adapter",
     "create_local_async_openai_adapter",

@@ -238,7 +238,7 @@ filesystem-only.
 
 ## Slice A4 — Narrow Cached Inventory
 
-- [ ] A4.1 [tests] Add RED import and shape coverage for the public cached
+- [x] A4.1 [tests] Add RED import and shape coverage for the public cached
       inventory contract.
   - Spec: FR-5, FR-8
   - Plan: Public Contract Decisions, Slice A4 Boundary
@@ -249,8 +249,12 @@ filesystem-only.
     `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
   - Expected RED: `list_local_model_assets(...)` and inventory value objects
     are missing.
+  - RED:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+    failed because `LocalModelInventory`, `LocalModelInventoryItem`, and
+    `list_local_model_assets(...)` were missing.
 
-- [ ] A4.2 [implementation] Add inventory value objects, source/status
+- [x] A4.2 [implementation] Add inventory value objects, source/status
       vocabulary reuse or extension, package-root exports, and a placeholder
       `list_local_model_assets(...)`.
   - Spec: FR-5, FR-8
@@ -260,6 +264,9 @@ filesystem-only.
   - Depends on: A4.1
   - Validation:
     `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q` —
+    `43 passed in 0.21s`
 
 - [ ] A4.3 [tests] Add RED coverage for default cache-root inventory over
       direct GGUF files and converted MLX directories.
