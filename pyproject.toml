@@ -75,7 +75,7 @@ PYSIDE6 = true
 requires = ["poetry>=1.0.0"]
 build-backend = "poetry.masonry.api"
 
-# Build trigger marker: keep pyproject.toml in OCI build change detection.
+# Build trigger marker: keep pyproject.toml in OCI build change detection. 2026-06-23.
 [tool.ruff]
 line-length = 88
 
