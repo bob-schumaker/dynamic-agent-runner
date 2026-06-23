@@ -5,7 +5,7 @@
 - Feature slug: `local-model-availability-api`
 - Mode: `light`
 - Artifact type: proposed feature specification
-- Status: proposed; implementation not started
+- Status: implementation prepared; Slice A1 planned but not started
 - Version: `0.1`
 - Date: 2026-06-22
 - Owner: local-model adapter and Hugging Face support boundaries
@@ -28,6 +28,10 @@
   - `tests/test_local_models.py`
   - `tests/test_mlx_models.py`
   - `tests/test_hugging_face_support.py`
+- Companion planning artifacts:
+  - `specs/local-model-availability-api/plan.md`
+  - `specs/local-model-availability-api/tasks.md`
+  - `specs/local-model-availability-api/validation.md`
 
 ## Objective
 
@@ -542,7 +546,8 @@ poetry run ruff check src tests
 
 ## Implementation Readiness
 
-This spec is ready for planning, not implementation by itself. Before code
-changes begin, create or update companion `plan.md`, `tasks.md`, and
-`validation.md` artifacts for the selected first slice, especially if inventory
-support or strict error behavior is included.
+This spec is ready for Slice A1 implementation through the companion
+`plan.md`, `tasks.md`, and `validation.md` artifacts. Implementation should
+start with the RED tests in `tasks.md` and keep broad inventory, native Hugging
+Face cache introspection, and strict exception behavior deferred unless the spec
+is revised.
