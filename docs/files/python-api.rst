@@ -352,9 +352,30 @@ message, and warnings.
 
 When ``allow_network_metadata=True`` is supplied with an injected metadata
 lookup, availability can report ``would_download`` for a valid remote asset
-without downloading it. The package does not perform broad local inventory or
-native Hugging Face cache enumeration in this preflight API; use
-``search_hugging_face_models(...)`` for remote catalog discovery.
+without downloading it. Use ``search_hugging_face_models(...)`` for remote
+catalog discovery.
+
+Use ``list_local_model_assets(...)`` when a host needs a narrow snapshot of the
+local model assets already visible to DAR-owned cache roots:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import list_local_model_assets
+
+   inventory = list_local_model_assets(
+       model_cache_roots=("path/to/project-model-cache",),
+       include_default_cache_root=True,
+   )
+
+   for asset in inventory.assets:
+       print(asset.path, asset.model_format, asset.source)
+
+Cached inventory is also read-only. It scans only the default local-model cache
+root and the current caller-provided roots passed to that call. It recognizes
+direct ``.gguf`` files and converted MLX directories, returns bounded warnings
+for missing or invalid roots, and does not persist roots, scan arbitrary sibling
+directories, inspect native Hugging Face cache internals, download models,
+construct adapters, load weights, or execute generation.
 
 .. header2:: Hugging Face model discovery
 

@@ -1,6 +1,6 @@
 # Local Model Availability API Tasks
 
-Status: v1 baseline complete; Slices A1-A3 complete
+Status: implemented through Slice A4
 
 ## Prerequisites
 
@@ -14,6 +14,13 @@ Keep Slice A1 limited to read-only explicit-reference availability. Do not add
 inventory scanning, broad Hugging Face cache introspection, model downloads,
 adapter construction, model loading, execution, memory profiling, live network
 tests, or downstream UI policy.
+
+If inventory is added in a later slice, keep it restricted to DAR-owned/default
+download cache locations and current caller-provided roots; do not scan or
+manage arbitrary local model directories.
+
+Slice A4 is that later slice. Keep it read-only, current-call scoped, and
+filesystem-only.
 
 ## Slice A0 — Planning Checkpoint
 
@@ -228,3 +235,138 @@ tests, or downstream UI policy.
   - Validation: `pre-commit run --files <changed spec files>`
   - GREEN: completion status and evidence recorded in this task list and
     `validation.md`
+
+## Slice A4 — Narrow Cached Inventory
+
+- [x] A4.1 [tests] Add RED import and shape coverage for the public cached
+      inventory contract.
+  - Spec: FR-5, FR-8
+  - Plan: Public Contract Decisions, Slice A4 Boundary
+  - Files/components: `tests/test_local_models.py`, `tests/test_import.py`,
+    `src/dynamic_agent_runner/local_models.py`,
+    `src/dynamic_agent_runner/__init__.py`
+  - Validation:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+  - Expected RED: `list_local_model_assets(...)` and inventory value objects
+    are missing.
+  - RED:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+    failed because `LocalModelInventory`, `LocalModelInventoryItem`, and
+    `list_local_model_assets(...)` were missing.
+
+- [x] A4.2 [implementation] Add inventory value objects, source/status
+      vocabulary reuse or extension, package-root exports, and a placeholder
+      `list_local_model_assets(...)`.
+  - Spec: FR-5, FR-8
+  - Plan: Public Contract Decisions
+  - Files/components: `src/dynamic_agent_runner/local_models.py`,
+    `src/dynamic_agent_runner/__init__.py`
+  - Depends on: A4.1
+  - Validation:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q` —
+    `43 passed in 0.21s`
+
+- [x] A4.3 [tests] Add RED coverage for default cache-root inventory over
+      direct GGUF files and converted MLX directories.
+  - Spec: FR-3, FR-8
+  - Plan: Inventory Flow, Inventory Classification Approach
+  - Files/components: `tests/test_local_models.py`
+  - Depends on: A4.2
+  - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - Expected RED: default cache-root scanning and classification are missing.
+  - RED:
+    `poetry run pytest tests/test_local_models.py -q` failed because default
+    cache-root inventory returned no direct GGUF or converted MLX assets.
+
+- [x] A4.4 [implementation] Implement read-only default cache-root inventory
+      using existing local validation helpers.
+  - Spec: FR-3, FR-8, NFR-2, NFR-6
+  - Plan: Inventory Flow, Inventory Classification Approach
+  - Files/components: `src/dynamic_agent_runner/local_models.py`
+  - Depends on: A4.3
+  - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py -q` — `43 passed in 0.22s`
+
+- [x] A4.5 [tests] Add RED coverage for current caller-provided roots,
+      root-order precedence, duplicate asset paths, missing/non-directory roots,
+      and proof that roots are not persisted across calls.
+  - Spec: FR-8, NFR-6
+  - Plan: Inventory Flow, Risks and Tradeoffs
+  - Files/components: `tests/test_local_models.py`
+  - Depends on: A4.4
+  - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - Expected RED: current-call root handling and de-duplication are missing.
+  - RED:
+    `poetry run pytest tests/test_local_models.py -q` failed because
+    current caller-provided roots were not scanned and bad roots emitted no
+    warnings.
+
+- [x] A4.6 [implementation] Implement current caller-provided root scanning,
+      deterministic root/path de-duplication, and bounded warnings.
+  - Spec: FR-8, NFR-6
+  - Plan: Inventory Flow
+  - Files/components: `src/dynamic_agent_runner/local_models.py`
+  - Depends on: A4.5
+  - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py -q` — `45 passed in 0.23s`
+
+- [x] A4.7 [tests] Add RED safety coverage proving inventory does not scan
+      arbitrary sibling/parent directories and does not invoke metadata lookup,
+      download helpers, adapter construction, model loading, generation, or
+      memory-fit profiling.
+  - Spec: FR-7, FR-8, NFR-2
+  - Plan: Slice A4 Boundary, Inventory Flow
+  - Files/components: `tests/test_local_models.py`
+  - Depends on: A4.6
+  - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - Expected RED: safety guard coverage is not complete.
+  - RED not observed:
+    `poetry run pytest tests/test_local_models.py -q` passed because A4.4-A4.6
+    already kept scanning shallow and avoided runtime/download helpers.
+
+- [x] A4.8 [implementation] Tighten inventory safety behavior and warnings to
+      satisfy read-only, no-network, no-execution boundaries.
+  - Spec: FR-7, FR-8, NFR-2
+  - Plan: Slice A4 Boundary, Inventory Flow
+  - Files/components: `src/dynamic_agent_runner/local_models.py`
+  - Depends on: A4.7
+  - Validation: `poetry run pytest tests/test_local_models.py -q`
+  - GREEN:
+    No additional implementation change was required; safety coverage passed
+    with `47 passed in 0.25s`.
+
+- [x] A4.9 [docs] Document the cached inventory API next to local model
+      availability preflight.
+  - Spec: FR-5, FR-8
+  - Plan: Compatibility
+  - Files/components: `docs/files/python-api.rst`,
+    `docs/skills/dynamic-agent-runner/SKILL.md`
+  - Depends on: A4.8
+  - Validation:
+    `pre-commit run --files docs/files/python-api.rst`
+    `docs/skills/dynamic-agent-runner/SKILL.md`
+  - GREEN:
+    Cached inventory API docs added next to local model availability preflight.
+
+- [x] A4.10 [validation] Run focused affected tests, Ruff, targeted
+      pre-commit, and update validation evidence.
+  - Spec: Validation Plan
+  - Plan: Validation Strategy
+  - Files/components: `specs/local-model-availability-api/validation.md`,
+    `specs/README.md`
+  - Depends on: A4.9
+  - Validation:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+  - Validation: `poetry run ruff check src tests`
+  - Validation:
+    `pre-commit run --files <changed implementation, test, docs, and spec files>`
+  - GREEN:
+    `poetry run pytest tests/test_local_models.py tests/test_import.py -q` —
+    `48 passed in 0.22s`
+  - GREEN: `poetry run ruff check src tests` — passed
+  - GREEN: targeted pre-commit passed for changed implementation, test, docs,
+    and spec files

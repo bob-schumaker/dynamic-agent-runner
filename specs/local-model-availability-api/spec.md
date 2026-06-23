@@ -5,7 +5,7 @@
 - Feature slug: `local-model-availability-api`
 - Mode: `light`
 - Artifact type: proposed feature specification
-- Status: implemented v1 baseline; Slices A1-A3 complete
+- Status: implemented through Slice A4
 - Version: `0.1`
 - Date: 2026-06-22
 - Owner: local-model adapter and Hugging Face support boundaries
@@ -130,8 +130,11 @@ This feature covers:
    adapters
 
 This feature may include a small local cache inventory helper only if it is kept
-to runner-owned cache roots and local filesystem metadata. Broad provider cache
-introspection is deferred unless an implementation plan explicitly narrows it.
+to DAR-owned local-model cache locations: the package default cache root used
+for downloads and current caller-provided roots for that inventory call. It must
+not scan arbitrary caller directories. Broad provider cache introspection is
+deferred unless an implementation plan explicitly narrows it to package-used
+cache locations.
 
 ## Non-Goals
 
@@ -147,8 +150,10 @@ This feature must not introduce:
 - general Hugging Face SDK wrapping beyond the metadata needed for this feature
 - live Hugging Face, live model, llama.cpp, MLX, Marimo, or Power Marimo
   dependencies in unit tests
-- automatic filesystem scans outside approved cache roots or caller-provided
-  paths
+- automatic filesystem scans outside DAR-owned/default download cache locations
+  and current caller-provided roots
+- persistent registration, ownership, cleanup, or migration of caller-provided
+  roots
 
 ## Proposed Public API
 
@@ -210,6 +215,11 @@ The first slice should treat native Hugging Face cache introspection as optional
 metadata support, not as a required source precedence level. Runtime resolution
 currently owns explicit path, explicit cache root, default cache root, then
 download-capable Hugging Face reference handling.
+
+An inventory follow-up may add package-owned value objects and a public
+`list_local_model_assets(...)` helper. That helper is read-only and scoped to
+the roots supplied for the current call plus the default cache root; it is not a
+registry of every model on the machine.
 
 ## Functional Requirements
 
@@ -334,7 +344,8 @@ become broad provider discovery.
 Acceptance criteria:
 
 - Given implementation includes `list_local_model_assets(...)`, when it runs,
-  then it only scans approved cache roots and caller-provided roots.
+  then it only scans DAR-owned/default download cache locations and explicit
+  current caller-provided roots.
 - Given inventory scans a cache root, when unsupported or ambiguous files are
   found, then they are reported conservatively or skipped with bounded warnings.
 - Given implementation cannot map Hugging Face cache internals reliably without
@@ -344,6 +355,38 @@ Acceptance criteria:
 - Given callers need remote catalog search, when they want candidate models
   rather than local availability for a known reference, then they should use the
   existing Hugging Face model search API instead of inventory.
+
+### FR-8: Provide narrow cached inventory for package-used roots
+
+Inventory must list only local model assets visible through package-owned cache
+roots for the current call. It must be a convenience over the same local
+filesystem and validation semantics used by availability preflight, not a new
+model-management subsystem.
+
+Acceptance criteria:
+
+- Given a caller invokes inventory without extra roots, when the default
+  local-model cache root exists, then the result includes supported local model
+  files and converted MLX directories directly under that root.
+- Given the caller provides `model_cache_roots` for the current call, when those
+  roots contain supported assets, then the result includes those assets and
+  marks their source as a current caller-provided root.
+- Given the same asset path is visible through multiple scanned roots, when the
+  inventory result is returned, then the path appears once with deterministic
+  precedence and bounded warnings if useful.
+- Given an unsupported file, hidden file, nested provider cache internals, or
+  malformed converted directory is encountered, when inventory runs, then it is
+  skipped or reported as invalid according to the implementation plan without
+  raising for ordinary local cache contents.
+- Given inventory scans roots, when a root is missing, not a directory, or
+  unreadable, then the result remains structured and contains bounded warnings
+  instead of leaking raw filesystem exceptions.
+- Given inventory runs, when tests observe calls, then no Hugging Face metadata,
+  download helper, model adapter construction, model load, generation, or memory
+  profiling path is invoked.
+- Given package exports are checked, when callers import the inventory helper
+  and value objects from `dynamic_agent_runner`, then the approved public names
+  are available.
 
 ### FR-7: Keep tests deterministic and live-network-free by default
 
@@ -394,6 +437,12 @@ The first implementation should prefer the smallest public surface that supports
 explicit reference preflight. Broader inventory, cache introspection, and richer
 metadata should be added only when justified by a separate plan slice.
 
+### NFR-6: Preserve current-call inventory ownership
+
+Inventory may accept caller-provided roots only for the current call. The package
+must not remember those roots, claim ownership of them, clean them up, migrate
+them, or scan sibling/parent directories.
+
 ## Edge and Error Cases
 
 - If an explicit local path does not exist, availability should report a
@@ -419,6 +468,14 @@ metadata should be added only when justified by a separate plan slice.
   the availability result.
 - If cache layout assumptions change, availability and runtime resolution must be
   updated together so preflight does not drift from execution.
+- If a caller-provided inventory root is also the default cache root, inventory
+  should de-duplicate the root and keep default-cache source reporting.
+- If a caller-provided inventory root contains nested directories, inventory
+  should only descend far enough to identify supported converted MLX directories
+  and direct supported model files unless a later approved slice defines a
+  narrower nested layout.
+- If inventory cannot validate an asset cheaply, it should prefer a structured
+  invalid or warning-bearing result over loading the asset.
 
 ## Boundaries
 
@@ -430,6 +487,8 @@ metadata should be added only when justified by a separate plan slice.
 - Backend-aware validation for llama.cpp GGUF, MLX GGUF, and converted MLX
   directory assets.
 - Optional, read-only remote metadata lookup with explicit caller opt-in.
+- Narrow cached inventory for the default local-model cache root and current
+  caller-provided roots.
 - Package-owned result objects, messages, warnings, and errors.
 
 ### Out of Scope
@@ -438,7 +497,10 @@ metadata should be added only when justified by a separate plan slice.
 - UI policy, confirmation dialogs, progress displays, and downstream project
   option storage.
 - Local server process management.
-- Broad provider inventory across arbitrary Hugging Face or Ollama internals.
+- Broad provider inventory across arbitrary Hugging Face or Ollama internals, or
+  arbitrary local model directories outside package-used cache roots.
+- Persistent local-model inventory registry, cache cleanup, or directory
+  management.
 - Workflow manifest schema changes.
 - Live-network unit-test requirements.
 
@@ -449,10 +511,15 @@ metadata should be added only when justified by a separate plan slice.
 - Keep public results structured.
 - Keep optional remote metadata lookup explicit and fake-testable.
 - Keep implementation separable from memory-fit profiling and model execution.
+- Keep cached inventory rooted in the same local validation helpers used by
+  explicit-reference availability.
 
 ### Ask First
 
 - Making inventory scanning part of the first required implementation slice.
+- Expanding inventory beyond DAR-owned/default download cache locations and
+  current caller-provided roots.
+- Remembering current caller-provided inventory roots across calls.
 - Adding new portable workflow fields for local-model availability.
 - Treating metadata lookup as enabled by default.
 - Raising exceptions for ordinary missing or invalid user-selected assets.
@@ -466,6 +533,9 @@ metadata should be added only when justified by a separate plan slice.
 - Load a model file to perform generation-time validation.
 - Let downstream hosts duplicate runner cache-root precedence as the supported
   path.
+- Scan or manage arbitrary local model directories as part of inventory.
+- Treat current caller-provided inventory roots as package-owned locations after
+  the call returns.
 - Expose raw Hugging Face SDK objects as the public availability contract.
 
 ## Dependencies and Assumptions
@@ -486,8 +556,8 @@ metadata should be added only when justified by a separate plan slice.
 
 ### Assumptions
 
-- The first valuable slice is explicit-reference availability checking; local
-  inventory can be deferred.
+- The first valuable slice was explicit-reference availability checking. Slice
+  A4 added narrow cached inventory for package-used roots.
 - Snapshot and file availability checks are for known references with an
   intended concrete asset, not open-ended repository browsing.
 - Power Marimo and similar downstream hosts can own UI wording and project
@@ -497,21 +567,20 @@ metadata should be added only when justified by a separate plan slice.
 - Existing cache-root behavior should remain unchanged unless the local-model
   spec is explicitly revised.
 
-## Open Questions and Next Planning Decisions
+## Closed Decisions and Future Planning
 
-- Should the first implementation reuse `LocalModelPathConfig` plus existing
-  Hugging Face reference types, or add a distinct public
-  `LocalModelAssetReference` optimized for availability checks?
-- Should ordinary invalid local assets return `LocalModelAvailability(status=
-  "invalid")` exclusively, or should there also be a strict mode that raises
-  package-owned exceptions?
-- Which exact converted MLX directory files are required for availability
-  validation, and should that validation reuse private helpers from
-  `mlx_models.py` or move them into a shared local-model validation seam?
-- How much Hugging Face metadata should be supported in the first slice: remote
-  existence only, file size, sibling file listing, or snapshot-level metadata?
-- Should package docs show this API near Hugging Face model search, local-model
-  adapter construction, or both?
+- The public availability input is `LocalModelAssetReference`; runtime
+  `LocalModelPathConfig` remains the execution-resolution input.
+- Ordinary invalid local assets return structured availability results rather
+  than raising; strict exception mode remains a future explicit slice.
+- Converted MLX availability and inventory validation require `config.json`,
+  `tokenizer.model`, and `weights.npz` or `weights.*.npz`.
+- A4 inventory returns supported available assets and skips unsupported or
+  invalid direct children; it does not present invalid files as available.
+- Cached inventory documentation lives next to local model availability
+  preflight and points callers to Hugging Face search for remote discovery.
+- Future inventory expansion, if any, must preserve the current-call root
+  boundary unless this spec is explicitly revised.
 
 ## Validation Plan
 
@@ -529,6 +598,13 @@ minimum validation set is:
 - RED tests for fake remote metadata returning `would_download`, `invalid`, and
   unknown/unavailable states.
 - RED tests for backend-aware GGUF and converted MLX validation.
+- RED tests for narrow cached inventory over the default cache root and current
+  caller-provided roots.
+- RED tests proving inventory does not scan arbitrary sibling/parent
+  directories and does not persist caller-provided roots across calls.
+- RED tests proving inventory is read-only and does not invoke downloads,
+  metadata lookup, adapter construction, model loading, generation, or memory
+  profiling.
 - GREEN focused run for local-model, MLX, Hugging Face support, and import
   tests.
 
@@ -546,6 +622,8 @@ poetry run ruff check src tests
 
 ## Implementation Readiness
 
-The v1 baseline is implemented through Slices A1-A3. Future work should keep
-broad inventory, native Hugging Face cache introspection, and strict exception
-behavior deferred unless this spec is revised.
+The feature is implemented through Slice A4. It now includes explicit-reference
+availability preflight and narrow cached inventory over DAR-owned/default
+download cache locations and current caller-provided roots. Broad inventory,
+native Hugging Face cache introspection, persistent root management, and strict
+exception behavior remain deferred unless this spec is revised.
