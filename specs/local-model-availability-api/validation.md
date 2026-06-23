@@ -1,6 +1,6 @@
 # Local Model Availability API Validation Log
 
-Status: v1 baseline complete; Slices A1-A3 complete
+Status: Slice A4 prepared for implementation; Slices A1-A3 complete
 
 ## Scope
 
@@ -21,10 +21,23 @@ Status: v1 baseline complete; Slices A1-A3 complete
   `tests/test_hugging_face_support.py tests/test_import.py -q`
 - `poetry run ruff check src tests`
 - `pre-commit run --files <changed implementation, test, docs, and spec files>`
+- Slice A4 focused checks:
+  `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+- Slice A4 targeted pre-commit:
+  `pre-commit run --files src/dynamic_agent_runner/local_models.py`
+  `src/dynamic_agent_runner/__init__.py tests/test_local_models.py`
+  `tests/test_import.py docs/files/python-api.rst`
+  `docs/skills/dynamic-agent-runner/SKILL.md`
+  `specs/local-model-availability-api/spec.md`
+  `specs/local-model-availability-api/plan.md`
+  `specs/local-model-availability-api/tasks.md`
+  `specs/local-model-availability-api/validation.md specs/README.md`
 
 ## Planning Evidence
 
 - Slice A1 is limited to read-only explicit-reference availability checking.
+- Slice A4 prepares narrow local cached inventory restricted to
+  DAR-owned/default download cache locations and current caller-provided roots.
 - Broad local inventory and native Hugging Face cache introspection remain
   deferred.
 - Availability checks must not download, construct adapters, load models,
@@ -47,13 +60,17 @@ Status: v1 baseline complete; Slices A1-A3 complete
 - Spec FR-6 is explicitly deferred from Slice A1 in `plan.md` and the scope
   rule in `tasks.md`.
 - Spec FR-7 maps to all RED test tasks and the planned fake metadata seam.
+- Spec FR-8 maps to prepared tasks A4.1-A4.10.
 - No implementation task requires live Hugging Face, real MLX, real llama.cpp,
   model weights, or downstream Power Marimo dependencies.
 - No task adds portable workflow manifest fields.
+- No A4 task persists, manages, deletes, migrates, or recursively discovers
+  caller-provided roots.
 
 ## Open Implementation Questions
 
-These are implementation-local decisions, not blockers to starting Slice A1:
+These are implementation-local decisions, not blockers to starting the prepared
+slice:
 
 - Whether `LocalModelAssetReference` should be the only public input shape or
   whether `LocalModelPathConfig` should also be accepted by an overload/helper.
@@ -62,6 +79,10 @@ These are implementation-local decisions, not blockers to starting Slice A1:
 - Whether disabled remote metadata should return `missing` or `unknown` for a
   remote reference that misses local cache. Tests should lock the selected
   behavior before implementation.
+- Whether Slice A4 returns invalid inventory entries or skips them with bounded
+  warnings. Tests should lock the selected behavior before implementation.
+- Whether the public inventory item should be named `LocalModelInventoryItem` or
+  a more availability-aligned name.
 
 ## Evidence
 
@@ -140,7 +161,9 @@ These are implementation-local decisions, not blockers to starting Slice A1:
 
 ## Deferred From V1
 
-- `list_local_model_assets(...)` and broad local inventory remain deferred.
+- Broad local inventory remains deferred; Slice A4 prepares only narrow cached
+  inventory over DAR-owned/default download cache locations and current
+  caller-provided roots.
 - Native Hugging Face cache introspection remains deferred.
 - Real Hugging Face metadata integration remains deferred; v1 uses an injected
   fake-testable metadata seam.

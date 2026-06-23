@@ -1,14 +1,13 @@
-# Local Model Availability API Slice A1 Plan
+# Local Model Availability API Implementation Plan
 
-Status: prepared for implementation
+Status: Slice A4 prepared for implementation; Slices A1-A3 complete
 
 ## Goal
 
-Implement the first slice of `local-model-availability-api`: a public,
-read-only availability check for one explicit local model reference. The slice
-must report local source, cache root, resolved path, backend validation status,
-and optional fakeable remote metadata without downloading, constructing
-adapters, loading models, or scanning broad provider caches.
+Implement `local-model-availability-api` through small read-only slices. Slices
+A1-A3 delivered explicit-reference availability preflight. Slice A4 adds narrow
+cached inventory for package-used roots only: the DAR default local-model cache
+root and current caller-provided roots passed to the inventory call.
 
 ## Spec Trace
 
@@ -21,9 +20,9 @@ adapters, loading models, or scanning broad provider caches.
 - Related post-resolution advisory spec:
   `specs/llama-cpp-memory-fit-profile/spec.md`
 
-## Slice Boundary
+## Completed Slice Boundary
 
-Slice A1 includes:
+Slices A1-A3 include:
 
 - package-owned value objects for explicit availability references and results
 - a public `check_local_model_availability(...)` entry point
@@ -36,14 +35,41 @@ Slice A1 includes:
 - package-root exports and Python API documentation
 - deterministic fake tests
 
-Slice A1 defers:
+Slices A1-A3 defer:
 
-- `list_local_model_assets(...)`
 - broad Hugging Face cache enumeration
-- Ollama cache inventory beyond exact filename checks in the approved cache root
+- Ollama cache inventory beyond exact filename checks in the DAR-owned default
+  cache root or current caller-provided roots
 - real Hugging Face metadata integration beyond an injectable seam
 - memory-fit profiling, model loading, adapter construction, and execution
 - strict exception mode for ordinary missing or invalid user-selected assets
+
+## Slice A4 Boundary
+
+Slice A4 includes:
+
+- package-owned cached inventory value objects
+- a public `list_local_model_assets(...)` entry point
+- scanning the default local-model cache root
+- scanning current caller-provided roots passed to that inventory call
+- deterministic de-duplication by resolved path
+- filesystem-only classification of direct GGUF files and converted MLX
+  directories
+- bounded warnings for missing, non-directory, unreadable, unsupported, or
+  invalid local cache entries
+- package-root exports and Python API documentation
+- deterministic fake filesystem tests
+
+Slice A4 defers:
+
+- broad Hugging Face cache enumeration and snapshot cache introspection
+- recursive provider-cache discovery outside the approved root boundary
+- persistent root registration, root cleanup, migration, deletion, or ownership
+  tracking
+- remote metadata lookup, model search, and download-aware enrichment during
+  inventory
+- memory-fit profiling, model loading, adapter construction, and execution
+- downstream UI policy and project option storage
 
 ## Existing Implementation Context
 
@@ -73,6 +99,8 @@ Preferred value objects:
 - `LocalModelAvailability`
 - `LocalModelAvailabilityStatus`
 - `LocalModelAvailabilitySource`
+- `LocalModelInventoryItem`
+- `LocalModelInventory`
 - optional internal/public metadata object only if the fake metadata seam needs
   more than primitive values
 
@@ -102,6 +130,34 @@ the concrete asset name that matches the existing runtime model-resolution
 contract. If neither is available for a Hugging Face snapshot, return a
 structured `unknown` or `invalid` result instead of scanning the repository.
 
+For Slice A4, prefer a narrow API shape:
+
+```python
+inventory = list_local_model_assets(
+    model_cache_roots=(project_cache_root,),
+    include_default_cache_root=True,
+)
+```
+
+The inventory result should expose:
+
+- `assets`: ordered tuple of package-owned item objects
+- `warnings`: bounded root-level or scan-level diagnostics
+
+Each item should expose at least:
+
+- `path`
+- `cache_root`
+- `source`: default cache root or current caller-provided root
+- `model_format`: `gguf`, `mlx`, or `unknown`
+- `backend`: `llama_cpp`, `mlx`, or `auto`
+- `status`: available or invalid if invalid entries are retained
+- `message`
+- `warnings`
+
+Slice A4 should choose whether invalid entries are returned or skipped with a
+warning. It must not silently present invalid files as available.
+
 ## Availability Flow
 
 `check_local_model_availability(reference, *, allow_network_metadata=False,
@@ -126,6 +182,31 @@ metadata_lookup=None)` should follow this order:
 
 The implementation must never call the existing Hub download helpers from this
 availability path.
+
+## Inventory Flow
+
+`list_local_model_assets(*, model_cache_roots=(),
+include_default_cache_root=True)` should follow this order:
+
+1. Build the scan-root list from the default cache root, when enabled, followed
+   by current caller-provided roots.
+2. Normalize and de-duplicate roots by resolved path without requiring missing
+   roots to exist.
+3. For each existing directory root, inspect direct children only, except for
+   the minimum directory check needed to recognize converted MLX model
+   directories.
+4. Classify supported direct `.gguf` files as GGUF assets.
+5. Classify directories that match converted MLX structure as MLX assets.
+6. For unsupported or invalid direct children, either skip with bounded warnings
+   or return invalid inventory items according to the selected public contract.
+7. De-duplicate discovered assets by resolved path, keeping the earlier root's
+   source.
+8. Return a structured inventory object even when no roots exist or no assets
+   are found.
+
+The inventory implementation must never call Hub metadata, Hub downloads,
+adapter factories, model loading, generation, conversion, deletion, or
+memory-fit profiling.
 
 ## Backend Validation Approach
 
@@ -160,6 +241,17 @@ Do not add real `huggingface_hub` metadata integration until a later slice unles
 the implementation can do so without live tests, broad API growth, or cache
 layout assumptions.
 
+## Inventory Classification Approach
+
+Keep inventory classification intentionally shallower than runtime resolution:
+
+- direct `.gguf` files are candidate GGUF assets
+- directories with converted MLX structure are candidate MLX assets
+- hidden files and directories are skipped
+- unsupported direct files are skipped with bounded warnings only if needed
+- nested Hugging Face or Ollama provider internals are not recursively scanned
+- caller-provided roots are used for the current call only and are not stored
+
 ## Compatibility
 
 - Existing `resolve_local_model_path(...)` behavior remains unchanged.
@@ -169,6 +261,8 @@ layout assumptions.
   catalog discovery path.
 - Availability results are advisory preflight metadata; callers still control
   execution policy and download confirmation.
+- Inventory results are local cache snapshots for current roots only; callers
+  own any UI refresh cadence or project storage.
 
 ## Validation Strategy
 
@@ -206,6 +300,30 @@ pre-commit run --files \
   specs/README.md
 ```
 
+Focused Slice A4 RED/GREEN commands:
+
+```bash
+poetry run pytest tests/test_local_models.py tests/test_import.py -q
+poetry run ruff check src tests
+```
+
+Targeted pre-commit before completing A4:
+
+```bash
+pre-commit run --files \
+  src/dynamic_agent_runner/local_models.py \
+  src/dynamic_agent_runner/__init__.py \
+  tests/test_local_models.py \
+  tests/test_import.py \
+  docs/files/python-api.rst \
+  docs/skills/dynamic-agent-runner/SKILL.md \
+  specs/local-model-availability-api/spec.md \
+  specs/local-model-availability-api/plan.md \
+  specs/local-model-availability-api/tasks.md \
+  specs/local-model-availability-api/validation.md \
+  specs/README.md
+```
+
 ## Risks and Tradeoffs
 
 - Sharing MLX validation can create dependency-direction risk. Prefer a small
@@ -215,4 +333,10 @@ pre-commit run --files \
 - `unknown` versus `missing` semantics are subtle when metadata lookup is
   disabled. Tests should lock the exact A1 behavior.
 - Broad inventory is tempting but not needed for the downstream blocker; keep it
-  deferred.
+  deferred and restricted to DAR-owned/default download cache locations if it is
+  added later.
+- Current caller-provided roots can sound like ownership. The implementation
+  must treat them as one-call scan inputs only.
+- Recursive scanning can accidentally turn inventory into provider cache
+  introspection. Keep Slice A4 direct-child only unless a supported converted
+  MLX directory is being classified.
