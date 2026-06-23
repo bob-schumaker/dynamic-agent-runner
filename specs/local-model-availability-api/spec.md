@@ -556,8 +556,8 @@ them, or scan sibling/parent directories.
 
 ### Assumptions
 
-- The first valuable slice was explicit-reference availability checking; the
-  next planned slice is narrow cached inventory for package-used roots.
+- The first valuable slice was explicit-reference availability checking. Slice
+  A4 added narrow cached inventory for package-used roots.
 - Snapshot and file availability checks are for known references with an
   intended concrete asset, not open-ended repository browsing.
 - Power Marimo and similar downstream hosts can own UI wording and project
@@ -567,21 +567,18 @@ them, or scan sibling/parent directories.
 - Existing cache-root behavior should remain unchanged unless the local-model
   spec is explicitly revised.
 
-## Open Questions and Next Planning Decisions
+## Closed Decisions and Future Planning
 
-- Should the first implementation reuse `LocalModelPathConfig` plus existing
-  Hugging Face reference types, or add a distinct public
-  `LocalModelAssetReference` optimized for availability checks?
-- Should ordinary invalid local assets return `LocalModelAvailability(status=
-  "invalid")` exclusively, or should there also be a strict mode that raises
-  package-owned exceptions?
-- Which exact converted MLX directory files are required for availability
-  validation, and should that validation reuse private helpers from
-  `mlx_models.py` or move them into a shared local-model validation seam?
-- How much Hugging Face metadata should be supported in the first slice: remote
-  existence only, file size, sibling file listing, or snapshot-level metadata?
-- Should package docs show this API near Hugging Face model search, local-model
-  adapter construction, or both?
+- The public availability input is `LocalModelAssetReference`; runtime
+  `LocalModelPathConfig` remains the execution-resolution input.
+- Ordinary invalid local assets return structured availability results rather
+  than raising; strict exception mode remains a future explicit slice.
+- Converted MLX availability and inventory validation require `config.json`,
+  `tokenizer.model`, and `weights.npz` or `weights.*.npz`.
+- A4 inventory returns supported available assets and skips unsupported or
+  invalid direct children; it does not present invalid files as available.
+- Cached inventory documentation lives next to local model availability
+  preflight and points callers to Hugging Face search for remote discovery.
 - Future inventory expansion, if any, must preserve the current-call root
   boundary unless this spec is explicitly revised.
 

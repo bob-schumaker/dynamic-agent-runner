@@ -69,16 +69,13 @@ Status: implemented through Slice A4
 
 ## Open Implementation Questions
 
-These are implementation-local decisions, not blockers to starting the prepared
-slice:
+These are remaining future decisions, not blockers for the completed Slice A4:
 
 - Whether `LocalModelAssetReference` should be the only public input shape or
   whether `LocalModelPathConfig` should also be accepted by an overload/helper.
-- Whether MLX validation helpers should be shared from `local_models.py` into
-  `mlx_models.py` during A2 or duplicated temporarily to avoid drift.
-- Whether disabled remote metadata should return `missing` or `unknown` for a
-  remote reference that misses local cache. Tests should lock the selected
-  behavior before implementation.
+- Whether MLX validation helpers should be shared further between
+  `local_models.py` and `mlx_models.py` in a cleanup slice.
+- Whether strict metadata failure behavior should be added in a future slice.
 
 Closed during Slice A4:
 

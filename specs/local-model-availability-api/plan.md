@@ -1,11 +1,11 @@
 # Local Model Availability API Implementation Plan
 
-Status: Slice A4 prepared for implementation; Slices A1-A3 complete
+Status: implemented through Slice A4
 
 ## Goal
 
 Implement `local-model-availability-api` through small read-only slices. Slices
-A1-A3 delivered explicit-reference availability preflight. Slice A4 adds narrow
+A1-A3 delivered explicit-reference availability preflight. Slice A4 added narrow
 cached inventory for package-used roots only: the DAR default local-model cache
 root and current caller-provided roots passed to the inventory call.
 
@@ -22,7 +22,7 @@ root and current caller-provided roots passed to the inventory call.
 
 ## Completed Slice Boundary
 
-Slices A1-A3 include:
+Slices A1-A4 include:
 
 - package-owned value objects for explicit availability references and results
 - a public `check_local_model_availability(...)` entry point
@@ -34,20 +34,6 @@ Slices A1-A3 include:
   snapshot references
 - package-root exports and Python API documentation
 - deterministic fake tests
-
-Slices A1-A3 defer:
-
-- broad Hugging Face cache enumeration
-- Ollama cache inventory beyond exact filename checks in the DAR-owned default
-  cache root or current caller-provided roots
-- real Hugging Face metadata integration beyond an injectable seam
-- memory-fit profiling, model loading, adapter construction, and execution
-- strict exception mode for ordinary missing or invalid user-selected assets
-
-## Slice A4 Boundary
-
-Slice A4 includes:
-
 - package-owned cached inventory value objects
 - a public `list_local_model_assets(...)` entry point
 - scanning the default local-model cache root
@@ -57,13 +43,12 @@ Slice A4 includes:
   directories
 - bounded warnings for missing, non-directory, unreadable, unsupported, or
   invalid local cache entries
-- package-root exports and Python API documentation
-- deterministic fake filesystem tests
 
-Slice A4 defers:
+Slices A1-A4 defer:
 
 - broad Hugging Face cache enumeration and snapshot cache introspection
 - recursive provider-cache discovery outside the approved root boundary
+- real Hugging Face metadata integration beyond an injectable seam
 - persistent root registration, root cleanup, migration, deletion, or ownership
   tracking
 - remote metadata lookup, model search, and download-aware enrichment during
@@ -130,7 +115,7 @@ the concrete asset name that matches the existing runtime model-resolution
 contract. If neither is available for a Hugging Face snapshot, return a
 structured `unknown` or `invalid` result instead of scanning the repository.
 
-For Slice A4, prefer a narrow API shape:
+Slice A4 uses a narrow API shape:
 
 ```python
 inventory = list_local_model_assets(
@@ -155,8 +140,9 @@ Each item should expose at least:
 - `message`
 - `warnings`
 
-Slice A4 should choose whether invalid entries are returned or skipped with a
-warning. It must not silently present invalid files as available.
+Slice A4 skips unsupported or invalid direct children rather than returning
+invalid inventory entries. It must not silently present invalid files as
+available.
 
 ## Availability Flow
 
@@ -281,7 +267,7 @@ Focused docs/API command:
 poetry run ruff check src tests
 ```
 
-Targeted pre-commit before completing A1:
+Targeted pre-commit used for A1:
 
 ```bash
 pre-commit run --files \
@@ -307,7 +293,7 @@ poetry run pytest tests/test_local_models.py tests/test_import.py -q
 poetry run ruff check src tests
 ```
 
-Targeted pre-commit before completing A4:
+Targeted pre-commit used for A4:
 
 ```bash
 pre-commit run --files \
@@ -332,11 +318,11 @@ pre-commit run --files \
   fake-testable.
 - `unknown` versus `missing` semantics are subtle when metadata lookup is
   disabled. Tests should lock the exact A1 behavior.
-- Broad inventory is tempting but not needed for the downstream blocker; keep it
-  deferred and restricted to DAR-owned/default download cache locations if it is
-  added later.
+- Broad inventory remains deferred and must stay restricted to
+  DAR-owned/default download cache locations and current caller-provided roots
+  unless a future spec revision changes that boundary.
 - Current caller-provided roots can sound like ownership. The implementation
   must treat them as one-call scan inputs only.
 - Recursive scanning can accidentally turn inventory into provider cache
-  introspection. Keep Slice A4 direct-child only unless a supported converted
-  MLX directory is being classified.
+  introspection. Slice A4 is direct-child only unless a supported converted MLX
+  directory is being classified.
