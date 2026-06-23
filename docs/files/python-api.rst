@@ -525,6 +525,40 @@ only after successful completion. Provider-native token deltas, lower-level
 executor stream APIs, and specialized model-tool loop progress events remain
 future work.
 
+.. header2:: Collaborative child sessions
+
+Use ``CollaborativeAgentSessionManager`` when a host wants to keep explicit
+parent/child session state while still owning child construction and execution:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       CollaborativeAgentPreset,
+       CollaborativeAgentSessionManager,
+   )
+
+   manager = CollaborativeAgentSessionManager(
+       parent_session_id="parent-1",
+       presets={
+           "reviewer": CollaborativeAgentPreset(
+               id="reviewer",
+               role="Review specialist",
+               tool_ids=("workspace_data_read",),
+           )
+       },
+       session_factory=create_child_session,
+   )
+
+   child = manager.spawn_agent(preset_id="reviewer", name="reviewer-1")
+   result = await manager.send_input(child.agent_id, "Review this plan.")
+   snapshot = manager.current_state().to_mapping()
+
+The manager records child identity, role, status, last result, and child
+session snapshots in memory. It does not schedule background work, create model
+adapters, choose tools, persist external checkpoints, or provide an autonomous
+multi-agent planner. Unknown presets and closed children return explicit child
+states instead of silently creating work.
+
 .. header2:: Inspecting detailed execution state
 
 Use ``execute_workflow(...)`` or ``execute_workflow_async(...)`` when you need the

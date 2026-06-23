@@ -413,6 +413,19 @@ of ``session_messages_state_key`` when ``history`` is ``none``. Durable
 filesystem, database, Redis, cloud, OCI, or external-checkpoint stores remain
 out of scope for v1.
 
+.. header2:: Collaborative session coordination
+
+``CollaborativeAgentSessionManager`` provides host-owned parent/child session
+coordination on top of the in-memory session model. Presets describe allowed
+child roles and tool ids, while the caller-supplied ``session_factory`` creates
+the actual child session object. The manager can spawn child records, route
+prompts with ``send_input(...)``, list and close children, snapshot state, and
+restore from a snapshot.
+
+This is a coordination helper, not an autonomous multi-agent runtime. It does
+not start background tasks, persist checkpoints outside the process, choose
+tools, or create model adapters.
+
 .. header2:: Sandbox runtime metadata
 
 Sandbox/workspace runtime intent for future write-command tools can be preserved

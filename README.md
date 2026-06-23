@@ -66,8 +66,10 @@ Known configuration:
   interfaces
 - opt-in tool packs cover read-only local workspace access, injected web
   search/fetch clients, injected workspace data stores, and injected bounded
-  subagent runners; host integration helpers adapt caller-owned tools and
-  summarize trace/capability payloads without taking over host lifecycle
+  subagent runners; collaborative session helpers coordinate caller-owned
+  parent/child sessions in memory; host integration helpers adapt caller-owned
+  tools and summarize trace/capability payloads without taking over host
+  lifecycle
 - local model asset, endpoint, and direct in-process llama.cpp support is
   represented through package-owned local-model helpers; `llama-cpp-python` is a
   `llamacpp` extra and `huggingface-hub` is available through the `huggingface`
@@ -584,6 +586,8 @@ Current tests cover:
 - running declared input guardrails through caller-owned registries and failing
   closed for missing handlers
 - binding explicit MCP tools into the package-owned registry contract
+- running opt-in subagent tool packs through caller-injected runners and bounded
+  child limits
 - inspecting package capability readiness without executing model, tool,
   guardrail, or retriever calls
 - deriving and applying context-pipeline graph-mutation helpers for prepared
@@ -604,6 +608,7 @@ Current tests cover:
 - converting repository-owned tool registry definitions to OpenAI tool schema
 - dispatching registered tools without live model calls in unit tests
 - running supported workflows from a user prompt with fake clients/tools
+- coordinating in-memory collaborative parent/child agent sessions
 - loading hello-world fixture packages for all 11 supported agent-pattern IDs
 - running the CLI with package-directory input, prompt input, fake model
   clients, and clear error reporting
