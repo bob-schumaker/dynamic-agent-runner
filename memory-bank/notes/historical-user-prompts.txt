@@ -713,3 +713,7 @@ refresh memory bank and commit
 ---
 
 update docs to match current repo state
+
+---
+
+how is our interpreter middleware exposed to the model? can we support multiple interpreters with some kind of frontmatter/usage description? we should allow our caller to also provide custom interpreters for their workflow.

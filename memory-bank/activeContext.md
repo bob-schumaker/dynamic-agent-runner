@@ -2,6 +2,35 @@
 
 ## Current Focus
 
+- `specs/apple-foundation-model-adapter/spec.md` is now the highest-ROI pending
+  feature specification. Commit `f8e7361` defines A1 as an async in-process
+  Responses-compatible Apple Foundation Models adapter for text and explicit
+  JSON Schema output. A2 remains a separately gated Apple tool-callback bridge
+  through DAR approval and tool-runtime behavior. A1 is still a draft awaiting
+  approval; no plan, tasks, validation artifact, or implementation exists yet.
+- `specs/llm-step-interpreter-middleware/spec.md` now records the recommended
+  multi-interpreter contract in commit `c9f505f`: one DAR-owned
+  `run_interpreter` model gateway, bounded package-local or caller-supplied
+  usage descriptors, multiple node-allowed interpreter ids, async-first
+  caller-provided adapters, and node-scoped first-release state. Interpreter
+  tool requests must enter a DAR-owned invocation coordinator before registry
+  execution so exposure, validation, approval, hooks, tracing, state,
+  redaction, and model-facing result shaping remain authoritative.
+- Interpreter middleware remains future work. The amended spec still needs
+  approval, backend prototypes and benchmarks, general-purpose runtime safety
+  and redaction decisions, a descriptor budget, and an approval/resume decision
+  for nested tools before implementation planning.
+- The repository knowledge-graph toolchain is installed and initialized through
+  commit `a74bf68`. CodeGraph owns indexed source navigation, GitNexus owns
+  execution-flow and change-impact analysis, and Graphify owns the allowlisted
+  knowledge corpus. The bootstrap script is skill-local at
+  `.agents/skills/knowledge-graph-bootstrap/scripts/bootstrap-knowledge-graphs.sh`.
+- Graphify is now restricted to the knowledge-only allowlist, including
+  `specs/`, and semantic extraction routes through Osaurus with approved OpenAI
+  models. Generated `graphify-out/`, `.codegraph/`, and local
+  `.graphifyignore` state stay uncommitted. The current Graphify data is useful
+  for corpus topology and consistency triage, not as a substitute for
+  deterministic traceability checks or CodeGraph/source verification.
 - Documentation has been refreshed to match the current runtime surface around
   bounded subagent helpers and collaborative session coordination. Commit
   `1f76a9a` updated `README.md` and authored Sphinx docs under `docs/files/` to
@@ -31,8 +60,7 @@
 - Final local-model availability validation passed:
   `poetry run pytest tests/test_local_models.py tests/test_mlx_models.py`
   `tests/test_hugging_face_support.py tests/test_import.py -q` with
-  `71 passed`; `poetry run ruff check src tests`; targeted pre-commit; and
-  `graphify update .`.
+  `71 passed`; `poetry run ruff check src tests`; and targeted pre-commit.
 - `local-model-availability-api` Slice A4 is now implemented as narrow cached
   inventory. The public surface is a read-only
   `list_local_model_assets(...)` helper with package-owned inventory value
@@ -191,11 +219,6 @@
   `semantic-context-profiles`. They split remote `/responses/compact`-style
   provider compaction/window baselines, explicit model-backed summarizer
   adapters, and richer semantic/profile selection behavior.
-- Graphify is initialized for this repository. Generated graph artifacts live
-  under ignored `graphify-out/`; current graph output is AST/code-only because
-  semantic extraction for specs/docs requires an LLM API key. `AGENTS.md` now
-  records graphify query/path/explain guidance and points to the repo-local
-  addon skill `.agents/skills/graphify-noise-reduction/SKILL.md`.
 - Power-Marimo has been reclassified as a downstream dynamic-workflow client,
   not a DAR-owned automation feature. DAR must stay a generic workflow runner
   with host-provided tools, model adapters, execution context collaborators,
@@ -391,14 +414,8 @@
   surfaces.
 - `957f673` prepared three context-window follow-up specs for provider-backed
   compaction, model-backed summaries, and semantic context profiles.
-- `bc7dff7` ignored `graphify-out/` so generated graph artifacts stay local.
-- `fc7ad78` added repo-local graphify usage guidance in `AGENTS.md` and
-  `.agents/skills/graphify-noise-reduction/SKILL.md`.
 - `3fbfd63` implemented the expanded MLX local adapter surface.
 - `6361e05` added focused tests for the expanded MLX surface.
-- `4b1b0c1` temporarily refreshed the Python 3.14.6 mise/lock state and
-  `582cf85` reverted it; redo is intentionally pending after this memory-bank
-  refresh.
 - Sphinx configuration refresh is committed separately from the LiteLLM spec.
 
 ## Current Spec Authority Map
@@ -419,6 +436,8 @@
   - `specs/persistent-agent-sessions/spec.md`
   - `specs/model-event-streaming/spec.md`
 - Draft feature packages:
+  - `specs/apple-foundation-model-adapter/spec.md`
+- Paused implementation candidates:
   - `specs/litellm-provider-adapter/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
@@ -436,13 +455,21 @@
 ## Next Steps
 
 - Commit this memory-bank targeted refresh.
-- Reapply the `.mise.toml` and `poetry.lock` Python 3.14.6 refresh as a new
-  commit to trigger the build.
-- If implementing LiteLLM support later, first approve or refine
-  `specs/litellm-provider-adapter/spec.md`, then create plan/tasks artifacts
-  that decide request mapping, Codex auth adaptation, model-id aliasing,
-  Responses API support, PyInstaller handling, and official OpenAI SDK
-  compatibility/fallback behavior before editing runtime code.
+- Approve or revise Apple Foundation Models A1, then create a bounded
+  `plan.md`, `tasks.md`, and `validation.md` without pulling A2 tool callbacks
+  into the first release.
+- Keep Apple A2 and interpreter middleware aligned on one future DAR-owned tool
+  invocation coordinator. Do not let provider callbacks or interpreter bridges
+  call handlers or `ToolRegistry.invoke_tool_async(...)` directly.
+- Before planning interpreter implementation, resolve the five remaining
+  clarification items and run backend prototypes/benchmarks. Keep executable
+  adapters caller-provided and descriptor frontmatter non-executable.
+- Run the `memory-aware-context-pipeline` declarative first-slice validation when
+  it is scheduled, including the explicit decision to retain a distinct memory
+  contract or fold it back into RAG.
+- Resume LiteLLM Slice L1 only after upstream package metadata supports DAR's
+  Python 3.14 target; its initial spec/plan/tasks/validation set is already
+  prepared.
 - If extending model event streaming beyond v1, create plan/tasks for
   provider-native token deltas, adapter streaming protocol, model-tool-loop
   progress events, cancellation/backpressure behavior, redaction/tool payload
@@ -457,9 +484,10 @@
   slices, start from one of the prepared follow-up specs:
   `provider-backed-context-compaction`, `model-backed-context-summaries`, or
   `semantic-context-profiles`.
-- For codebase questions, prefer `graphify query`, `graphify path`, or
-  `graphify explain` when `graphify-out/graph.json` exists. The current graph
-  is code-only unless semantic extraction is rerun with an LLM API key.
+- Use CodeGraph for current source and call paths, GitNexus for execution-flow
+  and change-impact questions, and Graphify for specifications, rationale, and
+  cross-document relationships. Do not use Graphify's knowledge graph as proof
+  of implementation conformance.
 - Preserve unit-test boundaries: fake clients, fake tools, fake MCP bindings,
   fake guardrails, and fake local-model profilers only; no live OpenAI, MCP,
   Hugging Face, Marimo, llama.cpp, or local model calls in core tests.

@@ -130,6 +130,17 @@
   errors, and approval-required model tools return `WorkflowInterruptedResult`
   before invocation. Durable approval resume for model tool calls remains
   deferred.
+- The model-tool approval, lifecycle-hook, trace, state, registry, and
+  result-shaping behavior currently lives in the executor's model-tool path.
+  The Apple A2 and interpreter middleware specs require future non-model tool
+  ingress to reuse or extract that behavior into one DAR-owned invocation
+  coordinator; provider callbacks and interpreter bridges must not invoke raw
+  handlers or the registry directly.
+- The future interpreter model surface is one stable `run_interpreter` gateway
+  rather than one generated tool per backend. Workflow metadata and package-local
+  `INTERPRETER.md` content are descriptive and non-executable; callers supply
+  executable adapters through an `InterpreterRegistry`, while node and runtime
+  policy may only narrow the effective interpreter and tool sets.
 - Loop traces use `model_tool_loop_*` events for start, turn start, tool call,
   stop reason, and final output selection, with arguments and final output
   marked sensitive.
@@ -245,24 +256,26 @@
 
 ## Guidance for Future Work
 
-- The bounded `iterative-agent-loop-runtime` v1 slice is complete. Next scoped
-  ROI work is `skill-source-resolution`, unless local-model ergonomics makes
-  the prepared `llama-cpp-memory-fit-profile` v1 slice the immediate driver.
+- Apple Foundation Models A1 is the current highest-ROI pending specification.
+  Approve and plan its text/structured-output boundary before implementation;
+  keep A2 tool callbacks behind a separate coordinator and approval contract.
+- Interpreter middleware has a resolved gateway and custom-adapter direction but
+  is not implementation-ready. Prototype candidate backends and resolve safety,
+  redaction, descriptor-budget, and nested approval/resume questions first.
 - Use `specs/README.md` as the current spec inventory and completion matrix.
   Future live-runtime work should start from the relevant feature spec under
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
-- The current council roadmap in `specs/README.md` now has capability status,
-  approval/sandbox v1, MCP v1, guardrail v1, and iterative loop v1 complete.
-  Treat skill source work as the next dependent slice, with host integrations,
-  durable memory, and interpreter middleware later.
+- The current roadmap has capability status, approval/sandbox v1, MCP v1,
+  guardrail v1, iterative loops, skill source resolution, host integration, and
+  local-model availability baselines complete. Apple A1, the memory-aware first
+  slice, and provider-backed compaction are the leading unimplemented spec work;
+  LiteLLM remains paused on Python compatibility.
 - `specs/capability-status-report/spec.md` owns the implemented preflight
   reporting direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.
-- The current high-ROI dependency order has completed status visibility,
-  approval/sandbox mutation policy v1, MCP registry injection v1, input
-  guardrails v1, and bounded loops v1. Next is skills, then host integrations,
-  durable memory, and interpreter middleware. Do not treat later items as ready
-  just because their metadata seams exist.
+- Do not treat interpreter, Apple callback, durable memory, provider compaction,
+  or other future metadata as live behavior merely because a spec or preserved
+  declaration exists.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and

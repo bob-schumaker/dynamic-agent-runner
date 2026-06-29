@@ -103,13 +103,24 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - PyInstaller integration should keep freeze hooks inside the package so
   downstream clients discover them from installed distribution metadata instead
   of needing `--additional-hooks-dir`.
-- Graphify is installed as a local CLI and initialized for this checkout.
-  Generated graph state lives under ignored `graphify-out/`; use
-  `graphify query`, `graphify path`, and `graphify explain` for codebase
-  navigation when `graphify-out/graph.json` exists. The current graph is
-  AST/code-only with zero API token cost; semantic extraction over specs/docs
-  requires an LLM API key. Repo-local graphify guidance lives in `AGENTS.md` and
-  `.agents/skills/graphify-noise-reduction/SKILL.md`.
+- The repository knowledge-graph toolchain is initialized through the
+  `knowledge-graph-bootstrap` skill and its skill-local
+  `scripts/bootstrap-knowledge-graphs.sh` helper.
+- CodeGraph owns indexed current-source discovery and call-path navigation. Its
+  generated `.codegraph/` index is local and ignored.
+- GitNexus owns execution-flow discovery and working-tree change-impact checks.
+  Its generated `.gitnexus/` state is local and ignored.
+- Graphify owns the allowlisted knowledge corpus only: root guidance and
+  Markdown, `docs/source/`, `specs/`, `memory-bank/`, and `cline-tasks/`. It must
+  not index `src/`, tests, scripts, or generated/build output.
+- Graphify semantic extraction routes through Osaurus using the approved OpenAI
+  model order recorded in
+  `.agents/skills/graphify-knowledge-extraction/SKILL.md`. Generated
+  `graphify-out/` and local `.graphifyignore` configuration are ignored.
+- Use Graphify query/path/explain for spec and rationale relationships, not for
+  source navigation or implementation proof. Corpus topology can prioritize
+  consistency review but does not replace deterministic requirement,
+  acceptance-criteria, status, or code-conformance checks.
 
 ## Documentation Tooling
 

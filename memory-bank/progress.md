@@ -2,6 +2,20 @@
 
 ## Working
 
+- Apple Foundation Models adapter work has an authoritative draft spec in
+  `specs/apple-foundation-model-adapter/spec.md`. A1 is bounded to local text
+  and explicit JSON Schema output through the existing async provider facade;
+  A2 separately requires DAR-managed callback routing through the approval and
+  tool-runtime stack. No Apple adapter code is implemented.
+- Interpreter middleware now has a resolved model-facing design direction:
+  one `run_interpreter` gateway tool, multiple node-allowed ids, bounded
+  non-executable usage descriptors, caller-provided async-first adapters, and
+  DAR-coordinated nested tool calls. Backend selection and implementation remain
+  deferred.
+- The repository-local knowledge-graph toolchain is bootstrapped with clear
+  ownership: CodeGraph for source navigation, GitNexus for execution/change
+  impact, and a specs/docs-only Graphify corpus for knowledge relationships.
+  Generated indexes and graph output remain local and ignored.
 - Core runtime supports package-directory workflow loading and execution,
   async-first APIs, sync wrappers, tool registry/overrides, OpenAI-compatible
   adapters/providers, retry, output contracts, token budgeting, tracing, hooks,
@@ -227,10 +241,6 @@
   downstream request note is stored under `cline-tasks/`, and the implementation
   boundary keeps Power Marimo domain compaction downstream while making DAR own
   generic OpenAI Responses/tool-loop compatibility.
-- Graphify is initialized for the repo with ignored generated output in
-  `graphify-out/`. The current graph is AST/code-only and queryable through
-  `graphify query`, `graphify path`, and `graphify explain`; semantic
-  docs/spec extraction requires an LLM API key.
 - Power-Marimo is now documented as a downstream DAR client boundary, not a
   DAR-owned automation feature. DAR owns generic dynamic-agent workflow
   execution with host-provided registries/adapters/context; `../power-marimo`
@@ -251,6 +261,15 @@
 
 ## Latest Milestones
 
+- `c9f505f` defined the multi-interpreter gateway, descriptor/frontmatter,
+  caller registry, and DAR approval-coordinator contract in the interpreter
+  middleware spec.
+- `f8e7361` added the Apple Foundation Models adapter spec and aligned the spec
+  index, provider-wrapper supersession note, and ROI ordering.
+- `9592f61` added `specs/` to the Graphify knowledge-extraction allowlist;
+  `51bb200` kept local `.graphifyignore` configuration uncommitted.
+- `a74bf68` added the repository knowledge-graph toolchain skills and skill-local
+  bootstrap script; `187b588` ignored the local CodeGraph index.
 - `49291f3` documented the local-model availability preflight API and marked
   `specs/local-model-availability-api/` as implemented v1.
 - `6cddf46` added MLX GGUF/converted-directory availability validation and an
@@ -328,9 +347,6 @@
   client boundary.
 - `b296dd8` recorded the AGENTS.md project learning that Marimo, Qt, hosted UI,
   and app-specific automation remain downstream concerns.
-- `fc7ad78` added graphify guidance to `AGENTS.md` and the repo-local
-  `.agents/skills/graphify-noise-reduction/SKILL.md` addon.
-- `bc7dff7` ignored generated `graphify-out/` artifacts.
 - `957f673` prepared context-window follow-up specs for provider-backed
   compaction, model-backed summaries, and semantic context profiles.
 - `9ccfc3c` aligned the completed async-session, graph-mutation,
@@ -478,8 +494,13 @@
 - Context-management prepare-stage v1 is implemented through Slice 10. The
   richer remote-compaction, model-summary, and semantic/profile tracks are now
   prepared as separate future specs.
-- LLM step interpreter middleware remains deferred until sandbox, approval,
-  guardrails, tracing, redaction, and capability reporting are stable.
+- LLM step interpreter middleware remains unimplemented. Its gateway,
+  multi-interpreter, custom-adapter, and descriptor contracts are now specified,
+  but implementation planning still requires backend evidence, safety/redaction
+  decisions, descriptor budgets, and nested approval/resume semantics.
+- Apple Foundation Models A1 is the current highest-ROI draft and needs approval
+  plus plan/tasks/validation artifacts before implementation. A2 tool callbacks
+  remain a separate approval-gated release.
 
 ## Risks or Follow-ups
 
