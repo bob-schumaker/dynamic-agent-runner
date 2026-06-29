@@ -19,6 +19,7 @@ Graphify is restricted to the allowlist in `.graphifyignore`:
 
 - root project instructions and Markdown documentation
 - `docs/source/`
+- `specs/`
 - `memory-bank/`
 - `cline-tasks/`
 
