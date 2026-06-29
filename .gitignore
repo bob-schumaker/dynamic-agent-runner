@@ -65,3 +65,4 @@ docs/source/validation-and-testing.rst
 # local
 graphify-out/
 .codegraph/
+.graphifyignore
