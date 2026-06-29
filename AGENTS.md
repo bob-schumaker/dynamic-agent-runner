@@ -6,6 +6,8 @@ Drop-in operating instructions for coding agents. Read this file before every ta
 
 **Working code only. Finish the job. Plausibility is not correctness.**
 
+Also read `AGENTS.local.md` before every task when it exists; it contains repo-local instructions that supplement this file.
+
 This file follows the [AGENTS.md](https://agents.md) open standard (Linux Foundation / Agentic AI Foundation). Claude Code, Codex, Cursor, Windsurf, Copilot, Aider, Devin, Amp read it natively. For tools that look elsewhere, symlink:
 
 ```bash
@@ -207,28 +209,11 @@ When the user corrects your approach, append a one-line rule here before ending 
 - When both Codex API-key/auth-token auth and ChatGPT auth are available, default to API-key/auth-token auth first; use `codex_auth_preference="chatgpt_first"` to prefer ChatGPT auth when it exists.
 - Treat Marimo, Qt, hosted UI lifecycle, and app-specific automation as downstream client concerns; DAR must stay a generic workflow runner with host-provided tools only.
 - Local-model inventory, if added, must be limited to DAR-owned/default download cache locations and current caller-provided roots; do not scan or manage arbitrary external model directories.
+- Route provider-native tool callbacks through DAR's exposure, approval, lifecycle, tracing, registry, state, and result-shaping behavior before invoking any tool handler.
 
 ---
 
-## 12. Using graphify
-
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
-
-When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
-
-Rules:
-
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- For project-specific graphify behavior, read the repo-local addon skill at
-  `.agents/skills/graphify-noise-reduction/SKILL.md` before running `/graphify`.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
-
----
-
-## 13. How this file was built
+## 12. How this file was built
 
 This boilerplate synthesizes:
 
