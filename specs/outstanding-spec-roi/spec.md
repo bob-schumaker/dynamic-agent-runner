@@ -6,7 +6,7 @@
 - Mode: `light`
 - Artifact type: spec portfolio evaluation / roadmap note
 - Status: advisory; not implementation authorization
-- Date: 2026-06-22
+- Date: 2026-06-28
 - Source context:
   - `specs/README.md`
   - outstanding and partially implemented feature specs under `specs/`
@@ -37,8 +37,8 @@ ROI is judged by:
 
 | Rank | Spec Work | ROI | Rationale |
 | --- | --- | --- | --- |
-| 1 | `litellm-provider-adapter` | Very high, paused | Slice L1 remains prepared, but implementation is paused until LiteLLM supports the package's Python 3.14 target. The prepared scope is default direct SDK Chat Completions transport, fake tests, request/response translation, and an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
-| 2 | `local-model-availability-api` first slice | High | Concrete downstream pressure from Power Marimo local-model selection, narrow read-only boundary, strong fit with existing local-model ownership, and fake-testable implementation path. First slice should focus on explicit-reference availability and defer broad inventory. |
+| 1 | `apple-foundation-model-adapter` A1 | Very high, approval pending | Concrete on-machine caller need, successful local SDK and model probes, strong fit with the existing async provider facade and strict coverage, and a bounded first release for text plus explicit JSON Schema output. A2 tool callbacks remain separately gated. |
+| 2 | `litellm-provider-adapter` | Very high, paused | Slice L1 remains prepared, but implementation is paused until LiteLLM supports the package's Python 3.14 target. The prepared scope is default direct SDK Chat Completions transport, fake tests, request/response translation, and an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
 | 3 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
 | 4 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from LiteLLM/provider work first. |
 
@@ -67,10 +67,10 @@ ROI is judged by:
 
 ## Recommended Order
 
-1. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
+1. Approve and plan `apple-foundation-model-adapter` A1 without pulling A2 tool
+   callbacks into the initial release.
+2. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
    package's Python target.
-2. Plan `local-model-availability-api` Slice A1 if local-model selection work is
-   active; keep the slice to read-only explicit-reference checks.
 3. Run the `memory-aware-context-pipeline` first-slice validation to decide
    whether it remains separate from RAG.
 4. Add `provider-backed-context-compaction` after provider capability boundaries
@@ -80,6 +80,7 @@ ROI is judged by:
 
 | Spec Work | Completed Slice | Evidence |
 | --- | --- | --- |
+| `local-model-availability-api` | Slices A1-A4 | Explicit-reference preflight, backend-aware validation, injected no-download metadata checks, narrow DAR/default-cache inventory, caller-root inventory, docs, and fake tests |
 | `openai-responses-tool-loop-compat` | Slice R1 | Streamed Responses function-call preservation, structured transcript rendering, ChatGPT/Codex `function_call_output` follow-ups, `tool_choice_policy`, model-facing `tool_results`, docs, and fake tests |
 | `tool-descriptor-budgeting` | Slice T1 | `fd1b54c` implemented opt-in descriptor budgeting; `f7ab5d5` recorded completion evidence and runtime policy docs |
 | `host-workflow-integration` | Slice H2 | Inline/generated and loaded-workflow capability preflight, host id capability details, lifecycle docs, and fake tests |
@@ -104,5 +105,7 @@ pressure, scoped plans, and fake-testable acceptance criteria.
 - The evaluation is linked from `specs/README.md`.
 - The artifact does not mark any future work as implementation-approved.
 - The highest-ROI items preserve existing ownership boundaries.
+- The Apple A1 ranking remains advisory, and A2 tool callbacks stay behind a
+  separate approval and planning gate.
 - The memory-aware recommendation preserves the RAG separation and
   no-implicit-save constraint.

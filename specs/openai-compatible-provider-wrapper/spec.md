@@ -13,6 +13,15 @@
   - `tests/test_openai_client.py`
   - `tests/test_executor.py`
   - `specs/llama-cpp-local-model/spec.md`
+  - `specs/model-adapter-coverage/spec.md`
+
+## Supersession Note
+
+This spec remains authoritative for the repository-owned OpenAI-compatible
+provider facade. Its original `local_only` routing behavior was superseded by
+the later `model-adapter-coverage` feature: `is_local` remains diagnostic
+metadata, while callers that require local-only execution now provide only
+local adapters with `model_adapter_coverage="strict"`.
 
 ## Objective
 
@@ -87,9 +96,9 @@ for each future local provider.
 - `__init__.py` now re-exports `OpenAIProviderConfig` plus the default provider
   factory helpers so callers can configure OpenAI-compatible endpoints through
   the package-level API without reaching into internal module paths.
-- Adapter selection already preserves `models` and `is_local`, and executor
-  routing already supports `local_only` requirements using those existing
-  adapter attributes.
+- Adapter selection preserves `models` and `is_local`. The later
+  `model-adapter-coverage` feature removed `local_only` routing, so `is_local`
+  no longer changes adapter selection.
 
 ## Functional Requirements
 
@@ -143,8 +152,9 @@ Acceptance criteria:
   when the wrapper is constructed, then the configuration remains valid as long
   as the downstream SDK/client path supports the omission.
 - Given a caller targets an OpenAI-compatible local endpoint, when the adapter is
-  marked `is_local=True`, then no executor changes are required for that provider
-  to participate in existing local-only model selection.
+  marked `is_local=True`, then the metadata remains available for diagnostics;
+  callers enforce local-only execution with a local adapter list and strict
+  adapter coverage.
 
 ### FR-4: Preserve adapter metadata and selection semantics
 
@@ -155,9 +165,8 @@ Acceptance criteria:
 
 - Given an adapter advertises `models`, when executor model matching runs, then
   the refactor preserves the current behavior of model-aware adapter selection.
-- Given an adapter advertises `is_local=True`, when executor evaluates
-  `local_only` requirements, then the existing local-provider selection behavior
-  continues to function.
+- Given an adapter advertises `is_local=True`, when model selection runs, then
+  the metadata does not create a separate local-only routing branch.
 - Given provider-specific diagnostics are helpful, when the implementation adds
   provider metadata such as a provider name, then that metadata remains optional
   and does not replace `models` or `is_local` as the executor's canonical
