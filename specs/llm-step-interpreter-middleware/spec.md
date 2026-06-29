@@ -11,6 +11,8 @@
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/dynamic-agent-runner/plan.md`
   - `specs/dynamic-agent-runner/tasks.md`
+  - `specs/approval-interruption-resume/spec.md`
+  - `specs/apple-foundation-model-adapter/spec.md`
   - `src/dynamic_agent_runner/executor.py`
   - `src/dynamic_agent_runner/models.py`
   - `src/dynamic_agent_runner/registry.py`
@@ -117,6 +119,14 @@ boundaries:
   node taxonomy: `llm_step`, `tool_use_step`, and `decision_step`.
 - `src/dynamic_agent_runner/openai_client.py` owns the default official OpenAI
   adapter boundary.
+- The current model-tool loop in `src/dynamic_agent_runner/executor.py` applies
+  exposure checks, approval interruption, lifecycle hooks, tracing, registry
+  invocation, state storage, and result shaping around model-originated calls.
+  Interpreter support must reuse or extract that behavior into a shared
+  coordinator rather than call the registry directly.
+- `specs/apple-foundation-model-adapter/spec.md` requires the same DAR-owned tool
+  invocation coordinator for provider callbacks. The two features should share
+  one behavior boundary instead of creating separate approval stacks.
 - `specs/dynamic-agent-runner/spec.md` favors package-owned interfaces,
   OpenAI-first model execution, explicit tool registries, fail-closed safety, and
   optional dependencies only behind scoped requirements.
@@ -126,17 +136,17 @@ not a new primitive node kind in the first design.
 
 ## Proposed Capability Shape
 
-A future manifest extension might attach an interpreter to a specific
-`llm_step`
-by referencing an interpreter id from a caller-provided interpreter
-registry or a manifest-declared interpreter metadata section:
+A future manifest extension attaches one or more allowed interpreters to a
+specific `llm_step` by referencing interpreter ids from a caller-provided
+interpreter registry and optional manifest-declared descriptive metadata:
 
 ```yaml
 interpreters:
   - id: quickjs_experimental
     label: QuickJS Experimental Interpreter
     language: javascript
-    adapter: caller.quickjs
+    summary: Run bounded JavaScript over tools exposed to the active node.
+    usage_source: interpreter-bundle/quickjs_experimental/INTERPRETER.md
     default_limits:
       max_tool_calls: 20
       timeout_ms: 2000
@@ -149,8 +159,10 @@ nodes:
     kind: llm_step
     interpreter:
       enabled: true
-      interpreter_id: quickjs_experimental
-      mode: eval_tool
+      mode: gateway_tool
+      allowed_interpreters:
+        - quickjs_experimental
+        - caller_analysis_dsl
       tool_allowlist:
         - search_files
         - read_file
@@ -158,35 +170,132 @@ nodes:
         max_tool_calls: 10
 ```
 
-The manifest-level `interpreters` section is metadata and policy only. It does
-not make an interpreter executable by itself. A caller-provided interpreter
-registry, or another explicitly approved source, must provide the actual runtime
-adapter for `interpreter_id`.
+The manifest-level `interpreters` section and any `INTERPRETER.md` document are
+metadata and policy only. Neither makes an interpreter executable. A
+caller-provided `InterpreterRegistry`, or another separately approved runtime
+source, must provide the executable adapter for every allowed interpreter id.
+
+### Model-facing gateway tool
+
+The first implementation should expose one stable package-owned model tool named
+`run_interpreter`, rather than generating one model tool per interpreter. Its
+request shape is conceptually:
+
+```text
+run_interpreter(
+    interpreter_id: enum[effective allowed interpreter ids],
+    program: string,
+    input: object | null,
+)
+```
+
+The gateway tool description includes a bounded catalog of the effective
+interpreters available to the active node. Each catalog entry contains only the
+id, label, language, summary, intended uses, excluded uses, invocation guidance,
+and conservative capabilities needed by the model to choose and use the
+interpreter. The `interpreter_id` schema enum must contain only registered,
+enabled, node-allowed interpreters.
+
+The single gateway keeps the model contract stable as callers add custom
+interpreters, avoids model-tool naming collisions, and prevents tool-descriptor
+growth from scaling linearly with the number of interpreters. Generating one
+tool per interpreter remains a rejected first-release alternative because it
+would widen the model surface and complicate caller-defined backends.
+
+The gateway is exposed only when interpreter middleware is enabled for the node,
+at least one allowed id resolves to a registered adapter, and the active model
+path supports tool calls. It participates in the existing bounded model-tool
+loop. The gateway must not be exposed inside an interpreter's bridged tool
+namespace, preventing recursive `run_interpreter` calls.
+
+The first implementation returns the interpreter result to the model as a tool
+result so the model can synthesize the final `llm_step` response. Treating the
+interpreter result directly as the node output is deferred until a separate
+execution mode defines output authority and validation behavior.
+
+### Interpreter usage descriptors
+
+Interpreter usage guidance may be supplied programmatically by the caller or by
+a package-local `interpreter-bundle/<id>/INTERPRETER.md` document. A packaged
+document uses bounded Markdown with non-executable frontmatter such as:
+
+```markdown
+---
+id: quickjs_experimental
+label: JavaScript workspace interpreter
+language: javascript
+summary: Run bounded JavaScript over exposed DAR tools.
+best_for:
+  - filtering and aggregating tool results
+  - bounded loops over workspace searches
+avoid_for:
+  - shell commands
+  - network access
+supports:
+  async_tools: true
+  snapshots: false
+---
+
+Use `tools.<tool_id>(arguments)` to invoke tools exposed to this node.
+Return one JSON-compatible final value.
+```
+
+Descriptor loading must be opt-in, package-local, path-normalized, symlink-safe,
+UTF-8, size-bounded, and free of network fetching or arbitrary caller filesystem
+reads. Frontmatter and body text may describe usage but may not name an import,
+module, executable, command, handler, or adapter factory to load.
+
+Model-facing descriptor text is subject to the existing tool-descriptor budget.
+When the full catalog does not fit, required interpreter metadata is retained
+and optional examples or prose are omitted deterministically. Descriptor
+budgeting must never remove an allowed id from the tool schema while leaving it
+selectable by some hidden path.
+
+### Metadata and policy authority
+
+Effective interpreter configuration is derived in this order:
+
+1. Caller registration supplies the executable adapter and truthful runtime
+   capabilities.
+2. Package metadata supplies descriptive usage and default policy but cannot
+   add capabilities that the registered adapter does not advertise.
+3. Node policy narrows allowed interpreter ids, bridged tools, and limits.
+4. Runtime overrides may disable or further restrict interpreters but may not
+   silently widen package or node policy.
+
+An id, language, safety classification, or capability conflict between package
+metadata and caller registration fails during workflow preparation unless an
+explicit, validated override policy resolves it. Generated artifacts remain
+immutable; effective configuration is derived for the run.
 
 Expected executor-level flow:
 
 1. `_execute_llm_step(...)` detects an interpreter policy on the node or effective
    node behavior.
-2. The model receives an explicit interpreter/eval capability in its prompt or
-   tool surface.
-3. Interpreter code runs in a constrained embedded runtime.
-4. The interpreter exposes only explicit bridged capabilities, such as
+2. Workflow preparation resolves registered, enabled, node-allowed interpreter
+   descriptors and fails closed on conflicts or missing adapters.
+3. The model receives the `run_interpreter` gateway tool with the bounded
+   effective descriptor catalog and allowed-id enum.
+4. A model gateway call creates a constrained interpreter session through the
+   selected caller-provided adapter.
+5. The interpreter exposes only explicit bridged capabilities, such as
    `tools.<tool_id>(...)`, derived from node-level tool exposure and runtime
    registry overrides.
-5. Bridged tools route through the existing `ToolRegistry.invoke_tool(...)` path
-   or a compatible successor interface.
-6. Results, retries, trace events, token accounting, and output-contract
+6. Every bridged tool request enters a DAR-owned tool invocation coordinator
+   before registry invocation so exposure, validation, approval, lifecycle,
+   tracing, state, redaction, and result-shaping behavior remains authoritative.
+7. Results, retries, trace events, token accounting, and output-contract
    validation remain package-owned.
-7. The final interpreter result is returned to the model context or treated as
-   the node output according to the finalized execution semantics.
+8. The interpreter result returns as a model-facing tool result and the model
+   produces the authoritative `llm_step` output.
 
 ## Custom Interpreter Interface
 
 The runner should support caller-specified custom interpreters through a
 package-owned interface rather than hard-coding a single backend. This mirrors
-the
-existing model-client and tool-registry approach: generated artifacts may declare
-intent and policy, while the caller supplies executable adapters at runtime.
+the existing model-client and tool-registry approach: generated artifacts may
+declare intent and policy, while the caller supplies executable adapters at
+runtime.
 
 The names below are illustrative future API shapes, not current exports from
 `dynamic_agent_runner`.
@@ -206,7 +315,9 @@ registry.register(
     RegisteredInterpreter(
         definition=InterpreterDefinition(
             id="quickjs_experimental",
+            label="JavaScript workspace interpreter",
             language="javascript",
+            summary="Run bounded JavaScript over exposed DAR tools.",
             side_effect="none",
             supports_snapshots=True,
         ),
@@ -226,36 +337,39 @@ Conceptual protocol shape:
 
 ```python
 class InterpreterAdapter(Protocol):
-    def create_session(
+    async def create_session(
         self,
         *,
         node_id: str,
         definition: InterpreterDefinition,
         limits: InterpreterLimits,
-        tool_bridge: InterpreterToolBridge,
+        tool_bridge: InterpreterToolCoordinatorBridge,
         snapshot: bytes | None = None,
     ) -> InterpreterSession: ...
 
 class InterpreterSession(Protocol):
-    def evaluate(self, request: InterpreterRequest) -> InterpreterResult: ...
-    def snapshot(self) -> bytes | None: ...
-    def close(self) -> None: ...
+    async def evaluate(
+        self,
+        request: InterpreterRequest,
+    ) -> InterpreterResult: ...
+    async def snapshot(self) -> bytes | None: ...
+    async def close(self) -> None: ...
 ```
 
 The exact type names are provisional, but the interface should preserve these
 responsibilities:
 
 - `InterpreterDefinition` records non-executable metadata: id, label, language,
-  adapter name, default limits, safety classification, snapshot support, and raw
-  manifest metadata.
+  summary, usage guidance, default limits, safety classification, conservative
+  capabilities, snapshot support, provenance, and raw manifest metadata.
 - `RegisteredInterpreter` combines an `InterpreterDefinition` with an executable
   adapter supplied by the caller.
-- `InterpreterRegistry` resolves `interpreter_id` for `llm_step` nodes, applies
-  runtime interpreter overrides, and fails closed for missing or disabled
-  interpreters.
-- `InterpreterToolBridge` exposes only effective allowlisted registry tools to the
-  interpreter session and routes every call through the package-owned tool
-  registry.
+- `InterpreterRegistry` resolves the effective allowed interpreter set for each
+  `llm_step`, applies restrictive runtime overrides, and fails closed for
+  missing, conflicting, or disabled interpreters.
+- `InterpreterToolCoordinatorBridge` exposes only effective allowlisted tools to
+  the interpreter session and routes every request through DAR's tool invocation
+  coordinator rather than directly to a handler or `ToolRegistry`.
 - `InterpreterRequest` carries code or DSL content, selected execution mode, node
   id, effective prompt context, and any serializable prior state.
 - `InterpreterResult` carries the final value, optional stdout/stderr, structured
@@ -265,6 +379,9 @@ responsibilities:
 Custom interpreters may be implemented by callers using QuickJS, restricted
 Python, a DSL, WebAssembly, a subprocess harness, or another backend, but the
 runner should interact with them only through this package-owned interface.
+The initial public interface is async-first. A caller may wrap a synchronous
+backend behind its adapter, but DAR does not expose a second synchronous
+interpreter protocol in the first release.
 
 ## Functional Requirements
 
@@ -284,20 +401,31 @@ Acceptance criteria:
 - Given code attempts to access unbridged host resources, when execution runs,
   then it fails closed with a clear interpreter capability error.
 
-### FR-2: Preserve registry-authoritative tool invocation
+### FR-2: Preserve DAR-managed tool invocation
 
-Interpreter programmatic tool calls MUST use the same callable registry authority
-as normal runtime tool execution.
+Interpreter programmatic tool calls MUST enter the same DAR behavior stack as
+normal model-originated tool calls before reaching the callable registry.
 
 Acceptance criteria:
 
 - Given interpreter code calls `tools.read_file(...)`, when `read_file` is
-  allowlisted and registered, then invocation routes through the runtime
-  registry.
+  allowlisted and registered, then invocation routes through a DAR-owned
+  coordinator that applies exposure, argument validation, approval policy,
+  lifecycle hooks, tracing, registry invocation, workflow-state storage,
+  redaction, and model-facing result shaping.
 - Given interpreter code calls an unregistered or disabled tool, when execution
   runs, then execution fails before any host action occurs.
 - Given per-node tool overrides restrict a tool, when interpreter code
   attempts to call it, then the restriction is enforced.
+- Given a bridged tool requires approval, when no approval decision exists, then
+  the handler and registry invocation do not run. The coordinator either awaits
+  an approved in-process resolver or returns DAR's interruption behavior.
+- Given approval is denied, cancelled, expired, or unresolved, then the handler
+  is not invoked and the interpreter receives only a DAR-controlled failure or
+  interruption representation.
+- Given the registry returns a `ToolResult`, then the interpreter receives only
+  the serialized `model_facing_output`; DAR retains the complete result and
+  trace/state authority.
 
 ### FR-3: Provide runtime controls
 
@@ -328,8 +456,9 @@ Acceptance criteria:
   the node output, then the output is validated through the existing
   output-contract path before becoming trusted state.
 - Given token budgeting is enabled, when interpreter middleware changes prompt or
-  model-call shape, then token estimates still record relevant model messages and
-  can be compared against non-interpreter execution.
+  model-call shape, then token estimates include the gateway descriptor and
+  effective interpreter catalog and can be compared against non-interpreter
+  execution.
 
 ### FR-5: Stay optional and dependency-scoped
 
@@ -354,14 +483,17 @@ editing generated agent-design artifacts or adding hard-coded backend dependenci
 Acceptance criteria:
 
 - Given a caller registers an interpreter adapter with id `custom_js`, when an
-  `llm_step` references `interpreter_id: custom_js`, then execution uses that
-  registered adapter.
+  `llm_step` includes `custom_js` in `allowed_interpreters` and the model selects
+  it through `run_interpreter`, then execution uses that registered adapter.
 - Given a node references an interpreter id that is only present as manifest
   metadata but has no registered adapter, when workflow preparation runs, then the
   runtime fails closed with a clear missing-interpreter error.
-- Given multiple interpreter adapters are registered, when different `llm_step`
-  nodes reference different ids, then each node uses only its configured
-  interpreter.
+- Given multiple interpreter adapters are registered and allowed for one
+  `llm_step`, when its gateway schema is prepared, then the model sees only those
+  effective ids and may select among them explicitly.
+- Given different `llm_step` nodes allow different interpreter sets, when each
+  node is prepared, then its gateway catalog and enum contain only its effective
+  set.
 - Given a caller disables or overrides an interpreter at runtime, when workflow
   preparation runs, then effective interpreter availability reflects the override
   without mutating generated artifacts.
@@ -374,15 +506,15 @@ version explicitly extends support to other node kinds.
 Acceptance criteria:
 
 - Given an interpreter config targets an `llm_step`, when validation runs,
-  then the attachment is accepted if the interpreter id, limits, and tool
+  then the attachment is accepted if `allowed_interpreters`, limits, and tool
   allowlist are valid.
 - Given an interpreter config targets a `tool_use_step` or `decision_step`, when
   validation runs, then the runtime rejects the attachment as unsupported.
 - Given a node-level interpreter `tool_allowlist` includes tools not effectively
   exposed to that node, when validation runs, then the runtime fails closed.
-- Given interpreter config omits `interpreter_id`, when `enabled: true`,
-  then the runtime either uses an explicitly configured caller default or
-  fails clearly; it must not silently select a backend.
+- Given interpreter config enables the gateway with an empty effective
+  `allowed_interpreters` set, then preparation fails clearly; it must not select
+  a caller default or unrelated registered backend silently.
 
 ### FR-8: Keep interpreter metadata separate from executable adapters
 
@@ -396,10 +528,55 @@ Acceptance criteria:
   is supplied, then the metadata is preserved for validation/reporting but no code
   execution is possible.
 - Given a registered adapter's metadata conflicts with the manifest declaration,
-  when workflow preparation runs, then the runtime reports the conflict or applies
-  an explicit caller override policy.
+  when workflow preparation runs, then the runtime fails or applies an explicit
+  validated override policy; it must not merge contradictory capabilities.
 - Given interpreter metadata declares unsupported safety or side-effect policy
   values, when loading or validation runs, then the runtime fails clearly.
+
+### FR-9: Expose a stable model-facing gateway
+
+The first release MUST expose interpreter execution through one DAR-owned model
+tool and return its result to the model tool loop.
+
+Acceptance criteria:
+
+- Given interpreter middleware is enabled with at least one effective
+  interpreter, when the model request is built, then it includes one
+  `run_interpreter` tool whose `interpreter_id` enum contains only effective ids.
+- Given no effective interpreter is available, when request preparation runs,
+  then the gateway is omitted for disabled middleware or preparation fails for
+  explicitly required middleware.
+- Given the model selects an id outside the enum, when DAR validates the call,
+  then no interpreter session is created.
+- Given an interpreter completes successfully, when its gateway result returns,
+  then the result enters the model transcript as structured tool output and the
+  model remains responsible for the final `llm_step` response.
+- Given the active model adapter cannot support the gateway tool call, when
+  capability validation runs, then execution fails before model dispatch.
+- Given a bridged tool namespace is constructed, then `run_interpreter` and any
+  equivalent interpreter-evaluation tool are excluded to prevent recursion.
+
+### FR-10: Provide bounded usage descriptions
+
+The runtime MUST provide enough interpreter-specific guidance for model
+selection without treating descriptive content as executable configuration.
+
+Acceptance criteria:
+
+- Given multiple interpreters are effective for a node, when the gateway
+  description is rendered, then each has a stable id, language, concise summary,
+  intended uses, excluded uses, and invocation guidance.
+- Given a package-local `INTERPRETER.md` is configured, when it is loaded, then
+  path containment, symlink safety, UTF-8 decoding, size, and frontmatter schema
+  are validated before its content reaches the model.
+- Given a descriptor attempts to name executable loading behavior, when
+  validation runs, then it is rejected as non-descriptive configuration.
+- Given descriptor content exceeds the active budget, when the catalog is
+  rendered, then optional prose is reduced deterministically while identity,
+  language, safety, and invocation essentials remain.
+- Given a caller supplies an executable adapter without package usage metadata,
+  when its registered definition contains valid bounded usage guidance, then it
+  may still participate without modifying generated workflow artifacts.
 
 ## Candidate Interpreter Approaches
 
@@ -410,9 +587,10 @@ behind the same conceptual interface.
 
 Examples to investigate include `langchain-quickjs` / `quickjs-rs`,
 `quickjs`,
-`quickjs-py`, or another maintained QuickJS Python binding available for Python
-`>=3.11,<3.14` in the configured package indexes. The local Deep Agents checkout
-uses `langchain-quickjs>=0.1.2,<0.2.0` as its optional QuickJS integration and
+`quickjs-py`, or another maintained QuickJS Python binding available for the
+repository's supported Python range, including its selected Python 3.14 runtime,
+in the configured package indexes. The local Deep Agents checkout uses
+`langchain-quickjs>=0.1.2,<0.2.0` as its optional QuickJS integration and
 therefore provides a concrete reference implementation to study.
 
 Potential strengths:
@@ -426,8 +604,7 @@ Risks and questions:
 
 - Async bridge support may vary by binding; Deep Agents' PTC model exposes
   allowlisted tools as async `tools.<camelCaseName>(...)` functions, which
-  should
-  be studied before designing this runner's bridge.
+  should be studied before designing this runner's bridge.
 - Need to verify dependency availability in this repository's configured package
   indexes, not only in the local Deep Agents lockfiles.
 - Need hard limits for execution time, memory, recursion, result size, and
@@ -539,9 +716,14 @@ Risks and questions:
 - Interpreter support should be optional and disabled by default.
 - Interpreter backends should be caller-registered through a package-owned
   interface; manifest metadata alone must not execute code.
+- Interpreter usage descriptors should be non-executable, bounded, and derived
+  only from package-local or caller-supplied content.
+- The model-facing surface should remain one stable gateway tool regardless of
+  how many custom interpreters a caller registers.
 - Interpreter execution should be deterministic enough to test with fake clients
   and fake tools.
-- Candidate dependencies must support Python `>=3.11,<3.14`.
+- Candidate dependencies must support the repository's configured Python range,
+  including its selected Python 3.14 runtime.
 - Candidate dependencies must be evaluated for availability in this repository's
   package indexes before being added.
 - The implementation must not weaken the OpenAI adapter boundary or introduce
@@ -562,6 +744,12 @@ Risks and questions:
 - Replacing `tool_use_step` nodes globally.
 - Replacing the existing OpenAI adapter or tool registry architecture.
 - Supporting arbitrary `SKILL.md` source loading as interpreter context.
+- Loading interpreter adapters, modules, commands, or factories from descriptor
+  frontmatter.
+- Reading interpreter usage documents from arbitrary external paths or network
+  locations.
+- Treating the first-release interpreter result as authoritative node output
+  without a final model response.
 
 ## Safety Lessons from the Local Deep Agents Reference
 
@@ -570,6 +758,8 @@ carried into this repository's design evaluation:
 
 - Treat programmatic tool calling as a privilege boundary because it may bypass
   approval or interruption hooks that normal model-mediated tool paths enforce.
+- Never give an interpreter adapter a raw handler or unrestricted registry
+  reference. Give it only a run- and node-scoped coordinator bridge.
 - Prefer a conservative read-only preset for safe interpreter tool access.
 - Require explicit acknowledgement before exposing all host tools or any tool with
   write, shell, network, subagent, or external mutation behavior.
@@ -579,6 +769,27 @@ carried into this repository's design evaluation:
   limits in the first-class config model rather than as hidden backend defaults.
 - Treat Deep Agents' `langchain-quickjs` implementation as supporting
   evidence and an example to study, not as an automatic dependency choice.
+
+## Resolved Design Decisions
+
+1. The model-facing surface is one DAR-owned `run_interpreter` gateway tool, not
+   one generated tool per interpreter.
+2. The gateway returns interpreter output to the model tool loop; the model's
+   subsequent response remains the authoritative `llm_step` output.
+3. One node may allow multiple explicit interpreter ids, and the model selects
+   an id from the gateway schema enum.
+4. Executable adapters are supplied through a caller-provided
+   `InterpreterRegistry`; package metadata and `INTERPRETER.md` files remain
+   descriptive and non-executable.
+5. The initial adapter interface is async-first. Callers may wrap synchronous
+   backends without creating a second DAR protocol.
+6. Interpreter mutable state is scoped to one node execution in the first
+   release. Cross-node, cross-turn, or durable snapshots require a later slice.
+7. Interpreter-originated tool requests pass through a DAR-owned invocation
+   coordinator before registry invocation, preserving approval and runtime
+   behaviors.
+8. Package, node, and runtime policy may narrow caller-registered capabilities
+   but may not silently widen them.
 
 ## Benchmark and Evaluation Plan
 
@@ -607,25 +818,17 @@ Metrics to record:
 
 ## Open Questions
 
-- NEEDS CLARIFICATION: Should interpreter output become the `llm_step` output, or
-  should the interpreter be available as a model-call tool whose final result the
-  model then summarizes?
-- NEEDS CLARIFICATION: Should interpreter state persist only within a node, across
-  nodes in a workflow, or across conversation turns when explicitly snapshotted?
 - NEEDS CLARIFICATION: What language should be preferred for initial prototypes:
   JavaScript, Python subset, DSL, or multiple side-by-side experiments?
-- NEEDS CLARIFICATION: Should the public interface support both synchronous and
-  asynchronous interpreter adapters in the first version, or standardize on one
-  calling convention?
-- NEEDS CLARIFICATION: Should interpreter metadata live in a top-level manifest
-  `interpreters` section, a separate `interpreter-index.yaml`, runtime overrides,
-  or all three?
 - NEEDS CLARIFICATION: What minimum safety controls are required before any
   general-purpose code runtime can be accepted?
-- NEEDS CLARIFICATION: How should async programmatic tool calling be represented
-  if the selected interpreter backend is synchronous?
 - NEEDS CLARIFICATION: What redaction policy should apply to interpreter code,
   console output, bridged tool arguments, and intermediate state?
+- NEEDS CLARIFICATION: Should approval-required nested tool calls be limited to
+  hosts with an in-process resolver in the first release, or may the interpreter
+  session snapshot and exit through DAR interruption for later resume?
+- NEEDS CLARIFICATION: What maximum descriptor budget and per-interpreter usage
+  limit should the first release enforce?
 
 ## Suggested Next Steps
 
@@ -636,8 +839,13 @@ Metrics to record:
       checkout into repository-local artifacts so the future workflow remains
       portable.
 - [x] Define initial custom-interpreter interface expectations at spec level.
-- [ ] Refine a small common interpreter interface for experiments without
+- [x] Refine a small common interpreter interface for experiments without
       adding a runtime dependency.
+- [x] Define the stable model-facing gateway, multi-interpreter catalog, and
+      non-executable descriptor boundary.
+- [ ] Specify or reuse a DAR-owned tool invocation coordinator that can preserve
+      approval, hooks, tracing, state, and result shaping for nested interpreter
+      calls.
 - [ ] Prototype QuickJS-style JavaScript, restricted Python/AST, and mini-DSL
       candidates as custom adapters against fake registry tools.
 - [ ] Run benchmark fixtures and compare against current serial `llm_step` /
@@ -652,6 +860,11 @@ Metrics to record:
 - [x] Local Deep Agents checkout inspected for supporting QuickJS/PTC evidence.
 - [x] Custom interpreter registration and per-`llm_step` attachment requirements
       added at spec level.
+- [x] Multiple node-allowed interpreters and caller-provided adapters are covered.
+- [x] Frontmatter and usage descriptions are non-executable and bounded.
+- [x] Gateway tool exposure and final model synthesis behavior are defined.
+- [x] Nested tool calls are required to enter DAR approval and tool-runtime
+      behavior before registry invocation.
 - [ ] Candidate dependency availability checked in this repository's configured
       package indexes.
 - [ ] Prototype benchmark fixtures created.
