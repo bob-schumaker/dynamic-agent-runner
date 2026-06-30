@@ -58,6 +58,7 @@ ROI is judged by:
 | `llmfit-model-fit-filter` | Low-medium | Useful local-model ergonomics, but narrow. Do only when local-model selection becomes active work. |
 | `sandbox-workspace-runtime` write/shell slices | Low-medium now, high later | Important but risky. Approval-before-side-effect exists; write and shell tools need concrete path-grant requirements before implementation. |
 | `approval-interruption-resume` durable resume | Low-medium | Useful for long-running or mutating workflows, but the current direct approval pause is enough until a real resume workflow appears. |
+| `hash-chained-governance-audit` | Low-medium | Tamper-evident decision history is valuable for regulated or high-risk tool workflows, but no current caller requires a governance ledger. Keep the caller-supplied sink and first-release boundary prepared until that need exists. |
 | `mcp-runtime-integration` live transports | Low-medium | Current explicit registry injection is the right baseline. Live discovery and process lifecycle add operational risk; defer until a host needs them. |
 | `live-guardrail-execution` output/tool phases | Low-medium | Important eventually, but input guardrails cover the first safety boundary. Output/tool phases need clearer policy semantics. |
 | `collaborative-agent-sessions` deferred work | Low-medium | Wait/resume and capability/status are reasonable, but durable and cross-process work should wait. |
@@ -94,6 +95,7 @@ Do not start these next without a concrete blocking caller:
 - live MCP transports
 - full sandbox write/shell runtime
 - durable approval resume
+- hash-chained governance audit implementation
 - durable memory or storage work
 - runner-owned retrieval infrastructure
 

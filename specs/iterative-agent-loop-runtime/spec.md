@@ -15,6 +15,10 @@
   - output contracts
   - retry and max-step policy
   - trace events
+- Evaluated supporting reference:
+  - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
+    contains bounded plan/execute/self-check and cost-aware planning examples;
+    they are design evidence, not runtime dependencies
 
 ## Objective
 
@@ -139,6 +143,9 @@ Acceptance criteria:
   interruption.
 - Future stop reasons include max tokens, timeout, guardrail rejection, and
   cancellation.
+- Future repair or self-check loops must share the same enclosing iteration,
+  token, time, and cost budgets; a repair attempt must not reset or evade a
+  parent loop limit.
 - Final output selection follows declared policy: last model output, state
   field, or error.
 - Max iteration exhaustion fails clearly unless policy explicitly allows partial
@@ -246,6 +253,11 @@ slices may add:
 - strategy-pivot metadata and trace events for loop diagnostics
 - evaluation hooks that can score loop progress without making the loop
   unbounded or self-modifying
+- bounded repair/self-check policy with explicit maximum attempts, evidence of
+  progress, and a terminal `repair_exhausted` reason rather than recursive
+  unbounded retries
+- caller-supplied cost budgets and per-step estimates that remain advisory until
+  the selected adapter reports authoritative usage
 
 Those follow-ups must keep loops opt-in, bounded, registry-authoritative, and
 fake-client testable.

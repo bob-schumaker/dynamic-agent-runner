@@ -15,6 +15,9 @@
   - `specs/semantic-context-profiles/spec.md`
 - Evaluated reference:
   - `/Users/roschuma/Repos/github/memlayer`
+  - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
+    provides supporting short-term, long-term, and episodic memory-policy
+    examples; DAR adopts contract vocabulary only, not tutorial storage engines
 
 ## Objective
 
@@ -133,6 +136,8 @@ Caller-owned responsibilities:
 
 - decide what content is eligible to become durable memory
 - classify salience, importance, expiration, and memory kind
+- calculate optional novelty, access/usage, and outcome signals used by the
+  caller's retrieval, consolidation, retention, or ingestion policy
 - generate embeddings or graph representations
 - store vector, graph, lexical, episodic, semantic, or procedural memories
 - execute retrieval, graph traversal, fusion, reranking, and compression
@@ -338,7 +343,12 @@ evidence:
     content: "User prefers concise engineering summaries."
     source: "caller_memory_store"
     created_at: "2026-06-21T12:00:00Z"
+    memory_kind: episodic
     relevance_score: 0.91
+    salience_score: 0.84
+    novelty_score: 0.63
+    usage_score: 0.40
+    outcome_score: 0.75
     source_id: "memory:mem_123"
     chunk_id: "mem_123"
     citation_handle: "memory:mem_123"
@@ -347,6 +357,10 @@ evidence:
 ```
 
 or a direct list of equivalent evidence mappings.
+
+When present, `salience_score`, `novelty_score`, `usage_score`, and
+`outcome_score` are caller-supplied normalized numbers from `0.0` through
+`1.0`. They are evidence metadata, not runner-computed ranking authority.
 
 ### Salience Tool
 
@@ -403,6 +417,9 @@ The handoff mapping is:
 - `created_at`, `memory_kind`, `owner`, and retention metadata may appear under
   `freshness` or `packing_hint` until a richer retrieved-context metadata
   contract exists.
+- Caller-supplied salience, novelty, usage, and outcome scores may appear under
+  `packing_hint` with provenance; a scheduled slice must define whether any
+  selector consumes them before they affect ordering or omission.
 - `required` follows the existing required-context behavior.
 
 If evidence lacks `source_id`, `chunk_id`, or `citation_handle`, the caller
@@ -463,6 +480,8 @@ or metadata-only status without invoking them.
   `prepare_model_input(...)`.
 - DAR must not treat chat/session history as durable memory.
 - DAR must not infer salience or memory kind internally.
+- DAR must not infer novelty, usage value, or outcome value internally; it may
+  carry caller-supplied values and provenance through evidence and diagnostics.
 - DAR must not start background memory work.
 - DAR must not include raw memory content in trace payloads when existing
   redaction patterns would omit retrieved-context content.
@@ -552,6 +571,12 @@ Trace events should distinguish:
 
 Trace payloads must avoid raw secret leakage and should include counts, tier,
 tool id, result ids, omitted count, and degraded reason.
+
+When supplied by a caller-owned collaborator, evidence and trace metadata may
+also carry a declared memory kind (`short_term`, `long_term`, `episodic`,
+`semantic`, or `procedural`) plus bounded salience, novelty, usage, and outcome
+signals. These fields are descriptive policy inputs with provenance; their
+presence does not authorize DAR to consolidate, retain, or persist memory.
 
 Trace payloads should use this shape where practical:
 

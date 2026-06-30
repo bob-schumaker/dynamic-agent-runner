@@ -17,6 +17,9 @@
   - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
     uses an educational in-process `MCPServer` facade that is not protocol-level
     MCP evidence
+  - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
+    also contains FastMCP, OAuth, A2A, and ACP examples; these demonstrate
+    adapter shapes but omit production authorization and cancellation coverage
 
 ## Objective
 
@@ -154,6 +157,9 @@ Acceptance criteria:
   names alone.
 - Write, shell, network, browser, or external mutation MCP tools require
   approval-aware policy before invocation.
+- A bearer token alone does not authorize an MCP action. Live remote transports
+  must validate the configured resource/audience and required scopes before
+  exposing or invoking protected capabilities.
 - Disabled MCP tools cannot be invoked even if a workflow references them.
 
 ### FR-5: Invoke MCP tools through registry authority
@@ -171,6 +177,9 @@ Acceptance criteria:
   output, log preview, event payload, and sensitive trace fields.
 - MCP transport/protocol failures surface as project-specific errors with source
   diagnostics.
+- Cancellation support is capability-negotiated. If a server or transport
+  cannot cancel an in-flight request, DAR reports that limitation and must not
+  claim cancellable invocation semantics.
 
 ### FR-6: Support diagnostics without memory pollution
 

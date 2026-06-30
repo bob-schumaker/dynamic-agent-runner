@@ -14,6 +14,10 @@
   - output-contract validation
   - tool input and tool output handling
   - trace events and lifecycle hooks
+- Evaluated supporting reference:
+  - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
+    includes useful preflight/postflight examples but also direct handler
+    dispatch that DAR must continue to reject
 
 ## Objective
 
@@ -154,6 +158,12 @@ Acceptance criteria:
   validation for each supported output mode.
 - Tool schema validation still runs before tool-input guardrails unless a later
   policy explicitly changes that order.
+- Tool-input guardrails inspect the normalized, schema-valid invocation that is
+  eligible for approval and registry dispatch, not an earlier provider-native
+  or interpreter-native representation.
+- Any guardrail or trusted middleware transformation that changes the tool id or
+  arguments must occur before approval. A change after approval invalidates the
+  approval and re-enters validation, applicable guardrails, and approval.
 - Guardrail-generated rejection content is validated when it becomes a node
   output or final result.
 
@@ -184,6 +194,8 @@ Acceptance criteria:
 - Keep guardrail policy separate from lifecycle hooks.
 - Avoid leaking sensitive inspected content into traces or model prompts.
 - Preserve fake-adapter unit testing without live external safety services.
+- Keep tool invocation behind the registry authority after guardrails pass;
+  guardrail adapters must never call the selected tool handler directly.
 
 ## Future Work
 
@@ -230,3 +242,5 @@ should not introduce a built-in external evaluation provider.
 - [ ] Output guardrail composes with output-contract validation.
 - [ ] Multiple guardrails compose deterministically.
 - [x] Input guardrail trace payloads are redacted by default.
+- [ ] Tool-input guardrail tests prove argument replacement cannot bypass final
+      approval or registry dispatch.

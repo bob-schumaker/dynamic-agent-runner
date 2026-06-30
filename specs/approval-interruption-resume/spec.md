@@ -17,6 +17,9 @@
   - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
     demonstrates a pre-tool observation hook but not an enforceable approval
     boundary
+  - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
+    demonstrates why approval must bind the final invocation: its OpenHarness
+    tutorial checks permissions before a pre-tool hook may replace arguments
 
 ## Objective
 
@@ -120,6 +123,13 @@ Acceptance criteria:
   an MCP binding, model output, or interpreter bridging, when its effective
   policy requires approval, then origin does not change the interruption
   requirement and no origin-specific path may dispatch the handler directly.
+- Given any origin adapter, interpreter, guardrail, lifecycle hook, or host
+  middleware may normalize or replace tool arguments, when approval policy is
+  evaluated, then it evaluates the final schema-valid invocation envelope that
+  would be sent to the registry handler.
+- Given an approved invocation envelope changes after approval, when execution
+  continues, then the prior decision is invalid and the runtime must repeat
+  schema validation, applicable guardrails, and approval before invocation.
 
 ### FR-2: Produce stable interruption records
 
@@ -165,6 +175,9 @@ Acceptance criteria:
 
 - Given an approved interruption, when resume runs, then the runtime invokes only
   the approved pending action with the approved arguments.
+- The approval outcome binds the tool identity, effective policy identity, and
+  final invocation fingerprint; it cannot authorize a different handler or
+  argument set through a mutable hook or callback.
 - Given an approval modifies arguments, when the feature supports argument
   modification, then the modified arguments are validated against the same tool
   schema and policy before invocation.
@@ -222,6 +235,12 @@ Acceptance criteria:
 - Apply approval policy after origin-specific normalization and before the one
   registry invocation boundary so function-adapted, MCP-origin, model-origin,
   and interpreter-origin calls cannot diverge semantically.
+- Complete every policy-relevant argument transformation before approval. If a
+  trusted post-approval component must transform the invocation, treat the
+  result as a new invocation and re-enter validation, guardrails, and approval.
+- Keep lifecycle hooks observational at the approval boundary unless a future
+  contract explicitly makes a hook a trusted invocation transformer and
+  subjects its output to reauthorization.
 
 ## NEEDS CLARIFICATION
 
@@ -255,3 +274,5 @@ Acceptance criteria:
 - [ ] Async cancellation cannot accidentally dispatch a pending approval action.
 - [ ] Approval behavior is identical for function-adapted, MCP-origin,
       model-origin, and interpreter-origin tool requests.
+- [ ] A pre-tool hook cannot redirect an approved invocation to different
+      arguments without invalidating the approval and causing reauthorization.

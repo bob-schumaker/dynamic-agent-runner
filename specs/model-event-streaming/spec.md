@@ -16,6 +16,10 @@
   - `specs/context-management-prepare-stage/spec.md`
   - `specs/approval-interruption-resume/spec.md`
   - `specs/capability-status-report/spec.md`
+- Evaluated supporting reference:
+  - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
+    includes typed interrupt/reply and replay-oriented UI examples that inform
+    future event contracts without making UI transport a DAR responsibility
 
 ## Objective
 
@@ -296,6 +300,9 @@ Acceptance criteria:
 - If cancellation cannot stop an in-flight provider request, the runtime reports
   that limitation clearly.
 - Event delivery preserves ordering for one run.
+- Future replay-capable streams preserve stable event ids and explicitly mark
+  replayed events so reconnecting consumers can deduplicate without treating a
+  replay as a second approval or tool invocation.
 - The implementation plan must choose either iterator backpressure or explicit
   bounded buffering; unbounded event queues are not allowed.
 
@@ -354,6 +361,7 @@ Acceptance criteria:
 - Durable storage of partial deltas.
 - UI rendering components.
 - WebSocket, SSE, HTTP server, or CLI-specific streaming transports.
+- UI component state synchronization or rendering protocols.
 - Sync streaming wrappers in v1.
 - Changing output-contract validation to operate on partial deltas.
 

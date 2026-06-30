@@ -56,6 +56,7 @@ Portfolio evaluation artifacts:
 | Semantic context profiles | [`spec.md`](semantic-context-profiles/spec.md) | Implemented through Slice S1 | Exact and `hybrid_exact_semantic` older-turn preservation plus injected fake-testable semantic older-turn selection are implemented with metadata and tests; memory-kind hints, stale/redundant omission, RAG lane borrowing, prompt-cache-aware ordering, and selector capability/status reporting remain deferred |
 | LLM step interpreter middleware | [`spec.md`](llm-step-interpreter-middleware/spec.md) | Future investigation | Spec captured; backend selection, prototypes, and implementation not started |
 | Approval interruption and resume | [`spec.md`](approval-interruption-resume/spec.md) | Implemented v1 baseline | Direct approval-required `tool_use_step` interruption, public pause result, redacted approval traces, high-level API guardrails, capability status, tests, and evidence complete; durable resume remains deferred |
+| Hash-chained governance audit | [`spec.md`](hash-chained-governance-audit/spec.md) | Future investigation | Optional caller-sink-backed, tamper-evident governance records with deterministic canonicalization, final-invocation fingerprint binding, compare-and-append semantics, verification, redaction, and required/best-effort failure policy; not implementation authorization |
 | Sandbox and workspace runtime | [`spec.md`](sandbox-workspace-runtime/spec.md) | Partial approval-policy baseline | Approval-before-side-effect boundary is implemented through approval interruption v1; write/shell runtime, workspace grants, sandbox adapters, and mutation audits remain deferred |
 | MCP runtime integration | [`spec.md`](mcp-runtime-integration/spec.md) | Implemented v1 baseline | Explicit caller-supplied MCP registry injection, MCP provenance, conservative policy defaults, capability status, tests, and evidence complete; live transports, process lifecycle, and discovery remain deferred |
 | Live guardrail execution | [`spec.md`](live-guardrail-execution/spec.md) | Implemented v1 baseline | Caller-registered input guardrail pass/abort, fail-closed missing adapters, redacted traces, capability status, tests, and evidence complete; output/tool phases remain deferred |
@@ -102,6 +103,7 @@ Portfolio evaluation artifacts:
 | Interpreter middleware | `llm-step-interpreter-middleware` | Future feature spec and candidate interface expectations captured | Dependency checks, prototypes, benchmark evidence, backend selection, and implementation |
 | Sandbox/workspace runtime | `sandbox-workspace-runtime` | Metadata-only `sandbox_runtime` preservation plus approval-before-side-effect boundary complete | Write tools, shell tools, workspace grants, sandbox adapters, and changed-path audits remain deferred |
 | Approval interruption/resume | `approval-interruption-resume` | Public interruption contract, direct approval-required tool pause, no-side-effect-before-approval behavior, redacted approval traces, high-level API guardrails, capability status, tests, and evidence complete | Durable resume, approval decisions, model-emitted tool-call approval, argument modification, parallel approvals, and serialized resume state remain deferred |
+| Tamper-evident governance audit | `hash-chained-governance-audit` | None; future specification only | First release would define canonical governance records, caller-supplied append/verify collaborators, final-invocation fingerprints, mutation detection, redaction, and audit-failure policy; signatures, external anchors, remote stores, and compliance exports remain deferred |
 | MCP runtime integration | `mcp-runtime-integration` | Metadata-only MCP registry-source and lifecycle diagnostics preservation plus explicit caller-supplied MCP registry injection complete | Live server discovery, process lifecycle, transports, reconnect, schema cache, and diagnostics beyond metadata remain deferred |
 | Live guardrail execution | `live-guardrail-execution` | Metadata-only guardrail declaration preservation plus caller-registered input guardrail aborts before first runtime action complete | Output guardrails, tool guardrails, reject-content behavior, retries, timeouts, and external adapters remain deferred |
 | RAG orchestration contract | `rag-orchestration-contract` | Expanded `metadata.rag_pipeline` validation and capability/status reporting exist for staged retrievers, required collaborators, provenance and context-management handoff declarations, source readiness, permissions, cache, and degraded states | Retrieval infrastructure, prompt packing, ingestion, embeddings, indexes, graph stores, rerankers, compressors, evaluators, answer citation rendering, output guardrails, and live retrieval orchestration remain deferred |
@@ -129,6 +131,36 @@ packages marked future investigation or optional follow-up require an explicit
 scheduled task before code changes begin.
 
 ## Evaluated Cross-Cutting References
+
+The
+[`AI-Agents-Projects-Tutorials`](https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials)
+repository, attributed by its README and canonical Git remote to MarkTechPost /
+`MARKTECHPOST-AI-MEDIA-INC`, was evaluated as a broad educational corpus of
+agent implementations and notebooks. It is design evidence, not a DAR runtime
+dependency or implementation authority. The review used its OpenHarness,
+governance, memory-engineering, cost-aware planning, agentic UI, MCP/OAuth,
+A2A/ACP, guardrail, and tracing examples and produced these scoped updates:
+
+- approval must bind the final normalized invocation after every
+  policy-relevant transformation; post-approval mutation requires
+  reauthorization
+- tool guardrails remain separate from registry invocation and cannot dispatch
+  handlers directly
+- caller-supplied memory evidence may carry memory kind, salience, novelty,
+  usage, and outcome signals without making DAR a memory store
+- repair/self-check loops must share enclosing iteration, token, time, and cost
+  limits
+- replayable event contracts need stable ids and deduplication semantics, while
+  UI transports remain downstream concerns
+- live MCP authorization must validate resource/audience and scopes, and
+  cancellation claims must reflect negotiated capabilities
+- the tutorial governance record shape motivated the separate future
+  [`hash-chained-governance-audit`](hash-chained-governance-audit/spec.md) spec
+
+The corpus contains tutorial-oriented runtime installs, notebook magics,
+dynamic execution, direct handler dispatch, incomplete protocol handling, and
+stored notebook outputs. Those examples must not be copied as production safety
+or reproducibility patterns.
 
 Micheal Lanham's `AI Agents in Action, Second Edition: Intelligent Workflows
 With LLMs, MCP, A2A, and More` (Manning, ISBN `9781633434530`) was evaluated as
