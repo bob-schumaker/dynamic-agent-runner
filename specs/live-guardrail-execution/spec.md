@@ -132,6 +132,10 @@ Acceptance criteria:
   message, optional model-visible message, and redacted diagnostic details.
 - Guardrail errors are distinct from guardrail rejections.
 - Malformed guardrail results fail closed.
+- Cross-field invariants are decision-specific: `pass` cannot smuggle
+  replacement or rejection content, `abort` requires a reason code,
+  `reject_content` requires explicitly permitted model-visible content, and
+  `error` cannot be interpreted as a policy rejection or pass.
 
 ### FR-4: Enforce abort and reject-content behavior
 
@@ -213,6 +217,11 @@ feedback. Future approved slices may add:
   not expose raw inspected content by default
 - deterministic composition rules for multiple evaluators or guardrails in the
   same phase
+- adversarial fixtures for tool-output prompt injection, secret markers,
+  forged tool results, hidden-tool requests, and post-approval argument
+  replacement
+- optional model-judge annotations that can enrich diagnostics but cannot
+  override deterministic leakage, invocation, or policy assertions
 
 These follow-ups should remain separate from the v1 input-guardrail baseline and
 should not introduce a built-in external evaluation provider.
@@ -244,3 +253,7 @@ should not introduce a built-in external evaluation provider.
 - [x] Input guardrail trace payloads are redacted by default.
 - [ ] Tool-input guardrail tests prove argument replacement cannot bypass final
       approval or registry dispatch.
+- [ ] Decision-specific cross-field invariants reject contradictory or
+      incomplete guardrail results.
+- [ ] Deterministic adversarial tests detect secret leakage and exfiltration
+      attempts independently of any model judge.

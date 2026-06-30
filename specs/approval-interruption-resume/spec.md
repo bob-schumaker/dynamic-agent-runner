@@ -143,10 +143,16 @@ Acceptance criteria:
   correlation ids, and human-readable reason.
 - Sensitive fields are redacted or separated according to a declared redaction
   policy before the record is exposed outside trusted runtime memory.
-- The record distinguishes pending approval, approved, rejected, cancelled,
-  expired, and failed states.
+- The record distinguishes pending approval, approved, modified, rejected,
+  cancelled, expired, and failed states.
 - The record carries schema version metadata so persisted records can be
   validated on resume.
+- State-specific fields are validated together: `approved` requires an approver
+  identity/source and final invocation fingerprint; `modified` requires a
+  deterministic resultant argument set and a new fingerprint; rejected,
+  cancelled, and expired outcomes cannot carry an executable authorization.
+- Unknown decision values, contradictory fields, and partial modification
+  payloads fail closed rather than falling through to a default action.
 
 ### FR-3: Serialize resumable run state
 
@@ -186,6 +192,9 @@ Acceptance criteria:
   content, or continue through an explicit fallback edge if supported.
 - Given a cancelled or expired interruption, when resume runs, then execution
   fails or exits with a clear approval-state error.
+- Given an approval outcome was already consumed, targets another interruption,
+  or carries a mismatched invocation fingerprint, when resume runs, then the
+  outcome is rejected without invoking a handler.
 
 ### FR-5: Preserve async and cancellation semantics
 
@@ -276,3 +285,7 @@ Acceptance criteria:
       model-origin, and interpreter-origin tool requests.
 - [ ] A pre-tool hook cannot redirect an approved invocation to different
       arguments without invalidating the approval and causing reauthorization.
+- [ ] Unknown, contradictory, replayed, cross-interruption, and
+      fingerprint-mismatched approval outcomes fail before invocation.
+- [ ] Modified outcomes are schema-valid and reauthorized as the complete
+      resultant invocation rather than trusted as an unchecked patch.

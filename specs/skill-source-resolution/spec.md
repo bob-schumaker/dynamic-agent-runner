@@ -191,6 +191,8 @@ Acceptance criteria:
 - No automatic interpretation of arbitrary support files as prompt context.
 - No mutation of generated package artifacts.
 - No v1 loading from `source_path` outside the package bundle.
+- No automatic trajectory-to-skill extraction, skill rewriting, promotion, or
+  persistence based on model outcomes.
 
 ## Design Constraints
 
@@ -251,6 +253,29 @@ Implementation surfaces:
 - What redaction mode should expose raw skill content for debugging without
   making traces unsafe by default?
 
+## Future Caller-Owned Skill Selection Boundary
+
+Procedural-memory examples suggest useful selection metadata, but learning and
+mutating skills do not belong in source resolution. If a concrete caller needs
+dynamic selection, extend this work area with a caller-supplied selector rather
+than a runner-owned learning engine.
+
+- The selector receives only eligible, already resolved skill descriptors plus
+  bounded task/context metadata.
+- It returns ordered skill ids with reason codes and optional caller-computed
+  scores; it does not grant new file reads or return executable code.
+- DAR revalidates selected ids against trust, exposure, compatibility, size,
+  and prompt-budget policy before injection.
+- Optional usage count, success/failure count, preconditions, version,
+  provenance, and last-evaluated metadata remain caller supplied.
+- DAR may trace the selection and eventual outcome, but it does not update
+  scores, persist learned state, or mutate `skill-bundle/` automatically.
+- A newly learned or rewritten skill becomes eligible only through an explicit
+  package update or a future caller-authorized external binding contract.
+
+This is a deferred extension to skill resolution and injection, not a separate
+feature specification or implementation authorization.
+
 ## Validation Checklist
 
 - [x] Package-local skill paths resolve within `skill-bundle/`.
@@ -265,3 +290,7 @@ Implementation surfaces:
 - [x] Support files are not loaded as prompt content in v1.
 - [x] Capability/status reporting distinguishes disabled metadata-only skill
       refs from live or rejected package-local source loading.
+- [ ] A future selector cannot select an unresolved, untrusted, disabled, or
+      over-budget skill.
+- [ ] Selection telemetry does not mutate skill sources or caller-owned
+      success/usage state.

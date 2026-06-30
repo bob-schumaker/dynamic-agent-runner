@@ -262,6 +262,28 @@ slices may add:
 Those follow-ups must keep loops opt-in, bounded, registry-authoritative, and
 fake-client testable.
 
+### Future Multidimensional Execution Budget
+
+A future approved loop slice should add enforcement-oriented accounting before
+adding any runner-owned planning optimizer.
+
+- Supported dimensions should include iterations, model tokens, tool calls,
+  elapsed time, and an optional caller-defined monetary limit.
+- Accounting should distinguish `estimated`, `reserved`, and `actual` spend so
+  a planner estimate cannot be reported as authoritative provider usage.
+- Adapter-reported usage and completed tool outcomes reconcile reservations;
+  missing authoritative usage remains explicitly estimated or unknown.
+- Nested repair, critic, or self-check attempts consume the enclosing budget and
+  cannot reset counters by starting a child loop.
+- Exhaustion uses dimension-specific terminal reasons such as
+  `token_budget_exhausted`, `tool_budget_exhausted`,
+  `time_budget_exhausted`, and `cost_budget_exhausted`.
+- Callers may supply plans, step values, or cost estimates. DAR enforces the
+  declared budget but does not own beam search, economic valuation, or action
+  utility scoring.
+- Workflow-wide budgets that span multiple nodes remain a separate future
+  decision; this extension initially belongs to the owning iterative loop.
+
 ## Validation Checklist
 
 - [x] Ordinary `llm_step` behavior is unchanged without loop policy.
@@ -272,3 +294,5 @@ fake-client testable.
       explicit policy.
 - [x] Final model output is selected and output-contract validated.
 - [x] Trace events expose iteration count and stop reason.
+- [ ] Future budget tests reconcile estimated/reserved/actual usage and prove
+      nested repair attempts cannot evade enclosing limits.

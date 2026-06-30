@@ -86,6 +86,20 @@ Optional fields must have deterministic absent/null treatment. Unknown fields
 must either be included in canonicalization or rejected according to schema
 version policy; silently dropping them would make verification ambiguous.
 
+Decision-specific cross-field invariants apply before canonicalization:
+
+- an approved action record requires approver identity/source and a final
+  invocation fingerprint
+- a modified action requires the complete resultant invocation fingerprint and
+  a reference to the invalidated prior decision
+- rejected, cancelled, and expired outcomes cannot contain executable
+  authorization
+- invocation-start records reference an approved prepared-invocation record
+  with the same fingerprint
+- completed, failed, timed-out, and cancelled outcomes reference a unique
+  invocation-start record
+- contradictory, incomplete, or unknown event/outcome combinations fail closed
+
 ## Canonicalization and Hashing
 
 - Records use a deterministic, versioned canonical byte representation.
@@ -142,7 +156,7 @@ back to an in-memory or local-file ledger when governance audit is required.
 Future implementation may record these governance events:
 
 - policy or guardrail evaluated
-- approval requested, approved, rejected, expired, or cancelled
+- approval requested, approved, modified, rejected, expired, or cancelled
 - governed invocation prepared
 - invocation started, completed, failed, timed out, or cancelled
 - integrity conflict or audit append failure
@@ -233,6 +247,8 @@ stores, retention policy, and compliance exports remain future work.
   duplicate sequence, and broken linkage fail verification.
 - Unit tests first demonstrate deterministic hashes for fixed canonicalization
   vectors and reject unsupported schema or algorithm versions.
+- Unit tests first reject contradictory or incomplete decision/outcome records
+  before hashing or append.
 - An approval followed by unchanged invocation produces matching fingerprints;
   post-approval argument replacement fails before tool invocation.
 - Required-mode append failure prevents a pre-side-effect tool action.
