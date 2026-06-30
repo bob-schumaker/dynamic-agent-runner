@@ -13,6 +13,10 @@
   - `extensions.mcp_lifecycle_diagnostics`
   - tool provenance and portable `tool_type`
   - tool exposure states and registry-authoritative invocation
+- Evaluated supporting reference:
+  - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
+    uses an educational in-process `MCPServer` facade that is not protocol-level
+    MCP evidence
 
 ## Objective
 
@@ -27,6 +31,13 @@ The runtime preserves MCP registry-source metadata, MCP lifecycle diagnostics
 metadata, and v1 caller-supplied MCP registry injection. It does not currently
 launch MCP servers, connect to MCP transports, discover tool schemas, or manage
 MCP server lifecycle.
+
+The evaluated MarkTechPost tutorial uses “MCP-style” for an in-process Python
+object that lists handlers and adapts them into local tool definitions. That
+pattern is relevant only to the existing caller-supplied binding normalization
+surface. It does not satisfy MCP transport, initialization, capability
+negotiation, discovery, request/response, progress, cancellation, or lifecycle
+requirements and must not be reported as live MCP support.
 
 ## Scope
 
@@ -191,6 +202,9 @@ Acceptance criteria:
 - Fail closed for strict sources and high-risk tools.
 - Keep source provenance separate from `tool_type`.
 - Preserve fake-server unit testing without live external MCP infrastructure.
+- Reserve MCP capability claims for protocol-conforming integration; an
+  in-process object with MCP-like method names is only a local adapter or test
+  double unless it crosses a validated MCP protocol boundary.
 
 ## Future Work
 
@@ -237,4 +251,6 @@ and fake-server unit tests.
       provenance.
 - [x] Disabled or hidden MCP tools cannot be model-exposed.
 - [x] MCP invocation uses registry validation and result facets.
+- [x] Educational “MCP-style” in-process facades are distinguished from live MCP
+      protocol and transport support.
 - [ ] Diagnostics are bounded and redacted.

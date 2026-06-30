@@ -23,6 +23,9 @@
     `references/examples/` directory
   - `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
     as first-customer downstream fit analysis
+  - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
+    as supporting evidence for caller function-to-tool authoring ergonomics and
+    deterministic provider doubles
 
 ## Objective
 
@@ -259,6 +262,19 @@ Acceptance criteria:
   may be provided directly and any missing label, description, or input-schema
   fields fall back to conservative inference from the callable name, docstring,
   and supported Python signature shapes.
+- Given callable inference encounters positional-only parameters, variadic
+  positional parameters, or variadic keyword parameters, then registration
+  fails clearly rather than creating a misleading callable adapter.
+- Given an annotation is outside the helper's bounded JSON-schema inference set,
+  then inference must not claim an incompatible JSON type; the property remains
+  unconstrained unless the caller supplies explicit schema metadata.
+- Given `tool_from_function(...)` produces a tool adapter, then schema inference
+  does not execute the callable, install dependencies, expose the tool to a node,
+  or grant approval by itself.
+- Given a function-adapted tool is selected for execution, then it enters the
+  same repository-owned registry, exposure, argument-validation, approval,
+  lifecycle-hook, tracing, retry, timeout, and structured-result path as any
+  explicitly constructed `RegisteredTool`.
 - Given `extensions` entries, when parsing succeeds, then unsupported extensions
   with `required: true` fail closed, unsupported extensions with
   `required: false` are preserved and reported when a report channel exists,
@@ -1184,6 +1200,16 @@ The runtime should start with OpenAI package model and client interfaces:
   pre-register default tools, while preserving explicit node references as the
   only way those tools become available to a workflow step.
 
+An optional `tool_from_function(...)` helper may reduce caller boilerplate, but
+it is an authoring adapter rather than a second execution surface. Explicit tool
+metadata overrides inferred values. Conservative inference may cover the
+callable name, first-line documentation, required/default parameters, and a
+bounded set of JSON-representable annotations. Unsupported or ambiguous
+signatures fail closed unless the caller provides an explicit schema. The helper
+must return a normal registry-compatible tool definition/adapter and must not
+invoke the callable, mutate a global registry, expose a tool to a node, or bypass
+approval and runtime policy during construction.
+
 ## Deferred OpenAI Agents SDK Python Concepts
 
 The OpenAI Agents SDK Python evaluation in
@@ -1472,6 +1498,9 @@ Before implementation is considered complete, add validation covering:
 - [x] lightweight model capability metadata for context window, structured-output
       support, reasoning support, modalities, and parallel tool-call support
 - [x] repository-owned tool registry integration
+- [ ] OA9.1: optional `tool_from_function(...)` caller convenience with conservative
+      schema inference, explicit-metadata precedence, and proof that invocation
+      still traverses the normal registry and approval stack
 - [x] opt-in built-in default tool packs, beginning with read-only local
       workspace tools
 - [x] optional protocol-compatible chat-client injection

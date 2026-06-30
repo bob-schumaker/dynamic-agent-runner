@@ -1380,6 +1380,14 @@ explicitly instead of leaving them as undocumented future behavior.
         schema fields.
       - Validation: `poetry run pytest tests/test_registry.py
         tests/test_import.py -q 2>&1` — pass; 32 tests passed.
+- [ ] OA9.1. Add focused executor coverage proving that a
+      `tool_from_function(...)` result with `approval_required: yes` pauses before
+      handler invocation through the same approval path as an explicitly built
+      `RegisteredTool`.
+      - Scope: test evidence only unless the test exposes a real dispatch bypass;
+        do not add a second decorator-owned execution or approval surface.
+      - Validation: `poetry run pytest tests/test_registry.py
+        tests/test_executor.py -q`.
 - [x] OA10. Keep sandbox/workspace runtime support separate from default local
       tool packs and defer it until write/command tool requirements are approved.
       - Active order: late, after the policy, interruption, and MCP/source

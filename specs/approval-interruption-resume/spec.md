@@ -13,6 +13,10 @@
     `timeout`, `retry_policy`, and `failure_behavior`
   - lifecycle hooks for permission-boundary observations
   - trace events for node, model, tool, workflow, and status observations
+- Evaluated supporting reference:
+  - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
+    demonstrates a pre-tool observation hook but not an enforceable approval
+    boundary
 
 ## Objective
 
@@ -112,6 +116,10 @@ Acceptance criteria:
 - Given multiple pending tool calls are possible, when policy does not authorize
   parallel approval, then the runtime pauses at the first unresolved approval
   boundary.
+- Given a tool originated from an explicit registry entry, a function adapter,
+  an MCP binding, model output, or interpreter bridging, when its effective
+  policy requires approval, then origin does not change the interruption
+  requirement and no origin-specific path may dispatch the handler directly.
 
 ### FR-2: Produce stable interruption records
 
@@ -209,6 +217,11 @@ Acceptance criteria:
 - Fail closed for missing, stale, malformed, or incompatible resume state.
 - Keep approval enforcement separate from portable approval metadata.
 - Keep approval state schema-versioned from the first live implementation.
+- Treat lifecycle hooks as observation or explicitly trusted resolution inputs,
+  never as implicit authorization merely because they run before tool execution.
+- Apply approval policy after origin-specific normalization and before the one
+  registry invocation boundary so function-adapted, MCP-origin, model-origin,
+  and interpreter-origin calls cannot diverge semantically.
 
 ## NEEDS CLARIFICATION
 
@@ -240,3 +253,5 @@ Acceptance criteria:
 - [ ] Trace events cover requested, paused, resumed, rejected, expired, and failed
       outcomes.
 - [ ] Async cancellation cannot accidentally dispatch a pending approval action.
+- [ ] Approval behavior is identical for function-adapted, MCP-origin,
+      model-origin, and interpreter-origin tool requests.

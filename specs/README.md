@@ -69,7 +69,7 @@ Portfolio evaluation artifacts:
 
 | Capability Area | Owning Spec Package | Implemented Baseline | Remaining / Deferred Work |
 | --- | --- | --- | --- |
-| Package-directory workflow loading and execution | `dynamic-agent-runner` | Complete through package alignment, async-first execution, tracing, hooks, prompt-cache metadata, and portable `tool_type` preservation | Future scoped expansions only |
+| Package-directory workflow loading and execution | `dynamic-agent-runner` | Complete through package alignment, async-first execution, tracing, hooks, prompt-cache metadata, portable `tool_type` preservation, and optional caller function-to-tool adaptation | Focused approval-parity evidence for function-adapted tools plus other future scoped expansions |
 | OpenAI-compatible provider facade | `openai-compatible-provider-wrapper` | Sync/async provider facade, provider config, SDK-backed defaults, package exports, and README example complete | Optional compatibility polish for provider-specific behavior |
 | Default OpenAI/Codex auth discovery | `default-openai-codex-auth` | Adapter default-provider resolver, `OPENAI_API_KEY` fallback, Codex user-level `config.toml` and ordered API-key/ChatGPT `auth.json` discovery, ChatGPT/Codex backend provider selection, opt-out behavior, redaction, tests, and docs complete | Future support for PAT or agent-identity auth requires a separate provider/base-url/signing spec |
 | OpenAI Responses tool-loop compatibility | `openai-responses-tool-loop-compat` | Slice R1 implemented | Streamed Responses function-call preservation, structured tool-loop transcript rendering, ChatGPT/Codex `function_call_output` follow-ups, explicit `tool_choice_policy`, model-facing top-level `tool_results`, docs, and fake tests complete |
@@ -151,6 +151,32 @@ scope:
 - Production ideas such as prompt/tool/model versioning, idempotency,
   timeouts, fallback budgets, observability, and model routing inform
   capability/status, sandbox, and future deployment-oriented specs.
+
+Sana Hassan's ["Build a Nanobot-Style AI Agent in Google Colab with Tool
+Calling, Session Memory, Skills, and MCP
+Servers"](https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/)
+(MarkTechPost, June 26, 2026) and its linked tutorial notebook were evaluated as
+a compact educational agent-loop reference. The reference is supporting design
+evidence, not an implementation authority:
+
+- Its normalized provider response and deterministic mock provider reinforce
+  DAR's existing model-adapter boundary and fake-adapter unit-test strategy.
+- Its callable-to-tool decorator motivates an optional
+  `tool_from_function(...)` authoring convenience around the repository-owned
+  tool registry. Inference must remain conservative, explicit metadata must win,
+  and the resulting tool must traverse normal validation, approval, tracing,
+  retry, and result-shaping behavior.
+- Its compact skill descriptor reinforces separating descriptive capability
+  metadata from runtime activation. DAR rejects the tutorial's process-global
+  prompt and registry mutation as a workflow or session isolation model.
+- Its lifecycle hook demonstrates useful observation points but not an approval
+  boundary. Hooks must not silently authorize actions, and tool-call origin must
+  not bypass DAR's approval stack.
+- Its in-process `MCPServer` facade is an adapter example, not evidence of MCP
+  transport, discovery, protocol, or lifecycle support.
+- Its per-session history illustrates isolation by session key, but DAR does not
+  adopt its lossy tool-transcript handling, process-local persistence
+  assumptions, or unrestricted code-execution examples.
 
 Jia Huang's `RAG from First Principles` (Packt Publishing, ISBN
 `9781835888667`, 2026 metadata date) was evaluated as a RAG engineering

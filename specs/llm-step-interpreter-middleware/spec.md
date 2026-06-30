@@ -20,6 +20,8 @@
   - `pyproject.toml`
   - local supporting checkout: `/Users/roschuma/Repos/github/deepagents/`
   - upstream repository: `https://github.com/langchain-ai/deepagents.git`
+  - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
+    and its linked tutorial notebook
 
 ## References
 
@@ -28,6 +30,10 @@
   feature evaluation
 - `https://github.com/langchain-ai/deepagents.git` — supporting provenance;
   use as upstream context for the local Deep Agents checkout observations
+- `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
+  — supporting educational reference for provider, tool, hook, skill, session,
+  and in-process MCP-adapter boundaries; not an interpreter implementation
+  authority
 
 ## Objective
 
@@ -88,6 +94,36 @@ Implication for this repository: Deep Agents' implementation reinforces the
 importance of explicit allowlists, safe read-only presets, unsafe acknowledgements
 for broad exposure, result and call budgets, and careful tracing of PTC calls that
 do not naturally traverse the normal tool-execution path.
+
+## MarkTechPost Nanobot-Style Reference Observations
+
+The evaluated MarkTechPost tutorial reconstructs a small provider-agnostic agent
+loop with normalized tool calls, a callable-to-tool decorator, session-keyed
+history, lifecycle hooks, a compact skill descriptor, and an in-process
+`MCPServer` facade. It is useful as evidence that small declarative capability
+objects can improve caller ergonomics, but its executable behavior is not a
+template for this feature:
+
+- Loading a tutorial skill mutates one bot-wide system prompt and tool registry.
+  Interpreter descriptors in DAR remain run- and node-scoped overlays and may
+  not mutate global prompt or registry state.
+- The tutorial's pre-tool hook observes calls, but execution still dispatches
+  directly from the model response to the tool registry. DAR must use its owned
+  invocation coordinator as the enforceable approval and policy boundary.
+- The tutorial's MCP-named object is an in-process adapter over Python callables,
+  not an MCP transport or discovery implementation. Interpreter tool bridging
+  must not claim MCP semantics merely because it wraps an external-looking
+  callable.
+- The tutorial declares streaming hook methods without implementing a streaming
+  provider path. Future interpreter lifecycle events must be tied to executable,
+  testable runtime transitions rather than descriptor-only callbacks.
+- The tutorial's unrestricted Python execution example is specifically rejected
+  as a sandbox or interpreter design. Candidate backends remain capability-denied
+  by default and bounded by timeout, memory, call-count, and result limits.
+
+The adopted lesson is therefore declarative description plus explicit runtime
+activation—not global mutation, hook-based authorization, pseudo-MCP naming, or
+in-process `exec` as isolation.
 
 ## Problem Statement
 
@@ -790,6 +826,9 @@ carried into this repository's design evaluation:
    behaviors.
 8. Package, node, and runtime policy may narrow caller-registered capabilities
    but may not silently widen them.
+9. Compact capability objects may inform descriptor ergonomics, but skill
+   loading, process-global prompt mutation, and process-global tool registration
+   are not interpreter activation mechanisms.
 
 ## Benchmark and Evaluation Plan
 
@@ -865,6 +904,9 @@ Metrics to record:
 - [x] Gateway tool exposure and final model synthesis behavior are defined.
 - [x] Nested tool calls are required to enter DAR approval and tool-runtime
       behavior before registry invocation.
+- [x] The MarkTechPost nanobot-style tutorial is recorded as supporting evidence,
+      with global mutation, hook-based authorization, pseudo-MCP naming, and
+      unrestricted Python execution explicitly rejected.
 - [ ] Candidate dependency availability checked in this repository's configured
       package indexes.
 - [ ] Prototype benchmark fixtures created.
