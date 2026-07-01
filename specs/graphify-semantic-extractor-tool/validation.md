@@ -1,6 +1,7 @@
 # Graphify Semantic Extractor Tool Validation Log
 
-Status: First-release implementation complete; stock Graphify handoff remains external
+Status: First-release and T8 selector implementation complete; stock Graphify
+handoff and default-policy gate remain external
 
 ## Scope
 
@@ -211,7 +212,43 @@ remains authoritative because the default-policy gate did not pass.
 
 ## T8 — Adaptive chunk-policy selector preparation
 
-T8 is implementation-ready but not executed. The selector must be pure and
-deterministic, return its estimates and reason code, preserve fixed8 as the
-safe fallback, and remain advisory until sibling-corpus benchmark evidence is
-recorded. No runtime default change is authorized by this preparation update.
+T8 implementation is complete for the package-owned immutable estimate/decision
+values and pure
+helpers in `src/dynamic_agent_runner/tools/graphify.py`, with focused tests in
+`tests/test_graphify_tools.py` (or a narrowly split policy test module).
+
+Required evidence for the implementation slice:
+
+- RED tests for manifest statistics, capped and unreliable estimates, model
+  input headroom, predicted fixed/token-aware chunk counts, concurrency, and
+  stable reason codes;
+- GREEN tests proving unknown context, provider instability, and unsafe files
+  choose the explicit `fixed8` fallback or isolate the file;
+- a no-side-effect assertion showing that selection neither calls a worker or
+  model nor mutates the manifest;
+- focused Graphify tests, Ruff, `git diff --check`, and focused pre-commit.
+
+The selector remains advisory: T8 does not add CLI wiring, alter extraction
+defaults, or make live provider calls. Sibling-corpus benchmark evidence and a
+separate approval are required before any runtime policy change.
+
+## T8 implementation evidence
+
+- Commit `6795a76` added immutable `GraphifyCorpusEstimate` and
+  `GraphifyChunkPolicyDecision` values plus pure estimator/selector helpers.
+- Commit `b1ab04e` added safety coverage for oversized-file isolation,
+  provider-instability fallback, and deterministic concurrency reduction.
+- Focused tests: `poetry run pytest tests/test_graphify_tools.py -q` — `39 passed`.
+- Ruff: `poetry run ruff check src/dynamic_agent_runner/tools
+  tests/test_graphify_tools.py` — passed.
+- Focused pre-commit and `git diff --check` passed for the implementation
+  slices.
+
+## T8 planning benchmark
+
+The selector was run locally against 13 sibling repositories containing a
+`memory-bank` or `cline-tasks` directory, using a 114,688-token context and an
+8,192-token output reserve. It selected `token_aware` for 3 repositories and
+`fixed8` for 10; no files were isolated. This benchmark measured deterministic
+planning only. Live observed latency, provider failures, and provenance
+coverage were not rerun, so T8.7 and the runtime-default decision remain open.

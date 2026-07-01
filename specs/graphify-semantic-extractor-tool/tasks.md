@@ -1,6 +1,7 @@
 # Graphify Semantic Extractor Tool Tasks
 
-Status: First-release implementation complete; stock Graphify handoff remains external
+Status: First-release and T8 selector implementation complete;
+benchmark/default gate remains pending
 
 ## Slice 0 — Planning Checkpoint
 
@@ -180,18 +181,37 @@ fixed eight-file default:
 
 ## T8 — Adaptive Chunk-Policy Selector (Prepared, Not Authorized)
 
-- [ ] T8.1 [tests] Add RED coverage for manifest statistics, token-estimate
-      fallback, capped file sizes, model headroom, and predicted fixed/token
-      chunk counts.
-- [ ] T8.2 [implementation] Add a pure selector returning `fixed8` or
-      `token_aware` plus budget, caps, concurrency, estimates, and a stable
-      reason code. It must not call a model or mutate the manifest.
-- [ ] T8.3 [tests] Prove oversized files, unknown context windows, unreliable
-      estimates, and provider-instability signals select the safe fixed8
-      fallback or isolate the file.
-- [ ] T8.4 [benchmark] Run the selector across the sibling-repository corpus
-      and compare predicted versus observed request counts, latency, failures,
-      and provenance coverage.
-- [ ] T8.5 [decision] Keep selection advisory until benchmark evidence supports
-      wiring it into the console; changing the runtime default is a separate
-      approval gate.
+- [x] T8.1 [tests/RED] Define focused fixtures and public-contract tests for
+      `GraphifyCorpusEstimate` and `GraphifyChunkPolicyDecision`, including
+      stable serialization/equality and no mutation of the admitted manifest.
+      - Files: `tests/test_graphify_tools.py` (split to
+        `tests/test_graphify_policy.py` only if it improves locality)
+      - Failure gate: tests must fail before the new names are exported.
+- [x] T8.2 [tests/RED] Cover `estimate_graphify_corpus(...)` with empty and
+      admitted manifests, capped file sizes, largest/p95 calculations,
+      unreliable/missing token estimates, and deterministic isolated-path
+      reporting.
+      - Files: `tests/test_graphify_tools.py`, existing Graphify fixtures
+- [x] T8.3 [tests/RED] Cover `select_graphify_chunk_policy(...)` for model
+      headroom, fixed-versus-token predicted chunk counts, tie-breaking,
+      large/high-variance concurrency reduction, and stable reason codes.
+      - The tests must assert the selector performs no worker/model calls.
+- [x] T8.4 [implementation/GREEN] Add the two package-owned immutable value
+      objects and pure helpers in `src/dynamic_agent_runner/tools/graphify.py`;
+      reuse `estimate_graphify_file_tokens` and `plan_graphify_chunks` rather
+      than duplicating their chunk math. Export only the helpers needed by the
+      tests and future planner integration.
+- [x] T8.5 [tests/RED→GREEN] Prove oversized files, unknown/non-positive
+      context windows, unreliable estimates, and provider-instability signals
+      select `fixed8` with an explicit reason code; prove files that cannot fit
+      the safe budget are isolated and never included in the token-aware count.
+- [x] T8.6 [validation] Run the focused policy tests, affected Graphify tests,
+      Ruff, `git diff --check`, and focused pre-commit. Record exact results in
+      `validation.md`; do not run live model calls as part of T8 unit tests.
+- [ ] T8.7 [benchmark/decision] Run live selector/extraction comparisons over
+      the sibling-repository corpus and compare predicted versus observed
+      request counts, latency, failures, and provenance coverage. The local
+      planning benchmark below is evidence for implementation only; it does
+      not authorize console wiring or a default change.
+      Keep the decision advisory; wiring it into the console or changing the
+      fixed8 default requires a separate approval and benchmark record.
