@@ -88,6 +88,10 @@ from dynamic_agent_runner.mlx_models import (
     create_mlx_local_adapter,
     create_mlx_local_async_adapter,
 )
+from dynamic_agent_runner.apple_foundation_models import (
+    AppleFoundationModelConfig,
+    create_apple_foundation_model_async_adapter,
+)
 from dynamic_agent_runner.mcp import (
     MCPToolBinding,
     create_mcp_registry,
@@ -242,6 +246,7 @@ __all__ = [
     "LocalModelError",
     "LocalOpenAIEndpointConfig",
     "MLXLocalModelConfig",
+    "AppleFoundationModelConfig",
     "MCPToolBinding",
     "ModelExecutionError",
     "ModelResponse",
@@ -276,6 +281,7 @@ __all__ = [
     "create_local_openai_adapter",
     "create_mlx_local_adapter",
     "create_mlx_local_async_adapter",
+    "create_apple_foundation_model_async_adapter",
     "create_mcp_registry",
     "create_host_tool_registry",
     "create_default_async_openai_client",
