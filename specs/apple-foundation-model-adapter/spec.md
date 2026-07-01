@@ -5,7 +5,7 @@
 - Feature slug: `apple-foundation-model-adapter`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: implementation-ready A1; implementation not started; A2 separately gated
+- Status: A1 implementation in progress; Slices 1-5 complete; A2 separately gated
 - Version: `0.4`
 - Date: 2026-07-01
 - Owner: dynamic-agent-runner model-provider boundary

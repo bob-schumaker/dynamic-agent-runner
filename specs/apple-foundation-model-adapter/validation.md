@@ -1,6 +1,6 @@
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 prepared; implementation not started
+Status: A1 Slices 1-5 complete; Slice 6 completion gate pending
 
 ## Scope
 
@@ -18,8 +18,22 @@ Status: A1 prepared; implementation not started
   approved executor seams.
 - Unit/live test separation is explicit: fakes for deterministic tests, marked
   eligible-Mac tests for real Apple generation.
-- No source implementation, dependency metadata, or runtime default change has
-  been made by this preparation slice.
+- The original preparation slice made no source or dependency changes; A1
+  implementation now exists in commits `4af46fb`, `df88337`, `e773531`, and
+  `01c1146`, while runtime defaults remain unchanged.
+
+## Executed A1 evidence
+
+- Slice 1: `4af46fb` — lazy contract, portability, and fail-closed tests.
+- Slice 2: `df88337` — session translation, cancellation, and optional SDK
+  dependency metadata.
+- Slice 3: `e773531` — structured-output validation, capability metadata, and
+  package-owned error causes.
+- Slice 4: `01c1146` — strict executor selection coverage.
+- Slice 5: live text/JSON/workflow tests and README documentation are prepared;
+  live tests skip unless `DAR_RUN_LIVE_APPLE=1` is set on an eligible Mac.
+- Focused implementation suite: `149 passed, 2 skipped`.
+- `poetry check`, Ruff, and focused pre-commit passed.
 
 ## Required evidence by slice
 

@@ -351,6 +351,49 @@ or asset downloads. The in-process adapter remains plain text generation only:
 tool calling, structured output, embeddings, multimodal IO, streaming public
 APIs, conversion, and server lifecycle helpers are separate feature surfaces.
 
+For Apple's system-managed Foundation Model, install the optional Apple SDK
+extra on an eligible Apple-silicon Mac with Apple Intelligence enabled:
+
+```bash
+poetry install --extras apple-foundation-models
+```
+
+Use the async Apple adapter with strict coverage when the workflow must remain
+on-device:
+
+```python
+from dynamic_agent_runner import (
+    AppleFoundationModelConfig,
+    create_apple_foundation_model_async_adapter,
+)
+
+apple_adapter = create_apple_foundation_model_async_adapter(
+    AppleFoundationModelConfig()
+)
+
+result = run_agent_workflow(
+    package_directory="path/to/agent-package",
+    prompt="Answer using Apple's on-device model.",
+    model_adapter=[apple_adapter],
+    model_adapter_coverage="strict",
+)
+```
+
+The adapter uses Apple's in-process `apple-fm-sdk`; it does not need an API
+key, model path, Hugging Face reference, or local HTTP server. A1 supports
+final text and explicit JSON Schema output only. Tools, provider-native
+streaming, images/audio, persistent Apple sessions, Private Cloud Compute, and
+external HTTP clients are not supported. If Apple Intelligence is disabled,
+the Mac is ineligible, the model is still preparing, or generation fails after
+preflight, the adapter reports a package-owned diagnostic with the SDK failure
+preserved as its cause.
+
+The opt-in live checks require an eligible Mac and can be run with:
+
+```bash
+DAR_RUN_LIVE_APPLE=1 poetry run pytest -m apple_live -q
+```
+
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls.
 `load_agent_package_workflow(...)` loads and compiles package-directory input.

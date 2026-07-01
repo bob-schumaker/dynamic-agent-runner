@@ -78,6 +78,11 @@ PYSIDE6 = true
 requires = ["poetry>=1.0.0"]
 build-backend = "poetry.masonry.api"
 
+[tool.pytest.ini_options]
+markers = [
+    "apple_live: live Apple Foundation Models test on an eligible Mac",
+]
+
 # Build trigger marker: force OCI build for cached inventory slice. 2026-06-23.
 [tool.ruff]
 line-length = 88
