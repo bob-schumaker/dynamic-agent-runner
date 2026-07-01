@@ -27,6 +27,9 @@ class GraphifySemanticExtractionPolicy:
     model: str | None = None
     max_retries: int = 1
     chunk_size: int = 8
+    token_budget: int | None = None
+    max_files_per_chunk: int = 24
+    max_file_chars: int = 20_000
 
     def __post_init__(self) -> None:
         if self.concurrency < 1:
@@ -35,6 +38,12 @@ class GraphifySemanticExtractionPolicy:
             raise ValueError("max_retries cannot be negative")
         if self.chunk_size < 1:
             raise ValueError("chunk_size must be at least 1")
+        if self.token_budget is not None and self.token_budget < 1:
+            raise ValueError("token_budget must be positive")
+        if self.max_files_per_chunk < 1:
+            raise ValueError("max_files_per_chunk must be at least 1")
+        if self.max_file_chars < 1:
+            raise ValueError("max_file_chars must be at least 1")
 
 
 class GraphifyManifestError(ValueError):
@@ -203,19 +212,80 @@ def plan_graphify_chunks(
     manifest: GraphifyCorpusManifest,
     *,
     chunk_size: int = 8,
+    token_budget: int | None = None,
+    max_files_per_chunk: int = 24,
+    max_file_chars: int = 20_000,
 ) -> tuple[GraphifyChunk, ...]:
-    """Split an admitted manifest into stable, deterministic chunks."""
+    """Split an admitted manifest into stable, deterministic chunks.
+
+    ``token_budget`` is opt-in so the first-release fixed-count behavior stays
+    compatible. Token estimates use the same per-file character cap as worker
+    requests and a conservative four-characters-per-token approximation.
+    """
 
     if chunk_size < 1:
         raise ValueError("chunk_size must be at least 1")
-    ordered = tuple(sorted(manifest.files, key=lambda item: item.path))
-    return tuple(
-        GraphifyChunk(
-            chunk_id=f"chunk-{offset // chunk_size + 1:04d}",
-            files=ordered[offset : offset + chunk_size],
+    if token_budget is None:
+        ordered = tuple(sorted(manifest.files, key=lambda item: item.path))
+        return tuple(
+            GraphifyChunk(
+                chunk_id=f"chunk-{offset // chunk_size + 1:04d}",
+                files=ordered[offset : offset + chunk_size],
+            )
+            for offset in range(0, len(ordered), chunk_size)
         )
-        for offset in range(0, len(ordered), chunk_size)
+    if token_budget < 1 or max_files_per_chunk < 1 or max_file_chars < 1:
+        raise ValueError("token and file chunk limits must be positive")
+    planned = _plan_token_bounded_chunks(
+        manifest, token_budget, max_files_per_chunk, max_file_chars
     )
+    return tuple(
+        GraphifyChunk(chunk_id=f"chunk-{index:04d}", files=files)
+        for index, files in enumerate(planned, start=1)
+    )
+
+
+def _plan_token_bounded_chunks(
+    manifest: GraphifyCorpusManifest,
+    token_budget: int,
+    max_files_per_chunk: int,
+    max_file_chars: int,
+) -> list[tuple[GraphifyCorpusFile, ...]]:
+    groups: dict[str, list[GraphifyCorpusFile]] = {}
+    for entry in sorted(manifest.files, key=lambda item: item.path):
+        groups.setdefault(str(Path(entry.path).parent), []).append(entry)
+    planned: list[tuple[GraphifyCorpusFile, ...]] = []
+    for directory in sorted(groups):
+        current: list[GraphifyCorpusFile] = []
+        current_tokens = 0
+        for entry in groups[directory]:
+            cost = estimate_graphify_file_tokens(
+                manifest.repo_root / entry.path, max_file_chars=max_file_chars
+            )
+            if current and (
+                current_tokens + cost > token_budget
+                or len(current) >= max_files_per_chunk
+            ):
+                planned.append(tuple(current))
+                current = []
+                current_tokens = 0
+            current.append(entry)
+            current_tokens += cost
+        if current:
+            planned.append(tuple(current))
+    return planned
+
+
+def estimate_graphify_file_tokens(path: Path, *, max_file_chars: int = 20_000) -> int:
+    """Estimate request tokens using the worker's per-file content cap."""
+
+    if max_file_chars < 1:
+        raise ValueError("max_file_chars must be at least 1")
+    try:
+        size = min(path.stat().st_size, max_file_chars)
+    except OSError:
+        return 0
+    return max(1, (size + 3) // 4)
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:
@@ -229,9 +299,13 @@ def _is_relative_to(path: Path, root: Path) -> bool:
 def build_graphify_worker_request(
     chunk: GraphifyChunk,
     manifest: GraphifyCorpusManifest,
+    *,
+    max_file_chars: int = 20_000,
 ) -> dict[str, Any]:
     """Build a fixed extraction request that treats documents as data."""
 
+    if max_file_chars < 1:
+        raise ValueError("max_file_chars must be at least 1")
     documents = []
     for entry in chunk.files:
         path = (manifest.repo_root / entry.path).resolve()
@@ -240,7 +314,7 @@ def build_graphify_worker_request(
         documents.append(
             {
                 "path": entry.path,
-                "content": path.read_text(encoding="utf-8"),
+                "content": path.read_text(encoding="utf-8")[:max_file_chars],
             }
         )
     return {
@@ -313,6 +387,9 @@ def extract_graphify_semantic_artifacts(
     required_globs: Sequence[str] = (),
     max_retries: int = 1,
     model: str | None = None,
+    token_budget: int | None = None,
+    max_files_per_chunk: int = 24,
+    max_file_chars: int = 20_000,
 ) -> GraphifySemanticExtractionResult:
     """Run bounded semantic extraction and write a candidate artifact set."""
 
@@ -329,6 +406,9 @@ def extract_graphify_semantic_artifacts(
             required_globs=required_globs,
             max_retries=max_retries,
             model=model,
+            token_budget=token_budget,
+            max_files_per_chunk=max_files_per_chunk,
+            max_file_chars=max_file_chars,
         )
     )
 
@@ -344,6 +424,9 @@ async def extract_graphify_semantic_artifacts_async(
     required_globs: Sequence[str] = (),
     max_retries: int = 1,
     model: str | None = None,
+    token_budget: int | None = None,
+    max_files_per_chunk: int = 24,
+    max_file_chars: int = 20_000,
 ) -> GraphifySemanticExtractionResult:
     """Async implementation for bounded, deterministic extraction."""
 
@@ -356,6 +439,9 @@ async def extract_graphify_semantic_artifacts_async(
         required_globs=tuple(required_globs),
         max_retries=max_retries,
         model=model,
+        token_budget=token_budget,
+        max_files_per_chunk=max_files_per_chunk,
+        max_file_chars=max_file_chars,
     )
     parsed_manifest = (
         manifest
@@ -363,7 +449,13 @@ async def extract_graphify_semantic_artifacts_async(
         else GraphifyCorpusManifest.from_mapping(manifest)
     )
     validated = validate_graphify_corpus_manifest(parsed_manifest, policy)
-    chunks = plan_graphify_chunks(validated, chunk_size=chunk_size)
+    chunks = plan_graphify_chunks(
+        validated,
+        chunk_size=chunk_size,
+        token_budget=token_budget,
+        max_files_per_chunk=max_files_per_chunk,
+        max_file_chars=max_file_chars,
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     semaphore = asyncio.Semaphore(concurrency)
     audits: list[dict[str, Any]] = []
@@ -371,7 +463,9 @@ async def extract_graphify_semantic_artifacts_async(
 
     async def run_chunk(chunk: GraphifyChunk) -> None:
         async with semaphore:
-            request = build_graphify_worker_request(chunk, validated)
+            request = build_graphify_worker_request(
+                chunk, validated, max_file_chars=max_file_chars
+            )
             last_error: str | None = None
             for attempt in range(max_retries + 1):
                 try:

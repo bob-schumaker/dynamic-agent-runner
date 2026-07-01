@@ -170,3 +170,12 @@ until that evidence exists.
 - Observed result: 13 chunks with distribution `8, 8, 8, ..., 4`.
 - Interpretation: the current policy is deterministic but has no relationship
   to request size; this is the baseline for the token-aware comparison in T7.2.
+
+## T7.2 — Token/file-bounded planner
+
+- RED: added focused tests for token budget, maximum file count, directory
+  grouping, and shared per-file content caps; the new planner API was absent.
+- GREEN: `poetry run pytest tests/test_graphify_tools.py -q` — `26 passed`.
+- Implementation: `plan_graphify_chunks(..., token_budget=...,`
+  `max_files_per_chunk=..., max_file_chars=...)` is opt-in; request construction
+  applies the same per-file cap and the fixed eight-file default is preserved.

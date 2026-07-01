@@ -158,9 +158,11 @@ These tasks are not authorized by the completed first-release slice:
       request size, latency, failure rate, and semantic coverage.
       - Baseline recorded before planner changes; token-aware comparison is
         completed in T7.2 and documented in `validation.md`.
-- [ ] T7.2 [tests] Add TDD coverage for configurable token budgets, maximum
+- [x] T7.2 [tests] Add TDD coverage for configurable token budgets, maximum
       files per chunk, per-file content caps, and deterministic directory-aware
       packing.
+      - Implemented as an opt-in planner; fixed eight-file behavior remains
+        the default pending T7.5.
 - [ ] T7.3 [implementation] Add adaptive bisection for context overflow,
       truncation, and density-related validation failures while preserving
       chunk ids, audit records, and accepted-snapshot protection.

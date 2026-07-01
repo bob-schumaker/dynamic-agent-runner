@@ -18,6 +18,7 @@ from dynamic_agent_runner.tools.graphify import (
     GraphifySemanticWorker,
     build_graphify_worker_request,
     create_graphify_semantic_extractor_tool,
+    estimate_graphify_file_tokens,
     extract_graphify_semantic_artifacts,
     plan_graphify_chunks,
     validate_graphify_corpus_manifest,
@@ -181,6 +182,50 @@ def test_manifest_required_glob_and_chunk_plan_are_deterministic(
 
     assert [chunk.files[0].path for chunk in chunks] == ["specs/a.md", "specs/b.md"]
     assert [chunk.chunk_id for chunk in chunks] == ["chunk-0001", "chunk-0002"]
+
+
+def test_token_aware_chunk_plan_respects_budget_file_cap_and_directory_groups(
+    tmp_path: Path,
+) -> None:
+    for name, size in (
+        ("specs/a.md", 40),
+        ("specs/b.md", 40),
+        ("specs/c.md", 40),
+        ("docs/d.md", 40),
+    ):
+        make_corpus_file(tmp_path, name, "x" * size)
+    manifest = GraphifyCorpusManifest(
+        repo_root=tmp_path,
+        files=tuple(
+            GraphifyCorpusFile(path=name)
+            for name in ("specs/c.md", "docs/d.md", "specs/a.md", "specs/b.md")
+        ),
+    )
+
+    chunks = plan_graphify_chunks(
+        manifest, token_budget=15, max_files_per_chunk=2, max_file_chars=40
+    )
+
+    assert [[item.path for item in chunk.files] for chunk in chunks] == [
+        ["docs/d.md"],
+        ["specs/a.md"],
+        ["specs/b.md"],
+        ["specs/c.md"],
+    ]
+
+
+def test_token_aware_planning_uses_same_per_file_cap_as_request(tmp_path: Path) -> None:
+    path = make_corpus_file(tmp_path, "specs/large.md", "x" * 100)
+    assert estimate_graphify_file_tokens(path, max_file_chars=20) == 5
+
+    manifest = GraphifyCorpusManifest(
+        repo_root=tmp_path,
+        files=(GraphifyCorpusFile(path="specs/large.md"),),
+    )
+    request = build_graphify_worker_request(
+        GraphifyChunk("chunk-0001", manifest.files), manifest, max_file_chars=20
+    )
+    assert len(request["documents"][0]["content"]) == 20
 
 
 def test_semantic_validation_accepts_graphify_subset() -> None:
