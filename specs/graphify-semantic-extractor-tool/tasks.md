@@ -150,9 +150,10 @@ Status: First-release implementation complete; stock Graphify handoff remains ex
 - Focused pre-commit and `git diff --check` passed before the completion commit.
 - Unit tests use fake workers; no live provider or Graphify process is required.
 
-## Post-First-Release Backlog — Blended Chunking
+## T7 — Post-First-Release Blended Chunking (Implemented Opt-In)
 
-These tasks are not authorized by the completed first-release slice:
+These tasks extend the completed first-release slice without changing its
+fixed eight-file default:
 
 - [x] T7.1 [benchmark] Compare fixed file-count and token-aware packing for
       request size, latency, failure rate, and semantic coverage.
@@ -176,3 +177,21 @@ These tasks are not authorized by the completed first-release slice:
       regression evidence is recorded in `validation.md`.
       - Decision: retain the fixed eight-file default. The T7.1 baseline and
         opt-in T7.2 planner are not sufficient evidence to change it yet.
+
+## T8 — Adaptive Chunk-Policy Selector (Prepared, Not Authorized)
+
+- [ ] T8.1 [tests] Add RED coverage for manifest statistics, token-estimate
+      fallback, capped file sizes, model headroom, and predicted fixed/token
+      chunk counts.
+- [ ] T8.2 [implementation] Add a pure selector returning `fixed8` or
+      `token_aware` plus budget, caps, concurrency, estimates, and a stable
+      reason code. It must not call a model or mutate the manifest.
+- [ ] T8.3 [tests] Prove oversized files, unknown context windows, unreliable
+      estimates, and provider-instability signals select the safe fixed8
+      fallback or isolate the file.
+- [ ] T8.4 [benchmark] Run the selector across the sibling-repository corpus
+      and compare predicted versus observed request counts, latency, failures,
+      and provenance coverage.
+- [ ] T8.5 [decision] Keep selection advisory until benchmark evidence supports
+      wiring it into the console; changing the runtime default is a separate
+      approval gate.

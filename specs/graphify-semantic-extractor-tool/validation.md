@@ -158,10 +158,9 @@ downstream handoff and is not part of this package implementation.
 
 ## Deferred blended-chunking scope
 
-FR-10 is intentionally not marked complete. Its benchmark, TDD, adaptive
-retry, and reconciliation work is tracked in the post-first-release backlog in
-`plan.md` and `tasks.md`; the current fixed chunk policy remains authoritative
-until that evidence exists.
+FR-10 is implemented as opt-in behavior. Its benchmark, TDD, adaptive retry,
+and reconciliation evidence is recorded below; the current fixed chunk policy
+remains authoritative because the default-policy gate did not pass.
 
 ## T7.1 — Fixed-chunk baseline
 
@@ -209,3 +208,10 @@ until that evidence exists.
   adaptive splitting, and reconciliation seam are opt-in until a benchmark
   compares request size, latency, failure rate, and semantic coverage on a
   representative corpus.
+
+## T8 — Adaptive chunk-policy selector preparation
+
+T8 is implementation-ready but not executed. The selector must be pure and
+deterministic, return its estimates and reason code, preserve fixed8 as the
+safe fallback, and remain advisory until sibling-corpus benchmark evidence is
+recorded. No runtime default change is authorized by this preparation update.

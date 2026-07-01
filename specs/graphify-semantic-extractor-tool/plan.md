@@ -65,6 +65,11 @@ console entrypoint for the extraction stage, not an OpenAI-compatible server.
     bisection, and an optional summary-only reconciliation pass. Those changes
     are not part of the completed first-release plan and require benchmarks
     plus TDD coverage before changing the fixed chunk default.
+12. **Adaptive policy selection.** A pure selector should estimate the admitted
+    corpus and model headroom, compare fixed8 and token-aware request counts,
+    return an auditable policy recommendation, and preserve fixed8 as the
+    fallback when estimates or provider context are uncertain. Selection must
+    remain separate from model execution until its benchmark gate passes.
 
 ## Affected Files and Components
 
@@ -166,10 +171,10 @@ handoff docs; do not add live Graphify integration in this release.
 Run focused tests, full tests, lint, package build, focused pre-commit, and
 spec-index consistency checks. Update status only after all gates pass.
 
-### Post-first-release backlog — Blended extraction
+### T7 — Post-first-release blended extraction (implemented opt-in)
 
-This backlog is intentionally unscheduled and does not change the first-release
-implementation contract:
+The T7 follow-on scope is implemented as opt-in behavior and does not change
+the first-release fixed-chunk default:
 
 - benchmark token-aware packing against the current fixed file-count planner;
 - add configurable token budget, maximum files, and per-file content cap;
@@ -177,6 +182,14 @@ implementation contract:
 - evaluate a summary-only cross-chunk reconciliation pass for accuracy gains;
 - update the default only after deterministic merge, audit, and DAR policy
   behavior remain unchanged.
+
+### Slice 8 — Adaptive chunk-policy selector
+
+Prepare a pure estimator and selector over an admitted manifest. Add TDD
+coverage for missing estimates, oversized files, fixed-versus-token predicted
+chunk counts, model headroom, deterministic reason codes, and the unchanged
+fixed8 fallback. Do not wire selection into live execution until benchmark
+evidence and a separate default-policy decision are recorded.
 
 ## Risks and Mitigations
 

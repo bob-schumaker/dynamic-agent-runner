@@ -7,7 +7,7 @@
 - Artifact type: future feature specification
 - Status: first-release implementation complete; endpoint and stock Graphify
   orchestration remain deferred; blended chunk planning is a follow-on
-  sub-feature
+  sub-feature; adaptive policy selection is implementation-ready planning
 - Related specs:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/subagent-tool-pack/spec.md`
@@ -252,6 +252,35 @@ model and approval path as primary extraction.
 This sub-feature is not part of the first-release acceptance gate. Until it is
 implemented, the first-release fixed chunk policy remains the source of truth.
 
+### FR-11: Select Chunk Policy from a Corpus Estimate (Prepared Follow-On)
+
+The extractor should provide a pure, read-only policy selector that chooses
+between fixed-count and token-aware planning before any model request starts.
+The selector receives the admitted manifest and model context limits, then
+returns an explainable policy decision containing:
+
+- selected policy: `fixed8` or `token_aware`;
+- token budget, file-count cap, per-file character cap, and concurrency;
+- estimated file count, total tokens, largest/p95 file size, and predicted chunk
+  counts for both candidate policies;
+- a stable reason code for the selection.
+
+Selection rules must be deterministic and safety-first:
+
+- use `fixed8` when token estimates are unavailable or unreliable;
+- reject or isolate a file whose capped estimate cannot fit within the safe
+  model input budget rather than sending it blindly;
+- prefer token-aware planning when its predicted request count is no worse than
+  fixed-count planning and its largest files fit with system/output headroom;
+- retain token-aware planning for completeness when it materially improves
+  request density, but lower concurrency for large or high-variance corpora;
+- keep fixed8 as the explicit fallback for provider instability or an unknown
+  model context window.
+
+The selector must not call a model, inspect generated graph output, mutate the
+manifest, or change the runtime default implicitly. A default-policy change
+requires benchmark evidence and a separate decision gate.
+
 ## Non-Goals
 
 This feature does not:
@@ -270,6 +299,8 @@ This feature does not:
 - authorize implementation without a separate TDD task slice.
 - change the first-release fixed chunk policy implicitly; blended chunking is a
   separately scheduled follow-on slice.
+- select a chunk policy from ambient provider state or without an auditable
+  estimate.
 
 ## First Release Boundary
 
@@ -295,6 +326,10 @@ cleanup.
 Blended token/file chunking and cross-chunk reconciliation are explicitly
 post-first-release work. They require focused benchmarks and TDD coverage
 before changing the default chunk behavior.
+
+The adaptive policy selector is prepared as a separate post-T7 implementation
+slice. Its first implementation may return a recommendation without wiring it
+to the console or changing the fixed default.
 
 ## Acceptance Criteria
 
