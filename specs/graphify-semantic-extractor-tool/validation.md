@@ -162,3 +162,11 @@ FR-10 is intentionally not marked complete. Its benchmark, TDD, adaptive
 retry, and reconciliation work is tracked in the post-first-release backlog in
 `plan.md` and `tasks.md`; the current fixed chunk policy remains authoritative
 until that evidence exists.
+
+## T7.1 — Fixed-chunk baseline
+
+- Command: `poetry run python - <<'PY' ...` using 100 synthetic 1,000-byte
+  Markdown files and the current `plan_graphify_chunks(..., chunk_size=8)`.
+- Observed result: 13 chunks with distribution `8, 8, 8, ..., 4`.
+- Interpretation: the current policy is deterministic but has no relationship
+  to request size; this is the baseline for the token-aware comparison in T7.2.

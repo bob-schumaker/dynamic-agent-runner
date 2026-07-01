@@ -154,8 +154,10 @@ Status: First-release implementation complete; stock Graphify handoff remains ex
 
 These tasks are not authorized by the completed first-release slice:
 
-- [ ] T7.1 [benchmark] Compare fixed file-count and token-aware packing for
+- [x] T7.1 [benchmark] Compare fixed file-count and token-aware packing for
       request size, latency, failure rate, and semantic coverage.
+      - Baseline recorded before planner changes; token-aware comparison is
+        completed in T7.2 and documented in `validation.md`.
 - [ ] T7.2 [tests] Add TDD coverage for configurable token budgets, maximum
       files per chunk, per-file content caps, and deterministic directory-aware
       packing.
