@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 import fnmatch
@@ -292,6 +293,170 @@ def validate_graphify_semantic_result(
             if key in payload
         },
     }
+
+
+def extract_graphify_semantic_artifacts(
+    manifest: GraphifyCorpusManifest | Mapping[str, Any],
+    *,
+    output_dir: Path,
+    worker: WorkerLike,
+    concurrency: int = 3,
+    chunk_size: int = 8,
+    required_globs: Sequence[str] = (),
+    max_retries: int = 1,
+    model: str | None = None,
+) -> GraphifySemanticExtractionResult:
+    """Run bounded semantic extraction and write a candidate artifact set."""
+
+    import asyncio as _asyncio
+
+    return _asyncio.run(
+        extract_graphify_semantic_artifacts_async(
+            manifest,
+            output_dir=output_dir,
+            worker=worker,
+            concurrency=concurrency,
+            chunk_size=chunk_size,
+            required_globs=required_globs,
+            max_retries=max_retries,
+            model=model,
+        )
+    )
+
+
+async def extract_graphify_semantic_artifacts_async(
+    manifest: GraphifyCorpusManifest | Mapping[str, Any],
+    *,
+    output_dir: Path,
+    worker: WorkerLike,
+    concurrency: int = 3,
+    chunk_size: int = 8,
+    required_globs: Sequence[str] = (),
+    max_retries: int = 1,
+    model: str | None = None,
+) -> GraphifySemanticExtractionResult:
+    """Async implementation for bounded, deterministic extraction."""
+
+    policy = GraphifySemanticExtractionPolicy(
+        output_dir=output_dir,
+        concurrency=concurrency,
+        chunk_size=chunk_size,
+        required_globs=tuple(required_globs),
+        max_retries=max_retries,
+        model=model,
+    )
+    parsed_manifest = (
+        manifest
+        if isinstance(manifest, GraphifyCorpusManifest)
+        else GraphifyCorpusManifest.from_mapping(manifest)
+    )
+    validated = validate_graphify_corpus_manifest(parsed_manifest, policy)
+    chunks = plan_graphify_chunks(validated, chunk_size=chunk_size)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    semaphore = asyncio.Semaphore(concurrency)
+    audits: list[dict[str, Any]] = []
+    results: list[tuple[GraphifyChunk, dict[str, Any]]] = []
+
+    async def run_chunk(chunk: GraphifyChunk) -> None:
+        async with semaphore:
+            request = build_graphify_worker_request(chunk, validated)
+            last_error: str | None = None
+            for attempt in range(max_retries + 1):
+                try:
+                    raw = worker(request)
+                    if hasattr(raw, "__await__"):
+                        raw = await raw
+                    semantic = validate_graphify_semantic_result(
+                        raw, {item.path for item in validated.files}
+                    )
+                    chunk_path = output_dir / f".graphify_{chunk.chunk_id}.json"
+                    _write_json(chunk_path, semantic)
+                    audits.append(
+                        {
+                            "chunk_id": chunk.chunk_id,
+                            "status": "completed",
+                            "attempts": attempt + 1,
+                            "source_files": [item.path for item in chunk.files],
+                        }
+                    )
+                    results.append((chunk, semantic))
+                    return
+                except (
+                    GraphifySemanticValidationError,
+                    OSError,
+                    TypeError,
+                    ValueError,
+                ) as exc:
+                    last_error = str(exc)
+            audits.append(
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "status": "failed",
+                    "attempts": max_retries + 1,
+                    "source_files": [item.path for item in chunk.files],
+                    "error": last_error,
+                }
+            )
+
+    await asyncio.gather(*(run_chunk(chunk) for chunk in chunks))
+    audits.sort(key=lambda item: item["chunk_id"])
+    audit = {
+        "model": model,
+        "concurrency": concurrency,
+        "chunks": audits,
+        "source_hashes": {
+            item.path: item.sha256 for item in validated.files if item.sha256
+        },
+    }
+    _write_json(output_dir / "graphify_audit.json", audit)
+    if any(item["status"] == "failed" for item in audits):
+        raise GraphifySemanticValidationError("one or more extraction chunks failed")
+    merged = _merge_semantic_results(results)
+    _write_json(output_dir / ".graphify_semantic_new.json", merged)
+    _write_json(output_dir / ".graphify_semantic.json", merged)
+    return GraphifySemanticExtractionResult(
+        output_dir=output_dir,
+        chunks=tuple(merged["chunks"]),
+        audit=audit,
+    )
+
+
+def _merge_semantic_results(
+    results: Sequence[tuple[GraphifyChunk, Mapping[str, Any]]],
+) -> dict[str, Any]:
+    nodes: list[Mapping[str, Any]] = []
+    edges: list[Mapping[str, Any]] = []
+    hyperedges: list[Mapping[str, Any]] = []
+    chunks: list[dict[str, Any]] = []
+    for chunk, result in sorted(results, key=lambda item: item[0].chunk_id):
+        nodes.extend(result["nodes"])
+        edges.extend(result["edges"])
+        hyperedges.extend(result["hyperedges"])
+        chunks.append(
+            {"chunk_id": chunk.chunk_id, "files": [item.path for item in chunk.files]}
+        )
+    return {
+        "nodes": sorted(nodes, key=lambda item: str(item["id"])),
+        "edges": sorted(
+            edges,
+            key=lambda item: (
+                str(item["source"]),
+                str(item["target"]),
+                str(item.get("relation") or ""),
+            ),
+        ),
+        "hyperedges": sorted(
+            hyperedges, key=lambda item: json.dumps(item, sort_keys=True)
+        ),
+        "chunks": chunks,
+    }
+
+
+def _write_json(path: Path, value: Mapping[str, Any]) -> None:
+    path.write_text(
+        json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _require_sequence(payload: Mapping[str, Any], key: str) -> list[Any]:

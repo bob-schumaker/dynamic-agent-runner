@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Validation Log
 
-Status: Slices 1–3 complete; execution and merge slices remain
+Status: Slices 1–4 complete; runtime integration and completion gates remain
 
 ## Scope
 
@@ -97,6 +97,24 @@ Status: Slices 1–3 complete; execution and merge slices remain
   output-root, hash, required-glob, and deterministic chunk checks pass.
 - Command: `poetry run ruff check src/dynamic_agent_runner/tools tests/test_graphify_tools.py`
 - Observed result: passed.
+
+## Slice 4 — Bounded Execution, Merge, and Audit
+
+### RED
+
+- Command: `poetry run pytest tests/test_graphify_tools.py -q`
+- Observed result: collection failed because bounded extraction and merge
+  helpers were absent.
+
+### GREEN
+
+- Command: `poetry run pytest tests/test_graphify_tools.py -q`
+- Observed result: `21 passed`.
+- Interpretation: semaphore-bounded async workers, out-of-order completion,
+  deterministic merged bytes, per-chunk artifacts, retries, failed-chunk audit,
+  and accepted-snapshot protection are covered.
+- Command: `poetry run ruff check src/dynamic_agent_runner/tools tests/test_graphify_tools.py`
+- Observed result: passed after formatter cleanup.
 
 ## Commands for Planning Checkpoint
 

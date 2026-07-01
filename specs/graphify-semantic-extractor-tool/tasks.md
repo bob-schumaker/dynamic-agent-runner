@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Tasks
 
-Status: Slices 1–3 complete; execution and merge slices remain
+Status: Slices 1–4 complete; runtime integration and completion gates remain
 
 ## Slice 0 — Planning Checkpoint
 
@@ -83,18 +83,20 @@ Status: Slices 1–3 complete; execution and merge slices remain
 
 ## Slice 4 — Bounded Execution, Merge, and Audit
 
-- [ ] T4.1 [tests] Add RED async tests for semaphore-bounded scheduling,
+- [x] T4.1 [tests] Add RED async tests for semaphore-bounded scheduling,
       arbitrary worker completion order, deterministic artifact bytes, isolated
       per-chunk outputs, successful/failed/retried/repaired audit records, and
       no writes to accepted `graphify-out/`.
       - Spec: FR-5, FR-7; Plan: Data Flow and Decisions 6–8
       - Files: `tests/test_graphify_tools.py`
-- [ ] T4.2 [implementation] Implement bounded async execution, per-chunk JSON,
+- [x] T4.2 [implementation] Implement bounded async execution, per-chunk JSON,
       deterministic merge, `.graphify_semantic_new.json`, validated
       `.graphify_semantic.json`, chunk manifest, source-hash audit, and stable
       result mapping.
       - Files: `src/dynamic_agent_runner/tools/graphify.py`
       - Validation: `poetry run pytest tests/test_graphify_tools.py -q`
+      - RED: extraction helpers were absent and collection failed.
+      - GREEN: `poetry run pytest tests/test_graphify_tools.py -q` — `21 passed`.
 
 ## Slice 5 — Runtime Integration, Console Delegation, and Documentation
 
