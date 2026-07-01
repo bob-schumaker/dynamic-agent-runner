@@ -1,6 +1,6 @@
 # Apple Foundation Models Adapter Implementation Plan
 
-Status: A1 implementation in progress; Slices 1-5 complete; completion gate pending
+Status: A1 implementation complete; eligible-Mac live verification pending
 
 ## Scope and authority
 

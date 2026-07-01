@@ -1,6 +1,6 @@
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 Slices 1-5 complete; Slice 6 completion gate pending
+Status: A1 implementation complete; eligible-Mac live verification pending
 
 ## Scope
 
@@ -34,6 +34,20 @@ Status: A1 Slices 1-5 complete; Slice 6 completion gate pending
   live tests skip unless `DAR_RUN_LIVE_APPLE=1` is set on an eligible Mac.
 - Focused implementation suite: `149 passed, 2 skipped`.
 - `poetry check`, Ruff, and focused pre-commit passed.
+
+## Slice 6 completion-gate evidence
+
+- Full suite: `poetry run pytest -q` — `654 passed, 4 skipped`.
+- Live marker: `poetry run pytest -m apple_live -q` — `3 skipped` with the
+  explicit `DAR_RUN_LIVE_APPLE=1` / eligible-mac prerequisite.
+- Ruff: `poetry run ruff check src tests` — passed.
+- Metadata: `poetry check` — passed.
+- Package build: `poetry build` — passed with network-enabled retry.
+- Focused pre-commit and `git diff --check` pass for the final slice.
+
+The implementation and deterministic validation gates are complete. The live
+Apple checks remain pending on the designated eligible Mac; the tests are
+marked and ready to run with `DAR_RUN_LIVE_APPLE=1`.
 
 ## Required evidence by slice
 

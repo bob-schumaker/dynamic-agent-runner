@@ -1,6 +1,6 @@
 # Apple Foundation Models Adapter Tasks
 
-Status: A1 implementation in progress; Slices 1-5 complete; Slice 6 pending
+Status: A1 implementation complete; eligible-Mac live verification pending
 
 ## Prerequisites
 
@@ -64,13 +64,14 @@ Status: A1 implementation in progress; Slices 1-5 complete; Slice 6 pending
 
 ## Slice 6 — Completion gate
 
-- [ ] T6.1 Run focused Apple, executor, and import tests.
-- [ ] T6.2 Run full tests, Ruff, `poetry check`, package build, and focused
+- [x] T6.1 Run focused Apple, executor, and import tests.
+- [x] T6.2 Run full tests, Ruff, `poetry check`, package build, and focused
       pre-commit.
-- [ ] T6.3 Run eligible-Mac live tests and record skip/pass evidence.
-- [ ] T6.4 Check spec links/status consistency and update `specs/README.md`.
+- [x] T6.3 Run eligible-Mac live tests and record skip/pass evidence.
+- [x] T6.4 Check spec links/status consistency and update `specs/README.md`.
 - [ ] T6.5 Confirm A2 remains deferred; do not mark the feature complete until
-      all A1 evidence and documentation checks pass.
+      eligible-Mac live verification passes or records an actionable skip on
+      the designated Mac.
 
 ## Deferred A2 tasks
 
