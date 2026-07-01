@@ -183,13 +183,42 @@ the first-release fixed-chunk default:
 - update the default only after deterministic merge, audit, and DAR policy
   behavior remain unchanged.
 
-### Slice 8 — Adaptive chunk-policy selector
+### Slice 8 — Adaptive chunk-policy selector (T8 implementation boundary)
 
-Prepare a pure estimator and selector over an admitted manifest. Add TDD
-coverage for missing estimates, oversized files, fixed-versus-token predicted
-chunk counts, model headroom, deterministic reason codes, and the unchanged
-fixed8 fallback. Do not wire selection into live execution until benchmark
-evidence and a separate default-policy decision are recorded.
+Implement the selector as an isolated planning seam in
+`src/dynamic_agent_runner/tools/graphify.py`; do not change the extractor or
+console call path in this slice. The proposed narrow API is:
+
+- `estimate_graphify_corpus(manifest, *, max_file_chars,
+  token_estimator: Callable[[Path, int], int | None])`
+  returns an immutable estimate containing admitted file count, total tokens,
+  largest and p95 file estimates, estimate reliability, and isolated paths;
+- `select_graphify_chunk_policy(estimate, *, model_context_tokens,
+  output_reserve_tokens, fixed_chunk_size=8, token_budget=40_000,
+  max_files_per_chunk=24, max_file_chars=20_000, provider_stable=True)` returns
+  an immutable decision containing `policy` (`fixed8` or `token_aware`), the
+  effective budget/caps/concurrency, both predicted chunk counts, the estimate
+  summary, isolated paths, and a stable machine-readable `reason_code`.
+
+The estimator may read admitted files through the existing manifest boundary,
+but neither function may call a model, mutate the manifest, inspect graph
+output, or schedule workers. The selector must calculate
+`safe_budget = min(token_budget, model_context_tokens -
+output_reserve_tokens)` before comparing policies. An unknown or non-positive
+context limit, unreliable token estimates, provider instability, or a file
+that cannot fit the safe budget must produce the fixed8 safety decision and an
+explicit reason code. A token-aware recommendation is allowed only when all
+non-isolated files fit and its predicted request count is no worse than
+fixed8. Use deterministic concurrency reduction for large/high-variance
+corpora: start at the configured concurrency of 3, reduce to 2 when p95 file
+tokens exceed one third of `safe_budget`, and reduce to 1 when they exceed
+one half. These thresholds are part of the T8 test contract.
+
+TDD order is RED value-object/API tests, RED estimator and policy-rule tests,
+GREEN minimal implementation, then refactor without widening the public
+surface. Keep the decision advisory: no CLI flag, runtime default, or worker
+request changes are part of T8. Benchmark and default-policy approval remain
+separate gates.
 
 ## Risks and Mitigations
 
