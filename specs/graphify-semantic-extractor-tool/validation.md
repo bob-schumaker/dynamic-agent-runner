@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Validation Log
 
-Status: Slice 1 complete; manifest and execution slices remain
+Status: Slices 1–2 complete; worker and merge slices remain
 
 ## Scope
 
@@ -62,6 +62,23 @@ Status: Slice 1 complete; manifest and execution slices remain
 - Observed result: passed.
 - Command: `poetry check`
 - Observed result: `All set!`.
+
+## Slice 2 — Manifest Validation and Chunk Planning
+
+### RED
+
+- Command: `poetry run pytest tests/test_graphify_tools.py -q`
+- Observed result: collection failed because `GraphifyCorpusManifest` and
+  manifest validation helpers were absent.
+
+### GREEN
+
+- Command: `poetry run pytest tests/test_graphify_tools.py -q`
+- Observed result: `12 passed`.
+- Interpretation: relative-path, traversal, code/generated-file, symlink,
+  output-root, hash, required-glob, and deterministic chunk checks pass.
+- Command: `poetry run ruff check src/dynamic_agent_runner/tools tests/test_graphify_tools.py`
+- Observed result: passed.
 
 ## Commands for Planning Checkpoint
 

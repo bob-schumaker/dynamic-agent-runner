@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Tasks
 
-Status: implementation-ready planning; no source implementation started
+Status: Slices 1–2 complete; worker and merge slices remain
 
 ## Slice 0 — Planning Checkpoint
 
@@ -49,18 +49,20 @@ Status: implementation-ready planning; no source implementation started
 
 ## Slice 2 — Manifest Validation and Chunk Planning
 
-- [ ] T2.1 [tests] Add RED fixtures for relative-path enforcement, traversal,
+- [x] T2.1 [tests] Add RED fixtures for relative-path enforcement, traversal,
       absolute paths, missing files, symlink escape, code/generated-file
       rejection, accepted corpus files, source hashes, required globs, output
       root containment, and deterministic chunk planning.
       - Spec: FR-2, FR-6; Plan: Decisions 5–7
       - Files: `tests/test_graphify_tools.py`, `tests/fixtures/graphify/`
-- [ ] T2.2 [implementation] Implement immutable manifest validation, source
+- [x] T2.2 [implementation] Implement immutable manifest validation, source
       hashing, required-glob coverage, candidate-output safety, and stable
       chunk planning before worker scheduling.
       - Files: `src/dynamic_agent_runner/tools/graphify.py`
       - Validation: `poetry run pytest tests/test_graphify_tools.py -q`
       - Invariant: any preflight failure starts zero workers.
+      - RED: collection failed because manifest types and validators were absent.
+      - GREEN: `poetry run pytest tests/test_graphify_tools.py -q` — `12 passed`.
 
 ## Slice 3 — Worker Isolation and Semantic Validation
 
