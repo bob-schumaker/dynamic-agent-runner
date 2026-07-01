@@ -271,7 +271,9 @@
 
 ## Guidance for Future Work
 
-- Apple Foundation Models A1 is the current highest-ROI pending specification.
+- Apple Foundation Models A1 is the current highest-ROI implementation-ready
+  specification; its plan/tasks/validation artifacts are prepared, while code
+  still requires approval and execution.
   Approve and plan its text/structured-output boundary before implementation;
   keep A2 tool callbacks behind a separate coordinator and approval contract.
 - Interpreter middleware has a resolved gateway and custom-adapter direction but
@@ -283,7 +285,7 @@
 - The current roadmap has capability status, approval/sandbox v1, MCP v1,
   guardrail v1, iterative loops, skill source resolution, host integration, and
   local-model availability baselines complete. Apple A1, the memory-aware first
-  slice, and provider-backed compaction are the leading unimplemented spec work;
+  slice, and provider-backed compaction are the leading unimplemented work;
   LiteLLM remains paused on Python compatibility.
 - `specs/capability-status-report/spec.md` owns the implemented preflight
   reporting direction for live, metadata-only, missing-collaborator, disabled,

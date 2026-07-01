@@ -30,12 +30,12 @@
   catalog parity bug-fix slice (`6d5d7a1`). TDD work remains: preserve catalog
   priority and visibility, choose the first visible model as default, forward
   `ChatGPT-Account-ID`, and retain generic-provider fallback behavior.
-- `specs/apple-foundation-model-adapter/spec.md` is now the highest-ROI pending
-  feature specification. Commit `f8e7361` defines A1 as an async in-process
-  Responses-compatible Apple Foundation Models adapter for text and explicit
-  JSON Schema output. A2 remains a separately gated Apple tool-callback bridge
-  through DAR approval and tool-runtime behavior. A1 is still a draft awaiting
-  approval; no plan, tasks, validation artifact, or implementation exists yet.
+- `specs/apple-foundation-model-adapter/` is now the highest-ROI
+  implementation-ready feature package. Commit `c39af18` defines A1 as an async
+  in-process Responses-compatible Apple Foundation Models adapter for text and
+  explicit JSON Schema output, with plan/tasks/validation artifacts. A2 remains
+  a separately gated Apple tool-callback bridge through DAR approval and
+  tool-runtime behavior. A1 implementation has not started.
 - `specs/llm-step-interpreter-middleware/spec.md` now records the recommended
   multi-interpreter contract in commit `c9f505f`: one DAR-owned
   `run_interpreter` model gateway, bounded package-local or caller-supplied
@@ -467,8 +467,8 @@
   - `specs/pyinstaller-packaging-support/spec.md`
   - `specs/persistent-agent-sessions/spec.md`
   - `specs/model-event-streaming/spec.md`
-- Draft feature packages:
-  - `specs/apple-foundation-model-adapter/spec.md`
+- Implementation-ready feature packages:
+  - `specs/apple-foundation-model-adapter/`
 - Paused implementation candidates:
   - `specs/litellm-provider-adapter/spec.md`
 - Prepared feature packages:
@@ -486,9 +486,9 @@
 
 ## Next Steps
 
-- Approve or revise Apple Foundation Models A1, then create a bounded
-  `plan.md`, `tasks.md`, and `validation.md` without pulling A2 tool callbacks
-  into the first release.
+- Approve Apple Foundation Models A1 and execute its bounded `plan.md`,
+  `tasks.md`, and `validation.md` without pulling A2 tool callbacks into the
+  first release.
 - Keep Apple A2 and interpreter middleware aligned on one future DAR-owned tool
   invocation coordinator. Do not let provider callbacks or interpreter bridges
   call handlers or `ToolRegistry.invoke_tool_async(...)` directly.

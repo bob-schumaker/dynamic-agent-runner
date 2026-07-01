@@ -31,11 +31,12 @@
   The full suite passes with 626 tests and one skip. Spec commit `54ac838`
   prepares T8, a pure advisory selector that compares fixed8 and token-aware
   estimates without changing the runtime default.
-- Apple Foundation Models adapter work has an authoritative draft spec in
-  `specs/apple-foundation-model-adapter/spec.md`. A1 is bounded to local text
-  and explicit JSON Schema output through the existing async provider facade;
-  A2 separately requires DAR-managed callback routing through the approval and
-  tool-runtime stack. No Apple adapter code is implemented.
+- Apple Foundation Models adapter work is implementation-ready in
+  `specs/apple-foundation-model-adapter/` through commit `c39af18`. A1 is
+  bounded to local text and explicit JSON Schema output through the existing
+  async provider facade; A2 separately requires DAR-managed callback routing
+  through the approval and tool-runtime stack. No Apple adapter code is
+  implemented yet.
 - Interpreter middleware now has a resolved model-facing design direction:
   one `run_interpreter` gateway tool, multiple node-allowed ids, bounded
   non-executable usage descriptors, caller-provided async-first adapters, and
@@ -304,8 +305,9 @@
 - `c9f505f` defined the multi-interpreter gateway, descriptor/frontmatter,
   caller registry, and DAR approval-coordinator contract in the interpreter
   middleware spec.
-- `f8e7361` added the Apple Foundation Models adapter spec and aligned the spec
-  index, provider-wrapper supersession note, and ROI ordering.
+- `c39af18` prepared the Apple Foundation Models A1 plan, TDD tasks, validation
+  log, and aligned the spec index and ROI ordering. A2 remains separately
+  gated; implementation has not started.
 - `9592f61` added `specs/` to the Graphify knowledge-extraction allowlist;
   `51bb200` kept local `.graphifyignore` configuration uncommitted.
 - `a74bf68` added the repository knowledge-graph toolchain skills and skill-local
@@ -538,9 +540,10 @@
   multi-interpreter, custom-adapter, and descriptor contracts are now specified,
   but implementation planning still requires backend evidence, safety/redaction
   decisions, descriptor budgets, and nested approval/resume semantics.
-- Apple Foundation Models A1 is the current highest-ROI draft and needs approval
-  plus plan/tasks/validation artifacts before implementation. A2 tool callbacks
-  remain a separate approval-gated release.
+- Apple Foundation Models A1 is the current highest-ROI implementation-ready
+  slice and needs approval before implementation. Its plan/tasks/validation
+  artifacts are committed in `c39af18`; A2 tool callbacks remain a separate
+  approval-gated release.
 
 ## Risks or Follow-ups
 
