@@ -25,6 +25,7 @@ from dynamic_agent_runner.tools.graphify import (
 )
 from dynamic_agent_runner.tools.graphify_cli import build_graphify_parser
 from dynamic_agent_runner.tools.graphify_cli import main as graphify_cli_main
+from dynamic_agent_runner.tools.graphify_cli import _adapter_worker
 from dynamic_agent_runner.registry import InMemoryToolRegistry
 
 
@@ -309,6 +310,33 @@ def test_graphify_console_delegates_to_dar_extraction_api(tmp_path: Path) -> Non
     assert exit_code == 0
     assert stderr.getvalue() == ""
     assert json.loads(stdout.getvalue())["chunks"][0]["status"] == "completed"
+
+
+def test_graphify_adapter_worker_resolves_default_model_once() -> None:
+    class FakeResponse:
+        content = '{"nodes": [], "edges": [], "hyperedges": []}'
+
+    class FakeAdapter:
+        def __init__(self) -> None:
+            self.default_model_calls = 0
+            self.requests: list[object] = []
+
+        async def default_model(self) -> str:
+            self.default_model_calls += 1
+            return "gpt-test"
+
+        async def create_response(self, request: object) -> FakeResponse:
+            self.requests.append(request)
+            return FakeResponse()
+
+    adapter = FakeAdapter()
+    worker = _adapter_worker(adapter, None)  # type: ignore[arg-type]
+
+    asyncio.run(worker({"instructions": "rules", "chunk_id": "one", "documents": []}))
+    asyncio.run(worker({"instructions": "rules", "chunk_id": "two", "documents": []}))
+
+    assert adapter.default_model_calls == 1
+    assert len(adapter.requests) == 2
 
 
 def test_extraction_merges_out_of_order_workers_deterministically(

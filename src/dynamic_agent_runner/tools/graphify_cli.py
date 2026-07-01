@@ -87,9 +87,12 @@ def _adapter_worker(
     resolved_adapter = adapter or AsyncOpenAIClientAdapter(
         provider=create_default_async_openai_provider()
     )
+    selected_model = model
 
     async def worker(request: Mapping[str, Any]) -> str:
-        selected_model = model or await resolved_adapter.default_model()
+        nonlocal selected_model
+        if selected_model is None:
+            selected_model = await resolved_adapter.default_model()
         response = await resolved_adapter.create_response(
             OpenAIModelRequest(
                 model=selected_model,
