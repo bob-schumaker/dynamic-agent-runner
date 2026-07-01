@@ -9,6 +9,8 @@ import pytest
 
 from dynamic_agent_runner.tools.graphify import (
     GraphifyCorpusFile,
+    GraphifyCorpusEstimate,
+    GraphifyChunkPolicyDecision,
     GraphifyCorpusManifest,
     GraphifyChunk,
     GraphifyManifestError,
@@ -20,8 +22,10 @@ from dynamic_agent_runner.tools.graphify import (
     build_graphify_reconciliation_request,
     create_graphify_semantic_extractor_tool,
     estimate_graphify_file_tokens,
+    estimate_graphify_corpus,
     extract_graphify_semantic_artifacts,
     plan_graphify_chunks,
+    select_graphify_chunk_policy,
     validate_graphify_corpus_manifest,
     validate_graphify_semantic_result,
 )
@@ -236,6 +240,109 @@ def test_token_aware_planning_uses_same_per_file_cap_as_request(tmp_path: Path) 
         GraphifyChunk("chunk-0001", manifest.files), manifest, max_file_chars=20
     )
     assert len(request["documents"][0]["content"]) == 20
+
+
+def test_graphify_policy_values_are_immutable_and_deterministic() -> None:
+    estimate = GraphifyCorpusEstimate(
+        file_count=2,
+        total_tokens=20,
+        largest_file_tokens=12,
+        p95_file_tokens=12,
+        reliable=True,
+        file_tokens=(("a.md", 8), ("b.md", 12)),
+        isolated_paths=(),
+    )
+    decision = GraphifyChunkPolicyDecision(
+        policy="token_aware",
+        token_budget=100,
+        max_files_per_chunk=24,
+        max_file_chars=20_000,
+        concurrency=3,
+        estimate=estimate,
+        predicted_fixed_chunks=1,
+        predicted_token_chunks=1,
+        isolated_paths=(),
+        reason_code="token_aware_selected",
+    )
+
+    assert decision == decision
+    with pytest.raises((AttributeError, TypeError)):
+        decision.policy = "fixed8"  # type: ignore[misc]
+
+
+def test_estimate_graphify_corpus_reports_capped_statistics(tmp_path: Path) -> None:
+    make_corpus_file(tmp_path, "specs/a.md", "x" * 40)
+    make_corpus_file(tmp_path, "specs/b.md", "x" * 8)
+    manifest = GraphifyCorpusManifest(
+        repo_root=tmp_path,
+        files=(
+            GraphifyCorpusFile("specs/b.md"),
+            GraphifyCorpusFile("specs/a.md"),
+        ),
+    )
+
+    estimate = estimate_graphify_corpus(manifest, max_file_chars=20)
+
+    assert estimate.file_count == 2
+    assert estimate.total_tokens == 7
+    assert estimate.largest_file_tokens == 5
+    assert estimate.p95_file_tokens == 5
+    assert estimate.file_tokens == (("specs/a.md", 5), ("specs/b.md", 2))
+    assert estimate.reliable is True
+    assert estimate.isolated_paths == ()
+
+
+def test_selector_prefers_token_aware_when_request_count_is_no_worse(
+    tmp_path: Path,
+) -> None:
+    for name in ("specs/a.md", "specs/b.md", "specs/c.md"):
+        make_corpus_file(tmp_path, name, "x" * 40)
+    manifest = GraphifyCorpusManifest(
+        repo_root=tmp_path,
+        files=tuple(
+            GraphifyCorpusFile(name)
+            for name in ("specs/a.md", "specs/b.md", "specs/c.md")
+        ),
+    )
+
+    decision = select_graphify_chunk_policy(
+        estimate_graphify_corpus(manifest, max_file_chars=40),
+        model_context_tokens=100,
+        output_reserve_tokens=20,
+        token_budget=30,
+        max_files_per_chunk=3,
+    )
+
+    assert decision.policy == "token_aware"
+    assert decision.predicted_fixed_chunks == 1
+    assert decision.predicted_token_chunks == 1
+    assert decision.reason_code == "token_aware_selected"
+
+
+def test_selector_falls_back_for_unknown_context_and_unreliable_estimates(
+    tmp_path: Path,
+) -> None:
+    path = make_corpus_file(tmp_path, "specs/a.md", "x" * 40)
+    manifest = GraphifyCorpusManifest(
+        repo_root=tmp_path, files=(GraphifyCorpusFile("specs/a.md"),)
+    )
+    unreliable = estimate_graphify_corpus(
+        manifest,
+        token_estimator=lambda _path, _cap: None,
+    )
+
+    unknown = select_graphify_chunk_policy(
+        unreliable, model_context_tokens=None, output_reserve_tokens=20
+    )
+    assert unknown.policy == "fixed8"
+    assert unknown.reason_code == "unknown_context_window"
+
+    known = select_graphify_chunk_policy(
+        unreliable, model_context_tokens=100, output_reserve_tokens=20
+    )
+    assert known.policy == "fixed8"
+    assert known.reason_code == "estimates_unreliable"
+    assert path.name == "a.md"
 
 
 def test_semantic_validation_accepts_graphify_subset() -> None:

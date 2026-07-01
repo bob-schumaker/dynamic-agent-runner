@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 import fnmatch
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any, Protocol, TypeAlias
 
@@ -100,6 +101,35 @@ class GraphifyCorpusManifest:
         except (KeyError, TypeError, ValueError) as exc:
             raise GraphifyManifestError("corpus manifest requires repo_root") from exc
         return cls(repo_root=repo_root, files=tuple(files))
+
+
+@dataclass(frozen=True)
+class GraphifyCorpusEstimate:
+    """Deterministic, read-only statistics for an admitted corpus."""
+
+    file_count: int
+    total_tokens: int
+    largest_file_tokens: int
+    p95_file_tokens: int
+    reliable: bool
+    file_tokens: tuple[tuple[str, int], ...]
+    isolated_paths: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class GraphifyChunkPolicyDecision:
+    """Advisory chunk-policy recommendation with auditable inputs."""
+
+    policy: str
+    token_budget: int
+    max_files_per_chunk: int
+    max_file_chars: int
+    concurrency: int
+    estimate: GraphifyCorpusEstimate
+    predicted_fixed_chunks: int
+    predicted_token_chunks: int
+    isolated_paths: tuple[str, ...]
+    reason_code: str
 
 
 @dataclass(frozen=True)
@@ -290,6 +320,183 @@ def estimate_graphify_file_tokens(path: Path, *, max_file_chars: int = 20_000) -
     except OSError:
         return 0
     return max(1, (size + 3) // 4)
+
+
+def estimate_graphify_corpus(
+    manifest: GraphifyCorpusManifest,
+    *,
+    max_file_chars: int = 20_000,
+    token_estimator: Callable[[Path, int], int | None] | None = None,
+) -> GraphifyCorpusEstimate:
+    """Estimate an admitted corpus without changing it or invoking a model."""
+
+    if max_file_chars < 1:
+        raise ValueError("max_file_chars must be at least 1")
+    estimator = token_estimator or (
+        lambda path, cap: estimate_graphify_file_tokens(path, max_file_chars=cap)
+    )
+    values: list[tuple[str, int]] = []
+    isolated: list[str] = []
+    reliable = True
+    for entry in sorted(manifest.files, key=lambda item: item.path):
+        try:
+            estimate = estimator(manifest.repo_root / entry.path, max_file_chars)
+        except (OSError, TypeError, ValueError):
+            estimate = None
+        if not isinstance(estimate, int) or isinstance(estimate, bool) or estimate < 1:
+            reliable = False
+            isolated.append(entry.path)
+            continue
+        values.append((entry.path, estimate))
+    tokens = sorted(value for _path, value in values)
+    p95 = tokens[math.ceil(len(tokens) * 0.95) - 1] if tokens else 0
+    return GraphifyCorpusEstimate(
+        file_count=len(manifest.files),
+        total_tokens=sum(tokens),
+        largest_file_tokens=max(tokens, default=0),
+        p95_file_tokens=p95,
+        reliable=reliable,
+        file_tokens=tuple(values),
+        isolated_paths=tuple(isolated),
+    )
+
+
+def select_graphify_chunk_policy(
+    estimate: GraphifyCorpusEstimate,
+    *,
+    model_context_tokens: int | None,
+    output_reserve_tokens: int,
+    fixed_chunk_size: int = 8,
+    token_budget: int = 40_000,
+    max_files_per_chunk: int = 24,
+    max_file_chars: int = 20_000,
+    concurrency: int = 3,
+    provider_stable: bool = True,
+) -> GraphifyChunkPolicyDecision:
+    """Choose a chunk policy from estimates without scheduling any work."""
+
+    if fixed_chunk_size < 1 or token_budget < 1 or max_files_per_chunk < 1:
+        raise ValueError("chunk policy limits must be positive")
+    if max_file_chars < 1 or concurrency < 1 or output_reserve_tokens < 0:
+        raise ValueError("chunk policy values are invalid")
+
+    valid_files = estimate.file_tokens
+    fixed_chunks = math.ceil(len(valid_files) / fixed_chunk_size)
+    safe_budget = token_budget
+    if model_context_tokens is None or model_context_tokens <= output_reserve_tokens:
+        return _graphify_policy_decision(
+            "fixed8",
+            token_budget,
+            max_files_per_chunk,
+            max_file_chars,
+            concurrency,
+            estimate,
+            fixed_chunks,
+            fixed_chunks,
+            estimate.isolated_paths,
+            "unknown_context_window",
+        )
+    safe_budget = min(token_budget, model_context_tokens - output_reserve_tokens)
+    if not estimate.reliable:
+        return _graphify_policy_decision(
+            "fixed8",
+            safe_budget,
+            max_files_per_chunk,
+            max_file_chars,
+            concurrency,
+            estimate,
+            fixed_chunks,
+            fixed_chunks,
+            estimate.isolated_paths,
+            "estimates_unreliable",
+        )
+    oversized = tuple(path for path, tokens in valid_files if tokens > safe_budget)
+    isolated = tuple(sorted(set(estimate.isolated_paths) | set(oversized)))
+    valid_files = tuple(
+        (path, tokens) for path, tokens in valid_files if path not in isolated
+    )
+    fixed_chunks = math.ceil(len(valid_files) / fixed_chunk_size)
+    token_chunks = _predict_graphify_token_chunks(
+        valid_files, safe_budget, max_files_per_chunk
+    )
+    effective_concurrency = concurrency
+    if estimate.p95_file_tokens > safe_budget / 2:
+        effective_concurrency = max(1, min(concurrency, 1))
+    elif estimate.p95_file_tokens > safe_budget / 3:
+        effective_concurrency = max(1, min(concurrency, 2))
+    reason = "token_aware_selected"
+    policy = "token_aware"
+    if oversized:
+        policy, reason = "fixed8", "unsafe_file_size"
+    elif not provider_stable:
+        policy, reason = "fixed8", "provider_unstable"
+    elif token_chunks > fixed_chunks:
+        policy, reason = "fixed8", "token_aware_not_better"
+    return _graphify_policy_decision(
+        policy,
+        safe_budget,
+        max_files_per_chunk,
+        max_file_chars,
+        effective_concurrency,
+        estimate,
+        fixed_chunks,
+        token_chunks,
+        isolated,
+        reason,
+    )
+
+
+def _predict_graphify_token_chunks(
+    file_tokens: tuple[tuple[str, int], ...],
+    token_budget: int,
+    max_files_per_chunk: int,
+) -> int:
+    groups: dict[str, list[int]] = {}
+    for path, tokens in file_tokens:
+        groups.setdefault(str(Path(path).parent), []).append(tokens)
+    count = 0
+    for directory in sorted(groups):
+        current_tokens = 0
+        current_files = 0
+        for tokens in sorted(groups[directory]):
+            if current_files and (
+                current_tokens + tokens > token_budget
+                or current_files >= max_files_per_chunk
+            ):
+                count += 1
+                current_tokens = 0
+                current_files = 0
+            current_tokens += tokens
+            current_files += 1
+        if current_files:
+            count += 1
+    return count
+
+
+def _graphify_policy_decision(
+    policy: str,
+    token_budget: int,
+    max_files_per_chunk: int,
+    max_file_chars: int,
+    concurrency: int,
+    estimate: GraphifyCorpusEstimate,
+    predicted_fixed_chunks: int,
+    predicted_token_chunks: int,
+    isolated_paths: tuple[str, ...],
+    reason_code: str,
+) -> GraphifyChunkPolicyDecision:
+    return GraphifyChunkPolicyDecision(
+        policy=policy,
+        token_budget=token_budget,
+        max_files_per_chunk=max_files_per_chunk,
+        max_file_chars=max_file_chars,
+        concurrency=concurrency,
+        estimate=estimate,
+        predicted_fixed_chunks=predicted_fixed_chunks,
+        predicted_token_chunks=predicted_token_chunks,
+        isolated_paths=isolated_paths,
+        reason_code=reason_code,
+    )
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:
