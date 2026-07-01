@@ -580,10 +580,11 @@ dynamic-agent-runner-graphify-extract \
   --corpus-manifest /path/to/repository/graphify-manifest.json \
   --output-dir /tmp/graphify-candidate \
   --concurrency 3 \
-  --model foundation
+  --model gpt-5.4-mini
 ```
 
-The command does not invoke Graphify, mutate an accepted `graphify-out/`
+The model is provider-dependent; omit `--model` to use the adapter's discovered
+default. The command does not invoke Graphify, mutate an accepted `graphify-out/`
 snapshot, or start extra Codex processes. After extraction, hand the staged
 artifacts to Graphify's normal build, curation, diagnostics, and promotion
 workflow. The tool remains opt-in at the DAR registry boundary.
@@ -618,6 +619,8 @@ Current tests cover:
   file context, retrieved context, session pruning, lane budgets, selected
   turns, and compaction diagnostics
 - validating LLM output contracts and decision routes before trusting node output
+- running the opt-in live structured-output interoperability test through both
+  the installed Codex CLI and DAR's provider adapter
 - estimating prompt tokens and enforcing configured token budgets before model
   calls
 - recording provider-neutral prompt-cache observations and provider cached-token
@@ -634,6 +637,17 @@ Current tests cover:
 - loading hello-world fixture packages for all 11 supported agent-pattern IDs
 - running the CLI with package-directory input, prompt input, fake model
   clients, and clear error reporting
+
+Unit tests do not require network access or credentials. The live
+interoperability test is separate and runs only when explicitly enabled:
+
+```bash
+DAR_RUN_LIVE_CODEX_PARITY=1 poetry run pytest \
+  tests/test_live_codex_parity.py -q -s
+```
+
+It uses an isolated temporary Codex home and is not part of the normal unit
+suite.
 
 ## Graphify Navigation
 
