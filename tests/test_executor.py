@@ -52,6 +52,10 @@ from dynamic_agent_runner.mlx_models import (
     MLXLocalModelConfig,
     create_mlx_local_adapter,
 )
+from dynamic_agent_runner.apple_foundation_models import (
+    AppleFoundationModelConfig,
+    create_apple_foundation_model_async_adapter,
+)
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
     ToolDefinition,
@@ -5427,6 +5431,53 @@ def test_execute_workflow_strict_with_mlx_adapter_prevents_default_openai(
         )
 
     assert backend.requests == []
+
+
+def test_execute_workflow_strict_selects_apple_adapter_without_default_openai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Session:
+        async def respond(self, prompt: str, **kwargs: object) -> str:
+            return "apple answer"
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models.sys.platform", "darwin"
+    )
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "strict-apple-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {"default_model": "apple-system-language-model"}
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = create_apple_foundation_model_async_adapter(
+        AppleFoundationModelConfig(
+            availability_checker=lambda: (True, None),
+            session_factory=lambda _instructions: Session(),
+        )
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Hello",
+        model_adapter=[adapter],
+        model_adapter_coverage="strict",
+    )
+
+    assert result.final_result == "apple answer"
 
 
 def test_execute_workflow_strict_fails_when_required_features_are_unavailable() -> None:
