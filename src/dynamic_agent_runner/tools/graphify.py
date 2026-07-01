@@ -565,6 +565,59 @@ def _is_graphify_density_result(raw: Any) -> bool:
     return reason in {"length", "context_length_exceeded", "context_overflow"}
 
 
+def build_graphify_reconciliation_request(
+    semantic_results: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Build an opt-in cross-chunk request from summaries only.
+
+    The request intentionally contains identifiers and provenance, never source
+    document content. Callers may send it through the normal DAR worker policy;
+    this helper does not execute a model or mutate graph artifacts.
+    """
+
+    summaries: list[dict[str, Any]] = []
+    for result in semantic_results:
+        summaries.append(
+            {
+                "nodes": [
+                    {
+                        key: node[key]
+                        for key in ("id", "label", "source_file")
+                        if key in node
+                    }
+                    for node in result.get("nodes", [])
+                    if isinstance(node, Mapping)
+                ],
+                "edges": [
+                    {
+                        key: edge[key]
+                        for key in ("source", "target", "relation", "source_file")
+                        if key in edge
+                    }
+                    for edge in result.get("edges", [])
+                    if isinstance(edge, Mapping)
+                ],
+                "hyperedges": [
+                    {
+                        key: edge[key]
+                        for key in ("id", "label", "endpoints", "source_file")
+                        if key in edge
+                    }
+                    for edge in result.get("hyperedges", [])
+                    if isinstance(edge, Mapping)
+                ],
+            }
+        )
+    return {
+        "instructions": (
+            "Identify only valid cross-chunk Graphify relationships from the "
+            "provided summaries. Return strict JSON arrays for `edges` and "
+            "`hyperedges`; do not invent nodes or source content."
+        ),
+        "summaries": summaries,
+    }
+
+
 def _merge_semantic_results(
     results: Sequence[tuple[GraphifyChunk, Mapping[str, Any]]],
 ) -> dict[str, Any]:

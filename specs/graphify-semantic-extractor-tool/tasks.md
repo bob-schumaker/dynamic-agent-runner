@@ -168,7 +168,9 @@ These tasks are not authorized by the completed first-release slice:
       chunk ids, audit records, and accepted-snapshot protection.
       - Explicit `finish_reason` density signals bisect recursively; ordinary
         schema failures remain bounded retry/fail outcomes.
-- [ ] T7.4 [evaluation] Test a summary-only cross-chunk reconciliation pass;
+- [x] T7.4 [evaluation] Test a summary-only cross-chunk reconciliation pass;
       do not resend source text or bypass DAR approval and tracing.
+      - Added an opt-in summary request builder; it does not execute a model or
+        mutate extraction artifacts.
 - [ ] T7.5 [decision] Change the default chunk policy only after benchmark and
       regression evidence is recorded in `validation.md`.

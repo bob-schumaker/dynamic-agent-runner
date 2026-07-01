@@ -189,3 +189,12 @@ until that evidence exists.
 - Implementation: explicit context/truncation signals are bisected recursively
   within the configured retry depth; ordinary schema failures retain the
   existing bounded retry and audit behavior.
+
+## T7.4 — Summary-only reconciliation evaluation
+
+- RED: added a test proving a reconciliation payload must omit document
+  content; no summary-only request seam existed.
+- GREEN: `poetry run pytest tests/test_graphify_tools.py -q` — `28 passed`.
+- Implementation: `build_graphify_reconciliation_request(...)` carries only
+  node, edge, hyperedge identifiers, labels, relations, endpoints, and source
+  provenance. It is opt-in and does not execute a model or write artifacts.

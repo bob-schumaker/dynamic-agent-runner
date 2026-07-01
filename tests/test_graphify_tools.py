@@ -17,6 +17,7 @@ from dynamic_agent_runner.tools.graphify import (
     GraphifySemanticValidationError,
     GraphifySemanticWorker,
     build_graphify_worker_request,
+    build_graphify_reconciliation_request,
     create_graphify_semantic_extractor_tool,
     estimate_graphify_file_tokens,
     extract_graphify_semantic_artifacts,
@@ -501,3 +502,28 @@ def test_extraction_bisects_explicit_density_signal(tmp_path: Path) -> None:
     }
     assert result.audit["chunks"][0]["status"] == "repaired"
     assert len(result.chunks) == 3
+
+
+def test_reconciliation_request_contains_summaries_without_source_content() -> None:
+    request = build_graphify_reconciliation_request(
+        [
+            {
+                "nodes": [
+                    {
+                        "id": "A",
+                        "label": "Alpha",
+                        "source_file": "specs/a.md",
+                        "content": "must not cross the boundary",
+                    }
+                ],
+                "edges": [],
+                "hyperedges": [],
+            }
+        ]
+    )
+
+    assert request["summaries"][0]["nodes"] == [
+        {"id": "A", "label": "Alpha", "source_file": "specs/a.md"}
+    ]
+    assert "must not cross the boundary" not in json.dumps(request)
+    assert "source content" in request["instructions"]
