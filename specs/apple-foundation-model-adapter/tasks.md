@@ -69,9 +69,9 @@ Status: A1 implementation complete; eligible-Mac live verification pending
       pre-commit.
 - [x] T6.3 Run eligible-Mac live tests and record skip/pass evidence.
 - [x] T6.4 Check spec links/status consistency and update `specs/README.md`.
-- [ ] T6.5 Confirm A2 remains deferred; do not mark the feature complete until
-      eligible-Mac live verification passes or records an actionable skip on
-      the designated Mac.
+- [x] T6.5 Confirm A2 remains deferred; record the actionable SDK-installation
+      skip on the designated Mac and keep live verification pending until the
+      optional dependency is available.
 
 ## Deferred A2 tasks
 

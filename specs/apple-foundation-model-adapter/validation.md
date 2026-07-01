@@ -41,6 +41,10 @@ Status: A1 implementation complete; eligible-Mac live verification pending
 - Live marker: `DAR_RUN_LIVE_APPLE=1 poetry run pytest -m apple_live -q -rs` —
   `3 skipped` because `apple_fm_sdk` is not installed on this host. The test
   also retains the macOS and system-model eligibility guards.
+- Optional install attempt: `poetry install --extras
+  apple-foundation-models` resolved `apple-fm-sdk (0.2.1)` but could not fetch
+  packages because the configured Artifactory host was unreachable; import
+  remains unavailable and the live skip is therefore actionable.
 - Ruff: `poetry run ruff check src tests` — passed.
 - Metadata: `poetry check` — passed.
 - Package build: `poetry build` — passed with network-enabled retry.
