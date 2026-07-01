@@ -366,7 +366,9 @@ def validate_graphify_semantic_result(
         _validate_provenance(item, admitted_sources, "node")
         node_ids.add(node_id)
         normalized_nodes.append(dict(item))
-    normalized_edges = _validate_edges(edges, node_ids, admitted_sources)
+    normalized_edges, duplicate_edge_repairs = _validate_edges(
+        edges, node_ids, admitted_sources
+    )
     normalized_hyperedges = _validate_hyperedges(hyperedges, node_ids, admitted_sources)
     return {
         "nodes": normalized_nodes,
@@ -377,6 +379,7 @@ def validate_graphify_semantic_result(
             for key in ("input_tokens", "output_tokens")
             if key in payload
         },
+        "repairs": {"duplicate_edges": duplicate_edge_repairs},
     }
 
 
@@ -485,12 +488,15 @@ async def extract_graphify_semantic_artifacts_async(
                 )
                 chunk_path = output_dir / f".graphify_{chunk.chunk_id}.json"
                 _write_json(chunk_path, semantic)
+                repairs = semantic.get("repairs", {})
+                repaired = any(value for value in repairs.values())
                 audits.append(
                     {
                         "chunk_id": chunk.chunk_id,
-                        "status": "completed",
+                        "status": "repaired" if repaired else "completed",
                         "attempts": attempt + 1,
                         "source_files": [item.path for item in chunk.files],
+                        "repairs": repairs,
                     }
                 )
                 results.append((chunk, semantic))
@@ -546,7 +552,8 @@ async def extract_graphify_semantic_artifacts_async(
         },
     }
     _write_json(output_dir / "graphify_audit.json", audit)
-    if any(item["status"] == "failed" for item in audits):
+    failed = any(item["status"] == "failed" for item in audits)
+    if failed and not results:
         raise GraphifySemanticValidationError("one or more extraction chunks failed")
     merged = _merge_semantic_results(results)
     _write_json(output_dir / ".graphify_semantic_new.json", merged)
@@ -554,7 +561,7 @@ async def extract_graphify_semantic_artifacts_async(
     return GraphifySemanticExtractionResult(
         output_dir=output_dir,
         chunks=tuple(merged["chunks"]),
-        audit=audit,
+        audit={**audit, "partial": failed},
     )
 
 
@@ -695,9 +702,10 @@ def _validate_provenance(
 
 def _validate_edges(
     edges: list[Any], node_ids: set[str], admitted_sources: set[str]
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], int]:
     normalized: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, str]] = set()
+    seen: dict[tuple[str, str, str], dict[str, Any]] = {}
+    duplicate_repairs = 0
     for edge in edges:
         item = _require_mapping(edge, "edge")
         source = _require_string(item, "source", "edge")
@@ -708,12 +716,16 @@ def _validate_edges(
             raise GraphifySemanticValidationError("self-loop edge is not admissible")
         relation = str(item.get("relation") or "")
         identity = (source, target, relation)
-        if identity in seen:
-            raise GraphifySemanticValidationError("duplicate edge is not admissible")
         _validate_provenance(item, admitted_sources, "edge")
-        seen.add(identity)
-        normalized.append(dict(item))
-    return normalized
+        candidate = dict(item)
+        if identity in seen:
+            if candidate == seen[identity]:
+                duplicate_repairs += 1
+                continue
+            raise GraphifySemanticValidationError("conflicting duplicate edge")
+        seen[identity] = candidate
+        normalized.append(candidate)
+    return normalized, duplicate_repairs
 
 
 def _validate_hyperedges(

@@ -261,6 +261,57 @@ def test_semantic_validation_accepts_graphify_subset() -> None:
     assert validated["nodes"][0]["id"] == "A"
 
 
+def test_semantic_validation_repairs_exact_duplicate_edges() -> None:
+    edge = {
+        "source": "A",
+        "target": "B",
+        "relation": "references",
+        "source_file": "specs/a.md",
+    }
+    validated = validate_graphify_semantic_result(
+        {
+            "nodes": [
+                {"id": "A", "source_file": "specs/a.md"},
+                {"id": "B", "source_file": "specs/a.md"},
+            ],
+            "edges": [edge, dict(edge)],
+            "hyperedges": [],
+        },
+        {"specs/a.md"},
+    )
+
+    assert len(validated["edges"]) == 1
+    assert validated["repairs"] == {"duplicate_edges": 1}
+
+
+def test_semantic_validation_rejects_conflicting_duplicate_edges() -> None:
+    with pytest.raises(GraphifySemanticValidationError, match="conflicting"):
+        validate_graphify_semantic_result(
+            {
+                "nodes": [
+                    {"id": "A", "source_file": "specs/a.md"},
+                    {"id": "B", "source_file": "specs/a.md"},
+                ],
+                "edges": [
+                    {
+                        "source": "A",
+                        "target": "B",
+                        "relation": "references",
+                        "source_file": "specs/a.md",
+                    },
+                    {
+                        "source": "A",
+                        "target": "B",
+                        "relation": "references",
+                        "source_file": "specs/b.md",
+                    },
+                ],
+                "hyperedges": [],
+            },
+            {"specs/a.md", "specs/b.md"},
+        )
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -465,6 +516,44 @@ def test_extraction_records_retry_and_does_not_merge_failed_chunk(
     assert attempts == 2
     assert audit["chunks"][0]["status"] == "failed"
     assert not (tmp_path / "candidate" / ".graphify_semantic.json").exists()
+
+
+def test_extraction_preserves_successful_chunks_when_one_chunk_fails(
+    tmp_path: Path,
+) -> None:
+    for name in ("specs/a.md", "specs/b.md"):
+        make_corpus_file(tmp_path, name)
+
+    def worker(request: dict[str, object]) -> dict[str, object]:
+        source = str(request["documents"][0]["path"])
+        if source == "specs/b.md":
+            return {
+                "nodes": [{"id": "missing", "source_file": "other.md"}],
+                "edges": [],
+                "hyperedges": [],
+            }
+        return {
+            "nodes": [{"id": source, "source_file": source}],
+            "edges": [],
+            "hyperedges": [],
+        }
+
+    result = extract_graphify_semantic_artifacts(
+        {
+            "repo_root": str(tmp_path),
+            "files": [{"path": "specs/a.md"}, {"path": "specs/b.md"}],
+        },
+        output_dir=tmp_path / "candidate",
+        worker=worker,
+        chunk_size=1,
+        max_retries=0,
+    )
+
+    assert result.audit["partial"] is True
+    assert result.audit["chunks"][-1]["status"] == "failed"
+    assert json.loads((tmp_path / "candidate" / ".graphify_semantic.json").read_text())[
+        "nodes"
+    ] == [{"id": "specs/a.md", "source_file": "specs/a.md"}]
 
 
 def test_extraction_bisects_explicit_density_signal(tmp_path: Path) -> None:
