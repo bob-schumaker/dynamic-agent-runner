@@ -25,10 +25,12 @@
   accepted `graphify-out/`, and preserves stock Graphify as the downstream
   curation/promotion owner. `c0de3b8` caches provider-aware default model
   resolution across chunks.
-- Graphify follow-on scope is now explicit in committed spec update `b43f0e9`:
-  token-aware packing blended with file-count and per-file caps, adaptive
-  splitting, and optional summary-only reconciliation require benchmarks and
-  TDD before replacing the current fixed chunk default.
+- Graphify T7 follow-on behavior is implemented and committed through `b4372f5`:
+  token-aware packing, file/per-file caps, adaptive splitting, summary-only
+  reconciliation, exact duplicate-edge repair, and partial merge preservation.
+  The full suite passes with 626 tests and one skip. Spec commit `54ac838`
+  prepares T8, a pure advisory selector that compares fixed8 and token-aware
+  estimates without changing the runtime default.
 - Apple Foundation Models adapter work has an authoritative draft spec in
   `specs/apple-foundation-model-adapter/spec.md`. A1 is bounded to local text
   and explicit JSON Schema output through the existing async provider facade;

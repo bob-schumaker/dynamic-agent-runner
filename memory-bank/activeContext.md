@@ -2,10 +2,10 @@
 
 ## Current Focus
 
-- The latest committed spec corpus alignment is `b43f0e9`. It records the
-  Graphify extractor's post-first-release blended-chunking backlog separately
-  from the completed fixed-chunk implementation, and keeps active RAG distinct
-  from passive memory-aware context.
+- The latest committed Graphify spec alignment is `54ac838`. T7 is implemented
+  as opt-in token/file chunking with adaptive splitting, summary-only
+  reconciliation, and safety-constrained partial merge/duplicate repair. T8
+  prepares a pure advisory policy selector; fixed8 remains the runtime default.
 - The current branch includes the Graphify semantic-output contract fix in
   `ab0c40e`: worker prompts require a top-level `nodes`/`edges`/`hyperedges`
   object, exact `source_file` provenance, node ids, edge endpoints, and

@@ -184,11 +184,11 @@
 - Graphify semantic extraction is a package-owned, registry-mediated DAR tool
   that writes staged artifacts outside accepted `graphify-out/`; stock Graphify
   remains responsible for build, curation, validation, and promotion. The
-  completed first release uses deterministic fixed file-count chunks. A
-  follow-on blended policy may combine token-budget packing, file-count and
-  per-file caps, adaptive bisection, and summary-only cross-chunk
-  reconciliation, but it requires benchmark and TDD evidence before changing
-  the default.
+  completed first release keeps deterministic fixed file-count chunks as the
+  default. T7 adds opt-in token/file packing, adaptive bisection, summary-only
+  reconciliation, and safety-constrained partial merge/duplicate repair.
+  T8 prepares a pure advisory policy selector; it must not change the runtime
+  default until benchmark evidence passes.
 - OpenAI response normalization extracts text and function calls into internal
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 - `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,
