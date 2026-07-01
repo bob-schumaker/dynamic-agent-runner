@@ -946,6 +946,11 @@ prompt-packing algorithm. Context-management policy may consume RAG-declared
 packing hints when provided, but the prepare stage remains the authority for
 lane placement and budget enforcement.
 
+When passive memory-aware context and active RAG are both present, keep their
+inputs in separate lanes. RAG evidence is active turn-time context and must not
+be treated as passive memory context or become eligible for memory retention by
+the prepare stage.
+
 ### Model adapters
 
 Model adapters remain transport/execution boundaries. They should not implement

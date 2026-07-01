@@ -149,3 +149,20 @@ Status: First-release implementation complete; stock Graphify handoff remains ex
   `artifactory.oci.oraclecorp.com` in the execution environment.
 - Focused pre-commit and `git diff --check` passed before the completion commit.
 - Unit tests use fake workers; no live provider or Graphify process is required.
+
+## Post-First-Release Backlog — Blended Chunking
+
+These tasks are not authorized by the completed first-release slice:
+
+- [ ] T7.1 [benchmark] Compare fixed file-count and token-aware packing for
+      request size, latency, failure rate, and semantic coverage.
+- [ ] T7.2 [tests] Add TDD coverage for configurable token budgets, maximum
+      files per chunk, per-file content caps, and deterministic directory-aware
+      packing.
+- [ ] T7.3 [implementation] Add adaptive bisection for context overflow,
+      truncation, and density-related validation failures while preserving
+      chunk ids, audit records, and accepted-snapshot protection.
+- [ ] T7.4 [evaluation] Test a summary-only cross-chunk reconciliation pass;
+      do not resend source text or bypass DAR approval and tracing.
+- [ ] T7.5 [decision] Change the default chunk policy only after benchmark and
+      regression evidence is recorded in `validation.md`.

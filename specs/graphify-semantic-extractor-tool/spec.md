@@ -6,7 +6,8 @@
 - Mode: `guided`
 - Artifact type: future feature specification
 - Status: first-release implementation complete; endpoint and stock Graphify
-  orchestration remain deferred
+  orchestration remain deferred; blended chunk planning is a follow-on
+  sub-feature
 - Related specs:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/subagent-tool-pack/spec.md`
@@ -222,6 +223,35 @@ A future endpoint adapter may be specified later if a caller needs transparent
 Graphify provider emulation. That future adapter must preserve schema
 enforcement, chunk audit, and prompt-injection resistance.
 
+### FR-10: Support Blended Token- and File-Bounded Chunking (Follow-On)
+
+The post-first-release extractor should replace the current fixed file-count
+chunking policy with a bounded hybrid policy:
+
+- pack admitted documents by an estimated input-token budget, grouped by
+  parent directory so related artifacts remain together;
+- enforce a maximum file count per chunk as a safety bound for very small
+  documents;
+- cap the amount of content read from an individual document so one large file
+  cannot consume the whole request;
+- split and retry a chunk when the provider reports context overflow, output
+  truncation, or a validation failure attributable to request density;
+- preserve deterministic chunk ids, source hashes, audit records, and the
+  existing DAR approval, tracing, validation, and result-shaping boundaries.
+
+The initial blended defaults should be configurable rather than hard-coded into
+the public contract. A candidate starting profile is a 40,000-token input
+budget, a 20--25 file maximum, and a 20,000-character per-file cap; benchmark
+results must determine the released defaults.
+
+To improve cross-chunk accuracy without resending source text, a later slice
+may add a reconciliation pass over compact node and relationship summaries.
+That pass must not mutate accepted Graphify output and must use the same DAR
+model and approval path as primary extraction.
+
+This sub-feature is not part of the first-release acceptance gate. Until it is
+implemented, the first-release fixed chunk policy remains the source of truth.
+
 ## Non-Goals
 
 This feature does not:
@@ -238,6 +268,8 @@ This feature does not:
 - provide a second model-provider client inside the script;
 - shell out to additional Codex CLI processes for parallelism;
 - authorize implementation without a separate TDD task slice.
+- change the first-release fixed chunk policy implicitly; blended chunking is a
+  separately scheduled follow-on slice.
 
 ## First Release Boundary
 
@@ -259,6 +291,10 @@ The first release may use serial or low-concurrency execution if that is the
 smallest testable slice. Ten-at-a-time execution is deferred until the worker
 pool has explicit locking, output isolation, retry accounting, and process
 cleanup.
+
+Blended token/file chunking and cross-chunk reconciliation are explicitly
+post-first-release work. They require focused benchmarks and TDD coverage
+before changing the default chunk behavior.
 
 ## Acceptance Criteria
 

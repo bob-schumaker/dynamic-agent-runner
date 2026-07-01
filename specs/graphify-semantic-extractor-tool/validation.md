@@ -28,7 +28,7 @@ Status: First-release implementation complete; stock Graphify handoff remains ex
 
 | Check | Result |
 | --- | --- |
-| First-release requirements mapped to plan slices | Pass: FR-1 through FR-9 map to Slices 1–5 |
+| First-release requirements mapped to plan slices | Pass: FR-1 through FR-9 map to Slices 1–5; FR-10 is explicitly post-first-release |
 | Every first-release item has TDD coverage | Pass: RED tasks precede implementation tasks |
 | No task authorizes live provider or Graphify calls | Pass |
 | Accepted snapshot mutation prohibited | Pass |
@@ -155,3 +155,10 @@ Status: First-release implementation complete; stock Graphify handoff remains ex
 The staged artifacts remain outside accepted `graphify-out/`; running stock
 Graphify to curate, validate, diagnose, and promote them is an explicit
 downstream handoff and is not part of this package implementation.
+
+## Deferred blended-chunking scope
+
+FR-10 is intentionally not marked complete. Its benchmark, TDD, adaptive
+retry, and reconciliation work is tracked in the post-first-release backlog in
+`plan.md` and `tasks.md`; the current fixed chunk policy remains authoritative
+until that evidence exists.

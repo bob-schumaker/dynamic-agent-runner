@@ -862,6 +862,9 @@ Memory-backed RAG:
 - preserve source class and freshness metadata on retrieved evidence
 - avoid treating remembered preferences, transient session facts, and durable
   corpus evidence as interchangeable context
+- treat RAG as active turn-time retrieval; passive memory-aware context policy
+  is owned by `metadata.memory_pipeline` and must not be inferred from RAG
+  metadata
 
 Decision guidance:
 

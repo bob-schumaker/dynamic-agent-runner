@@ -21,14 +21,17 @@
 
 ## Objective
 
-Add memory-aware workflow support to `dynamic-agent-runner` by adopting useful
-ideas from `memlayer` without importing `memlayer` as a runtime dependency.
+Add passive memory-aware context support to `dynamic-agent-runner` by adopting
+useful ideas from `memlayer` without importing `memlayer` as a runtime
+dependency.
 
-The runner should support declarative long-term memory retrieval, salience
-filtering, graph-aware context, retrieval tiers, and memory-ingestion hooks
-through caller-owned tools, stores, and adapters. DAR must not become a memory
-database, vector store, provider wrapper, background scheduler, embedding
-framework, or durable memory service.
+The runner should support declarative memory identity, ownership, provenance,
+retention/selection policy, passive context handoff, and explicit
+memory-ingestion hooks through caller-owned tools, stores, and adapters. Active
+retrieval remains a caller-owned operation, normally represented by
+`metadata.rag_pipeline` or an explicitly invoked caller tool. DAR must not
+become a memory database, vector store, provider wrapper, background scheduler,
+embedding framework, or durable memory service.
 
 ## Problem Statement
 
@@ -44,7 +47,7 @@ beyond the current session.
 - hybrid vector plus graph retrieval
 - fast, balanced, and deep retrieval tiers
 - graph-only lightweight mode
-- memory retrieval as explicit model-visible context
+- caller-owned memory retrieval as explicit model-visible context
 - traceable retrieval behavior
 
 However, `memlayer` owns more than DAR should own: provider wrappers, storage
@@ -73,11 +76,12 @@ The June 2026 council review found the spec useful only if it stays a small,
 fake-testable orchestration contract. The review raised three required
 clarifications:
 
-- distinguish memory from ordinary RAG contractually, not only semantically
+- distinguish passive memory context from active ordinary RAG retrieval
+  contractually, not only semantically
 - define a minimal v1 with executable or fake-testable behavior for each named
   concept
-- make ingestion and salience explicit caller-owned actions, never implicit
-  runner behavior
+- make ingestion, active retrieval, and salience explicit caller-owned actions,
+  never implicit runner behavior
 
 This revision addresses those findings by defining the `metadata.rag_pipeline`
 relationship, v1 schema, collaborator contracts, invocation points, capability
@@ -93,15 +97,16 @@ feature only if its first implementation proves distinct value beyond
 The debate decision is:
 
 - keep `memory-aware-context-pipeline` as proposed roadmap material
-- make the first implementation slice retrieval-only and fake-testable
+- make the first implementation slice passive-context handoff-only and
+  fake-testable; it must not invoke a retriever
 - do not implement salience or ingestion behavior in v1
 - reassess after the first slice; if the distinct memory semantics do not
   matter in practice, fold remaining ideas back into `metadata.rag_pipeline`
 
-This means the spec may describe salience and ingestion collaborator contracts,
-but implementation authorization for v1 covers only validation,
-capability/status, memory evidence shape, retrieved-context handoff, and trace
-metadata for memory retrieval.
+This means the spec may describe salience, active retrieval, and ingestion
+collaborator contracts, but implementation authorization for v1 covers only
+validation, capability/status, memory evidence shape, passive context handoff,
+and trace metadata for caller-provided memory evidence.
 
 ## Non-Goals
 
@@ -144,27 +149,33 @@ Caller-owned responsibilities:
 - manage retention, deletion, redaction, permissions, and tenant policy
 - operate background jobs, schedulers, curation, and memory compaction
 
-## Relationship to RAG
+## Active RAG and Passive Memory Context
 
 `memory_pipeline` must not become a parallel, fuzzier copy of `rag_pipeline`.
-The two surfaces have different purposes:
+The two surfaces have different purposes and different runtime roles:
 
 - `metadata.rag_pipeline` describes retrieval over knowledge sources such as
-  documents, indexes, graph stores, and external corpora.
+  documents, indexes, graph stores, and external corpora. RAG is active
+  turn-time evidence retrieval.
 - `metadata.memory_pipeline` describes workflow access to caller-owned durable
   agent/user memory, including persistence eligibility, salience policy,
-  temporal provenance, memory identity, and explicit ingestion collaborators.
+  temporal provenance, memory identity, passive context selection, and explicit
+  ingestion collaborators. It is a passive context policy, not a retriever.
 
-Memory retrieval may still be implemented by the caller using the same
-underlying infrastructure as RAG. DAR should not care whether the caller uses a
-vector store, graph store, database, file store, or service. The distinction is
-the contract presented to workflow authors: memory has identity, ownership,
-retention, salience, and ingestion semantics that ordinary RAG metadata does not
-carry.
+An explicitly invoked caller-owned memory tool may actively retrieve memory
+evidence, including from infrastructure shared with RAG. That operation occurs
+outside the passive memory pipeline; the pipeline only validates, annotates,
+and hands off the resulting memory evidence. DAR should not care whether the
+caller uses a vector store, graph store, database, file store, or service. The
+distinction is the contract presented to workflow authors: memory has identity,
+ownership, retention, salience, and ingestion semantics that ordinary RAG
+metadata does not carry.
 
 When a workflow only needs document or corpus retrieval, use
 `metadata.rag_pipeline`. Use `metadata.memory_pipeline` only when the workflow
-declares long-term user/agent memory retrieval or explicit memory ingestion.
+declares passive long-term user/agent memory context or explicit memory
+ingestion. Any active memory retrieval must be an explicit caller-owned tool
+invocation, not an implicit memory-pipeline action.
 
 If both are present, validation should treat them as separate declarations that
 may share caller-owned tool ids only when the manifest says so explicitly.
@@ -231,8 +242,8 @@ V1 is intentionally narrow:
 3. Define trace event names and redacted payload fields.
 4. Accept fake memory retriever output that maps into the existing
    `prepare_model_input(...)` retrieved-context lane.
-5. Prove that memory-specific evidence identity and provenance add value beyond
-   plain RAG evidence.
+5. Prove that passive memory-specific identity, ownership, and provenance add
+   value beyond plain RAG evidence.
 
 Salience, graph traversal, and ingestion remain declared future collaborator
 contracts in v1. They may be validated as metadata, but no v1 implementation
@@ -241,7 +252,8 @@ mechanics.
 
 V1 must not:
 
-- invoke retrieval automatically from `prepare_model_input(...)`
+- invoke active retrieval automatically from `prepare_model_input(...)` or
+  from passive memory context assembly
 - save content automatically at the end of a prompt, node, run, or session
 - run background consolidation, curation, reminders, compaction, or deletion
 - interpret memory relevance or salience itself
@@ -325,7 +337,11 @@ V1 collaborators are existing caller-owned tools. These contracts describe
 expected payloads for validation, trace metadata, and fake tests; they do not
 require new runtime infrastructure.
 
-### Memory Retrieval Tool
+### Caller-Owned Memory Evidence Tool
+
+This is an active caller-owned collaborator, not behavior performed by the
+passive memory pipeline. Its output becomes eligible for passive context
+handoff only after the explicit workflow invocation.
 
 Input should include:
 
@@ -429,7 +445,7 @@ when the scheduled implementation slice defines enforcement for live outputs.
 
 ## Invocation Points
 
-V1 retrieval is invoked only by explicit workflow behavior:
+Active memory evidence retrieval is invoked only by explicit workflow behavior:
 
 - a `tool_use_step` that calls a declared memory retriever, or
 - an existing model-tool loop where the memory retriever is exposed as a

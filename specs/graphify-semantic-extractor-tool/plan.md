@@ -60,6 +60,11 @@ console entrypoint for the extraction stage, not an OpenAI-compatible server.
 10. **Release shape.** Python API, registry tool, and console entrypoint only.
     A Graphify dependency, OpenAI-compatible endpoint, ten-process Codex farm,
     and accepted-snapshot mutation are deferred.
+11. **Blended chunking follow-on.** A later slice may add token-budget packing
+    combined with a maximum file count, per-file content caps, adaptive
+    bisection, and an optional summary-only reconciliation pass. Those changes
+    are not part of the completed first-release plan and require benchmarks
+    plus TDD coverage before changing the fixed chunk default.
 
 ## Affected Files and Components
 
@@ -160,6 +165,18 @@ handoff docs; do not add live Graphify integration in this release.
 
 Run focused tests, full tests, lint, package build, focused pre-commit, and
 spec-index consistency checks. Update status only after all gates pass.
+
+### Post-first-release backlog — Blended extraction
+
+This backlog is intentionally unscheduled and does not change the first-release
+implementation contract:
+
+- benchmark token-aware packing against the current fixed file-count planner;
+- add configurable token budget, maximum files, and per-file content cap;
+- add adaptive split/retry tests for context overflow and dense output;
+- evaluate a summary-only cross-chunk reconciliation pass for accuracy gains;
+- update the default only after deterministic merge, audit, and DAR policy
+  behavior remain unchanged.
 
 ## Risks and Mitigations
 
