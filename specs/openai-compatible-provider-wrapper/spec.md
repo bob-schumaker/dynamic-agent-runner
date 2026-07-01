@@ -5,7 +5,8 @@
 - Feature slug: `openai-compatible-provider-wrapper`
 - Mode: `guided`
 - Status: implemented follow-up; Slices 1-6 are implemented in the current
-  repo state, and the planned validation evidence has been recorded
+  repo state, and the planned validation evidence has been recorded; a
+  ChatGPT/Codex model-catalog parity bug-fix slice is now specified for TDD
 - Related artifacts:
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`
@@ -204,10 +205,34 @@ Acceptance criteria:
   validate construction behavior, then that behavior is covered with isolated
   fake or monkeypatched construction rather than a real external request.
 
+### FR-7: Preserve ChatGPT/Codex model-catalog semantics
+
+The ChatGPT/Codex provider path must preserve the catalog metadata needed to
+match Codex CLI model discovery and default selection. Generic OpenAI-compatible
+providers remain ID-only unless they expose an equivalent provider contract.
+
+Acceptance criteria:
+
+- Given the ChatGPT/Codex `/models` response includes `priority`, `visibility`,
+  and model identifiers, when DAR lists supported models, then it preserves
+  provider priority order rather than sorting IDs by embedded version numbers.
+- Given a ChatGPT/Codex model has `visibility: "hide"`, when DAR builds the
+  picker-facing supported-model list, then that model is excluded.
+- Given no model is explicitly selected, when DAR resolves the ChatGPT/Codex
+  default, then it selects the first visible model in provider priority order.
+- Given ChatGPT/Codex auth includes an account identifier, when DAR sends model
+  discovery or model requests, then it forwards the provider-required account
+  header alongside bearer authentication.
+- Given a generic OpenAI-compatible provider returns only model IDs or lacks
+  catalog metadata, when DAR lists models, then existing generic behavior
+  remains unchanged.
+
 ## Non-Goals
 
 - No direct llama.cpp in-process adapter implementation in this feature.
-- No provider auto-discovery from remote `/v1/models` or equivalent endpoints.
+- No provider auto-discovery from arbitrary remote `/v1/models` or equivalent
+  endpoints; the exception is the explicit ChatGPT/Codex catalog contract in
+  FR-7.
 - No guarantee that every third-party OpenAI-compatible endpoint fully matches
   hosted OpenAI semantics.
 - No workflow-definition schema changes for provider selection in this feature.

@@ -70,7 +70,28 @@ hosted OpenAI default path.
 - The Slice 6 follow-up exposed the provider-configuration seam through the
   package public API and documented a compatible-endpoint adapter example.
 - No additional implementation slice is currently required for this feature;
-  future work would be optional polish or broader provider-specific follow-up.
+  the catalog-parity amendment below is the next approved bug-fix slice.
+
+## Bug-fix amendment: ChatGPT/Codex catalog parity
+
+The live ChatGPT/Codex catalog returns model metadata that Codex CLI uses for
+picker ordering and visibility. DAR currently reduces that response to IDs and
+sorts by version, which exposes hidden models and chooses a different default.
+The fix remains inside the provider wrapper boundary and must not change generic
+OpenAI-compatible provider behavior.
+
+Implementation constraints:
+
+- Add a provider-aware catalog entry type carrying at least model ID, priority,
+  visibility, and API-support metadata.
+- Keep the low-level generic model-list helper compatible with providers that
+  return ordinary OpenAI model IDs.
+- Apply priority ordering, hidden-model filtering, and default selection only
+  when the provider is identified as ChatGPT/Codex.
+- Extend ChatGPT/Codex client construction or request transport to preserve the
+  authenticated account header when one is available.
+- Use fake clients and fake provider metadata in unit tests; do not call live
+  OpenAI, ChatGPT, or Codex services from tests.
 
 ## Architectural Decision
 

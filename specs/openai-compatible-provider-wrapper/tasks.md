@@ -16,6 +16,8 @@
 - Technical plan: `specs/openai-compatible-provider-wrapper/plan.md`
 - Primary implementation area: `src/dynamic_agent_runner/openai_client.py`
 - Primary validation area: `tests/test_openai_client.py`
+- Follow-up state: catalog-parity bug-fix slice specified below; implementation
+  requires TDD approval and must remain provider-scoped.
 
 ## Slice 1 — Repository-owned provider/client facade
 
@@ -93,6 +95,27 @@
 - [x] T7.3 If exports changed, run `poetry run pytest tests/test_import.py -q`
       and record the result.
 
+## Slice 8 — ChatGPT/Codex model-catalog parity bug fix (TDD)
+
+- [ ] T8.1 [tests / RED] Add fake-catalog regression tests proving that
+      ChatGPT/Codex model metadata preserves provider priority order, excludes
+      `visibility: "hide"`, selects the first visible model as default, and
+      forwards `ChatGPT-Account-ID` when auth supplies one.
+      - Requirement: FR-7; primary file: `tests/test_openai_client.py`
+      - RED evidence must show failure caused by ID-only extraction, lexical or
+        version sorting, hidden-model exposure, or missing account header.
+- [ ] T8.2 [implementation / GREEN] Introduce the smallest provider-aware
+      catalog representation and ChatGPT/Codex filtering/order/default path
+      needed to satisfy T8.1 without changing generic provider behavior.
+      - Primary file: `src/dynamic_agent_runner/openai_client.py`
+- [ ] T8.3 [tests / GREEN] Add a regression test proving generic providers
+      retain existing ID-only model listing and ordering semantics.
+- [ ] T8.4 [validation] Run focused OpenAI-client tests, affected executor and
+      import tests, Ruff, and focused pre-commit; record exact outcomes before
+      marking this slice complete.
+- [ ] T8.5 [drift] Update this spec, plan, and task status if the provider
+      catalog contract or account-header boundary changes during implementation.
+
 ## Ordering Notes
 
 - Slice 1 must land before Slice 2 because the SDK wrapper needs a repository-
@@ -103,3 +126,5 @@
   normalization ownership does not accidentally drift into transport code.
 - Slice 5 should be executed before any optional naming or export cleanup so
   behavioral regressions are caught before public-surface polishing.
+- Slice 8 begins with RED tests and must not silently broaden catalog metadata
+  behavior to arbitrary OpenAI-compatible providers.

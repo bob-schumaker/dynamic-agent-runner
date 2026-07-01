@@ -719,8 +719,10 @@ Status: implemented
   - Files/components: `src/dynamic_agent_runner/openai_client.py`,
     `src/dynamic_agent_runner/executor.py`
   - Required behavior:
-    - authenticated supported model listings are ordered by lowest detected
-      version first
+    - ChatGPT/Codex supported model listings preserve provider priority order
+      and exclude hidden catalog entries
+    - generic providers that expose only model ids retain lowest detected
+      version ordering
     - `OpenAIClientAdapter.default_model()` returns the first supported model
     - `AsyncOpenAIClientAdapter.default_model()` provides the async equivalent
     - workflows without node/default model use a provided sync OpenAI adapter's
@@ -745,9 +747,11 @@ Status: implemented
   - Plan: ChatGPT/Codex Backend Provider Shape
   - Files/components: `tests/test_openai_client.py`, `tests/test_executor.py`
   - Cases:
-    - sync adapter supported-model list puts `gpt-5.4` before `gpt-5.5`
-    - sync adapter `default_model()` returns the lowest versioned model
-    - async adapter `default_model()` returns the lowest versioned model
+    - ChatGPT/Codex sync adapter preserves catalog priority and selects the
+      first visible model as default
+    - ChatGPT/Codex async adapter preserves catalog priority and selects the
+      first visible model as default
+    - generic sync and async adapters retain lowest-version fallback ordering
     - workflow without a model uses a provided unconfigured sync OpenAI
       adapter's discovered default
     - workflow without a model and without adapters uses an auto-created
