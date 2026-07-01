@@ -6,8 +6,6 @@ Drop-in operating instructions for coding agents. Read this file before every ta
 
 **Working code only. Finish the job. Plausibility is not correctness.**
 
-Also read `AGENTS.local.md` before every task when it exists; it contains repo-local instructions that supplement this file.
-
 This file follows the [AGENTS.md](https://agents.md) open standard (Linux Foundation / Agentic AI Foundation). Claude Code, Codex, Cursor, Windsurf, Copilot, Aider, Devin, Amp read it natively. For tools that look elsewhere, symlink:
 
 ```bash
@@ -210,6 +208,11 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Treat Marimo, Qt, hosted UI lifecycle, and app-specific automation as downstream client concerns; DAR must stay a generic workflow runner with host-provided tools only.
 - Local-model inventory, if added, must be limited to DAR-owned/default download cache locations and current caller-provided roots; do not scan or manage arbitrary external model directories.
 - Route provider-native tool callbacks through DAR's exposure, approval, lifecycle, tracing, registry, state, and result-shaping behavior before invoking any tool handler.
+- Specs for implementation work must require TDD: write or update focused tests
+  first, observe the expected failure, then implement and rerun tests to pass.
+- Treat a user-requested Graphify refresh as authorization to transmit the
+  `.graphifyignore`-allowlisted corpus to the approved Osaurus OpenAI model;
+  run the extraction with escalation immediately instead of asking first.
 
 ---
 
@@ -225,3 +228,8 @@ This boilerplate synthesizes:
 - The AGENTS.md open standard (cross-tool portability via symlinks).
 
 Read once. Edit sections 10 and 11 for your project. Prune the rest over time. This file gets better the more you use it.
+
+<!-- BEGIN MANAGED AGENTS.LOCAL INSTRUCTION -->
+Also read `AGENTS.local.md` before every task when it exists; it contains
+repository-local instructions that supplement this file.
+<!-- END MANAGED AGENTS.LOCAL INSTRUCTION -->

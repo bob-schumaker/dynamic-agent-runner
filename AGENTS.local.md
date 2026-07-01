@@ -41,7 +41,7 @@ and impact evidence, not correctness proof.
 
 ## 2. Using CodeGraph
 
-Read `.agents/skills/codegraph-source-navigation/SKILL.md` before CodeGraph work.
+Read the installed `codegraph-source-navigation` skill before CodeGraph work.
 
 - Prefer `codegraph_explore` when the MCP tool is available. Otherwise run
   `codegraph explore "<question or symbols>"`.
@@ -57,7 +57,7 @@ Read `.agents/skills/codegraph-source-navigation/SKILL.md` before CodeGraph work
 
 ## 3. Using GitNexus
 
-Read `.agents/skills/gitnexus-change-impact/SKILL.md` before GitNexus work.
+Read the installed `gitnexus-change-impact` skill before GitNexus work.
 
 - Before editing a function, class, or method in an indexed repository, run
   `gitnexus impact <symbol>` and report HIGH or CRITICAL risk before proceeding.
@@ -74,9 +74,9 @@ Read `.agents/skills/gitnexus-change-impact/SKILL.md` before GitNexus work.
 ## 4. Using Graphify
 
 Read the vendored Graphify skill and then
-`.agents/skills/graphify-knowledge-extraction/SKILL.md` before Graphify work. The
-repo-local knowledge-only scope overrides the vendored skill's broader code
-capabilities for this repository.
+the installed `graphify-knowledge-extraction` skill before Graphify work. The
+repo-local knowledge-only scope overrides the vendored Graphify skill's broader
+code capabilities for this repository.
 
 - For cross-source or rationale questions, first run
   `graphify query "<question>"`. Use `graphify path "<A>" "<B>"` for
@@ -90,9 +90,9 @@ capabilities for this repository.
   extraction that respects `.graphifyignore`. Code changes alone do not require
   a Graphify refresh.
 - Route Graphify semantic extraction and community labeling through Osaurus.
-  The default model is `openai-chatgpt/gpt-5.4-mini`; use
-  `openai-chatgpt/gpt-5.5` only when Mini fails a schema or semantic-quality
-  gate. Do not bypass Osaurus to call OpenAI directly.
+  Discover available models live from `osaurus list` and
+  `http://127.0.0.1:1337/v1/models`; do not assume previously observed model
+  names are still present. Do not bypass Osaurus to call OpenAI directly.
 - Keep OpenAI authentication inside Osaurus's configured provider. Never read,
   copy, or adapt `~/.codex/auth.json` for Graphify or another third-party tool.
 - Before extraction, require a healthy single Osaurus server and verify that
@@ -102,7 +102,39 @@ capabilities for this repository.
 
 ## 5. Bootstrap and maintenance
 
-Read `.agents/skills/knowledge-graph-bootstrap/SKILL.md` before installing,
+Read the installed `knowledge-graph-bootstrap` skill before installing,
 configuring, repairing, or re-indexing this toolchain. The supported entry point
-is `.agents/skills/knowledge-graph-bootstrap/scripts/bootstrap-knowledge-graphs.sh`;
-use `--dry-run` before a real run.
+is that skill's `scripts/manage-knowledge-graph-instructions.py`; use
+`--dry-run` before a real run.
+
+<!-- BEGIN MANAGED KNOWLEDGE-GRAPH ROUTING -->
+<!-- rumdl-disable MD041 -->
+## Knowledge-Graph Routing
+
+Use the narrowest concern owner; do not invoke every graph mechanically.
+
+| Need | First Choice | Boundary |
+|---|---|---|
+| Locate or read current source; trace exact calls | CodeGraph | Requires `.codegraph/`; otherwise use normal source tools |
+| Connect documentation, decisions, plans, and rationale | Graphify | Requires a curated `.graphifyignore` and knowledge-only graph |
+| Discover execution processes or assess change impact | GitNexus | Requires `.gitnexus/`; not a Git-history database |
+| Commits, PRs, blame, authorship, or ownership history | Git and SCM tooling | Do not route to the graph trio |
+
+For mixed questions, sequence Graphify for documented intent, CodeGraph for the
+exact implementation, GitNexus for change risk, and Git/SCM for provenance.
+Graph results are context evidence; tests, linters, and runtime behavior remain
+correctness authority.
+
+Load the corresponding installed skill before graph work:
+
+- `codegraph-source-navigation`
+- `graphify-knowledge-extraction`
+- `gitnexus-change-impact`
+- `knowledge-graph-bootstrap` for setup, repair, or instruction maintenance
+
+Do not initialize or refresh indexes during ordinary questions. Graphify corpus
+changes require reviewed, project-specific `.graphifyignore` curation. Refresh
+Graphify through the staged curation, validation, diagnostics, and snapshot
+promotion procedure in `graphify-knowledge-extraction`; preserve the accepted
+snapshot whenever any candidate gate fails.
+<!-- END MANAGED KNOWLEDGE-GRAPH ROUTING -->
