@@ -3,10 +3,9 @@
 ## Metadata
 
 - Feature slug: `graphify-semantic-extractor-tool`
-- Mode: `light`
+- Mode: `guided`
 - Artifact type: future feature specification
-- Status: proposed; not implementation authorization
-- Proposed install surface: `dynamic-agent-runner[tools]`
+- Status: implementation-ready planning; not implementation authorization
 - Related specs:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/subagent-tool-pack/spec.md`
@@ -21,9 +20,10 @@
 
 ## Objective
 
-Add an optional tools-extra exemplar that uses DAR's LLM interface and parallel
-workflow capabilities to produce Graphify-compatible semantic extraction
-artifacts from a curated knowledge corpus.
+Add a package-owned Graphify extraction tool and console entrypoint that use
+DAR's LLM interface and bounded parallel workflow capabilities to produce
+Graphify-compatible semantic extraction artifacts from a curated knowledge
+corpus in this or another repository.
 
 The tool is useful with Graphify, but it is not a Graphify fork and not a
 general model endpoint. DAR owns the controlled parallel extraction stage;
@@ -50,8 +50,7 @@ artifact producer is the cleaner first release.
 
 ## Design Position
 
-The first release should build a package-owned tool implementation behind the
-`tools` extra:
+The first release should build a package-owned tool implementation:
 
 ```text
 graphify detect
@@ -67,8 +66,8 @@ candidate output root and must not mutate the accepted `graphify-out/` snapshot.
 
 ## Proposed Public Shape
 
-The package should expose a narrowly named helper under the optional tools
-surface. Names are draft and should be finalized during implementation planning:
+The package should expose a narrowly named helper and console entrypoint. Names
+are fixed for implementation planning:
 
 ```python
 from dynamic_agent_runner.tools.graphify import (
@@ -90,27 +89,28 @@ graphify_semantic_extract(
 ) -> GraphifySemanticExtractionResult
 ```
 
-The implementation may also provide a CLI helper, but the model-visible tool is
-the primary contract. A future CLI should be a thin wrapper over the same
-package-owned implementation.
+The model-visible tool remains the primary contract. The required
+cross-repository script is a thin wrapper over the same package-owned
+implementation:
 
-## Package Extra Boundary
+```text
+dynamic-agent-runner-graphify-extract \
+  --repo-root PATH \
+  --corpus-manifest PATH \
+  --output-dir PATH \
+  [--concurrency N] [--required-glob GLOB] [--model MODEL]
+```
 
-The feature must live behind a `tools` extra so a base install remains small and
-does not gain Graphify-specific helpers by default.
+The script must invoke DAR's configured model adapter and bounded parallel
+workflow; it must not shell out to additional Codex processes or implement a
+second provider client.
 
-First-release expectations:
+## Package Boundary
 
-- `dynamic-agent-runner[tools]` makes package-owned tool helper modules
-  importable.
-- The tool remains opt-in at registry construction time; installing the extra
-  does not expose tools to workflows automatically.
-- Graphify itself may remain an external executable in the first release unless
-  implementation planning proves a package dependency is required.
-- Optional imports must be lazy and fail with actionable errors naming the
-  missing extra or external executable.
-- Unit tests must not require live Graphify, Osaurus, OpenAI, local models, or
-  network access.
+The helper ships with the normal package install and remains opt-in at registry
+construction time. Installing DAR does not expose the tool to workflows
+automatically. Unit tests must not require live Graphify, Osaurus, OpenAI, local
+models, or network access.
 
 ## Stock Graphify Integration
 
@@ -132,14 +132,14 @@ existing `graphify_artifacts.py` curation and promotion gates.
 
 ## Functional Requirements
 
-### FR-1: Stay Optional and Registry-Mediated
+### FR-1: Stay Registry-Mediated and Script-Accessible
 
-Given the package is installed without the `tools` extra, when a caller imports
-or enables the Graphify semantic extractor tool, then the failure must clearly
-name the missing optional install surface.
+Given the package is installed, when no caller registers the Graphify semantic
+extractor tool, then workflows must not see or invoke it.
 
-Given the extra is installed, when no caller registers the tool, then workflows
-must not see or invoke it.
+Given another repository installs DAR, when it invokes
+`dynamic-agent-runner-graphify-extract`, then the script must route through the
+same package-owned extraction API and DAR model/worker policy.
 
 ### FR-2: Respect Curated Corpus Boundaries
 
@@ -234,20 +234,24 @@ This feature does not:
 - expose raw child transcripts as graph provenance;
 - create a general OpenAI-compatible model server;
 - make Graphify a runtime dependency of the base package;
+- provide a second model-provider client inside the script;
+- shell out to additional Codex CLI processes for parallelism;
 - authorize implementation without a separate TDD task slice.
 
 ## First Release Boundary
 
 The initial implementation slice should include:
 
-1. `tools` extra packaging surface and lazy imports.
-2. A fake-testable Graphify semantic extractor tool helper.
-3. Deterministic corpus manifest validation.
-4. Deterministic chunk planning.
-5. A fake worker/LLM path for unit tests.
-6. Strict JSON chunk validation.
-7. Deterministic merge to staged semantic artifacts.
-8. Audit output with chunk status and source hashes.
+1. A fake-testable Graphify semantic extractor tool helper.
+2. Deterministic corpus manifest validation.
+3. Deterministic chunk planning.
+4. A fake worker/LLM path for unit tests.
+5. Strict JSON chunk validation.
+6. Deterministic merge to staged semantic artifacts.
+7. Audit output with chunk status and source hashes.
+8. The `dynamic-agent-runner-graphify-extract` console entrypoint with
+   `--help`, manifest, output, concurrency, required-glob, and model-policy
+   options.
 9. Documentation showing how a caller can hand staged artifacts to Graphify.
 
 The first release may use serial or low-concurrency execution if that is the
@@ -257,9 +261,10 @@ cleanup.
 
 ## Acceptance Criteria
 
-- Given the package is installed without `tools`, importing the exemplar tool
-  reports the missing extra clearly.
 - Given the tool is not registered, no workflow sees it.
+- Given another repository invokes the console script with a valid manifest, the
+  script calls the package-owned extraction path and writes staged artifacts
+  without requiring that repository to import DAR internals.
 - Given a manifest includes a source outside the repo root, extraction fails
   before any worker runs.
 - Given a manifest includes code files or generated `graphify-out` content,
@@ -281,20 +286,28 @@ cleanup.
 
 Implementation must follow TDD per repository policy:
 
-1. RED: missing `tools` extra/lazy import behavior.
+1. RED: public helper, registry factory, and console `--help` contract.
 2. RED: manifest path containment and corpus rejection tests.
 3. RED: chunk-planning determinism tests.
 4. RED: invalid JSON and prompt-injection fixture tests.
 5. RED: deterministic merge and audit tests.
-6. GREEN: minimal fake-worker implementation.
-7. REFACTOR: only after the tests pass and the public surface remains narrow.
+6. RED: CLI-to-package delegation with an injected fake worker/model path.
+7. GREEN: minimal fake-worker implementation and console wrapper.
+8. REFACTOR: only after the tests pass and the public surface remains narrow.
 
-## Open Questions
+## Implementation Preparation Decisions
 
-- Should the `tools` extra depend on a Graphify Python package, or should the
-  first release keep Graphify as an external executable?
-- Should the model-visible tool accept a Graphify detect JSON directly, or a
-  smaller DAR-owned corpus manifest derived from detect output?
-- Should the first implementation expose only a Python API, or also a console
-  command under the same optional extra?
-- Which graphify semantic schema version should be pinned in tests?
+- Graphify remains an external executable and is not a package dependency. The
+  first release produces the semantic artifacts consumed by Graphify's stock
+  workflow.
+- DAR accepts a small package-owned corpus-manifest contract. A caller or thin
+  integration adapter may derive it from Graphify detect output; the extractor
+  does not parse or invoke the Graphify CLI itself.
+- The first release exposes a Python API, registry tool, and the
+  `dynamic-agent-runner-graphify-extract` console entrypoint. The script is a
+  thin cross-repository wrapper over the same API.
+- Validation targets the stable Graphify semantic subset (`nodes`, `edges`, and
+  `hyperedges` with provenance and confidence fields) using checked-in JSON
+  fixtures rather than a Graphify runtime dependency.
+- The implementation uses the package's existing dependencies and standard
+  library; it adds no Graphify-specific or schema-validation dependency.

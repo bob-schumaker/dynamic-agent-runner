@@ -184,18 +184,17 @@ Costs:
 Endpoint emulation remains a possible future adapter, but not the preferred
 first release.
 
-## Package Extra Discussion
+## Package and Console Discussion
 
-The feature should live behind a `tools` extra rather than the base package
-install. That keeps the base runtime small while allowing users who want
-package-owned exemplar tools to install them explicitly.
+The feature should use the existing package install and remain opt-in at the
+registry boundary. Adding a Graphify-specific extra or dependency would add no
+needed runtime capability because the first release emits staged artifacts and
+leaves Graphify as an external executable.
 
-The extra should not make the tool ambient. A caller must still opt into the
-tool by registering it in the effective `ToolRegistry` for a workflow or node.
-
-Whether `dynamic-agent-runner[tools]` should depend on Graphify remains an
-implementation-planning question. The first release can likely treat Graphify as
-an external executable and focus on producing compatible staged artifacts.
+A caller must still opt into the model-visible tool by registering it in the
+effective `ToolRegistry` for a workflow or node. Other repositories can invoke
+the `dynamic-agent-runner-graphify-extract` console entrypoint, which delegates
+to the same package API and bounded DAR worker workflow.
 
 ## Relationship to Existing Specs
 
@@ -218,13 +217,13 @@ architecture:
 
 The first slice should be deliberately small:
 
-1. add the `tools` extra surface;
-2. add the package-owned Graphify semantic extractor helper;
+1. add the package-owned Graphify semantic extractor helper;
+2. add the `dynamic-agent-runner-graphify-extract` console entrypoint;
 3. accept a manifest and write to a candidate output root;
 4. use fake workers in tests;
 5. validate strict JSON and source provenance;
 6. merge deterministic staged semantic artifacts;
-7. document the Graphify handoff.
+7. document the console invocation and Graphify handoff.
 
 Parallelism greater than the current in-process limit and any OpenAI-compatible
 endpoint should wait until the artifact path is proven.
