@@ -36,6 +36,9 @@ def build_graphify_parser() -> argparse.ArgumentParser:
     parser.add_argument("--concurrency", type=int, default=3)
     parser.add_argument("--required-glob", action="append", default=[])
     parser.add_argument("--model")
+    parser.add_argument("--token-budget", type=int)
+    parser.add_argument("--max-files-per-chunk", type=int, default=24)
+    parser.add_argument("--max-file-chars", type=int, default=20_000)
     return parser
 
 
@@ -63,6 +66,9 @@ def main(
             concurrency=args.concurrency,
             required_globs=args.required_glob,
             model=args.model,
+            token_budget=args.token_budget,
+            max_files_per_chunk=args.max_files_per_chunk,
+            max_file_chars=args.max_file_chars,
         )
     except (OSError, ValueError, DynamicAgentRunnerError) as exc:
         print(f"dynamic-agent-runner-graphify-extract: error: {exc}", file=stderr)

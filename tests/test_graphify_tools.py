@@ -79,6 +79,12 @@ def test_graphify_console_parser_accepts_cross_repository_arguments() -> None:
             "specs/**/*.md",
             "--model",
             "foundation",
+            "--token-budget",
+            "40000",
+            "--max-files-per-chunk",
+            "20",
+            "--max-file-chars",
+            "16000",
         ]
     )
 
@@ -88,6 +94,9 @@ def test_graphify_console_parser_accepts_cross_repository_arguments() -> None:
     assert args.concurrency == 4
     assert args.required_glob == ["specs/**/*.md"]
     assert args.model == "foundation"
+    assert args.token_budget == 40000
+    assert args.max_files_per_chunk == 20
+    assert args.max_file_chars == 16000
 
 
 def make_corpus_file(root: Path, relative: str, content: str = "# note") -> Path:
