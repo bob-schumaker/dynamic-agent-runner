@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Validation Log
 
-Status: Slices 1–2 complete; worker and merge slices remain
+Status: Slices 1–3 complete; execution and merge slices remain
 
 ## Scope
 
@@ -58,6 +58,24 @@ Status: Slices 1–2 complete; worker and merge slices remain
 - Command: `poetry run python -m dynamic_agent_runner.tools.graphify_cli --help`
 - Observed result: usage includes `--repo-root`, `--corpus-manifest`,
   `--output-dir`, `--concurrency`, `--required-glob`, and `--model`.
+- Command: `poetry run ruff check src/dynamic_agent_runner/tools tests/test_graphify_tools.py`
+- Observed result: passed.
+
+## Slice 3 — Worker Isolation and Semantic Validation
+
+### RED
+
+- Command: `poetry run pytest tests/test_graphify_tools.py -q`
+- Observed result: collection failed because semantic validation and worker
+  request helpers were absent.
+
+### GREEN
+
+- Command: `poetry run pytest tests/test_graphify_tools.py -q`
+- Observed result: `19 passed`.
+- Interpretation: strict JSON decoding, source provenance, endpoint integrity,
+  self-loop and duplicate rejection, confidence bounds, and untrusted corpus
+  request construction are covered.
 - Command: `poetry run ruff check src/dynamic_agent_runner/tools tests/test_graphify_tools.py`
 - Observed result: passed.
 - Command: `poetry check`

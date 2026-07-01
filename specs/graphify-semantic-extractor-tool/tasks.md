@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Tasks
 
-Status: Slices 1–2 complete; worker and merge slices remain
+Status: Slices 1–3 complete; execution and merge slices remain
 
 ## Slice 0 — Planning Checkpoint
 
@@ -66,17 +66,20 @@ Status: Slices 1–2 complete; worker and merge slices remain
 
 ## Slice 3 — Worker Isolation and Semantic Validation
 
-- [ ] T3.1 [tests] Add RED fake-worker tests for valid semantic JSON, malformed
+- [x] T3.1 [tests] Add RED fake-worker tests for valid semantic JSON, malformed
       JSON, instruction-like corpus text, invalid source provenance, dangling
       endpoints, self-loops, duplicate edges, invalid confidence, missing
       required coverage, bounded retry, and explicit failed-chunk audit state.
       - Spec: FR-3, FR-4, FR-6, FR-7
       - Files: `tests/test_graphify_tools.py`, semantic JSON fixtures
-- [ ] T3.2 [implementation] Add fixed extraction request construction that
+- [x] T3.2 [implementation] Add fixed extraction request construction that
       treats corpus text as untrusted data, strict semantic-subset validation,
       provenance checks, bounded retry, and failure classification.
       - Files: `src/dynamic_agent_runner/tools/graphify.py`
       - Validation: `poetry run pytest tests/test_graphify_tools.py -q`
+      - RED: collection failed because semantic validation and worker request
+        helpers were absent.
+      - GREEN: `poetry run pytest tests/test_graphify_tools.py -q` — `19 passed`.
 
 ## Slice 4 — Bounded Execution, Merge, and Audit
 
