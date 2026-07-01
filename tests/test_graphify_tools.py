@@ -455,3 +455,49 @@ def test_extraction_records_retry_and_does_not_merge_failed_chunk(
     assert attempts == 2
     assert audit["chunks"][0]["status"] == "failed"
     assert not (tmp_path / "candidate" / ".graphify_semantic.json").exists()
+
+
+def test_extraction_bisects_explicit_density_signal(tmp_path: Path) -> None:
+    for name in ("specs/a.md", "specs/b.md", "specs/c.md"):
+        make_corpus_file(tmp_path, name)
+    calls: list[tuple[str, ...]] = []
+
+    def worker(request: dict[str, object]) -> dict[str, object]:
+        paths = tuple(str(item["path"]) for item in request["documents"])
+        calls.append(paths)
+        if len(paths) > 1:
+            return {
+                "finish_reason": "length",
+                "nodes": [],
+                "edges": [],
+                "hyperedges": [],
+            }
+        source = paths[0]
+        return {
+            "nodes": [{"id": source, "source_file": source}],
+            "edges": [],
+            "hyperedges": [],
+        }
+
+    result = extract_graphify_semantic_artifacts(
+        {
+            "repo_root": str(tmp_path),
+            "files": [
+                {"path": name} for name in ("specs/a.md", "specs/b.md", "specs/c.md")
+            ],
+        },
+        output_dir=tmp_path / "candidate",
+        worker=worker,
+        chunk_size=3,
+        max_retries=1,
+    )
+
+    assert calls[0] == ("specs/a.md", "specs/b.md", "specs/c.md")
+    assert calls.count(("specs/b.md", "specs/c.md")) == 1
+    assert {call for call in calls if len(call) == 1} == {
+        ("specs/a.md",),
+        ("specs/b.md",),
+        ("specs/c.md",),
+    }
+    assert result.audit["chunks"][0]["status"] == "repaired"
+    assert len(result.chunks) == 3

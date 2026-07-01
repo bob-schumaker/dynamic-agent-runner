@@ -179,3 +179,13 @@ until that evidence exists.
 - Implementation: `plan_graphify_chunks(..., token_budget=...,`
   `max_files_per_chunk=..., max_file_chars=...)` is opt-in; request construction
   applies the same per-file cap and the fixed eight-file default is preserved.
+
+## T7.3 — Adaptive density splitting
+
+- RED: added a fake-worker test returning `finish_reason="length"` for dense
+  multi-file chunks; the prior implementation retried the same chunk and then
+  failed without producing leaf results.
+- GREEN: `poetry run pytest tests/test_graphify_tools.py -q` — `27 passed`.
+- Implementation: explicit context/truncation signals are bisected recursively
+  within the configured retry depth; ordinary schema failures retain the
+  existing bounded retry and audit behavior.

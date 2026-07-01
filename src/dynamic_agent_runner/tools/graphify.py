@@ -54,6 +54,10 @@ class GraphifySemanticValidationError(ValueError):
     """Raised when a worker result cannot be safely merged."""
 
 
+class _GraphifyChunkDensityError(ValueError):
+    """Internal signal that a chunk should be bisected before retrying."""
+
+
 @dataclass(frozen=True)
 class GraphifyCorpusFile:
     """One relative corpus file admitted for semantic extraction."""
@@ -461,48 +465,75 @@ async def extract_graphify_semantic_artifacts_async(
     audits: list[dict[str, Any]] = []
     results: list[tuple[GraphifyChunk, dict[str, Any]]] = []
 
-    async def run_chunk(chunk: GraphifyChunk) -> None:
-        async with semaphore:
-            request = build_graphify_worker_request(
-                chunk, validated, max_file_chars=max_file_chars
-            )
-            last_error: str | None = None
-            for attempt in range(max_retries + 1):
-                try:
+    async def run_chunk(chunk: GraphifyChunk, depth: int = 0) -> None:
+        request = build_graphify_worker_request(
+            chunk, validated, max_file_chars=max_file_chars
+        )
+        last_error: str | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                async with semaphore:
                     raw = worker(request)
                     if hasattr(raw, "__await__"):
                         raw = await raw
-                    semantic = validate_graphify_semantic_result(
-                        raw, {item.path for item in validated.files}
+                if _is_graphify_density_result(raw):
+                    raise _GraphifyChunkDensityError(
+                        "worker signaled context or output density"
                     )
-                    chunk_path = output_dir / f".graphify_{chunk.chunk_id}.json"
-                    _write_json(chunk_path, semantic)
+                semantic = validate_graphify_semantic_result(
+                    raw, {item.path for item in validated.files}
+                )
+                chunk_path = output_dir / f".graphify_{chunk.chunk_id}.json"
+                _write_json(chunk_path, semantic)
+                audits.append(
+                    {
+                        "chunk_id": chunk.chunk_id,
+                        "status": "completed",
+                        "attempts": attempt + 1,
+                        "source_files": [item.path for item in chunk.files],
+                    }
+                )
+                results.append((chunk, semantic))
+                return
+            except _GraphifyChunkDensityError as exc:
+                last_error = str(exc)
+                if len(chunk.files) > 1 and depth <= max_retries:
+                    midpoint = len(chunk.files) // 2
+                    left = GraphifyChunk(
+                        chunk_id=f"{chunk.chunk_id}-a", files=chunk.files[:midpoint]
+                    )
+                    right = GraphifyChunk(
+                        chunk_id=f"{chunk.chunk_id}-b", files=chunk.files[midpoint:]
+                    )
                     audits.append(
                         {
                             "chunk_id": chunk.chunk_id,
-                            "status": "completed",
+                            "status": "repaired",
                             "attempts": attempt + 1,
                             "source_files": [item.path for item in chunk.files],
+                            "error": last_error,
                         }
                     )
-                    results.append((chunk, semantic))
+                    await asyncio.gather(
+                        run_chunk(left, depth + 1), run_chunk(right, depth + 1)
+                    )
                     return
-                except (
-                    GraphifySemanticValidationError,
-                    OSError,
-                    TypeError,
-                    ValueError,
-                ) as exc:
-                    last_error = str(exc)
-            audits.append(
-                {
-                    "chunk_id": chunk.chunk_id,
-                    "status": "failed",
-                    "attempts": max_retries + 1,
-                    "source_files": [item.path for item in chunk.files],
-                    "error": last_error,
-                }
-            )
+            except (
+                GraphifySemanticValidationError,
+                OSError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                last_error = str(exc)
+        audits.append(
+            {
+                "chunk_id": chunk.chunk_id,
+                "status": "failed",
+                "attempts": max_retries + 1,
+                "source_files": [item.path for item in chunk.files],
+                "error": last_error,
+            }
+        )
 
     await asyncio.gather(*(run_chunk(chunk) for chunk in chunks))
     audits.sort(key=lambda item: item["chunk_id"])
@@ -525,6 +556,13 @@ async def extract_graphify_semantic_artifacts_async(
         chunks=tuple(merged["chunks"]),
         audit=audit,
     )
+
+
+def _is_graphify_density_result(raw: Any) -> bool:
+    if not isinstance(raw, Mapping):
+        return False
+    reason = str(raw.get("finish_reason") or raw.get("status") or "").lower()
+    return reason in {"length", "context_length_exceeded", "context_overflow"}
 
 
 def _merge_semantic_results(

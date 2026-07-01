@@ -163,9 +163,11 @@ These tasks are not authorized by the completed first-release slice:
       packing.
       - Implemented as an opt-in planner; fixed eight-file behavior remains
         the default pending T7.5.
-- [ ] T7.3 [implementation] Add adaptive bisection for context overflow,
+- [x] T7.3 [implementation] Add adaptive bisection for context overflow,
       truncation, and density-related validation failures while preserving
       chunk ids, audit records, and accepted-snapshot protection.
+      - Explicit `finish_reason` density signals bisect recursively; ordinary
+        schema failures remain bounded retry/fail outcomes.
 - [ ] T7.4 [evaluation] Test a summary-only cross-chunk reconciliation pass;
       do not resend source text or bypass DAR approval and tracing.
 - [ ] T7.5 [decision] Change the default chunk policy only after benchmark and
