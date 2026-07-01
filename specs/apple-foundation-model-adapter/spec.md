@@ -5,9 +5,9 @@
 - Feature slug: `apple-foundation-model-adapter`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: draft; awaiting specification approval
-- Version: `0.3`
-- Date: 2026-06-28
+- Status: implementation-ready A1; implementation not started; A2 separately gated
+- Version: `0.4`
+- Date: 2026-07-01
 - Owner: dynamic-agent-runner model-provider boundary
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
