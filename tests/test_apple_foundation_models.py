@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -103,3 +104,132 @@ def test_unsupported_request_features_fail_before_session_creation(
 
 def test_public_import_does_not_require_apple_sdk() -> None:
     assert Path("src/dynamic_agent_runner/apple_foundation_models.py").exists()
+
+
+@dataclass
+class FakeGeneratedJSON:
+    value: str
+
+    def to_json(self) -> str:
+        return self.value
+
+
+class FakeSession:
+    def __init__(self, instructions: str | None, result: object = "answer") -> None:
+        self.instructions = instructions
+        self.result = result
+        self.prompts: list[tuple[str, object]] = []
+
+    async def respond(self, prompt: str, **kwargs: object) -> object:
+        self.prompts.append((prompt, kwargs))
+        return self.result
+
+
+class CancelledSession(FakeSession):
+    async def respond(self, prompt: str, **kwargs: object) -> object:
+        raise asyncio.CancelledError
+
+
+def test_text_request_preserves_instructions_and_ordered_history() -> None:
+    sessions: list[FakeSession] = []
+
+    def make_session(instructions: str | None) -> FakeSession:
+        session = FakeSession(instructions)
+        sessions.append(session)
+        return session
+
+    adapter = create_apple_foundation_model_async_adapter(
+        AppleFoundationModelConfig(
+            availability_checker=lambda: (True, None), session_factory=make_session
+        )
+    )
+    request = build_openai_request(
+        model="apple-system-language-model",
+        messages=[
+            {"role": "system", "content": "Be concise."},
+            {"role": "developer", "content": "Use plain language."},
+            {"role": "user", "content": "First"},
+            {"role": "assistant", "content": "Earlier"},
+            {"role": "user", "content": "Now"},
+        ],
+    )
+
+    asyncio.run(adapter.create_response(request))
+
+    assert len(sessions) == 1
+    assert sessions[0].instructions == "Be concise.\nUse plain language."
+    assert sessions[0].prompts[0][0] == "user: First\nassistant: Earlier\nuser: Now"
+
+
+def test_each_request_gets_a_fresh_session_and_maps_generation_options() -> None:
+    sessions: list[FakeSession] = []
+
+    def make_session(instructions: str | None) -> FakeSession:
+        session = FakeSession(instructions)
+        sessions.append(session)
+        return session
+
+    adapter = create_apple_foundation_model_async_adapter(
+        AppleFoundationModelConfig(
+            availability_checker=lambda: (True, None), session_factory=make_session
+        )
+    )
+    request = build_openai_request(
+        model="apple-system-language-model",
+        messages=[{"role": "user", "content": "hello"}],
+        temperature=0.2,
+        max_output_tokens=32,
+    )
+
+    asyncio.run(adapter.create_response(request))
+    asyncio.run(adapter.create_response(request))
+
+    assert len(sessions) == 2
+    assert sessions[0] is not sessions[1]
+    assert sessions[0].prompts[0][1] == {
+        "options": {"temperature": 0.2, "max_output_tokens": 32}
+    }
+
+
+def test_structured_generation_uses_explicit_schema_and_normalizes_json() -> None:
+    sessions: list[FakeSession] = []
+
+    def make_session(instructions: str | None) -> FakeSession:
+        session = FakeSession(instructions, FakeGeneratedJSON('{"ok": true}'))
+        sessions.append(session)
+        return session
+
+    adapter = create_apple_foundation_model_async_adapter(
+        AppleFoundationModelConfig(
+            availability_checker=lambda: (True, None), session_factory=make_session
+        )
+    )
+    request = build_openai_request(
+        model="apple-system-language-model",
+        messages=[{"role": "user", "content": "return json"}],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {"name": "result", "schema": {"type": "object"}},
+        },
+    )
+
+    response = asyncio.run(adapter.create_response(request))
+
+    assert response.content == '{"ok": true}'
+    assert sessions[0].prompts[0][1]["json_schema"] == {"type": "object"}
+
+
+def test_cancellation_propagates_without_provider_retry() -> None:
+    adapter = create_apple_foundation_model_async_adapter(
+        AppleFoundationModelConfig(
+            availability_checker=lambda: (True, None),
+            session_factory=lambda _instructions: CancelledSession(None),
+        )
+    )
+    request = build_openai_request(
+        model="apple-system-language-model",
+        messages=[{"role": "user", "content": "cancel"}],
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(adapter.create_response(request))
