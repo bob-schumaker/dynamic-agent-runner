@@ -103,9 +103,11 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - PyInstaller integration should keep freeze hooks inside the package so
   downstream clients discover them from installed distribution metadata instead
   of needing `--additional-hooks-dir`.
-- The repository knowledge-graph toolchain is initialized through the
-  `knowledge-graph-bootstrap` skill and its skill-local
-  `scripts/bootstrap-knowledge-graphs.sh` helper.
+- The repository knowledge-graph toolchain is initialized and maintained
+  through installed `knowledge-graph-bootstrap`, `graphify-knowledge-extraction`,
+  `codegraph-source-navigation`, and `gitnexus-change-impact` skills under
+  `/Users/roschuma/.agents/skills/`; repo-local copied skill files are not
+  authoritative.
 - CodeGraph owns indexed current-source discovery and call-path navigation. Its
   generated `.codegraph/` index is local and ignored.
 - GitNexus owns execution-flow discovery and working-tree change-impact checks.
@@ -115,12 +117,17 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   not index `src/`, tests, scripts, or generated/build output.
 - Graphify semantic extraction routes through Osaurus using the approved OpenAI
   model order recorded in
-  `.agents/skills/graphify-knowledge-extraction/SKILL.md`. Generated
+  `/Users/roschuma/.agents/skills/graphify-knowledge-extraction/SKILL.md`.
+  Generated
   `graphify-out/` and local `.graphifyignore` configuration are ignored.
 - Use Graphify query/path/explain for spec and rationale relationships, not for
   source navigation or implementation proof. Corpus topology can prioritize
   consistency review but does not replace deterministic requirement,
   acceptance-criteria, status, or code-conformance checks.
+- The future `graphify-semantic-extractor-tool` spec proposes a
+  `dynamic-agent-runner[tools]` artifact producer with bounded parallel
+  extraction and staged semantic JSON. It remains unimplemented and must not
+  turn the base package into a Graphify or OpenAI-compatible server dependency.
 
 ## Documentation Tooling
 

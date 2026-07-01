@@ -2,6 +2,11 @@
 
 ## Working
 
+- The spec corpus consistency pass is complete. The Graphify semantic
+  extractor feature is indexed in `specs/README.md`, downstream-only references
+  are explicitly labeled as external, all feature links resolve, and full
+  `rumdl` validation passes. Commit `439e8dc` contains those spec changes plus
+  the already-staged repo-local knowledge-graph skill deletions.
 - Apple Foundation Models adapter work has an authoritative draft spec in
   `specs/apple-foundation-model-adapter/spec.md`. A1 is bounded to local text
   and explicit JSON Schema output through the existing async provider facade;
@@ -12,10 +17,10 @@
   non-executable usage descriptors, caller-provided async-first adapters, and
   DAR-coordinated nested tool calls. Backend selection and implementation remain
   deferred.
-- The repository-local knowledge-graph toolchain is bootstrapped with clear
-  ownership: CodeGraph for source navigation, GitNexus for execution/change
-  impact, and a specs/docs-only Graphify corpus for knowledge relationships.
-  Generated indexes and graph output remain local and ignored.
+- The knowledge-graph toolchain has clear ownership: CodeGraph for source
+  navigation, GitNexus for execution/change impact, and a specs/docs-only
+  Graphify corpus for knowledge relationships. Installed or vendored skills are
+  authoritative; generated indexes and graph output remain local and ignored.
 - Core runtime supports package-directory workflow loading and execution,
   async-first APIs, sync wrappers, tool registry/overrides, OpenAI-compatible
   adapters/providers, retry, output contracts, token budgeting, tracing, hooks,
@@ -261,6 +266,8 @@
 
 ## Latest Milestones
 
+- `439e8dc` added the Graphify semantic extractor future spec and analysis,
+  reconciled the spec index, and clarified external downstream references.
 - `c9f505f` defined the multi-interpreter gateway, descriptor/frontmatter,
   caller registry, and DAR approval-coordinator contract in the interpreter
   middleware spec.

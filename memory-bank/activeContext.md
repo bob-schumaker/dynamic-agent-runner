@@ -2,6 +2,12 @@
 
 ## Current Focus
 
+- Commit `439e8dc` added the future `graphify-semantic-extractor-tool` spec
+  and analysis artifact. The proposed `dynamic-agent-runner[tools]` exemplar
+  uses DAR's bounded LLM workflow to emit staged Graphify semantic artifacts;
+  it does not replace Graphify or require a DAR OpenAI-compatible endpoint.
+  The same commit reconciled the spec index and marked downstream Power-Marimo
+  paths as external evidence rather than in-corpus files.
 - `specs/apple-foundation-model-adapter/spec.md` is now the highest-ROI pending
   feature specification. Commit `f8e7361` defines A1 as an async in-process
   Responses-compatible Apple Foundation Models adapter for text and explicit
@@ -23,8 +29,9 @@
 - The repository knowledge-graph toolchain is installed and initialized through
   commit `a74bf68`. CodeGraph owns indexed source navigation, GitNexus owns
   execution-flow and change-impact analysis, and Graphify owns the allowlisted
-  knowledge corpus. The bootstrap script is skill-local at
-  `.agents/skills/knowledge-graph-bootstrap/scripts/bootstrap-knowledge-graphs.sh`.
+  knowledge corpus. Guidance and maintenance scripts now come from installed
+  skills under `/Users/roschuma/.agents/skills/`; the deleted repo-local copies
+  are not authoritative.
 - Graphify is now restricted to the knowledge-only allowlist, including
   `specs/`, and semantic extraction routes through Osaurus with approved OpenAI
   models. Generated `graphify-out/`, `.codegraph/`, and local
@@ -454,7 +461,6 @@
 
 ## Next Steps
 
-- Commit this memory-bank targeted refresh.
 - Approve or revise Apple Foundation Models A1, then create a bounded
   `plan.md`, `tasks.md`, and `validation.md` without pulling A2 tool callbacks
   into the first release.
