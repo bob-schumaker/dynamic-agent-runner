@@ -12,21 +12,20 @@ Status: implementation-ready planning; no source implementation started
       contracts in `plan.md`.
 - [x] T0.3 Create `tasks.md` and `validation.md` with TDD-first execution
       order and exact repository commands.
-- [ ] T0.4 Commit the planning checkpoint before source implementation.
-      - Validation: `git diff --check`; focused `pre-commit`; staged-scope
-        review and `gitnexus detect-changes --scope staged`.
+- [x] T0.4 Commit the planning checkpoint before source implementation.
+      - Completed in `e4164e5`.
 
 ## Slice 1 — Package, Registry, and Console Contract
 
-- [ ] T1.1 [tests] Add RED tests for the public policy/result/worker contracts,
+- [x] T1.1 [tests] Add RED tests for the public policy/result/worker contracts,
       explicit `RegisteredTool` factory, console `--help`, and invalid CLI
       argument handling.
-      - Spec: FR-1, FR-8; Plan: Decisions 1–4
+      - Spec: FR-1, FR-8; Plan: Decisions 1–3
       - Files: `tests/test_graphify_tools.py`, `tests/test_cli.py`,
         `tests/test_import.py`
-      - Expected RED: public Graphify tool symbols and factory behavior are
-        absent or incomplete.
-- [ ] T1.2 [implementation] Add `tools` package namespace, package-owned error
+      - RED: `poetry run pytest tests/test_graphify_tools.py -q` failed during
+        collection because `dynamic_agent_runner.tools` was absent.
+- [x] T1.2 [implementation] Add `tools` package namespace, package-owned error
       and result types, worker protocol, policy, and
       `graphify_semantic_extract` tool factory.
       - Files: `src/dynamic_agent_runner/tools/__init__.py`,
@@ -35,14 +34,18 @@ Status: implementation-ready planning; no source implementation started
         `src/dynamic_agent_runner/__init__.py`
       - Validation:
         `poetry run pytest tests/test_graphify_tools.py tests/test_import.py -q`
-- [ ] T1.3 [implementation] Add the
+      - GREEN: `poetry run pytest tests/test_graphify_tools.py -q` — `4 passed`.
+- [x] T1.3 [implementation] Add the
       `dynamic-agent-runner-graphify-extract` `[project.scripts]` entrypoint as
       a thin delegate to the package API, with repository root, manifest,
       output, concurrency, required-glob, and model-policy options.
       - Spec: FR-1, FR-5, First Release Boundary
       - Files: `src/dynamic_agent_runner/cli.py` or package-owned CLI module,
         `pyproject.toml`
-      - Validation: `poetry run dynamic-agent-runner-graphify-extract --help`
+      - Validation:
+        `poetry run python -m dynamic_agent_runner.tools.graphify_cli --help`
+      - Result: parser exposes repository, manifest, output, concurrency,
+        required-glob, and model options; package metadata passes `poetry check`.
 
 ## Slice 2 — Manifest Validation and Chunk Planning
 

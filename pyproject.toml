@@ -9,6 +9,7 @@ dynamic = ["dependencies", "requires-python"]
 
 [project.scripts]
 dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
+dynamic-agent-runner-graphify-extract = "dynamic_agent_runner.tools.graphify_cli:console_main"
 
 [project.entry-points.pyinstaller40]
 hook-dirs = "dynamic_agent_runner.__pyinstaller:get_hook_dirs"

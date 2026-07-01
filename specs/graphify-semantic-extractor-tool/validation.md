@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Validation Log
 
-Status: planning checkpoint prepared; implementation not started
+Status: Slice 1 complete; manifest and execution slices remain
 
 ## Scope
 
@@ -35,6 +35,33 @@ Status: planning checkpoint prepared; implementation not started
 | Optional endpoint/Codex-process-farm scope deferred; console entrypoint in scope | Pass |
 | Existing registry and result-shaping boundaries preserved | Pass |
 | Implementation-blocking questions resolved | Pass: decisions recorded in `spec.md` and `plan.md` |
+
+## Slice 1 — Package, Registry, and Console Contract
+
+### RED
+
+- Command: `poetry run pytest tests/test_graphify_tools.py -q`
+- Observed result: collection failed because `dynamic_agent_runner.tools` did
+  not exist.
+- Interpretation: the public package and Graphify tool contract were not yet
+  implemented.
+
+### GREEN
+
+- Command: `poetry run pytest tests/test_graphify_tools.py -q`
+- Observed result: `4 passed`.
+- Interpretation: policy/result/worker contracts, explicit registry factory,
+  and parser argument shape are covered by fakes and local values.
+
+### Console and Packaging Checks
+
+- Command: `poetry run python -m dynamic_agent_runner.tools.graphify_cli --help`
+- Observed result: usage includes `--repo-root`, `--corpus-manifest`,
+  `--output-dir`, `--concurrency`, `--required-glob`, and `--model`.
+- Command: `poetry run ruff check src/dynamic_agent_runner/tools tests/test_graphify_tools.py`
+- Observed result: passed.
+- Command: `poetry check`
+- Observed result: `All set!`.
 
 ## Commands for Planning Checkpoint
 
