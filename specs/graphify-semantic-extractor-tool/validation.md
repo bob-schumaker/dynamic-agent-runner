@@ -198,3 +198,14 @@ until that evidence exists.
 - Implementation: `build_graphify_reconciliation_request(...)` carries only
   node, edge, hyperedge identifiers, labels, relations, endpoints, and source
   provenance. It is opt-in and does not execute a model or write artifacts.
+
+## T7.5 — Default-policy decision gate
+
+- Command: `poetry run pytest tests/test_graphify_tools.py`
+  `tests/test_import.py -q` — `29 passed`.
+- Command: `poetry run ruff check src/dynamic_agent_runner/tools`
+  `tests/test_graphify_tools.py` — passed.
+- Decision: retain the fixed eight-file default. The token-aware planner,
+  adaptive splitting, and reconciliation seam are opt-in until a benchmark
+  compares request size, latency, failure rate, and semantic coverage on a
+  representative corpus.

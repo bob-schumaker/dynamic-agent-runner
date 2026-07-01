@@ -172,5 +172,7 @@ These tasks are not authorized by the completed first-release slice:
       do not resend source text or bypass DAR approval and tracing.
       - Added an opt-in summary request builder; it does not execute a model or
         mutate extraction artifacts.
-- [ ] T7.5 [decision] Change the default chunk policy only after benchmark and
+- [x] T7.5 [decision] Change the default chunk policy only after benchmark and
       regression evidence is recorded in `validation.md`.
+      - Decision: retain the fixed eight-file default. The T7.1 baseline and
+        opt-in T7.2 planner are not sufficient evidence to change it yet.
