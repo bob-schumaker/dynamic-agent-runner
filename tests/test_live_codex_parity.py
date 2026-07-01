@@ -7,7 +7,9 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -21,7 +23,13 @@ from dynamic_agent_runner.openai_client import (
 
 
 LIVE_ENV = "DAR_RUN_LIVE_CODEX_PARITY"
-PROMPT = "Reply with exactly: DAR_CODEX_PARITY_OK"
+MODEL_ENV = "DAR_LIVE_MODEL"
+PROMPT = (
+    "Return exactly one JSON object with string field `status` equal to `ok` "
+    "and string field `value` equal to `DAR_STRUCTURED_PARITY_OK`. Do not add "
+    "markdown or an envelope."
+)
+StructuredValidator = Callable[[str], Mapping[str, Any]]
 
 
 def _codex_cli() -> str:
@@ -40,6 +48,50 @@ def _trace_payloads(trace_root: Path) -> list[dict[str, object]]:
     return payloads
 
 
+def _validate_structured_probe(content: str) -> Mapping[str, Any]:
+    value = json.loads(content)
+    if not isinstance(value, Mapping):
+        raise AssertionError("structured response must be a JSON object")
+    if value.get("status") != "ok" or value.get("value") != "DAR_STRUCTURED_PARITY_OK":
+        raise AssertionError(f"unexpected structured response: {value!r}")
+    return value
+
+
+def _codex_message(output: str) -> str:
+    messages: list[str] = []
+    for line in output.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        item = event.get("item")
+        if isinstance(item, Mapping) and item.get("type") == "agent_message":
+            text = item.get("text")
+            if isinstance(text, str):
+                messages.append(text)
+    if not messages:
+        raise AssertionError("Codex CLI emitted no agent message")
+    return messages[-1]
+
+
+def test_structured_probe_validator_requires_expected_contract() -> None:
+    assert (
+        _validate_structured_probe(
+            '{"status":"ok","value":"DAR_STRUCTURED_PARITY_OK"}'
+        )["status"]
+        == "ok"
+    )
+    with pytest.raises(AssertionError, match="unexpected structured response"):
+        _validate_structured_probe('{"status":"ok"}')
+
+
+def test_codex_message_reads_agent_message_from_jsonl() -> None:
+    output = json.dumps(
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "{}"}}
+    )
+    assert _codex_message(output) == "{}"
+
+
 @pytest.mark.skipif(
     os.environ.get(LIVE_ENV) != "1",
     reason=f"set {LIVE_ENV}=1 to run live ChatGPT/Codex parity coverage",
@@ -47,7 +99,9 @@ def _trace_payloads(trace_root: Path) -> list[dict[str, object]]:
 def test_live_dar_and_codex_cli_complete_same_probe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Catch auth, model-catalog, request, and stream drift against Codex CLI."""
+    """Compare two authenticated client paths against one structured contract."""
+
+    model = os.environ.get(MODEL_ENV) or "gpt-5.4-mini"
 
     codex_home = tmp_path / "codex-home"
     codex_home.mkdir()
@@ -72,6 +126,8 @@ def test_live_dar_and_codex_cli_complete_same_probe(
             _codex_cli(),
             "exec",
             "--json",
+            "--model",
+            model,
             "--skip-git-repo-check",
             PROMPT,
         ],
@@ -83,6 +139,7 @@ def test_live_dar_and_codex_cli_complete_same_probe(
     )
     assert cli.returncode == 0, cli.stderr
     assert cli.stdout.strip(), cli.stderr
+    _validate_structured_probe(_codex_message(cli.stdout))
     assert any(
         payload.get("model") or payload.get("input")
         for payload in _trace_payloads(trace_root)
@@ -95,12 +152,13 @@ def test_live_dar_and_codex_cli_complete_same_probe(
             OpenAIProviderConfig(codex_auth_preference="chatgpt_first")
         )
         adapter = create_async_openai_adapter(provider=provider)
-        model = os.environ.get("DAR_LIVE_MODEL") or await adapter.default_model()
         request = build_openai_request(
             model=model,
             messages=(OpenAIMessage(role="user", content=PROMPT),),
         )
         response = await asyncio.wait_for(adapter.create_response(request), timeout=180)
+        if response.content is None:
+            raise AssertionError("DAR returned no response content")
         return response.content
 
-    assert asyncio.run(run_dar()).strip()
+    _validate_structured_probe(asyncio.run(run_dar()))
