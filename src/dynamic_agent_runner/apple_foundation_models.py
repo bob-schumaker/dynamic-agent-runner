@@ -6,14 +6,15 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 import asyncio
 import importlib
+import json
 import sys
 from typing import Any
 from uuid import uuid4
 
 from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner.openai_client import (
+    AsyncOpenAIClientAdapter,
     OpenAIModelRequest,
-    create_async_openai_adapter,
 )
 
 
@@ -45,11 +46,29 @@ def create_apple_foundation_model_async_adapter(
 
     resolved = config or AppleFoundationModelConfig()
     client = _AppleAsyncClient(resolved)
-    return create_async_openai_adapter(
+    return AppleFoundationModelAsyncAdapter(
         client=client,
         models=resolved.model_aliases,
         is_local=True,
     )
+
+
+class AppleFoundationModelAsyncAdapter(AsyncOpenAIClientAdapter):
+    """Existing DAR async adapter with conservative Apple capability metadata."""
+
+    @property
+    def capabilities(self) -> Mapping[str, Any]:
+        return {
+            "provider": "apple_foundation_models",
+            "execution": "in_process",
+            "local": True,
+            "model_identity": "system_managed",
+            "structured_output": True,
+            "streaming": False,
+            "tool_calling": False,
+            "multimodal": False,
+            "embeddings": False,
+        }
 
 
 class _AppleAsyncClient:
@@ -95,6 +114,13 @@ class _AppleResponsesResource:
             if schema is not None and hasattr(result, "to_json")
             else str(result)
         )
+        if schema is not None:
+            try:
+                json.loads(content)
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise ModelExecutionError(
+                    "Apple Foundation Models structured output was not valid JSON"
+                ) from exc
         return {"id": f"apple-{uuid4().hex}", "output_text": content}
 
 
@@ -186,6 +212,23 @@ def _validate_request(request: OpenAIModelRequest) -> None:
         raise ModelExecutionError(
             f"Apple Foundation Models unsupported request fields: {sorted(unsupported)!r}"
         )
+    temperature = request.extra.get("temperature")
+    if temperature is not None and (
+        isinstance(temperature, bool)
+        or not isinstance(temperature, (int, float))
+        or not 0 <= temperature <= 2
+    ):
+        raise ModelExecutionError(
+            "Apple Foundation Models temperature must be between 0 and 2"
+        )
+    for key in ("max_tokens", "max_output_tokens"):
+        value = request.extra.get(key)
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value < 1
+        ):
+            raise ModelExecutionError(
+                f"Apple Foundation Models {key} must be a positive integer"
+            )
     _extract_json_schema(request.response_format)
 
 

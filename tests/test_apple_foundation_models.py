@@ -233,3 +233,80 @@ def test_cancellation_propagates_without_provider_retry() -> None:
 
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(adapter.create_response(request))
+
+
+def test_adapter_exposes_conservative_apple_capabilities() -> None:
+    adapter = create_apple_foundation_model_async_adapter()
+
+    assert adapter.capabilities == {
+        "provider": "apple_foundation_models",
+        "execution": "in_process",
+        "local": True,
+        "model_identity": "system_managed",
+        "structured_output": True,
+        "streaming": False,
+        "tool_calling": False,
+        "multimodal": False,
+        "embeddings": False,
+    }
+
+
+def test_sdk_import_failure_preserves_package_error_cause() -> None:
+    adapter = create_apple_foundation_model_async_adapter(
+        AppleFoundationModelConfig(availability_checker=lambda: (True, None))
+    )
+    request = build_openai_request(
+        model="apple-system-language-model",
+        messages=[{"role": "user", "content": "hello"}],
+    )
+
+    with pytest.raises(ModelExecutionError) as raised:
+        asyncio.run(adapter.create_response(request))
+    assert isinstance(raised.value.__cause__, ModelExecutionError)
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [{"temperature": "hot"}, {"temperature": -0.1}, {"max_tokens": 0}],
+)
+def test_invalid_generation_options_fail_before_session_creation(
+    extra: dict[str, object],
+) -> None:
+    calls: list[str] = []
+    adapter = create_apple_foundation_model_async_adapter(
+        AppleFoundationModelConfig(
+            availability_checker=lambda: (True, None),
+            session_factory=lambda _instructions: calls.append("session") or object(),
+        )
+    )
+    request = build_openai_request(
+        model="apple-system-language-model",
+        messages=[{"role": "user", "content": "hello"}],
+        **extra,
+    )
+
+    with pytest.raises(ModelExecutionError):
+        asyncio.run(adapter.create_response(request))
+    assert calls == []
+
+
+def test_invalid_structured_output_is_rejected() -> None:
+    adapter = create_apple_foundation_model_async_adapter(
+        AppleFoundationModelConfig(
+            availability_checker=lambda: (True, None),
+            session_factory=lambda _instructions: FakeSession(
+                None, FakeGeneratedJSON("not json")
+            ),
+        )
+    )
+    request = build_openai_request(
+        model="apple-system-language-model",
+        messages=[{"role": "user", "content": "return json"}],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {"schema": {"type": "object"}},
+        },
+    )
+
+    with pytest.raises(ModelExecutionError, match="valid JSON"):
+        asyncio.run(adapter.create_response(request))
