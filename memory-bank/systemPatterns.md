@@ -155,6 +155,12 @@
   OpenAI-compatible provider path; ChatGPT token auth maps to an explicit
   ChatGPT/Codex backend provider boundary in `openai_client.py` and is never
   copied into `OpenAIProviderConfig.api_key`.
+- ChatGPT/Codex `/models` responses include provider metadata that must not be
+  reduced to version-sorted IDs: priority controls ordering, visibility controls
+  picker exposure, and the first visible entry is the default. Generic
+  OpenAI-compatible providers may retain ID-only fallback behavior.
+- ChatGPT/Codex request parity includes forwarding `ChatGPT-Account-ID` when
+  the discovered auth record supplies an account identifier.
 - `OpenAIProviderConfig.codex_auth_preference` controls supported Codex auth
   ordering. The default is API-key/auth-token first; `chatgpt_first` chooses
   ChatGPT auth when it exists and falls back to API-key/auth-token auth when it
@@ -276,8 +282,8 @@
 - Do not treat interpreter, Apple callback, durable memory, provider compaction,
   or other future metadata as live behavior merely because a spec or preserved
   declaration exists.
-- Graphify semantic extraction remains an artifact-production concern: DAR may
-  provide a bounded, registry-mediated extractor and the
+- Graphify semantic extraction is an implemented artifact-production concern:
+  DAR provides a bounded, registry-mediated extractor and the
   `dynamic-agent-runner-graphify-extract` console wrapper, while Graphify owns
   graph construction, curation, diagnostics, query, and promotion. Accepted
   `graphify-out/` snapshots must not be mutated by the extractor.

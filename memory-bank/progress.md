@@ -7,10 +7,13 @@
   are explicitly labeled as external, all feature links resolve, and full
   `rumdl` validation passes. Commit `439e8dc` contains those spec changes plus
   the already-staged repo-local knowledge-graph skill deletions.
-- The Graphify extractor planning package is now implementation-ready through
-  `e4164e5`: it defines the `dynamic-agent-runner-graphify-extract` console
-  entrypoint, DAR-backed bounded parallel extraction, staged artifact handoff,
-  TDD tasks, and validation gates. No source implementation has started.
+- The Graphify extractor is implemented through six committed slices ending in
+  `b48f419`. It exposes `dynamic-agent-runner-graphify-extract`, validates a
+  curated corpus manifest and semantic subset, runs bounded parallel DAR
+  workers, writes deterministic staged artifacts and audit records outside
+  accepted `graphify-out/`, and preserves stock Graphify as the downstream
+  curation/promotion owner. `c0de3b8` caches provider-aware default model
+  resolution across chunks.
 - Apple Foundation Models adapter work has an authoritative draft spec in
   `specs/apple-foundation-model-adapter/spec.md`. A1 is bounded to local text
   and explicit JSON Schema output through the existing async provider facade;
@@ -38,6 +41,11 @@
   and `make -C docs html` passed before commit.
 - Default OpenAI/Codex auth discovery and ChatGPT/Codex backend compatibility
   are implemented.
+- The ChatGPT/Codex model-catalog discrepancy is documented as a provider-
+  wrapper bug-fix slice in commit `6d5d7a1`. Remaining TDD work must preserve
+  server priority and visibility metadata, hide `codex-auto-review` from the
+  picker, select the first visible model as default, forward account headers,
+  and leave generic provider ordering unchanged.
 - `openai-responses-tool-loop-compat` Slice R1 is implemented as the upstream
   response to a downstream Power Marimo feature request. It replaces the need
   for Power Marimo's local private monkey patch by preserving streamed

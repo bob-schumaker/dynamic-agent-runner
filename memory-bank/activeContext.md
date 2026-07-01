@@ -2,13 +2,17 @@
 
 ## Current Focus
 
-- Commit `e4164e5` prepared the `graphify-semantic-extractor-tool` for
-  implementation. The package-owned, registry-mediated exemplar now includes
-  the cross-repository `dynamic-agent-runner-graphify-extract` console contract,
-  DAR-bounded parallel workers, staged semantic artifacts, and deferred
-  endpoint/Graphify dependency boundaries. The earlier `439e8dc` commit
-  reconciled the spec index and marked downstream Power-Marimo paths as
-  external evidence rather than in-corpus files.
+- The Graphify semantic extractor is implemented through commits `4214d7f`,
+  `9236cd6`, `b0d1e0d`, `7a08576`, `4eab435`, and `b48f419`. The package-owned,
+  registry-mediated `dynamic-agent-runner-graphify-extract` console workflow
+  validates manifests and semantic output, runs bounded parallel workers,
+  emits staged artifacts outside accepted `graphify-out/`, and leaves stock
+  Graphify curation/promotion external. Commit `c0de3b8` also caches the
+  provider-aware default model once per extraction run.
+- The OpenAI-compatible provider spec now has a committed ChatGPT/Codex model
+  catalog parity bug-fix slice (`6d5d7a1`). TDD work remains: preserve catalog
+  priority and visibility, choose the first visible model as default, forward
+  `ChatGPT-Account-ID`, and retain generic-provider fallback behavior.
 - `specs/apple-foundation-model-adapter/spec.md` is now the highest-ROI pending
   feature specification. Commit `f8e7361` defines A1 as an async in-process
   Responses-compatible Apple Foundation Models adapter for text and explicit
