@@ -130,9 +130,15 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   acceptance-criteria, status, or code-conformance checks.
 - The `graphify-semantic-extractor-tool` implementation is package-owned and
   registry-mediated, with bounded parallel extraction and staged semantic JSON.
-  It does not turn the base package into a Graphify or OpenAI-compatible server
-  dependency; stock Graphify remains the downstream curation and promotion
-  workflow.
+  Its worker prompt requires a top-level semantic object with exact provenance
+  and endpoint fields; validation rejects arbitrary envelopes rather than
+  unwrapping them. It does not turn the base package into a Graphify or
+  OpenAI-compatible server dependency; stock Graphify remains the downstream
+  curation and promotion workflow.
+- The opt-in live interoperability test is a generic structured-output smoke
+  path, not a Graphify validator. It forces one model through both Codex CLI
+  and DAR, parses the CLI JSONL agent message, applies an injected validator,
+  uses a temporary Codex home, and stays outside ordinary unit-test runs.
 
 ## Documentation Tooling
 

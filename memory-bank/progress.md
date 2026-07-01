@@ -2,6 +2,17 @@
 
 ## Working
 
+- Graphify semantic extraction now has an explicit structured-output contract:
+  prompts prohibit response envelopes, require exact top-level arrays and
+  source provenance, and focused tests cover the instruction boundary. The
+  fix is committed in `ab0c40e`.
+- Generic live structured-output interoperability coverage is separate from
+  Graphify. `tests/test_live_codex_parity.py` compares the installed Codex CLI
+  and DAR adapter with the same model and prompt through an injected validator;
+  commits `588610e` and `9c34e91` added and generalized it. It is opt-in and
+  excluded from normal unit runs.
+- README and authored validation documentation now describe provider-dependent
+  Graphify model selection and the opt-in live test; committed in `b5af3a3`.
 - The spec corpus consistency pass is complete. The Graphify semantic
   extractor feature is indexed in `specs/README.md`, downstream-only references
   are explicitly labeled as external, all feature links resolve, and full

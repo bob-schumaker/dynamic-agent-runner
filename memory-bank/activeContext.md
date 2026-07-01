@@ -2,6 +2,19 @@
 
 ## Current Focus
 
+- The current branch includes the Graphify semantic-output contract fix in
+  `ab0c40e`: worker prompts require a top-level `nodes`/`edges`/`hyperedges`
+  object, exact `source_file` provenance, node ids, edge endpoints, and
+  hyperedge endpoint arrays. Focused Graphify tests pass.
+- Live interoperability coverage is intentionally separate from the Graphify
+  implementation. Commits `588610e` and `9c34e91` provide an opt-in,
+  structured-output test that sends the same model/prompt through the installed
+  Codex CLI and DAR adapter, validates both through an injected contract, and
+  keeps the normal unit suite offline. It requires
+  `DAR_RUN_LIVE_CODEX_PARITY=1`.
+- Documentation now records the current Graphify CLI model-selection behavior
+  and live-test boundary in `b5af3a3`; authored Sphinx files remain under
+  `docs/files/`.
 - The Graphify semantic extractor is implemented through commits `4214d7f`,
   `9236cd6`, `b0d1e0d`, `7a08576`, `4eab435`, and `b48f419`. The package-owned,
   registry-mediated `dynamic-agent-runner-graphify-extract` console workflow
