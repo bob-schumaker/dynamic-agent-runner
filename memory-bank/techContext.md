@@ -18,6 +18,10 @@
   - `test` group
 - Console script: `dynamic-agent-runner` declared under `[project.scripts]` and
   pointing to `dynamic_agent_runner.cli:console_main`.
+- The planned Graphify cross-repository console script is
+  `dynamic-agent-runner-graphify-extract`; it will delegate to the package
+  Graphify extraction API and DAR-bounded worker workflow rather than add a
+  second provider client.
 - PyInstaller hook discovery uses the standard `pyinstaller40` entry point
   group. The package-owned provider is
   `dynamic_agent_runner.__pyinstaller:get_hook_dirs`, which returns bundled hook
@@ -124,10 +128,10 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   source navigation or implementation proof. Corpus topology can prioritize
   consistency review but does not replace deterministic requirement,
   acceptance-criteria, status, or code-conformance checks.
-- The future `graphify-semantic-extractor-tool` spec proposes a
-  `dynamic-agent-runner[tools]` artifact producer with bounded parallel
-  extraction and staged semantic JSON. It remains unimplemented and must not
-  turn the base package into a Graphify or OpenAI-compatible server dependency.
+- The future `graphify-semantic-extractor-tool` spec proposes a package-owned,
+  registry-mediated artifact producer with bounded parallel extraction and
+  staged semantic JSON. It remains unimplemented and must not turn the base
+  package into a Graphify or OpenAI-compatible server dependency.
 
 ## Documentation Tooling
 

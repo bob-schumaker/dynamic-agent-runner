@@ -277,10 +277,10 @@
   or other future metadata as live behavior merely because a spec or preserved
   declaration exists.
 - Graphify semantic extraction remains an artifact-production concern: DAR may
-  provide a bounded, registry-mediated extractor behind the optional `tools`
-  extra, while Graphify owns graph construction, curation, diagnostics, query,
-  and promotion. Accepted `graphify-out/` snapshots must not be mutated by the
-  extractor.
+  provide a bounded, registry-mediated extractor and the
+  `dynamic-agent-runner-graphify-extract` console wrapper, while Graphify owns
+  graph construction, curation, diagnostics, query, and promotion. Accepted
+  `graphify-out/` snapshots must not be mutated by the extractor.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and

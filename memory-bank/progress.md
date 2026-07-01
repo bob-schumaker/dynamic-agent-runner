@@ -7,6 +7,10 @@
   are explicitly labeled as external, all feature links resolve, and full
   `rumdl` validation passes. Commit `439e8dc` contains those spec changes plus
   the already-staged repo-local knowledge-graph skill deletions.
+- The Graphify extractor planning package is now implementation-ready through
+  `e4164e5`: it defines the `dynamic-agent-runner-graphify-extract` console
+  entrypoint, DAR-backed bounded parallel extraction, staged artifact handoff,
+  TDD tasks, and validation gates. No source implementation has started.
 - Apple Foundation Models adapter work has an authoritative draft spec in
   `specs/apple-foundation-model-adapter/spec.md`. A1 is bounded to local text
   and explicit JSON Schema output through the existing async provider facade;
@@ -266,6 +270,10 @@
 
 ## Latest Milestones
 
+- `e59005e` committed the installed-skill, live-model-discovery, and staged
+  knowledge-graph guidance updates in `AGENTS.md` and `AGENTS.local.md`.
+- `e4164e5` added the Graphify extractor implementation plan, TDD tasks,
+  validation log, and cross-repository console-entrypoint contract.
 - `439e8dc` added the Graphify semantic extractor future spec and analysis,
   reconciled the spec index, and clarified external downstream references.
 - `c9f505f` defined the multi-interpreter gateway, descriptor/frontmatter,

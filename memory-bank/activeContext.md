@@ -2,12 +2,13 @@
 
 ## Current Focus
 
-- Commit `439e8dc` added the future `graphify-semantic-extractor-tool` spec
-  and analysis artifact. The proposed `dynamic-agent-runner[tools]` exemplar
-  uses DAR's bounded LLM workflow to emit staged Graphify semantic artifacts;
-  it does not replace Graphify or require a DAR OpenAI-compatible endpoint.
-  The same commit reconciled the spec index and marked downstream Power-Marimo
-  paths as external evidence rather than in-corpus files.
+- Commit `e4164e5` prepared the `graphify-semantic-extractor-tool` for
+  implementation. The package-owned, registry-mediated exemplar now includes
+  the cross-repository `dynamic-agent-runner-graphify-extract` console contract,
+  DAR-bounded parallel workers, staged semantic artifacts, and deferred
+  endpoint/Graphify dependency boundaries. The earlier `439e8dc` commit
+  reconciled the spec index and marked downstream Power-Marimo paths as
+  external evidence rather than in-corpus files.
 - `specs/apple-foundation-model-adapter/spec.md` is now the highest-ROI pending
   feature specification. Commit `f8e7361` defines A1 as an async in-process
   Responses-compatible Apple Foundation Models adapter for text and explicit
@@ -32,6 +33,9 @@
   knowledge corpus. Guidance and maintenance scripts now come from installed
   skills under `/Users/roschuma/.agents/skills/`; the deleted repo-local copies
   are not authoritative.
+- Commit `e59005e` updated AGENTS guidance to use installed graph skills, live
+  Osaurus model discovery, staged Graphify refresh gates, and the skill-local
+  knowledge-graph maintenance entrypoint.
 - Graphify is now restricted to the knowledge-only allowlist, including
   `specs/`, and semantic extraction routes through Osaurus with approved OpenAI
   models. Generated `graphify-out/`, `.codegraph/`, and local
