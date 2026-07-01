@@ -345,6 +345,73 @@ def test_selector_falls_back_for_unknown_context_and_unreliable_estimates(
     assert path.name == "a.md"
 
 
+def test_selector_isolates_files_that_exceed_safe_input_budget(tmp_path: Path) -> None:
+    make_corpus_file(tmp_path, "specs/large.md", "x")
+    manifest = GraphifyCorpusManifest(
+        repo_root=tmp_path, files=(GraphifyCorpusFile("specs/large.md"),)
+    )
+    estimate = estimate_graphify_corpus(
+        manifest, token_estimator=lambda _path, _cap: 81
+    )
+
+    decision = select_graphify_chunk_policy(
+        estimate, model_context_tokens=100, output_reserve_tokens=20
+    )
+
+    assert decision.policy == "fixed8"
+    assert decision.reason_code == "unsafe_file_size"
+    assert decision.isolated_paths == ("specs/large.md",)
+    assert decision.predicted_token_chunks == 0
+
+
+def test_selector_falls_back_when_provider_is_unstable(tmp_path: Path) -> None:
+    make_corpus_file(tmp_path, "specs/a.md", "x")
+    manifest = GraphifyCorpusManifest(
+        repo_root=tmp_path, files=(GraphifyCorpusFile("specs/a.md"),)
+    )
+    estimate = estimate_graphify_corpus(
+        manifest, token_estimator=lambda _path, _cap: 10
+    )
+
+    decision = select_graphify_chunk_policy(
+        estimate,
+        model_context_tokens=100,
+        output_reserve_tokens=20,
+        provider_stable=False,
+    )
+
+    assert decision.policy == "fixed8"
+    assert decision.reason_code == "provider_unstable"
+
+
+@pytest.mark.parametrize(
+    ("tokens", "expected_concurrency"),
+    [(39, 2), (51, 1)],
+)
+def test_selector_reduces_concurrency_for_large_files(
+    tmp_path: Path, tokens: int, expected_concurrency: int
+) -> None:
+    for name in ("specs/a.md", "specs/b.md"):
+        make_corpus_file(tmp_path, name, "x")
+    manifest = GraphifyCorpusManifest(
+        repo_root=tmp_path,
+        files=tuple(GraphifyCorpusFile(name) for name in ("specs/a.md", "specs/b.md")),
+    )
+    estimate = estimate_graphify_corpus(
+        manifest, token_estimator=lambda _path, _cap: tokens
+    )
+
+    decision = select_graphify_chunk_policy(
+        estimate,
+        model_context_tokens=120,
+        output_reserve_tokens=20,
+        fixed_chunk_size=1,
+    )
+
+    assert decision.policy == "token_aware"
+    assert decision.concurrency == expected_concurrency
+
+
 def test_semantic_validation_accepts_graphify_subset() -> None:
     payload = {
         "nodes": [
