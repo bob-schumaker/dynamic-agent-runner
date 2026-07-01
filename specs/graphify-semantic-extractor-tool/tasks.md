@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Tasks
 
-Status: Slices 1–5 complete; completion gates remain
+Status: First-release implementation complete; stock Graphify handoff remains external
 
 ## Slice 0 — Planning Checkpoint
 
@@ -123,17 +123,29 @@ Status: Slices 1–5 complete; completion gates remain
 
 ## Slice 6 — Completion Gate
 
-- [ ] T6.1 Run focused tests:
+- [x] T6.1 Run focused tests:
       `poetry run pytest tests/test_graphify_tools.py tests/test_import.py -q`
-- [ ] T6.2 Run affected registry tests and then the full suite:
+- [x] T6.2 Run affected registry tests and then the full suite:
       `poetry run pytest tests/test_registry.py tests/test_capabilities.py`
       `tests/test_import.py -q`
       and `poetry run pytest -q`
-- [ ] T6.3 Run `poetry run ruff check src tests` and package build
+- [x] T6.3 Run `poetry run ruff check src tests` and package build
       `poetry build`.
-- [ ] T6.4 Run focused pre-commit on changed source, tests, docs, specs,
+- [x] T6.4 Run focused pre-commit on changed source, tests, docs, specs,
       `pyproject.toml`, and lockfile.
-- [ ] T6.5 Run spec-link/status consistency checks and update `specs/README.md`
+- [x] T6.5 Run spec-link/status consistency checks and update `specs/README.md`
       only after implementation evidence exists.
-- [ ] T6.6 Record final evidence, update feature status, and prepare a separate
+- [x] T6.6 Record final evidence, update feature status, and prepare a separate
       implementation commit from this planning checkpoint.
+
+### Completion evidence
+
+- Focused and affected tests: `86 passed`.
+- Full suite: `poetry run pytest -q` — `616 passed`.
+- Lint: `poetry run ruff check src tests` — passed.
+- Metadata: `poetry check` — passed.
+- Installed entrypoint help: `dynamic-agent-runner-graphify-extract --help` — passed.
+- Package build: attempted with `poetry build`; blocked by unavailable
+  `artifactory.oci.oraclecorp.com` in the execution environment.
+- Focused pre-commit and `git diff --check` passed before the completion commit.
+- Unit tests use fake workers; no live provider or Graphify process is required.

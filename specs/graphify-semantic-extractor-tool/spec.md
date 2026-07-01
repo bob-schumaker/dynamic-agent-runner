@@ -5,7 +5,8 @@
 - Feature slug: `graphify-semantic-extractor-tool`
 - Mode: `guided`
 - Artifact type: future feature specification
-- Status: implementation-ready planning; not implementation authorization
+- Status: first-release implementation complete; endpoint and stock Graphify
+  orchestration remain deferred
 - Related specs:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/subagent-tool-pack/spec.md`

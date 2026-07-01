@@ -298,6 +298,7 @@ def validate_graphify_semantic_result(
 def extract_graphify_semantic_artifacts(
     manifest: GraphifyCorpusManifest | Mapping[str, Any],
     *,
+    repo_root: Path | None = None,
     output_dir: Path,
     worker: WorkerLike,
     concurrency: int = 3,
@@ -313,6 +314,7 @@ def extract_graphify_semantic_artifacts(
     return _asyncio.run(
         extract_graphify_semantic_artifacts_async(
             manifest,
+            repo_root=repo_root,
             output_dir=output_dir,
             worker=worker,
             concurrency=concurrency,
@@ -327,6 +329,7 @@ def extract_graphify_semantic_artifacts(
 async def extract_graphify_semantic_artifacts_async(
     manifest: GraphifyCorpusManifest | Mapping[str, Any],
     *,
+    repo_root: Path | None = None,
     output_dir: Path,
     worker: WorkerLike,
     concurrency: int = 3,
@@ -337,8 +340,10 @@ async def extract_graphify_semantic_artifacts_async(
 ) -> GraphifySemanticExtractionResult:
     """Async implementation for bounded, deterministic extraction."""
 
+    policy_repo_root = repo_root.resolve() if repo_root is not None else None
     policy = GraphifySemanticExtractionPolicy(
         output_dir=output_dir,
+        repo_root=policy_repo_root,
         concurrency=concurrency,
         chunk_size=chunk_size,
         required_globs=tuple(required_globs),

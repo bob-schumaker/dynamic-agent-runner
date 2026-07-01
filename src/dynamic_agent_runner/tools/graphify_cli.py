@@ -57,6 +57,7 @@ def main(
         selected_worker = worker or _adapter_worker(adapter, args.model)
         result = extract_graphify_semantic_artifacts(
             manifest,
+            repo_root=args.repo_root,
             output_dir=args.output_dir,
             worker=selected_worker,
             concurrency=args.concurrency,

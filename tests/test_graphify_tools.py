@@ -25,6 +25,7 @@ from dynamic_agent_runner.tools.graphify import (
 )
 from dynamic_agent_runner.tools.graphify_cli import build_graphify_parser
 from dynamic_agent_runner.tools.graphify_cli import main as graphify_cli_main
+from dynamic_agent_runner.registry import InMemoryToolRegistry
 
 
 def test_graphify_public_contract_is_constructible(tmp_path: Path) -> None:
@@ -46,6 +47,18 @@ def test_graphify_factory_returns_explicit_registered_tool() -> None:
 def test_graphify_factory_requires_worker() -> None:
     with pytest.raises(TypeError):
         create_graphify_semantic_extractor_tool()
+
+
+def test_graphify_tool_requires_explicit_registry_registration() -> None:
+    tool = create_graphify_semantic_extractor_tool(
+        worker=lambda args: {"received": dict(args)}
+    )
+    registry = InMemoryToolRegistry([tool])
+
+    result = asyncio.run(registry.invoke_tool_async("graphify_semantic_extract", {}))
+
+    assert result.success is True
+    assert result.model_facing_output == {"received": {}}
 
 
 def test_graphify_console_parser_accepts_cross_repository_arguments() -> None:

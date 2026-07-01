@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Validation Log
 
-Status: Slices 1–5 complete; completion gates remain
+Status: First-release implementation complete; stock Graphify handoff remains external
 
 ## Scope
 
@@ -138,21 +138,20 @@ Status: Slices 1–5 complete; completion gates remain
   pass: all 41 README feature links resolved and no unqualified missing internal
   spec references remained.
 
-## Implementation Evidence Placeholders
+## Completion Evidence
 
-The following remain intentionally unfilled until source implementation begins:
+- Focused and affected tests: `86 passed`.
+- Full suite: `poetry run pytest -q` — `616 passed`.
+- Ruff: `poetry run ruff check src tests` — passed.
+- Metadata: `poetry check` — passed.
+- Installed console entrypoint help passed for
+  `dynamic-agent-runner-graphify-extract --help`.
+- Package build was attempted with `poetry build` but could not resolve the
+  configured Artifactory host in this environment. No source or test failure
+  was observed.
+- Focused pre-commit and `git diff --check` passed for the completion slice.
+- Unit tests use fake workers and do not call a live model or Graphify.
 
-- RED/GREEN focused test results for `tests/test_graphify_tools.py`.
-- Package import and explicit registry opt-in evidence.
-- Console `--help`, argument validation, and delegation evidence.
-- Manifest/path-safety and prompt-injection fixture results.
-- Deterministic merge byte-comparison and audit results.
-- Full pytest, Ruff, package-build, and focused pre-commit results.
-- Stock Graphify handoff smoke test using a staged candidate outside the
-  accepted snapshot.
-
-## Completion Gate
-
-Do not mark the feature implemented or update the README completion matrix until
-all task slices, focused/full validation, package build, and staged Graphify
-handoff evidence pass.
+The staged artifacts remain outside accepted `graphify-out/`; running stock
+Graphify to curate, validate, diagnose, and promote them is an explicit
+downstream handoff and is not part of this package implementation.
