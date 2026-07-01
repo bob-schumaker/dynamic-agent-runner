@@ -18,7 +18,8 @@
   - `/Users/roschuma/Repos/roschuma/power-marimo/src/power_marimo/tools/runtime_registry.py`
   - `/Users/roschuma/Repos/roschuma/power-marimo/src/power_marimo/notebook/chat_workspace.py`
   - `/Users/roschuma/Repos/roschuma/power-marimo/src/power_marimo/llm/model_selection.py`
-  - `/Users/roschuma/Repos/roschuma/power-marimo/specs/dynamic-agent-runner-integration-refresh/tasks.md`
+  - downstream `power-marimo/specs/dynamic-agent-runner-integration-refresh/tasks.md`
+    (reviewed in the separate downstream repository; not part of this corpus)
 
 ## Objective
 
