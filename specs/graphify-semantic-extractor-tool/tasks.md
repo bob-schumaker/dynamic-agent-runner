@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Tasks
 
-Status: Slices 1–4 complete; runtime integration and completion gates remain
+Status: Slices 1–5 complete; completion gates remain
 
 ## Slice 0 — Planning Checkpoint
 
@@ -100,24 +100,26 @@ Status: Slices 1–4 complete; runtime integration and completion gates remain
 
 ## Slice 5 — Runtime Integration, Console Delegation, and Documentation
 
-- [ ] T5.1 [tests] Add RED/GREEN coverage proving explicit registry
+- [x] T5.1 [tests] Add RED/GREEN coverage proving explicit registry
       registration is required, tool invocation uses existing result shaping,
       and sensitive corpus/worker details are not emitted in model-facing
       output or traces.
       - Spec: FR-1, FR-8; Files: `tests/test_graphify_tools.py`,
         `tests/test_registry.py`
-- [ ] T5.2 [tests] Add RED/GREEN coverage proving the console script delegates
+- [x] T5.2 [tests] Add RED/GREEN coverage proving the console script delegates
       to the same extraction API with a fake worker/model path and does not
       spawn additional processes or invoke Graphify.
-      - Spec: FR-1, FR-5, FR-9; Files: `tests/test_cli.py`
-- [ ] T5.3 [implementation] Wire only the required exports and registry
+      - Spec: FR-1, FR-5, FR-9; Files: `tests/test_graphify_tools.py`
+- [x] T5.3 [implementation] Wire only the required exports and registry
       metadata; preserve the existing `ToolRegistry` invocation path and
       capability boundaries.
       - Files: `src/dynamic_agent_runner/tools/graphify.py`, package exports
-- [ ] T5.4 [docs] Add installation, console usage, and staged-handoff
+- [x] T5.4 [docs] Add installation, console usage, and staged-handoff
       documentation using authored README/Sphinx sources. Do not document an
       endpoint, live Graphify dependency, or accepted-snapshot mutation.
       - Files: `README.md` or `docs/files/` selected during implementation
+      - Evidence: README documents console invocation, manifest/output
+        boundaries, and stock Graphify handoff.
 
 ## Slice 6 — Completion Gate
 

@@ -566,6 +566,28 @@ The CLI prints the final workflow result to standard output. Loading,
 validation, registry, model, and execution failures are reported to standard
 error with a non-zero exit code.
 
+### DAR Graphify semantic extraction
+
+The package also exposes `dynamic-agent-runner-graphify-extract` for other
+repositories that need DAR-backed parallel semantic extraction. It accepts a
+small JSON corpus manifest containing a repository root and relative document
+paths, validates the corpus, runs bounded DAR model workers, and writes staged
+Graphify semantic artifacts to a candidate output directory:
+
+```bash
+dynamic-agent-runner-graphify-extract \
+  --repo-root /path/to/repository \
+  --corpus-manifest /path/to/repository/graphify-manifest.json \
+  --output-dir /tmp/graphify-candidate \
+  --concurrency 3 \
+  --model foundation
+```
+
+The command does not invoke Graphify, mutate an accepted `graphify-out/`
+snapshot, or start extra Codex processes. After extraction, hand the staged
+artifacts to Graphify's normal build, curation, diagnostics, and promotion
+workflow. The tool remains opt-in at the DAR registry boundary.
+
 ## Validation
 
 Current tests cover:

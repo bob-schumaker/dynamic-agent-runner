@@ -1,6 +1,6 @@
 # Graphify Semantic Extractor Tool Validation Log
 
-Status: Slices 1–4 complete; runtime integration and completion gates remain
+Status: Slices 1–5 complete; completion gates remain
 
 ## Scope
 
@@ -115,6 +115,16 @@ Status: Slices 1–4 complete; runtime integration and completion gates remain
   and accepted-snapshot protection are covered.
 - Command: `poetry run ruff check src/dynamic_agent_runner/tools tests/test_graphify_tools.py`
 - Observed result: passed after formatter cleanup.
+
+### Console Delegation and Documentation
+
+- Command: `poetry install --only main`
+- Observed result: current package installed with the new script metadata.
+- Command: `poetry run dynamic-agent-runner-graphify-extract --help`
+- Observed result: command exposes repository, manifest, output, concurrency,
+  required-glob, and model options.
+- Documentation: `README.md` now documents cross-repository invocation and the
+  stock Graphify staged-artifact handoff.
 
 ## Commands for Planning Checkpoint
 
