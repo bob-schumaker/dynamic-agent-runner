@@ -175,11 +175,20 @@
   eligible model-exposable tools, pack OpenAI-compatible descriptors within a
   token budget, and keep NLTK parser work as an optional benchmarked experiment.
 - Memory-aware context pipeline is future spec-only. The proposed
-  `metadata.memory_pipeline` surface should model caller-owned durable
-  agent/user memory separately from `metadata.rag_pipeline`, keep retrieval
-  explicit and fake-testable in the first slice, and forbid implicit persistence
-  of RAG-retrieved content into memory unless the workflow invokes an explicit
-  caller-owned ingestion tool.
+  `metadata.memory_pipeline` surface is passive context policy for caller-owned
+  durable agent/user memory, separate from active `metadata.rag_pipeline`
+  retrieval. Active memory evidence retrieval remains an explicit caller-owned
+  tool operation; the passive pipeline must not invoke it or implicitly persist
+  RAG-retrieved content unless the workflow explicitly calls a caller-owned
+  ingestion tool.
+- Graphify semantic extraction is a package-owned, registry-mediated DAR tool
+  that writes staged artifacts outside accepted `graphify-out/`; stock Graphify
+  remains responsible for build, curation, validation, and promotion. The
+  completed first release uses deterministic fixed file-count chunks. A
+  follow-on blended policy may combine token-budget packing, file-count and
+  per-file caps, adaptive bisection, and summary-only cross-chunk
+  reconciliation, but it requires benchmark and TDD evidence before changing
+  the default.
 - OpenAI response normalization extracts text and function calls into internal
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 - `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,
