@@ -5,8 +5,10 @@
 
 - The latest committed Graphify spec alignment is `54ac838`. T7 is implemented
   as opt-in token/file chunking with adaptive splitting, summary-only
-  reconciliation, and safety-constrained partial merge/duplicate repair. T8
-  prepares a pure advisory policy selector; fixed8 remains the runtime default.
+  reconciliation, and safety-constrained partial merge/duplicate repair. T8 is implemented as a pure advisory policy selector. The T8.7 benchmark
+  (13 sibling repositories, 472 admitted documents) retained fixed8 as the
+  runtime default; token-aware remains opt-in and advisory after gpt-5.4-mini
+  and gpt-5.4 live probes mostly timed out.
 - The current branch includes the Graphify semantic-output contract fix in
   `ab0c40e`: worker prompts require a top-level `nodes`/`edges`/`hyperedges`
   object, exact `source_file` provenance, node ids, edge endpoints, and
@@ -164,11 +166,13 @@
   Responses seam, `25ee3e6` adds model aliases, `7ac62ef` adds DAR auth/config
   handoff, `e244284` preserves instruction/tool transcript semantics, and
   `55f4aa2` adds the opt-in auth-resolving wrapper with SDK rollback.
-- `specs/memory-aware-context-pipeline/spec.md` remains a proposed
-  caller-owned long-term memory orchestration contract inspired by `memlayer`.
-  Its first slice is retrieval-only and fake-testable, with an explicit
-  fold-back gate to `metadata.rag_pipeline` if memory-specific identity and
-  provenance do not justify a separate surface.
+- `specs/memory-aware-context-pipeline/spec.md` remains a proposed caller-owned
+  long-term memory orchestration contract inspired by `memlayer`. Its first
+  passive-context slice is implemented and fake-testable: manifest validation,
+  capability reporting, and metadata preservation are live, while retrieval,
+  salience, ingestion, persistence, and background execution remain deferred.
+  The explicit fold-back gate to `metadata.rag_pipeline` remains pending exit-gate
+  reassessment.
 - NLTK parser work for tool descriptor selection is explicitly deferred as a
   future benchmarked experiment, not Slice T1 scope.
 - The previous completed stream resolved a downstream Power-Marimo blocker in

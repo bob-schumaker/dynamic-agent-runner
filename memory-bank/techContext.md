@@ -21,7 +21,8 @@
 - The Graphify cross-repository console script is
   `graphify-extract`; it delegates to the package Graphify
   extraction API and DAR-bounded worker workflow rather than adding a second
-  provider client.
+  provider client. T8.7 benchmark runs used `gpt-5.4-mini` and `gpt-5.4`;
+  neither produced evidence to replace the fixed8 runtime default.
 - PyInstaller hook discovery uses the standard `pyinstaller40` entry point
   group. The package-owned provider is
   `dynamic_agent_runner.__pyinstaller:get_hook_dirs`, which returns bundled hook

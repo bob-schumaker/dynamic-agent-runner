@@ -194,8 +194,9 @@
   completed first release keeps deterministic fixed file-count chunks as the
   default. T7 adds opt-in token/file packing, adaptive bisection, summary-only
   reconciliation, and safety-constrained partial merge/duplicate repair.
-  T8 prepares a pure advisory policy selector; it must not change the runtime
-  default until benchmark evidence passes.
+  T8 is a pure advisory policy selector. T8.7 benchmark evidence retained fixed8
+  as the runtime default; token-aware remains opt-in and must not silently
+  change production chunking.
 - OpenAI response normalization extracts text and function calls into internal
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 - `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,
@@ -285,7 +286,7 @@
 - Use `specs/README.md` as the current spec inventory and completion matrix.
   Future live-runtime work should start from the relevant feature spec under
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
-- The current roadmap has capability status, approval/sandbox v1, MCP v1, guardrail v1, iterative loops, skill source resolution, host integration, local-model availability, Apple A1 implementation, and LiteLLM L1 plus opt-in Codex L2 slices complete. Apple pytest-native harness isolation, A2 callbacks, memory-aware first slice, and provider-backed compaction remain follow-up work; upstream LiteLLM publication and global default Codex replacement remain deferred.
+- The current roadmap has capability status, approval/sandbox v1, MCP v1, guardrail v1, iterative loops, skill source resolution, host integration, local-model availability, Apple A1 implementation, and LiteLLM L1 plus opt-in Codex L2 slices complete. Apple pytest-native harness isolation, A2 callbacks, memory retrieval/persistence, and provider-backed compaction remain follow-up work; upstream LiteLLM publication and global default Codex replacement remain deferred.
 - `specs/capability-status-report/spec.md` owns the implemented preflight
   reporting direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.

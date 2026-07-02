@@ -3,6 +3,8 @@
 
 ## Working
 
+- Graphify T8.7 benchmark evidence is recorded in commit 438d03a and the gpt-5.4 rerun in dc6272d. Across 13 sibling repositories, fixed8 remains the runtime default; token-aware is advisory/opt-in because live probes mostly timed out.
+- The memory-aware context pipeline first slice is implemented in ae1c0f5. It validates passive memory metadata, reports capabilities, and preserves the declared pipeline without invoking retrieval or persistence.
 - LiteLLM provider-adapter Slice L1 is implemented and validated. DAR includes
   the bundled `dynamic_agent_runner.litellm` sync/async OpenAI-compatible
   transport, repository-owned request/response translation, public factories,
@@ -267,13 +269,15 @@
   evidence is recorded in `specs/host-workflow-integration/validation.md`;
   future work is only expected if another downstream host integration gap
   appears.
-- `memory-aware-context-pipeline` is captured as a proposed future feature spec.
+- `memory-aware-context-pipeline` remains a proposed feature surface, but its
+  passive-context first slice is implemented and validated in `ae1c0f5`;
+  retrieval, salience, ingestion, persistence, and background execution remain
+  future work.
   It adapts useful `memlayer` ideas into a DAR-native, caller-owned contract
   for durable agent/user memory retrieval, provenance, traceability, and
-  no-implicit-save behavior. Its first slice is intentionally retrieval-only
-  and fake-testable; salience execution, ingestion execution, background work,
-  embeddings, durable stores, provider wrappers, and `memlayer` itself remain
-  out of scope.
+  no-implicit-save behavior. The implemented first slice is metadata-only and
+  fake-testable; retrieval, salience, ingestion, background work, embeddings,
+  durable stores, provider wrappers, and `memlayer` itself remain out of scope.
 - `async-session-memory-pipeline` remains a metadata/session-boundary reference.
   Pruning-context graph injection was completed through
   `internal-graph-mutation` and `context-management-prepare-stage` without
