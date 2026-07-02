@@ -13,7 +13,9 @@ from dynamic_agent_runner import (
 from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
 from dynamic_agent_runner.openai_client import create_default_openai_provider
 from dynamic_agent_runner.litellm_client import (
+    create_async_litellm_codex_adapter,
     create_async_litellm_adapter,
+    create_litellm_codex_adapter,
     create_litellm_adapter_from_provider_config,
     create_litellm_adapter,
 )
@@ -146,6 +148,76 @@ def test_litellm_adapter_translates_chat_request_and_normalizes_response() -> No
     ]
     assert result.content == "hello"
     assert result.response_id == "chatcmpl_1"
+
+
+def test_litellm_codex_adapter_uses_native_responses_transport() -> None:
+    calls: list[dict[str, object]] = []
+
+    def responses(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {
+            "id": "resp_codex",
+            "output": [
+                {"type": "message", "content": [{"type": "output_text", "text": "ok"}]}
+            ],
+        }
+
+    adapter = create_litellm_codex_adapter(
+        token="codex-token",
+        model="chatgpt/codex-mini-latest",
+        responses=responses,
+        config=OpenAIProviderConfig(
+            base_url="https://chatgpt.example/backend-api/codex",
+            chatgpt_account_id="acct-1",
+        ),
+    )
+    request = build_openai_request(
+        model="chatgpt/codex-mini-latest",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    result = adapter.create_response(request)
+
+    assert calls == [
+        {
+            "api_key": "codex-token",
+            "api_base": "https://chatgpt.example/backend-api/codex",
+            "custom_llm_provider": "chatgpt",
+            "extra_headers": {"ChatGPT-Account-ID": "acct-1"},
+            "model": "chatgpt/codex-mini-latest",
+            "input": [{"role": "user", "content": "Hello"}],
+        }
+    ]
+    assert result.response_id == "resp_codex"
+
+
+def test_async_litellm_codex_adapter_uses_native_responses_transport() -> None:
+    calls: list[dict[str, object]] = []
+
+    async def aresponses(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"id": "resp_async", "output": []}
+
+    adapter = create_async_litellm_codex_adapter(
+        token="codex-token",
+        aresponses=aresponses,
+    )
+    request = build_openai_request(
+        model="chatgpt/codex-mini-latest",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    result = asyncio.run(adapter.create_response(request))
+
+    assert calls == [
+        {
+            "api_key": "codex-token",
+            "custom_llm_provider": "chatgpt",
+            "model": "chatgpt/codex-mini-latest",
+            "input": [{"role": "user", "content": "Hello"}],
+        }
+    ]
+    assert result.response_id == "resp_async"
 
 
 def test_async_litellm_adapter_translates_and_normalizes_response() -> None:
