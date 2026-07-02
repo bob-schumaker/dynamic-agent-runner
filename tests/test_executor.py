@@ -5553,18 +5553,14 @@ def test_execute_workflow_augmented_uses_default_openai_for_missing_coverage(
         models=["other-model"],
     )
     seen_adapters: list[object] = []
-    created_kwargs: list[dict[str, object]] = []
     monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    class FakeOfficialAsyncOpenAI:
-        def __init__(self, **kwargs: object) -> None:
-            created_kwargs.append(dict(kwargs))
+    async def fake_acompletion(**kwargs: object) -> object:
+        return kwargs
 
     monkeypatch.setitem(
-        sys.modules,
-        "openai",
-        SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
+        sys.modules, "litellm", SimpleNamespace(acompletion=fake_acompletion)
     )
 
     async def fake_create_model_response(adapter, request):
@@ -5588,7 +5584,7 @@ def test_execute_workflow_augmented_uses_default_openai_for_missing_coverage(
     assert supplied.client.responses.calls == []
     assert isinstance(seen_adapters[0], AsyncOpenAIClientAdapter)
     assert seen_adapters[0].models == ("gpt-test",)
-    assert created_kwargs == [{"api_key": "ambient-key"}]
+    assert seen_adapters[0]._provider.config.api_key == "ambient-key"
 
 
 def test_execute_workflow_augmented_default_openai_uses_chatgpt_codex_auth(
