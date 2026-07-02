@@ -109,7 +109,9 @@ pre-commit run --files <changed files>
 
 ## Non-Implementation Notes
 
-- Do not add provider discovery from `/v1/models`.
+- Do not add arbitrary-provider discovery from `/v1/models`; provider-specific
+  ChatGPT/Codex catalog discovery belongs to the OpenAI-compatible provider
+  wrapper spec.
 - Do not start local model servers.
 - Do not use Hugging Face search or download for adapter coverage.
 - Do not add a workflow-manifest field for adapter coverage.

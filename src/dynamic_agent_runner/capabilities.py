@@ -30,6 +30,7 @@ _OWNER_GUARDRAILS = "live-guardrail-execution"
 _OWNER_MCP = "mcp-runtime-integration"
 _OWNER_PERSISTENT_SESSIONS = "persistent-agent-sessions"
 _OWNER_RAG = "rag-orchestration-contract"
+_OWNER_MEMORY = "memory-aware-context-pipeline"
 _OWNER_SANDBOX = "sandbox-workspace-runtime"
 _OWNER_SKILL_SOURCE = "skill-source-resolution"
 _OWNER_TOOL_LOOP = "iterative-agent-loop-runtime"
@@ -397,6 +398,7 @@ def _capability_items(
             )
         )
     items.extend(_rag_items(manifest.rag_pipeline, tool_registry=tool_registry))
+    items.extend(_memory_items(manifest.memory_pipeline, tool_registry=tool_registry))
     if has_skill_refs:
         items.append(_skill_source_resolution_item(workflow, plan=plan))
     items.extend(
@@ -673,6 +675,91 @@ def _guardrail_coverage_items(
                 ),
                 owner=_OWNER_GUARDRAILS,
                 required_collaborator=None if has_guardrail else "guardrail_registry",
+            )
+        )
+    return tuple(items)
+
+
+def _memory_items(
+    pipeline: Mapping[str, Any], *, tool_registry: object | None
+) -> tuple[CapabilityStatusItem, ...]:
+    if not pipeline:
+        return ()
+    tiers = pipeline.get("retrieval_tiers")
+    if not isinstance(tiers, Mapping):
+        return (
+            _metadata_only_item(
+                "metadata.memory_pipeline",
+                "Memory context pipeline",
+                _OWNER_MEMORY,
+                "Memory metadata is declared but retrieval tiers are not declared.",
+            ),
+        )
+    items: list[CapabilityStatusItem] = [
+        CapabilityStatusItem(
+            id="metadata.memory_pipeline",
+            label="Memory context pipeline",
+            state=CapabilityState.METADATA_ONLY,
+            category="memory",
+            summary="Passive memory context is validated and handed to context preparation; retrieval remains caller-owned.",
+            owner=_OWNER_MEMORY,
+            details={
+                "mode": pipeline.get("mode", "lightweight"),
+                "tiers": tuple(sorted(str(key) for key in tiers)),
+            },
+        )
+    ]
+    for tier, declaration in tiers.items():
+        if not isinstance(declaration, Mapping):
+            continue
+        tool_id = declaration.get("retriever_tool_id")
+        required = declaration.get("required", True) is True
+        if not tool_id or tool_registry is None:
+            state = (
+                CapabilityState.MISSING_COLLABORATOR
+                if required and tool_id
+                else CapabilityState.METADATA_ONLY
+            )
+            summary = (
+                "Required memory retriever needs a caller-supplied tool registry."
+                if state is CapabilityState.MISSING_COLLABORATOR
+                else "Memory retriever is metadata-only."
+            )
+        else:
+            try:
+                tool_registry.get_tool(str(tool_id))
+                state, summary = (
+                    CapabilityState.LIVE,
+                    "Caller-owned memory retriever is covered by the supplied registry.",
+                )
+            except Exception:
+                state, summary = (
+                    (
+                        CapabilityState.MISSING_COLLABORATOR,
+                        "Required memory retriever is missing from the supplied registry.",
+                    )
+                    if required
+                    else (
+                        CapabilityState.METADATA_ONLY,
+                        "Optional memory retriever is not registered.",
+                    )
+                )
+        items.append(
+            CapabilityStatusItem(
+                id=f"memory.retriever.{tier}",
+                label=f"Memory retriever {tier}",
+                state=state,
+                category="memory",
+                summary=summary,
+                owner=_OWNER_MEMORY,
+                required_collaborator="tool_registry"
+                if state is CapabilityState.MISSING_COLLABORATOR
+                else None,
+                details={
+                    "tier": str(tier),
+                    "tool_id": str(tool_id or ""),
+                    "required": required,
+                },
             )
         )
     return tuple(items)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import builtins
 import sys
 from types import SimpleNamespace
 
@@ -22,6 +21,8 @@ from dynamic_agent_runner.openai_client import (
     create_default_async_openai_client,
     create_default_openai_client,
     create_default_openai_provider,
+    create_official_async_openai_client,
+    create_official_openai_client,
     create_openai_adapter_from_provider_config,
     create_openai_response,
     is_context_overflow_error,
@@ -431,6 +432,21 @@ def test_adapter_lists_lowest_version_supported_model_first() -> None:
     assert adapter.default_model() == "gpt-5.4"
 
 
+def test_generic_provider_catalog_keeps_id_only_sorting_behavior() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels(
+        {
+            "data": [
+                {"id": "gpt-5.5", "priority": 1, "visibility": "hide"},
+                {"id": "gpt-5.4", "priority": 20, "visibility": "public"},
+            ]
+        }
+    )
+    adapter = OpenAIClientAdapter(FakeClient(responses, models=models))
+
+    assert adapter.list_supported_models() == ("gpt-5.4", "gpt-5.5")
+
+
 def test_adapter_refreshes_supported_models_when_requested() -> None:
     responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
     models = FakeModels({"data": [{"id": "gpt-a"}]})
@@ -505,6 +521,70 @@ def test_chatgpt_codex_adapter_exposes_supported_models(
     assert adapter.list_supported_models() == ("codex-mini-latest",)
     assert adapter.list_supported_models() == ("codex-mini-latest",)
     assert models.calls == [{"extra_query": {"client_version": "9.8.7"}}]
+
+
+def test_chatgpt_codex_catalog_preserves_priority_hides_models_and_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels(
+        {
+            "models": [
+                {"slug": "gpt-5.4", "priority": 20, "visibility": "public"},
+                {"slug": "gpt-5.6-sol", "priority": 1, "visibility": "public"},
+                {"slug": "gpt-5.6-hidden", "priority": 0, "visibility": "hide"},
+            ]
+        }
+    )
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "version.json").write_text(
+        '{"latest_version": "9.8.7"}', encoding="utf-8"
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    provider = FakeProvider(
+        responses,
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=models,
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+
+    assert adapter.list_supported_models() == ("gpt-5.6-sol", "gpt-5.4")
+    assert adapter.default_model() == "gpt-5.6-sol"
+
+
+def test_chatgpt_codex_auth_forwards_account_header(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "auth.json").write_text(
+        '{"auth_mode":"chatgpt","tokens":'
+        '{"access_token":"secret-token","account_id":"account-123"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    created_kwargs: list[dict[str, object]] = []
+
+    class FakeOfficialOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
+    )
+
+    create_default_openai_client()
+
+    assert created_kwargs == [
+        {
+            "base_url": "https://chatgpt.com/backend-api/codex",
+            "api_key": "secret-token",
+            "default_headers": {"ChatGPT-Account-ID": "account-123"},
+        }
+    ]
 
 
 def test_chatgpt_codex_adapter_moves_prompt_messages_to_instructions() -> None:
@@ -1165,7 +1245,7 @@ def test_create_default_openai_client_uses_official_client(
         sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
     )
 
-    client = create_default_openai_client()
+    client = create_official_openai_client()
 
     assert client is created[0]
     assert created_kwargs == [{}]
@@ -1256,7 +1336,7 @@ def test_create_default_openai_client_applies_provider_config(
         sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
     )
 
-    client = create_default_openai_client(
+    client = create_official_openai_client(
         OpenAIProviderConfig(
             base_url="http://localhost:11434/v1",
             api_key="test-key",
@@ -1273,21 +1353,15 @@ def test_create_default_openai_client_applies_provider_config(
 def test_adapter_lazy_default_provider_uses_discovered_api_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    created_kwargs: list[dict[str, object]] = []
     monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
-
-    class FakeOfficialOpenAI:
-        def __init__(self, **kwargs: object) -> None:
-            created_kwargs.append(dict(kwargs))
-
     monkeypatch.setitem(
-        sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
+        sys.modules, "litellm", SimpleNamespace(completion=lambda **kwargs: kwargs)
     )
 
     adapter = OpenAIClientAdapter()
 
     assert adapter.client is not None
-    assert created_kwargs == [{"api_key": "ambient-key"}]
+    assert adapter._provider.config.api_key == "ambient-key"
 
 
 def test_adapter_lazy_default_provider_uses_discovered_chatgpt_codex_auth(
@@ -1336,7 +1410,7 @@ def test_create_default_openai_client_omits_api_key_when_not_provided(
         sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
     )
 
-    create_default_openai_client(
+    create_official_openai_client(
         OpenAIProviderConfig(base_url="http://localhost:11434/v1", api_key=None)
     )
 
@@ -1359,7 +1433,7 @@ def test_create_default_async_openai_client_uses_official_async_client(
         SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
     )
 
-    client = create_default_async_openai_client()
+    client = create_official_async_openai_client()
 
     assert client is created[0]
 
@@ -1379,7 +1453,7 @@ def test_create_default_async_openai_client_applies_provider_config(
         SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
     )
 
-    client = create_default_async_openai_client(
+    client = create_official_async_openai_client(
         OpenAIProviderConfig(base_url="http://localhost:11434/v1", api_key="test-key")
     )
 
@@ -1392,23 +1466,19 @@ def test_create_default_async_openai_client_applies_provider_config(
 def test_async_adapter_lazy_default_provider_uses_discovered_api_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    created_kwargs: list[dict[str, object]] = []
     monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
 
-    class FakeOfficialAsyncOpenAI:
-        def __init__(self, **kwargs: object) -> None:
-            created_kwargs.append(dict(kwargs))
+    async def acompletion(**kwargs: object) -> object:
+        return kwargs
 
     monkeypatch.setitem(
-        sys.modules,
-        "openai",
-        SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
+        sys.modules, "litellm", SimpleNamespace(acompletion=acompletion)
     )
 
     adapter = AsyncOpenAIClientAdapter()
 
     assert adapter.client is not None
-    assert created_kwargs == [{"api_key": "ambient-key"}]
+    assert adapter._provider.config.api_key == "ambient-key"
 
 
 def test_async_adapter_lazy_default_provider_uses_discovered_chatgpt_codex_auth(
@@ -1461,61 +1531,31 @@ def test_create_default_async_openai_client_omits_api_key_when_not_provided(
         SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
     )
 
-    create_default_async_openai_client(
+    create_official_async_openai_client(
         OpenAIProviderConfig(base_url="http://localhost:11434/v1", api_key=None)
     )
 
     assert created_kwargs == [{"base_url": "http://localhost:11434/v1"}]
 
 
-def test_create_default_openai_client_wraps_import_errors(
+def test_create_default_openai_client_uses_bundled_litellm_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    original_import = builtins.__import__
+    monkeypatch.delitem(sys.modules, "litellm", raising=False)
 
-    def fake_import(
-        name: str,
-        globals: object | None = None,
-        locals: object | None = None,
-        fromlist: tuple[str, ...] = (),
-        level: int = 0,
-    ) -> object:
-        if name == "openai":
-            raise ImportError("openai unavailable")
-        return original_import(name, globals, locals, fromlist, level)
+    client = create_default_openai_client()
 
-    monkeypatch.delitem(sys.modules, "openai", raising=False)
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-
-    with pytest.raises(
-        ModelExecutionError, match="official openai package is not available"
-    ):
-        create_default_openai_client()
+    assert hasattr(client, "responses")
 
 
-def test_create_default_async_openai_client_wraps_import_errors(
+def test_create_default_async_openai_client_uses_bundled_litellm_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    original_import = builtins.__import__
+    monkeypatch.delitem(sys.modules, "litellm", raising=False)
 
-    def fake_import(
-        name: str,
-        globals: object | None = None,
-        locals: object | None = None,
-        fromlist: tuple[str, ...] = (),
-        level: int = 0,
-    ) -> object:
-        if name == "openai":
-            raise ImportError("openai unavailable")
-        return original_import(name, globals, locals, fromlist, level)
+    client = create_default_async_openai_client()
 
-    monkeypatch.delitem(sys.modules, "openai", raising=False)
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-
-    with pytest.raises(
-        ModelExecutionError, match="official openai package is not available"
-    ):
-        create_default_async_openai_client()
+    assert hasattr(client, "responses")
 
 
 @pytest.mark.parametrize(

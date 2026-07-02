@@ -45,11 +45,13 @@ Current tests cover:
 - explicit MCP tool binding into the normal registry contract
 - capability inspection reports for live, metadata-only, missing-collaborator,
   and invalid package states
+- opt-in subagent tool packs with caller-injected runners and bounded child
+  execution limits
 - workflow execution, retries, output contracts, route validation, token budgets,
   prompt-cache observations, provider cache telemetry, prepare-model-input
   policy, and traces
-- persistent in-memory agent sessions, snapshot restart, and session event
-  streaming
+- persistent in-memory agent sessions, snapshot restart, session event
+  streaming, and collaborative parent/child session management
 - CLI execution and error reporting
 - all 11 hello-world agent-pattern fixture packages
 - the placeholder-safe Power-Marimo first-customer fixture
@@ -58,7 +60,18 @@ Current tests cover:
 
 Unit tests should use fake model adapters and fake tool registries. The default
 OpenAI client boundary exists for production use, but tests should not require
-network access or credentials.
+network access or credentials. A separate live interoperability test compares
+the installed Codex CLI and DAR provider adapter against the same structured
+output contract. Run it only when live credentials and network access are
+intentional:
+
+.. code-block:: bash
+
+   DAR_RUN_LIVE_CODEX_PARITY=1 poetry run pytest \
+     tests/test_live_codex_parity.py -q -s
+
+The test is opt-in, uses an isolated temporary Codex home, and does not run as
+part of the normal unit suite.
 
 .. header2:: Docs validation
 

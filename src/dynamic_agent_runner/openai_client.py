@@ -70,6 +70,7 @@ class OpenAIProviderConfig:
     base_url: str | None = None
     api_key: str | None = field(default=None, repr=False)
     provider_name: str | None = None
+    chatgpt_account_id: str | None = field(default=None, repr=False)
     discover_default_auth: bool = True
     codex_auth_preference: str = "api_key_first"
 
@@ -243,6 +244,7 @@ class _ResolvedDefaultOpenAIProvider:
 class _CodexAuthDefaults:
     api_key: str | None = field(default=None, repr=False)
     chatgpt_token: str | None = field(default=None, repr=False)
+    chatgpt_account_id: str | None = field(default=None, repr=False)
     unsupported_mode: str | None = None
 
 
@@ -355,6 +357,7 @@ class OpenAIClientAdapter:
     ) -> tuple[str, ...]:
         return list_openai_model_ids(
             client,
+            chatgpt_codex=_provider_uses_chatgpt_codex(self._provider),
             extra_query=(
                 _chatgpt_codex_models_extra_query()
                 if _provider_uses_chatgpt_codex(self._provider)
@@ -474,6 +477,7 @@ class AsyncOpenAIClientAdapter:
     ) -> tuple[str, ...]:
         return await list_async_openai_model_ids(
             client,
+            chatgpt_codex=_provider_uses_chatgpt_codex(self._provider),
             extra_query=(
                 _chatgpt_codex_models_extra_query()
                 if _provider_uses_chatgpt_codex(self._provider)
@@ -485,7 +489,33 @@ class AsyncOpenAIClientAdapter:
 def create_default_openai_provider(
     config: OpenAIProviderConfig | None = None,
 ) -> OpenAIClientProvider:
-    """Construct the default sync SDK-backed provider facade."""
+    """Construct the default sync LiteLLM-backed provider facade."""
+
+    resolved = _resolve_default_openai_provider_defaults(
+        config or OpenAIProviderConfig()
+    )
+    if resolved.chatgpt_token is not None:
+        return ChatGPTCodexBackendOpenAIClientProvider(
+            config=resolved.config,
+            token=resolved.chatgpt_token,
+        )
+    from dynamic_agent_runner.litellm_client import LiteLLMClientProvider
+
+    return LiteLLMClientProvider(config=resolved.config)
+
+
+def create_default_openai_client(
+    config: OpenAIProviderConfig | None = None,
+) -> OpenAIClientProtocol:
+    """Construct the default LiteLLM-backed client from environment/default config."""
+
+    return create_default_openai_provider(config).get_client()
+
+
+def create_official_openai_provider(
+    config: OpenAIProviderConfig | None = None,
+) -> OpenAIClientProvider:
+    """Construct the explicit official-SDK compatibility provider."""
 
     resolved = _resolve_default_openai_provider_defaults(
         config or OpenAIProviderConfig()
@@ -498,12 +528,12 @@ def create_default_openai_provider(
     return SDKBackedOpenAIClientProvider(resolved.config)
 
 
-def create_default_openai_client(
+def create_official_openai_client(
     config: OpenAIProviderConfig | None = None,
 ) -> OpenAIClientProtocol:
-    """Construct the official OpenAI client from environment/default config."""
+    """Construct the explicit official OpenAI SDK compatibility client."""
 
-    return create_default_openai_provider(config).get_client()
+    return create_official_openai_provider(config).get_client()
 
 
 def create_openai_adapter(
@@ -549,7 +579,33 @@ def create_openai_adapter_from_provider_config(
 def create_default_async_openai_provider(
     config: OpenAIProviderConfig | None = None,
 ) -> AsyncOpenAIClientProvider:
-    """Construct the default async SDK-backed provider facade."""
+    """Construct the default async LiteLLM-backed provider facade."""
+
+    resolved = _resolve_default_openai_provider_defaults(
+        config or OpenAIProviderConfig()
+    )
+    if resolved.chatgpt_token is not None:
+        return ChatGPTCodexBackendAsyncOpenAIClientProvider(
+            config=resolved.config,
+            token=resolved.chatgpt_token,
+        )
+    from dynamic_agent_runner.litellm_client import AsyncLiteLLMClientProvider
+
+    return AsyncLiteLLMClientProvider(config=resolved.config)
+
+
+def create_default_async_openai_client(
+    config: OpenAIProviderConfig | None = None,
+) -> AsyncOpenAIClientProtocol:
+    """Construct the default async LiteLLM-backed client."""
+
+    return create_default_async_openai_provider(config).get_client()
+
+
+def create_official_async_openai_provider(
+    config: OpenAIProviderConfig | None = None,
+) -> AsyncOpenAIClientProvider:
+    """Construct the explicit official async SDK compatibility provider."""
 
     resolved = _resolve_default_openai_provider_defaults(
         config or OpenAIProviderConfig()
@@ -562,12 +618,12 @@ def create_default_async_openai_provider(
     return SDKBackedAsyncOpenAIClientProvider(resolved.config)
 
 
-def create_default_async_openai_client(
+def create_official_async_openai_client(
     config: OpenAIProviderConfig | None = None,
 ) -> AsyncOpenAIClientProtocol:
-    """Construct the official async OpenAI client from environment/default config."""
+    """Construct the explicit official async OpenAI SDK compatibility client."""
 
-    return create_default_async_openai_provider(config).get_client()
+    return create_official_async_openai_provider(config).get_client()
 
 
 def create_async_openai_adapter(
@@ -661,6 +717,8 @@ def create_openai_response(
         raw_response = client.responses.create(**kwargs)
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
         raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+    if isinstance(raw_response, ModelResponse):
+        return raw_response
     if kwargs.get("stream") and not isinstance(raw_response, Mapping):
         return _normalize_openai_stream(raw_response)
     return normalize_openai_response(raw_response)
@@ -677,6 +735,8 @@ async def create_async_openai_response(
         raw_response = await client.responses.create(**kwargs)
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
         raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+    if isinstance(raw_response, ModelResponse):
+        return raw_response
     if kwargs.get("stream") and not isinstance(raw_response, Mapping):
         return await _normalize_async_openai_stream(raw_response)
     return normalize_openai_response(raw_response)
@@ -686,6 +746,7 @@ def list_openai_model_ids(
     client: OpenAIClientProtocol,
     *,
     extra_query: Mapping[str, object] | None = None,
+    chatgpt_codex: bool = False,
 ) -> tuple[str, ...]:
     """List available model ids from an authenticated OpenAI-compatible client."""
 
@@ -703,13 +764,18 @@ def list_openai_model_ids(
         )
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
         raise ModelExecutionError("OpenAI available model listing failed") from exc
-    return _extract_model_ids(raw_models)
+    return (
+        _extract_chatgpt_codex_model_ids(raw_models)
+        if chatgpt_codex
+        else _extract_model_ids(raw_models)
+    )
 
 
 async def list_async_openai_model_ids(
     client: AsyncOpenAIClientProtocol,
     *,
     extra_query: Mapping[str, object] | None = None,
+    chatgpt_codex: bool = False,
 ) -> tuple[str, ...]:
     """List available model ids from an authenticated async OpenAI-compatible client."""
 
@@ -729,7 +795,11 @@ async def list_async_openai_model_ids(
             raw_models = await raw_models
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
         raise ModelExecutionError("OpenAI available model listing failed") from exc
-    return _extract_model_ids(raw_models)
+    return (
+        _extract_chatgpt_codex_model_ids(raw_models)
+        if chatgpt_codex
+        else _extract_model_ids(raw_models)
+    )
 
 
 def _extract_model_ids(raw_models: Any) -> tuple[str, ...]:
@@ -750,6 +820,33 @@ def _extract_model_ids(raw_models: Any) -> tuple[str, ...]:
         if isinstance(model_id, str) and model_id.strip():
             model_ids.append(model_id.strip())
     return _sort_model_ids_by_version(tuple(dict.fromkeys(model_ids)))
+
+
+def _extract_chatgpt_codex_model_ids(raw_models: Any) -> tuple[str, ...]:
+    """Preserve ChatGPT/Codex catalog priority and hide picker-only entries."""
+
+    data = _read_value(raw_models, "data")
+    models = _read_value(raw_models, "models")
+    extra_models = _read_value(_read_value(raw_models, "model_extra"), "models")
+    items = data if data is not None else models
+    if items is None:
+        items = extra_models if extra_models is not None else raw_models
+    ranked: list[tuple[int, int, str]] = []
+    for index, item in enumerate(_as_sequence(items)):
+        model_id = item if isinstance(item, str) else _read_model_id(item)
+        if not isinstance(model_id, str) or not model_id.strip():
+            continue
+        visibility = str(_read_value(item, "visibility") or "").lower()
+        if visibility == "hide":
+            continue
+        priority = _read_value(item, "priority")
+        rank = (
+            priority
+            if isinstance(priority, int) and not isinstance(priority, bool)
+            else index
+        )
+        ranked.append((rank, index, model_id.strip()))
+    return tuple(dict.fromkeys(model_id for _rank, _index, model_id in sorted(ranked)))
 
 
 _MODEL_VERSION_PATTERN = re.compile(r"(?<!\d)(\d+(?:\.\d+)*)(?!\d)")
@@ -1070,6 +1167,7 @@ def _resolve_default_openai_provider_defaults(
                 base_url=config.base_url,
                 api_key=config.api_key,
                 provider_name=config.provider_name,
+                chatgpt_account_id=config.chatgpt_account_id,
                 discover_default_auth=config.discover_default_auth,
                 codex_auth_preference=config.codex_auth_preference,
             )
@@ -1079,6 +1177,7 @@ def _resolve_default_openai_provider_defaults(
     api_key = config.api_key
     provider_name = config.provider_name
     chatgpt_token: str | None = None
+    chatgpt_account_id: str | None = config.chatgpt_account_id
     codex_home: Path | None = None
 
     if api_key is None:
@@ -1091,6 +1190,9 @@ def _resolve_default_openai_provider_defaults(
                 )
                 api_key = selected_codex_auth.api_key
                 chatgpt_token = selected_codex_auth.chatgpt_token
+                chatgpt_account_id = (
+                    selected_codex_auth.chatgpt_account_id or chatgpt_account_id
+                )
                 if chatgpt_token is not None:
                     provider_name = provider_name or CHATGPT_CODEX_PROVIDER_NAME
 
@@ -1108,6 +1210,7 @@ def _resolve_default_openai_provider_defaults(
             base_url=base_url,
             api_key=api_key,
             provider_name=provider_name,
+            chatgpt_account_id=chatgpt_account_id,
             discover_default_auth=config.discover_default_auth,
             codex_auth_preference=config.codex_auth_preference,
         ),
@@ -1132,7 +1235,10 @@ def _resolve_selected_codex_auth(
     if selected_auth == "api_key":
         return _CodexAuthDefaults(api_key=codex_auth.api_key)
     if selected_auth == "chatgpt":
-        return _CodexAuthDefaults(chatgpt_token=codex_auth.chatgpt_token)
+        return _CodexAuthDefaults(
+            chatgpt_token=codex_auth.chatgpt_token,
+            chatgpt_account_id=codex_auth.chatgpt_account_id,
+        )
     return _CodexAuthDefaults()
 
 
@@ -1232,14 +1338,29 @@ def _read_codex_auth_defaults(codex_home: Path) -> _CodexAuthDefaults:
             raise ModelExecutionError(
                 f"Codex auth file {auth_file} uses ChatGPT auth but has no token"
             )
-        return _CodexAuthDefaults(chatgpt_token=chatgpt_token)
+        return _CodexAuthDefaults(
+            chatgpt_token=chatgpt_token,
+            chatgpt_account_id=_read_chatgpt_account_id(auth),
+        )
 
     api_key = _read_codex_api_key_value(auth, auth_file)
     chatgpt_token = _read_codex_chatgpt_token(auth)
     return _CodexAuthDefaults(
         api_key=api_key,
         chatgpt_token=chatgpt_token,
+        chatgpt_account_id=_read_chatgpt_account_id(auth),
     )
+
+
+def _read_chatgpt_account_id(auth: Mapping[str, Any]) -> str | None:
+    tokens = auth.get("tokens")
+    if not isinstance(tokens, Mapping):
+        return None
+    account_id = tokens.get("account_id")
+    if not isinstance(account_id, str):
+        return None
+    stripped = account_id.strip()
+    return stripped or None
 
 
 def _read_codex_api_key_value(
@@ -1356,4 +1477,8 @@ def _chatgpt_provider_config_to_client_kwargs(
 ) -> dict[str, Any]:
     kwargs = _provider_config_to_client_kwargs(config)
     kwargs["api_key"] = token
+    if config.chatgpt_account_id is not None:
+        kwargs["default_headers"] = {
+            "ChatGPT-Account-ID": config.chatgpt_account_id,
+        }
     return kwargs

@@ -4,8 +4,8 @@
 
 - Feature slug: `openai-compatible-provider-wrapper`
 - Mode: `guided`
-- Status: implemented follow-up; Slices 1-6 are implemented in the current
-  repo state, and the planned validation evidence has been recorded
+- Status: implemented follow-up; Slices 1-6 and ChatGPT/Codex catalog-parity
+  Slice 8 are implemented, with focused validation recorded
 - Related artifacts:
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`
@@ -13,6 +13,15 @@
   - `tests/test_openai_client.py`
   - `tests/test_executor.py`
   - `specs/llama-cpp-local-model/spec.md`
+  - `specs/model-adapter-coverage/spec.md`
+
+## Supersession Note
+
+This spec remains authoritative for the repository-owned OpenAI-compatible
+provider facade. Its original `local_only` routing behavior was superseded by
+the later `model-adapter-coverage` feature: `is_local` remains diagnostic
+metadata, while callers that require local-only execution now provide only
+local adapters with `model_adapter_coverage="strict"`.
 
 ## Objective
 
@@ -87,9 +96,9 @@ for each future local provider.
 - `__init__.py` now re-exports `OpenAIProviderConfig` plus the default provider
   factory helpers so callers can configure OpenAI-compatible endpoints through
   the package-level API without reaching into internal module paths.
-- Adapter selection already preserves `models` and `is_local`, and executor
-  routing already supports `local_only` requirements using those existing
-  adapter attributes.
+- Adapter selection preserves `models` and `is_local`. The later
+  `model-adapter-coverage` feature removed `local_only` routing, so `is_local`
+  no longer changes adapter selection.
 
 ## Functional Requirements
 
@@ -143,8 +152,9 @@ Acceptance criteria:
   when the wrapper is constructed, then the configuration remains valid as long
   as the downstream SDK/client path supports the omission.
 - Given a caller targets an OpenAI-compatible local endpoint, when the adapter is
-  marked `is_local=True`, then no executor changes are required for that provider
-  to participate in existing local-only model selection.
+  marked `is_local=True`, then the metadata remains available for diagnostics;
+  callers enforce local-only execution with a local adapter list and strict
+  adapter coverage.
 
 ### FR-4: Preserve adapter metadata and selection semantics
 
@@ -155,9 +165,8 @@ Acceptance criteria:
 
 - Given an adapter advertises `models`, when executor model matching runs, then
   the refactor preserves the current behavior of model-aware adapter selection.
-- Given an adapter advertises `is_local=True`, when executor evaluates
-  `local_only` requirements, then the existing local-provider selection behavior
-  continues to function.
+- Given an adapter advertises `is_local=True`, when model selection runs, then
+  the metadata does not create a separate local-only routing branch.
 - Given provider-specific diagnostics are helpful, when the implementation adds
   provider metadata such as a provider name, then that metadata remains optional
   and does not replace `models` or `is_local` as the executor's canonical
@@ -195,10 +204,34 @@ Acceptance criteria:
   validate construction behavior, then that behavior is covered with isolated
   fake or monkeypatched construction rather than a real external request.
 
+### FR-7: Preserve ChatGPT/Codex model-catalog semantics
+
+The ChatGPT/Codex provider path must preserve the catalog metadata needed to
+match Codex CLI model discovery and default selection. Generic OpenAI-compatible
+providers remain ID-only unless they expose an equivalent provider contract.
+
+Acceptance criteria:
+
+- Given the ChatGPT/Codex `/models` response includes `priority`, `visibility`,
+  and model identifiers, when DAR lists supported models, then it preserves
+  provider priority order rather than sorting IDs by embedded version numbers.
+- Given a ChatGPT/Codex model has `visibility: "hide"`, when DAR builds the
+  picker-facing supported-model list, then that model is excluded.
+- Given no model is explicitly selected, when DAR resolves the ChatGPT/Codex
+  default, then it selects the first visible model in provider priority order.
+- Given ChatGPT/Codex auth includes an account identifier, when DAR sends model
+  discovery or model requests, then it forwards the provider-required account
+  header alongside bearer authentication.
+- Given a generic OpenAI-compatible provider returns only model IDs or lacks
+  catalog metadata, when DAR lists models, then existing generic behavior
+  remains unchanged.
+
 ## Non-Goals
 
 - No direct llama.cpp in-process adapter implementation in this feature.
-- No provider auto-discovery from remote `/v1/models` or equivalent endpoints.
+- No provider auto-discovery from arbitrary remote `/v1/models` or equivalent
+  endpoints; the exception is the explicit ChatGPT/Codex catalog contract in
+  FR-7.
 - No guarantee that every third-party OpenAI-compatible endpoint fully matches
   hosted OpenAI semantics.
 - No workflow-definition schema changes for provider selection in this feature.

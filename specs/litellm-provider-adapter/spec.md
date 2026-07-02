@@ -5,13 +5,12 @@
 - Feature slug: `litellm-provider-adapter`
 - Mode: `light`
 - Artifact type: authoritative feature specification
-- Status: implementation candidate; Slice L1 prepared but paused for Python
-  3.14 dependency support
-- Version: `0.3`
+- Status: Slice L1 implemented and validated; upstream publication remains deferred
+- Version: `0.5`
 - Owner: repository maintainers and future implementers of model-provider
   runtime integrations
-- Date: 2026-06-22
-- Next gate: resume Slice L1 when LiteLLM supports the package's Python 3.14 target
+- Date: 2026-07-02
+- Next gate: upstream LiteLLM publication or deferred follow-up slices
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/openai-compatible-provider-wrapper/spec.md`
@@ -20,12 +19,13 @@
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`
   - `tests/test_openai_client.py`
-  - `/Users/roschuma/Repos/github/litellm/README.md`
+  - `litellm/README.md`
   - `https://docs.litellm.ai/docs/`
   - `https://docs.litellm.ai/docs/providers/chatgpt`
   - `https://docs.litellm.ai/docs/routing`
-  - `/Users/roschuma/Repos/github/litellm/litellm/responses/main.py`
-  - `/Users/roschuma/Repos/github/litellm/litellm/main.py`
+  - `litellm/litellm/responses/main.py`
+  - `litellm/litellm/main.py`
+  - `specs/litellm-provider-adapter/l2-codex-compatibility.md`
 
 ## Objective
 
@@ -36,12 +36,11 @@ OpenAI/Codex default-auth behavior.
 
 ## Implementation Candidate Decision
 
-This spec remains a prepared high-ROI implementation candidate, but Slice L1 is
-paused until LiteLLM supports the package's Python 3.14 target. When resumed,
-the first implementation slice must stay narrower than the full future surface
-described below:
+This spec records the implemented high-ROI Slice L1. The slice stays narrower
+than the full future surface described below:
 
-- **Slice L1** adds LiteLLM as the default direct SDK transport for ordinary
+- **Slice L1** adds a bundled LiteLLM-compatible transport as the default direct
+  SDK transport for ordinary
   OpenAI-format chat-completions dispatch.
 - Slice L1 preserves repository-owned request construction, response
   normalization, model-adapter selection, error translation, redaction, and
@@ -50,6 +49,10 @@ described below:
   compatibility path.
 - Slice L1 must not move ChatGPT/Codex auth discovery into LiteLLM and must not
   require live LiteLLM gateway, ChatGPT OAuth, or provider calls.
+- Until upstream LiteLLM publishes a portable indexed dependency, the package
+  includes `dynamic_agent_runner.litellm`; the standard OCI build may also copy
+  the checked-in pure-Python wheel at
+  `vendor/wheels/litellm-1.92.0-py3-none-any.whl` into its artifact wheelhouse.
 - ChatGPT/Codex-on-LiteLLM is a follow-up slice because current LiteLLM docs
   recommend the Responses endpoint for Codex models while the first direct SDK
   slice is intentionally Chat Completions-shaped.
@@ -124,7 +127,8 @@ needs explicit Responses-path request shaping and drift analysis.
 
 This feature covers:
 
-1. adding LiteLLM as a core runtime dependency
+1. making LiteLLM available as a core runtime through the approved distribution
+   wheelhouse while preserving the temporary checked-in wheel packaging boundary
 2. adding sync and async LiteLLM-backed clients or providers that conform to the
    runtime's OpenAI-compatible adapter expectations
 3. using LiteLLM's OpenAI-format `completion(...)` / `acompletion(...)` SDK
@@ -145,9 +149,10 @@ This feature covers:
 
 ## Slice L1 Scope
 
-The implementation-candidate slice covers only:
+The implemented Slice L1 covers only:
 
-1. adding `litellm` as a required runtime dependency
+1. adding the bundled `dynamic_agent_runner.litellm` transport as a required
+   runtime capability
 2. adding sync and async LiteLLM completion providers that satisfy the existing
    adapter/provider boundary
 3. translating `OpenAIModelRequest` into LiteLLM Chat Completions kwargs without
@@ -379,6 +384,14 @@ Acceptance criteria:
   environment, or explicit-token configuration, then repository code adapts the
   already-trusted Codex auth result into LiteLLM configuration without reading
   workflow-package-local auth files.
+- Given Codex ChatGPT auth is selected, when the LiteLLM adapter dispatches a
+  Responses request, then it passes the DAR-resolved token, base URL, and
+  account id explicitly and does not allow LiteLLM ambient auth discovery to
+  override them.
+- Given LiteLLM adds session, originator, user-agent, or default-instruction
+  values, when the Codex adapter dispatches, then those values are either
+  explicitly accepted as compatible or are bounded by DAR-owned configuration;
+  no new ambient credential or auth-file source is read.
 - Given a request names an unprefixed Codex model such as
   `codex-mini-latest`, when the LiteLLM Codex helper dispatches it, then the
   helper maps it to the provider route expected by LiteLLM, such as
@@ -405,6 +418,13 @@ Acceptance criteria:
 - Given a request has no system/developer instructions, when the LiteLLM Codex
   helper dispatches it, then it preserves the current default instruction
   behavior or documents a tested LiteLLM-equivalent policy.
+- Given a request contains Responses transcript items for a prior model tool
+  call and tool result, when the LiteLLM Codex helper dispatches it, then the
+  items and call identifiers remain intact for the follow-up request.
+- Given LiteLLM emits streamed Responses text, function calls, or completion
+  events, when DAR normalizes the result, then text, tool-call ids, arguments,
+  response id, and terminal errors retain the existing `ModelResponse`
+  semantics.
 - Given ChatGPT/Codex dispatch occurs, when request options are prepared, then
   current `store=False` behavior is preserved unless LiteLLM guarantees the same
   behavior or the implementation records an approved spec update.
@@ -415,6 +435,10 @@ Acceptance criteria:
   lists models, then it either preserves the current `client_version`-aware
   listing behavior or documents why LiteLLM has taken over that compatibility
   responsibility.
+- Given the LiteLLM Codex adapter does not expose DAR's model-listing contract,
+  when authenticated model discovery runs, then model listing remains on the
+  DAR-owned client path and is not silently replaced by an unordered or
+  visibility-blind LiteLLM list.
 
 ### FR-9: Preserve adapter metadata and executor selection
 
@@ -434,18 +458,50 @@ Acceptance criteria:
 
 ### FR-10: Make dependency and packaging behavior explicit
 
-LiteLLM must be a deliberate core dependency, not an accidental optional import
-or frozen-binary dependency.
+The DAR-required OpenAI-compatible transport must be present in every install;
+the full upstream LiteLLM distribution remains a deliberate packaging choice,
+not an accidental optional import or frozen-binary dependency.
 
 Acceptance criteria:
 
-- Given package metadata is updated, when LiteLLM support is implemented, then
-  `litellm` is a required runtime dependency.
+- Given package distribution is updated, when LiteLLM support is implemented,
+  then the DAR wheel contains `dynamic_agent_runner.litellm` and ordinary
+  OpenAI-compatible requests work without an external LiteLLM installation;
+  a versioned upstream package-index dependency remains blocked until the
+  configured package source publishes LiteLLM.
 - Given PyInstaller support exists for the current package, when LiteLLM support
   is added, then implementation notes must identify whether LiteLLM needs
   package hooks or whether frozen-app support is deferred.
-- Given the package is installed normally, when existing tests run, then LiteLLM
-  import availability is treated as part of the core environment.
+- Given the DAR wheel is installed, when the default ordinary OpenAI-compatible
+  provider is constructed, then its bundled LiteLLM-compatible transport is
+  importable; if the full upstream `litellm` package is installed, it remains
+  the preferred transport.
+- Given the OCI build runs before upstream LiteLLM supports Python 3.14, when
+  `python-build-system.py` packages artifacts, then it copies the checked-in
+  `vendor/wheels/litellm-1.92.0-py3-none-any.whl` into the published wheelhouse
+  without rebuilding LiteLLM in OCI.
+- Given the checked-in LiteLLM wheel is missing, when the standard build runner
+  starts, then it fails clearly before publishing an incomplete wheelhouse.
+- Given the OCI package step runs, when its Python interpreter is selected, then
+  it uses Python 3.13 or newer to match the root package's `Requires-Python`
+  metadata.
+
+### Current migration decision
+
+The implemented L2 Codex wrapper is opt-in. The SDK-backed ChatGPT/Codex
+provider remains the global default until the drift review demonstrates all of
+the following:
+
+- LiteLLM's ChatGPT Responses path uses the DAR-resolved token and account
+  identity without reading LiteLLM-owned auth files or initiating device auth;
+- DAR's `client_version`-aware model listing, priority ordering, and visibility
+  semantics remain intact; and
+- the full upstream LiteLLM Responses distribution is available to the target
+  Python runtime, since the bundled DAR fallback does not implement Responses.
+
+The evidence and current decision are recorded in
+`l2-codex-compatibility.md`. Until those gates pass, switching the global
+default would be a semantic and authentication regression.
 
 ### FR-11: Keep tests fake and live-call-free
 
@@ -597,20 +653,26 @@ silently override an `OpenAIModelRequest.model`.
 - **Codex aliases:** follow-up ChatGPT/Codex work should support both
   unprefixed repository-facing model ids and LiteLLM `chatgpt/` model ids
   through explicit alias rules.
+- **Temporary packaging boundary:** the checked-in LiteLLM wheel is required for
+  OCI packaging until upstream LiteLLM supports Python 3.14; remove the wheel,
+  copy step, and related trigger once that support is available.
 
 ## Validation Checklist
 
-- [ ] `poetry run pytest tests/test_openai_client.py -q`
-- [ ] Targeted LiteLLM adapter tests covering sync completion dispatch, async
-      completion dispatch, router dispatch, missing dependency, unsupported
+- [x] `poetry run pytest tests/test_openai_client.py -q`
+- [x] Targeted LiteLLM adapter tests covering sync completion dispatch, async
+      completion dispatch, router dispatch, bundled fallback, unsupported
       option handling, tool-call normalization, and redacted errors.
 - [ ] Targeted LiteLLM Codex helper tests covering Codex API-key auth,
       ChatGPT-token auth, `api_key_first` ordering, `chatgpt_first` ordering,
       unprefixed-to-`chatgpt/` model mapping, request shaping, documented
       unsupported option handling, fake LiteLLM dispatch, and secret redaction.
-- [ ] `poetry run pytest -q` after implementation.
-- [ ] `poetry run ruff check src tests` after implementation.
-- [ ] README or docs example added only after public helper names are final.
+- [x] `poetry run pytest -q` after implementation.
+- [x] `poetry run ruff check src tests` after implementation.
+- [x] README or docs example added only after public helper names are final.
+- [x] `python -m py_compile python-build-system.py`
+- [x] Standard OCI package output contains the root artifacts and the exact
+      checked-in LiteLLM wheel; compare SHA-256 hashes.
 
 ## Open Questions
 

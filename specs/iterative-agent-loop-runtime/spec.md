@@ -15,6 +15,10 @@
   - output contracts
   - retry and max-step policy
   - trace events
+- Evaluated supporting reference:
+  - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
+    contains bounded plan/execute/self-check and cost-aware planning examples;
+    they are design evidence, not runtime dependencies
 
 ## Objective
 
@@ -139,6 +143,9 @@ Acceptance criteria:
   interruption.
 - Future stop reasons include max tokens, timeout, guardrail rejection, and
   cancellation.
+- Future repair or self-check loops must share the same enclosing iteration,
+  token, time, and cost budgets; a repair attempt must not reset or evade a
+  parent loop limit.
 - Final output selection follows declared policy: last model output, state
   field, or error.
 - Max iteration exhaustion fails clearly unless policy explicitly allows partial
@@ -246,9 +253,36 @@ slices may add:
 - strategy-pivot metadata and trace events for loop diagnostics
 - evaluation hooks that can score loop progress without making the loop
   unbounded or self-modifying
+- bounded repair/self-check policy with explicit maximum attempts, evidence of
+  progress, and a terminal `repair_exhausted` reason rather than recursive
+  unbounded retries
+- caller-supplied cost budgets and per-step estimates that remain advisory until
+  the selected adapter reports authoritative usage
 
 Those follow-ups must keep loops opt-in, bounded, registry-authoritative, and
 fake-client testable.
+
+### Future Multidimensional Execution Budget
+
+A future approved loop slice should add enforcement-oriented accounting before
+adding any runner-owned planning optimizer.
+
+- Supported dimensions should include iterations, model tokens, tool calls,
+  elapsed time, and an optional caller-defined monetary limit.
+- Accounting should distinguish `estimated`, `reserved`, and `actual` spend so
+  a planner estimate cannot be reported as authoritative provider usage.
+- Adapter-reported usage and completed tool outcomes reconcile reservations;
+  missing authoritative usage remains explicitly estimated or unknown.
+- Nested repair, critic, or self-check attempts consume the enclosing budget and
+  cannot reset counters by starting a child loop.
+- Exhaustion uses dimension-specific terminal reasons such as
+  `token_budget_exhausted`, `tool_budget_exhausted`,
+  `time_budget_exhausted`, and `cost_budget_exhausted`.
+- Callers may supply plans, step values, or cost estimates. DAR enforces the
+  declared budget but does not own beam search, economic valuation, or action
+  utility scoring.
+- Workflow-wide budgets that span multiple nodes remain a separate future
+  decision; this extension initially belongs to the owning iterative loop.
 
 ## Validation Checklist
 
@@ -260,3 +294,5 @@ fake-client testable.
       explicit policy.
 - [x] Final model output is selected and output-contract validated.
 - [x] Trace events expose iteration count and stop reason.
+- [ ] Future budget tests reconcile estimated/reserved/actual usage and prove
+      nested repair attempts cannot evade enclosing limits.

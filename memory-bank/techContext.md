@@ -18,6 +18,11 @@
   - `test` group
 - Console script: `dynamic-agent-runner` declared under `[project.scripts]` and
   pointing to `dynamic_agent_runner.cli:console_main`.
+- The Graphify cross-repository console script is
+  `graphify-extract`; it delegates to the package Graphify
+  extraction API and DAR-bounded worker workflow rather than adding a second
+  provider client. T8.7 benchmark runs used `gpt-5.4-mini` and `gpt-5.4`;
+  neither produced evidence to replace the fixed8 runtime default.
 - PyInstaller hook discovery uses the standard `pyinstaller40` entry point
   group. The package-owned provider is
   `dynamic_agent_runner.__pyinstaller:get_hook_dirs`, which returns bundled hook
@@ -103,13 +108,38 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - PyInstaller integration should keep freeze hooks inside the package so
   downstream clients discover them from installed distribution metadata instead
   of needing `--additional-hooks-dir`.
-- Graphify is installed as a local CLI and initialized for this checkout.
-  Generated graph state lives under ignored `graphify-out/`; use
-  `graphify query`, `graphify path`, and `graphify explain` for codebase
-  navigation when `graphify-out/graph.json` exists. The current graph is
-  AST/code-only with zero API token cost; semantic extraction over specs/docs
-  requires an LLM API key. Repo-local graphify guidance lives in `AGENTS.md` and
-  `.agents/skills/graphify-noise-reduction/SKILL.md`.
+- The repository knowledge-graph toolchain is initialized and maintained
+  through installed `knowledge-graph-bootstrap`, `graphify-knowledge-extraction`,
+  `codegraph-source-navigation`, and `gitnexus-change-impact` skills under
+  `/Users/roschuma/.agents/skills/`; repo-local copied skill files are not
+  authoritative.
+- CodeGraph owns indexed current-source discovery and call-path navigation. Its
+  generated `.codegraph/` index is local and ignored.
+- GitNexus owns execution-flow discovery and working-tree change-impact checks.
+  Its generated `.gitnexus/` state is local and ignored.
+- Graphify owns the allowlisted knowledge corpus only: root guidance and
+  Markdown, `docs/source/`, `specs/`, `memory-bank/`, and `cline-tasks/`. It must
+  not index `src/`, tests, scripts, or generated/build output.
+- Graphify semantic extraction routes through Osaurus using the approved OpenAI
+  model order recorded in
+  `/Users/roschuma/.agents/skills/graphify-knowledge-extraction/SKILL.md`.
+  Generated
+  `graphify-out/` and local `.graphifyignore` configuration are ignored.
+- Use Graphify query/path/explain for spec and rationale relationships, not for
+  source navigation or implementation proof. Corpus topology can prioritize
+  consistency review but does not replace deterministic requirement,
+  acceptance-criteria, status, or code-conformance checks.
+- The `graphify-semantic-extractor-tool` implementation is package-owned and
+  registry-mediated, with bounded parallel extraction and staged semantic JSON.
+  Its worker prompt requires a top-level semantic object with exact provenance
+  and endpoint fields; validation rejects arbitrary envelopes rather than
+  unwrapping them. It does not turn the base package into a Graphify or
+  OpenAI-compatible server dependency; stock Graphify remains the downstream
+  curation and promotion workflow.
+- The opt-in live interoperability test is a generic structured-output smoke
+  path, not a Graphify validator. It forces one model through both Codex CLI
+  and DAR, parses the CLI JSONL agent message, applies an injected validator,
+  uses a temporary Codex home, and stays outside ordinary unit-test runs.
 
 ## Documentation Tooling
 
@@ -143,8 +173,13 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   - `ocibuild.repos.conf`
   - `ocibuild.slack.conf`
 - Build helper: `python-build-system.py`.
-- Configured build step: `packagewheel` using Python `3.11` and
-  `build-runner-python-ol8`.
+- Configured build step: `packagewheel` using Python `3.13` and
+  `build-runner-python-ol9`.
+- `python-build-system.py` requires and copies the checked-in
+  `vendor/wheels/litellm-1.92.0-py3-none-any.whl` into `dist/` before the root
+  `python -m build` invocation; this remains an optional temporary OCI
+  wheelhouse artifact while DAR's bundled `dynamic_agent_runner.litellm`
+  transport supplies the required ordinary OpenAI-compatible path.
 - Configured publish targets:
   - `indcon-release-pypi-local`
   - `indcon-dev-pypi-local`
@@ -228,9 +263,9 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   22 passing tests and targeted pre-commit on `executor.py` and `test_cli.py`.
 - Runtime hardening roadmap updates were committed in `a0b1490`. The spec and
   task list now prioritize Tenacity-style retries, output-contract enforcement,
-  tiktoken-based token budgeting, and package-owned tracing hooks. LiteLLM,
-  Watchfiles, Rich, and Diskcache are deferred until later scoped requirements
-  justify them.
+  tiktoken-based token budgeting, and package-owned tracing hooks. Full
+  upstream LiteLLM, Watchfiles, Rich, and Diskcache remain deferred until
+  later scoped requirements justify them.
 - The source article used for the package-addition evaluation was committed in
   `33632d4` at `cline-tasks/libraries-that-made-my-ai-agents-work.md` with
   markdown lint disables for archival line length and image-alt issues.

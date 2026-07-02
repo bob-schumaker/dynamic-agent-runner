@@ -1,16 +1,84 @@
+<!-- markdownlint-disable MD013 -->
 # Progress
 
 ## Working
 
+- Graphify T8.7 benchmark evidence is recorded in commit 438d03a and the gpt-5.4 rerun in dc6272d. Across 13 sibling repositories, fixed8 remains the runtime default; token-aware is advisory/opt-in because live probes mostly timed out.
+- The memory-aware context pipeline first slice is implemented in ae1c0f5. It validates passive memory metadata, reports capabilities, and preserves the declared pipeline without invoking retrieval or persistence.
+- LiteLLM provider-adapter Slice L1 is implemented and validated. DAR includes
+  the bundled `dynamic_agent_runner.litellm` sync/async OpenAI-compatible
+  transport, repository-owned request/response translation, public factories,
+  fake tests, default-provider migration, and explicit official-SDK
+  compatibility. ChatGPT/Codex now has an opt-in Responses-native wrapper;
+  the existing SDK-backed default remains the rollback path.
+- L2.1 is complete: the compatibility matrix compares DAR's current Codex
+  Responses/auth behavior with vendored LiteLLM ChatGPT Responses and Chat
+  Completions paths. The resulting decision is Responses-only for Codex
+  replacement (`aresponses` async-first, `responses` sync parity), with DAR
+  retaining auth discovery, model listing, and error policy.
+- L2.2-L2.6 are implemented in commits `46a7b5f`, `25ee3e6`, `7ac62ef`,
+  `e244284`, and `55f4aa2`. The slices cover native Responses dispatch,
+  outbound model aliases, explicit DAR auth/config handoff, instruction and
+  tool-transcript parity, and an opt-in wrapper with SDK rollback.
+- Commits `5e3d5e6` and `6faa98c` added the vendored-wheel build flow, verified
+  Python 3.13 OCI package evidence, and aligned the LiteLLM spec corpus.
+- Graphify semantic extraction now has an explicit structured-output contract:
+  prompts prohibit response envelopes, require exact top-level arrays and
+  source provenance, and focused tests cover the instruction boundary. The
+  fix is committed in `ab0c40e`.
+- Generic live structured-output interoperability coverage is separate from
+  Graphify. `tests/test_live_codex_parity.py` compares the installed Codex CLI
+  and DAR adapter with the same model and prompt through an injected validator;
+  commits `588610e` and `9c34e91` added and generalized it. It is opt-in and
+  excluded from normal unit runs.
+- README and authored validation documentation now describe provider-dependent
+  Graphify model selection and the opt-in live test; committed in `b5af3a3`.
+- The spec corpus consistency pass is complete. The Graphify semantic
+  extractor feature is indexed in `specs/README.md`, downstream-only references
+  are explicitly labeled as external, all feature links resolve, and full
+  `rumdl` validation passes. Commit `439e8dc` contains those spec changes plus
+  the already-staged repo-local knowledge-graph skill deletions.
+- The Graphify extractor is implemented through six committed slices ending in
+  `b48f419`. It exposes `graphify-extract`, validates a
+  curated corpus manifest and semantic subset, runs bounded parallel DAR
+  workers, writes deterministic staged artifacts and audit records outside
+  accepted `graphify-out/`, and preserves stock Graphify as the downstream
+  curation/promotion owner. `c0de3b8` caches provider-aware default model
+  resolution across chunks.
+- Graphify T7 follow-on behavior is implemented and committed through `b4372f5`:
+  token-aware packing, file/per-file caps, adaptive splitting, summary-only
+  reconciliation, exact duplicate-edge repair, and partial merge preservation.
+  The full suite passes with 626 tests and one skip. Spec commit `54ac838`
+  prepares T8, a pure advisory selector that compares fixed8 and token-aware
+  estimates without changing the runtime default.
+- Apple Foundation Models A1 is implemented in `specs/apple-foundation-model-adapter/` and committed in `9984bd9`, with standalone live text, structured-output, and strict-workflow evidence. Pytest-native Apple SDK generation remains blocked by status 255 despite availability preflight; A2 separately requires DAR-managed callback routing through the approval and tool-runtime stack.
+- Interpreter middleware now has a resolved model-facing design direction:
+  one `run_interpreter` gateway tool, multiple node-allowed ids, bounded
+  non-executable usage descriptors, caller-provided async-first adapters, and
+  DAR-coordinated nested tool calls. Backend selection and implementation remain
+  deferred.
+- The knowledge-graph toolchain has clear ownership: CodeGraph for source
+  navigation, GitNexus for execution/change impact, and a specs/docs-only
+  Graphify corpus for knowledge relationships. Installed or vendored skills are
+  authoritative; generated indexes and graph output remain local and ignored.
 - Core runtime supports package-directory workflow loading and execution,
   async-first APIs, sync wrappers, tool registry/overrides, OpenAI-compatible
   adapters/providers, retry, output contracts, token budgeting, tracing, hooks,
   prompt preparation, validation, runtime behavior overrides, model adapter
   coverage, local model helpers, in-memory persistent sessions, session event
-  streaming, bounded pruning-context graph injection, and
-  metadata-only future surfaces.
+  streaming, bounded pruning-context graph injection, bounded subagent tool
+  packs, collaborative parent/child session coordination, and metadata-only
+  future surfaces.
+- README and authored Sphinx docs now reflect the current bounded
+  subagent/collaboration surface. The docs refresh is committed in `1f76a9a`,
+  and `make -C docs html` passed before commit.
 - Default OpenAI/Codex auth discovery and ChatGPT/Codex backend compatibility
   are implemented.
+- The ChatGPT/Codex model-catalog discrepancy is documented as a provider-
+  wrapper bug-fix slice in commit `6d5d7a1`. Remaining TDD work must preserve
+  server priority and visibility metadata, hide `codex-auto-review` from the
+  picker, select the first visible model as default, forward account headers,
+  and leave generic provider ordering unchanged.
 - `openai-responses-tool-loop-compat` Slice R1 is implemented as the upstream
   response to a downstream Power Marimo feature request. It replaces the need
   for Power Marimo's local private monkey patch by preserving streamed
@@ -175,18 +243,11 @@
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
   optional injected-evaluator advisory profile for resolved GGUF assets.
-- `litellm-provider-adapter` is prepared as a high-ROI implementation
-  candidate, but execution is paused until LiteLLM supports DAR's Python 3.14
-  target. Slice L1 has spec, plan, task, and validation artifacts for direct
-  LiteLLM Chat Completions transport, request/response translation, public
-  factories, fake tests, default-provider migration, and an explicit
-  official-SDK compatibility path. ChatGPT/Codex-on-LiteLLM remains deferred to
-  a Responses-aware follow-up slice.
-- Executing LiteLLM Slice L1 is paused because `poetry add litellm` resolved to
-  current LiteLLM metadata requiring Python `>=3.10,<3.14`, which conflicts with
-  DAR's current Python 3.14.6 support. The attempted RED tests were discarded
-  and the branch was restored cleanly to `cb88c53`; retry after LiteLLM supports
-  Python 3.14.
+- `litellm-provider-adapter` Slice L1 is complete. The manual Python 3.13 OCI
+  package run succeeded; the DAR wheel contains the bundled transport, the
+  artifact includes the checked-in pure-Python LiteLLM wheel, and the packaged
+  LiteLLM wheel hash matches the checked-in artifact. A portable upstream
+  dependency remains deferred.
 - `persistent-agent-sessions` is implemented as a v1 feature for
   cross-prompt continuity through public `AgentSession`,
   `AgentSessionState`, `AgentSessionResult`, and `InMemorySessionStore`, with
@@ -208,13 +269,15 @@
   evidence is recorded in `specs/host-workflow-integration/validation.md`;
   future work is only expected if another downstream host integration gap
   appears.
-- `memory-aware-context-pipeline` is captured as a proposed future feature spec.
+- `memory-aware-context-pipeline` remains a proposed feature surface, but its
+  passive-context first slice is implemented and validated in `ae1c0f5`;
+  retrieval, salience, ingestion, persistence, and background execution remain
+  future work.
   It adapts useful `memlayer` ideas into a DAR-native, caller-owned contract
   for durable agent/user memory retrieval, provenance, traceability, and
-  no-implicit-save behavior. Its first slice is intentionally retrieval-only
-  and fake-testable; salience execution, ingestion execution, background work,
-  embeddings, durable stores, provider wrappers, and `memlayer` itself remain
-  out of scope.
+  no-implicit-save behavior. The implemented first slice is metadata-only and
+  fake-testable; retrieval, salience, ingestion, background work, embeddings,
+  durable stores, provider wrappers, and `memlayer` itself remain out of scope.
 - `async-session-memory-pipeline` remains a metadata/session-boundary reference.
   Pruning-context graph injection was completed through
   `internal-graph-mutation` and `context-management-prepare-stage` without
@@ -223,10 +286,6 @@
   downstream request note is stored under `cline-tasks/`, and the implementation
   boundary keeps Power Marimo domain compaction downstream while making DAR own
   generic OpenAI Responses/tool-loop compatibility.
-- Graphify is initialized for the repo with ignored generated output in
-  `graphify-out/`. The current graph is AST/code-only and queryable through
-  `graphify query`, `graphify path`, and `graphify explain`; semantic
-  docs/spec extraction requires an LLM API key.
 - Power-Marimo is now documented as a downstream DAR client boundary, not a
   DAR-owned automation feature. DAR owns generic dynamic-agent workflow
   execution with host-provided registries/adapters/context; `../power-marimo`
@@ -242,11 +301,24 @@
 - The current local-model availability implementation is complete through Slice
   A4 narrow cached inventory. The spec corpus still keeps broader local
   inventory, native Hugging Face cache introspection, real metadata integration,
-  and strict exception mode outside this slice while LiteLLM remains paused on
-  Python 3.14 dependency compatibility.
+  and strict exception mode outside this slice; LiteLLM Slice L1 is complete.
 
 ## Latest Milestones
 
+- `e59005e` committed the installed-skill, live-model-discovery, and staged
+  knowledge-graph guidance updates in `AGENTS.md` and `AGENTS.local.md`.
+- `e4164e5` added the Graphify extractor implementation plan, TDD tasks,
+  validation log, and cross-repository console-entrypoint contract.
+- `439e8dc` added the Graphify semantic extractor future spec and analysis,
+  reconciled the spec index, and clarified external downstream references.
+- `c9f505f` defined the multi-interpreter gateway, descriptor/frontmatter,
+  caller registry, and DAR approval-coordinator contract in the interpreter
+  middleware spec.
+- `8759bac` refreshed the Apple Foundation Models spec corpus with standalone live evidence and the pytest-native SDK status-255 limitation; A2 remains separately gated.
+- `9592f61` added `specs/` to the Graphify knowledge-extraction allowlist;
+  `51bb200` kept local `.graphifyignore` configuration uncommitted.
+- `a74bf68` added the repository knowledge-graph toolchain skills and skill-local
+  bootstrap script; `187b588` ignored the local CodeGraph index.
 - `49291f3` documented the local-model availability preflight API and marked
   `specs/local-model-availability-api/` as implemented v1.
 - `6cddf46` added MLX GGUF/converted-directory availability validation and an
@@ -276,7 +348,8 @@
 - `278c933` implemented host workflow inline/generated and loaded-workflow
   preflight, host id capability details, docs, specs, and fake tests.
 - `a29ad7b` prepared `host-workflow-integration` H2 as the next feasible
-  implementation slice while LiteLLM remained paused.
+  implementation slice while LiteLLM remained paused; later LiteLLM Slice L1
+  implementation superseded that pause.
 - `3c5ee5b` aligned descriptor-budgeting status and ROI ordering after Slice T1
   completion.
 - `5b95125` refreshed memory-bank state after descriptor budgeting.
@@ -324,9 +397,6 @@
   client boundary.
 - `b296dd8` recorded the AGENTS.md project learning that Marimo, Qt, hosted UI,
   and app-specific automation remain downstream concerns.
-- `fc7ad78` added graphify guidance to `AGENTS.md` and the repo-local
-  `.agents/skills/graphify-noise-reduction/SKILL.md` addon.
-- `bc7dff7` ignored generated `graphify-out/` artifacts.
 - `957f673` prepared context-window follow-up specs for provider-backed
   compaction, model-backed summaries, and semantic context profiles.
 - `9ccfc3c` aligned the completed async-session, graph-mutation,
@@ -429,10 +499,9 @@
 
 ## Remaining
 
-- LiteLLM provider work remains spec-only but implementation-candidate ready.
-  Before implementation, confirm current LiteLLM releases support Python 3.14.
-  Do not narrow DAR's Python 3.14 support for this feature; pick up Slice L1
-  after LiteLLM compatibility lands.
+- Historical note: LiteLLM provider work was once spec-only while upstream
+  Python 3.14 metadata was unavailable. Slice L1 now uses the bundled DAR
+  transport; only upstream publication and Responses-specific follow-ups remain.
 - Model event streaming v1 is complete, but provider-native token deltas,
   model-tool-loop progress events, cancellation/backpressure expansion,
   lower-level executor event APIs, and streaming capability/status reporting
@@ -474,8 +543,11 @@
 - Context-management prepare-stage v1 is implemented through Slice 10. The
   richer remote-compaction, model-summary, and semantic/profile tracks are now
   prepared as separate future specs.
-- LLM step interpreter middleware remains deferred until sandbox, approval,
-  guardrails, tracing, redaction, and capability reporting are stable.
+- LLM step interpreter middleware remains unimplemented. Its gateway,
+  multi-interpreter, custom-adapter, and descriptor contracts are now specified,
+  but implementation planning still requires backend evidence, safety/redaction
+  decisions, descriptor budgets, and nested approval/resume semantics.
+- Apple Foundation Models A1 is implemented; standalone live paths are verified, while pytest-native SDK verification is a tracked harness follow-up. A2 tool callbacks remain a separate approval-gated release.
 
 ## Risks or Follow-ups
 
@@ -505,6 +577,6 @@
 - Keep MLX local execution macOS-only and lazy on other platforms: adapter
   construction and model alias inspection should not import `mlx_lm`, resolve
   local model assets, or fail until generation is attempted.
-- Do not execute `litellm-provider-adapter` Slice L1 while LiteLLM still
-  declares `Python >=3.10,<3.14`; DAR currently supports Python 3.14.6 and
-  should pick up LiteLLM after upstream metadata supports it.
+- Do not replace the bundled transport with a versioned upstream LiteLLM
+  dependency until the configured package source publishes a portable Python
+  3.14-compatible release.

@@ -13,6 +13,13 @@
   - `extensions.mcp_lifecycle_diagnostics`
   - tool provenance and portable `tool_type`
   - tool exposure states and registry-authoritative invocation
+- Evaluated supporting reference:
+  - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
+    uses an educational in-process `MCPServer` facade that is not protocol-level
+    MCP evidence
+  - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
+    also contains FastMCP, OAuth, A2A, and ACP examples; these demonstrate
+    adapter shapes but omit production authorization and cancellation coverage
 
 ## Objective
 
@@ -27,6 +34,13 @@ The runtime preserves MCP registry-source metadata, MCP lifecycle diagnostics
 metadata, and v1 caller-supplied MCP registry injection. It does not currently
 launch MCP servers, connect to MCP transports, discover tool schemas, or manage
 MCP server lifecycle.
+
+The evaluated MarkTechPost tutorial uses “MCP-style” for an in-process Python
+object that lists handlers and adapts them into local tool definitions. That
+pattern is relevant only to the existing caller-supplied binding normalization
+surface. It does not satisfy MCP transport, initialization, capability
+negotiation, discovery, request/response, progress, cancellation, or lifecycle
+requirements and must not be reported as live MCP support.
 
 ## Scope
 
@@ -143,6 +157,9 @@ Acceptance criteria:
   names alone.
 - Write, shell, network, browser, or external mutation MCP tools require
   approval-aware policy before invocation.
+- A bearer token alone does not authorize an MCP action. Live remote transports
+  must validate the configured resource/audience and required scopes before
+  exposing or invoking protected capabilities.
 - Disabled MCP tools cannot be invoked even if a workflow references them.
 
 ### FR-5: Invoke MCP tools through registry authority
@@ -160,6 +177,9 @@ Acceptance criteria:
   output, log preview, event payload, and sensitive trace fields.
 - MCP transport/protocol failures surface as project-specific errors with source
   diagnostics.
+- Cancellation support is capability-negotiated. If a server or transport
+  cannot cancel an in-flight request, DAR reports that limitation and must not
+  claim cancellable invocation semantics.
 
 ### FR-6: Support diagnostics without memory pollution
 
@@ -191,6 +211,9 @@ Acceptance criteria:
 - Fail closed for strict sources and high-risk tools.
 - Keep source provenance separate from `tool_type`.
 - Preserve fake-server unit testing without live external MCP infrastructure.
+- Reserve MCP capability claims for protocol-conforming integration; an
+  in-process object with MCP-like method names is only a local adapter or test
+  double unless it crosses a validated MCP protocol boundary.
 
 ## Future Work
 
@@ -237,4 +260,6 @@ and fake-server unit tests.
       provenance.
 - [x] Disabled or hidden MCP tools cannot be model-exposed.
 - [x] MCP invocation uses registry validation and result facets.
+- [x] Educational “MCP-style” in-process facades are distinguished from live MCP
+      protocol and transport support.
 - [ ] Diagnostics are bounded and redacted.

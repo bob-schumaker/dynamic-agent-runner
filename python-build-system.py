@@ -6,6 +6,7 @@ the python step to run am appropriate build.
 import logging
 import os
 import re
+import shutil
 import sys
 from subprocess import STDOUT, CalledProcessError, check_output
 from typing import List, Optional, Tuple
@@ -331,6 +332,14 @@ def main():
 
     build_cmd = [base_path + "python3", "-m", "build"]
     show_build_output = loglevel == logging.DEBUG
+    checked_in_litellm_wheel = os.path.join(
+        "vendor", "wheels", "litellm-1.92.0-py3-none-any.whl"
+    )
+    if not os.path.exists(checked_in_litellm_wheel):
+        raise FileNotFoundError(f"Missing checked-in LiteLLM wheel: {checked_in_litellm_wheel}")
+    # Temporary compatibility wheel; remove once the upstream package supports Python 3.14.
+    os.makedirs("dist", exist_ok=True)
+    shutil.copy2(checked_in_litellm_wheel, "dist")
     if show_build_output:
         build_cmd.append("-vv")
     runner.add(build_cmd, show_output=show_build_output)

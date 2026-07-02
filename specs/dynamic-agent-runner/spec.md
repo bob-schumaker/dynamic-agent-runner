@@ -23,6 +23,9 @@
     `references/examples/` directory
   - `specs/dynamic-agent-runner/references/power-marimo-agent-support-analysis.md`
     as first-customer downstream fit analysis
+  - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
+    as supporting evidence for caller function-to-tool authoring ergonomics and
+    deterministic provider doubles
 
 ## Objective
 
@@ -259,6 +262,19 @@ Acceptance criteria:
   may be provided directly and any missing label, description, or input-schema
   fields fall back to conservative inference from the callable name, docstring,
   and supported Python signature shapes.
+- Given callable inference encounters positional-only parameters, variadic
+  positional parameters, or variadic keyword parameters, then registration
+  fails clearly rather than creating a misleading callable adapter.
+- Given an annotation is outside the helper's bounded JSON-schema inference set,
+  then inference must not claim an incompatible JSON type; the property remains
+  unconstrained unless the caller supplies explicit schema metadata.
+- Given `tool_from_function(...)` produces a tool adapter, then schema inference
+  does not execute the callable, install dependencies, expose the tool to a node,
+  or grant approval by itself.
+- Given a function-adapted tool is selected for execution, then it enters the
+  same repository-owned registry, exposure, argument-validation, approval,
+  lifecycle-hook, tracing, retry, timeout, and structured-result path as any
+  explicitly constructed `RegisteredTool`.
 - Given `extensions` entries, when parsing succeeds, then unsupported extensions
   with `required: true` fail closed, unsupported extensions with
   `required: false` are preserved and reported when a report channel exists,
@@ -793,8 +809,8 @@ follow-up selects them.
 - `ocihelper` must not be a required runtime dependency. The project may
   replicate needed runtime behavior locally rather than depending on
   `ai-tools-core` or adjacent ecosystem packages.
-- The implementation must support Python `>=3.11,<3.14` as declared in
-  `pyproject.toml`.
+- The implementation must support Python
+  `>=3.13,<3.14.1 || >3.14.1,<3.15` as declared in `pyproject.toml`.
 - The library should avoid hard-coding machine-specific producer paths into
   runtime behavior; the recorded paths are provenance and local source context.
 - Runtime execution must honor manifest execution-policy constraints such as
@@ -816,9 +832,10 @@ follow-up selects them.
   package directory output. Package loading should be strict and fail fast for
   missing sibling artifacts or broken `skill-bundle/` references instead of
   preserving a broad compatibility layer for older loose artifact inputs.
-- Multi-provider model routing is not part of the current runtime direction.
-  Provider abstraction libraries such as LiteLLM should be deferred unless the
-  spec explicitly changes to support non-OpenAI-compatible providers.
+- Multi-provider model routing is not part of the unscoped runtime baseline.
+  The explicitly linked `specs/litellm-provider-adapter/spec.md` authorizes
+  LiteLLM as a separate OpenAI-compatible transport slice without broadening
+  this core specification's scope.
 - The runtime preserves library-owned per-run execution-state isolation for
   concurrent invocations. Current thread-safety guarantees cover run-correlated
   trace and hook metadata plus synchronized package-owned helper surfaces;
@@ -1184,6 +1201,16 @@ The runtime should start with OpenAI package model and client interfaces:
   pre-register default tools, while preserving explicit node references as the
   only way those tools become available to a workflow step.
 
+An optional `tool_from_function(...)` helper may reduce caller boilerplate, but
+it is an authoring adapter rather than a second execution surface. Explicit tool
+metadata overrides inferred values. Conservative inference may cover the
+callable name, first-line documentation, required/default parameters, and a
+bounded set of JSON-representable annotations. Unsupported or ambiguous
+signatures fail closed unless the caller provides an explicit schema. The helper
+must return a normal registry-compatible tool definition/adapter and must not
+invoke the callable, mutate a global registry, expose a tool to a node, or bypass
+approval and runtime policy during construction.
+
 ## Deferred OpenAI Agents SDK Python Concepts
 
 The OpenAI Agents SDK Python evaluation in
@@ -1311,8 +1338,8 @@ diagnostic layer, not an implicit authorization to execute deferred metadata.
 - Requiring `ai-tools-core` or `openai-tools-core` in the initial implementation.
 - Supporting non-OpenAI-compatible model or tool-call interfaces in the initial
   implementation.
-- Adding LiteLLM or another multi-provider abstraction without an explicit change
-  to the OpenAI-first runtime direction.
+- Adding LiteLLM or another multi-provider abstraction without an explicit
+  feature spec and adapter boundary.
 - Adding Watchfiles as a core runtime dependency; file watching may be a local
   dev helper later, but it is not part of workflow execution.
 - Adding Rich or Diskcache as required runtime dependencies before a scoped CLI
@@ -1472,6 +1499,9 @@ Before implementation is considered complete, add validation covering:
 - [x] lightweight model capability metadata for context window, structured-output
       support, reasoning support, modalities, and parallel tool-call support
 - [x] repository-owned tool registry integration
+- [ ] OA9.1: optional `tool_from_function(...)` caller convenience with conservative
+      schema inference, explicit-metadata precedence, and proof that invocation
+      still traverses the normal registry and approval stack
 - [x] opt-in built-in default tool packs, beginning with read-only local
       workspace tools
 - [x] optional protocol-compatible chat-client injection
@@ -1566,8 +1596,9 @@ Before implementation is considered complete, add validation covering:
 - Library evaluation in `cline-tasks/libraries-that-made-my-ai-agents-work.md`
   was reviewed after Slice 7. The resulting spec direction prioritizes
   Tenacity-style retries, output-contract enforcement, tiktoken-based token
-  budgeting, and package-owned tracing hooks while deferring LiteLLM, Watchfiles,
-  Rich, and Diskcache unless later scoped requirements justify them.
+  budgeting, and package-owned tracing hooks. LiteLLM is now governed by its
+  dedicated provider-adapter spec; Watchfiles, Rich, and Diskcache remain
+  deferred unless later scoped requirements justify them.
 - Codex and Cline evaluations in `cline-tasks/codex-cli-evaluation.md` and
   `cline-tasks/cline-evaluation.md` were synthesized in
   `cline-tasks/codex-cline-combined-package-proposal.md`. The resulting deferred

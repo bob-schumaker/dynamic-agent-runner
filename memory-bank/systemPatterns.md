@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # System Patterns
 
 ## Current Architecture
@@ -130,6 +131,17 @@
   errors, and approval-required model tools return `WorkflowInterruptedResult`
   before invocation. Durable approval resume for model tool calls remains
   deferred.
+- The model-tool approval, lifecycle-hook, trace, state, registry, and
+  result-shaping behavior currently lives in the executor's model-tool path.
+  The Apple A2 and interpreter middleware specs require future non-model tool
+  ingress to reuse or extract that behavior into one DAR-owned invocation
+  coordinator; provider callbacks and interpreter bridges must not invoke raw
+  handlers or the registry directly.
+- The future interpreter model surface is one stable `run_interpreter` gateway
+  rather than one generated tool per backend. Workflow metadata and package-local
+  `INTERPRETER.md` content are descriptive and non-executable; callers supply
+  executable adapters through an `InterpreterRegistry`, while node and runtime
+  policy may only narrow the effective interpreter and tool sets.
 - Loop traces use `model_tool_loop_*` events for start, turn start, tool call,
   stop reason, and final output selection, with arguments and final output
   marked sensitive.
@@ -144,6 +156,18 @@
   OpenAI-compatible provider path; ChatGPT token auth maps to an explicit
   ChatGPT/Codex backend provider boundary in `openai_client.py` and is never
   copied into `OpenAIProviderConfig.api_key`.
+- ChatGPT/Codex `/models` responses include provider metadata that must not be
+  reduced to version-sorted IDs: priority controls ordering, visibility controls
+  picker exposure, and the first visible entry is the default. Generic
+  OpenAI-compatible providers may retain ID-only fallback behavior.
+- ChatGPT/Codex request parity includes forwarding `ChatGPT-Account-ID` when
+  the discovered auth record supplies an account identifier.
+- The LiteLLM Codex wrapper keeps DAR-owned auth precedence, resolved
+  endpoint, account id, `client_version` model listing, model aliases, and
+  ambient-auth boundaries. LiteLLM Responses is the implemented opt-in
+  transport;
+  Chat Completions bridging is only a capability-gated fallback because it can
+  lose Responses transcript, reasoning, tool-call, or streaming semantics.
 - `OpenAIProviderConfig.codex_auth_preference` controls supported Codex auth
   ordering. The default is API-key/auth-token first; `chatgpt_first` chooses
   ChatGPT auth when it exists and falls back to API-key/auth-token auth when it
@@ -158,11 +182,21 @@
   eligible model-exposable tools, pack OpenAI-compatible descriptors within a
   token budget, and keep NLTK parser work as an optional benchmarked experiment.
 - Memory-aware context pipeline is future spec-only. The proposed
-  `metadata.memory_pipeline` surface should model caller-owned durable
-  agent/user memory separately from `metadata.rag_pipeline`, keep retrieval
-  explicit and fake-testable in the first slice, and forbid implicit persistence
-  of RAG-retrieved content into memory unless the workflow invokes an explicit
-  caller-owned ingestion tool.
+  `metadata.memory_pipeline` surface is passive context policy for caller-owned
+  durable agent/user memory, separate from active `metadata.rag_pipeline`
+  retrieval. Active memory evidence retrieval remains an explicit caller-owned
+  tool operation; the passive pipeline must not invoke it or implicitly persist
+  RAG-retrieved content unless the workflow explicitly calls a caller-owned
+  ingestion tool.
+- Graphify semantic extraction is a package-owned, registry-mediated DAR tool
+  that writes staged artifacts outside accepted `graphify-out/`; stock Graphify
+  remains responsible for build, curation, validation, and promotion. The
+  completed first release keeps deterministic fixed file-count chunks as the
+  default. T7 adds opt-in token/file packing, adaptive bisection, summary-only
+  reconciliation, and safety-constrained partial merge/duplicate repair.
+  T8 is a pure advisory policy selector. T8.7 benchmark evidence retained fixed8
+  as the runtime default; token-aware remains opt-in and must not silently
+  change production chunking.
 - OpenAI response normalization extracts text and function calls into internal
   `ModelResponse` / `ModelToolCall` structures while preserving the raw response.
 - `executor.py` maintains `WorkflowExecutionState` with prompt, node inputs,
@@ -245,24 +279,25 @@
 
 ## Guidance for Future Work
 
-- The bounded `iterative-agent-loop-runtime` v1 slice is complete. Next scoped
-  ROI work is `skill-source-resolution`, unless local-model ergonomics makes
-  the prepared `llama-cpp-memory-fit-profile` v1 slice the immediate driver.
+- Apple Foundation Models A1 is implemented and validated for standalone local text, structured output, and strict workflow paths. The pytest-native SDK harness remains a tracked follow-up because native status 255 can occur despite successful availability; keep A2 tool callbacks behind a separate coordinator and approval contract.
+- Interpreter middleware has a resolved gateway and custom-adapter direction but
+  is not implementation-ready. Prototype candidate backends and resolve safety,
+  redaction, descriptor-budget, and nested approval/resume questions first.
 - Use `specs/README.md` as the current spec inventory and completion matrix.
   Future live-runtime work should start from the relevant feature spec under
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
-- The current council roadmap in `specs/README.md` now has capability status,
-  approval/sandbox v1, MCP v1, guardrail v1, and iterative loop v1 complete.
-  Treat skill source work as the next dependent slice, with host integrations,
-  durable memory, and interpreter middleware later.
+- The current roadmap has capability status, approval/sandbox v1, MCP v1, guardrail v1, iterative loops, skill source resolution, host integration, local-model availability, Apple A1 implementation, and LiteLLM L1 plus opt-in Codex L2 slices complete. Apple pytest-native harness isolation, A2 callbacks, memory retrieval/persistence, and provider-backed compaction remain follow-up work; upstream LiteLLM publication and global default Codex replacement remain deferred.
 - `specs/capability-status-report/spec.md` owns the implemented preflight
   reporting direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.
-- The current high-ROI dependency order has completed status visibility,
-  approval/sandbox mutation policy v1, MCP registry injection v1, input
-  guardrails v1, and bounded loops v1. Next is skills, then host integrations,
-  durable memory, and interpreter middleware. Do not treat later items as ready
-  just because their metadata seams exist.
+- Do not treat interpreter, Apple callback, durable memory, provider compaction,
+  or other future metadata as live behavior merely because a spec or preserved
+  declaration exists.
+- Graphify semantic extraction is an implemented artifact-production concern:
+  DAR provides a bounded, registry-mediated extractor and the
+  `graphify-extract` console wrapper, while Graphify owns
+  graph construction, curation, diagnostics, query, and promotion. Accepted
+  `graphify-out/` snapshots must not be mutated by the extractor.
 - Keep implementation aligned with the artifact-interpreter framing rather than
   expanding into a generic agent framework.
 - Keep primitive runtime node kinds limited to `llm_step`, `tool_use_step`, and
@@ -271,8 +306,11 @@
   seams; do not widen executor semantics from CLI work alone.
 - Keep unsupported fixture features visible through expected-failure tests until
   a later scoped slice implements them.
-- Defer LiteLLM, Watchfiles, Rich, and Diskcache until a future scoped requirement
-  justifies them; the current OpenAI-first adapter boundary remains in force.
+- Keep the OpenAI-first adapter boundary for the core runtime, while the
+  dedicated LiteLLM provider-adapter spec governs the bundled ordinary
+  OpenAI-compatible transport and its deferred upstream/Responses follow-ups.
+  Keep Watchfiles, Rich, and Diskcache deferred until a future scoped
+  requirement justifies them.
 - Preserve the OpenAI auth boundary: project-local `.codex/config.toml`,
   workflow packages, and generated artifacts must not choose auth sources or
   redirect user credentials. Future PAT or agent-identity support needs a

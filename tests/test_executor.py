@@ -52,6 +52,10 @@ from dynamic_agent_runner.mlx_models import (
     MLXLocalModelConfig,
     create_mlx_local_adapter,
 )
+from dynamic_agent_runner.apple_foundation_models import (
+    AppleFoundationModelConfig,
+    create_apple_foundation_model_async_adapter,
+)
 from dynamic_agent_runner.models import (
     LoadedAgentWorkflow,
     ToolDefinition,
@@ -5429,6 +5433,53 @@ def test_execute_workflow_strict_with_mlx_adapter_prevents_default_openai(
     assert backend.requests == []
 
 
+def test_execute_workflow_strict_selects_apple_adapter_without_default_openai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Session:
+        async def respond(self, prompt: str, **kwargs: object) -> str:
+            return "apple answer"
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models.sys.platform", "darwin"
+    )
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "strict-apple-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {"default_model": "apple-system-language-model"}
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = create_apple_foundation_model_async_adapter(
+        AppleFoundationModelConfig(
+            availability_checker=lambda: (True, None),
+            session_factory=lambda _instructions: Session(),
+        )
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="Hello",
+        model_adapter=[adapter],
+        model_adapter_coverage="strict",
+    )
+
+    assert result.final_result == "apple answer"
+
+
 def test_execute_workflow_strict_fails_when_required_features_are_unavailable() -> None:
     workflow = workflow_from(
         {
@@ -5502,18 +5553,14 @@ def test_execute_workflow_augmented_uses_default_openai_for_missing_coverage(
         models=["other-model"],
     )
     seen_adapters: list[object] = []
-    created_kwargs: list[dict[str, object]] = []
     monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    class FakeOfficialAsyncOpenAI:
-        def __init__(self, **kwargs: object) -> None:
-            created_kwargs.append(dict(kwargs))
+    async def fake_acompletion(**kwargs: object) -> object:
+        return kwargs
 
     monkeypatch.setitem(
-        sys.modules,
-        "openai",
-        SimpleNamespace(AsyncOpenAI=FakeOfficialAsyncOpenAI),
+        sys.modules, "litellm", SimpleNamespace(acompletion=fake_acompletion)
     )
 
     async def fake_create_model_response(adapter, request):
@@ -5537,7 +5584,7 @@ def test_execute_workflow_augmented_uses_default_openai_for_missing_coverage(
     assert supplied.client.responses.calls == []
     assert isinstance(seen_adapters[0], AsyncOpenAIClientAdapter)
     assert seen_adapters[0].models == ("gpt-test",)
-    assert created_kwargs == [{"api_key": "ambient-key"}]
+    assert seen_adapters[0]._provider.config.api_key == "ambient-key"
 
 
 def test_execute_workflow_augmented_default_openai_uses_chatgpt_codex_auth(

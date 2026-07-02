@@ -198,7 +198,9 @@ Acceptance criteria:
 
 ## Non-Goals
 
-- No live provider discovery from `/v1/models`.
+- No live provider discovery from `/v1/models` as part of this coverage-policy
+  feature; provider-specific ChatGPT/Codex catalog discovery is owned by the
+  OpenAI-compatible provider wrapper.
 - No automatic construction of local model servers.
 - No automatic Hugging Face download as part of adapter coverage.
 - No new manifest schema field for coverage policy in this change.

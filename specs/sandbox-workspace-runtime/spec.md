@@ -14,6 +14,10 @@
   - tool policy metadata: `tool_type`, `side_effect`, `approval_required`,
     `sandbox`
   - approval interruption/resume future feature
+- Evaluated supporting reference:
+  - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
+    includes useful staged-mutation examples and unsafe path/code-execution
+    counterexamples; it is design evidence, not a sandbox implementation
 
 ## Objective
 
@@ -41,6 +45,7 @@ This feature covers:
 6. workspace persistence policy
 7. approval-aware execution for mutating actions
 8. trace and audit records for sandboxed actions
+9. staged mutation, validation, commit, and rollback semantics
 
 ## Council Roadmap Note
 
@@ -93,6 +98,11 @@ Acceptance criteria:
   restricted to paths inside the granted root.
 - Given a path includes symlinks, traversal, case-variant aliases, or relative
   components, validation resolves the effective path before authorization.
+- Given a write target does not exist, authorization resolves and validates its
+  nearest existing parent before creating any path component.
+- Path authorization is repeated at the side-effect boundary or enforced by the
+  sandbox backend so a symlink swap or other time-of-check/time-of-use change
+  cannot redirect an approved operation outside the grant.
 
 ### FR-2: Separate read, write, patch, delete, and shell capabilities
 
@@ -122,6 +132,9 @@ Acceptance criteria:
   path changes, declared side effects, and redacted environment details.
 - Rejected approval prevents the action from running.
 - Approved action uses the exact approved command or file operation.
+- Approval binds a fingerprint of the final normalized operation, including
+  effective path, command/argv, working directory, environment policy, and
+  staged changed-path manifest when present.
 
 ### FR-4: Enforce resource limits
 
@@ -150,6 +163,10 @@ Acceptance criteria:
 - Unsupported requested capabilities fail during preparation.
 - Backend-specific implementation details do not leak into portable workflow
   package fields.
+- An in-process `exec` call with filtered or unrestricted builtins must not be
+  reported as sandboxed code execution. Code-execution exposure requires a
+  backend that explicitly reports and enforces its isolation and resource
+  capabilities.
 
 ### FR-6: Track workspace state and audit records
 
@@ -163,6 +180,28 @@ Acceptance criteria:
   and external-checkpoint workspaces when implemented.
 - The runtime can report a summary of changed paths at workflow completion.
 - Sensitive file content is not included in traces unless explicitly allowed.
+
+### FR-7: Stage and commit mutations honestly
+
+Backends that claim transactional workspace behavior must separate preparation
+from durable mutation.
+
+Acceptance criteria:
+
+- A mutating action may prepare changes in an overlay, temporary workspace, or
+  backend transaction without modifying the granted durable workspace.
+- Validation evaluates the staged changed-path manifest, path grants, resource
+  limits, and policy before approval.
+- Approval binds the validated staged operation. Any changed path, content
+  digest, command, or side-effect declaration invalidates the approval.
+- Commit applies only the approved staged operation. Atomic commit is claimed
+  only when the backend can enforce it; otherwise capability/status reports
+  non-atomic or best-effort behavior before execution.
+- Rollback before commit removes staged artifacts and leaves the durable
+  workspace unchanged. A compensating action after commit is not called
+  rollback and requires its own policy and approval.
+- Returning `COMMITTED` or `ROLLED BACK` status text without enforcing the
+  corresponding state transition must not satisfy this contract.
 
 ## Non-Goals
 
@@ -181,6 +220,8 @@ Acceptance criteria:
 - Fail closed when grants, paths, capabilities, or backend support are ambiguous.
 - Treat command execution as a high-risk capability with explicit approval and
   redaction rules.
+- Treat canonical path containment as a backend-enforced invariant, not a
+  lexical prefix check on untrusted input.
 
 ## Future Work
 
@@ -218,8 +259,13 @@ backend capability reporting.
 
 - [ ] Write/shell tools are unavailable without explicit grants.
 - [ ] Path traversal and symlink escapes fail closed.
+- [ ] Absolute paths, nonexistent-target parent traversal, and symlink-swap
+      attempts cannot escape a granted root.
 - [ ] Read-only grants reject write, patch, and delete operations.
 - [ ] Mutating actions produce approval interruptions by default.
 - [ ] Resource limits are enforced or unsupported limits fail during preparation.
 - [ ] Trace events include redacted audit records for mutating actions.
 - [ ] Backend capability mismatch fails before execution.
+- [ ] Staged validation and approval bind the exact operation later committed.
+- [ ] Pre-commit rollback leaves the durable workspace unchanged.
+- [ ] In-process `exec` cannot advertise sandboxed code-execution capability.

@@ -2245,3 +2245,77 @@ def test_tool_index_validation_rejects_bad_shape() -> None:
     assert "unsupported tool index index_type" in message
     assert "tool at position 0 is missing id" in message
     assert "skill at position 0 is missing id" in message
+
+
+def test_memory_pipeline_metadata_validates_and_preserves_separation():
+    manifest = load_runtime_manifest(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "memory-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "metadata": {
+                "patterns_present": ["memory_retrieval"],
+                "memory_pipeline": {
+                    "mode": "hybrid",
+                    "retrieval_tiers": {
+                        "balanced": {"retriever_tool_id": "memory_search"}
+                    },
+                    "provenance_required": True,
+                    "context_assembly": {
+                        "target": "prepare_model_input",
+                        "required_evidence_fields": ["memory_id", "source"],
+                    },
+                },
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    from dynamic_agent_runner.validation import validate_runtime_manifest
+
+    validate_runtime_manifest(manifest)
+    assert manifest.memory_pipeline["mode"] == "hybrid"
+
+
+def test_memory_pipeline_rejects_unknown_tier_and_implicit_ingestion():
+    manifest = load_runtime_manifest(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "invalid-memory-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "metadata": {
+                "patterns_present": ["memory_ingestion"],
+                "memory_pipeline": {
+                    "retrieval_tiers": {
+                        "instant": {"retriever_tool_id": "memory_search"}
+                    },
+                    "ingestion": {"tool_id": "memory_save", "trigger": "automatic"},
+                },
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    from dynamic_agent_runner.errors import WorkflowValidationError
+    from dynamic_agent_runner.validation import validate_runtime_manifest
+
+    with pytest.raises(WorkflowValidationError, match="unsupported tier"):
+        validate_runtime_manifest(manifest)

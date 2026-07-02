@@ -13,6 +13,13 @@
     `timeout`, `retry_policy`, and `failure_behavior`
   - lifecycle hooks for permission-boundary observations
   - trace events for node, model, tool, workflow, and status observations
+- Evaluated supporting reference:
+  - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
+    demonstrates a pre-tool observation hook but not an enforceable approval
+    boundary
+  - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
+    demonstrates why approval must bind the final invocation: its OpenHarness
+    tutorial checks permissions before a pre-tool hook may replace arguments
 
 ## Objective
 
@@ -112,6 +119,17 @@ Acceptance criteria:
 - Given multiple pending tool calls are possible, when policy does not authorize
   parallel approval, then the runtime pauses at the first unresolved approval
   boundary.
+- Given a tool originated from an explicit registry entry, a function adapter,
+  an MCP binding, model output, or interpreter bridging, when its effective
+  policy requires approval, then origin does not change the interruption
+  requirement and no origin-specific path may dispatch the handler directly.
+- Given any origin adapter, interpreter, guardrail, lifecycle hook, or host
+  middleware may normalize or replace tool arguments, when approval policy is
+  evaluated, then it evaluates the final schema-valid invocation envelope that
+  would be sent to the registry handler.
+- Given an approved invocation envelope changes after approval, when execution
+  continues, then the prior decision is invalid and the runtime must repeat
+  schema validation, applicable guardrails, and approval before invocation.
 
 ### FR-2: Produce stable interruption records
 
@@ -125,10 +143,16 @@ Acceptance criteria:
   correlation ids, and human-readable reason.
 - Sensitive fields are redacted or separated according to a declared redaction
   policy before the record is exposed outside trusted runtime memory.
-- The record distinguishes pending approval, approved, rejected, cancelled,
-  expired, and failed states.
+- The record distinguishes pending approval, approved, modified, rejected,
+  cancelled, expired, and failed states.
 - The record carries schema version metadata so persisted records can be
   validated on resume.
+- State-specific fields are validated together: `approved` requires an approver
+  identity/source and final invocation fingerprint; `modified` requires a
+  deterministic resultant argument set and a new fingerprint; rejected,
+  cancelled, and expired outcomes cannot carry an executable authorization.
+- Unknown decision values, contradictory fields, and partial modification
+  payloads fail closed rather than falling through to a default action.
 
 ### FR-3: Serialize resumable run state
 
@@ -157,6 +181,9 @@ Acceptance criteria:
 
 - Given an approved interruption, when resume runs, then the runtime invokes only
   the approved pending action with the approved arguments.
+- The approval outcome binds the tool identity, effective policy identity, and
+  final invocation fingerprint; it cannot authorize a different handler or
+  argument set through a mutable hook or callback.
 - Given an approval modifies arguments, when the feature supports argument
   modification, then the modified arguments are validated against the same tool
   schema and policy before invocation.
@@ -165,6 +192,9 @@ Acceptance criteria:
   content, or continue through an explicit fallback edge if supported.
 - Given a cancelled or expired interruption, when resume runs, then execution
   fails or exits with a clear approval-state error.
+- Given an approval outcome was already consumed, targets another interruption,
+  or carries a mismatched invocation fingerprint, when resume runs, then the
+  outcome is rejected without invoking a handler.
 
 ### FR-5: Preserve async and cancellation semantics
 
@@ -209,6 +239,17 @@ Acceptance criteria:
 - Fail closed for missing, stale, malformed, or incompatible resume state.
 - Keep approval enforcement separate from portable approval metadata.
 - Keep approval state schema-versioned from the first live implementation.
+- Treat lifecycle hooks as observation or explicitly trusted resolution inputs,
+  never as implicit authorization merely because they run before tool execution.
+- Apply approval policy after origin-specific normalization and before the one
+  registry invocation boundary so function-adapted, MCP-origin, model-origin,
+  and interpreter-origin calls cannot diverge semantically.
+- Complete every policy-relevant argument transformation before approval. If a
+  trusted post-approval component must transform the invocation, treat the
+  result as a new invocation and re-enter validation, guardrails, and approval.
+- Keep lifecycle hooks observational at the approval boundary unless a future
+  contract explicitly makes a hook a trusted invocation transformer and
+  subjects its output to reauthorization.
 
 ## NEEDS CLARIFICATION
 
@@ -240,3 +281,11 @@ Acceptance criteria:
 - [ ] Trace events cover requested, paused, resumed, rejected, expired, and failed
       outcomes.
 - [ ] Async cancellation cannot accidentally dispatch a pending approval action.
+- [ ] Approval behavior is identical for function-adapted, MCP-origin,
+      model-origin, and interpreter-origin tool requests.
+- [ ] A pre-tool hook cannot redirect an approved invocation to different
+      arguments without invalidating the approval and causing reauthorization.
+- [ ] Unknown, contradictory, replayed, cross-interruption, and
+      fingerprint-mismatched approval outcomes fail before invocation.
+- [ ] Modified outcomes are schema-valid and reauthorized as the complete
+      resultant invocation rather than trusted as an unchecked patch.

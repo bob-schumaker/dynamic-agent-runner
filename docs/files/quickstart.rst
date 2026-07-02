@@ -91,5 +91,7 @@ The runtime supports a finite graph executor with primitive node kinds:
 
 Broader behavior such as live Marimo automation, automatic MCP discovery or
 server lifecycle management, durable approval resume, unrestricted notebook
-mutation, automatic local model server management, and full multi-agent
-execution remains out of scope until future scoped follow-ups define it.
+mutation, automatic local model server management, and autonomous multi-agent
+orchestration remains out of scope. Bounded subagent tools and in-memory
+parent/child session coordination are available only through caller-supplied
+runners and session factories.

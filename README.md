@@ -66,8 +66,10 @@ Known configuration:
   interfaces
 - opt-in tool packs cover read-only local workspace access, injected web
   search/fetch clients, injected workspace data stores, and injected bounded
-  subagent runners; host integration helpers adapt caller-owned tools and
-  summarize trace/capability payloads without taking over host lifecycle
+  subagent runners; collaborative session helpers coordinate caller-owned
+  parent/child sessions in memory; host integration helpers adapt caller-owned
+  tools and summarize trace/capability payloads without taking over host
+  lifecycle
 - local model asset, endpoint, and direct in-process llama.cpp support is
   represented through package-owned local-model helpers; `llama-cpp-python` is a
   `llamacpp` extra and `huggingface-hub` is available through the `huggingface`
@@ -223,7 +225,7 @@ any default OpenAI adapter is created. Clients that require local-only execution
 should pass only local adapters and use strict coverage; `local_only` runtime
 metadata no longer filters adapter selection.
 
-When the runtime creates the default OpenAI adapter, its SDK-backed provider
+When the runtime creates the default OpenAI adapter, its LiteLLM-backed provider
 discovers host-owned auth defaults only if the caller has not supplied
 overriding auth. Explicit `OpenAIProviderConfig(api_key=...)` and
 `OpenAIProviderConfig(base_url=...)` values win over ambient defaults. Without
@@ -242,6 +244,25 @@ discovery. Before a ChatGPT/Codex model request is sent, the adapter lists
 authenticated available models and fails early if the requested model is not
 advertised by that account. Codex personal-access-token and agent-identity auth
 modes are not treated as OpenAI API keys in this path.
+
+Ordinary OpenAI-compatible requests use LiteLLM's Chat Completions transport;
+ChatGPT/Codex auth continues through the repository-owned SDK backend until the
+separate Responses-aware LiteLLM slice is implemented. DAR includes a small
+`dynamic_agent_runner.litellm` OpenAI-compatible fallback so the ordinary
+transport works even when the full upstream LiteLLM package is unavailable.
+The OCI wheelhouse may additionally include the checked-in upstream LiteLLM
+wheel as a temporary distribution boundary.
+
+For an explicit LiteLLM adapter with injected dispatch or router behavior:
+
+```python
+from dynamic_agent_runner import create_litellm_adapter
+
+adapter = create_litellm_adapter(
+    model="openai/gpt-4o-mini",
+    models=("openai/gpt-4o-mini",),
+)
+```
 
 To disable ambient discovery for a default OpenAI-compatible provider, set
 `discover_default_auth=False`:
@@ -348,6 +369,49 @@ with the `huggingface` extra before using Hugging Face-backed model discovery
 or asset downloads. The in-process adapter remains plain text generation only:
 tool calling, structured output, embeddings, multimodal IO, streaming public
 APIs, conversion, and server lifecycle helpers are separate feature surfaces.
+
+For Apple's system-managed Foundation Model, install the optional Apple SDK
+extra on an eligible Apple-silicon Mac with Apple Intelligence enabled:
+
+```bash
+poetry install --extras apple-foundation-models
+```
+
+Use the async Apple adapter with strict coverage when the workflow must remain
+on-device:
+
+```python
+from dynamic_agent_runner import (
+    AppleFoundationModelConfig,
+    create_apple_foundation_model_async_adapter,
+)
+
+apple_adapter = create_apple_foundation_model_async_adapter(
+    AppleFoundationModelConfig()
+)
+
+result = run_agent_workflow(
+    package_directory="path/to/agent-package",
+    prompt="Answer using Apple's on-device model.",
+    model_adapter=[apple_adapter],
+    model_adapter_coverage="strict",
+)
+```
+
+The adapter uses Apple's in-process `apple-fm-sdk`; it does not need an API
+key, model path, Hugging Face reference, or local HTTP server. A1 supports
+final text and explicit JSON Schema output only. Tools, provider-native
+streaming, images/audio, persistent Apple sessions, Private Cloud Compute, and
+external HTTP clients are not supported. If Apple Intelligence is disabled,
+the Mac is ineligible, the model is still preparing, or generation fails after
+preflight, the adapter reports a package-owned diagnostic with the SDK failure
+preserved as its cause.
+
+The opt-in live checks require an eligible Mac and can be run with:
+
+```bash
+DAR_RUN_LIVE_APPLE=1 poetry run pytest -m apple_live -q
+```
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls.
@@ -564,6 +628,29 @@ The CLI prints the final workflow result to standard output. Loading,
 validation, registry, model, and execution failures are reported to standard
 error with a non-zero exit code.
 
+### DAR Graphify semantic extraction
+
+The package also exposes `graphify-extract` for other
+repositories that need DAR-backed parallel semantic extraction. It accepts a
+small JSON corpus manifest containing a repository root and relative document
+paths, validates the corpus, runs bounded DAR model workers, and writes staged
+Graphify semantic artifacts to a candidate output directory:
+
+```bash
+graphify-extract \
+  --repo-root /path/to/repository \
+  --corpus-manifest /path/to/repository/graphify-manifest.json \
+  --output-dir /tmp/graphify-candidate \
+  --concurrency 3 \
+  --model gpt-5.4-mini
+```
+
+The model is provider-dependent; omit `--model` to use the adapter's discovered
+default. The command does not invoke Graphify, mutate an accepted `graphify-out/`
+snapshot, or start extra Codex processes. After extraction, hand the staged
+artifacts to Graphify's normal build, curation, diagnostics, and promotion
+workflow. The tool remains opt-in at the DAR registry boundary.
+
 ## Validation
 
 Current tests cover:
@@ -584,6 +671,8 @@ Current tests cover:
 - running declared input guardrails through caller-owned registries and failing
   closed for missing handlers
 - binding explicit MCP tools into the package-owned registry contract
+- running opt-in subagent tool packs through caller-injected runners and bounded
+  child limits
 - inspecting package capability readiness without executing model, tool,
   guardrail, or retriever calls
 - deriving and applying context-pipeline graph-mutation helpers for prepared
@@ -592,6 +681,8 @@ Current tests cover:
   file context, retrieved context, session pruning, lane budgets, selected
   turns, and compaction diagnostics
 - validating LLM output contracts and decision routes before trusting node output
+- running the opt-in live structured-output interoperability test through both
+  the installed Codex CLI and DAR's provider adapter
 - estimating prompt tokens and enforcing configured token budgets before model
   calls
 - recording provider-neutral prompt-cache observations and provider cached-token
@@ -604,9 +695,21 @@ Current tests cover:
 - converting repository-owned tool registry definitions to OpenAI tool schema
 - dispatching registered tools without live model calls in unit tests
 - running supported workflows from a user prompt with fake clients/tools
+- coordinating in-memory collaborative parent/child agent sessions
 - loading hello-world fixture packages for all 11 supported agent-pattern IDs
 - running the CLI with package-directory input, prompt input, fake model
   clients, and clear error reporting
+
+Unit tests do not require network access or credentials. The live
+interoperability test is separate and runs only when explicitly enabled:
+
+```bash
+DAR_RUN_LIVE_CODEX_PARITY=1 poetry run pytest \
+  tests/test_live_codex_parity.py -q -s
+```
+
+It uses an isolated temporary Codex home and is not part of the normal unit
+suite.
 
 ## Graphify Navigation
 

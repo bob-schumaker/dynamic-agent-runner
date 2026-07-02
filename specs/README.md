@@ -25,12 +25,13 @@ Portfolio evaluation artifacts:
 
 | Feature | Spec | Status | Completion |
 | --- | --- | --- | --- |
-| OpenAI-compatible provider wrapper | [`spec.md`](openai-compatible-provider-wrapper/spec.md) | Implemented | Slices 1-6 complete; optional compatibility polish only |
+| OpenAI-compatible provider wrapper | [`spec.md`](openai-compatible-provider-wrapper/spec.md) | Implemented through Slice 8 | Repository-owned facade, SDK-backed defaults, ChatGPT/Codex priority/visibility/default parity, account-header forwarding, tests, and docs complete; future provider changes require a new scoped slice |
 | Default OpenAI/Codex auth discovery | [`spec.md`](default-openai-codex-auth/spec.md) | Implemented | Adapter-owned default OpenAI/Codex auth discovery, ordered Codex API-key/ChatGPT auth selection, caller precedence, unsupported-auth handling, opt-out behavior, tests, and docs complete |
 | OpenAI Responses tool-loop compatibility | [`spec.md`](openai-responses-tool-loop-compat/spec.md) | Implemented Slice R1 | Upstream replacement for Power Marimo's private monkey patch: streamed Responses function-call preservation, structured tool-loop transcript rendering, ChatGPT/Codex `function_call_output` follow-ups, explicit `tool_choice_policy`, model-facing top-level `tool_results`, docs, and fake tests complete |
-| LiteLLM provider adapter | [`spec.md`](litellm-provider-adapter/spec.md) | Implementation candidate; Slice L1 prepared but paused | Slice L1 remains prepared but is paused until LiteLLM supports the package's Python 3.14 target; prepared work covers default direct SDK chat-completions transport, plan/tasks/validation artifacts, fake-test discipline, explicit official-SDK compatibility path, and ChatGPT/Codex-on-LiteLLM deferred to a follow-up Responses-aware slice |
+| LiteLLM provider adapter | [`spec.md`](litellm-provider-adapter/spec.md) | Slice L1 implemented and validated; upstream publication deferred | Bundled `dynamic_agent_runner.litellm` fallback, default direct SDK chat-completions transport, request/response translation, public factories, fake-test discipline, explicit official-SDK compatibility, OCI wheelhouse validation, and docs complete; ChatGPT/Codex-on-LiteLLM remains deferred to a follow-up Responses-aware slice |
 | llama.cpp local-model adapter | [`spec.md`](llama-cpp-local-model/spec.md) | Implemented | Slices 1-3 complete; direct in-process llama.cpp chat, endpoint helpers, local asset resolution, tests, and docs complete; optional embedding follow-up unscheduled |
 | macOS MLX local-model adapter | [`spec.md`](mlx-local-model-adapter/spec.md) | Implemented | Public macOS-only in-process MLX adapter helpers, converted-directory/GGUF/Hub resolution, generation kwargs, capability metadata, identity validation, executor coverage, tests, and docs complete |
+| Apple Foundation Models adapter | [`spec.md`](apple-foundation-model-adapter/spec.md) | A1 implemented; standalone live paths verified; pytest-native SDK verification blocked | Async in-process Responses-compatible facade, optional SDK path, text/JSON Schema generation, strict coverage, fake tests, marked live tests, docs, full-suite validation, and package build are complete; standalone eligible-Mac text, structured, and strict-workflow execution succeeded; pytest-native SDK execution remains blocked by native status 255, and A2 tool callbacks remain separately gated |
 | Model adapter coverage policy | [`spec.md`](model-adapter-coverage/spec.md) | Implemented | Public `model_adapter_coverage` policy, strict supplied-adapter failures, augmented default OpenAI coverage, local-only routing removal, tests, and docs complete |
 | PyInstaller packaging support | [`spec.md`](pyinstaller-packaging-support/spec.md) | Implemented v1 baseline | Package-owned PyInstaller hook directory advertisement and `openai-model-registry` hook are complete, including data-file collection, metadata copying, and focused tests |
 | Internal graph mutation | [`spec.md`](internal-graph-mutation/spec.md) | Implemented through pruning-context injection follow-up | Internal typed mutation, context-pruning attachment, validation, prepared-input integration, attachment diagnostics, and pruning-context graph injection for eligible `llm_step` interactions are complete; future structural node insertion, edge rewiring, richer link-level operations, and public schemas require a new approved slice |
@@ -45,6 +46,7 @@ Portfolio evaluation artifacts:
 | Web tool pack | [`spec.md`](web-tool-pack/spec.md) | Implemented v1 baseline | Opt-in `web_search` and `web_fetch` registry helpers with required injected clients, bounded normalized results, URL scheme/domain policy, exports, and fake tests complete; richer network policy, redirects/timeouts, trace/capability status, and provider adapters remain deferred |
 | Workspace data tool pack | [`spec.md`](workspace-data-tool-pack/spec.md) | Implemented v1 baseline | Opt-in JSON-compatible workspace data write/read/search/list/delete registry helpers with required injected store, metadata-first search/list, delete approval flag, exports, and fake tests complete; durable storage, indexing, trace/capability status, and host dirty-state remain caller-owned or deferred |
 | Subagent tool pack | [`spec.md`](subagent-tool-pack/spec.md) | Implemented v1 baseline | Opt-in `run_subagent`/`run_subagents` registry helpers with required injected runner, presets, max-child policy, bounded normalized aggregate results, exports, and fake tests complete; parallelism, timeout enforcement, trace/capability status, and durable child lifecycle remain deferred |
+| Graphify semantic extractor tool | [`spec.md`](graphify-semantic-extractor-tool/spec.md) | First-release plus T7 opt-in implementation complete | Package-owned, registry-mediated extractor plus `graphify-extract`; emits validated staged artifacts through a bounded DAR worker workflow, while stock Graphify curation/promotion remains external; adaptive policy selection remains a deferred follow-on |
 | Async session memory pipeline | [`spec.md`](async-session-memory-pipeline/spec.md) | Metadata baseline plus completed handoff | Metadata-only OA8 baseline implemented; live in-memory session behavior is owned by `persistent-agent-sessions`; pruning-context graph-injection work was completed through `context-management-prepare-stage` and `internal-graph-mutation` without expanding OA8 into durable memory |
 | Persistent agent sessions | [`spec.md`](persistent-agent-sessions/spec.md) | Implemented v1 baseline | Public `AgentSession`, `AgentSessionState`, `AgentSessionResult`, and `InMemorySessionStore` provide bounded cross-prompt continuity, current-state retrieval, snapshot restart, history policies, same-session concurrency rejection, sync wrapper parity, and live capability/status reporting |
 | Collaborative agent sessions | [`spec.md`](collaborative-agent-sessions/spec.md) | Implemented v1 baseline | In-memory `CollaborativeAgentSessionManager`, presets, child state snapshots, spawn/list/get/send/close/current-state APIs, snapshot restart, exports, and fake tests complete; wait/resume, streaming, capability/status, durable storage, and stronger compatibility checks remain deferred |
@@ -55,27 +57,29 @@ Portfolio evaluation artifacts:
 | Semantic context profiles | [`spec.md`](semantic-context-profiles/spec.md) | Implemented through Slice S1 | Exact and `hybrid_exact_semantic` older-turn preservation plus injected fake-testable semantic older-turn selection are implemented with metadata and tests; memory-kind hints, stale/redundant omission, RAG lane borrowing, prompt-cache-aware ordering, and selector capability/status reporting remain deferred |
 | LLM step interpreter middleware | [`spec.md`](llm-step-interpreter-middleware/spec.md) | Future investigation | Spec captured; backend selection, prototypes, and implementation not started |
 | Approval interruption and resume | [`spec.md`](approval-interruption-resume/spec.md) | Implemented v1 baseline | Direct approval-required `tool_use_step` interruption, public pause result, redacted approval traces, high-level API guardrails, capability status, tests, and evidence complete; durable resume remains deferred |
-| Sandbox and workspace runtime | [`spec.md`](sandbox-workspace-runtime/spec.md) | Partial approval-policy baseline | Approval-before-side-effect boundary is implemented through approval interruption v1; write/shell runtime, workspace grants, sandbox adapters, and mutation audits remain deferred |
+| Hash-chained governance audit | [`spec.md`](hash-chained-governance-audit/spec.md) | Future investigation | Optional caller-sink-backed, tamper-evident governance records with deterministic canonicalization, final-invocation fingerprint binding, compare-and-append semantics, verification, redaction, and required/best-effort failure policy; not implementation authorization |
+| Sandbox and workspace runtime | [`spec.md`](sandbox-workspace-runtime/spec.md) | Partial approval-policy baseline | Approval-before-side-effect boundary is implemented through approval interruption v1; write/shell runtime, canonical path enforcement, workspace grants, sandbox adapters, staged commit/rollback, and mutation audits remain deferred |
 | MCP runtime integration | [`spec.md`](mcp-runtime-integration/spec.md) | Implemented v1 baseline | Explicit caller-supplied MCP registry injection, MCP provenance, conservative policy defaults, capability status, tests, and evidence complete; live transports, process lifecycle, and discovery remain deferred |
 | Live guardrail execution | [`spec.md`](live-guardrail-execution/spec.md) | Implemented v1 baseline | Caller-registered input guardrail pass/abort, fail-closed missing adapters, redacted traces, capability status, tests, and evidence complete; output/tool phases remain deferred |
 | RAG orchestration contract | [`spec.md`](rag-orchestration-contract/spec.md) | Implemented v1 baseline | Expanded declarative `metadata.rag_pipeline` validation and capability/status reporting cover staged RAG metadata, retriever collaborators, provenance and context-management handoff declarations, source readiness, permissions, cache, and degraded states while keeping prompt packing, ingestion, embeddings, indexes, graph stores, rerankers, compressors, evaluators, and retrieval execution outside RAG ownership |
-| Memory-aware context pipeline | [`spec.md`](memory-aware-context-pipeline/spec.md) | Proposed; roadmap refinement needed | Proposed caller-owned long-term memory orchestration contract inspired by `memlayer`, now refined with a retrieval-only first slice, fold-back gate to `rag_pipeline`, schema/enums, collaborator contracts, invocation points, evidence handoff, invariants, trace payloads, and capability/status states without adding runner-owned memory storage, embeddings, provider wrappers, background services, or `memlayer` as a dependency |
-| SKILL.md source resolution | [`spec.md`](skill-source-resolution/spec.md) | Implemented v1 baseline | Opt-in package-local bundled `SKILL.md` loading under `skill-bundle/`, policy validation, bounded UTF-8 body loading, deterministic skill-ref injection, redacted provenance, capability/status reporting, and fake-adapter tests complete; external roots, `source_path` reads, support-file prompt loading, and network fetching remain deferred |
-| Iterative agent-loop runtime | [`spec.md`](iterative-agent-loop-runtime/spec.md) | Implemented v1 baseline | Bounded opt-in serial model-tool loops execute inside eligible `llm_step` nodes with registry dispatch, approval pauses, fail-closed safety checks, loop traces, tests, and evidence complete; state-field final selectors and durable resume remain deferred |
+| Memory-aware context pipeline | [`spec.md`](memory-aware-context-pipeline/spec.md) | Proposed; roadmap refinement needed | Proposed passive caller-owned memory-context contract inspired by `memlayer`, with active retrieval kept outside the pipeline, a passive-context handoff first slice, fold-back gate to `rag_pipeline`, schema/enums, collaborator contracts, invocation points, evidence handoff, invariants, trace payloads, and capability/status states without adding runner-owned memory storage, embeddings, provider wrappers, background services, or `memlayer` as a dependency |
+| SKILL.md source resolution | [`spec.md`](skill-source-resolution/spec.md) | Implemented v1 baseline | Opt-in package-local bundled `SKILL.md` loading under `skill-bundle/`, policy validation, bounded UTF-8 body loading, deterministic skill-ref injection, redacted provenance, capability/status reporting, and fake-adapter tests complete; external roots, `source_path` reads, support-file loading, network fetching, and caller-owned dynamic selection remain deferred |
+| Iterative agent-loop runtime | [`spec.md`](iterative-agent-loop-runtime/spec.md) | Implemented v1 baseline | Bounded opt-in serial model-tool loops execute inside eligible `llm_step` nodes with registry dispatch, approval pauses, fail-closed safety checks, loop traces, tests, and evidence complete; state-field final selectors, durable resume, and multidimensional execution-budget accounting remain deferred |
 | Power-Marimo dynamic workflow client | [`spec.md`](power-marimo-host-automation/spec.md) | Downstream boundary evaluated | DAR owns only generic dynamic workflow execution with host-provided tools; `../power-marimo` owns Marimo, Qt, hosted lifecycle, app safety policy, SDK/session behavior, and live validation |
 
 ## Completion Matrix
 
 | Capability Area | Owning Spec Package | Implemented Baseline | Remaining / Deferred Work |
 | --- | --- | --- | --- |
-| Package-directory workflow loading and execution | `dynamic-agent-runner` | Complete through package alignment, async-first execution, tracing, hooks, prompt-cache metadata, and portable `tool_type` preservation | Future scoped expansions only |
-| OpenAI-compatible provider facade | `openai-compatible-provider-wrapper` | Sync/async provider facade, provider config, SDK-backed defaults, package exports, and README example complete | Optional compatibility polish for provider-specific behavior |
+| Package-directory workflow loading and execution | `dynamic-agent-runner` | Complete through package alignment, async-first execution, tracing, hooks, prompt-cache metadata, portable `tool_type` preservation, and optional caller function-to-tool adaptation | Focused approval-parity evidence for function-adapted tools plus other future scoped expansions |
+| OpenAI-compatible provider facade | `openai-compatible-provider-wrapper` | Sync/async provider facade, SDK-backed defaults, ChatGPT/Codex catalog parity, account-header forwarding, package exports, tests, and README example complete | Future provider-specific behavior requires a separate scoped spec or slice |
 | Default OpenAI/Codex auth discovery | `default-openai-codex-auth` | Adapter default-provider resolver, `OPENAI_API_KEY` fallback, Codex user-level `config.toml` and ordered API-key/ChatGPT `auth.json` discovery, ChatGPT/Codex backend provider selection, opt-out behavior, redaction, tests, and docs complete | Future support for PAT or agent-identity auth requires a separate provider/base-url/signing spec |
 | OpenAI Responses tool-loop compatibility | `openai-responses-tool-loop-compat` | Slice R1 implemented | Streamed Responses function-call preservation, structured tool-loop transcript rendering, ChatGPT/Codex `function_call_output` follow-ups, explicit `tool_choice_policy`, model-facing top-level `tool_results`, docs, and fake tests complete |
-| LiteLLM provider adapter | `litellm-provider-adapter` | None | Slice L1 is prepared but paused until LiteLLM supports the package's Python 3.14 target; the prepared slice remains direct sync/async completion transport, request translation, response normalization, public factories, default-provider migration, fake tests, and explicit official-SDK compatibility path |
+| LiteLLM provider adapter | `litellm-provider-adapter` | None | Slice L1 is implementation-ready for direct sync/async completion transport, request translation, response normalization, public factories, default-provider migration, fake tests, explicit official-SDK compatibility, and temporary checked-in-wheel OCI packaging |
 | llama.cpp local-model adapters | `llama-cpp-local-model` | Local endpoint helpers, direct in-process llama.cpp chat adapters, provider-seam wiring, exports, model-resolution precedence, Hugging Face download wiring, local failure taxonomy, tests, and docs complete | Optional separate local embedding configuration remains later |
 | macOS MLX local-model adapters | `mlx-local-model-adapter` | Public adapter helpers, converted-directory and GGUF preflight, injected Hub reference resolution, generation kwargs, conservative capability metadata, identity validation, executor coverage, tests, and docs complete | Embeddings, multimodal IO, streaming public APIs, tool calling, structured output, model conversion, and MLX server helpers remain deferred |
-| Model adapter coverage policy | `model-adapter-coverage` | Public API/context argument, executor selection behavior, strict empty-list and nonmatching-adapter failures, augmented default OpenAI coverage, local-only routing removal, tests, and docs complete | Future coverage modes or provider discovery require a separate feature spec |
+| Apple Foundation Models adapter | `apple-foundation-model-adapter` | A1 implemented; standalone live paths verified; pytest-native SDK verification blocked | A1 code, optional SDK metadata, strict-coverage integration, fake tests, marked live tests, docs, full tests, lint, metadata checks, and build are complete; standalone eligible-Mac text, structured, and strict-workflow execution succeeded; pytest-native SDK execution remains blocked by native status 255; A2 tool callbacks require a separately approved DAR-managed coordinator and approval contract |
+| Model adapter coverage policy | `model-adapter-coverage` | Public API/context argument, executor selection behavior, strict empty-list and nonmatching-adapter failures, augmented default OpenAI coverage, local-only routing removal, tests, and docs complete | Future coverage modes or arbitrary-provider discovery require a separate feature spec; ChatGPT/Codex catalog parity is owned by `openai-compatible-provider-wrapper` |
 | PyInstaller packaging support | `pyinstaller-packaging-support` | Package advertises a PyInstaller hook directory through `pyinstaller40`; the package-owned `hook-openai_model_registry.py` collects `openai_model_registry` data files and copies `openai-model-registry` distribution metadata | Additional dependency hooks, downstream frozen-application builds, and CI PyInstaller packaging are deferred until a concrete caller requires them |
 | Compile-time graph mutation | `internal-graph-mutation` | Internal typed mutation datamodel, context-pruning mutation, validation, prepared-input integration, attachment diagnostics, and pruning-context injection for eligible `llm_step` interactions complete | Future structural node insertion, edge rewiring, richer link-level context-management insertion, and public mutation schemas require new approval |
 | Public Hugging Face model discovery | `hugging-face-model-search` | Repository-owned search API, normalized result types, error translation, exports, tests, and docs complete | Future richer Hub capabilities require a separate feature spec |
@@ -89,6 +93,7 @@ Portfolio evaluation artifacts:
 | Web tool pack | `web-tool-pack` | Opt-in `web_search`/`web_fetch` registry pack with injected fake-testable clients, bounded normalized results, URL scheme/domain policy, exports, and tests complete | Redirect/timeouts/local-network policy, trace redaction, capability/status reporting, provider adapters, and extraction/readability remain deferred |
 | Workspace data tool pack | `workspace-data-tool-pack` | Opt-in JSON-compatible write/read/search/list/delete registry pack with injected store, metadata-first search/list, delete approval flag, exports, and tests complete | Durable storage, indexing, trace/capability reporting, and host dirty-state remain caller-owned or deferred |
 | Subagent tool pack | `subagent-tool-pack` | Opt-in `run_subagent`/`run_subagents` registry pack with injected runner, presets, max-child policy, normalized aggregate results, exports, and tests complete | Parallel execution, timeout/iteration budgets, trace/capability reporting, recursive-spawn policy, and durable child lifecycle remain deferred |
+| Graphify semantic extractor tool | `graphify-semantic-extractor-tool` | First-release plus T7 opt-in implementation complete | Follow-up work may add richer Graphify schema coverage, adaptive policy selection, or an explicit endpoint; the current package validates a curated corpus manifest, runs bounded parallel extraction through DAR, emits staged artifacts, and leaves Graphify build/curation/promotion in the stock workflow |
 | Async session metadata | `async-session-memory-pipeline` | `runtime.execution_policy.async_session` metadata preservation and fail-closed validation complete | Durable external storage, broader memory replay, and summary generation are deferred; live in-memory sessions are owned by `persistent-agent-sessions`; pruning-context graph injection is complete through `context-management-prepare-stage` plus `internal-graph-mutation` |
 | Persistent agent sessions | `persistent-agent-sessions` | Public `AgentSession` and `InMemorySessionStore` v1 complete with state snapshots, bounded `accept(...)`, history policies, session-id state injection, snapshot restart, same-session concurrency rejection, sync wrapper parity, and capability/status reporting | Durable external stores, model-backed summaries, long-running graph executors, raw tool transcript replay, durable approval resume, and cross-process locking remain deferred |
 | Collaborative agent sessions | `collaborative-agent-sessions` | In-memory parent/child session manager, presets, child state snapshots, spawn/list/get/send/close/current-state APIs, snapshot restart, exports, and tests complete | Wait/resume APIs, child event streaming, capability/status reporting, durable storage, compatibility validation, and explicit tool-policy enforcement remain deferred |
@@ -98,14 +103,15 @@ Portfolio evaluation artifacts:
 | Model-backed context summaries | `model-backed-context-summaries` | Injected summarizer collaborator path for `model_summary` compaction with fail-closed missing summarizer behavior, bounded output metadata, and fake tests complete | Richer prior-summary folding, source/file/tool provenance diagnostics, fallback ordering, and capability/status reporting remain deferred |
 | Semantic context profiles | `semantic-context-profiles` | Exact and `hybrid_exact_semantic` older-turn selection preserve issue keys, filenames, and identifiers; Slice S1 adds caller-injected semantic scoring, missing-selector fallback diagnostics, direct/context collaborator threading, public selector contracts, and RAG lane separation with tests | Memory-kind hints, stale/redundant omission, RAG lane borrowing, prompt-cache-aware ordering, and selector capability/status reporting remain deferred |
 | Interpreter middleware | `llm-step-interpreter-middleware` | Future feature spec and candidate interface expectations captured | Dependency checks, prototypes, benchmark evidence, backend selection, and implementation |
-| Sandbox/workspace runtime | `sandbox-workspace-runtime` | Metadata-only `sandbox_runtime` preservation plus approval-before-side-effect boundary complete | Write tools, shell tools, workspace grants, sandbox adapters, and changed-path audits remain deferred |
+| Sandbox/workspace runtime | `sandbox-workspace-runtime` | Metadata-only `sandbox_runtime` preservation plus approval-before-side-effect boundary complete | Write tools, shell tools, canonical path containment, workspace grants, sandbox adapters, staged commit/rollback, and changed-path audits remain deferred |
 | Approval interruption/resume | `approval-interruption-resume` | Public interruption contract, direct approval-required tool pause, no-side-effect-before-approval behavior, redacted approval traces, high-level API guardrails, capability status, tests, and evidence complete | Durable resume, approval decisions, model-emitted tool-call approval, argument modification, parallel approvals, and serialized resume state remain deferred |
+| Tamper-evident governance audit | `hash-chained-governance-audit` | None; future specification only | First release would define canonical governance records, caller-supplied append/verify collaborators, final-invocation fingerprints, mutation detection, redaction, and audit-failure policy; signatures, external anchors, remote stores, and compliance exports remain deferred |
 | MCP runtime integration | `mcp-runtime-integration` | Metadata-only MCP registry-source and lifecycle diagnostics preservation plus explicit caller-supplied MCP registry injection complete | Live server discovery, process lifecycle, transports, reconnect, schema cache, and diagnostics beyond metadata remain deferred |
 | Live guardrail execution | `live-guardrail-execution` | Metadata-only guardrail declaration preservation plus caller-registered input guardrail aborts before first runtime action complete | Output guardrails, tool guardrails, reject-content behavior, retries, timeouts, and external adapters remain deferred |
 | RAG orchestration contract | `rag-orchestration-contract` | Expanded `metadata.rag_pipeline` validation and capability/status reporting exist for staged retrievers, required collaborators, provenance and context-management handoff declarations, source readiness, permissions, cache, and degraded states | Retrieval infrastructure, prompt packing, ingestion, embeddings, indexes, graph stores, rerankers, compressors, evaluators, answer citation rendering, output guardrails, and live retrieval orchestration remain deferred |
 | Memory-aware context pipeline | `memory-aware-context-pipeline` | None | Future declarative memory pipeline validation, capability/status reporting, fake-testable memory retrieval tiers, provenance, trace events, retrieved-context handoff, no-implicit-save enforcement, and a first-slice decision on whether distinct memory semantics justify remaining separate from RAG; salience and ingestion execution remain future/deferred |
-| SKILL.md source resolution | `skill-source-resolution` | Opt-in package-local bundled `SKILL.md` loading, policy validation, bounded UTF-8 body loading, deterministic prompt injection, redacted provenance, and capability/status reporting complete | External roots, `source_path` reads, support-file prompt loading, network fetching, Markdown frontmatter parsing, and raw-body debugging modes remain deferred |
-| Iterative agent-loop runtime | `iterative-agent-loop-runtime` | Bounded opt-in serial model-tool loop execution complete for eligible `llm_step` nodes | Loop `state_field`/`tool_result` final selectors, durable approval resume, output/tool guardrails, parallel tool calls, and durable transcripts remain deferred |
+| SKILL.md source resolution | `skill-source-resolution` | Opt-in package-local bundled `SKILL.md` loading, policy validation, bounded UTF-8 body loading, deterministic prompt injection, redacted provenance, and capability/status reporting complete | External roots, `source_path` reads, support-file prompt loading, network fetching, Markdown frontmatter parsing, raw-body debugging, and caller-owned dynamic selection remain deferred |
+| Iterative agent-loop runtime | `iterative-agent-loop-runtime` | Bounded opt-in serial model-tool loop execution complete for eligible `llm_step` nodes | Loop `state_field`/`tool_result` final selectors, durable approval resume, output/tool guardrails, parallel tool calls, durable transcripts, and multidimensional estimated/reserved/actual budget accounting remain deferred |
 | Power-Marimo dynamic workflow client | `power-marimo-host-automation` | Placeholder-safe fixture and fake-tool execution coverage complete; current `../power-marimo` evidence shows the host-owned tool-service and dynamic-agent-runner bridge pattern | No DAR implementation remains unless a generic runner contract is missing; Marimo, Qt, hosted lifecycle, domain adapters, app safety policy, and live validation remain downstream client concerns |
 
 ## Reading Order
@@ -128,6 +134,52 @@ scheduled task before code changes begin.
 
 ## Evaluated Cross-Cutting References
 
+The
+[`AI-Agents-Projects-Tutorials`](https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials)
+repository, attributed by its README and canonical Git remote to MarkTechPost /
+`MARKTECHPOST-AI-MEDIA-INC`, was evaluated as a broad educational corpus of
+agent implementations and notebooks. It is design evidence, not a DAR runtime
+dependency or implementation authority. The review used its OpenHarness,
+governance, memory-engineering, cost-aware planning, agentic UI, MCP/OAuth,
+A2A/ACP, guardrail, and tracing examples and produced these scoped updates:
+
+- approval must bind the final normalized invocation after every
+  policy-relevant transformation; post-approval mutation requires
+  reauthorization
+- tool guardrails remain separate from registry invocation and cannot dispatch
+  handlers directly
+- caller-supplied memory evidence may carry memory kind, salience, novelty,
+  usage, and outcome signals without making DAR a memory store
+- repair/self-check loops must share enclosing iteration, token, time, and cost
+  limits
+- replayable event contracts need stable ids and deduplication semantics, while
+  UI transports remain downstream concerns
+- live MCP authorization must validate resource/audience and scopes, and
+  cancellation claims must reflect negotiated capabilities
+- the tutorial governance record shape motivated the separate future
+  [`hash-chained-governance-audit`](hash-chained-governance-audit/spec.md) spec
+
+The corpus contains tutorial-oriented runtime installs, notebook magics,
+dynamic execution, direct handler dispatch, incomplete protocol handling, and
+stored notebook outputs. Those examples must not be copied as production safety
+or reproducibility patterns.
+
+The follow-up notebook review placed the remaining useful patterns under
+existing owners instead of creating duplicate feature areas:
+
+- contract-first decision invariants extend approval, guardrail, and governance
+  record validation
+- deterministic adversarial tool and leakage fixtures extend the owning safety
+  specs' validation matrices; model judges remain optional annotations
+- multidimensional estimated/reserved/actual accounting remains a future
+  `iterative-agent-loop-runtime` slice, while planning optimization stays
+  caller-owned
+- staged validate/approve/commit/rollback semantics and canonical path
+  containment extend `sandbox-workspace-runtime`
+- procedural skill scores and outcomes remain caller-owned inputs to a future
+  selector extension under `skill-source-resolution`; DAR does not learn or
+  rewrite skills automatically
+
 Micheal Lanham's `AI Agents in Action, Second Edition: Intelligent Workflows
 With LLMs, MCP, A2A, and More` (Manning, ISBN `9781633434530`) was evaluated as
 a cross-cutting agent architecture reference. Useful ideas were tracked as
@@ -149,6 +201,32 @@ scope:
 - Production ideas such as prompt/tool/model versioning, idempotency,
   timeouts, fallback budgets, observability, and model routing inform
   capability/status, sandbox, and future deployment-oriented specs.
+
+Sana Hassan's ["Build a Nanobot-Style AI Agent in Google Colab with Tool
+Calling, Session Memory, Skills, and MCP
+Servers"](https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/)
+(MarkTechPost, June 26, 2026) and its linked tutorial notebook were evaluated as
+a compact educational agent-loop reference. The reference is supporting design
+evidence, not an implementation authority:
+
+- Its normalized provider response and deterministic mock provider reinforce
+  DAR's existing model-adapter boundary and fake-adapter unit-test strategy.
+- Its callable-to-tool decorator motivates an optional
+  `tool_from_function(...)` authoring convenience around the repository-owned
+  tool registry. Inference must remain conservative, explicit metadata must win,
+  and the resulting tool must traverse normal validation, approval, tracing,
+  retry, and result-shaping behavior.
+- Its compact skill descriptor reinforces separating descriptive capability
+  metadata from runtime activation. DAR rejects the tutorial's process-global
+  prompt and registry mutation as a workflow or session isolation model.
+- Its lifecycle hook demonstrates useful observation points but not an approval
+  boundary. Hooks must not silently authorize actions, and tool-call origin must
+  not bypass DAR's approval stack.
+- Its in-process `MCPServer` facade is an adapter example, not evidence of MCP
+  transport, discovery, protocol, or lifecycle support.
+- Its per-session history illustrates isolation by session key, but DAR does not
+  adopt its lossy tool-transcript handling, process-local persistence
+  assumptions, or unrestricted code-execution examples.
 
 Jia Huang's `RAG from First Principles` (Packt Publishing, ISBN
 `9781835888667`, 2026 metadata date) was evaluated as a RAG engineering

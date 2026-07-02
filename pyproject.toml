@@ -9,6 +9,7 @@ dynamic = ["dependencies", "requires-python"]
 
 [project.scripts]
 dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
+graphify-extract = "dynamic_agent_runner.tools.graphify_cli:console_main"
 
 [project.entry-points.pyinstaller40]
 hook-dirs = "dynamic_agent_runner.__pyinstaller:get_hook_dirs"
@@ -16,6 +17,7 @@ hook-dirs = "dynamic_agent_runner.__pyinstaller:get_hook_dirs"
 [project.optional-dependencies]
 huggingface = ["huggingface-hub>=1.18.0,<2.0.0"]
 llamacpp = ["llama-cpp-python>=0.3.29,<0.4.0"]
+apple-foundation-models = ["apple-fm-sdk>=0.2.0"]
 
 [tool.poetry]
 packages = [
@@ -31,6 +33,7 @@ tiktoken = ">=0.13.0"
 openai-model-registry = "^1.0.5"
 llama-cpp-python = {version = "^0.3.29", optional = true}
 huggingface-hub = {version = "^1.18.0", optional = true}
+apple-fm-sdk = {version = ">=0.2.0", optional = true}
 
 [tool.poetry.group.dev]
 optional = true
@@ -74,6 +77,16 @@ PYSIDE6 = true
 [build-system]
 requires = ["poetry>=1.0.0"]
 build-backend = "poetry.masonry.api"
+
+[tool.pytest.ini_options]
+markers = [
+    "apple_live: live Apple Foundation Models test on an eligible Mac",
+]
+norecursedirs = [
+    "litellm",
+    "input_ocibuild",
+    "output_ocibuild_packagewheel",
+]
 
 # Build trigger marker: force OCI build for cached inventory slice. 2026-06-23.
 [tool.ruff]

@@ -480,6 +480,7 @@ def validate_runtime_manifest(
     _extend(errors, _llm_prompt_errors(manifest.nodes))
     _extend(errors, _context_pipeline_attachment_errors(manifest.nodes))
     _extend(errors, _model_requirements_errors(manifest))
+    _extend(errors, _memory_pipeline_errors(manifest))
     _extend(errors, _rag_pipeline_errors(manifest))
     _extend(errors, _react_loop_errors(manifest))
     _extend(errors, _tool_descriptor_budget_policy_errors(manifest))
@@ -1461,6 +1462,120 @@ def _validate_fallback_policy(
         label,
         errors,
     )
+
+
+def _memory_pipeline_errors(manifest: RuntimeManifest) -> list[str]:  # noqa: C901
+    patterns = set(manifest.patterns_present)
+    required = patterns & {"memory_retrieval", "long_term_memory", "memory_ingestion"}
+    pipeline = manifest.memory_pipeline
+    errors: list[str] = []
+    if required and not pipeline:
+        errors.append(
+            "metadata.memory_pipeline is required when metadata.patterns_present includes memory patterns"
+        )
+        return errors
+    if not pipeline:
+        return errors
+    allowed = {
+        "mode",
+        "retrieval_tiers",
+        "salience",
+        "ingestion",
+        "provenance_required",
+        "context_assembly",
+        "degraded_states",
+    }
+    errors.extend(
+        f"metadata.memory_pipeline contains unknown field {key!r}"
+        for key in set(pipeline) - allowed
+    )
+    if pipeline.get("mode") not in (None, "lightweight", "hybrid", "graph"):
+        errors.append("metadata.memory_pipeline.mode has unsupported value")
+    tiers = pipeline.get("retrieval_tiers")
+    if tiers is not None:
+        if not isinstance(tiers, Mapping):
+            errors.append("metadata.memory_pipeline.retrieval_tiers must be a mapping")
+        else:
+            for tier, declaration in tiers.items():
+                label = f"metadata.memory_pipeline.retrieval_tiers.{tier}"
+                if tier not in {"fast", "balanced", "deep"}:
+                    errors.append(f"{label} has unsupported tier")
+                if not isinstance(declaration, Mapping):
+                    errors.append(f"{label} must be a mapping")
+                    continue
+                if (
+                    not isinstance(declaration.get("retriever_tool_id"), str)
+                    or not declaration.get("retriever_tool_id", "").strip()
+                ):
+                    errors.append(
+                        f"{label}.retriever_tool_id must be a nonblank string"
+                    )
+                if "max_results" in declaration and (
+                    not isinstance(declaration["max_results"], int)
+                    or isinstance(declaration["max_results"], bool)
+                    or declaration["max_results"] <= 0
+                ):
+                    errors.append(f"{label}.max_results must be a positive integer")
+    salience = pipeline.get("salience")
+    if isinstance(salience, Mapping):
+        if salience.get("classifier") not in (None, "caller_tool", "none"):
+            errors.append(
+                "metadata.memory_pipeline.salience.classifier has unsupported value"
+            )
+        if salience.get("save_policy") not in (
+            None,
+            "salient_only",
+            "explicit_only",
+            "disabled",
+        ):
+            errors.append(
+                "metadata.memory_pipeline.salience.save_policy has unsupported value"
+            )
+    if (
+        salience is not None
+        and isinstance(salience, Mapping)
+        and salience.get("classifier") == "caller_tool"
+        and not isinstance(salience.get("tool_id"), str)
+    ):
+        errors.append(
+            "metadata.memory_pipeline.salience.tool_id is required for caller_tool"
+        )
+    ingestion = pipeline.get("ingestion")
+    if ingestion is not None:
+        if not isinstance(ingestion, Mapping):
+            errors.append("metadata.memory_pipeline.ingestion must be a mapping")
+        else:
+            if (
+                not isinstance(ingestion.get("tool_id"), str)
+                or not ingestion.get("tool_id", "").strip()
+            ):
+                errors.append(
+                    "metadata.memory_pipeline.ingestion.tool_id must be a nonblank string"
+                )
+            if ingestion.get("trigger") != "explicit_workflow_step":
+                errors.append(
+                    "metadata.memory_pipeline.ingestion.trigger must be explicit_workflow_step"
+                )
+    assembly = pipeline.get("context_assembly")
+    if assembly is not None:
+        if (
+            not isinstance(assembly, Mapping)
+            or assembly.get("target") != "prepare_model_input"
+        ):
+            errors.append(
+                "metadata.memory_pipeline.context_assembly.target must be prepare_model_input"
+            )
+        elif pipeline.get("provenance_required") is True and (
+            not isinstance(assembly.get("required_evidence_fields"), list)
+            or not all(
+                isinstance(field, str) and field.strip()
+                for field in assembly["required_evidence_fields"]
+            )
+        ):
+            errors.append(
+                "metadata.memory_pipeline.provenance_required requires context_assembly.required_evidence_fields"
+            )
+    return errors
 
 
 def _rag_pipeline_errors(manifest: RuntimeManifest) -> list[str]:

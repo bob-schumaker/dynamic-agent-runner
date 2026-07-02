@@ -19,7 +19,8 @@ runtime slices.
 - Important files reviewed:
   - `README.md`
   - `pyproject.toml`
-  - `specs/project-roadmap/spec.md`
+  - downstream `power-marimo/specs/project-roadmap/spec.md` (reviewed in the
+    separate downstream repository; not part of this corpus)
   - `skills/marimo-pair/SKILL.md`
   - `skills/marimo-pair/reference/gotchas.md`
   - `skills/marimo-pair/reference/notebook-improvements.md`
