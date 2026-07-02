@@ -68,4 +68,4 @@ graphify-out/
 .graphifyignore
 
 # temporary 
-src/litellm/
+/litellm/
