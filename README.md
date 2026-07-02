@@ -247,9 +247,11 @@ modes are not treated as OpenAI API keys in this path.
 
 Ordinary OpenAI-compatible requests use LiteLLM's Chat Completions transport;
 ChatGPT/Codex auth continues through the repository-owned SDK backend until the
-separate Responses-aware LiteLLM slice is implemented. The OCI wheelhouse
-currently includes the checked-in pure-Python LiteLLM wheel as a temporary
-distribution boundary.
+separate Responses-aware LiteLLM slice is implemented. DAR includes a small
+`dynamic_agent_runner.litellm` OpenAI-compatible fallback so the ordinary
+transport works even when the full upstream LiteLLM package is unavailable.
+The OCI wheelhouse may additionally include the checked-in upstream LiteLLM
+wheel as a temporary distribution boundary.
 
 For an explicit LiteLLM adapter with injected dispatch or router behavior:
 
@@ -628,14 +630,14 @@ error with a non-zero exit code.
 
 ### DAR Graphify semantic extraction
 
-The package also exposes `dynamic-agent-runner-graphify-extract` for other
+The package also exposes `graphify-extract` for other
 repositories that need DAR-backed parallel semantic extraction. It accepts a
 small JSON corpus manifest containing a repository root and relative document
 paths, validates the corpus, runs bounded DAR model workers, and writes staged
 Graphify semantic artifacts to a candidate output directory:
 
 ```bash
-dynamic-agent-runner-graphify-extract \
+graphify-extract \
   --repo-root /path/to/repository \
   --corpus-manifest /path/to/repository/graphify-manifest.json \
   --output-dir /tmp/graphify-candidate \
