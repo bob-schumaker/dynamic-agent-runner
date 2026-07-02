@@ -123,8 +123,8 @@
 - Current implementation horizon after local-model availability A4: native
   Hugging Face cache introspection, real metadata integration, strict exception
   mode, broad inventory, persistent root management, model loading, downloads,
-  and execution remain deferred. The ROI queue still treats
-  `litellm-provider-adapter` as paused on Python 3.14 dependency support.
+  and execution remain deferred. The ROI queue now treats
+  `litellm-provider-adapter` Slice L1 as implementation-ready for TDD.
 - `specs/openai-responses-tool-loop-compat/` Slice R1 is implemented and
   complete. DAR now upstreams the behavior Power Marimo had been patching
   locally: streamed Responses function-call preservation, internal structured
@@ -148,17 +148,15 @@
   opt-in and deterministic: it validates runtime/node policy, ranks only
   registry-exposed model tools, packs descriptors within token/count limits,
   enforces required tools before dispatch, and emits redacted diagnostics.
-- `specs/litellm-provider-adapter/` remains prepared as a high-ROI Slice L1,
-  but execution is paused until LiteLLM supports DAR's Python 3.14 target.
-  Slice L1 remains scoped to direct LiteLLM Chat Completions transport,
-  request/response translation, public factories, fake tests, and an explicit
-  official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM remains deferred to
-  a Responses-aware follow-up.
-- The first attempt to execute the LiteLLM adapter slice was stopped before code
-  commit because current LiteLLM package metadata declares Python
-  `>=3.10,<3.14`, while DAR currently supports and locally selects Python
-  `3.14.6`. The branch was restored to clean `cb88c53`; pick up implementation
-  after LiteLLM publishes Python 3.14-compatible metadata.
+- `specs/litellm-provider-adapter/` is implementation-ready for Slice L1 TDD:
+  direct LiteLLM Chat Completions transport, request/response translation,
+  public factories, fake tests, and an explicit official-SDK compatibility path.
+  ChatGPT/Codex-on-LiteLLM remains deferred to a Responses-aware follow-up.
+  Until upstream Python 3.14 support is published, the checked-in pure-Python
+  wheel under `vendor/wheels/` is copied into the OCI wheelhouse.
+- The manual OCI package run under Python 3.13 completed successfully. Its tar
+  contains the DAR wheels and `litellm-1.92.0-py3-none-any.whl`, whose SHA-256
+  matches the checked-in wheel.
 - `specs/memory-aware-context-pipeline/spec.md` remains a proposed
   caller-owned long-term memory orchestration contract inspired by `memlayer`.
   Its first slice is retrieval-only and fake-testable, with an explicit
@@ -344,10 +342,10 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
-- The next ROI action is `memory-aware-context-pipeline` first-slice validation.
-  LiteLLM Slice L1 remains prepared but paused until Python 3.14-compatible
-  dependency metadata is available; OpenAI Responses R1 and semantic context
-  selector Slice S1 are already implemented.
+- The next ROI actions are LiteLLM Slice L1 TDD implementation and
+  `memory-aware-context-pipeline` first-slice validation. LiteLLM is
+  implementation-ready with a temporary checked-in-wheel OCI boundary; OpenAI
+  Responses R1 and semantic context selector Slice S1 are already implemented.
 
 ## Recent Completed Work
 

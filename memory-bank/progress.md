@@ -2,6 +2,13 @@
 
 ## Working
 
+- LiteLLM provider-adapter Slice L1 is implementation-ready for TDD. The
+  committed feature artifacts define direct Chat Completions transport,
+  repository-owned request/response translation, public factories, fake tests,
+  and explicit official-SDK compatibility. A checked-in pure-Python wheel is a
+  temporary OCI packaging boundary until upstream Python 3.14 support lands.
+- Commits `5e3d5e6` and `6faa98c` added the vendored-wheel build flow, verified
+  Python 3.13 OCI package evidence, and aligned the LiteLLM spec corpus.
 - Graphify semantic extraction now has an explicit structured-output contract:
   prompts prohibit response envelopes, require exact top-level arrays and
   source provenance, and focused tests cover the instruction boundary. The
@@ -228,18 +235,15 @@
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
   optional injected-evaluator advisory profile for resolved GGUF assets.
-- `litellm-provider-adapter` is prepared as a high-ROI implementation
-  candidate, but execution is paused until LiteLLM supports DAR's Python 3.14
-  target. Slice L1 has spec, plan, task, and validation artifacts for direct
-  LiteLLM Chat Completions transport, request/response translation, public
-  factories, fake tests, default-provider migration, and an explicit
-  official-SDK compatibility path. ChatGPT/Codex-on-LiteLLM remains deferred to
-  a Responses-aware follow-up slice.
-- Executing LiteLLM Slice L1 is paused because `poetry add litellm` resolved to
-  current LiteLLM metadata requiring Python `>=3.10,<3.14`, which conflicts with
-  DAR's current Python 3.14.6 support. The attempted RED tests were discarded
-  and the branch was restored cleanly to `cb88c53`; retry after LiteLLM supports
-  Python 3.14.
+- `litellm-provider-adapter` Slice L1 is implementation-ready for TDD. It is
+  scoped to direct LiteLLM Chat Completions transport, request/response
+  translation, public factories, fake tests, default-provider migration, and
+  an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM remains
+  deferred.
+- LiteLLM Python 3.14 compatibility is temporarily handled with the checked-in
+  pure-Python wheel under `vendor/wheels/`. The manual Python 3.13 OCI package
+  run succeeded and verified that the packaged LiteLLM wheel hash matches the
+  checked-in artifact.
 - `persistent-agent-sessions` is implemented as a v1 feature for
   cross-prompt continuity through public `AgentSession`,
   `AgentSessionState`, `AgentSessionResult`, and `InMemorySessionStore`, with
@@ -291,8 +295,8 @@
 - The current local-model availability implementation is complete through Slice
   A4 narrow cached inventory. The spec corpus still keeps broader local
   inventory, native Hugging Face cache introspection, real metadata integration,
-  and strict exception mode outside this slice while LiteLLM remains paused on
-  Python 3.14 dependency compatibility.
+  and strict exception mode outside this slice; LiteLLM is now separately
+  implementation-ready.
 
 ## Latest Milestones
 

@@ -172,8 +172,12 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   - `ocibuild.repos.conf`
   - `ocibuild.slack.conf`
 - Build helper: `python-build-system.py`.
-- Configured build step: `packagewheel` using Python `3.11` and
-  `build-runner-python-ol8`.
+- Configured build step: `packagewheel` using Python `3.13` and
+  `build-runner-python-ol9`.
+- `python-build-system.py` requires and copies the checked-in
+  `vendor/wheels/litellm-1.92.0-py3-none-any.whl` into `dist/` before the root
+  `python -m build` invocation; this is temporary until upstream LiteLLM
+  supports Python 3.14.
 - Configured publish targets:
   - `indcon-release-pypi-local`
   - `indcon-dev-pypi-local`
