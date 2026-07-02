@@ -9,7 +9,7 @@ dynamic = ["dependencies", "requires-python"]
 
 [project.scripts]
 dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
-dynamic-agent-runner-graphify-extract = "dynamic_agent_runner.tools.graphify_cli:console_main"
+graphify-extract = "dynamic_agent_runner.tools.graphify_cli:console_main"
 
 [project.entry-points.pyinstaller40]
 hook-dirs = "dynamic_agent_runner.__pyinstaller:get_hook_dirs"
@@ -82,7 +82,11 @@ build-backend = "poetry.masonry.api"
 markers = [
     "apple_live: live Apple Foundation Models test on an eligible Mac",
 ]
-norecursedirs = ["src/litellm"]
+norecursedirs = [
+    "litellm",
+    "input_ocibuild",
+    "output_ocibuild_packagewheel",
+]
 
 # Build trigger marker: force OCI build for cached inventory slice. 2026-06-23.
 [tool.ruff]
