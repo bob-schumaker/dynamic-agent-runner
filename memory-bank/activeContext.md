@@ -123,8 +123,9 @@
 - Current implementation horizon after local-model availability A4: native
   Hugging Face cache introspection, real metadata integration, strict exception
   mode, broad inventory, persistent root management, model loading, downloads,
-  and execution remain deferred. The ROI queue now treats
-  `litellm-provider-adapter` Slice L1 as implementation-ready for TDD.
+  and execution remain deferred. The ROI queue now treats Apple A1 and
+  memory-aware context validation as the next implementation candidates;
+  LiteLLM Slice L1 is complete.
 - `specs/openai-responses-tool-loop-compat/` Slice R1 is implemented and
   complete. DAR now upstreams the behavior Power Marimo had been patching
   locally: streamed Responses function-call preservation, internal structured
@@ -148,15 +149,15 @@
   opt-in and deterministic: it validates runtime/node policy, ranks only
   registry-exposed model tools, packs descriptors within token/count limits,
   enforces required tools before dispatch, and emits redacted diagnostics.
-- `specs/litellm-provider-adapter/` is implementation-ready for Slice L1 TDD:
-  direct LiteLLM Chat Completions transport, request/response translation,
-  public factories, fake tests, and an explicit official-SDK compatibility path.
+- `specs/litellm-provider-adapter/` Slice L1 is implemented and validated:
+  DAR includes a minimal `dynamic_agent_runner.litellm` sync/async
+  OpenAI-compatible transport, direct Chat Completions translation, public
+  factories, fake tests, and an explicit official-SDK compatibility path.
   ChatGPT/Codex-on-LiteLLM remains deferred to a Responses-aware follow-up.
-  Until upstream Python 3.14 support is published, the checked-in pure-Python
-  wheel under `vendor/wheels/` is copied into the OCI wheelhouse.
-- The manual OCI package run under Python 3.13 completed successfully. Its tar
-  contains the DAR wheels and `litellm-1.92.0-py3-none-any.whl`, whose SHA-256
-  matches the checked-in wheel.
+- The latest manual OCI package run under Python 3.13 completed successfully.
+  Its DAR wheel contains the bundled transport and its artifact also contains
+  `litellm-1.92.0-py3-none-any.whl`, whose SHA-256 matches the checked-in
+  wheel. Upstream LiteLLM publication remains deferred.
 - `specs/memory-aware-context-pipeline/spec.md` remains a proposed
   caller-owned long-term memory orchestration contract inspired by `memlayer`.
   Its first slice is retrieval-only and fake-testable, with an explicit
@@ -342,10 +343,11 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
-- The next ROI actions are LiteLLM Slice L1 TDD implementation and
-  `memory-aware-context-pipeline` first-slice validation. LiteLLM is
-  implementation-ready with a temporary checked-in-wheel OCI boundary; OpenAI
-  Responses R1 and semantic context selector Slice S1 are already implemented.
+- The next ROI actions are Apple Foundation Models A1 and
+  `memory-aware-context-pipeline` first-slice validation. LiteLLM Slice L1 is
+  complete with a bundled fallback and temporary OCI wheelhouse artifact;
+  OpenAI Responses R1 and semantic context selector Slice S1 are already
+  implemented.
 
 ## Recent Completed Work
 
@@ -423,9 +425,9 @@
   records the RAG/context-management ownership split.
 - Skill-source resolution v1 is implemented and documented; open decisions are
   deferred beyond v1.
-- Core LiteLLM adapter planning is captured in
-  `specs/litellm-provider-adapter/spec.md`; it is draft-only and not yet
-  implementation authorization.
+- Core LiteLLM adapter implementation and its packaging boundary are captured
+  in `specs/litellm-provider-adapter/spec.md`; upstream package publication and
+  the ChatGPT/Codex Responses follow-up remain open.
 - Persistent agent sessions v1 is implemented and documented; completion
   evidence is captured in `specs/persistent-agent-sessions/validation.md`, and
   cross-spec ownership wording was reconciled across the spec surface.
@@ -467,8 +469,9 @@
   - `specs/model-event-streaming/spec.md`
 - Implementation-ready feature packages:
   - `specs/apple-foundation-model-adapter/`
-- Paused implementation candidates:
-  - `specs/litellm-provider-adapter/spec.md`
+- Deferred implementation follow-ups:
+  - upstream LiteLLM publication and ChatGPT/Codex Responses support in
+    `specs/litellm-provider-adapter/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
   - `specs/provider-backed-context-compaction/spec.md`
@@ -496,9 +499,8 @@
 - Run the `memory-aware-context-pipeline` declarative first-slice validation when
   it is scheduled, including the explicit decision to retain a distinct memory
   contract or fold it back into RAG.
-- Resume LiteLLM Slice L1 only after upstream package metadata supports DAR's
-  Python 3.14 target; its initial spec/plan/tasks/validation set is already
-  prepared.
+- Resume LiteLLM work only for upstream package publication or the deferred
+  ChatGPT/Codex Responses slice; the direct transport Slice L1 is complete.
 - If extending model event streaming beyond v1, create plan/tasks for
   provider-native token deltas, adapter streaming protocol, model-tool-loop
   progress events, cancellation/backpressure behavior, redaction/tool payload

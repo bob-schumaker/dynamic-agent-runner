@@ -283,11 +283,11 @@
   Future live-runtime work should start from the relevant feature spec under
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
 - The current roadmap has capability status, approval/sandbox v1, MCP v1,
-  guardrail v1, iterative loops, skill source resolution, host integration, and
-  local-model availability baselines complete. Apple A1, LiteLLM Slice L1, the
+  guardrail v1, iterative loops, skill source resolution, host integration,
+  local-model availability, and LiteLLM Slice L1 complete. Apple A1, the
   memory-aware first slice, and provider-backed compaction are the leading
-  unimplemented work; LiteLLM is implementation-ready with a temporary
-  vendored-wheel packaging boundary.
+  unimplemented work; upstream LiteLLM publication and ChatGPT/Codex
+  Responses support remain deferred.
 - `specs/capability-status-report/spec.md` owns the implemented preflight
   reporting direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.
@@ -308,9 +308,10 @@
 - Keep unsupported fixture features visible through expected-failure tests until
   a later scoped slice implements them.
 - Keep the OpenAI-first adapter boundary for the core runtime, while the
-  dedicated LiteLLM provider-adapter spec governs its implementation-ready
-  transport slice. Keep Watchfiles, Rich, and Diskcache deferred until a future
-  scoped requirement justifies them.
+  dedicated LiteLLM provider-adapter spec governs the bundled ordinary
+  OpenAI-compatible transport and its deferred upstream/Responses follow-ups.
+  Keep Watchfiles, Rich, and Diskcache deferred until a future scoped
+  requirement justifies them.
 - Preserve the OpenAI auth boundary: project-local `.codex/config.toml`,
   workflow packages, and generated artifacts must not choose auth sources or
   redirect user credentials. Future PAT or agent-identity support needs a

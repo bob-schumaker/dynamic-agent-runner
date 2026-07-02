@@ -2,11 +2,11 @@
 
 ## Working
 
-- LiteLLM provider-adapter Slice L1 is implementation-ready for TDD. The
-  committed feature artifacts define direct Chat Completions transport,
-  repository-owned request/response translation, public factories, fake tests,
-  and explicit official-SDK compatibility. A checked-in pure-Python wheel is a
-  temporary OCI packaging boundary until upstream Python 3.14 support lands.
+- LiteLLM provider-adapter Slice L1 is implemented and validated. DAR includes
+  the bundled `dynamic_agent_runner.litellm` sync/async OpenAI-compatible
+  transport, repository-owned request/response translation, public factories,
+  fake tests, default-provider migration, and explicit official-SDK
+  compatibility. ChatGPT/Codex-on-LiteLLM remains deferred.
 - Commits `5e3d5e6` and `6faa98c` added the vendored-wheel build flow, verified
   Python 3.13 OCI package evidence, and aligned the LiteLLM spec corpus.
 - Graphify semantic extraction now has an explicit structured-output contract:
@@ -235,15 +235,11 @@
   route-gated tool execution.
 - `llama-cpp-memory-fit-profile` is prepared for v1 implementation as an
   optional injected-evaluator advisory profile for resolved GGUF assets.
-- `litellm-provider-adapter` Slice L1 is implementation-ready for TDD. It is
-  scoped to direct LiteLLM Chat Completions transport, request/response
-  translation, public factories, fake tests, default-provider migration, and
-  an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM remains
-  deferred.
-- LiteLLM Python 3.14 compatibility is temporarily handled with the checked-in
-  pure-Python wheel under `vendor/wheels/`. The manual Python 3.13 OCI package
-  run succeeded and verified that the packaged LiteLLM wheel hash matches the
-  checked-in artifact.
+- `litellm-provider-adapter` Slice L1 is complete. The manual Python 3.13 OCI
+  package run succeeded; the DAR wheel contains the bundled transport, the
+  artifact includes the checked-in pure-Python LiteLLM wheel, and the packaged
+  LiteLLM wheel hash matches the checked-in artifact. A portable upstream
+  dependency remains deferred.
 - `persistent-agent-sessions` is implemented as a v1 feature for
   cross-prompt continuity through public `AgentSession`,
   `AgentSessionState`, `AgentSessionResult`, and `InMemorySessionStore`, with
@@ -295,8 +291,7 @@
 - The current local-model availability implementation is complete through Slice
   A4 narrow cached inventory. The spec corpus still keeps broader local
   inventory, native Hugging Face cache introspection, real metadata integration,
-  and strict exception mode outside this slice; LiteLLM is now separately
-  implementation-ready.
+  and strict exception mode outside this slice; LiteLLM Slice L1 is complete.
 
 ## Latest Milestones
 
@@ -345,7 +340,8 @@
 - `278c933` implemented host workflow inline/generated and loaded-workflow
   preflight, host id capability details, docs, specs, and fake tests.
 - `a29ad7b` prepared `host-workflow-integration` H2 as the next feasible
-  implementation slice while LiteLLM remained paused.
+  implementation slice while LiteLLM remained paused; later LiteLLM Slice L1
+  implementation superseded that pause.
 - `3c5ee5b` aligned descriptor-budgeting status and ROI ordering after Slice T1
   completion.
 - `5b95125` refreshed memory-bank state after descriptor budgeting.
@@ -495,10 +491,9 @@
 
 ## Remaining
 
-- LiteLLM provider work remains spec-only but implementation-candidate ready.
-  Before implementation, confirm current LiteLLM releases support Python 3.14.
-  Do not narrow DAR's Python 3.14 support for this feature; pick up Slice L1
-  after LiteLLM compatibility lands.
+- Historical note: LiteLLM provider work was once spec-only while upstream
+  Python 3.14 metadata was unavailable. Slice L1 now uses the bundled DAR
+  transport; only upstream publication and Responses-specific follow-ups remain.
 - Model event streaming v1 is complete, but provider-native token deltas,
   model-tool-loop progress events, cancellation/backpressure expansion,
   lower-level executor event APIs, and streaming capability/status reporting
@@ -577,6 +572,6 @@
 - Keep MLX local execution macOS-only and lazy on other platforms: adapter
   construction and model alias inspection should not import `mlx_lm`, resolve
   local model assets, or fail until generation is attempted.
-- Do not execute `litellm-provider-adapter` Slice L1 while LiteLLM still
-  declares `Python >=3.10,<3.14`; DAR currently supports Python 3.14.6 and
-  should pick up LiteLLM after upstream metadata supports it.
+- Do not replace the bundled transport with a versioned upstream LiteLLM
+  dependency until the configured package source publishes a portable Python
+  3.14-compatible release.

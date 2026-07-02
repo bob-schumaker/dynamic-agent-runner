@@ -176,8 +176,9 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   `build-runner-python-ol9`.
 - `python-build-system.py` requires and copies the checked-in
   `vendor/wheels/litellm-1.92.0-py3-none-any.whl` into `dist/` before the root
-  `python -m build` invocation; this is temporary until upstream LiteLLM
-  supports Python 3.14.
+  `python -m build` invocation; this remains an optional temporary OCI
+  wheelhouse artifact while DAR's bundled `dynamic_agent_runner.litellm`
+  transport supplies the required ordinary OpenAI-compatible path.
 - Configured publish targets:
   - `indcon-release-pypi-local`
   - `indcon-dev-pypi-local`
@@ -261,9 +262,9 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   22 passing tests and targeted pre-commit on `executor.py` and `test_cli.py`.
 - Runtime hardening roadmap updates were committed in `a0b1490`. The spec and
   task list now prioritize Tenacity-style retries, output-contract enforcement,
-  tiktoken-based token budgeting, and package-owned tracing hooks. LiteLLM,
-  Watchfiles, Rich, and Diskcache are deferred until later scoped requirements
-  justify them.
+  tiktoken-based token budgeting, and package-owned tracing hooks. Full
+  upstream LiteLLM, Watchfiles, Rich, and Diskcache remain deferred until
+  later scoped requirements justify them.
 - The source article used for the package-addition evaluation was committed in
   `33632d4` at `cline-tasks/libraries-that-made-my-ai-agents-work.md` with
   markdown lint disables for archival line length and image-alt issues.
