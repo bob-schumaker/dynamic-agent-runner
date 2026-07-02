@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # Active Context
 
 ## Current Focus
@@ -21,7 +22,7 @@
   `docs/files/`.
 - The Graphify semantic extractor is implemented through commits `4214d7f`,
   `9236cd6`, `b0d1e0d`, `7a08576`, `4eab435`, and `b48f419`. The package-owned,
-  registry-mediated `dynamic-agent-runner-graphify-extract` console workflow
+  registry-mediated `graphify-extract` console workflow
   validates manifests and semantic output, runs bounded parallel workers,
   emits staged artifacts outside accepted `graphify-out/`, and leaves stock
   Graphify curation/promotion external. Commit `c0de3b8` also caches the
@@ -30,12 +31,7 @@
   catalog parity bug-fix slice (`6d5d7a1`). TDD work remains: preserve catalog
   priority and visibility, choose the first visible model as default, forward
   `ChatGPT-Account-ID`, and retain generic-provider fallback behavior.
-- `specs/apple-foundation-model-adapter/` is now the highest-ROI
-  implementation-ready feature package. Commit `c39af18` defines A1 as an async
-  in-process Responses-compatible Apple Foundation Models adapter for text and
-  explicit JSON Schema output, with plan/tasks/validation artifacts. A2 remains
-  a separately gated Apple tool-callback bridge through DAR approval and
-  tool-runtime behavior. A1 implementation has not started.
+- `specs/apple-foundation-model-adapter/` records A1 as implemented for local text and explicit JSON Schema output through the existing async facade. Standalone live text, structured, and strict-workflow paths succeeded; pytest-native Apple SDK generation remains blocked by opaque status 255 despite availability preflight. A2 remains a separately gated Apple tool-callback bridge through DAR approval and tool-runtime behavior.
 - `specs/llm-step-interpreter-middleware/spec.md` now records the recommended
   multi-interpreter contract in commit `c9f505f`: one DAR-owned
   `run_interpreter` model gateway, bounded package-local or caller-supplied

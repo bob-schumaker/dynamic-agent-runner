@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # System Patterns
 
 ## Current Architecture
@@ -277,24 +278,14 @@
 
 ## Guidance for Future Work
 
-- Apple Foundation Models A1 is the current highest-ROI implementation-ready
-  specification; its plan/tasks/validation artifacts are prepared, while code
-  still requires approval and execution.
-  Approve and plan its text/structured-output boundary before implementation;
-  keep A2 tool callbacks behind a separate coordinator and approval contract.
+- Apple Foundation Models A1 is implemented and validated for standalone local text, structured output, and strict workflow paths. The pytest-native SDK harness remains a tracked follow-up because native status 255 can occur despite successful availability; keep A2 tool callbacks behind a separate coordinator and approval contract.
 - Interpreter middleware has a resolved gateway and custom-adapter direction but
   is not implementation-ready. Prototype candidate backends and resolve safety,
   redaction, descriptor-budget, and nested approval/resume questions first.
 - Use `specs/README.md` as the current spec inventory and completion matrix.
   Future live-runtime work should start from the relevant feature spec under
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
-- The current roadmap has capability status, approval/sandbox v1, MCP v1,
-  guardrail v1, iterative loops, skill source resolution, host integration,
-  local-model availability, and LiteLLM L1 plus the opt-in Codex L2 slices
-  complete. Apple A1, the
-  memory-aware first slice, and provider-backed compaction are the leading
-  unimplemented work; upstream LiteLLM publication and global default Codex
-  replacement remain deferred.
+- The current roadmap has capability status, approval/sandbox v1, MCP v1, guardrail v1, iterative loops, skill source resolution, host integration, local-model availability, Apple A1 implementation, and LiteLLM L1 plus opt-in Codex L2 slices complete. Apple pytest-native harness isolation, A2 callbacks, memory-aware first slice, and provider-backed compaction remain follow-up work; upstream LiteLLM publication and global default Codex replacement remain deferred.
 - `specs/capability-status-report/spec.md` owns the implemented preflight
   reporting direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.
@@ -303,7 +294,7 @@
   declaration exists.
 - Graphify semantic extraction is an implemented artifact-production concern:
   DAR provides a bounded, registry-mediated extractor and the
-  `dynamic-agent-runner-graphify-extract` console wrapper, while Graphify owns
+  `graphify-extract` console wrapper, while Graphify owns
   graph construction, curation, diagnostics, query, and promotion. Accepted
   `graphify-out/` snapshots must not be mutated by the extractor.
 - Keep implementation aligned with the artifact-interpreter framing rather than

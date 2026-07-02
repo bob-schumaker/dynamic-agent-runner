@@ -19,7 +19,7 @@
 - Console script: `dynamic-agent-runner` declared under `[project.scripts]` and
   pointing to `dynamic_agent_runner.cli:console_main`.
 - The Graphify cross-repository console script is
-  `dynamic-agent-runner-graphify-extract`; it delegates to the package Graphify
+  `graphify-extract`; it delegates to the package Graphify
   extraction API and DAR-bounded worker workflow rather than adding a second
   provider client.
 - PyInstaller hook discovery uses the standard `pyinstaller40` entry point
