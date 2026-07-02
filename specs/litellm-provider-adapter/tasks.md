@@ -78,10 +78,11 @@
       ids and LiteLLM `chatgpt/` model ids without changing executor-facing
       model matching. Outbound normalization is implemented while adapter
       metadata retains the caller-facing model id.
-- [ ] L2.4 Define the auth/configuration handoff: DAR remains authoritative for
+- [x] L2.4 Define the auth/configuration handoff: DAR remains authoritative for
       token precedence, endpoint, account id, client-version model listing, and
       ambient-auth boundaries; LiteLLM may add only approved session/header
-      defaults.
+      defaults. Public sync/async auth-factory seams now resolve DAR auth before
+      selecting ChatGPT Responses or ordinary LiteLLM transport.
 - [ ] L2.5 Add fake tests for token-limit stripping, metadata and instruction
       handling, generated-session policy, streamed text, Responses tool calls
       and follow-up transcript items, model-listing isolation, and secret

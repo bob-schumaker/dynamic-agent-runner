@@ -30,6 +30,7 @@ LiteLLMCompletion = Callable[..., Any]
 LiteLLMAsyncCompletion = Callable[..., Awaitable[Any]]
 LiteLLMResponses = Callable[..., Any]
 LiteLLMAsyncResponses = Callable[..., Awaitable[Any]]
+LiteLLMModelList = Callable[..., Any]
 _SUPPORTED_EXTRA_FIELDS = frozenset(
     {
         "api_base",
@@ -96,13 +97,33 @@ class _LiteLLMAsyncClient(AsyncOpenAIClientProtocol):
 
 
 class _LiteLLMNativeClient(OpenAIClientProtocol):
-    def __init__(self, responses: OpenAIResponsesResource) -> None:
+    def __init__(
+        self,
+        responses: OpenAIResponsesResource,
+        models: LiteLLMModelList | None = None,
+    ) -> None:
         self.responses = responses
+        if models is not None:
+            self.models = _LiteLLMModelsResource(models)
 
 
 class _LiteLLMNativeAsyncClient(AsyncOpenAIClientProtocol):
-    def __init__(self, responses: AsyncOpenAIResponsesResource) -> None:
+    def __init__(
+        self,
+        responses: AsyncOpenAIResponsesResource,
+        models: LiteLLMModelList | None = None,
+    ) -> None:
         self.responses = responses
+        if models is not None:
+            self.models = _LiteLLMModelsResource(models)
+
+
+class _LiteLLMModelsResource:
+    def __init__(self, model_list: LiteLLMModelList) -> None:
+        self._model_list = model_list
+
+    def list(self, **kwargs: Any) -> Any:
+        return self._model_list(**kwargs)
 
 
 @dataclass(frozen=True)
@@ -154,6 +175,7 @@ class LiteLLMCodexClientProvider(OpenAIClientProvider):
     config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
     token: str = field(repr=False, default="")
     responses: LiteLLMResponses | None = field(default=None, repr=False)
+    model_list: LiteLLMModelList | None = field(default=None, repr=False)
     litellm_kwargs: Mapping[str, Any] = field(default_factory=dict, repr=False)
 
     def get_client(self) -> OpenAIClientProtocol:
@@ -161,7 +183,8 @@ class LiteLLMCodexClientProvider(OpenAIClientProvider):
         return _LiteLLMNativeClient(
             _LiteLLMNativeResponsesResource(
                 _bind_codex_responses(responses, _codex_litellm_kwargs(self))
-            )
+            ),
+            self.model_list,
         )
 
 
@@ -172,6 +195,7 @@ class AsyncLiteLLMCodexClientProvider(AsyncOpenAIClientProvider):
     config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
     token: str = field(repr=False, default="")
     aresponses: LiteLLMAsyncResponses | None = field(default=None, repr=False)
+    model_list: LiteLLMModelList | None = field(default=None, repr=False)
     litellm_kwargs: Mapping[str, Any] = field(default_factory=dict, repr=False)
 
     def get_client(self) -> AsyncOpenAIClientProtocol:
@@ -179,7 +203,8 @@ class AsyncLiteLLMCodexClientProvider(AsyncOpenAIClientProvider):
         return _LiteLLMNativeAsyncClient(
             _LiteLLMNativeAsyncResponsesResource(
                 _bind_async_codex_responses(aresponses, _codex_litellm_kwargs(self))
-            )
+            ),
+            self.model_list,
         )
 
 
@@ -244,6 +269,7 @@ def create_litellm_codex_adapter(
     token: str,
     model: str | None = None,
     responses: LiteLLMResponses | None = None,
+    model_list: LiteLLMModelList | None = None,
     models: Sequence[str] | None = None,
     config: OpenAIProviderConfig | None = None,
     litellm_kwargs: Mapping[str, Any] | None = None,
@@ -255,6 +281,7 @@ def create_litellm_codex_adapter(
         config=config or OpenAIProviderConfig(),
         token=token,
         responses=responses,
+        model_list=model_list,
         litellm_kwargs=dict(litellm_kwargs or {}),
     )
     return OpenAIClientAdapter(
@@ -270,6 +297,7 @@ def create_async_litellm_codex_adapter(
     token: str,
     model: str | None = None,
     aresponses: LiteLLMAsyncResponses | None = None,
+    model_list: LiteLLMModelList | None = None,
     models: Sequence[str] | None = None,
     config: OpenAIProviderConfig | None = None,
     litellm_kwargs: Mapping[str, Any] | None = None,
@@ -281,11 +309,80 @@ def create_async_litellm_codex_adapter(
         config=config or OpenAIProviderConfig(),
         token=token,
         aresponses=aresponses,
+        model_list=model_list,
         litellm_kwargs=dict(litellm_kwargs or {}),
     )
     return AsyncOpenAIClientAdapter(
         provider=provider,
         models=adapter_models,
+        error_translator=error_translator,
+        response_validator=response_validator,
+    )
+
+
+def create_litellm_codex_adapter_from_codex_auth(
+    *,
+    config: OpenAIProviderConfig | None = None,
+    responses: LiteLLMResponses | None = None,
+    model_list: LiteLLMModelList | None = None,
+    models: Sequence[str] | None = None,
+    model: str | None = None,
+    litellm_kwargs: Mapping[str, Any] | None = None,
+    error_translator: ErrorTranslator | None = None,
+    response_validator: ResponseValidator | None = None,
+) -> OpenAIClientAdapter:
+    resolved = _resolve_codex_provider_for_litellm(config)
+    if resolved.chatgpt_token is None:
+        return create_litellm_adapter(
+            model=model,
+            models=models,
+            config=resolved.config,
+            litellm_kwargs=litellm_kwargs,
+            error_translator=error_translator,
+            response_validator=response_validator,
+        )
+    return create_litellm_codex_adapter(
+        token=resolved.chatgpt_token,
+        model=model,
+        responses=responses,
+        model_list=model_list,
+        models=models,
+        config=resolved.config,
+        litellm_kwargs=litellm_kwargs,
+        error_translator=error_translator,
+        response_validator=response_validator,
+    )
+
+
+def create_async_litellm_codex_adapter_from_codex_auth(
+    *,
+    config: OpenAIProviderConfig | None = None,
+    aresponses: LiteLLMAsyncResponses | None = None,
+    model_list: LiteLLMModelList | None = None,
+    models: Sequence[str] | None = None,
+    model: str | None = None,
+    litellm_kwargs: Mapping[str, Any] | None = None,
+    error_translator: ErrorTranslator | None = None,
+    response_validator: ResponseValidator | None = None,
+) -> AsyncOpenAIClientAdapter:
+    resolved = _resolve_codex_provider_for_litellm(config)
+    if resolved.chatgpt_token is None:
+        return create_async_litellm_adapter(
+            model=model,
+            models=models,
+            config=resolved.config,
+            litellm_kwargs=litellm_kwargs,
+            error_translator=error_translator,
+            response_validator=response_validator,
+        )
+    return create_async_litellm_codex_adapter(
+        token=resolved.chatgpt_token,
+        model=model,
+        aresponses=aresponses,
+        model_list=model_list,
+        models=models,
+        config=resolved.config,
+        litellm_kwargs=litellm_kwargs,
         error_translator=error_translator,
         response_validator=response_validator,
     )
@@ -551,6 +648,16 @@ def normalize_litellm_codex_model(model: str) -> str:
     if "/" in model:
         return model
     return f"chatgpt/{model}"
+
+
+def _resolve_codex_provider_for_litellm(
+    config: OpenAIProviderConfig | None,
+) -> Any:
+    from dynamic_agent_runner.openai_client import (
+        _resolve_default_openai_provider_defaults,
+    )
+
+    return _resolve_default_openai_provider_defaults(config or OpenAIProviderConfig())
 
 
 def _normalize_tool_call(raw_call: Any) -> ModelToolCall:

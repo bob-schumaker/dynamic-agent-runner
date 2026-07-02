@@ -59,6 +59,49 @@ def test_litellm_codex_adapter_translates_only_outbound_model_alias() -> None:
     assert calls[0]["model"] == "chatgpt/codex-mini-latest"
 
 
+def test_litellm_codex_auth_factory_uses_dar_resolved_chatgpt_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner import litellm_client
+
+    monkeypatch.setattr(
+        litellm_client,
+        "_resolve_codex_provider_for_litellm",
+        lambda config: SimpleNamespace(
+            config=OpenAIProviderConfig(
+                base_url="https://chatgpt.example/backend-api/codex",
+                provider_name="chatgpt-codex",
+                chatgpt_account_id="acct-2",
+            ),
+            chatgpt_token="resolved-token",
+            api_key=None,
+        ),
+    )
+    calls: list[dict[str, object]] = []
+
+    def responses(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"id": "auth", "output": []}
+
+    def model_list(**kwargs: object) -> object:
+        del kwargs
+        return {"data": [{"id": "codex-mini-latest"}]}
+
+    adapter = litellm_client.create_litellm_codex_adapter_from_codex_auth(
+        responses=responses,
+        model_list=model_list,
+    )
+    request = build_openai_request(
+        model="codex-mini-latest",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    adapter.create_response(request)
+
+    assert calls[0]["api_key"] == "resolved-token"
+    assert calls[0]["extra_headers"] == {"ChatGPT-Account-ID": "acct-2"}
+
+
 def test_bundled_litellm_sync_transport_uses_openai_chat_completions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
