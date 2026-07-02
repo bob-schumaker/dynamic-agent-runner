@@ -7,6 +7,9 @@ from types import SimpleNamespace
 import pytest
 
 from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner import (
+    create_litellm_adapter as exported_create_litellm_adapter,
+)
 from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
 from dynamic_agent_runner.openai_client import create_default_openai_provider
 from dynamic_agent_runner.litellm_client import (
@@ -257,3 +260,22 @@ def test_litellm_adapter_forwards_provider_credentials_and_base_url() -> None:
             "messages": [{"role": "user", "content": "Configured"}],
         }
     ]
+
+
+def test_litellm_factory_is_public_and_model_is_metadata_only() -> None:
+    def completion(**kwargs: object) -> object:
+        return {"id": "metadata", "choices": [{"message": {"content": "ok"}}]}
+
+    adapter = exported_create_litellm_adapter(
+        model="metadata-model",
+        completion=completion,
+    )
+    request = build_openai_request(
+        model="request-model",
+        messages=[OpenAIMessage("user", "Authoritative")],
+    )
+
+    result = adapter.create_response(request)
+
+    assert adapter.models == ("metadata-model",)
+    assert result.content == "ok"

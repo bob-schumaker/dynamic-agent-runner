@@ -130,7 +130,7 @@ def create_litellm_adapter(
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
 ) -> OpenAIClientAdapter:
-    del model
+    adapter_models = models or ((model,) if model is not None else None)
     provider = LiteLLMClientProvider(
         config=config or OpenAIProviderConfig(),
         completion=completion,
@@ -139,7 +139,7 @@ def create_litellm_adapter(
     )
     return OpenAIClientAdapter(
         provider=provider,
-        models=models,
+        models=adapter_models,
         is_local=is_local,
         error_translator=error_translator,
         response_validator=response_validator,
@@ -158,7 +158,7 @@ def create_async_litellm_adapter(
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
 ) -> AsyncOpenAIClientAdapter:
-    del model
+    adapter_models = models or ((model,) if model is not None else None)
     provider = AsyncLiteLLMClientProvider(
         config=config or OpenAIProviderConfig(),
         acompletion=acompletion,
@@ -167,7 +167,7 @@ def create_async_litellm_adapter(
     )
     return AsyncOpenAIClientAdapter(
         provider=provider,
-        models=models,
+        models=adapter_models,
         is_local=is_local,
         error_translator=error_translator,
         response_validator=response_validator,
