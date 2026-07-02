@@ -663,6 +663,7 @@ class RuntimeManifest:
     metadata: Mapping[str, Any] = field(default_factory=dict)
     extensions: Mapping[str, Any] = field(default_factory=dict)
     rag_pipeline: Mapping[str, Any] = field(default_factory=dict)
+    memory_pipeline: Mapping[str, Any] = field(default_factory=dict)
     legacy_root_fields: tuple[str, ...] = ()
     patterns_present: tuple[str, ...] = ()
     execution_policy: Mapping[str, Any] = field(default_factory=dict)
@@ -725,6 +726,7 @@ class RuntimeManifest:
             metadata=metadata,
             extensions=extensions,
             rag_pipeline=_copy_mapping(_as_mapping(metadata.get("rag_pipeline"))),
+            memory_pipeline=_copy_mapping(_as_mapping(metadata.get("memory_pipeline"))),
             legacy_root_fields=tuple(
                 field_name
                 for field_name in LEGACY_RUNTIME_ROOT_FIELDS

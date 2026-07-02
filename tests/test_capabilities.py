@@ -1034,3 +1034,37 @@ def test_inspect_agent_package_capabilities_reports_input_guardrail_coverage(
     live_items = {item.id: item for item in live_report.items}
 
     assert live_items["guardrail.input.no_secrets"].state == CapabilityState.LIVE
+
+
+def test_memory_capability_reports_metadata_and_missing_required_retriever():
+    from dynamic_agent_runner import inspect_agent_workflow_capabilities
+
+    report = inspect_agent_workflow_capabilities(
+        runtime_manifest={
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "memory-capability",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "metadata": {
+                "patterns_present": ["memory_retrieval"],
+                "memory_pipeline": {
+                    "retrieval_tiers": {
+                        "balanced": {"retriever_tool_id": "memory_search"}
+                    }
+                },
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    items = {item.id: item for item in report.items}
+    assert items["metadata.memory_pipeline"].state.value == "metadata_only"
+    assert items["memory.retriever.balanced"].state.value == "missing_collaborator"

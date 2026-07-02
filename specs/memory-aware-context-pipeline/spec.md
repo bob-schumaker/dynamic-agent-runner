@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # Memory-Aware Context Pipeline Specification
 
 ## Metadata
@@ -5,7 +6,7 @@
 - Feature slug: `memory-aware-context-pipeline`
 - Mode: `light`
 - Artifact type: proposed feature specification
-- Status: proposed; roadmap refinement needed before implementation
+- Status: first passive-context slice implemented; exit-gate reassessment pending
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related specs:
   - `specs/rag-orchestration-contract/spec.md`
@@ -612,6 +613,18 @@ payload:
 
 Payloads must not include raw memory content unless a future trace policy
 explicitly allows unredacted retrieved-context content.
+
+## First-Slice Implementation Evidence
+
+Implemented in the first slice:
+
+- RuntimeManifest preserves metadata.memory_pipeline.
+- Validation enforces memory-pattern presence, tier names, retriever ids, provenance handoff, salience collaborator shape, and explicit ingestion triggers.
+- Capability inspection reports metadata-only memory declarations and missing or covered caller-owned retriever collaborators without invoking them.
+- No memory retrieval, salience classification, ingestion, persistence, or background work was added. Existing retrieved-context preparation remains the only prompt-injection seam.
+- Focused validation and capability tests pass, and the full suite passes with 680 tests and 4 skips.
+
+The separate memory contract remains justified for now because the slice carries memory-specific declaration and collaborator status, including durable memory identity and provenance boundaries, without conflating it with active RAG retrieval.
 
 ## Acceptance Criteria
 
