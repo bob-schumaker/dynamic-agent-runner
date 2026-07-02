@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: Slice L1 implementation validation; upstream publication remains deferred
+- Status: L2 opt-in Codex wrapper validated; global migration remains blocked
 - Date: 2026-07-02
 
 ## Readiness Checks
@@ -12,8 +12,10 @@
 - LiteLLM Python 3.14 support is handled temporarily by the checked-in pure
   Python wheel and the OCI wheelhouse copy step.
 - Slice L1 has no blocking `NEEDS CLARIFICATION` items.
-- ChatGPT/Codex-on-LiteLLM is explicitly deferred to a follow-up slice.
-- LiteLLM Responses API support is explicitly deferred from Slice L1.
+- ChatGPT/Codex-on-LiteLLM wrapper slices are implemented; global replacement
+  remains deferred pending drift gates.
+- LiteLLM Responses API support is implemented only through the opt-in wrapper;
+  the bundled fallback remains Chat Completions-only.
 - Unit-test strategy is fake-only and live-call-free.
 - Request translation risk is identified as the main implementation risk.
 - Default transport migration risk is identified and bounded by an explicit
@@ -22,8 +24,8 @@
   package tar containing the root artifacts and the checked-in LiteLLM wheel.
 - The packaged LiteLLM wheel SHA-256 matched the checked-in wheel exactly.
 - The full DAR suite passes after excluding the nested upstream LiteLLM test
-  tree and preserved OCI input/output trees: `668 passed, 4 skipped`.
-- The focused LiteLLM/OpenAI/executor integration set passes: `202 passed`.
+  tree and preserved OCI input/output trees: `676 passed, 4 skipped`.
+- The focused LiteLLM/OpenAI/auth integration set passes: `113 passed`.
 - A portable Poetry dependency remains blocked: the configured Artifactory does
   not publish LiteLLM, while a local wheel dependency produces a non-portable
   `file://` requirement in the root wheel metadata.
@@ -31,6 +33,10 @@
   `specs/litellm-provider-adapter/l2-codex-compatibility.md`: LiteLLM Responses
   is compatible enough for a guarded follow-up, while Chat Completions
   bridging is not Codex-equivalent.
+- The post-L2 drift review confirms the opt-in wrapper's tested request parity
+  but blocks global migration on LiteLLM ambient ChatGPT auth, missing native
+  DAR-compatible model listing, and the bundled fallback's lack of Responses
+  support. Full evidence is in `l2-codex-compatibility.md`.
 
 ## External Documentation Check
 

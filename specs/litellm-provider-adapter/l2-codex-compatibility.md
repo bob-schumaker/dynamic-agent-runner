@@ -86,3 +86,33 @@ This audit supplies L2.2 with the following transport requirements:
 4. Add fake tests for streamed text, tool calls, follow-up transcript items,
    model-listing isolation, token-limit handling, and secret redaction before
    changing the default Codex provider.
+
+## Drift review: current migration decision
+
+The post-L2.2-L2.6 drift review ran the focused provider/auth tests and the full
+DAR suite. Focused coverage passed `113 tests`; the full suite passed `676
+tests, 4 skipped`; Ruff passed.
+
+The review confirms that the opt-in wrapper preserves the tested request
+contract, but it does not authorize replacing the global ChatGPT/Codex default:
+
+1. **Auth ownership remains a blocker.** LiteLLM's ChatGPT Responses
+   `validate_environment()` invokes its own `Authenticator.get_access_token()`
+   and `get_account_id()`. The current upstream path can therefore read
+   LiteLLM-owned auth files or initiate device authentication instead of using
+   the DAR-resolved token. Explicit DAR token injection is tested at the
+   wrapper seam but is not yet proven end-to-end through LiteLLM's ChatGPT
+   transformation.
+2. **Model listing remains a blocker.** DAR's authenticated model listing
+   carries `client_version` and preserves provider priority/visibility. The
+   wrapper supports an injected model-list callable, but LiteLLM does not yet
+   provide an equivalent contract that can safely replace DAR's listing path.
+3. **The bundled fallback is not a Codex fallback.**
+   `dynamic_agent_runner.litellm` implements Chat Completions only. Native Codex
+   Responses requires the full upstream LiteLLM distribution and its runtime
+   dependencies.
+
+Current decision: ordinary OpenAI-compatible requests may use LiteLLM; Codex
+through LiteLLM remains opt-in behind the explicit wrapper and model-list seam;
+the SDK-backed ChatGPT/Codex provider remains the global default until these
+three blockers have live parity evidence and an approved migration slice.

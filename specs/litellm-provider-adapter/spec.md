@@ -486,6 +486,23 @@ Acceptance criteria:
   it uses Python 3.13 or newer to match the root package's `Requires-Python`
   metadata.
 
+### Current migration decision
+
+The implemented L2 Codex wrapper is opt-in. The SDK-backed ChatGPT/Codex
+provider remains the global default until the drift review demonstrates all of
+the following:
+
+- LiteLLM's ChatGPT Responses path uses the DAR-resolved token and account
+  identity without reading LiteLLM-owned auth files or initiating device auth;
+- DAR's `client_version`-aware model listing, priority ordering, and visibility
+  semantics remain intact; and
+- the full upstream LiteLLM Responses distribution is available to the target
+  Python runtime, since the bundled DAR fallback does not implement Responses.
+
+The evidence and current decision are recorded in
+`l2-codex-compatibility.md`. Until those gates pass, switching the global
+default would be a semantic and authentication regression.
+
 ### FR-11: Keep tests fake and live-call-free
 
 The implementation must prove behavior without contacting LiteLLM gateways or
