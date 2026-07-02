@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # Graphify Semantic Extractor Tool Validation Log
 
 Status: First-release and T8 selector implementation complete; stock Graphify
@@ -246,9 +247,11 @@ separate approval are required before any runtime policy change.
 
 ## T8 planning benchmark
 
-The selector was run locally against 13 sibling repositories containing a
-`memory-bank` or `cline-tasks` directory, using a 114,688-token context and an
-8,192-token output reserve. It selected `token_aware` for 3 repositories and
-`fixed8` for 10; no files were isolated. This benchmark measured deterministic
-planning only. Live observed latency, provider failures, and provenance
-coverage were not rerun, so T8.7 and the runtime-default decision remain open.
+The selector was run against 13 sibling repositories containing a memory-bank or cline-tasks directory, covering 472 admitted documents, using a 114,688-token context and an 8,192-token output reserve. It selected token_aware for 3 repositories and fixed8 for 10; no files were isolated.
+
+## T8.7 Live benchmark and decision
+
+- Live probes covered the four largest sibling repositories, comparing one fixed8 and one token-aware extraction probe per repository.
+- Each provider request had a 15-second timeout and used the existing DAR OpenAI adapter; no new provider path or CLI wiring was introduced.
+- Results: 1 successful probe with complete semantic provenance, 7 timeouts, 0 malformed-provenance successes, and 0 completed failure responses.
+- Decision: retain fixed8 as the runtime default. Keep token_aware and the selector advisory and opt-in until a repeatable benchmark has sufficient completed observations for latency, failure rate, and provenance coverage.

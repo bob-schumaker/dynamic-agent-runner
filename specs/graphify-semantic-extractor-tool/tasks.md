@@ -1,7 +1,7 @@
+<!-- markdownlint-disable MD013 -->
 # Graphify Semantic Extractor Tool Tasks
 
-Status: First-release and T8 selector implementation complete;
-benchmark/default gate remains pending
+Status: First-release and T8 selector implementation complete; fixed8 default retained after T8.7 benchmark
 
 ## Slice 0 — Planning Checkpoint
 
@@ -208,10 +208,9 @@ fixed eight-file default:
 - [x] T8.6 [validation] Run the focused policy tests, affected Graphify tests,
       Ruff, `git diff --check`, and focused pre-commit. Record exact results in
       `validation.md`; do not run live model calls as part of T8 unit tests.
-- [ ] T8.7 [benchmark/decision] Run live selector/extraction comparisons over
+- [x] T8.7 [benchmark/decision] Run live selector/extraction comparisons over
       the sibling-repository corpus and compare predicted versus observed
-      request counts, latency, failures, and provenance coverage. The local
-      planning benchmark below is evidence for implementation only; it does
-      not authorize console wiring or a default change.
+      request counts, latency, failures, and provenance coverage; record the
+      bounded live probe timeouts and retain fixed8 as the default.
       Keep the decision advisory; wiring it into the console or changing the
       fixed8 default requires a separate approval and benchmark record.

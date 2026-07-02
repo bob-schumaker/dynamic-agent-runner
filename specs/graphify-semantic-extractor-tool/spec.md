@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # Graphify Semantic Extractor Tool Specification
 
 ## Metadata
@@ -5,9 +6,7 @@
 - Feature slug: `graphify-semantic-extractor-tool`
 - Mode: `guided`
 - Artifact type: future feature specification
-- Status: first-release implementation complete; endpoint and stock Graphify
-  orchestration remain deferred; blended chunk planning is a follow-on
-  sub-feature; adaptive policy selection is implementation-ready planning
+- Status: first-release and T8 implementation complete; fixed8 default retained after T8.7 benchmark; endpoint and stock Graphify orchestration remain deferred
 - Related specs:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/subagent-tool-pack/spec.md`
