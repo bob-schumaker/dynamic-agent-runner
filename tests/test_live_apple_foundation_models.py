@@ -17,6 +17,9 @@ from dynamic_agent_runner.models import LoadedAgentWorkflow
 from dynamic_agent_runner.openai_client import build_openai_request
 
 
+_LIVE_SYSTEM_MODEL: object | None = None
+
+
 def _require_live_apple() -> object:
     if os.environ.get("DAR_RUN_LIVE_APPLE") != "1":
         pytest.skip("set DAR_RUN_LIVE_APPLE=1 to run live Apple tests")
@@ -26,7 +29,9 @@ def _require_live_apple() -> object:
         sdk = importlib.import_module("apple_fm_sdk")
     except Exception as exc:  # pragma: no cover - host prerequisite branch.
         pytest.skip(f"apple-fm-sdk is unavailable: {exc}")
-    available, reason = sdk.SystemLanguageModel().is_available()
+    global _LIVE_SYSTEM_MODEL
+    _LIVE_SYSTEM_MODEL = sdk.SystemLanguageModel()
+    available, reason = _LIVE_SYSTEM_MODEL.is_available()
     if not available:
         pytest.skip(f"Apple system model is unavailable: {reason}")
     return sdk

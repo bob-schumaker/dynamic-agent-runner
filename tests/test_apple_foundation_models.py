@@ -251,7 +251,13 @@ def test_adapter_exposes_conservative_apple_capabilities() -> None:
     }
 
 
-def test_sdk_import_failure_preserves_package_error_cause() -> None:
+def test_sdk_import_failure_preserves_package_error_cause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk",
+        lambda: (_ for _ in ()).throw(ModelExecutionError("apple-fm-sdk is required")),
+    )
     adapter = create_apple_foundation_model_async_adapter(
         AppleFoundationModelConfig(availability_checker=lambda: (True, None))
     )
@@ -263,6 +269,24 @@ def test_sdk_import_failure_preserves_package_error_cause() -> None:
     with pytest.raises(ModelExecutionError) as raised:
         asyncio.run(adapter.create_response(request))
     assert isinstance(raised.value.__cause__, ModelExecutionError)
+
+
+def test_native_json_schema_gets_foundation_models_metadata() -> None:
+    from dynamic_agent_runner.apple_foundation_models import _normalize_apple_schema
+
+    assert _normalize_apple_schema(
+        {
+            "type": "object",
+            "properties": {"status": {"type": "string"}},
+            "required": ["status"],
+        }
+    ) == {
+        "type": "object",
+        "properties": {"status": {"type": "string"}},
+        "required": ["status"],
+        "x-order": ["status"],
+        "title": "GeneratedResponse",
+    }
 
 
 @pytest.mark.parametrize(

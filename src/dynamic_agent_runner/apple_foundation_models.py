@@ -96,6 +96,8 @@ class _AppleResponsesResource:
         session = _make_session(self._config, sdk, request, instructions)
         options = _make_generation_options(sdk, request.extra)
         schema = _extract_json_schema(request.response_format)
+        if schema is not None and self._config.session_factory is None:
+            schema = _normalize_apple_schema(schema)
         try:
             if schema is None:
                 result = await session.respond(prompt, options=options)
@@ -248,6 +250,21 @@ def _extract_json_schema(
             "Apple Foundation Models require a non-empty JSON Schema"
         )
     return dict(schema)
+
+
+def _normalize_apple_schema(schema: Mapping[str, Any]) -> dict[str, Any]:
+    """Add Foundation Models metadata absent from ordinary JSON Schema."""
+
+    normalized = {
+        key: value for key, value in schema.items() if key not in {"title", "x-order"}
+    }
+    if normalized.get("type") == "object":
+        properties = normalized.get("properties")
+        if isinstance(properties, Mapping):
+            normalized["x-order"] = list(properties)
+    title = schema.get("title")
+    normalized["title"] = str(title or "GeneratedResponse")
+    return normalized
 
 
 def _render_messages(messages: Sequence[Mapping[str, Any]]) -> tuple[str, str | None]:
