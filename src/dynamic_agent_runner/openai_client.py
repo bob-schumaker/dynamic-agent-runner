@@ -489,7 +489,33 @@ class AsyncOpenAIClientAdapter:
 def create_default_openai_provider(
     config: OpenAIProviderConfig | None = None,
 ) -> OpenAIClientProvider:
-    """Construct the default sync SDK-backed provider facade."""
+    """Construct the default sync LiteLLM-backed provider facade."""
+
+    resolved = _resolve_default_openai_provider_defaults(
+        config or OpenAIProviderConfig()
+    )
+    if resolved.chatgpt_token is not None:
+        return ChatGPTCodexBackendOpenAIClientProvider(
+            config=resolved.config,
+            token=resolved.chatgpt_token,
+        )
+    from dynamic_agent_runner.litellm_client import LiteLLMClientProvider
+
+    return LiteLLMClientProvider(config=resolved.config)
+
+
+def create_default_openai_client(
+    config: OpenAIProviderConfig | None = None,
+) -> OpenAIClientProtocol:
+    """Construct the default LiteLLM-backed client from environment/default config."""
+
+    return create_default_openai_provider(config).get_client()
+
+
+def create_official_openai_provider(
+    config: OpenAIProviderConfig | None = None,
+) -> OpenAIClientProvider:
+    """Construct the explicit official-SDK compatibility provider."""
 
     resolved = _resolve_default_openai_provider_defaults(
         config or OpenAIProviderConfig()
@@ -502,12 +528,12 @@ def create_default_openai_provider(
     return SDKBackedOpenAIClientProvider(resolved.config)
 
 
-def create_default_openai_client(
+def create_official_openai_client(
     config: OpenAIProviderConfig | None = None,
 ) -> OpenAIClientProtocol:
-    """Construct the official OpenAI client from environment/default config."""
+    """Construct the explicit official OpenAI SDK compatibility client."""
 
-    return create_default_openai_provider(config).get_client()
+    return create_official_openai_provider(config).get_client()
 
 
 def create_openai_adapter(
@@ -553,7 +579,33 @@ def create_openai_adapter_from_provider_config(
 def create_default_async_openai_provider(
     config: OpenAIProviderConfig | None = None,
 ) -> AsyncOpenAIClientProvider:
-    """Construct the default async SDK-backed provider facade."""
+    """Construct the default async LiteLLM-backed provider facade."""
+
+    resolved = _resolve_default_openai_provider_defaults(
+        config or OpenAIProviderConfig()
+    )
+    if resolved.chatgpt_token is not None:
+        return ChatGPTCodexBackendAsyncOpenAIClientProvider(
+            config=resolved.config,
+            token=resolved.chatgpt_token,
+        )
+    from dynamic_agent_runner.litellm_client import AsyncLiteLLMClientProvider
+
+    return AsyncLiteLLMClientProvider(config=resolved.config)
+
+
+def create_default_async_openai_client(
+    config: OpenAIProviderConfig | None = None,
+) -> AsyncOpenAIClientProtocol:
+    """Construct the default async LiteLLM-backed client."""
+
+    return create_default_async_openai_provider(config).get_client()
+
+
+def create_official_async_openai_provider(
+    config: OpenAIProviderConfig | None = None,
+) -> AsyncOpenAIClientProvider:
+    """Construct the explicit official async SDK compatibility provider."""
 
     resolved = _resolve_default_openai_provider_defaults(
         config or OpenAIProviderConfig()
@@ -566,12 +618,12 @@ def create_default_async_openai_provider(
     return SDKBackedAsyncOpenAIClientProvider(resolved.config)
 
 
-def create_default_async_openai_client(
+def create_official_async_openai_client(
     config: OpenAIProviderConfig | None = None,
 ) -> AsyncOpenAIClientProtocol:
-    """Construct the official async OpenAI client from environment/default config."""
+    """Construct the explicit official async OpenAI SDK compatibility client."""
 
-    return create_default_async_openai_provider(config).get_client()
+    return create_official_async_openai_provider(config).get_client()
 
 
 def create_async_openai_adapter(

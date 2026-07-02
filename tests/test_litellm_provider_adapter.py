@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import sys
+from types import SimpleNamespace
 
 import pytest
 
 from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+from dynamic_agent_runner.openai_client import create_default_openai_provider
 from dynamic_agent_runner.litellm_client import (
     create_async_litellm_adapter,
     create_litellm_adapter,
@@ -176,3 +179,18 @@ def test_litellm_adapter_redacts_provider_secrets() -> None:
 
     assert "secret-token" not in str(error.value)
     assert "REDACTED" in str(error.value)
+
+
+def test_default_openai_provider_uses_litellm_for_ordinary_auth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "ambient-key")
+    monkeypatch.setitem(
+        sys.modules,
+        "litellm",
+        SimpleNamespace(completion=lambda **kwargs: kwargs),
+    )
+
+    provider = create_default_openai_provider()
+
+    assert provider.__class__.__name__ == "LiteLLMClientProvider"
