@@ -7,6 +7,14 @@
   transport, repository-owned request/response translation, public factories,
   fake tests, default-provider migration, and explicit official-SDK
   compatibility. ChatGPT/Codex-on-LiteLLM remains deferred.
+- L2.1 is complete: the compatibility matrix compares DAR's current Codex
+  Responses/auth behavior with vendored LiteLLM ChatGPT Responses and Chat
+  Completions paths. The resulting decision is Responses-only for Codex
+  replacement (`aresponses` async-first, `responses` sync parity), with DAR
+  retaining auth discovery, model listing, and error policy.
+- L2.2-L2.6 are now explicit downstream tasks for model aliases, credential and
+  endpoint injection, session/instruction parity, streamed Responses/tool-call
+  tests, capability-gated fallback, redaction, and rollback safety.
 - Commits `5e3d5e6` and `6faa98c` added the vendored-wheel build flow, verified
   Python 3.13 OCI package evidence, and aligned the LiteLLM spec corpus.
 - Graphify semantic extraction now has an explicit structured-output contract:

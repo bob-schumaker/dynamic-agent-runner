@@ -158,6 +158,15 @@
   Its DAR wheel contains the bundled transport and its artifact also contains
   `litellm-1.92.0-py3-none-any.whl`, whose SHA-256 matches the checked-in
   wheel. Upstream LiteLLM publication remains deferred.
+- L2.1 Codex compatibility audit is complete in
+  `specs/litellm-provider-adapter/l2-codex-compatibility.md` (commit
+  `85a4b37`). It establishes Responses as the Codex transport boundary,
+  `aresponses(...)` async-first with `responses(...)` sync parity, DAR-owned
+  auth/model-listing policy, and capability-gated Chat Completions fallback.
+- The downstream L2 surface is scoped in commit `be94475`: model aliases,
+  explicit auth/configuration handoff, session/instruction parity, streamed
+  Responses/tool-call follow-ups, token-limit/metadata handling, model-listing
+  isolation, redaction, and rollback to the SDK provider remain to implement.
 - `specs/memory-aware-context-pipeline/spec.md` remains a proposed
   caller-owned long-term memory orchestration contract inspired by `memlayer`.
   Its first slice is retrieval-only and fake-testable, with an explicit
@@ -499,8 +508,8 @@
 - Run the `memory-aware-context-pipeline` declarative first-slice validation when
   it is scheduled, including the explicit decision to retain a distinct memory
   contract or fold it back into RAG.
-- Resume LiteLLM work only for upstream package publication or the deferred
-  ChatGPT/Codex Responses slice; the direct transport Slice L1 is complete.
+- Resume LiteLLM work with the scoped Codex L2.2-L2.6 tasks or upstream package
+  publication; the direct transport Slice L1 and L2.1 audit are complete.
 - If extending model event streaming beyond v1, create plan/tasks for
   provider-native token deltas, adapter streaming protocol, model-tool-loop
   progress events, cancellation/backpressure behavior, redaction/tool payload

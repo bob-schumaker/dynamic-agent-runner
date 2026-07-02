@@ -161,6 +161,11 @@
   OpenAI-compatible providers may retain ID-only fallback behavior.
 - ChatGPT/Codex request parity includes forwarding `ChatGPT-Account-ID` when
   the discovered auth record supplies an account identifier.
+- The LiteLLM Codex follow-up must keep DAR-owned auth precedence, resolved
+  endpoint, account id, `client_version` model listing, model aliases, and
+  ambient-auth boundaries. LiteLLM Responses is the intended transport;
+  Chat Completions bridging is only a capability-gated fallback because it can
+  lose Responses transcript, reasoning, tool-call, or streaming semantics.
 - `OpenAIProviderConfig.codex_auth_preference` controls supported Codex auth
   ordering. The default is API-key/auth-token first; `chatgpt_first` chooses
   ChatGPT auth when it exists and falls back to API-key/auth-token auth when it
