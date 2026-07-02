@@ -220,8 +220,40 @@ def test_litellm_adapter_accepts_router_and_provider_config() -> None:
     assert result.content == "ok"
     assert calls == [
         {
+            "api_key": "router-key",
             "model": "openai/router-model",
             "messages": [{"role": "user", "content": "Route"}],
         }
     ]
     assert adapter._provider.config.api_key == "router-key"
+
+
+def test_litellm_adapter_forwards_provider_credentials_and_base_url() -> None:
+    calls: list[dict[str, object]] = []
+
+    def completion(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"id": "configured", "choices": [{"message": {"content": "ok"}}]}
+
+    adapter = create_litellm_adapter(
+        completion=completion,
+        config=OpenAIProviderConfig(
+            api_key="provider-key",
+            base_url="http://localhost:4000/v1",
+        ),
+    )
+    request = build_openai_request(
+        model="openai/configured",
+        messages=[OpenAIMessage("user", "Configured")],
+    )
+
+    adapter.create_response(request)
+
+    assert calls == [
+        {
+            "api_key": "provider-key",
+            "api_base": "http://localhost:4000/v1",
+            "model": "openai/configured",
+            "messages": [{"role": "user", "content": "Configured"}],
+        }
+    ]

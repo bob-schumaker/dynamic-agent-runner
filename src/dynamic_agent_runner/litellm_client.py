@@ -89,7 +89,12 @@ class LiteLLMClientProvider(OpenAIClientProvider):
             or _router_callable(self.router, "completion")
             or _load_completion()
         )
-        return _LiteLLMClient(_bind_litellm_kwargs(completion, self.litellm_kwargs))
+        return _LiteLLMClient(
+            _bind_litellm_kwargs(
+                completion,
+                _provider_litellm_kwargs(self.config, self.litellm_kwargs),
+            )
+        )
 
 
 @dataclass(frozen=True)
@@ -106,7 +111,10 @@ class AsyncLiteLLMClientProvider(AsyncOpenAIClientProvider):
             or _load_async_completion()
         )
         return _LiteLLMAsyncClient(
-            _bind_async_litellm_kwargs(acompletion, self.litellm_kwargs)
+            _bind_async_litellm_kwargs(
+                acompletion,
+                _provider_litellm_kwargs(self.config, self.litellm_kwargs),
+            )
         )
 
 
@@ -311,6 +319,18 @@ def _router_callable(router: object | None, name: str) -> Callable[..., Any] | N
     if not callable(candidate):
         raise ModelExecutionError(f"LiteLLM router does not expose {name}")
     return candidate
+
+
+def _provider_litellm_kwargs(
+    config: OpenAIProviderConfig,
+    configured: Mapping[str, Any],
+) -> dict[str, Any]:
+    kwargs = dict(configured)
+    if config.api_key is not None:
+        kwargs.setdefault("api_key", config.api_key)
+    if config.base_url is not None:
+        kwargs.setdefault("api_base", config.base_url)
+    return kwargs
 
 
 def _load_async_completion() -> LiteLLMAsyncCompletion:
