@@ -57,6 +57,36 @@ def test_litellm_codex_adapter_translates_only_outbound_model_alias() -> None:
 
     assert adapter.models == ("codex-mini-latest",)
     assert calls[0]["model"] == "chatgpt/codex-mini-latest"
+    assert calls[0]["store"] is False
+    assert calls[0]["stream"] is True
+
+
+def test_litellm_codex_adapter_folds_instructions_and_preserves_tool_transcript() -> (
+    None
+):
+    calls: list[dict[str, object]] = []
+
+    def responses(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"id": "parity", "output": []}
+
+    adapter = create_litellm_codex_adapter(token="token", responses=responses)
+    request = build_openai_request(
+        model="codex-mini-latest",
+        messages=[
+            {"role": "system", "content": "Be concise."},
+            {"role": "user", "content": "Search"},
+            {"role": "tool", "tool_call_id": "call-1", "content": "ok"},
+        ],
+    )
+
+    adapter.create_response(request)
+
+    assert calls[0]["instructions"] == "Be concise."
+    assert calls[0]["input"] == [
+        {"role": "user", "content": "Search"},
+        {"role": "tool", "tool_call_id": "call-1", "content": "ok"},
+    ]
 
 
 def test_litellm_codex_auth_factory_uses_dar_resolved_chatgpt_token(
@@ -266,6 +296,9 @@ def test_litellm_codex_adapter_uses_native_responses_transport() -> None:
             "extra_headers": {"ChatGPT-Account-ID": "acct-1"},
             "model": "chatgpt/codex-mini-latest",
             "input": [{"role": "user", "content": "Hello"}],
+            "store": False,
+            "stream": True,
+            "instructions": "You are a helpful assistant.",
         }
     ]
     assert result.response_id == "resp_codex"
@@ -295,6 +328,9 @@ def test_async_litellm_codex_adapter_uses_native_responses_transport() -> None:
             "custom_llm_provider": "chatgpt",
             "model": "chatgpt/codex-mini-latest",
             "input": [{"role": "user", "content": "Hello"}],
+            "store": False,
+            "stream": True,
+            "instructions": "You are a helpful assistant.",
         }
     ]
     assert result.response_id == "resp_async"

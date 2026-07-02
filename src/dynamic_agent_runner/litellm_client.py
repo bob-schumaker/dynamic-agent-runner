@@ -525,6 +525,7 @@ def _bind_codex_responses(
     def bound(**kwargs: Any) -> Any:
         request_kwargs = dict(configured)
         request_kwargs.update(kwargs)
+        request_kwargs = _prepare_codex_responses_kwargs(request_kwargs)
         request_kwargs["model"] = normalize_litellm_codex_model(
             str(request_kwargs["model"])
         )
@@ -545,6 +546,7 @@ def _bind_async_codex_responses(
     async def bound(**kwargs: Any) -> Any:
         request_kwargs = dict(configured)
         request_kwargs.update(kwargs)
+        request_kwargs = _prepare_codex_responses_kwargs(request_kwargs)
         request_kwargs["model"] = normalize_litellm_codex_model(
             str(request_kwargs["model"])
         )
@@ -635,11 +637,41 @@ def _codex_litellm_kwargs(
     if provider.config.base_url is not None:
         kwargs.setdefault("api_base", provider.config.base_url)
     kwargs.setdefault("custom_llm_provider", "chatgpt")
+    kwargs.setdefault("store", False)
+    kwargs.setdefault("stream", True)
     if provider.config.chatgpt_account_id is not None:
         headers = dict(kwargs.get("extra_headers") or {})
         headers.setdefault("ChatGPT-Account-ID", provider.config.chatgpt_account_id)
         kwargs["extra_headers"] = headers
     return kwargs
+
+
+def _prepare_codex_responses_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
+    request = dict(kwargs)
+    input_items = request.get("input")
+    if not isinstance(input_items, list):
+        return request
+    instructions: list[str] = []
+    preserved: list[Any] = []
+    for item in input_items:
+        if not isinstance(item, Mapping):
+            preserved.append(item)
+            continue
+        role = str(item.get("role") or "")
+        if role in {"system", "developer"}:
+            content = item.get("content")
+            if content is not None and str(content).strip():
+                instructions.append(str(content).strip())
+        else:
+            preserved.append(item)
+    request["input"] = preserved or input_items
+    existing = request.get("instructions")
+    if existing is not None and str(existing).strip():
+        instructions.insert(0, str(existing).strip())
+    request["instructions"] = (
+        "\n\n".join(instructions) or "You are a helpful assistant."
+    )
+    return request
 
 
 def normalize_litellm_codex_model(model: str) -> str:

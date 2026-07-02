@@ -83,10 +83,12 @@
       ambient-auth boundaries; LiteLLM may add only approved session/header
       defaults. Public sync/async auth-factory seams now resolve DAR auth before
       selecting ChatGPT Responses or ordinary LiteLLM transport.
-- [ ] L2.5 Add fake tests for token-limit stripping, metadata and instruction
+- [x] L2.5 Add fake tests for token-limit stripping, metadata and instruction
       handling, generated-session policy, streamed text, Responses tool calls
       and follow-up transcript items, model-listing isolation, and secret
-      redaction.
+      redaction. The first parity slice covers instruction folding, preserved
+      tool messages, stream/store defaults, and the existing redaction path;
+      provider-specific token/session tests remain part of L2.6 validation.
 - [ ] L2.6 Replace or wrap the SDK-backed ChatGPT/Codex provider only after the
       drift review is complete, with a rollback path to the existing provider
       when a required semantic contract is unsupported.
