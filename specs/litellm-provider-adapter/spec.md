@@ -384,6 +384,14 @@ Acceptance criteria:
   environment, or explicit-token configuration, then repository code adapts the
   already-trusted Codex auth result into LiteLLM configuration without reading
   workflow-package-local auth files.
+- Given Codex ChatGPT auth is selected, when the LiteLLM adapter dispatches a
+  Responses request, then it passes the DAR-resolved token, base URL, and
+  account id explicitly and does not allow LiteLLM ambient auth discovery to
+  override them.
+- Given LiteLLM adds session, originator, user-agent, or default-instruction
+  values, when the Codex adapter dispatches, then those values are either
+  explicitly accepted as compatible or are bounded by DAR-owned configuration;
+  no new ambient credential or auth-file source is read.
 - Given a request names an unprefixed Codex model such as
   `codex-mini-latest`, when the LiteLLM Codex helper dispatches it, then the
   helper maps it to the provider route expected by LiteLLM, such as
@@ -410,6 +418,13 @@ Acceptance criteria:
 - Given a request has no system/developer instructions, when the LiteLLM Codex
   helper dispatches it, then it preserves the current default instruction
   behavior or documents a tested LiteLLM-equivalent policy.
+- Given a request contains Responses transcript items for a prior model tool
+  call and tool result, when the LiteLLM Codex helper dispatches it, then the
+  items and call identifiers remain intact for the follow-up request.
+- Given LiteLLM emits streamed Responses text, function calls, or completion
+  events, when DAR normalizes the result, then text, tool-call ids, arguments,
+  response id, and terminal errors retain the existing `ModelResponse`
+  semantics.
 - Given ChatGPT/Codex dispatch occurs, when request options are prepared, then
   current `store=False` behavior is preserved unless LiteLLM guarantees the same
   behavior or the implementation records an approved spec update.
@@ -420,6 +435,10 @@ Acceptance criteria:
   lists models, then it either preserves the current `client_version`-aware
   listing behavior or documents why LiteLLM has taken over that compatibility
   responsibility.
+- Given the LiteLLM Codex adapter does not expose DAR's model-listing contract,
+  when authenticated model discovery runs, then model listing remains on the
+  DAR-owned client path and is not silently replaced by an unordered or
+  visibility-blind LiteLLM list.
 
 ### FR-9: Preserve adapter metadata and executor selection
 

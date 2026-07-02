@@ -69,14 +69,24 @@
 - [x] L2.1 Compare current `ChatGPTCodexBackendOpenAIClientProvider` request
       shaping with LiteLLM ChatGPT provider behavior; record the compatibility
       matrix and transport requirements in `l2-codex-compatibility.md`.
-- [ ] L2.2 Decide whether the Codex path should use `litellm.responses(...)`,
-      `litellm.aresponses(...)`, or Chat Completions bridged to Responses.
+- [ ] L2.2 Select LiteLLM Responses as the Codex transport, with
+      `aresponses(...)` async-first and `responses(...)` sync parity; permit a
+      Chat Completions bridge only behind explicit capability detection and
+      fail-closed semantics.
 - [ ] L2.3 Define explicit model alias behavior for unprefixed repository model
-      ids and LiteLLM `chatgpt/` model ids.
-- [ ] L2.4 Add fake tests for token-limit stripping, metadata handling,
-      streaming behavior, model listing, and secret redaction.
-- [ ] L2.5 Replace or wrap the SDK-backed ChatGPT/Codex provider only after the
-      drift review is complete.
+      ids and LiteLLM `chatgpt/` model ids without changing executor-facing
+      model matching.
+- [ ] L2.4 Define the auth/configuration handoff: DAR remains authoritative for
+      token precedence, endpoint, account id, client-version model listing, and
+      ambient-auth boundaries; LiteLLM may add only approved session/header
+      defaults.
+- [ ] L2.5 Add fake tests for token-limit stripping, metadata and instruction
+      handling, generated-session policy, streamed text, Responses tool calls
+      and follow-up transcript items, model-listing isolation, and secret
+      redaction.
+- [ ] L2.6 Replace or wrap the SDK-backed ChatGPT/Codex provider only after the
+      drift review is complete, with a rollback path to the existing provider
+      when a required semantic contract is unsupported.
 
 ## Deferred Follow-Up: Provider Breadth Polish
 

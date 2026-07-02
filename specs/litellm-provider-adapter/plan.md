@@ -17,6 +17,18 @@ Slice L1 does not implement LiteLLM Responses API dispatch, ChatGPT/Codex helper
 replacement, live LiteLLM gateway calls, LiteLLM-managed OAuth, live model
 listing, or workflow manifest schema changes.
 
+## L2 Codex Follow-Up Boundary
+
+The L2.1 audit requires the Codex follow-up to use LiteLLM's Responses surface:
+`aresponses(...)` is the async-first path and `responses(...)` provides sync
+parity. DAR remains authoritative for Codex auth discovery and precedence,
+resolved endpoint, account-id forwarding, client-version model listing, model
+aliases, error normalization, and ambient-auth boundaries. L2 must explicitly
+test LiteLLM session/default-instruction additions, streamed text, Responses
+tool calls and follow-up transcript items, token-limit handling, and secret
+redaction before replacing the SDK-backed provider. Chat Completions bridging
+is only a capability-gated fallback and is not Codex-equivalent.
+
 ## Current Architecture Fit
 
 The implementation should stay in `src/dynamic_agent_runner/openai_client.py`
