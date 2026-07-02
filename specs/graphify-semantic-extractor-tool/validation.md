@@ -255,3 +255,10 @@ The selector was run against 13 sibling repositories containing a memory-bank or
 - Each provider request had a 15-second timeout and used the existing DAR OpenAI adapter; no new provider path or CLI wiring was introduced.
 - Results: 1 successful probe with complete semantic provenance, 7 timeouts, 0 malformed-provenance successes, and 0 completed failure responses.
 - Decision: retain fixed8 as the runtime default. Keep token_aware and the selector advisory and opt-in until a repeatable benchmark has sufficient completed observations for latency, failure rate, and provenance coverage.
+
+### T8.7 model rerun: gpt-5.4
+
+- The same bounded probe comparison was rerun with `gpt-5.4` over clinerules-roschuma, ic5-projects, power-tetris, and roschumalib.
+- Eight probes ran: four fixed8 and four token-aware, each with a 15-second provider timeout.
+- Results: 0 completed responses, 8 timeouts, 0 malformed-provenance successes, and 0 valid provenance results.
+- The gpt-5.4 rerun did not improve completion under this environment and timeout policy. It does not justify changing the fixed8 default or wiring adaptive selection into the console.
