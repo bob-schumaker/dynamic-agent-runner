@@ -11,8 +11,10 @@ from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_reque
 from dynamic_agent_runner.openai_client import create_default_openai_provider
 from dynamic_agent_runner.litellm_client import (
     create_async_litellm_adapter,
+    create_litellm_adapter_from_provider_config,
     create_litellm_adapter,
 )
+from dynamic_agent_runner.openai_client import OpenAIProviderConfig
 
 
 def test_litellm_adapter_translates_chat_request_and_normalizes_response() -> None:
@@ -194,3 +196,32 @@ def test_default_openai_provider_uses_litellm_for_ordinary_auth(
     provider = create_default_openai_provider()
 
     assert provider.__class__.__name__ == "LiteLLMClientProvider"
+
+
+def test_litellm_adapter_accepts_router_and_provider_config() -> None:
+    calls: list[dict[str, object]] = []
+
+    def completion(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"id": "router_response", "choices": [{"message": {"content": "ok"}}]}
+
+    router = SimpleNamespace(completion=completion)
+    adapter = create_litellm_adapter_from_provider_config(
+        OpenAIProviderConfig(api_key="router-key"),
+        router=router,
+    )
+    request = build_openai_request(
+        model="openai/router-model",
+        messages=[OpenAIMessage("user", "Route")],
+    )
+
+    result = adapter.create_response(request)
+
+    assert result.content == "ok"
+    assert calls == [
+        {
+            "model": "openai/router-model",
+            "messages": [{"role": "user", "content": "Route"}],
+        }
+    ]
+    assert adapter._provider.config.api_key == "router-key"

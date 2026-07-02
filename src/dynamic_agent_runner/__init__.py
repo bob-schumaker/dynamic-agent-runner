@@ -133,6 +133,7 @@ from dynamic_agent_runner.litellm_client import (
     LiteLLMClientProvider,
     create_async_litellm_adapter,
     create_litellm_adapter,
+    create_litellm_adapter_from_provider_config,
     normalize_litellm_response,
 )
 from dynamic_agent_runner.models import (
@@ -306,6 +307,7 @@ __all__ = [
     "LiteLLMClientProvider",
     "create_async_litellm_adapter",
     "create_litellm_adapter",
+    "create_litellm_adapter_from_provider_config",
     "normalize_litellm_response",
     "execute_workflow",
     "execute_workflow_async",

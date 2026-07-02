@@ -80,10 +80,15 @@ class _LiteLLMAsyncClient(AsyncOpenAIClientProtocol):
 class LiteLLMClientProvider(OpenAIClientProvider):
     config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
     completion: LiteLLMCompletion | None = field(default=None, repr=False)
+    router: object | None = field(default=None, repr=False)
     litellm_kwargs: Mapping[str, Any] = field(default_factory=dict, repr=False)
 
     def get_client(self) -> OpenAIClientProtocol:
-        completion = self.completion or _load_completion()
+        completion = (
+            self.completion
+            or _router_callable(self.router, "completion")
+            or _load_completion()
+        )
         return _LiteLLMClient(_bind_litellm_kwargs(completion, self.litellm_kwargs))
 
 
@@ -91,10 +96,15 @@ class LiteLLMClientProvider(OpenAIClientProvider):
 class AsyncLiteLLMClientProvider(AsyncOpenAIClientProvider):
     config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
     acompletion: LiteLLMAsyncCompletion | None = field(default=None, repr=False)
+    router: object | None = field(default=None, repr=False)
     litellm_kwargs: Mapping[str, Any] = field(default_factory=dict, repr=False)
 
     def get_client(self) -> AsyncOpenAIClientProtocol:
-        acompletion = self.acompletion or _load_async_completion()
+        acompletion = (
+            self.acompletion
+            or _router_callable(self.router, "acompletion")
+            or _load_async_completion()
+        )
         return _LiteLLMAsyncClient(
             _bind_async_litellm_kwargs(acompletion, self.litellm_kwargs)
         )
@@ -104,6 +114,7 @@ def create_litellm_adapter(
     *,
     model: str | None = None,
     completion: LiteLLMCompletion | None = None,
+    router: object | None = None,
     models: Sequence[str] | None = None,
     is_local: bool = False,
     config: OpenAIProviderConfig | None = None,
@@ -115,6 +126,7 @@ def create_litellm_adapter(
     provider = LiteLLMClientProvider(
         config=config or OpenAIProviderConfig(),
         completion=completion,
+        router=router,
         litellm_kwargs=dict(litellm_kwargs or {}),
     )
     return OpenAIClientAdapter(
@@ -130,6 +142,7 @@ def create_async_litellm_adapter(
     *,
     model: str | None = None,
     acompletion: LiteLLMAsyncCompletion | None = None,
+    router: object | None = None,
     models: Sequence[str] | None = None,
     is_local: bool = False,
     config: OpenAIProviderConfig | None = None,
@@ -141,12 +154,36 @@ def create_async_litellm_adapter(
     provider = AsyncLiteLLMClientProvider(
         config=config or OpenAIProviderConfig(),
         acompletion=acompletion,
+        router=router,
         litellm_kwargs=dict(litellm_kwargs or {}),
     )
     return AsyncOpenAIClientAdapter(
         provider=provider,
         models=models,
         is_local=is_local,
+        error_translator=error_translator,
+        response_validator=response_validator,
+    )
+
+
+def create_litellm_adapter_from_provider_config(
+    config: OpenAIProviderConfig,
+    *,
+    completion: LiteLLMCompletion | None = None,
+    router: object | None = None,
+    models: Sequence[str] | None = None,
+    is_local: bool = False,
+    litellm_kwargs: Mapping[str, Any] | None = None,
+    error_translator: ErrorTranslator | None = None,
+    response_validator: ResponseValidator | None = None,
+) -> OpenAIClientAdapter:
+    return create_litellm_adapter(
+        completion=completion,
+        router=router,
+        models=models,
+        is_local=is_local,
+        config=config,
+        litellm_kwargs=litellm_kwargs,
         error_translator=error_translator,
         response_validator=response_validator,
     )
@@ -265,6 +302,15 @@ def _load_completion() -> LiteLLMCompletion:
     except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
         raise ModelExecutionError("litellm package is not available") from exc
     return completion
+
+
+def _router_callable(router: object | None, name: str) -> Callable[..., Any] | None:
+    if router is None:
+        return None
+    candidate = getattr(router, name, None)
+    if not callable(candidate):
+        raise ModelExecutionError(f"LiteLLM router does not expose {name}")
+    return candidate
 
 
 def _load_async_completion() -> LiteLLMAsyncCompletion:
