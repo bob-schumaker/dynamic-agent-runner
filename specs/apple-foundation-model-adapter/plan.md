@@ -1,6 +1,7 @@
+<!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Implementation Plan
 
-Status: A1 implementation complete; eligible-Mac live verification pending
+Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification blocked
 
 ## Scope and authority
 
@@ -66,11 +67,14 @@ optional SDK. Separate live tests are marked for eligible Macs and validate
 real text, JSON Schema output, and a strict-coverage DAR workflow; they skip
 with an actionable prerequisite reason when the SDK or system model is absent.
 Run focused tests after each slice, then the full suite, Ruff, package checks,
-and focused pre-commit. A1 is complete only when deterministic tests,
-eligible-Mac live checks, import portability, and documentation checks pass.
+and focused pre-commit. A1 is complete when deterministic tests, standalone eligible-Mac live paths, import portability, and documentation checks pass; pytest-native SDK verification is tracked separately as T6.6.
 
 ## Explicit non-actions
 
 Do not implement A2 tool registration/coordinator wiring, add an HTTP endpoint,
 vendor or invoke `fmx`, add a mandatory Apple dependency, alter default OpenAI
 selection, or expose Apple SDK sessions/transcripts as DAR state.
+
+## Post-implementation decision
+
+Standalone runtime verification is accepted for A1 text, structured output, and strict workflow behavior. The pytest-native Apple SDK path remains blocked by repeatable native GenerationError status 255 behavior despite successful availability preflight; future work must isolate or replace that harness before using it as a release gate. No provider retry or pytest-specific runtime behavior is added from this evidence.

@@ -1,6 +1,7 @@
+<!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 implementation complete; eligible-Mac live verification pending
+Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification blocked
 
 ## Scope
 
@@ -37,23 +38,16 @@ Status: A1 implementation complete; eligible-Mac live verification pending
 
 ## Slice 6 completion-gate evidence
 
-- Full suite: `poetry run pytest -q` — `654 passed, 4 skipped`.
-- Live marker: `DAR_RUN_LIVE_APPLE=1 poetry run pytest -m apple_live -q -rs` —
-  `3 skipped` because `apple_fm_sdk` is not installed on this host. The test
-  also retains the macOS and system-model eligibility guards.
-- Optional install attempt: `poetry install --extras
-  apple-foundation-models` resolved `apple-fm-sdk (0.2.1)` but could not fetch
-  packages because the configured Artifactory host was unreachable; import
-  remains unavailable and the live skip is therefore actionable.
+- Full suite: poetry run pytest -q — 677 passed, 4 skipped.
+- SDK extra installation succeeded and apple-fm-sdk 0.2.1 imported successfully.
+- Standalone live verification succeeded for text generation, structured JSON Schema generation, and a strict-coverage DAR workflow.
+- Pytest-native live execution reproducibly fails with native GenerationError status 255 despite availability reporting success; this remains an SDK/runtime harness limitation.
 - Ruff: `poetry run ruff check src tests` — passed.
 - Metadata: `poetry check` — passed.
 - Package build: `poetry build` — passed with network-enabled retry.
 - Focused pre-commit and `git diff --check` pass for the final slice.
 
-The implementation and deterministic validation gates are complete. The live
-Apple checks remain pending on the designated eligible Mac with
-`apple-fm-sdk` installed; the tests are marked and ready to run with
-`DAR_RUN_LIVE_APPLE=1`.
+The implementation, deterministic validation, and standalone live runtime paths are complete. Pytest-native Apple SDK verification is explicitly blocked by native status-255 behavior and tracked as T6.6.
 
 ## Required evidence by slice
 
@@ -98,6 +92,12 @@ poetry build
 pre-commit run --files <changed files>
 ```
 
-No live Apple test is part of the unit-test command. A1 completion requires the
-designated eligible-Mac live command to pass or skip with an actionable reason;
+No live Apple test is part of the unit-test command. A1 completion requires either standalone eligible-Mac live evidence or a precise prerequisite or runtime limitation record;
 the absence of an eligible Mac does not weaken deterministic unit coverage.
+
+## Post-implementation live verification findings
+
+- Optional SDK installation and import succeeded on macOS arm64.
+- Clean standalone Python processes successfully exercised DAR text, structured JSON Schema, and strict-coverage workflow paths.
+- The pytest-native live command fails inside Apple native generation with GenerationError status 255 even when availability reports (True, None). Plugin disabling, capture changes, and child-process isolation did not remove the failure.
+- This is an Apple SDK/runtime test-environment limitation, not successful pytest-native verification.

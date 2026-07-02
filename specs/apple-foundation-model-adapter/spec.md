@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Specification
 
 ## Metadata
@@ -5,8 +6,7 @@
 - Feature slug: `apple-foundation-model-adapter`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: A1 implementation complete; eligible-Mac live verification pending;
-  A2 separately gated
+- Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification blocked; A2 separately gated
 - Version: `0.4`
 - Date: 2026-07-01
 - Owner: dynamic-agent-runner model-provider boundary
@@ -525,18 +525,14 @@ Acceptance criteria:
 - Given `apple-fm-sdk` is absent, when the unit and import suites run, then all
   non-live Apple adapter tests still pass.
 - Given an eligible Mac with the optional dependency and Apple Intelligence
-  available, when live integration tests run, then they exercise real text and
-  JSON-schema generation.
-- Given an eligible Mac, when the live end-to-end test runs, then a DAR workflow
-  selects the Apple adapter with strict coverage and returns a model-produced
-  final result.
+  available, when explicitly enabled standalone live checks run, then they exercise real text and JSON-schema generation.
+- Given an eligible Mac, when the standalone live end-to-end check runs, then a DAR workflow selects the Apple adapter with strict coverage and returns a model-produced final result.
 - Given the model is unavailable, when live tests are collected, then they skip
   with the SDK's availability reason rather than fail during module import.
 - Given live output is nondeterministic, then tests assert structural and
   semantic invariants rather than exact prose except for deliberately bounded
   smoke prompts.
-- Given the full suite runs on the designated eligible Mac, then live Apple
-  tests run by default unless an explicit test command excludes the live marker.
+- Given pytest-native Apple checks run, then their result is recorded separately because the SDK can return opaque status 255 despite a successful availability preflight; standalone live evidence is authoritative.
 - Given CI or another machine lacks Apple prerequisites, then live tests are
   skipped and deterministic unit coverage remains authoritative for code
   correctness.
@@ -729,8 +725,7 @@ pass:
       fallback for missing coverage.
 - [ ] Structured capability selection works through existing model metadata.
 - [ ] Unit tests make no live Apple model calls.
-- [ ] Live text, structured-output, and full DAR workflow tests pass on the
-      designated eligible Mac under the repository's supported Python runtime.
+- [ ] Standalone live text, structured-output, and full DAR workflow checks pass on the designated eligible Mac; pytest-native status-255 behavior is recorded as an SDK harness limitation.
 - [ ] Live tests skip cleanly with an actionable reason when Apple prerequisites
       are unavailable.
 - [ ] Focused tests, full tests, lint, package build, and import checks pass.
@@ -769,9 +764,10 @@ pass:
    multimodal input, persistent Apple sessions, PCC, and HTTP serving remain
    deferred.
 7. The first release creates one Apple SDK session per model request.
-8. Unit tests remain fake-backed and live-model-free. Separate live integration
-   and end-to-end tests exercise the real on-device model and run by default on
-   the designated eligible Mac.
+8. Unit tests remain fake-backed and live-model-free. Separate live integration and end-to-end checks exercise the real on-device
+   model only when explicitly enabled; standalone Python execution is the
+   authoritative live evidence because pytest-native Apple SDK execution can
+   fail with opaque status 255 despite a successful availability preflight.
 9. Unknown or opaque SDK failures are translated but not automatically classified
    as retryable.
 10. The provider advertises only capabilities implemented through DAR, even when

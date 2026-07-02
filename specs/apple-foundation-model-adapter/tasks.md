@@ -1,6 +1,7 @@
+<!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Tasks
 
-Status: A1 implementation complete; eligible-Mac live verification pending
+Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification blocked
 
 ## Prerequisites
 
@@ -67,11 +68,10 @@ Status: A1 implementation complete; eligible-Mac live verification pending
 - [x] T6.1 Run focused Apple, executor, and import tests.
 - [x] T6.2 Run full tests, Ruff, `poetry check`, package build, and focused
       pre-commit.
-- [x] T6.3 Run eligible-Mac live tests and record skip/pass evidence.
+- [x] T6.3 Run eligible-Mac standalone live text, structured-output, and strict-workflow verification; record pytest-native status-255 limitation.
 - [x] T6.4 Check spec links/status consistency and update `specs/README.md`.
-- [x] T6.5 Confirm A2 remains deferred; record the actionable SDK-installation
-      skip on the designated Mac and keep live verification pending until the
-      optional dependency is available.
+- [x] T6.5 Confirm A2 remains deferred and record the native SDK validation limitation.
+- [ ] T6.6 Resolve or replace the pytest-native Apple SDK harness before using it as a release gate.
 
 ## Deferred A2 tasks
 
