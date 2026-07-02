@@ -82,6 +82,7 @@ build-backend = "poetry.masonry.api"
 markers = [
     "apple_live: live Apple Foundation Models test on an eligible Mac",
 ]
+norecursedirs = ["src/litellm"]
 
 # Build trigger marker: force OCI build for cached inventory slice. 2026-06-23.
 [tool.ruff]
