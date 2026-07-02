@@ -27,7 +27,7 @@ def build_graphify_parser() -> argparse.ArgumentParser:
     """Build the cross-repository Graphify extraction parser."""
 
     parser = argparse.ArgumentParser(
-        prog="dynamic-agent-runner-graphify-extract",
+        prog="graphify-extract",
         description="Run DAR-backed bounded Graphify semantic extraction.",
     )
     parser.add_argument("--repo-root", required=True, type=Path)
@@ -71,7 +71,7 @@ def main(
             max_file_chars=args.max_file_chars,
         )
     except (OSError, ValueError, DynamicAgentRunnerError) as exc:
-        print(f"dynamic-agent-runner-graphify-extract: error: {exc}", file=stderr)
+        print(f"graphify-extract: error: {exc}", file=stderr)
         return 1
     print(
         json.dumps(
