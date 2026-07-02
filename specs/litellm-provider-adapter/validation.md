@@ -3,14 +3,14 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: candidate readiness validation; implementation paused for Python
-  3.14 dependency support
-- Date: 2026-06-22
+- Status: implementation-readiness validation; Slice L1 ready for TDD
+- Date: 2026-07-02
 
 ## Readiness Checks
 
 - The spec has a narrow Slice L1 boundary.
-- Slice L1 is paused until LiteLLM supports the package's Python 3.14 target.
+- LiteLLM Python 3.14 support is handled temporarily by the checked-in pure
+  Python wheel and the OCI wheelhouse copy step.
 - Slice L1 has no blocking `NEEDS CLARIFICATION` items.
 - ChatGPT/Codex-on-LiteLLM is explicitly deferred to a follow-up slice.
 - LiteLLM Responses API support is explicitly deferred from Slice L1.
@@ -18,6 +18,9 @@
 - Request translation risk is identified as the main implementation risk.
 - Default transport migration risk is identified and bounded by an explicit
   official SDK compatibility path.
+- The manual Python 3.13 OCI package run completed successfully and produced a
+  package tar containing the root artifacts and the checked-in LiteLLM wheel.
+- The packaged LiteLLM wheel SHA-256 matched the checked-in wheel exactly.
 
 ## External Documentation Check
 
@@ -39,6 +42,16 @@ poetry run pytest tests/test_openai_client.py -q
 poetry run pytest tests/test_executor.py -q
 poetry run pytest -q
 poetry run ruff check src tests
+python -m py_compile python-build-system.py
+poetry build --format wheel
+```
+
+The OCI packaging validation is:
+
+```bash
+tar -tf output_ocibuild_packagewheel/*.tar
+shasum -a 256 vendor/wheels/litellm-1.92.0-py3-none-any.whl \
+  <extracted-wheel-path>/litellm-1.92.0-py3-none-any.whl
 ```
 
 Run targeted `pre-commit run --files ...` on the actual changed files before
@@ -53,3 +66,13 @@ The candidate preparation does not:
 - change default provider construction
 - add live model, provider, gateway, or OAuth calls
 - authorize ChatGPT/Codex-on-LiteLLM implementation in Slice L1
+
+## Consistency Analysis
+
+- FR-1 through FR-6 map to L1.1-L1.15 and the focused provider tests.
+- FR-10 maps to L1.8-L1.8b and L1.21; the checked-in wheel and Python 3.13
+  OCI result are explicit implementation constraints, not deferred assumptions.
+- FR-11 maps to L1.1-L1.7 and the repository's fake-only unit-test policy.
+- Deferred L2 and L3 tasks do not appear in the L1 acceptance boundary.
+- No blocking clarification remains for Slice L1; implementation starts with
+  RED tests and must preserve the existing OpenAI/Codex auth boundary.

@@ -1019,14 +1019,12 @@ explicitly instead of leaving them as undocumented future behavior.
       trees, or colorized output.
 - [ ] D2. Revisit Diskcache only when a concrete model/tool/result caching policy
       is specified, including side-effect and staleness semantics.
-- [ ] D3. LiteLLM is prepared in `specs/litellm-provider-adapter/`, but Slice
-      L1 is paused until LiteLLM supports the package's Python 3.14 target.
-      While paused, `specs/tool-descriptor-budgeting/` Slice T1 and
-      `specs/semantic-context-profiles/` Slice S1 are implemented, and
-      `specs/openai-responses-tool-loop-compat/` Slice R1 is implemented as a
-      downstream Power Marimo unblocker. The
-      `specs/memory-aware-context-pipeline/` first-slice validation is now the
-      next notable non-paused roadmap candidate.
+- [ ] D3. Implement Slice L1 from `specs/litellm-provider-adapter/` using TDD.
+      The temporary checked-in LiteLLM wheel and Python 3.13 OCI packaging
+      boundary are validated; ChatGPT/Codex-on-LiteLLM remains a deferred
+      follow-up slice. The
+      `specs/memory-aware-context-pipeline/` first-slice validation remains a
+      separate roadmap candidate.
 - [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
       helper if prompt/artifact hot-reload workflows become valuable.
 

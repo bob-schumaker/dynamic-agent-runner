@@ -3,8 +3,8 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: implementation candidate tasks for Slice L1
-- Date: 2026-06-22
+- Status: implementation-ready TDD tasks for Slice L1
+- Date: 2026-07-02
 - Owning spec: `specs/litellm-provider-adapter/spec.md`
 - Plan: `specs/litellm-provider-adapter/plan.md`
 
@@ -27,6 +27,12 @@
       OpenAI SDK compatibility factory behavior.
 - [ ] L1.8 Add `litellm` as a required runtime dependency and refresh
       `poetry.lock`.
+- [ ] L1.8a Verify the checked-in
+      `vendor/wheels/litellm-1.92.0-py3-none-any.whl` is present, pure Python,
+      and compatible with Python `<3.15`.
+- [ ] L1.8b Preserve the standard build-runner copy step that places the
+      checked-in LiteLLM wheel in `dist/` before `python -m build`; retain OCI
+      trigger coverage for the vendored wheel.
 - [ ] L1.9 Implement sync and async LiteLLM provider/client shims behind the
       existing provider protocols.
 - [ ] L1.10 Implement package-owned request translation from
@@ -49,6 +55,9 @@
       `poetry run pytest -q` and `poetry run ruff check src tests`.
 - [ ] L1.20 Update this task list, `validation.md`, and the spec index with
       completion evidence after implementation.
+- [ ] L1.21 Run the standard package build under Python 3.13 and verify the OCI
+      package tar contains both package wheels and the LiteLLM wheel hash
+      matches the checked-in artifact.
 
 ## Deferred Follow-Up: ChatGPT/Codex Through LiteLLM
 

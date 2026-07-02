@@ -809,8 +809,8 @@ follow-up selects them.
 - `ocihelper` must not be a required runtime dependency. The project may
   replicate needed runtime behavior locally rather than depending on
   `ai-tools-core` or adjacent ecosystem packages.
-- The implementation must support Python `>=3.11,<3.14` as declared in
-  `pyproject.toml`.
+- The implementation must support Python
+  `>=3.13,<3.14.1 || >3.14.1,<3.15` as declared in `pyproject.toml`.
 - The library should avoid hard-coding machine-specific producer paths into
   runtime behavior; the recorded paths are provenance and local source context.
 - Runtime execution must honor manifest execution-policy constraints such as
@@ -832,9 +832,10 @@ follow-up selects them.
   package directory output. Package loading should be strict and fail fast for
   missing sibling artifacts or broken `skill-bundle/` references instead of
   preserving a broad compatibility layer for older loose artifact inputs.
-- Multi-provider model routing is not part of the current runtime direction.
-  Provider abstraction libraries such as LiteLLM should be deferred unless the
-  spec explicitly changes to support non-OpenAI-compatible providers.
+- Multi-provider model routing is not part of the unscoped runtime baseline.
+  The explicitly linked `specs/litellm-provider-adapter/spec.md` authorizes
+  LiteLLM as a separate OpenAI-compatible transport slice without broadening
+  this core specification's scope.
 - The runtime preserves library-owned per-run execution-state isolation for
   concurrent invocations. Current thread-safety guarantees cover run-correlated
   trace and hook metadata plus synchronized package-owned helper surfaces;
@@ -1337,8 +1338,8 @@ diagnostic layer, not an implicit authorization to execute deferred metadata.
 - Requiring `ai-tools-core` or `openai-tools-core` in the initial implementation.
 - Supporting non-OpenAI-compatible model or tool-call interfaces in the initial
   implementation.
-- Adding LiteLLM or another multi-provider abstraction without an explicit change
-  to the OpenAI-first runtime direction.
+- Adding LiteLLM or another multi-provider abstraction without an explicit
+  feature spec and adapter boundary.
 - Adding Watchfiles as a core runtime dependency; file watching may be a local
   dev helper later, but it is not part of workflow execution.
 - Adding Rich or Diskcache as required runtime dependencies before a scoped CLI
@@ -1595,8 +1596,9 @@ Before implementation is considered complete, add validation covering:
 - Library evaluation in `cline-tasks/libraries-that-made-my-ai-agents-work.md`
   was reviewed after Slice 7. The resulting spec direction prioritizes
   Tenacity-style retries, output-contract enforcement, tiktoken-based token
-  budgeting, and package-owned tracing hooks while deferring LiteLLM, Watchfiles,
-  Rich, and Diskcache unless later scoped requirements justify them.
+  budgeting, and package-owned tracing hooks. LiteLLM is now governed by its
+  dedicated provider-adapter spec; Watchfiles, Rich, and Diskcache remain
+  deferred unless later scoped requirements justify them.
 - Codex and Cline evaluations in `cline-tasks/codex-cli-evaluation.md` and
   `cline-tasks/cline-evaluation.md` were synthesized in
   `cline-tasks/codex-cline-combined-package-proposal.md`. The resulting deferred

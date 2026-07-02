@@ -38,7 +38,7 @@ ROI is judged by:
 | Rank | Spec Work | ROI | Rationale |
 | --- | --- | --- | --- |
 | 1 | `apple-foundation-model-adapter` A1 | Very high, implementation in progress | Concrete on-machine caller need, successful local SDK and model probes, strong fit with the existing async provider facade and strict coverage, and a bounded first release for text plus explicit JSON Schema output. Slices 1-5 are implemented; A2 tool callbacks remain separately gated. |
-| 2 | `litellm-provider-adapter` | Very high, paused | Slice L1 remains prepared, but implementation is paused until LiteLLM supports the package's Python 3.14 target. The prepared scope is default direct SDK Chat Completions transport, fake tests, request/response translation, and an explicit official-SDK compatibility path; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
+| 2 | `litellm-provider-adapter` | Very high, implementation-ready | Slice L1 is ready for TDD implementation: default direct SDK Chat Completions transport, fake tests, request/response translation, explicit official-SDK compatibility, and temporary checked-in-wheel OCI packaging; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
 | 3 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
 | 4 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from LiteLLM/provider work first. |
 
@@ -70,8 +70,8 @@ ROI is judged by:
 
 1. Approve and implement the prepared `apple-foundation-model-adapter` A1
    slices without pulling A2 tool callbacks into the initial release.
-2. Resume `litellm-provider-adapter` Slice L1 when LiteLLM supports the
-   package's Python target.
+2. Implement `litellm-provider-adapter` Slice L1 using the validated temporary
+   checked-in wheel and Python 3.13 OCI packaging boundary.
 3. Run the `memory-aware-context-pipeline` first-slice validation to decide
    whether it remains separate from RAG.
 4. Add `provider-backed-context-compaction` after provider capability boundaries

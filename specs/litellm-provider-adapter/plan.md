@@ -3,14 +3,13 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: prepared Slice L1 plan; paused for Python 3.14 dependency support
-- Date: 2026-06-22
+- Status: implementation-ready Slice L1 plan
+- Date: 2026-07-02
 - Owning spec: `specs/litellm-provider-adapter/spec.md`
 
 ## Scope
 
-Slice L1 remains prepared, but implementation is paused until LiteLLM supports
-the package's Python 3.14 target. When resumed, Slice L1 makes LiteLLM the
+Slice L1 is ready for implementation. It makes LiteLLM the
 default direct SDK transport for ordinary OpenAI-format chat-completions
 dispatch while preserving the existing repository-owned adapter boundary.
 
@@ -40,7 +39,8 @@ Chat Completions-shaped `completion(...)` / `acompletion(...)` APIs.
 ## Technical Approach
 
 1. Add `litellm` as a required dependency in `pyproject.toml` and refresh
-   `poetry.lock`.
+   `poetry.lock`; retain the checked-in wheel as the temporary OCI install
+   boundary.
 2. Add small sync/async LiteLLM provider classes or client shims that satisfy
    the existing provider protocols.
 3. Add package-owned request translation from `OpenAIModelRequest` to LiteLLM
@@ -61,6 +61,9 @@ Chat Completions-shaped `completion(...)` / `acompletion(...)` APIs.
    dedicated follow-up slice handles LiteLLM Responses semantics for Codex.
 8. Add focused fake tests before implementation behavior is completed.
 9. Update README/API docs only after helper names are final.
+10. Preserve the validated OCI packaging path: keep
+    `vendor/wheels/litellm-1.92.0-py3-none-any.whl` checked in, copy it into
+    `dist/`, and verify the resulting artifact hash and metadata.
 
 ## Public API Direction
 
@@ -89,6 +92,9 @@ update the spec before finalizing docs.
   validation.
 - Unit tests must use fake LiteLLM callables, fake routers, or monkeypatched
   modules; no live provider, gateway, OAuth, or network calls.
+- OCI packaging must run under Python 3.13 or newer and must not rebuild
+  LiteLLM in OCI until upstream Python 3.14 support makes the vendored wheel
+  unnecessary.
 
 ## Compatibility and Migration
 
@@ -124,6 +130,8 @@ poetry run pytest tests/test_openai_client.py -q
 poetry run pytest tests/test_executor.py -q
 poetry run pytest -q
 poetry run ruff check src tests
+python -m py_compile python-build-system.py
+poetry build --format wheel
 pre-commit run --files \
   pyproject.toml poetry.lock README.md \
   src/dynamic_agent_runner/openai_client.py \
@@ -135,3 +143,11 @@ pre-commit run --files \
 ```
 
 Adjust the final file list to the actual changed files.
+
+OCI artifact verification must additionally inspect the generated package tar:
+
+```bash
+tar -tf output_ocibuild_packagewheel/*.tar
+shasum -a 256 vendor/wheels/litellm-1.92.0-py3-none-any.whl \
+  <extracted-wheel-path>/litellm-1.92.0-py3-none-any.whl
+```
