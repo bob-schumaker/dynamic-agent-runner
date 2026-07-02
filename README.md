@@ -225,7 +225,7 @@ any default OpenAI adapter is created. Clients that require local-only execution
 should pass only local adapters and use strict coverage; `local_only` runtime
 metadata no longer filters adapter selection.
 
-When the runtime creates the default OpenAI adapter, its SDK-backed provider
+When the runtime creates the default OpenAI adapter, its LiteLLM-backed provider
 discovers host-owned auth defaults only if the caller has not supplied
 overriding auth. Explicit `OpenAIProviderConfig(api_key=...)` and
 `OpenAIProviderConfig(base_url=...)` values win over ambient defaults. Without
@@ -244,6 +244,23 @@ discovery. Before a ChatGPT/Codex model request is sent, the adapter lists
 authenticated available models and fails early if the requested model is not
 advertised by that account. Codex personal-access-token and agent-identity auth
 modes are not treated as OpenAI API keys in this path.
+
+Ordinary OpenAI-compatible requests use LiteLLM's Chat Completions transport;
+ChatGPT/Codex auth continues through the repository-owned SDK backend until the
+separate Responses-aware LiteLLM slice is implemented. The OCI wheelhouse
+currently includes the checked-in pure-Python LiteLLM wheel as a temporary
+distribution boundary.
+
+For an explicit LiteLLM adapter with injected dispatch or router behavior:
+
+```python
+from dynamic_agent_runner import create_litellm_adapter
+
+adapter = create_litellm_adapter(
+    model="openai/gpt-4o-mini",
+    models=("openai/gpt-4o-mini",),
+)
+```
 
 To disable ambient discovery for a default OpenAI-compatible provider, set
 `discover_default_auth=False`:

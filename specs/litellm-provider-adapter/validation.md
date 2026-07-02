@@ -21,6 +21,12 @@
 - The manual Python 3.13 OCI package run completed successfully and produced a
   package tar containing the root artifacts and the checked-in LiteLLM wheel.
 - The packaged LiteLLM wheel SHA-256 matched the checked-in wheel exactly.
+- The full DAR suite passes after excluding the nested upstream LiteLLM test
+  tree: `666 passed, 4 skipped`.
+- The focused LiteLLM/OpenAI/executor integration set passes: `202 passed`.
+- A portable Poetry dependency remains blocked: the configured Artifactory does
+  not publish LiteLLM, while a local wheel dependency produces a non-portable
+  `file://` requirement in the root wheel metadata.
 
 ## External Documentation Check
 
@@ -76,3 +82,6 @@ The candidate preparation does not:
 - Deferred L2 and L3 tasks do not appear in the L1 acceptance boundary.
 - No blocking clarification remains for Slice L1; implementation starts with
   RED tests and must preserve the existing OpenAI/Codex auth boundary.
+- L1.8 is an external publication blocker, not an unresolved design question;
+  the vendored wheelhouse path is the current approved runtime distribution
+  boundary.

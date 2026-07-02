@@ -10,52 +10,55 @@
 
 ## Slice L1: Core LiteLLM Direct SDK Transport
 
-- [ ] L1.1 Add RED tests in `tests/test_openai_client.py` for sync LiteLLM
+- [x] L1.1 Add RED tests in `tests/test_openai_client.py` for sync LiteLLM
       completion dispatch using an injected fake completion callable.
-- [ ] L1.2 Add RED tests for async LiteLLM completion dispatch using an injected
+- [x] L1.2 Add RED tests for async LiteLLM completion dispatch using an injected
       fake async completion callable.
-- [ ] L1.3 Add RED tests proving `OpenAIModelRequest.messages` are translated to
+- [x] L1.3 Add RED tests proving `OpenAIModelRequest.messages` are translated to
       LiteLLM `messages`, request model remains authoritative, and factory
       `model` metadata does not override the request model.
-- [ ] L1.4 Add RED tests for supported tool descriptor translation and tool-call
+- [x] L1.4 Add RED tests for supported tool descriptor translation and tool-call
       normalization from Chat Completions-style LiteLLM responses.
-- [ ] L1.5 Add RED tests proving unsupported request fields fail with
+- [x] L1.5 Add RED tests proving unsupported request fields fail with
       `ModelExecutionError` before calling the fake LiteLLM dispatcher.
-- [ ] L1.6 Add RED tests for redacted LiteLLM error translation, including a
+- [x] L1.6 Add RED tests for redacted LiteLLM error translation, including a
       token-shaped value in the fake provider exception.
-- [ ] L1.7 Add RED tests for public factory exports and explicit official
+- [x] L1.7 Add RED tests for public factory exports and explicit official
       OpenAI SDK compatibility factory behavior.
-- [ ] L1.8 Add `litellm` as a required runtime dependency and refresh
-      `poetry.lock`.
-- [ ] L1.8a Verify the checked-in
+- [ ] L1.8 Publish or otherwise make the LiteLLM package available from the
+      configured package source, then add a portable versioned runtime
+      dependency and refresh `poetry.lock`. Current attempt is blocked because
+      Artifactory has no matching LiteLLM release and a local file dependency
+      emits a non-portable wheel URL.
+- [x] L1.8a Verify the checked-in
       `vendor/wheels/litellm-1.92.0-py3-none-any.whl` is present, pure Python,
       and compatible with Python `<3.15`.
-- [ ] L1.8b Preserve the standard build-runner copy step that places the
+- [x] L1.8b Preserve the standard build-runner copy step that places the
       checked-in LiteLLM wheel in `dist/` before `python -m build`; retain OCI
       trigger coverage for the vendored wheel.
-- [ ] L1.9 Implement sync and async LiteLLM provider/client shims behind the
+- [x] L1.9 Implement sync and async LiteLLM provider/client shims behind the
       existing provider protocols.
-- [ ] L1.10 Implement package-owned request translation from
+- [x] L1.10 Implement package-owned request translation from
       `OpenAIModelRequest` to LiteLLM Chat Completions kwargs.
-- [ ] L1.11 Implement Chat Completions response normalization into
+- [x] L1.11 Implement Chat Completions response normalization into
       `ModelResponse`, including assistant text and model-emitted tool calls.
-- [ ] L1.12 Implement public LiteLLM factory helpers and package exports.
-- [ ] L1.13 Change ordinary default OpenAI-compatible provider construction to
+- [x] L1.12 Implement public LiteLLM factory helpers and package exports.
+- [x] L1.13 Change ordinary default OpenAI-compatible provider construction to
       LiteLLM while preserving caller-injected clients/providers and the
       existing ChatGPT/Codex SDK backend.
-- [ ] L1.14 Add or preserve explicit official OpenAI SDK compatibility helpers.
-- [ ] L1.15 Update README/API docs only after public helper names are final.
-- [ ] L1.16 Assess PyInstaller impact. Add hook work only if existing package
+- [x] L1.14 Add or preserve explicit official OpenAI SDK compatibility helpers.
+- [x] L1.15 Update README/API docs only after public helper names are final.
+- [x] L1.16 Assess PyInstaller impact. Add hook work only if existing package
       hook tests or build checks fail because of LiteLLM.
-- [ ] L1.17 Run focused validation:
+- [x] L1.17 Run focused validation:
       `poetry run pytest tests/test_openai_client.py -q`.
-- [ ] L1.18 Run executor validation:
+- [x] L1.18 Run executor validation:
       `poetry run pytest tests/test_executor.py -q`.
-- [ ] L1.19 Run final validation:
+- [x] L1.19 Run final validation:
       `poetry run pytest -q` and `poetry run ruff check src tests`.
-- [ ] L1.20 Update this task list, `validation.md`, and the spec index with
+- [x] L1.20 Update this task list, `validation.md`, and the spec index with
       completion evidence after implementation.
-- [ ] L1.21 Run the standard package build under Python 3.13 and verify the OCI
+- [x] L1.21 Run the standard package build under Python 3.13 and verify the OCI
       package tar contains both package wheels and the LiteLLM wheel hash
       matches the checked-in artifact.
 

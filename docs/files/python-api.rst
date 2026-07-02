@@ -156,7 +156,9 @@ phases are currently validated and preserved as metadata.
 
 Execution APIs accept ``model_adapter_coverage`` to define whether caller
 provided adapters are authoritative or may be augmented by the package's default
-OpenAI adapter.
+LiteLLM-backed OpenAI adapter. ChatGPT/Codex auth remains on the
+repository-owned SDK backend until its separate Responses-aware LiteLLM slice
+is implemented.
 
 ``"augmented"`` is the default. Supplied adapters are tried first, and the
 runtime may create a default OpenAI adapter when eligible model coverage is
@@ -191,6 +193,19 @@ The same keyword is accepted by ``run_agent_workflow(...)``,
 require local-only execution should supply only local adapters with strict
 coverage. ``llm_step.model_requirements`` metadata such as ``local_only`` no
 longer filters adapter selection.
+
+.. header2:: LiteLLM adapter
+
+Use ``create_litellm_adapter(...)`` or
+``create_async_litellm_adapter(...)`` for direct LiteLLM Chat Completions
+transport. DAR owns request translation and response normalization; callers may
+inject a completion callable or LiteLLM router for tests and host-managed
+routing. The factory's ``model`` value is adapter metadata and does not
+override an individual request model.
+
+The temporary OCI distribution path includes the checked-in pure-Python
+LiteLLM wheel until the configured package source publishes a portable
+Python-compatible release.
 
 .. header2:: Local OpenAI-compatible endpoints
 

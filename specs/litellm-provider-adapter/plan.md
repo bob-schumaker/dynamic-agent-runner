@@ -38,9 +38,10 @@ Chat Completions-shaped `completion(...)` / `acompletion(...)` APIs.
 
 ## Technical Approach
 
-1. Add `litellm` as a required dependency in `pyproject.toml` and refresh
-   `poetry.lock`; retain the checked-in wheel as the temporary OCI install
-   boundary.
+1. Make LiteLLM available in the published runtime wheelhouse. Add a versioned
+   Poetry dependency only after the configured package source publishes a
+   portable Python 3.14-compatible release; retain the checked-in wheel as the
+   temporary OCI install boundary.
 2. Add small sync/async LiteLLM provider classes or client shims that satisfy
    the existing provider protocols.
 3. Add package-owned request translation from `OpenAIModelRequest` to LiteLLM

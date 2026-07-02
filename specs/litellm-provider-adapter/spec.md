@@ -6,7 +6,7 @@
 - Mode: `light`
 - Artifact type: authoritative feature specification
 - Status: implementation-ready; Slice L1 prepared for TDD implementation
-- Version: `0.4`
+- Version: `0.5`
 - Owner: repository maintainers and future implementers of model-provider
   runtime integrations
 - Date: 2026-07-02
@@ -126,8 +126,8 @@ needs explicit Responses-path request shaping and drift analysis.
 
 This feature covers:
 
-1. adding LiteLLM as a core runtime dependency and preserving the temporary
-   checked-in wheel packaging boundary
+1. making LiteLLM available as a core runtime through the approved distribution
+   wheelhouse while preserving the temporary checked-in wheel packaging boundary
 2. adding sync and async LiteLLM-backed clients or providers that conform to the
    runtime's OpenAI-compatible adapter expectations
 3. using LiteLLM's OpenAI-format `completion(...)` / `acompletion(...)` SDK
@@ -442,13 +442,15 @@ or frozen-binary dependency.
 
 Acceptance criteria:
 
-- Given package metadata is updated, when LiteLLM support is implemented, then
-  `litellm` is a required runtime dependency.
+- Given package distribution is updated, when LiteLLM support is implemented,
+  then the published wheelhouse contains the compatible LiteLLM runtime wheel;
+  a versioned package-index dependency remains blocked until the configured
+  package source publishes LiteLLM.
 - Given PyInstaller support exists for the current package, when LiteLLM support
   is added, then implementation notes must identify whether LiteLLM needs
   package hooks or whether frozen-app support is deferred.
-- Given the package is installed normally, when existing tests run, then LiteLLM
-  import availability is treated as part of the core environment.
+- Given the approved runtime wheelhouse is installed, when existing tests run,
+  then LiteLLM import availability is treated as part of the core environment.
 - Given the OCI build runs before upstream LiteLLM supports Python 3.14, when
   `python-build-system.py` packages artifacts, then it copies the checked-in
   `vendor/wheels/litellm-1.92.0-py3-none-any.whl` into the published wheelhouse
