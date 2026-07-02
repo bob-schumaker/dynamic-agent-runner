@@ -25,6 +25,7 @@
   - `https://docs.litellm.ai/docs/routing`
   - `litellm/litellm/responses/main.py`
   - `litellm/litellm/main.py`
+  - `specs/litellm-provider-adapter/l2-codex-compatibility.md`
 
 ## Objective
 

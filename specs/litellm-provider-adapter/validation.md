@@ -27,6 +27,10 @@
 - A portable Poetry dependency remains blocked: the configured Artifactory does
   not publish LiteLLM, while a local wheel dependency produces a non-portable
   `file://` requirement in the root wheel metadata.
+- L2.1 compatibility audit completed in
+  `specs/litellm-provider-adapter/l2-codex-compatibility.md`: LiteLLM Responses
+  is compatible enough for a guarded follow-up, while Chat Completions
+  bridging is not Codex-equivalent.
 
 ## External Documentation Check
 

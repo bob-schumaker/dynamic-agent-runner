@@ -66,8 +66,9 @@
 
 ## Deferred Follow-Up: ChatGPT/Codex Through LiteLLM
 
-- [ ] L2.1 Compare current `ChatGPTCodexBackendOpenAIClientProvider` request
-      shaping with LiteLLM ChatGPT provider behavior.
+- [x] L2.1 Compare current `ChatGPTCodexBackendOpenAIClientProvider` request
+      shaping with LiteLLM ChatGPT provider behavior; record the compatibility
+      matrix and transport requirements in `l2-codex-compatibility.md`.
 - [ ] L2.2 Decide whether the Codex path should use `litellm.responses(...)`,
       `litellm.aresponses(...)`, or Chat Completions bridged to Responses.
 - [ ] L2.3 Define explicit model alias behavior for unprefixed repository model
