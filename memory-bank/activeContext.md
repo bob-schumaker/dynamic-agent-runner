@@ -153,7 +153,8 @@
   DAR includes a minimal `dynamic_agent_runner.litellm` sync/async
   OpenAI-compatible transport, direct Chat Completions translation, public
   factories, fake tests, and an explicit official-SDK compatibility path.
-  ChatGPT/Codex-on-LiteLLM remains deferred to a Responses-aware follow-up.
+  ChatGPT/Codex now has an opt-in Responses-native wrapper; global default
+  replacement remains intentionally deferred.
 - The latest manual OCI package run under Python 3.13 completed successfully.
   Its DAR wheel contains the bundled transport and its artifact also contains
   `litellm-1.92.0-py3-none-any.whl`, whose SHA-256 matches the checked-in
@@ -163,10 +164,10 @@
   `85a4b37`). It establishes Responses as the Codex transport boundary,
   `aresponses(...)` async-first with `responses(...)` sync parity, DAR-owned
   auth/model-listing policy, and capability-gated Chat Completions fallback.
-- The downstream L2 surface is scoped in commit `be94475`: model aliases,
-  explicit auth/configuration handoff, session/instruction parity, streamed
-  Responses/tool-call follow-ups, token-limit/metadata handling, model-listing
-  isolation, redaction, and rollback to the SDK provider remain to implement.
+- L2.2-L2.6 are implemented in separate slices: `46a7b5f` adds the native
+  Responses seam, `25ee3e6` adds model aliases, `7ac62ef` adds DAR auth/config
+  handoff, `e244284` preserves instruction/tool transcript semantics, and
+  `55f4aa2` adds the opt-in auth-resolving wrapper with SDK rollback.
 - `specs/memory-aware-context-pipeline/spec.md` remains a proposed
   caller-owned long-term memory orchestration contract inspired by `memlayer`.
   Its first slice is retrieval-only and fake-testable, with an explicit
@@ -435,8 +436,8 @@
 - Skill-source resolution v1 is implemented and documented; open decisions are
   deferred beyond v1.
 - Core LiteLLM adapter implementation and its packaging boundary are captured
-  in `specs/litellm-provider-adapter/spec.md`; upstream package publication and
-  the ChatGPT/Codex Responses follow-up remain open.
+  in `specs/litellm-provider-adapter/spec.md`; upstream package publication
+  and global default Codex-provider replacement remain open.
 - Persistent agent sessions v1 is implemented and documented; completion
   evidence is captured in `specs/persistent-agent-sessions/validation.md`, and
   cross-spec ownership wording was reconciled across the spec surface.
@@ -479,8 +480,8 @@
 - Implementation-ready feature packages:
   - `specs/apple-foundation-model-adapter/`
 - Deferred implementation follow-ups:
-  - upstream LiteLLM publication and ChatGPT/Codex Responses support in
-    `specs/litellm-provider-adapter/spec.md`
+  - upstream LiteLLM publication and global default Codex-provider replacement
+    in `specs/litellm-provider-adapter/spec.md`
 - Prepared feature packages:
   - `specs/llama-cpp-memory-fit-profile/spec.md`
   - `specs/provider-backed-context-compaction/spec.md`
@@ -508,8 +509,9 @@
 - Run the `memory-aware-context-pipeline` declarative first-slice validation when
   it is scheduled, including the explicit decision to retain a distinct memory
   contract or fold it back into RAG.
-- Resume LiteLLM work with the scoped Codex L2.2-L2.6 tasks or upstream package
-  publication; the direct transport Slice L1 and L2.1 audit are complete.
+- Resume LiteLLM work only for upstream package publication, live Codex parity,
+  or an approved global-default migration; L2.2-L2.6 are complete as an
+  opt-in wrapper.
 - If extending model event streaming beyond v1, create plan/tasks for
   provider-native token deltas, adapter streaming protocol, model-tool-loop
   progress events, cancellation/backpressure behavior, redaction/tool payload

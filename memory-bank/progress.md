@@ -6,15 +6,17 @@
   the bundled `dynamic_agent_runner.litellm` sync/async OpenAI-compatible
   transport, repository-owned request/response translation, public factories,
   fake tests, default-provider migration, and explicit official-SDK
-  compatibility. ChatGPT/Codex-on-LiteLLM remains deferred.
+  compatibility. ChatGPT/Codex now has an opt-in Responses-native wrapper;
+  the existing SDK-backed default remains the rollback path.
 - L2.1 is complete: the compatibility matrix compares DAR's current Codex
   Responses/auth behavior with vendored LiteLLM ChatGPT Responses and Chat
   Completions paths. The resulting decision is Responses-only for Codex
   replacement (`aresponses` async-first, `responses` sync parity), with DAR
   retaining auth discovery, model listing, and error policy.
-- L2.2-L2.6 are now explicit downstream tasks for model aliases, credential and
-  endpoint injection, session/instruction parity, streamed Responses/tool-call
-  tests, capability-gated fallback, redaction, and rollback safety.
+- L2.2-L2.6 are implemented in commits `46a7b5f`, `25ee3e6`, `7ac62ef`,
+  `e244284`, and `55f4aa2`. The slices cover native Responses dispatch,
+  outbound model aliases, explicit DAR auth/config handoff, instruction and
+  tool-transcript parity, and an opt-in wrapper with SDK rollback.
 - Commits `5e3d5e6` and `6faa98c` added the vendored-wheel build flow, verified
   Python 3.13 OCI package evidence, and aligned the LiteLLM spec corpus.
 - Graphify semantic extraction now has an explicit structured-output contract:

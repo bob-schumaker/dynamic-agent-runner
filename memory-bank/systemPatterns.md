@@ -161,9 +161,10 @@
   OpenAI-compatible providers may retain ID-only fallback behavior.
 - ChatGPT/Codex request parity includes forwarding `ChatGPT-Account-ID` when
   the discovered auth record supplies an account identifier.
-- The LiteLLM Codex follow-up must keep DAR-owned auth precedence, resolved
+- The LiteLLM Codex wrapper keeps DAR-owned auth precedence, resolved
   endpoint, account id, `client_version` model listing, model aliases, and
-  ambient-auth boundaries. LiteLLM Responses is the intended transport;
+  ambient-auth boundaries. LiteLLM Responses is the implemented opt-in
+  transport;
   Chat Completions bridging is only a capability-gated fallback because it can
   lose Responses transcript, reasoning, tool-call, or streaming semantics.
 - `OpenAIProviderConfig.codex_auth_preference` controls supported Codex auth
@@ -289,10 +290,11 @@
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
 - The current roadmap has capability status, approval/sandbox v1, MCP v1,
   guardrail v1, iterative loops, skill source resolution, host integration,
-  local-model availability, and LiteLLM Slice L1 complete. Apple A1, the
+  local-model availability, and LiteLLM L1 plus the opt-in Codex L2 slices
+  complete. Apple A1, the
   memory-aware first slice, and provider-backed compaction are the leading
-  unimplemented work; upstream LiteLLM publication and ChatGPT/Codex
-  Responses support remain deferred.
+  unimplemented work; upstream LiteLLM publication and global default Codex
+  replacement remain deferred.
 - `specs/capability-status-report/spec.md` owns the implemented preflight
   reporting direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.
