@@ -665,6 +665,8 @@ def create_openai_response(
         raw_response = client.responses.create(**kwargs)
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
         raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+    if isinstance(raw_response, ModelResponse):
+        return raw_response
     if kwargs.get("stream") and not isinstance(raw_response, Mapping):
         return _normalize_openai_stream(raw_response)
     return normalize_openai_response(raw_response)
@@ -681,6 +683,8 @@ async def create_async_openai_response(
         raw_response = await client.responses.create(**kwargs)
     except Exception as exc:  # noqa: BLE001 - normalize SDK/client failures.
         raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+    if isinstance(raw_response, ModelResponse):
+        return raw_response
     if kwargs.get("stream") and not isinstance(raw_response, Mapping):
         return await _normalize_async_openai_stream(raw_response)
     return normalize_openai_response(raw_response)
