@@ -23,7 +23,7 @@ console entrypoint for the extraction stage, not an OpenAI-compatible server.
 1. **Package boundary.** Add `src/dynamic_agent_runner/tools/graphify.py` and a
    small `src/dynamic_agent_runner/tools/__init__.py`. The module uses existing
    package dependencies and remains import-safe on every supported install.
-2. **CLI shape.** Add the `dynamic-agent-runner-graphify-extract` script under
+2. **CLI shape.** Add the `graphify-extract` script under
    `[project.scripts]`. It parses repository root, corpus manifest, candidate
    output, concurrency, required-glob, and model-policy options, then delegates
    to the package API. It must not create a second provider client or spawn
@@ -81,14 +81,14 @@ console entrypoint for the extraction stage, not an OpenAI-compatible server.
   protocol, chunk planning, validation, bounded execution, deterministic merge,
   audit, and `RegisteredTool` factory.
 - `src/dynamic_agent_runner/cli.py` or a package-owned CLI module — thin
-  `dynamic-agent-runner-graphify-extract` argument parser and delegation path,
+  `graphify-extract` argument parser and delegation path,
   following existing CLI injection conventions.
 - `src/dynamic_agent_runner/errors.py` — reuse existing package-owned boundary
   or add only the narrow Graphify extraction error types needed for actionable
   failure categories.
 - `src/dynamic_agent_runner/__init__.py` — explicit package-root exports only
   if the existing public-export convention requires them.
-- `pyproject.toml` — `dynamic-agent-runner-graphify-extract` script entrypoint.
+- `pyproject.toml` — `graphify-extract` script entrypoint.
 - No dependency-file change is required; Graphify remains external and the
   implementation uses existing package dependencies and the standard library.
 

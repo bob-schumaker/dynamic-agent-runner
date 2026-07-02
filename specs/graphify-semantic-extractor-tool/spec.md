@@ -96,7 +96,7 @@ cross-repository script is a thin wrapper over the same package-owned
 implementation:
 
 ```text
-dynamic-agent-runner-graphify-extract \
+graphify-extract \
   --repo-root PATH \
   --corpus-manifest PATH \
   --output-dir PATH \
@@ -140,7 +140,7 @@ Given the package is installed, when no caller registers the Graphify semantic
 extractor tool, then workflows must not see or invoke it.
 
 Given another repository installs DAR, when it invokes
-`dynamic-agent-runner-graphify-extract`, then the script must route through the
+`graphify-extract`, then the script must route through the
 same package-owned extraction API and DAR model/worker policy.
 
 ### FR-2: Respect Curated Corpus Boundaries
@@ -313,7 +313,7 @@ The initial implementation slice should include:
 5. Strict JSON chunk validation.
 6. Deterministic merge to staged semantic artifacts.
 7. Audit output with chunk status and source hashes.
-8. The `dynamic-agent-runner-graphify-extract` console entrypoint with
+8. The `graphify-extract` console entrypoint with
    `--help`, manifest, output, concurrency, required-glob, and model-policy
    options.
 9. Documentation showing how a caller can hand staged artifacts to Graphify.
@@ -376,7 +376,7 @@ Implementation must follow TDD per repository policy:
   integration adapter may derive it from Graphify detect output; the extractor
   does not parse or invoke the Graphify CLI itself.
 - The first release exposes a Python API, registry tool, and the
-  `dynamic-agent-runner-graphify-extract` console entrypoint. The script is a
+  `graphify-extract` console entrypoint. The script is a
   thin cross-repository wrapper over the same API.
 - Validation targets the stable Graphify semantic subset (`nodes`, `edges`, and
   `hyperedges` with provenance and confidence fields) using checked-in JSON

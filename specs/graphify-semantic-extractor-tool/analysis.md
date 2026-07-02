@@ -193,7 +193,7 @@ leaves Graphify as an external executable.
 
 A caller must still opt into the model-visible tool by registering it in the
 effective `ToolRegistry` for a workflow or node. Other repositories can invoke
-the `dynamic-agent-runner-graphify-extract` console entrypoint, which delegates
+the `graphify-extract` console entrypoint, which delegates
 to the same package API and bounded DAR worker workflow.
 
 ## Relationship to Existing Specs
@@ -218,7 +218,7 @@ architecture:
 The first slice should be deliberately small:
 
 1. add the package-owned Graphify semantic extractor helper;
-2. add the `dynamic-agent-runner-graphify-extract` console entrypoint;
+2. add the `graphify-extract` console entrypoint;
 3. accept a manifest and write to a candidate output root;
 4. use fake workers in tests;
 5. validate strict JSON and source provenance;

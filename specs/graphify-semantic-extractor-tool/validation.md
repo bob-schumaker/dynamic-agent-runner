@@ -15,7 +15,7 @@ handoff and default-policy gate remain external
 - Graphify remains an external executable; DAR produces staged semantic
   artifacts and does not provide an OpenAI-compatible server.
 - The first release is a Python API, explicit registry tool, and
-  `dynamic-agent-runner-graphify-extract` console entrypoint.
+  `graphify-extract` console entrypoint.
 - The caller supplies a small DAR-owned corpus manifest derived from reviewed
   Graphify detection evidence; DAR does not invoke Graphify.
 - Workers are injected async-first collaborators and receive corpus text as
@@ -121,7 +121,7 @@ handoff and default-policy gate remain external
 
 - Command: `poetry install --only main`
 - Observed result: current package installed with the new script metadata.
-- Command: `poetry run dynamic-agent-runner-graphify-extract --help`
+- Command: `poetry run graphify-extract --help`
 - Observed result: command exposes repository, manifest, output, concurrency,
   required-glob, and model options.
 - Documentation: `README.md` now documents cross-repository invocation and the
@@ -146,7 +146,7 @@ handoff and default-policy gate remain external
 - Ruff: `poetry run ruff check src tests` — passed.
 - Metadata: `poetry check` — passed.
 - Installed console entrypoint help passed for
-  `dynamic-agent-runner-graphify-extract --help`.
+  `graphify-extract --help`.
 - Package build was attempted with `poetry build` but could not resolve the
   configured Artifactory host in this environment. No source or test failure
   was observed.

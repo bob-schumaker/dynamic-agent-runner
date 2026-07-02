@@ -37,7 +37,7 @@ benchmark/default gate remains pending
         `poetry run pytest tests/test_graphify_tools.py tests/test_import.py -q`
       - GREEN: `poetry run pytest tests/test_graphify_tools.py -q` — `4 passed`.
 - [x] T1.3 [implementation] Add the
-      `dynamic-agent-runner-graphify-extract` `[project.scripts]` entrypoint as
+      `graphify-extract` `[project.scripts]` entrypoint as
       a thin delegate to the package API, with repository root, manifest,
       output, concurrency, required-glob, and model-policy options.
       - Spec: FR-1, FR-5, First Release Boundary
@@ -145,7 +145,7 @@ benchmark/default gate remains pending
 - Full suite: `poetry run pytest -q` — `616 passed`.
 - Lint: `poetry run ruff check src tests` — passed.
 - Metadata: `poetry check` — passed.
-- Installed entrypoint help: `dynamic-agent-runner-graphify-extract --help` — passed.
+- Installed entrypoint help: `graphify-extract --help` — passed.
 - Package build: attempted with `poetry build`; blocked by unavailable
   `artifactory.oci.oraclecorp.com` in the execution environment.
 - Focused pre-commit and `git diff --check` passed before the completion commit.
