@@ -66,3 +66,6 @@ docs/source/validation-and-testing.rst
 graphify-out/
 .codegraph/
 .graphifyignore
+
+# temporary 
+src/litellm/
