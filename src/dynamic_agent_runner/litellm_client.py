@@ -307,8 +307,8 @@ def _bind_async_litellm_kwargs(
 def _load_completion() -> LiteLLMCompletion:
     try:
         from litellm import completion
-    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
-        raise ModelExecutionError("litellm package is not available") from exc
+    except Exception:
+        return _load_bundled_completion()
     return completion
 
 
@@ -336,8 +336,20 @@ def _provider_litellm_kwargs(
 def _load_async_completion() -> LiteLLMAsyncCompletion:
     try:
         from litellm import acompletion
-    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
-        raise ModelExecutionError("litellm package is not available") from exc
+    except Exception:
+        return _load_bundled_async_completion()
+    return acompletion
+
+
+def _load_bundled_completion() -> LiteLLMCompletion:
+    from dynamic_agent_runner.litellm import completion
+
+    return completion
+
+
+def _load_bundled_async_completion() -> LiteLLMAsyncCompletion:
+    from dynamic_agent_runner.litellm import acompletion
+
     return acompletion
 
 
