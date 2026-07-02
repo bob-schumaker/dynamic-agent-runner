@@ -74,9 +74,10 @@
       Chat Completions bridge only behind explicit capability detection and
       fail-closed semantics. The public injected sync/async Responses adapter
       seam is implemented; default Codex-provider replacement remains deferred.
-- [ ] L2.3 Define explicit model alias behavior for unprefixed repository model
+- [x] L2.3 Define explicit model alias behavior for unprefixed repository model
       ids and LiteLLM `chatgpt/` model ids without changing executor-facing
-      model matching.
+      model matching. Outbound normalization is implemented while adapter
+      metadata retains the caller-facing model id.
 - [ ] L2.4 Define the auth/configuration handoff: DAR remains authoritative for
       token precedence, endpoint, account id, client-version model listing, and
       ambient-auth boundaries; LiteLLM may add only approved session/header

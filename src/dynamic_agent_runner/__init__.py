@@ -139,6 +139,7 @@ from dynamic_agent_runner.litellm_client import (
     create_litellm_adapter,
     create_litellm_adapter_from_provider_config,
     normalize_litellm_response,
+    normalize_litellm_codex_model,
 )
 from dynamic_agent_runner.models import (
     CompiledAgentWorkflow,
@@ -317,6 +318,7 @@ __all__ = [
     "create_litellm_adapter",
     "create_litellm_adapter_from_provider_config",
     "normalize_litellm_response",
+    "normalize_litellm_codex_model",
     "execute_workflow",
     "execute_workflow_async",
     "normalize_openai_response",

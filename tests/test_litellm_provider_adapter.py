@@ -10,16 +10,53 @@ from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner import (
     create_litellm_adapter as exported_create_litellm_adapter,
 )
-from dynamic_agent_runner.openai_client import OpenAIMessage, build_openai_request
+from dynamic_agent_runner.openai_client import (
+    OpenAIMessage,
+    OpenAIProviderConfig,
+    build_openai_request,
+)
 from dynamic_agent_runner.openai_client import create_default_openai_provider
 from dynamic_agent_runner.litellm_client import (
     create_async_litellm_codex_adapter,
     create_async_litellm_adapter,
     create_litellm_codex_adapter,
+    normalize_litellm_codex_model,
     create_litellm_adapter_from_provider_config,
     create_litellm_adapter,
 )
-from dynamic_agent_runner.openai_client import OpenAIProviderConfig
+
+
+def test_litellm_codex_model_alias_preserves_public_ids() -> None:
+    assert normalize_litellm_codex_model("codex-mini-latest") == (
+        "chatgpt/codex-mini-latest"
+    )
+    assert normalize_litellm_codex_model("chatgpt/codex-mini-latest") == (
+        "chatgpt/codex-mini-latest"
+    )
+    assert normalize_litellm_codex_model("openai/gpt-test") == "openai/gpt-test"
+
+
+def test_litellm_codex_adapter_translates_only_outbound_model_alias() -> None:
+    calls: list[dict[str, object]] = []
+
+    def responses(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"id": "alias", "output": []}
+
+    adapter = create_litellm_codex_adapter(
+        token="codex-token",
+        model="codex-mini-latest",
+        responses=responses,
+    )
+    request = build_openai_request(
+        model="codex-mini-latest",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    adapter.create_response(request)
+
+    assert adapter.models == ("codex-mini-latest",)
+    assert calls[0]["model"] == "chatgpt/codex-mini-latest"
 
 
 def test_bundled_litellm_sync_transport_uses_openai_chat_completions(

@@ -428,6 +428,9 @@ def _bind_codex_responses(
     def bound(**kwargs: Any) -> Any:
         request_kwargs = dict(configured)
         request_kwargs.update(kwargs)
+        request_kwargs["model"] = normalize_litellm_codex_model(
+            str(request_kwargs["model"])
+        )
         try:
             return responses(**request_kwargs)
         except Exception as exc:  # noqa: BLE001 - provider exceptions vary.
@@ -445,6 +448,9 @@ def _bind_async_codex_responses(
     async def bound(**kwargs: Any) -> Any:
         request_kwargs = dict(configured)
         request_kwargs.update(kwargs)
+        request_kwargs["model"] = normalize_litellm_codex_model(
+            str(request_kwargs["model"])
+        )
         try:
             return await aresponses(**request_kwargs)
         except Exception as exc:  # noqa: BLE001 - provider exceptions vary.
@@ -537,6 +543,14 @@ def _codex_litellm_kwargs(
         headers.setdefault("ChatGPT-Account-ID", provider.config.chatgpt_account_id)
         kwargs["extra_headers"] = headers
     return kwargs
+
+
+def normalize_litellm_codex_model(model: str) -> str:
+    """Map public unprefixed Codex ids to LiteLLM's ChatGPT route."""
+
+    if "/" in model:
+        return model
+    return f"chatgpt/{model}"
 
 
 def _normalize_tool_call(raw_call: Any) -> ModelToolCall:
