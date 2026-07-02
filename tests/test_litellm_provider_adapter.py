@@ -20,6 +20,97 @@ from dynamic_agent_runner.litellm_client import (
 from dynamic_agent_runner.openai_client import OpenAIProviderConfig
 
 
+def test_bundled_litellm_sync_transport_uses_openai_chat_completions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class FakeCompletions:
+        def create(self, **kwargs: object) -> object:
+            calls.append(kwargs)
+            return {"id": "bundled", "choices": []}
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            calls.append({"client": kwargs})
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
+    from dynamic_agent_runner.litellm import completion
+
+    completion(
+        model="gpt-test",
+        messages=[{"role": "user", "content": "hello"}],
+        api_key="test-key",
+        api_base="http://localhost:4000/v1",
+    )
+
+    assert calls == [
+        {
+            "client": {
+                "api_key": "test-key",
+                "base_url": "http://localhost:4000/v1",
+            }
+        },
+        {
+            "model": "gpt-test",
+            "messages": [{"role": "user", "content": "hello"}],
+        },
+    ]
+
+
+def test_litellm_adapter_falls_back_to_bundled_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delitem(sys.modules, "litellm", raising=False)
+    monkeypatch.setattr(
+        "dynamic_agent_runner.litellm_client._load_bundled_completion",
+        lambda: lambda **kwargs: {"choices": [{"message": {"content": "ok"}}]},
+    )
+
+    adapter = create_litellm_adapter()
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "hello")],
+    )
+
+    assert adapter.create_response(request).content == "ok"
+
+
+def test_bundled_litellm_async_transport_uses_openai_chat_completions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class FakeCompletions:
+        async def create(self, **kwargs: object) -> object:
+            calls.append(kwargs)
+            return {"id": "bundled-async", "choices": []}
+
+    class FakeAsyncOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            calls.append({"client": kwargs})
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setitem(
+        sys.modules, "openai", SimpleNamespace(AsyncOpenAI=FakeAsyncOpenAI)
+    )
+    from dynamic_agent_runner.litellm import acompletion
+
+    asyncio.run(
+        acompletion(
+            model="gpt-test",
+            messages=[{"role": "user", "content": "hello"}],
+            api_key="test-key",
+        )
+    )
+
+    assert calls == [
+        {"client": {"api_key": "test-key"}},
+        {"model": "gpt-test", "messages": [{"role": "user", "content": "hello"}]},
+    ]
+
+
 def test_litellm_adapter_translates_chat_request_and_normalizes_response() -> None:
     calls: list[dict[str, object]] = []
 

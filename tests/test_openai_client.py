@@ -1538,22 +1538,24 @@ def test_create_default_async_openai_client_omits_api_key_when_not_provided(
     assert created_kwargs == [{"base_url": "http://localhost:11434/v1"}]
 
 
-def test_create_default_openai_client_wraps_import_errors(
+def test_create_default_openai_client_uses_bundled_litellm_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delitem(sys.modules, "litellm", raising=False)
 
-    with pytest.raises(ModelExecutionError, match="litellm package is not available"):
-        create_default_openai_client()
+    client = create_default_openai_client()
+
+    assert hasattr(client, "responses")
 
 
-def test_create_default_async_openai_client_wraps_import_errors(
+def test_create_default_async_openai_client_uses_bundled_litellm_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delitem(sys.modules, "litellm", raising=False)
 
-    with pytest.raises(ModelExecutionError, match="litellm package is not available"):
-        create_default_async_openai_client()
+    client = create_default_async_openai_client()
+
+    assert hasattr(client, "responses")
 
 
 @pytest.mark.parametrize(
