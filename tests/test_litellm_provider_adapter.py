@@ -132,6 +132,40 @@ def test_litellm_codex_auth_factory_uses_dar_resolved_chatgpt_token(
     assert calls[0]["extra_headers"] == {"ChatGPT-Account-ID": "acct-2"}
 
 
+def test_litellm_codex_auth_factory_keeps_api_key_on_ordinary_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner import litellm_client
+
+    monkeypatch.setattr(
+        litellm_client,
+        "_resolve_codex_provider_for_litellm",
+        lambda config: SimpleNamespace(
+            config=OpenAIProviderConfig(
+                api_key="api-key",
+                base_url="http://localhost:4000/v1",
+            ),
+            chatgpt_token=None,
+        ),
+    )
+    calls: list[dict[str, object]] = []
+
+    def completion(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"choices": [{"message": {"content": "ok"}}]}
+
+    adapter = litellm_client.create_litellm_codex_adapter_from_codex_auth(
+        completion=completion,
+    )
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    assert adapter.create_response(request).content == "ok"
+    assert calls[0]["api_key"] == "api-key"
+
+
 def test_bundled_litellm_sync_transport_uses_openai_chat_completions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

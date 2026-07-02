@@ -89,9 +89,11 @@
       redaction. The first parity slice covers instruction folding, preserved
       tool messages, stream/store defaults, and the existing redaction path;
       provider-specific token/session tests remain part of L2.6 validation.
-- [ ] L2.6 Replace or wrap the SDK-backed ChatGPT/Codex provider only after the
-      drift review is complete, with a rollback path to the existing provider
-      when a required semantic contract is unsupported.
+- [x] L2.6 Wrap the SDK-backed ChatGPT/Codex provider only after the drift
+      review is complete, with a rollback path to the existing provider when a
+      required semantic contract is unsupported. Explicit sync/async auth
+      factories now provide the opt-in wrapper; the global SDK-backed default
+      remains unchanged.
 
 ## Deferred Follow-Up: Provider Breadth Polish
 
