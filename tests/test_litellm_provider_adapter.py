@@ -97,3 +97,82 @@ def test_litellm_adapter_rejects_responses_only_request_fields_before_dispatch()
         adapter.create_response(request)
 
     assert calls == []
+
+
+def test_litellm_adapter_translates_tools_and_normalizes_tool_calls() -> None:
+    calls: list[dict[str, object]] = []
+
+    def completion(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {
+            "id": "chatcmpl_tool",
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "search_repo",
+                                    "arguments": '{"query":"adapter"}',
+                                },
+                            }
+                        ],
+                    }
+                }
+            ],
+        }
+
+    tool = {
+        "type": "function",
+        "function": {
+            "name": "search_repo",
+            "description": "Search repository files.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    }
+    adapter = create_litellm_adapter(completion=completion)
+    request = build_openai_request(
+        model="openai/gpt-test",
+        messages=[OpenAIMessage("user", "Search")],
+        tools=[tool],
+        tool_choice="auto",
+    )
+
+    result = adapter.create_response(request)
+
+    assert calls == [
+        {
+            "model": "openai/gpt-test",
+            "messages": [{"role": "user", "content": "Search"}],
+            "tools": [tool],
+            "tool_choice": "auto",
+        }
+    ]
+    assert result.content is None
+    assert result.tool_calls[0].id == "call_1"
+    assert result.tool_calls[0].name == "search_repo"
+    assert result.tool_calls[0].arguments == '{"query":"adapter"}'
+
+
+def test_litellm_adapter_redacts_provider_secrets() -> None:
+    def completion(**kwargs: object) -> object:
+        del kwargs
+        raise RuntimeError("401 bearer secret-token")
+
+    adapter = create_litellm_adapter(completion=completion)
+    request = build_openai_request(
+        model="openai/gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+    )
+
+    with pytest.raises(
+        ModelExecutionError, match="LiteLLM model request failed"
+    ) as error:
+        adapter.create_response(request)
+
+    assert "secret-token" not in str(error.value)
+    assert "REDACTED" in str(error.value)
