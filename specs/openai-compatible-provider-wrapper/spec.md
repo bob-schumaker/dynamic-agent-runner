@@ -4,9 +4,8 @@
 
 - Feature slug: `openai-compatible-provider-wrapper`
 - Mode: `guided`
-- Status: implemented follow-up; Slices 1-6 are implemented in the current
-  repo state, and the planned validation evidence has been recorded; a
-  ChatGPT/Codex model-catalog parity bug-fix slice is now specified for TDD
+- Status: implemented follow-up; Slices 1-6 and ChatGPT/Codex catalog-parity
+  Slice 8 are implemented, with focused validation recorded
 - Related artifacts:
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`

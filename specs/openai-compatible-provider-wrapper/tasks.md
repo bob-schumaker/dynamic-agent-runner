@@ -17,7 +17,7 @@
 - Primary implementation area: `src/dynamic_agent_runner/openai_client.py`
 - Primary validation area: `tests/test_openai_client.py`
 - Follow-up state: catalog-parity bug-fix slice specified below; implementation
-  requires TDD approval and must remain provider-scoped.
+  is implemented in the provider wrapper and remains provider-scoped.
 
 ## Slice 1 — Repository-owned provider/client facade
 
@@ -97,23 +97,23 @@
 
 ## Slice 8 — ChatGPT/Codex model-catalog parity bug fix (TDD)
 
-- [ ] T8.1 [tests / RED] Add fake-catalog regression tests proving that
+- [x] T8.1 [tests / RED] Add fake-catalog regression tests proving that
       ChatGPT/Codex model metadata preserves provider priority order, excludes
       `visibility: "hide"`, selects the first visible model as default, and
       forwards `ChatGPT-Account-ID` when auth supplies one.
       - Requirement: FR-7; primary file: `tests/test_openai_client.py`
       - RED evidence must show failure caused by ID-only extraction, lexical or
         version sorting, hidden-model exposure, or missing account header.
-- [ ] T8.2 [implementation / GREEN] Introduce the smallest provider-aware
+- [x] T8.2 [implementation / GREEN] Introduce the smallest provider-aware
       catalog representation and ChatGPT/Codex filtering/order/default path
       needed to satisfy T8.1 without changing generic provider behavior.
       - Primary file: `src/dynamic_agent_runner/openai_client.py`
-- [ ] T8.3 [tests / GREEN] Add a regression test proving generic providers
+- [x] T8.3 [tests / GREEN] Add a regression test proving generic providers
       retain existing ID-only model listing and ordering semantics.
-- [ ] T8.4 [validation] Run focused OpenAI-client tests, affected executor and
+- [x] T8.4 [validation] Run focused OpenAI-client tests, affected executor and
       import tests, Ruff, and focused pre-commit; record exact outcomes before
       marking this slice complete.
-- [ ] T8.5 [drift] Update this spec, plan, and task status if the provider
+- [x] T8.5 [drift] Update this spec, plan, and task status if the provider
       catalog contract or account-header boundary changes during implementation.
 
 ## Ordering Notes

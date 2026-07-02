@@ -431,6 +431,21 @@ def test_adapter_lists_lowest_version_supported_model_first() -> None:
     assert adapter.default_model() == "gpt-5.4"
 
 
+def test_generic_provider_catalog_keeps_id_only_sorting_behavior() -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels(
+        {
+            "data": [
+                {"id": "gpt-5.5", "priority": 1, "visibility": "hide"},
+                {"id": "gpt-5.4", "priority": 20, "visibility": "public"},
+            ]
+        }
+    )
+    adapter = OpenAIClientAdapter(FakeClient(responses, models=models))
+
+    assert adapter.list_supported_models() == ("gpt-5.4", "gpt-5.5")
+
+
 def test_adapter_refreshes_supported_models_when_requested() -> None:
     responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
     models = FakeModels({"data": [{"id": "gpt-a"}]})
@@ -505,6 +520,70 @@ def test_chatgpt_codex_adapter_exposes_supported_models(
     assert adapter.list_supported_models() == ("codex-mini-latest",)
     assert adapter.list_supported_models() == ("codex-mini-latest",)
     assert models.calls == [{"extra_query": {"client_version": "9.8.7"}}]
+
+
+def test_chatgpt_codex_catalog_preserves_priority_hides_models_and_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    responses = FakeResponses({"id": "resp_provider", "output_text": "via provider"})
+    models = FakeModels(
+        {
+            "models": [
+                {"slug": "gpt-5.4", "priority": 20, "visibility": "public"},
+                {"slug": "gpt-5.6-sol", "priority": 1, "visibility": "public"},
+                {"slug": "gpt-5.6-hidden", "priority": 0, "visibility": "hide"},
+            ]
+        }
+    )
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "version.json").write_text(
+        '{"latest_version": "9.8.7"}', encoding="utf-8"
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    provider = FakeProvider(
+        responses,
+        OpenAIProviderConfig(provider_name="chatgpt-codex"),
+        models=models,
+    )
+    adapter = OpenAIClientAdapter(provider=provider)
+
+    assert adapter.list_supported_models() == ("gpt-5.6-sol", "gpt-5.4")
+    assert adapter.default_model() == "gpt-5.6-sol"
+
+
+def test_chatgpt_codex_auth_forwards_account_header(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "auth.json").write_text(
+        '{"auth_mode":"chatgpt","tokens":'
+        '{"access_token":"secret-token","account_id":"account-123"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    created_kwargs: list[dict[str, object]] = []
+
+    class FakeOfficialOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            created_kwargs.append(dict(kwargs))
+
+    monkeypatch.setitem(
+        sys.modules, "openai", SimpleNamespace(OpenAI=FakeOfficialOpenAI)
+    )
+
+    create_default_openai_client()
+
+    assert created_kwargs == [
+        {
+            "base_url": "https://chatgpt.com/backend-api/codex",
+            "api_key": "secret-token",
+            "default_headers": {"ChatGPT-Account-ID": "account-123"},
+        }
+    ]
 
 
 def test_chatgpt_codex_adapter_moves_prompt_messages_to_instructions() -> None:

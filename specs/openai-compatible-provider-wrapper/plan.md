@@ -80,6 +80,16 @@ sorts by version, which exposes hidden models and chooses a different default.
 The fix remains inside the provider wrapper boundary and must not change generic
 OpenAI-compatible provider behavior.
 
+### Slice 8 implementation evidence
+
+- Provider-aware catalog extraction now preserves ChatGPT/Codex priority order,
+  filters `visibility: "hide"`, and selects the first visible model as the
+  default without changing generic ID/version sorting.
+- Codex ChatGPT auth now preserves `tokens.account_id` in provider config and
+  forwards it as the `ChatGPT-Account-ID` default header for SDK construction.
+- Focused tests use fake catalogs and monkeypatched SDK construction; no live
+  provider calls are required.
+
 Implementation constraints:
 
 - Add a provider-aware catalog entry type carrying at least model ID, priority,
