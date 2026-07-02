@@ -3,13 +3,13 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: implementation-ready Slice L1 plan
+- Status: Slice L1 implementation plan; implementation complete
 - Date: 2026-07-02
 - Owning spec: `specs/litellm-provider-adapter/spec.md`
 
 ## Scope
 
-Slice L1 is ready for implementation. It makes LiteLLM the
+Slice L1 makes LiteLLM the
 default direct SDK transport for ordinary OpenAI-format chat-completions
 dispatch while preserving the existing repository-owned adapter boundary.
 
@@ -38,10 +38,11 @@ Chat Completions-shaped `completion(...)` / `acompletion(...)` APIs.
 
 ## Technical Approach
 
-1. Make LiteLLM available in the published runtime wheelhouse. Add a versioned
-   Poetry dependency only after the configured package source publishes a
-   portable Python 3.14-compatible release; retain the checked-in wheel as the
-   temporary OCI install boundary.
+1. Make the required OpenAI-compatible transport available in every DAR
+   install through the small bundled `dynamic_agent_runner.litellm` module. Add
+   a versioned upstream LiteLLM dependency only after the configured package
+   source publishes a portable Python 3.14-compatible release; retain the
+   checked-in wheel as an optional temporary OCI wheelhouse artifact.
 2. Add small sync/async LiteLLM provider classes or client shims that satisfy
    the existing provider protocols.
 3. Add package-owned request translation from `OpenAIModelRequest` to LiteLLM

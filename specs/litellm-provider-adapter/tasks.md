@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: implementation-ready TDD tasks for Slice L1
+- Status: Slice L1 TDD tasks complete; upstream publication remains open
 - Date: 2026-07-02
 - Owning spec: `specs/litellm-provider-adapter/spec.md`
 - Plan: `specs/litellm-provider-adapter/plan.md`
@@ -36,6 +36,8 @@
 - [x] L1.8b Preserve the standard build-runner copy step that places the
       checked-in LiteLLM wheel in `dist/` before `python -m build`; retain OCI
       trigger coverage for the vendored wheel.
+- [x] L1.8c Add the minimal bundled `dynamic_agent_runner.litellm` transport and
+      make it the fallback when the full upstream package is unavailable.
 - [x] L1.9 Implement sync and async LiteLLM provider/client shims behind the
       existing provider protocols.
 - [x] L1.10 Implement package-owned request translation from

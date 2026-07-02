@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: implementation-readiness validation; Slice L1 ready for TDD
+- Status: Slice L1 implementation validation; upstream publication remains deferred
 - Date: 2026-07-02
 
 ## Readiness Checks
@@ -22,7 +22,7 @@
   package tar containing the root artifacts and the checked-in LiteLLM wheel.
 - The packaged LiteLLM wheel SHA-256 matched the checked-in wheel exactly.
 - The full DAR suite passes after excluding the nested upstream LiteLLM test
-  tree: `666 passed, 4 skipped`.
+  tree and preserved OCI input/output trees: `668 passed, 4 skipped`.
 - The focused LiteLLM/OpenAI/executor integration set passes: `202 passed`.
 - A portable Poetry dependency remains blocked: the configured Artifactory does
   not publish LiteLLM, while a local wheel dependency produces a non-portable
@@ -65,23 +65,22 @@ committing implementation.
 
 ## Out-of-Scope Confirmation
 
-The candidate preparation does not:
+The implemented Slice L1 does not:
 
-- add `litellm` to runtime dependencies yet
-- change source behavior
-- change default provider construction
+- add the full upstream `litellm` distribution to runtime dependencies yet;
+  the bundled `dynamic_agent_runner.litellm` transport is included in DAR
 - add live model, provider, gateway, or OAuth calls
 - authorize ChatGPT/Codex-on-LiteLLM implementation in Slice L1
 
 ## Consistency Analysis
 
 - FR-1 through FR-6 map to L1.1-L1.15 and the focused provider tests.
-- FR-10 maps to L1.8-L1.8b and L1.21; the checked-in wheel and Python 3.13
+- FR-10 maps to L1.8-L1.8c and L1.21; the checked-in wheel and Python 3.13
   OCI result are explicit implementation constraints, not deferred assumptions.
 - FR-11 maps to L1.1-L1.7 and the repository's fake-only unit-test policy.
 - Deferred L2 and L3 tasks do not appear in the L1 acceptance boundary.
-- No blocking clarification remains for Slice L1; implementation starts with
-  RED tests and must preserve the existing OpenAI/Codex auth boundary.
+- No blocking clarification remains for Slice L1; implementation preserved the
+  existing OpenAI/Codex auth boundary and used RED/GREEN tests.
 - L1.8 is an external publication blocker, not an unresolved design question;
   the vendored wheelhouse path is the current approved runtime distribution
   boundary.
