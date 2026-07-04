@@ -10,12 +10,19 @@ packaging:
   skill_bundle_dir: skill-bundle
 runtime:
   execution_policy:
-    autonomy_level: supervised agent
+    autonomy_level: supervised_agent
     allowed_execution_modes:
     - sequential_fallback
     external_backend_allowed: false
     max_iterations: 3
+    max_steps: 5
     timeout: runtime_default
+    exit_strategy:
+      terminal_conditions:
+      - hello_message emitted
+      - validation failure or unavailable fixture context
+      on_exhaustion: escalate
+      ambiguous_completion: clarify
     approval_required_for:
     - live write or mutation
     forbidden_actions:
@@ -57,12 +64,13 @@ skills:
 - id: agent-development
   label: Agent development skill
   source_type: repo_skill
-  source_path: skills/agent-development-skill/SKILL.md
+  source_path: corpus/capabilities/agent-development/SKILL.md
   packaging_mode: referenced_only
   notes: Provides agent pattern vocabulary for this fixture.
 tools:
 - id: read_hello_file
   label: Read Hello File
+  tool_type: file_read
   description_for_llm: 'Hello-world fixture tool for the read_hello_file capability.
 
     '
@@ -113,17 +121,23 @@ nodes:
   label: Validation gate
   decision_subtype: llm_route
   route_from: draft_patch_plan
+  prompt:
+    user_template: 'Route the hello-world coding fixture result.
+
+      '
+    input_vars:
+    - prompt
   decision_contract:
     allowed_paths:
     - id: proceed
       target: hello_done
     default_path: proceed
 edges:
-- source: read_repo
-  target: draft_patch_plan
+- from: read_repo
+  to: draft_patch_plan
   edge_kind: sequential
-- source: draft_patch_plan
-  target: validation_gate
+- from: draft_patch_plan
+  to: validation_gate
   edge_kind: sequential
 output_contracts:
 - id: hello_message

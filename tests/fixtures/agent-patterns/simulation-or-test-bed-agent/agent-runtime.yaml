@@ -10,12 +10,19 @@ packaging:
   skill_bundle_dir: skill-bundle
 runtime:
   execution_policy:
-    autonomy_level: bounded autonomous
+    autonomy_level: bounded_autonomous
     allowed_execution_modes:
     - sequential_fallback
     external_backend_allowed: false
     max_iterations: 3
+    max_steps: 5
     timeout: runtime_default
+    exit_strategy:
+      terminal_conditions:
+      - hello_message emitted
+      - validation failure or unavailable fixture context
+      on_exhaustion: escalate
+      ambiguous_completion: clarify
     approval_required_for:
     - live write or mutation
     forbidden_actions:
@@ -57,12 +64,13 @@ skills:
 - id: agent-development
   label: Agent development skill
   source_type: repo_skill
-  source_path: skills/agent-development-skill/SKILL.md
+  source_path: corpus/capabilities/agent-development/SKILL.md
   packaging_mode: referenced_only
   notes: Provides agent pattern vocabulary for this fixture.
 tools:
 - id: run_hello_simulation
   label: Run Hello Simulation
+  tool_type: code_execution
   description_for_llm: 'Hello-world fixture tool for the run_hello_simulation capability.
 
     '
@@ -113,17 +121,23 @@ nodes:
   label: Score result
   decision_subtype: llm_route
   route_from: run_simulation
+  prompt:
+    user_template: 'Route the hello-world simulation fixture result.
+
+      '
+    input_vars:
+    - prompt
   decision_contract:
     allowed_paths:
     - id: proceed
       target: hello_done
     default_path: proceed
 edges:
-- source: generate_scenario
-  target: run_simulation
+- from: generate_scenario
+  to: run_simulation
   edge_kind: sequential
-- source: run_simulation
-  target: score_result
+- from: run_simulation
+  to: score_result
   edge_kind: sequential
 output_contracts:
 - id: hello_message
