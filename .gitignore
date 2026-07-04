@@ -63,7 +63,8 @@ docs/source/validation-and-testing.rst
 .vscode/
 
 # local
-graphify-out/
+graphify-out
+.graphify-snapshots/
 .codegraph/
 
 # temporary 
