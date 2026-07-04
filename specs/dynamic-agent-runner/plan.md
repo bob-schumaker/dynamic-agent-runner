@@ -234,6 +234,19 @@ or a clear error.
 - OA11 validation evidence: `poetry run pytest tests/test_import.py
   tests/test_registry.py tests/test_validation.py -q 2>&1` — pass; 86 tests
   passed.
+- Runtime-package fixture-contract alignment is now implemented in the working
+  tree: every hello-world agent-pattern fixture declares a portable
+  `runtime.execution_policy.exit_strategy`, uses canonical `from` / `to` edge
+  endpoints accepted by the current upstream validator, gives `llm_route`
+  decision nodes prompt metadata, and records portable `tool_type` metadata for
+  declared tools. Fixture skill metadata points at the current
+  `../clinerules-roschuma/` corpus source path,
+  `corpus/capabilities/agent-development/SKILL.md`.
+- Runtime-package fixture-contract validation evidence: `poetry run pytest
+  tests/test_agent_pattern_fixtures.py -q` — pass; 3 tests passed. The current
+  upstream `validate_agent_runtime.py` helper also validates all
+  `tests/fixtures/agent-patterns/**/agent-runtime.yaml` files with their
+  sibling Mermaid graphs.
 - Slice 13 is complete and committed: the runtime now preserves provider-neutral
   `runtime.execution_policy.prompt_cache` intent, emits prompt-cache trace
   evidence, accepts per-run `prompt_cache=False` overrides, and records provider

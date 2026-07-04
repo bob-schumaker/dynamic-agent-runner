@@ -16,10 +16,11 @@
   ready for unrestricted MCP, durable session, approval-resume, or downstream
   host-automation work without a new scoped follow-up.
 - Next active slice: none — OA11 is complete and the original OA follow-up
-  sequence is finished.
-- Current focus: all planned implementation slices through OA11 are complete;
-  the active remaining work is now the promoted Codex/Cline evaluation
-  follow-ups and OpenAI Agents SDK Python evaluation follow-ups.
+  sequence plus the runtime-package fixture-contract alignment are finished.
+- Current focus: all planned implementation slices through OA11 and the
+  upstream runtime-package fixture-contract alignment are complete; the active
+  remaining work is now the promoted Codex/Cline evaluation follow-ups and
+  OpenAI Agents SDK Python evaluation follow-ups.
 - Council recommendation: the next useful runtime work should prioritize a
   narrow live-action vertical slice that pairs approval interruption with
   sandbox/workspace grants, plus a capability/status report that makes
@@ -108,7 +109,9 @@
 ## Active follow-up implementation order
 
 1. **Completed:** OA11 landed the upstream portable `tool_type` seam, so the
-   original OA follow-up sequence has no remaining active slices.
+   original OA follow-up sequence has no remaining active slices. The follow-on
+   fixture-contract alignment is also complete for all hello-world
+   agent-pattern packages.
 
 ## High-ROI Remaining Spec Work Order
 
@@ -1416,6 +1419,26 @@ explicitly instead of leaving them as undocumented future behavior.
         tests/test_validation.py -q 2>&1` — pass; 86 tests passed.
       - Active order: completed after OA10 once the upstream `tool_type`
         vocabulary was confirmed in the runtime-package reference.
+- [x] OA11.1. Align hello-world agent-pattern fixture packages with the current
+      upstream runtime-package validator contract.
+      - Completed in working tree: all
+        `tests/fixtures/agent-patterns/**/agent-runtime.yaml` manifests now
+        declare `runtime.execution_policy.exit_strategy`, use canonical `from` /
+        `to` edge endpoint keys, add prompt metadata to `llm_route` decision
+        nodes, normalize `autonomy_level` values to the upstream spelling, and
+        include portable `tool_type` metadata for declared tools. The fixture
+        `agent-development` skill source path now points at the current
+        `../clinerules-roschuma/` corpus layout:
+        `corpus/capabilities/agent-development/SKILL.md`.
+      - RED: `poetry run pytest tests/test_agent_pattern_fixtures.py -q` —
+        failed because the new upstream-contract fixture test found missing
+        `runtime.execution_policy.exit_strategy`.
+      - GREEN: `poetry run pytest tests/test_agent_pattern_fixtures.py -q` —
+        pass; 3 tests passed.
+      - Upstream validator: current
+        `../clinerules-roschuma/corpus/capabilities/agent-development/scripts/validate_agent_runtime.py`
+        validates every `tests/fixtures/agent-patterns/**/agent-runtime.yaml`
+        file with its sibling `agent-graph.mmd`.
 
 ## Cross-Cutting Validation Rules
 

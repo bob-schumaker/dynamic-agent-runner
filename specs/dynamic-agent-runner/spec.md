@@ -6,8 +6,9 @@
 - Mode: `light`
 - Artifact type: repository/product specification
 - Status: core runtime implementation is complete through package-alignment P5,
-  prompt-cache Slice 13, async-first E14 follow-ups, and the OA11 portable
-  `tool_type` alignment; remaining work is limited to future scoped expansions
+  prompt-cache Slice 13, async-first E14 follow-ups, OA11 portable
+  `tool_type`, and the upstream runtime-package fixture-contract alignment;
+  remaining work is limited to future scoped expansions
 - Source context:
   - `README.md`
   - `pyproject.toml`
@@ -86,8 +87,8 @@ than part of the generated base package itself.
 
 The expected artifact producers are:
 
-- `/Users/roschuma/Repos/roschuma/clinerules-roschuma/rules/85-agent-development-workflow.md`
-- `/Users/roschuma/Repos/roschuma/clinerules-roschuma/skills/agent-development-skill/`
+- `/Users/roschuma/Repos/roschuma/clinerules-roschuma/`
+- `/Users/roschuma/Repos/roschuma/clinerules-roschuma/corpus/capabilities/agent-development/SKILL.md`
 
 Observed example output artifacts:
 
@@ -291,6 +292,12 @@ Acceptance criteria:
   `tests/fixtures/agent-patterns/`, when fixture validation runs, then every
   documented supported agent-pattern ID has a loadable `agent-design.md`,
   `agent-runtime.yaml`, and `agent-graph.mmd` resource package.
+- Given the repository's hello-world pattern fixture packages under
+  `tests/fixtures/agent-patterns/`, when upstream runtime-package compatibility
+  validation runs, then each fixture declares
+  `runtime.execution_policy.exit_strategy`, uses canonical `from` / `to` edge
+  endpoints, gives `llm_route` decision nodes prompt metadata, and records
+  portable `tool_type` metadata for manifest tools.
 
 ### FR-2: Validate artifact relationship
 
@@ -1006,6 +1013,10 @@ These fixtures are small test resources, not production-ready agent designs.
 They should remain aligned with `SUPPORTED_AGENT_PATTERNS` so future executor,
 CLI, and compatibility work can grow toward full pattern coverage without
 depending on machine-specific source checkouts.
+They must also stay compatible with the current upstream runtime-package
+validator contract for generated packages: every fixture needs a portable exit
+strategy, canonical edge endpoint fields, valid decision prompt metadata, and
+portable tool taxonomy metadata where tools are declared.
 
 For `format_version: 1`, documented pattern shapes should still compile down to
 the small primitive execution taxonomy:
@@ -1078,7 +1089,7 @@ tools:
 skills:
   - id: agent-development
     source_type: repo_skill
-    source_path: skills/agent-development-skill/SKILL.md
+    source_path: corpus/capabilities/agent-development/SKILL.md
     packaging_mode: referenced_only
 ```
 
@@ -1482,6 +1493,8 @@ Before implementation is considered complete, add validation covering:
       agent-pattern IDs
 - [x] hello-world runtime fixture packages for all documented supported
       agent-pattern IDs under `tests/fixtures/agent-patterns/`
+- [x] upstream runtime-package validator compatibility for all hello-world
+      agent-pattern fixture manifests and Mermaid graphs
 - [x] participant-group, mode, phase, and role metadata parsing for multi-agent
       and other structured pattern shapes
 - [x] Mermaid diagram reference resolution and relationship validation
@@ -1571,6 +1584,9 @@ Before implementation is considered complete, add validation covering:
   primitive node taxonomy.
 - This spec now records `tests/fixtures/agent-patterns/` as the repository's
   hello-world test-resource surface for all 11 documented supported pattern IDs.
+- The hello-world fixture surface is now aligned with the current upstream
+  runtime-package validator contract for exit strategy, canonical edge
+  endpoints, decision prompts, and portable tool taxonomy metadata.
 - User clarification resolved initial version support, input forms, CLI exposure,
   default execution-path ownership, optional client injection, optional tool
   registry, and evolving safety/logging requirements.
