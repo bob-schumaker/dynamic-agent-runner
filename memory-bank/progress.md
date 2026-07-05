@@ -3,6 +3,21 @@
 
 ## Working
 
+- Spec-context follow-up commit `a1f3011` is complete. It added the draft
+  `scratchpad-context-manager` spec and folded Antigravity Awesome Skills
+  provenance into existing owners instead of creating a duplicate context
+  feature area.
+- The scratchpad spec is deliberately storage-neutral and spec-only. Its v1
+  target is a caller-supplied `ScratchpadStore` protocol, canonical
+  `ScratchpadArtifactRef` projections, and automatic large tool-result offload;
+  model-visible scratchpad tools, read/search/list/delete APIs, durable resume,
+  and bundled stores are deferred.
+- Context-management follow-ups now include first-class derived
+  `artifact_trail` diagnostics, probe-based compression tests, and named
+  degradation fixtures. Skill-source follow-ups now include lazy-loading tests,
+  token-aware skill budgets, `max_skills_per_turn`, and
+  `overflow_behavior: error`. Persistent-session follow-ups now include
+  caller-owned structured snapshot summary metadata.
 - Graphify T8.7 benchmark evidence is recorded in commit 438d03a and the gpt-5.4 rerun in dc6272d. Across 13 sibling repositories, fixed8 remains the runtime default; token-aware is advisory/opt-in because live probes mostly timed out.
 - The memory-aware context pipeline first slice is implemented in ae1c0f5. It validates passive memory metadata, reports capabilities, and preserves the declared pipeline without invoking retrieval or persistence.
 - LiteLLM provider-adapter Slice L1 is implemented and validated. DAR includes
@@ -517,9 +532,13 @@
   Do not implement salience execution, ingestion execution, background jobs,
   runner-owned stores, embeddings, or `memlayer` dependencies in the first
   slice.
-- Context-window follow-up implementation remains future. Start from the
-  prepared specs for provider-backed context compaction, model-backed context
-  summaries, or semantic context profiles before editing runtime code.
+- Context-window and scratchpad follow-up implementation remains future. Start
+  from the owning specs before editing runtime code:
+  `context-management-prepare-stage` for artifact trail/probe/degradation
+  validation, `skill-source-resolution` for token-aware skill-source overflow,
+  `persistent-agent-sessions` for structured caller-owned snapshot summary
+  metadata, `scratchpad-context-manager` for tool-result offload, or the
+  prepared provider/model/semantic compaction specs for richer compression.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering

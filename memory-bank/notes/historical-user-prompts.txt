@@ -717,3 +717,32 @@ update docs to match current repo state
 ---
 
 how is our interpreter middleware exposed to the model? can we support multiple interpreters with some kind of frontmatter/usage description? we should allow our caller to also provide custom interpreters for their workflow.
+
+---
+
+- Add probe-based compression tests.
+The strongest idea from [context-compression](/Users/roschuma/Repos/github/antigravity-awesome-skills/skills/context-compression/SKILL.md) is “tokens per task,” not “tokens per request.” For DAR, that means tests should ask post-compaction probes like “which files changed?”, “what decision was made?”, “what is next?” against prepared context, not only assert that token limits are respected.
+
+- Make artifact-trail preservation first-class.
+DAR already has PreparedInputMetadata fields for lanes, summaries, files, retrieved context, selected/omitted turns, and skill sources in [executor.py](/Users/roschuma/Repos/roschuma/dynamic-agent-runner/src/dynamic_agent_runner/executor.py). The external material repeatedly says file/action tracking is the weak point in summarization. A small artifact_trail diagnostic, even if derived from existing metadata, would be high leverage.
+
+- Tighten lazy skill loading and overflow behavior.
+The docs graph highlights [discovery-manifest](/Users/roschuma/Repos/github/antigravity-awesome-skills/docs/users/discovery-manifest.md), [jetski-cortex](/Users/roschuma/Repos/github/antigravity-awesome-skills/docs/integrations/jetski-cortex.md), and [agent-overload-recovery](/Users/roschuma/Repos/github/antigravity-awesome-skills/docs/users/agent-overload-recovery.md): manifest discovery, lazy load only invoked skills, enforce per-turn limits, fail clearly on overflow. DAR already has package-local SKILL.md loading and byte budgets in [skill_sources.py](/Users/roschuma/Repos/roschuma/dynamic-agent-runner/src/dynamic_agent_runner/skill_sources.py); useful next steps are token-based skill-source budgets and overflowBehavior: error-style diagnostics.
+
+- Use the degradation taxonomy as test cases.
+[context-degradation](/Users/roschuma/Repos/github/antigravity-awesome-skills/skills/context-degradation/SKILL.md) gives a good failure vocabulary: lost-in-middle, poisoning, distraction, confusion, clash. DAR’s [context-management spec](/Users/roschuma/Repos/roschuma/dynamic-agent-runner/specs/context-management-prepare-stage/spec.md) already handles lane ordering and required/optional lanes; tests can encode those degradation modes directly.
+
+- Reuse the session snapshot shape, not the implementation.
+[context-agent](/Users/roschuma/Repos/github/antigravity-awesome-skills/skills/context-agent/SKILL.md) and its format docs have a practical session summary shape: intent, decisions, pending tasks, modified files, blockers, next action, metrics. That maps well to DAR’s [persistent sessions](/Users/roschuma/Repos/roschuma/dynamic-agent-runner/specs/persistent-agent-sessions/spec.md), but durable memory and FTS storage should stay caller-owned.
+
+---
+
+write a spec to implement these features, incuding a reference to the source ([sickn33/antigravity-awesome-skills](https://github.com/sickn33/antigravity-awesome-skills)). allow the caller to supply a "scrachpad manager" that maches a Protocol that supports the operations we need. it should stay as close to a classic python file-object interface as possible to simplify client usage
+
+is the scratchpad interface over-specified? is there an interface that simplifies our code and leaves the actual storage pattern up to the caller
+
+does the scratchpad need to persist past sessions? if so, then a more general interface that can handle associated metadata might be more useful long-term, even if it sacrifices the file-object choice. the file-object choice is not hard and fast at this point, if there is a better design overall, we should use it.
+
+could subagents/llm-as-a-tool use the scratchpad interface to keep large JSON blobs out of the context window
+
+is the scratchpad surface well enough defined that we can provide a DAR tool layer for access? are there features that need to/would be better served by delegation to the caller? if so, is there a base level of access we can provide by default with a specific delegation pattern to the caller for more complex interactions?

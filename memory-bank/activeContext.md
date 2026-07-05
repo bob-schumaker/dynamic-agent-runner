@@ -3,6 +3,20 @@
 
 ## Current Focus
 
+- Latest committed spec-context slice: `a1f3011` added
+  `specs/scratchpad-context-manager/spec.md` and recorded
+  `sickn33/antigravity-awesome-skills` provenance across `specs/README.md`,
+  `context-management-prepare-stage`, `skill-source-resolution`, and
+  `persistent-agent-sessions`. Scratchpad remains spec-only: v1 is a
+  caller-owned `ScratchpadStore` protocol plus automatic large tool-result
+  offload to compact artifact refs, with read/list/search/delete tools and
+  durable storage deferred.
+- Antigravity-derived context follow-ups are now assigned to existing spec
+  owners rather than a new feature area: `artifact_trail`, probe-based
+  compression tests, and degradation fixtures belong to
+  `context-management-prepare-stage`; lazy skill loading/token budgets and
+  `overflow_behavior: error` belong to `skill-source-resolution`; structured
+  session snapshot summary metadata belongs to `persistent-agent-sessions`.
 - The latest committed Graphify spec alignment is `54ac838`. T7 is implemented
   as opt-in token/file chunking with adaptive splitting, summary-only
   reconciliation, and safety-constrained partial merge/duplicate repair. T8 is implemented as a pure advisory policy selector. The T8.7 benchmark
