@@ -15,6 +15,7 @@
   - `specs/provider-backed-context-compaction/spec.md`
   - `specs/model-backed-context-summaries/spec.md`
   - `specs/semantic-context-profiles/spec.md`
+  - `specs/skill-source-resolution/spec.md`
   - `specs/context-management-prepare-stage/references/context-pruning-pipeline-summary.md`
   - `src/dynamic_agent_runner/executor.py`
   - `src/dynamic_agent_runner/graph_mutation.py`
@@ -38,6 +39,15 @@
 - Evaluated context-management survey notes:
   - `Strategies and Techniques for Managing Context Windows.md`
   - `Top techniques to Manage Context Lengths in LLMs.md`
+- Evaluated external context-management provenance:
+  - [`sickn33/antigravity-awesome-skills`](https://github.com/sickn33/antigravity-awesome-skills)
+  - `/Users/roschuma/Repos/github/antigravity-awesome-skills/skills/context-compression/SKILL.md`
+  - `/Users/roschuma/Repos/github/antigravity-awesome-skills/skills/context-degradation/SKILL.md`
+  - `/Users/roschuma/Repos/github/antigravity-awesome-skills/docs/users/discovery-manifest.md`
+  - `/Users/roschuma/Repos/github/antigravity-awesome-skills/docs/integrations/jetski-cortex.md`
+  - `/Users/roschuma/Repos/github/antigravity-awesome-skills/docs/users/agent-overload-recovery.md`
+  - `/private/tmp/antigravity-awesome-skills-docs-graph/graphify-out/GRAPH_REPORT.md`
+  - `/private/tmp/antigravity-awesome-skills-focused-graph/graphify-out/GRAPH_REPORT.md`
 
 ## Objective
 
@@ -134,6 +144,8 @@ This feature specification covers:
     context-window metadata, with injected pre-turn and mid-turn seams
 11. deterministic non-LLM compaction for constrained models
 12. separation of summarizing compaction from explicit new-window reset behavior
+13. redaction-safe artifact-trail diagnostics derived from prepared-input
+    metadata
 
 ## Non-Goals
 
@@ -341,6 +353,26 @@ where practical:
 The runtime may compute deterministic scores locally. It must not create a
 runner-owned durable memory store to maintain access history.
 
+### Artifact trail diagnostic
+
+Prepared-input metadata should expose a derived `artifact_trail` diagnostic so
+callers and tests can inspect whether operational context survived preparation
+without parsing rendered prompt text.
+
+The diagnostic should be derived from existing preparation facts such as file
+context, retrieved context, skill sources, selected or omitted turns, lifecycle
+stages, tool-result handling, and caller-supplied artifact metadata. It must be
+bounded and redaction-safe: source ids, relative paths, lane ids, action/status,
+selection reason, byte/token counts, content hashes, and provenance handles are
+appropriate; raw file contents, raw tool payloads, and secrets are not.
+
+The runtime must not infer filesystem changes it cannot know. If a caller or
+tool result explicitly reports `created`, `modified`, `read`, `deleted`, or
+similar action metadata, the artifact trail may carry that action. Otherwise it
+should report preparation facts such as `included`, `omitted`, `trimmed`, or
+`summarized` rather than pretending to know whether the underlying artifact
+changed.
+
 ### Rolling structured summary
 
 Summarization should maintain a structured continuation note rather than a free
@@ -394,6 +426,34 @@ such as deterministic truncation, lane-based selection, rolling summary, exact
 retrieval through injected selectors, and fallback compaction. Passing a token
 limit is not sufficient; validation should also check whether required facts,
 decisions, constraints, and current-turn state survive prompt preparation.
+
+Probe-based compression tests should treat tokens per task as the quality
+target. In addition to asserting budget behavior, tests should ask prepared
+context and metadata functional probes such as:
+
+- Which files or artifacts were read, modified, created, omitted, or trimmed?
+- What decision or constraint must govern the next step?
+- What error, blocker, or open question remains?
+- What should the agent do next?
+- Which current-turn state must not be lost?
+
+The probes should be deterministic unit fixtures, fake-evaluator checks, or
+structured assertions over prepared messages and metadata. They must not require
+live model calls.
+
+The validation matrix should encode context-degradation failure modes as named
+fixtures:
+
+- `lost_in_middle`: critical facts placed in low-attention positions are still
+  promoted, summarized, or selected into usable lanes.
+- `poisoning`: caller- or tool-reported correction metadata can override or
+  exclude known-bad context instead of carrying it forward as ground truth.
+- `distraction`: irrelevant large context is omitted or pushed into lower-value
+  lanes before it crowds out task-critical context.
+- `confusion`: context from unrelated objectives remains segmented so the
+  current prompt does not inherit the wrong task constraints.
+- `clash`: conflicting versions or source facts remain visible as conflicts or
+  are resolved by explicit priority policy rather than silently merged.
 
 ### Deterministic fallback trimming
 
@@ -884,6 +944,44 @@ Acceptance criteria:
   when lanes are assembled, then required/optional lane treatment and ordering
   reflect the selected profile and are reported in metadata.
 
+### FR18 — Preserve an artifact trail diagnostic
+
+Prepared-input metadata should provide a first-class artifact trail derived from
+existing preparation metadata.
+
+Acceptance criteria:
+
+- Given file context, retrieved context, skill sources, selected turns, omitted
+  turns, or tool-result metadata are present, when input is prepared, then the
+  artifact trail reports redaction-safe entries for the artifacts that
+  influenced, were omitted from, or were summarized into the prepared input.
+- Given caller- or tool-supplied action metadata identifies a file or artifact
+  as read, created, modified, deleted, or blocked, when artifact-trail metadata
+  is emitted, then the action is preserved without raw content leakage.
+- Given action metadata is absent, when artifact-trail metadata is emitted, then
+  the runtime reports only preparation facts such as included, omitted, trimmed,
+  summarized, selected, or rejected.
+- Given a trace payload carries artifact-trail metadata, then the payload is
+  bounded, redacted, and does not require retaining raw prompt, file, or tool
+  contents.
+
+### FR19 — Validate compression with probes and degradation fixtures
+
+Compression validation must measure functional continuity, not only prompt size.
+
+Acceptance criteria:
+
+- Given an overflowing-history fixture, when a compression strategy is applied,
+  then tests can answer post-preparation probes for artifact trail, decisions,
+  next action, blockers, constraints, and current-turn state.
+- Given a fixture passes token budget checks but loses a required file path,
+  decision, blocker, or next action, then the fixture must fail.
+- Given named degradation fixtures for lost-in-middle, poisoning, distraction,
+  confusion, and clash, then tests assert the expected lane placement,
+  omission, conflict visibility, correction handling, or fail-closed behavior.
+- Given validation runs in unit tests, then probes use deterministic assertions,
+  fake evaluators, or structured metadata checks rather than live model calls.
+
 ## Boundaries With Adjacent Specs
 
 ### Async session memory pipeline
@@ -916,6 +1014,14 @@ it is attached to the derived workflow.
 Token budgeting remains a separate preflight and accounting concern. This spec
 may use token counts to bound injected context, but it does not redefine token
 budget policy or model capability metadata.
+
+### Skill source resolution
+
+`skill-source-resolution` owns lazy skill discovery, source trust, package-local
+`SKILL.md` loading, skill-source token and byte budgets, and explicit overflow
+diagnostics. This spec consumes the resulting skill-instruction lane and
+redacted skill-source metadata as pinned or instruction-weighted prompt context;
+it must not define a parallel skill loader.
 
 ### Model routing
 
@@ -969,6 +1075,11 @@ session-memory policy.
   runner-owned durable memory or vector storage.
 - The spec defines named compression profiles as policy presets, not separate
   node-embedded algorithms.
+- The spec requires artifact-trail diagnostics to preserve file, retrieved
+  context, skill-source, selected-turn, and tool-result provenance without raw
+  content leakage.
+- The spec requires probe-based compression tests and named degradation
+  fixtures, so token-limit success alone is not treated as quality success.
 - The spec distinguishes context-management behavior from the graph-mutation
   mechanism that may attach or insert that behavior into derived workflows.
 - The spec owns RAG retrieved-context prompt packing and injection, while
@@ -1020,8 +1131,9 @@ Prepared follow-up specs now own:
 
 Future approved slices may still add:
 
-- overflowing-history evaluation fixtures that check retained facts, decisions,
-  constraints, and current-turn state, not just final token counts
+- overflowing-history probe fixtures that check retained facts, decisions,
+  artifact trails, constraints, blockers, next actions, and current-turn state,
+  not just final token counts
 - richer retention audit policies for complex tool-call/result pairs
 - host-provided context packets that are already summarized or ranked
 - compression and forgetting policy that removes redundant or stale context

@@ -15,6 +15,12 @@
   - `llm_step.skill_refs`
   - runtime behavior overrides
   - prompt preparation and file-backed context metadata
+- Evaluated external skill-loading provenance:
+  - [`sickn33/antigravity-awesome-skills`](https://github.com/sickn33/antigravity-awesome-skills)
+  - `/Users/roschuma/Repos/github/antigravity-awesome-skills/docs/users/discovery-manifest.md`
+  - `/Users/roschuma/Repos/github/antigravity-awesome-skills/docs/integrations/jetski-cortex.md`
+  - `/Users/roschuma/Repos/github/antigravity-awesome-skills/docs/users/agent-overload-recovery.md`
+  - `/private/tmp/antigravity-awesome-skills-docs-graph/graphify-out/GRAPH_REPORT.md`
 
 ## Objective
 
@@ -44,6 +50,7 @@ This feature covers:
 7. redaction and trace metadata
 8. capability/status reporting for live, metadata-only, and rejected skill
    sources
+9. lazy loading and overflow diagnostics for selected skill sources
 
 ## V1 Decisions
 
@@ -62,6 +69,9 @@ The first implementation slice should be deliberately narrow:
 - Only UTF-8 text/Markdown `SKILL.md` bodies are supported.
 - Default limits are conservative: 64 KiB per skill body, 256 KiB combined per
   node, and zero support files loaded into prompts.
+- V1 byte budgets are implemented; token-aware budgets, maximum skills per
+  turn, and explicit overflow behavior are follow-up policy extensions under
+  this same feature boundary.
 - Prompt injection order is:
   1. base system prompt
   2. base developer prompt
@@ -183,6 +193,43 @@ Acceptance criteria:
 - Source-loading failures are preparation/validation failures before model calls,
   not silent prompt omissions.
 
+### FR-8: Keep skill loading lazy and selected-only
+
+Skill-source resolution must not load every available `SKILL.md` file into a
+prompt.
+
+Acceptance criteria:
+
+- Given a package contains many declared skills, when a node references none of
+  them, then no skill bodies are loaded for that node.
+- Given a node references a bounded subset of skills, when source loading is
+  enabled, then only the effective selected `skill_refs` are resolved and read.
+- Given a manifest or skill index is available, when resolving a node, then the
+  manifest is used as lightweight discovery metadata and does not by itself
+  authorize reading all skill bodies.
+- Given a resolved path escapes the configured package-local root, when loading
+  is attempted, then resolution fails closed before prompt assembly.
+
+### FR-9: Add token-aware skill-source overflow behavior
+
+Follow-up policy should enforce token-aware limits in addition to the existing
+byte limits.
+
+Acceptance criteria:
+
+- Given `max_skill_tokens`, `max_node_skill_tokens`, or `max_skills_per_turn`
+  is configured, when skill sources are resolved, then the runtime estimates
+  selected skill-source tokens before prompt injection.
+- Given selected skill sources exceed a token or count budget and
+  `overflow_behavior: error` is configured, then preparation fails clearly with
+  a package-owned diagnostic and no model call is made.
+- Given selected skill sources exceed a token or count budget and a future
+  truncation or omission behavior is configured, then the behavior is explicit,
+  deterministic, and reflected in redacted metadata.
+- Given skill-source overflow occurs, when traces or prepared-input metadata are
+  inspected, then they report selected, omitted, rejected, and over-budget skill
+  ids without raw skill body leakage.
+
 ## Non-Goals
 
 - No implicit loading from global user skill directories.
@@ -224,6 +271,22 @@ runtime:
 This is not a broad plugin system. It is an opt-in resolver for already-declared
 package-local bundled skills.
 
+Planned follow-up policy growth remains under the same key:
+
+```yaml
+runtime:
+  execution_policy:
+    skill_source_resolution:
+      max_skill_tokens: 4096
+      max_node_skill_tokens: 16384
+      max_skills_per_turn: 5
+      overflow_behavior: error
+```
+
+`overflow_behavior: error` is the preferred first token-overflow behavior
+because it gives callers a clear failure instead of silently truncating
+instructions.
+
 Implementation surfaces:
 
 - `dynamic_agent_runner.skill_sources` for resolver dataclasses and
@@ -252,6 +315,10 @@ Implementation surfaces:
   closed, prefer package-local skills, or require explicit precedence metadata?
 - What redaction mode should expose raw skill content for debugging without
   making traces unsafe by default?
+- Should token estimation use the active model tokenizer when available, a
+  provider-neutral heuristic, or both with explicit metadata?
+- If a caller later wants `overflow_behavior: omit`, what policy decides which
+  selected skills may be omitted without changing task semantics?
 
 ## Future Caller-Owned Skill Selection Boundary
 
@@ -290,6 +357,10 @@ feature specification or implementation authorization.
 - [x] Support files are not loaded as prompt content in v1.
 - [x] Capability/status reporting distinguishes disabled metadata-only skill
       refs from live or rejected package-local source loading.
+- [ ] Token-aware skill-source budgets are enforced before prompt injection.
+- [ ] `overflow_behavior: error` produces clear diagnostics and makes no model
+      call.
+- [ ] Lazy-loading tests prove unreferenced `SKILL.md` bodies are not read.
 - [ ] A future selector cannot select an unresolved, untrusted, disabled, or
       over-budget skill.
 - [ ] Selection telemetry does not mutate skill sources or caller-owned

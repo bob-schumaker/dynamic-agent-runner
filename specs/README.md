@@ -95,10 +95,10 @@ Portfolio evaluation artifacts:
 | Subagent tool pack | `subagent-tool-pack` | Opt-in `run_subagent`/`run_subagents` registry pack with injected runner, presets, max-child policy, normalized aggregate results, exports, and tests complete | Parallel execution, timeout/iteration budgets, trace/capability reporting, recursive-spawn policy, and durable child lifecycle remain deferred |
 | Graphify semantic extractor tool | `graphify-semantic-extractor-tool` | First-release plus T7 opt-in implementation complete | Follow-up work may add richer Graphify schema coverage, adaptive policy selection, or an explicit endpoint; the current package validates a curated corpus manifest, runs bounded parallel extraction through DAR, emits staged artifacts, and leaves Graphify build/curation/promotion in the stock workflow |
 | Async session metadata | `async-session-memory-pipeline` | `runtime.execution_policy.async_session` metadata preservation and fail-closed validation complete | Durable external storage, broader memory replay, and summary generation are deferred; live in-memory sessions are owned by `persistent-agent-sessions`; pruning-context graph injection is complete through `context-management-prepare-stage` plus `internal-graph-mutation` |
-| Persistent agent sessions | `persistent-agent-sessions` | Public `AgentSession` and `InMemorySessionStore` v1 complete with state snapshots, bounded `accept(...)`, history policies, session-id state injection, snapshot restart, same-session concurrency rejection, sync wrapper parity, and capability/status reporting | Durable external stores, model-backed summaries, long-running graph executors, raw tool transcript replay, durable approval resume, and cross-process locking remain deferred |
+| Persistent agent sessions | `persistent-agent-sessions` | Public `AgentSession` and `InMemorySessionStore` v1 complete with state snapshots, bounded `accept(...)`, history policies, session-id state injection, snapshot restart, same-session concurrency rejection, sync wrapper parity, and capability/status reporting | Optional structured snapshot summary metadata remains a future caller-owned schema extension; durable external stores, model-backed summaries, FTS/search archives, long-running graph executors, raw tool transcript replay, durable approval resume, and cross-process locking remain deferred |
 | Collaborative agent sessions | `collaborative-agent-sessions` | In-memory parent/child session manager, presets, child state snapshots, spawn/list/get/send/close/current-state APIs, snapshot restart, exports, and tests complete | Wait/resume APIs, child event streaming, capability/status reporting, durable storage, compatibility validation, and explicit tool-policy enforcement remain deferred |
 | Model event streaming | `model-event-streaming` | Session-level `AgentSession.accept_stream(...)` event stream complete with redacted execution events, session/run correlation, terminal final-result authority, terminal `AgentSessionResult`/`WorkflowResult` access, and caller-controlled stream filters | Provider-native token deltas, model-tool-loop progress specialization, cancellation/backpressure expansion, lower-level executor stream APIs, and streaming capability/status reporting remain deferred |
-| Context-management prepare stage | `context-management-prepare-stage` | `prepare_model_input(...)` support exists for hierarchy injection, turn-aware current-run session pruning, lane-budget assembly, named compression profiles, deterministic and exact/hybrid older-turn selection, injected semantic older-turn selection, rolling summaries, injected model summaries, retrieved-context lane packing for RAG evidence, deterministic basic compaction, pre/mid-turn compaction seams, explicit reset metadata, overflow classification/retry diagnostics, capability status, trace metadata, and bounded pruning-context injection from supplied session messages | Provider-backed remote compaction and remaining richer profile behavior remain prepared follow-ups; built-in embeddings/vector retrieval and runner-owned durable memory remain out of scope |
+| Context-management prepare stage | `context-management-prepare-stage` | `prepare_model_input(...)` support exists for hierarchy injection, turn-aware current-run session pruning, lane-budget assembly, named compression profiles, deterministic and exact/hybrid older-turn selection, injected semantic older-turn selection, rolling summaries, injected model summaries, retrieved-context lane packing for RAG evidence, deterministic basic compaction, pre/mid-turn compaction seams, explicit reset metadata, overflow classification/retry diagnostics, capability status, trace metadata, and bounded pruning-context injection from supplied session messages | Derived `artifact_trail` diagnostics plus probe-based compression and degradation fixtures remain follow-up validation work; provider-backed remote compaction and remaining richer profile behavior remain prepared follow-ups; built-in embeddings/vector retrieval and runner-owned durable memory remain out of scope |
 | Provider-backed context compaction | `provider-backed-context-compaction` | None | Future provider-backed remote compaction path with capability gating, replacement-history validation, compaction window ids, token baselines, fallback policy, and capability/status reporting |
 | Model-backed context summaries | `model-backed-context-summaries` | Injected summarizer collaborator path for `model_summary` compaction with fail-closed missing summarizer behavior, bounded output metadata, and fake tests complete | Richer prior-summary folding, source/file/tool provenance diagnostics, fallback ordering, and capability/status reporting remain deferred |
 | Semantic context profiles | `semantic-context-profiles` | Exact and `hybrid_exact_semantic` older-turn selection preserve issue keys, filenames, and identifiers; Slice S1 adds caller-injected semantic scoring, missing-selector fallback diagnostics, direct/context collaborator threading, public selector contracts, and RAG lane separation with tests | Memory-kind hints, stale/redundant omission, RAG lane borrowing, prompt-cache-aware ordering, and selector capability/status reporting remain deferred |
@@ -110,7 +110,7 @@ Portfolio evaluation artifacts:
 | Live guardrail execution | `live-guardrail-execution` | Metadata-only guardrail declaration preservation plus caller-registered input guardrail aborts before first runtime action complete | Output guardrails, tool guardrails, reject-content behavior, retries, timeouts, and external adapters remain deferred |
 | RAG orchestration contract | `rag-orchestration-contract` | Expanded `metadata.rag_pipeline` validation and capability/status reporting exist for staged retrievers, required collaborators, provenance and context-management handoff declarations, source readiness, permissions, cache, and degraded states | Retrieval infrastructure, prompt packing, ingestion, embeddings, indexes, graph stores, rerankers, compressors, evaluators, answer citation rendering, output guardrails, and live retrieval orchestration remain deferred |
 | Memory-aware context pipeline | `memory-aware-context-pipeline` | None | Future declarative memory pipeline validation, capability/status reporting, fake-testable memory retrieval tiers, provenance, trace events, retrieved-context handoff, no-implicit-save enforcement, and a first-slice decision on whether distinct memory semantics justify remaining separate from RAG; salience and ingestion execution remain future/deferred |
-| SKILL.md source resolution | `skill-source-resolution` | Opt-in package-local bundled `SKILL.md` loading, policy validation, bounded UTF-8 body loading, deterministic prompt injection, redacted provenance, and capability/status reporting complete | External roots, `source_path` reads, support-file prompt loading, network fetching, Markdown frontmatter parsing, raw-body debugging, and caller-owned dynamic selection remain deferred |
+| SKILL.md source resolution | `skill-source-resolution` | Opt-in package-local bundled `SKILL.md` loading, policy validation, bounded UTF-8 body loading, deterministic prompt injection, redacted provenance, and capability/status reporting complete | Token-aware skill-source budgets, `max_skills_per_turn`, and `overflow_behavior: error` diagnostics remain follow-up work; external roots, `source_path` reads, support-file prompt loading, network fetching, Markdown frontmatter parsing, raw-body debugging, and caller-owned dynamic selection remain deferred |
 | Iterative agent-loop runtime | `iterative-agent-loop-runtime` | Bounded opt-in serial model-tool loop execution complete for eligible `llm_step` nodes | Loop `state_field`/`tool_result` final selectors, durable approval resume, output/tool guardrails, parallel tool calls, durable transcripts, and multidimensional estimated/reserved/actual budget accounting remain deferred |
 | Power-Marimo dynamic workflow client | `power-marimo-host-automation` | Placeholder-safe fixture and fake-tool execution coverage complete; current `../power-marimo` evidence shows the host-owned tool-service and dynamic-agent-runner bridge pattern | No DAR implementation remains unless a generic runner contract is missing; Marimo, Qt, hosted lifecycle, domain adapters, app safety policy, and live validation remain downstream client concerns |
 
@@ -179,6 +179,35 @@ existing owners instead of creating duplicate feature areas:
 - procedural skill scores and outcomes remain caller-owned inputs to a future
   selector extension under `skill-source-resolution`; DAR does not learn or
   rewrite skills automatically
+
+The
+[`sickn33/antigravity-awesome-skills`](https://github.com/sickn33/antigravity-awesome-skills)
+repository was evaluated as context-management and skill-loading design
+evidence, with local Graphify review artifacts at
+`/private/tmp/antigravity-awesome-skills-docs-graph/graphify-out/` and
+`/private/tmp/antigravity-awesome-skills-focused-graph/graphify-out/`. Useful
+ideas were folded into existing DAR spec owners rather than becoming a new
+feature area:
+
+- `skills/context-compression/SKILL.md` informs `context-management-prepare-stage`
+  requirements for tokens-per-task thinking, probe-based compression tests, and
+  first-class artifact-trail diagnostics.
+- `skills/context-degradation/SKILL.md` informs context-management validation
+  fixtures for lost-in-middle, poisoning, distraction, confusion, and clash.
+- `docs/users/discovery-manifest.md`,
+  `docs/integrations/jetski-cortex.md`, and
+  `docs/users/agent-overload-recovery.md` inform `skill-source-resolution`
+  requirements for manifest-based lazy loading, per-turn limits, token-aware
+  budgets, and explicit overflow diagnostics.
+- `skills/context-agent/SKILL.md` and
+  `skills/context-agent/references/context-format.md` inform
+  `persistent-agent-sessions` snapshot-summary shape for intent, decisions,
+  pending tasks, modified files, blockers, next action, and metrics.
+
+DAR does not adopt the Antigravity repository's activation scripts, global skill
+directory management, full skill-library prompt injection, session archive,
+SQLite FTS search, or durable memory implementation. Those remain caller-owned
+or outside the runtime boundary.
 
 Micheal Lanham's `AI Agents in Action, Second Edition: Intelligent Workflows
 With LLMs, MCP, A2A, and More` (Manning, ISBN `9781633434530`) was evaluated as
