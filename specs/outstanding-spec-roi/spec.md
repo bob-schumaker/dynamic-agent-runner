@@ -56,7 +56,7 @@ ROI is judged by:
 | Spec Work | ROI | Recommendation |
 | --- | --- | --- |
 | `llmfit-model-fit-filter` | Low-medium | Useful local-model ergonomics, but narrow. Do only when local-model selection becomes active work. |
-| `sandbox-workspace-runtime` write/shell slices | Low-medium now, high later | Important but risky. Approval-before-side-effect exists; write and shell tools need concrete path-grant requirements before implementation. |
+| `sandbox-workspace-runtime` write/shell slices | Low-medium now, high if a coding-agent caller is blocked | Important but risky. Approval-before-side-effect exists; the next useful slice should be minimal path-granted write/edit tools and allowlisted verification commands, not arbitrary shell. |
 | `approval-interruption-resume` durable resume | Low-medium | Useful for long-running or mutating workflows, but the current direct approval pause is enough until a real resume workflow appears. |
 | `hash-chained-governance-audit` | Low-medium | Tamper-evident decision history is valuable for regulated or high-risk tool workflows, but no current caller requires a governance ledger. Keep the caller-supplied sink and first-release boundary prepared until that need exists. |
 | `mcp-runtime-integration` live transports | Low-medium | Current explicit registry injection is the right baseline. Live discovery and process lifecycle add operational risk; defer until a host needs them. |
@@ -94,6 +94,8 @@ Do not start these next without a concrete blocking caller:
 - interpreter middleware
 - live MCP transports
 - full sandbox write/shell runtime
+- a separate `coding-workspace-tool-pack` spec, unless the first sandbox-owned
+  write/edit slice proves the standard tool-pack API needs its own owner
 - durable approval resume
 - hash-chained governance audit implementation
 - durable memory or storage work

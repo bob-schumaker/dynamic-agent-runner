@@ -209,6 +209,39 @@ directory management, full skill-library prompt injection, session archive,
 SQLite FTS search, or durable memory implementation. Those remain caller-owned
 or outside the runtime boundary.
 
+Rodrigo Girao Serrao's
+[`Write a coding agent from first principles`](https://mathspp.com/blog/write-a-coding-agent-from-first-principles)
+was evaluated as a compact coding-agent substrate reference. Useful ideas were
+folded into existing DAR spec owners instead of creating a new feature area:
+
+- Source-file mutation and verification commands extend
+  [`sandbox-workspace-runtime`](sandbox-workspace-runtime/spec.md): start with
+  path-granted `write_file` plus `replace_text` or `insert_lines`, changed-path
+  audits, and allowlisted `run_tests` or `run_linter`; keep arbitrary shell as a
+  later high-risk capability.
+- Provider-native tool-use blocks, immediate tool-result follow-ups, recoverable
+  tool errors, and repair attempts extend
+  [`iterative-agent-loop-runtime`](iterative-agent-loop-runtime/spec.md) without
+  making loops unbounded.
+- Large file, command, and structured tool outputs extend
+  [`scratchpad-context-manager`](scratchpad-context-manager/spec.md) through the
+  existing post-tool offload boundary.
+- Visible tool progress extends
+  [`model-event-streaming`](model-event-streaming/spec.md), while UI transports
+  and terminal styling remain downstream concerns.
+- Context clearing, trimming, import, and export extend
+  [`persistent-agent-sessions`](persistent-agent-sessions/spec.md) and
+  [`context-management-prepare-stage`](context-management-prepare-stage/spec.md)
+  rather than creating a separate command layer in DAR.
+
+DAR does not adopt the tutorial's text-parsed tool-call protocol, broad
+`bash(command)` surface, full-file writes as the preferred edit primitive, or
+interactive command prompt as a production approval boundary. A future
+`coding-workspace-tool-pack` spec is only a possible split if the model-facing
+tool-pack contract outgrows `sandbox-workspace-runtime`; it would depend on the
+sandbox and approval specs and must not own grants, approval binding, backend
+isolation, or resource enforcement.
+
 Micheal Lanham's `AI Agents in Action, Second Edition: Intelligent Workflows
 With LLMs, MCP, A2A, and More` (Manning, ISBN `9781633434530`) was evaluated as
 a cross-cutting agent architecture reference. Useful ideas were tracked as

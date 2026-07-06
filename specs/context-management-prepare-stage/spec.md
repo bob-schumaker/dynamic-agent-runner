@@ -39,6 +39,10 @@
 - Evaluated context-management survey notes:
   - `Strategies and Techniques for Managing Context Windows.md`
   - `Top techniques to Manage Context Lengths in LLMs.md`
+- Evaluated coding-agent context reference:
+  - `https://mathspp.com/blog/write-a-coding-agent-from-first-principles`
+    reinforces that each model request receives a reconstructed context and
+    that unmanaged transcript growth raises cost and correctness risk.
 - Evaluated external context-management provenance:
   - [`sickn33/antigravity-awesome-skills`](https://github.com/sickn33/antigravity-awesome-skills)
   - `/Users/roschuma/Repos/github/antigravity-awesome-skills/skills/context-compression/SKILL.md`

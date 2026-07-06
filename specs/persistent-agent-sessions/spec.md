@@ -16,6 +16,10 @@
   - `/Users/roschuma/Repos/github/antigravity-awesome-skills/skills/context-agent/SKILL.md`
   - `/Users/roschuma/Repos/github/antigravity-awesome-skills/skills/context-agent/references/context-format.md`
   - `/private/tmp/antigravity-awesome-skills-focused-graph/graphify-out/GRAPH_REPORT.md`
+  - `https://mathspp.com/blog/write-a-coding-agent-from-first-principles`
+    for user-level conversation controls such as clearing or trimming context,
+    importing/exporting history, and distinguishing host commands from
+    model-visible prompts
 
 ## Objective
 
@@ -294,6 +298,7 @@ Acceptance criteria:
 ## Out of Scope
 
 - Durable filesystem, database, Redis, cloud, or OCI-backed session stores.
+- Host slash-command handling such as `/help`, `/exit`, or `/quit`.
 - Automatic semantic memory or vector retrieval.
 - Runner-owned session archive, full-text search, or durable memory database.
 - Model-backed summary generation.
@@ -303,6 +308,19 @@ Acceptance criteria:
 - Approval decision persistence or durable approval resume.
 - Raw tool transcript replay by default.
 - Cross-process locking.
+
+## Future Session Control APIs
+
+The mathspp coding-agent reference treats user commands as a host/UI concern,
+but it also identifies useful session operations: import/export history,
+clearing context, and dropping recent messages. Those are not a new feature
+family. Future approved slices should extend this spec with explicit APIs such
+as `clear_history`, `drop_last_turn`, `export_snapshot`, or
+`restore_snapshot` if callers need them.
+
+Those APIs must preserve the existing boundary: DAR owns structured session
+state operations, while callers own command parsing, UI labels, durable storage,
+and redaction policy for exported snapshots.
 
 ## Data Model Expectations
 

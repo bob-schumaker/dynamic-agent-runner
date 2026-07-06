@@ -8,6 +8,13 @@ Status: Draft, revised after second council review
 
 Source inspiration: [sickn33/antigravity-awesome-skills](https://github.com/sickn33/antigravity-awesome-skills). The source repository's skills and memory-bank patterns show a useful convention: keep large or durable working context outside the immediate model prompt, keep a compact reference or summary in active context, and make scratch work inspectable across workflow steps. This specification adapts that idea for Dynamic Agent Runner without copying Antigravity's repository layout or requiring a bundled storage backend.
 
+Additional coding-agent provenance:
+`https://mathspp.com/blog/write-a-coding-agent-from-first-principles` shows why
+large file, command, and structured tool outputs must not automatically expand
+the active conversation transcript. DAR uses that observation as support for the
+existing tool-result offload boundary rather than adding a separate coding-agent
+scratchpad feature.
+
 ## Objective
 
 Add an optional scratchpad context store to Dynamic Agent Runner so workflows can offload large intermediate artifacts without putting full content into the active model context.
@@ -444,6 +451,23 @@ Subagents and LLM-as-tool adapters should not require a special v1 path. If thei
 ```
 
 Special handling for raw subagent outputs, custom subagent contracts, or model-exposed retrieval tools is deferred until the basic tool-result offload path is proven.
+
+## Coding-Agent Tool Outputs
+
+Coding-agent file inspection, verification, and future command tools should use
+the same v1 offload path when their model-facing result exceeds
+`max_inline_bytes`.
+
+Expected examples:
+
+- large source-file reads that a caller exposes through a future read surface
+- structured test results or linter diagnostics emitted as JSON-compatible data
+- long command logs that are safe to store but too large for a model turn
+
+The scratchpad feature does not decide whether those tools are safe to run.
+`sandbox-workspace-runtime` owns grants, approval, command policy, and mutation
+audits. This spec owns only post-tool materialization, storage, artifact-ref
+projection, and redaction.
 
 ## Future DAR Tool Layer
 

@@ -18,6 +18,11 @@
   - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
     includes useful staged-mutation examples and unsafe path/code-execution
     counterexamples; it is design evidence, not a sandbox implementation
+  - `https://mathspp.com/blog/write-a-coding-agent-from-first-principles`
+    shows the minimal coding-agent tool progression from read-only file access
+    to write/edit tools, shell execution, tool-result error flags, and
+    approval-before-command execution. It is tutorial evidence, not a
+    production safety or sandbox pattern.
 
 ## Objective
 
@@ -80,6 +85,36 @@ Still deferred:
 - explicit writable workspace grants and path authorization
 - sandbox adapters and resource enforcement
 - changed-path audit records for real workspace mutations
+
+## Coding-Agent Tool-Pack Boundary
+
+The mathspp coding-agent reference reinforces a concrete product pressure: a
+coding agent is not useful for code changes until it can mutate source files and
+run verification commands. DAR should still avoid a new top-level feature spec
+for that pressure until the first vertical slice proves the standard tool shape.
+
+The first coding-agent-oriented slice belongs in this spec and should be small:
+
+- explicit writable path grants rooted in caller-approved workspaces
+- one or two mutating source-file tools, such as `write_file` plus
+  `replace_text` or `insert_lines`
+- changed-path audit records and bounded model-facing results
+- approval-required behavior by default for mutating actions
+- focused fake tests for path containment, approval pause, redaction, and
+  changed-path reporting
+
+Verification command support also belongs here, but it should start narrower
+than arbitrary shell: allowlisted tools such as `run_tests` or `run_linter` with
+fixed working-directory rules, timeouts, output caps, and side-effect metadata.
+General `bash` or shell-string execution remains a later, higher-risk command
+capability.
+
+A separate future `coding-workspace-tool-pack` feature spec may be useful if
+the registry/tool-pack API, model-facing schemas, aliases, or product ergonomics
+grow large enough to obscure this spec's sandbox policy. If created, that spec
+should depend on `sandbox-workspace-runtime` and `approval-interruption-resume`;
+it should own tool-pack naming and model-facing contracts, not path grants,
+approval binding, backend isolation, or resource enforcement.
 
 ## Functional Requirements
 
@@ -243,6 +278,9 @@ backend capability reporting.
 
 - What sandbox adapter backends should v1 support?
 - Should write tools be built-in packs, caller-registered tools, or both?
+- Should a future `coding-workspace-tool-pack` split out model-facing tool-pack
+  ergonomics after the first write/edit slice, or should the tool-pack contract
+  remain embedded here?
 - What path-grant format should callers use?
 - What default approval policy applies to write, patch, delete, shell, network,
   and package-install actions?
