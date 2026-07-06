@@ -4,7 +4,10 @@
 !/AGENTS.local.md
 !/README.md
 !/docs/
-!/docs/**
+!/docs/files/
+!/docs/files/**
+!/docs/skills/
+!/docs/skills/**
 !/specs/
 !/specs/**
 !/memory-bank/
