@@ -203,9 +203,7 @@ inject a completion callable or LiteLLM router for tests and host-managed
 routing. The factory's ``model`` value is adapter metadata and does not
 override an individual request model.
 
-The temporary OCI distribution path includes the checked-in pure-Python
-LiteLLM wheel until the configured package source publishes a portable
-Python-compatible release.
+LiteLLM is installed as a DAR dependency.
 
 .. header2:: Local OpenAI-compatible endpoints
 

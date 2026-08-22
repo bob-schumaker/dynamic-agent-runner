@@ -247,11 +247,8 @@ modes are not treated as OpenAI API keys in this path.
 
 Ordinary OpenAI-compatible requests use LiteLLM's Chat Completions transport;
 ChatGPT/Codex auth continues through the repository-owned SDK backend until the
-separate Responses-aware LiteLLM slice is implemented. DAR includes a small
-`dynamic_agent_runner.litellm` OpenAI-compatible fallback so the ordinary
-transport works even when the full upstream LiteLLM package is unavailable.
-The OCI wheelhouse may additionally include the checked-in upstream LiteLLM
-wheel as a temporary distribution boundary.
+separate Responses-aware LiteLLM slice is implemented. LiteLLM is an installed
+DAR dependency.
 
 For an explicit LiteLLM adapter with injected dispatch or router behavior:
 
