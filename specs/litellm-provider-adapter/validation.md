@@ -3,19 +3,19 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: L2 opt-in Codex wrapper validated; global migration remains blocked
-- Date: 2026-07-02
+- Status: L2 opt-in Codex wrapper validated; upstream dependency adopted and
+  shim retired
+- Date: 2026-08-22
 
 ## Readiness Checks
 
 - The spec has a narrow Slice L1 boundary.
-- LiteLLM Python 3.14 support is handled temporarily by the checked-in pure
-  Python wheel and the OCI wheelhouse copy step.
+- LiteLLM is a declared runtime dependency (`^1.97.0`, resolved to 1.97.0) with
+  Python 3.14 support.
 - Slice L1 has no blocking `NEEDS CLARIFICATION` items.
 - ChatGPT/Codex-on-LiteLLM wrapper slices are implemented; global replacement
   remains deferred pending drift gates.
-- LiteLLM Responses API support is implemented only through the opt-in wrapper;
-  the bundled fallback remains Chat Completions-only.
+- LiteLLM Responses API support is implemented only through the opt-in wrapper.
 - Unit-test strategy is fake-only and live-call-free.
 - Request translation risk is identified as the main implementation risk.
 - Default transport migration risk is identified and bounded by an explicit
@@ -26,17 +26,18 @@
 - The full DAR suite passes after excluding the nested upstream LiteLLM test
   tree and preserved OCI input/output trees: `676 passed, 4 skipped`.
 - The focused LiteLLM/OpenAI/auth integration set passes: `113 passed`.
-- A portable Poetry dependency remains blocked: the configured Artifactory does
-  not publish LiteLLM, while a local wheel dependency produces a non-portable
-  `file://` requirement in the root wheel metadata.
+- The upstream dependency is installed successfully and exposes callable
+  `completion(...)` and `acompletion(...)` APIs. The removed fallback is covered
+  by focused tests that require package-owned missing-transport errors.
 - L2.1 compatibility audit completed in
   `specs/litellm-provider-adapter/l2-codex-compatibility.md`: LiteLLM Responses
   is compatible enough for a guarded follow-up, while Chat Completions
   bridging is not Codex-equivalent.
 - The post-L2 drift review confirms the opt-in wrapper's tested request parity
-  but blocks global migration on LiteLLM ambient ChatGPT auth, missing native
-  DAR-compatible model listing, and the bundled fallback's lack of Responses
-  support. Full evidence is in `l2-codex-compatibility.md`.
+  but blocks global migration on LiteLLM ambient ChatGPT auth and missing native
+  DAR-compatible model listing. Full evidence is in `l2-codex-compatibility.md`.
+- The retirement change passed `680 passed, 4 skipped`, `poetry run ruff check
+  src tests`, and `make -C docs html`.
 
 ## External Documentation Check
 
@@ -75,22 +76,20 @@ committing implementation.
 
 ## Out-of-Scope Confirmation
 
-The implemented Slice L1 does not:
+The completed upstream-dependency and shim-retirement slice does not:
 
-- add the full upstream `litellm` distribution to runtime dependencies yet;
-  the bundled `dynamic_agent_runner.litellm` transport is included in DAR
+- remove the separate legacy OCI checked-in wheel, copy step, or trigger
 - add live model, provider, gateway, or OAuth calls
 - authorize ChatGPT/Codex-on-LiteLLM implementation in Slice L1
 
 ## Consistency Analysis
 
 - FR-1 through FR-6 map to L1.1-L1.15 and the focused provider tests.
-- FR-10 maps to L1.8-L1.8c and L1.21; the checked-in wheel and Python 3.13
-  OCI result are explicit implementation constraints, not deferred assumptions.
+- FR-10 maps to L1.8 and L1.22. The legacy OCI wheel cleanup is deferred
+  packaging work, not the runtime distribution boundary.
 - FR-11 maps to L1.1-L1.7 and the repository's fake-only unit-test policy.
 - Deferred L2 and L3 tasks do not appear in the L1 acceptance boundary.
 - No blocking clarification remains for Slice L1; implementation preserved the
   existing OpenAI/Codex auth boundary and used RED/GREEN tests.
-- L1.8 is an external publication blocker, not an unresolved design question;
-  the vendored wheelhouse path is the current approved runtime distribution
-  boundary.
+- L1.8 is complete. The vendored wheelhouse path is legacy packaging cleanup,
+  not the current runtime distribution boundary.

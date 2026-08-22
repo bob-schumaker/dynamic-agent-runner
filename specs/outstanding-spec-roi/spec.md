@@ -6,7 +6,7 @@
 - Mode: `light`
 - Artifact type: spec portfolio evaluation / roadmap note
 - Status: advisory; not implementation authorization
-- Date: 2026-06-28
+- Date: 2026-08-22
 - Source context:
   - `specs/README.md`
   - outstanding and partially implemented feature specs under `specs/`
@@ -38,9 +38,8 @@ ROI is judged by:
 | Rank | Spec Work | ROI | Rationale |
 | --- | --- | --- | --- |
 | 1 | `apple-foundation-model-adapter` A1 | Very high, implementation complete with validation follow-up | Concrete on-machine caller need, successful local SDK and model probes, strong fit with the existing async provider facade and strict coverage, and a bounded first release for text plus explicit JSON Schema output. Slices 1-6 are implemented; standalone live text, structured, and strict-workflow paths succeeded; pytest-native Apple SDK verification remains a follow-up, and A2 tool callbacks remain separately gated. |
-| 2 | `litellm-provider-adapter` | Very high, implementation-ready | Slice L1 is ready for TDD implementation: default direct SDK Chat Completions transport, fake tests, request/response translation, explicit official-SDK compatibility, and temporary checked-in-wheel OCI packaging; ChatGPT/Codex-on-LiteLLM is deferred to a Responses-aware follow-up slice. |
-| 3 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
-| 4 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from LiteLLM/provider work first. |
+| 2 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
+| 3 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from the completed LiteLLM provider work first. |
 
 ## Conditional ROI
 
@@ -70,11 +69,9 @@ ROI is judged by:
 
 1. Approve and implement the prepared `apple-foundation-model-adapter` A1
    slices without pulling A2 tool callbacks into the initial release.
-2. Implement `litellm-provider-adapter` Slice L1 using the validated temporary
-   checked-in wheel and Python 3.13 OCI packaging boundary.
-3. Run the `memory-aware-context-pipeline` first-slice validation to decide
+2. Run the `memory-aware-context-pipeline` first-slice validation to decide
    whether it remains separate from RAG.
-4. Add `provider-backed-context-compaction` after provider capability boundaries
+3. Add `provider-backed-context-compaction` after provider capability boundaries
    are clearer.
 
 ## Recently Completed Since This Evaluation
@@ -86,6 +83,7 @@ ROI is judged by:
 | `tool-descriptor-budgeting` | Slice T1 | `fd1b54c` implemented opt-in descriptor budgeting; `f7ab5d5` recorded completion evidence and runtime policy docs |
 | `host-workflow-integration` | Slice H2 | Inline/generated and loaded-workflow capability preflight, host id capability details, lifecycle docs, and fake tests |
 | `semantic-context-profiles` | Slice S1 | Caller-injected semantic older-turn selector, missing-selector fallback diagnostics, exact identifier protection, RAG lane separation, public selector contracts, docs, and fake tests |
+| `litellm-provider-adapter` | Slice L1 and shim retirement | Upstream LiteLLM 1.97.0 runtime dependency, direct sync/async Chat Completions transport, public factories, package-owned missing-transport errors, fake tests, documentation, and removal of `dynamic_agent_runner.litellm`; OCI wheel cleanup and Codex global migration remain deferred |
 
 ## Deferral Guidance
 

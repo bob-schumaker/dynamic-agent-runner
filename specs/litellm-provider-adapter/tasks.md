@@ -3,8 +3,8 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: Slice L1 TDD tasks complete; upstream publication remains open
-- Date: 2026-07-02
+- Status: Slice L1 TDD tasks complete; upstream dependency adopted and shim retired
+- Date: 2026-08-22
 - Owning spec: `specs/litellm-provider-adapter/spec.md`
 - Plan: `specs/litellm-provider-adapter/plan.md`
 
@@ -25,11 +25,8 @@
       token-shaped value in the fake provider exception.
 - [x] L1.7 Add RED tests for public factory exports and explicit official
       OpenAI SDK compatibility factory behavior.
-- [ ] L1.8 Publish or otherwise make the LiteLLM package available from the
-      configured package source, then add a portable versioned runtime
-      dependency and refresh `poetry.lock`. Current attempt is blocked because
-      Artifactory has no matching LiteLLM release and a local file dependency
-      emits a non-portable wheel URL.
+- [x] L1.8 Add the portable `litellm = "^1.97.0"` runtime dependency and refresh
+      `poetry.lock` (resolved to 1.97.0).
 - [x] L1.8a Verify the checked-in
       `vendor/wheels/litellm-1.92.0-py3-none-any.whl` is present, pure Python,
       and compatible with Python `<3.15`.
@@ -37,7 +34,8 @@
       checked-in LiteLLM wheel in `dist/` before `python -m build`; retain OCI
       trigger coverage for the vendored wheel.
 - [x] L1.8c Add the minimal bundled `dynamic_agent_runner.litellm` transport and
-      make it the fallback when the full upstream package is unavailable.
+      make it the fallback when the full upstream package is unavailable
+      (historical; retired by L1.22).
 - [x] L1.9 Implement sync and async LiteLLM provider/client shims behind the
       existing provider protocols.
 - [x] L1.10 Implement package-owned request translation from
@@ -63,6 +61,10 @@
 - [x] L1.21 Run the standard package build under Python 3.13 and verify the OCI
       package tar contains both package wheels and the LiteLLM wheel hash
       matches the checked-in artifact.
+- [x] L1.22 Retire `dynamic_agent_runner.litellm` after upstream LiteLLM gained
+      Python 3.14 support: require the installed sync/async Chat Completions
+      callables, add package-owned missing-transport errors, update docs, and
+      verify `680 passed, 4 skipped`, Ruff, and the Sphinx HTML build.
 
 ## Deferred Follow-Up: ChatGPT/Codex Through LiteLLM
 

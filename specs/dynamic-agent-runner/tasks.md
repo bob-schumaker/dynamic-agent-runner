@@ -1022,10 +1022,10 @@ explicitly instead of leaving them as undocumented future behavior.
       trees, or colorized output.
 - [ ] D2. Revisit Diskcache only when a concrete model/tool/result caching policy
       is specified, including side-effect and staleness semantics.
-- [ ] D3. Implement Slice L1 from `specs/litellm-provider-adapter/` using TDD.
-      The temporary checked-in LiteLLM wheel and Python 3.13 OCI packaging
-      boundary are validated; ChatGPT/Codex-on-LiteLLM remains a deferred
-      follow-up slice. The
+- [x] D3. Implement Slice L1 from `specs/litellm-provider-adapter/` using TDD.
+      Upstream LiteLLM 1.97.0 is now the runtime dependency and the bundled
+      fallback is retired. Legacy OCI wheel cleanup and ChatGPT/Codex global
+      migration remain deferred follow-up work. The
       `specs/memory-aware-context-pipeline/` first-slice validation remains a
       separate roadmap candidate.
 - [ ] D4. Keep Watchfiles out of core runtime scope; consider only as a local dev
