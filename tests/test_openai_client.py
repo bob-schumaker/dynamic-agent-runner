@@ -1538,20 +1538,24 @@ def test_create_default_async_openai_client_omits_api_key_when_not_provided(
     assert created_kwargs == [{"base_url": "http://localhost:11434/v1"}]
 
 
-def test_create_default_openai_client_uses_bundled_litellm_transport(
+def test_create_default_openai_client_uses_litellm_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delitem(sys.modules, "litellm", raising=False)
+    monkeypatch.setitem(
+        sys.modules, "litellm", SimpleNamespace(completion=lambda: None)
+    )
 
     client = create_default_openai_client()
 
     assert hasattr(client, "responses")
 
 
-def test_create_default_async_openai_client_uses_bundled_litellm_transport(
+def test_create_default_async_openai_client_uses_litellm_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delitem(sys.modules, "litellm", raising=False)
+    monkeypatch.setitem(
+        sys.modules, "litellm", SimpleNamespace(acompletion=lambda: None)
+    )
 
     client = create_default_async_openai_client()
 

@@ -567,8 +567,10 @@ def _bind_async_codex_responses(
 def _load_completion() -> LiteLLMCompletion:
     try:
         from litellm import completion
-    except Exception:
-        return _load_bundled_completion()
+    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+        raise ModelExecutionError(
+            "LiteLLM Chat Completions transport is not available"
+        ) from exc
     return completion
 
 
@@ -596,8 +598,10 @@ def _provider_litellm_kwargs(
 def _load_async_completion() -> LiteLLMAsyncCompletion:
     try:
         from litellm import acompletion
-    except Exception:
-        return _load_bundled_async_completion()
+    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+        raise ModelExecutionError(
+            "LiteLLM async Chat Completions transport is not available"
+        ) from exc
     return acompletion
 
 
@@ -619,18 +623,6 @@ def _load_async_responses() -> LiteLLMAsyncResponses:
             "LiteLLM async Responses transport is not available"
         ) from exc
     return aresponses
-
-
-def _load_bundled_completion() -> LiteLLMCompletion:
-    from dynamic_agent_runner.litellm import completion
-
-    return completion
-
-
-def _load_bundled_async_completion() -> LiteLLMAsyncCompletion:
-    from dynamic_agent_runner.litellm import acompletion
-
-    return acompletion
 
 
 def _codex_litellm_kwargs(
