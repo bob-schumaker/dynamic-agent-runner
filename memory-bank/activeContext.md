@@ -3,18 +3,20 @@
 
 ## Current Focus
 
-- `live-guardrail-execution` V2 is implementation-ready, not implemented. Its
-  next delivery target is caller-registered, pass-or-abort `tool_input`
-  guardrails for direct `tool_use_step` and model-tool-loop origins. The
-  contract is prepare/validate → guardrails → approval → hooks/retry/dispatch;
-  every V2 declaration is required and nonblank, subjects are recursively
-  copied, and missing/malformed/mismatched guardrail outcomes fail closed.
-  Commits `0d2d6c1` and `199912f` prepare and harden the delivery handoff.
-- The V2 slice depends on the implemented internal coordinator (`bda6333`),
-  which already unifies direct and model-loop dispatch. V2 must use a private
-  executor-supplied guardrail runner after guarded-path validation; no V2
-  runtime code or GREEN evidence exists yet. Readiness validation was Markdown
-  pre-commit plus the focused baseline (`163 passed`).
+- `live-guardrail-execution` V2 is implemented in `78f9d9c`: caller-registered
+  pass-or-abort `tool_input` guardrails run after validated preparation and
+  before approval, hooks, retry, or dispatch for direct `tool_use_step` and
+  model-tool-loop origins. Declarations run in manifest order, subjects are
+  recursively copied, and missing, malformed, or mismatched outcomes fail
+  closed with redacted trace events. Focused validation passed with 251 tests;
+  the full suite passed with 694 tests and 4 skips, alongside Ruff, pre-commit,
+  package, and docs builds.
+- V2 adopts the internal coordinator from `bda6333` through a private
+  executor-supplied guardrail runner; it adds no public coordinator API. Output
+  and tool-output guardrails, reject-content, retries, timeouts, and external
+  adapters remain deferred. The next highest-ROI preparation target is
+  `provider-backed-context-compaction`; memory-aware context has already
+  completed its passive first slice and needs only its exit-gate reassessment.
 - The shared DAR tool-invocation coordinator is implemented in `bda6333`.
   Direct `tool_use_step` and model-tool-loop calls now share approval,
   lifecycle, tracing, and registry-dispatch behavior. Approval-required input
