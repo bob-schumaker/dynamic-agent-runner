@@ -48,7 +48,7 @@ ROI is judged by:
 | `rag-orchestration-contract` future work | Medium | Declarative v1 is done. Next ROI is answer citation/provenance rendering or live retrieval orchestration only if a caller needs it. Do not build retrieval infrastructure. |
 | `model-event-streaming` deferred work | Medium | Provider-native token deltas are useful UX, but the current terminal-result/filter surface solved the known downstream blocker. Wait for another concrete streaming need. |
 | `workspace-data-tool-pack` deferred work | Medium | Capability/status and host dirty-state are useful. Durable storage and indexing should stay caller-owned unless a host proves the need. |
-| `subagent-tool-pack` deferred work | Medium | Parallelism, timeouts, and capability status could pay off after sustained subagent usage. Keep durable child lifecycle deferred. |
+| `subagent-tool-pack` deferred work | Medium | First consider the specified bounded `ask_llm` slice when a caller needs one-shot specialist-model work; otherwise parallelism, timeouts, and capability status could pay off after sustained subagent usage. Keep durable child lifecycle deferred. |
 
 ## Low ROI Unless a Caller Is Blocked
 

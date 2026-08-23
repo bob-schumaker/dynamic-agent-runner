@@ -54,7 +54,7 @@ Deferred:
 - parent/child trace correlation and capability/status reporting
 - approval, sandbox, guardrail, and recursive-spawn policy enforcement beyond
   metadata defaults
-- optional `ask_llm`
+- optional `ask_llm`, specified as the next narrow LLM-as-tool slice below
 - durable child sessions, lifecycle APIs, and parent/child topology, which
   remain owned by `collaborative-agent-sessions`
 
@@ -106,6 +106,46 @@ extraction, review, compaction, or "ask a specialist model once" use cases.
 Session-as-tool behavior belongs to `collaborative-agent-sessions` unless the
 child session is caller-owned and already registered as an ordinary tool.
 
+### Next Task: Bounded `ask_llm`
+
+Implement `ask_llm` as an opt-in registry tool for exactly one caller-selected,
+bounded model interaction. It is not a new workflow node, a general provider
+API, or a child-session lifecycle feature.
+
+The model-facing schema is deliberately small:
+
+```json
+{
+  "preset_id": "reviewer",
+  "prompt": "Review this change for correctness."
+}
+```
+
+`preset_id` resolves only from caller-provided allowlisted presets. The model
+cannot choose a provider, model identifier, system instruction, tools, network
+access, or filesystem access. Extend `SubagentPreset` with typed
+`model_requirements`, optional `system_prompt`, `max_prompt_bytes`, and
+`max_output_bytes` fields. The child has no tools unless a later, separately
+approved slice gives it an explicit allowlist.
+
+Add an optional package-owned `AskLLMRunner` protocol with
+`ask_llm(*, preset, prompt)`. `create_subagent_registry(...)` accepts that
+injected runner and registers `ask_llm` only when it is supplied. The protocol
+must remain fakeable and must not create a provider client, use a global model,
+or invoke an external process itself.
+
+The handler validates the preset and bounded prompt before calling the runner.
+It normalizes the response through the existing `SubagentResult` shape, where
+`summary` is the bounded answer. Failure returns the existing structured status
+and error fields. The slice adds no trace stream; any existing log or trace
+payload must not expose raw provider requests, provider credentials, internal
+reasoning, or unbounded transcripts.
+
+This slice does not require parallel child execution, durable sessions, child
+event streaming, model-tool loops, MCP, workspace access, or the deferred
+generic subagent policy work. It must preserve disabled-by-default registry
+exposure and ordinary `llm_step` tool dispatch.
+
 ## Scope
 
 This feature covers:
@@ -137,18 +177,18 @@ This feature must not introduce:
 Persistent spawned agents, resumable child sessions, child lifecycle APIs, and
 parent/child thread topology are owned by `collaborative-agent-sessions`.
 
-## Proposed Tool Pack Shape
+## Current and Planned Tool Pack Shape
 
 The first built-in pack should be named `subagent` and remain disabled by
 default.
 
-Candidate v1 tool ids:
+Implemented and planned tool ids:
 
 - `run_subagent` - run one bounded specialist prompt and return one result.
 - `run_subagents` - run a bounded list of specialist prompts, optionally in
   parallel, and return an aggregate result.
-- `ask_llm` - optional smaller adapter for a one-shot model interaction when a
-  full workflow child is unnecessary.
+- `ask_llm` - the planned next smaller adapter for a one-shot model interaction
+  when a full workflow child is unnecessary; its contract is defined above.
 
 The minimal useful slice may implement only `run_subagents` if that keeps the
 parent-facing contract closer to the external evidence.
@@ -312,8 +352,9 @@ and metadata-only subagent declarations.
 - Keep child execution behind a package-owned protocol so direct workflow,
   one-shot LLM, and session-backed implementations can share the same pack
   contract.
-- Treat `ask_llm` as optional. Do not add it unless the implementation can keep
-  model requirements, prompt schema, output contract, and trace redaction small.
+- Implement `ask_llm` only as the bounded next-task contract above: caller-owned
+  preset selection, injected `AskLLMRunner`, `preset_id`/`prompt` schema, and
+  normalized `SubagentResult` output.
 - Do not expose recursive subagent spawning in v1.
 - Route durable child state and lifecycle APIs to
   `collaborative-agent-sessions`.
@@ -334,9 +375,13 @@ Completed v1 slices:
 
 Deferred slices:
 
-1. RED: policy-limit tests; GREEN: max parallel, timeout, iteration, output
+1. RED: `ask_llm` disabled/unavailable and schema tests; GREEN: conditional
+   registry registration, injected fake-runner invocation, preset/prompt bound
+   rejection, response/error normalization, and parent `llm_step`
+   registry-dispatch integration.
+2. RED: policy-limit tests; GREEN: max parallel, timeout, iteration, output
    limit, and recursion-disabled enforcement.
-2. RED: trace/capability tests; GREEN: parent/child correlation, redaction, and
+3. RED: trace/capability tests; GREEN: parent/child correlation, redaction, and
    capability/status states.
 
 ## Validation Checklist
