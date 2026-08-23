@@ -5,15 +5,16 @@
 - Feature slug: `sandbox-workspace-runtime`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: approval-policy boundary implemented through approval-interruption v1;
-  write/shell runtime remains deferred
+- Status: DAR approval-policy boundary implemented through approval-interruption
+  v1; all writable runtime surfaces in this specification remain deferred,
+  including the planned host-wrapper temporary-workspace profile
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `runtime.execution_policy.sandbox_runtime`
   - opt-in read-only `local_workspace` built-in tool pack
   - tool policy metadata: `tool_type`, `side_effect`, `approval_required`,
     `sandbox`
-  - approval interruption/resume future feature
+  - approval interruption (implemented); continuation/resume remains future work
 - Evaluated supporting reference:
   - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
     includes useful staged-mutation examples and unsafe path/code-execution
@@ -54,11 +55,11 @@ This feature covers:
 
 ## Council Roadmap Note
 
-The council review recommends pairing this feature with
+The council review recommends pairing a future DAR-native sandbox slice with
 `approval-interruption-resume` before broad MCP, loop, or interpreter execution.
-The first useful slice should not attempt a full sandbox platform. It should
-start with explicit path grants, one or two mutating workspace tools, approval
-interruption before side effects, and a redacted changed-path summary.
+It should not attempt a full sandbox platform: start with explicit path grants,
+one or two mutating workspace tools, approval interruption before side effects,
+and a redacted changed-path summary.
 
 ## V1 Paired Slice Boundary
 
@@ -66,6 +67,10 @@ The first paired implementation slice does not add write, patch, delete, shell,
 package-install, or mounted-workspace tools. It contributes the approval policy
 side of sandbox safety by proving that approval-required direct tool actions
 pause before any side effect.
+
+This is the DAR-core boundary. The separately shipped wrapper workspace profile
+defined below is a host-owned convenience surface; it must not be represented as
+an implemented DAR `sandbox_runtime` or weaken this core v1 boundary.
 
 This keeps the first slice small enough to validate without introducing a host
 sandbox backend. Later sandbox slices can add explicit workspace grants and
@@ -79,19 +84,19 @@ Implemented from this paired slice:
 - approval pause traces mark requested arguments as sensitive
 - capability status can report the live approval boundary
 
-Still deferred:
+Still deferred from DAR core:
 
 - write, patch, delete, shell, package-install, and mounted-workspace built-ins
 - explicit writable workspace grants and path authorization
 - sandbox adapters and resource enforcement
 - changed-path audit records for real workspace mutations
 
-## Coding-Agent Tool-Pack Boundary
+## Future DAR-Native Coding-Agent Tool-Pack Boundary
 
 The mathspp coding-agent reference reinforces a concrete product pressure: a
 coding agent is not useful for code changes until it can mutate source files and
-run verification commands. DAR should still avoid a new top-level feature spec
-for that pressure until the first vertical slice proves the standard tool shape.
+run verification commands. This is a future DAR-native capability, separate from
+the host-wrapper scratch profile below.
 
 The first coding-agent-oriented slice belongs in this spec and should be small:
 
@@ -116,20 +121,21 @@ should depend on `sandbox-workspace-runtime` and `approval-interruption-resume`;
 it should own tool-pack naming and model-facing contracts, not path grants,
 approval binding, backend isolation, or resource enforcement.
 
-## Out-of-the-Box Wrapper Write Slice
+## Planned Out-of-the-Box Wrapper Write Slice
 
-The DAR workflow wrapper needs a useful default workspace surface before the
-full sandbox runtime exists. This slice is host-owned: DAR invokes registered
-tools, while the wrapper owns the workspace root, path authorization, mutation
-semantics, and audit store. It does not make `sandbox_runtime` live inside DAR.
+The DAR workflow wrapper can provide a useful default workspace surface before
+the full sandbox runtime exists. This planned, host-owned slice is enabled only
+when the wrapper profile/catalog exposes its fixed tools: DAR invokes those
+registered tools, while the wrapper owns the workspace root, path authorization,
+mutation semantics, and audit store. It does not make `sandbox_runtime` live
+inside DAR or add a DAR default write capability.
 
 Each run may obtain a fresh tenant-scoped scratch root through
 `get_temporary_workspace()`. The tool returns an opaque virtual root URI such
 as `workspace://ws_opaque_id/`, allowed capabilities, and expiry metadata; it
 never returns an absolute host path, physical root, or host filesystem identity.
 The wrapper maps a virtual URI to its physical scratch root only while handling
-the tool call. A caller may grant a separate durable root only through explicit
-profile configuration. The initial surface is:
+the tool call. The initial surface is:
 
 - `get_temporary_workspace()`;
 - `read_file`, `list_files`, and `search_files`, each accepting a virtual path;
@@ -142,9 +148,15 @@ profile configuration. The initial surface is:
 Virtual paths use the canonical form
 `workspace://<opaque-workspace-id>/<relative-posix-path>`. Tool inputs must
 reject host-absolute paths, bare relative paths, alternative URI schemes,
-encoded traversal, empty workspace identifiers, `.` or `..` segments, and a
-workspace identifier not owned by the current tenant and run. Tool results and
-audit records expose virtual paths only.
+encoded characters, userinfo, ports, queries, fragments, backslashes, control
+characters, duplicate or empty path segments, empty workspace identifiers, `.`
+or `..` segments, and a workspace identifier not owned by the trusted current
+tenant and run. The parser accepts only lower-case `workspace`, a CSPRNG opaque
+identifier, and POSIX relative path segments. Tenant, run, and workspace
+identity come from the trusted wrapper invocation context, never model-provided
+arguments; IDs are unguessable and never derived from that identity. Path fields
+in tool results and audit records expose virtual paths only. `read_file` may
+return bounded file content to the model; traces and audit records do not.
 
 The initial surface does not expose physical workspace paths:
 
@@ -153,10 +165,25 @@ The initial surface does not expose physical workspace paths:
 - all physical path resolution occurs after tenant, run, expiry, and virtual URI
   validation at the wrapper's side-effect boundary.
 
+The workspace capability is bound to its issuing invocation; another run or
+tenant cannot use it. The wrapper serializes mutations per workspace and
+evaluates every expected-hash precondition while holding that mutation lock.
+Reads, listings, and searches are bounded by configured file bytes, entries,
+recursion depth, result bytes, match count, and snippet bytes; they enumerate no
+symlink and return no physical path. The planned wrapper first slice has no
+aggregate workspace-size quota; that remains the explicitly deferred follow-up
+listed below.
+
 The DAR wrapper's catalog-bound `auto` mode is an explicit trusted policy that
 may disable per-operation prompting only for this fixed surface and its approved
-path grants. `--ask` overrides it with the wrapper approval broker. Neither mode
-adds a broader workspace capability.
+path grants. Its binding includes the exact tool identifier and schema version,
+workspace root, operation limits, and—when a prebuilt operation supplies
+one—the virtual path and expected content hash. It cannot authorize an alias,
+delegated capability, MCP call, external export, or copying workspace contents
+to a durable or network destination. `--ask` overrides it with the wrapper
+approval broker, which displays the virtual path, operation, byte count, and
+pre/post hashes and rejects a stale operation. Neither mode adds a broader
+workspace capability.
 
 `write_file` creates or replaces one regular file only when its optimistic
 concurrency precondition holds. `replace_text` changes one known file only when
@@ -168,26 +195,41 @@ nor access the network. Separate capabilities must add those actions later.
 
 All wrapper write implementations must:
 
-- resolve every target against its granted root and reject traversal, symlinks,
-  devices, non-regular files, and paths whose parent is not an existing granted
-  directory;
+- use one descriptor-relative, no-follow filesystem primitive for every path
+  component (including reads, listings, searches, deletion, and cleanup): open
+  each parent relative to an already validated directory handle, reject
+  symlinks, devices, and non-regular final entries with handle metadata, and
+  create/rename/unlink through the validated parent handle. `Path.resolve()` or
+  a pre-check followed by ordinary path I/O does not satisfy this requirement;
+  a platform without these primitives must expose the write profile as
+  unavailable;
 - enforce maximum file bytes, write bytes, changed-path count, and UTF-8/text
   policy before mutation;
-- write a temporary file in the authorized target directory, flush it as the
-  backend supports, and atomically replace the target only within that same
-  filesystem; and
+- write a temporary file in the authorized target directory, flush the file and
+  directory where the backend supports it, and atomically replace the target
+  only within that same directory/filesystem; and
 - record path, pre/post content hashes, byte counts, operation ID, run ID, and
   status in the audit store without recording raw file content in traces or
   model-facing results.
 
-Temporary workspaces expire at run completion or their configured TTL. The
-wrapper removes the whole scratch root after expiry and marks its handle invalid;
-no later tool invocation may recreate or rebind its virtual workspace identity.
+Temporary workspaces expire at run completion or their configured TTL. On expiry
+or completion the wrapper first changes the state from `active` to `closing`,
+denies new calls and mutations, waits for in-flight calls to finish, then removes
+the root with the same descriptor-relative no-follow traversal and records
+`deleted`. If cleanup fails, it records a redacted failure, quarantines the
+handle and physical root from all access, and retries through wrapper lifecycle
+management. A workspace ID/root is never recreated, reused, or rebound; an
+expiry race fails before mutation.
 
 `changed_paths(workspace_uri)` returns a bounded list of changed virtual paths
-with hashes, byte counts, and operation status. It never returns raw file
-contents. A backend that cannot provide the stated atomic replacement semantics
-must report that capability as unavailable rather than claim an atomic write.
+with hashes, byte counts, and operation status, sorted deterministically with
+an explicit truncation/continuation signal. It never returns raw file contents.
+Audit records are append-only, ordered by a workspace-local sequence number,
+and contain a correlation/event ID. Before mutation, the wrapper must verify it
+can record the audit intent; if completion recording fails after a mutation, it
+returns an explicit indeterminate audit-failure result rather than success. A
+backend that cannot provide the stated atomic replacement semantics must report
+that capability as unavailable rather than claim an atomic write.
 
 ## Functional Requirements
 
@@ -198,14 +240,14 @@ caller or deployment configuration.
 
 Acceptance criteria:
 
-- Given no workspace manifest or runtime grant, write and shell tools are
-  unavailable even if a workflow references them.
+- Given no DAR runtime grant or wrapper profile/catalog exposure, write and shell
+  tools are unavailable even if a workflow references them.
 - Given a workspace root is granted read-only, write, patch, and delete actions
   fail closed.
 - Given a workspace root is granted writable access, write actions are still
   restricted to paths inside the granted root.
-- Given a path includes symlinks, traversal, case-variant aliases, or relative
-  components, validation resolves the effective path before authorization.
+- Given a path includes symlinks, traversal, or relative components, validation
+  rejects it before authorization.
 - Given a write target does not exist, authorization resolves and validates its
   nearest existing parent before creating any path component.
 - Path authorization is repeated at the side-effect boundary or enforced by the
@@ -214,6 +256,8 @@ Acceptance criteria:
 - The out-of-the-box wrapper write tools resolve and open targets without
   following symlinks, and create a target only below an already authorized,
   existing parent directory.
+- The wrapper binds a temporary workspace to trusted current tenant/run identity,
+  not tool arguments, and rejects cross-run and cross-tenant use.
 
 ### FR-2: Separate read, write, patch, delete, and shell capabilities
 
@@ -242,7 +286,9 @@ Mutating workspace actions must integrate with approval policy.
 Acceptance criteria:
 
 - Write, delete, patch, package-install, network, and shell actions default to
-  approval-required unless an explicit trusted policy disables approval.
+  approval-required unless an explicit trusted policy disables approval. The
+  wrapper `auto` policy is such an exception only for its exact catalog-bound
+  scratch operations.
 - Approval records include command text, normalized working directory, requested
   path changes, declared side effects, and redacted environment details.
 - Rejected approval prevents the action from running.
@@ -263,6 +309,8 @@ Acceptance criteria:
   number of changed files.
 - The out-of-the-box wrapper tools enforce text/encoding policy and expected
   content-hash or absence preconditions before replacing a file.
+- Read, list, and search operations enforce bounded traversal, entries, source
+  bytes, result bytes, match count, and snippet bytes before returning a result.
 - Tool results separate model-facing output, raw output, log preview, event
   payload, and sensitive trace fields.
 - Exceeding limits fails clearly and records a trace event.
@@ -297,6 +345,12 @@ Acceptance criteria:
   byte count, operation status, and correlation identifiers by default; raw file
   content and physical filesystem paths are excluded from traces, events, and
   model-facing results.
+- Audit records are append-only and ordered. Audit-intent persistence is checked
+  before mutation; an unavailable completion record returns an explicit
+  indeterminate audit result rather than a successful mutation result.
+- Workspace cleanup transitions through active, closing, deleted, or quarantined
+  state. A cleanup failure denies all access, preserves only a redacted internal
+  record, and retries without reusing the workspace identity or root.
 - Workspace persistence policy distinguishes ephemeral, in-memory, local-folder,
   and external-checkpoint workspaces when implemented.
 - The runtime can report a summary of changed paths at workflow completion.
@@ -326,7 +380,8 @@ Acceptance criteria:
 
 ## Non-Goals
 
-- No default write or shell capability.
+- No DAR default write or shell capability; the separately configured wrapper
+  scratch profile may expose only its fixed temporary-workspace tools.
 - No built-in container runtime requirement in v1.
 - No guarantee that every backend can enforce every resource limit.
 - No portable workflow fields for machine-specific absolute paths, credentials,
@@ -343,6 +398,11 @@ Acceptance criteria:
   redaction rules.
 - Treat canonical path containment as a backend-enforced invariant, not a
   lexical prefix check on untrusted input.
+- For a surface described as symlink-safe, require descriptor-relative,
+  no-follow traversal at every filesystem operation; pre-resolution with a path
+  library is not sufficient against a concurrent symlink swap.
+- Keep temporary-workspace expiry and cleanup under wrapper lifecycle control;
+  a model cannot renew, revive, or rebind an expired handle.
 
 ## Future Work
 
@@ -370,8 +430,9 @@ backend capability reporting.
   ergonomics after the first write/edit slice, or should the tool-pack contract
   remain embedded here?
 - What path-grant format should callers use?
-- What default approval policy applies to write, patch, delete, shell, network,
-  and package-install actions?
+- What default approval policy should a future DAR-native write, patch, delete,
+  shell, network, or package-install tool use? (The wrapper scratch profile uses
+  catalog-bound `auto` unless `--ask` is selected.)
 - Which command forms are allowed: argv-only, shell strings, allowlisted
   commands, or arbitrary commands with approval?
 - How should environment variables and secrets be passed or blocked?
@@ -385,10 +446,14 @@ backend capability reporting.
 
 - [ ] Write/shell tools are unavailable without explicit grants.
 - [ ] Path traversal and symlink escapes fail closed.
+- [ ] A parent-directory symlink swap between validation and mutation cannot
+      redirect read, write, delete, listing, search, or cleanup outside the
+      workspace.
 - [ ] Absolute paths, nonexistent-target parent traversal, and symlink-swap
       attempts cannot escape a granted root.
 - [ ] Read-only grants reject write, patch, and delete operations.
-- [ ] Mutating actions produce approval interruptions by default.
+- [ ] Mutating actions produce approval interruptions by default, except for an
+      explicitly trusted wrapper `auto` operation.
 - [ ] Resource limits are enforced or unsupported limits fail during preparation.
 - [ ] Trace events include redacted audit records for mutating actions.
 - [ ] Backend capability mismatch fails before execution.
@@ -401,9 +466,17 @@ backend capability reporting.
 - [ ] `get_temporary_workspace()` returns an opaque, tenant-scoped virtual root
       URI rather than an absolute host path; its expiry invalidates all
       subsequent access.
+- [ ] Malformed, encoded, guessed, replayed, cross-run, and cross-tenant
+      workspace URIs fail closed without exposing a physical path.
 - [ ] `delete_file` can remove only a hash-matched regular file inside the
       temporary workspace and cannot delete a directory or escape the grant.
 - [ ] Wrapper writes use same-filesystem temporary replacement and report an
       unavailable capability when atomic replacement cannot be guaranteed.
+- [ ] Competing mutations serialize, evaluate their hash preconditions inside
+      the lock, and cannot both report success for the same stale content.
+- [ ] Expiry races deny the mutation; cleanup invalidates first, never reuses an
+      ID/root, and quarantines access if no-follow cleanup fails.
+- [ ] Forced audit-intent or audit-completion failure cannot produce an
+      unqualified successful mutation result.
 - [ ] `changed_paths()` returns only bounded virtual paths, hashes, byte counts,
       and operation status; it never returns raw file content or a physical path.
