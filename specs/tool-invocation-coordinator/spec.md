@@ -70,8 +70,10 @@ The implementation slice MUST:
   implementations.
 - No approval decision/resume API, modified arguments, durable checkpoints, or
   parallel approvals.
-- No live tool-input or tool-output guardrail adapter execution. A later
-  guardrail slice must operate on validated arguments before approval; it must
+- No live tool-input or tool-output guardrail adapter execution is added by this
+  completed coordinator slice. The implementation-ready
+  [`live-guardrail-execution` V2](../live-guardrail-execution/spec.md) slice
+  owns tool-input adoption on validated arguments before approval and must
   explicitly preserve or revise the established non-approval failure behavior.
 - No changes to tool schemas, manifest syntax, retry policy vocabulary, model
   selection, or tool-result model-facing semantics.
