@@ -116,6 +116,79 @@ should depend on `sandbox-workspace-runtime` and `approval-interruption-resume`;
 it should own tool-pack naming and model-facing contracts, not path grants,
 approval binding, backend isolation, or resource enforcement.
 
+## Out-of-the-Box Wrapper Write Slice
+
+The DAR workflow wrapper needs a useful default workspace surface before the
+full sandbox runtime exists. This slice is host-owned: DAR invokes registered
+tools, while the wrapper owns the workspace root, path authorization, mutation
+semantics, and audit store. It does not make `sandbox_runtime` live inside DAR.
+
+Each run may obtain a fresh tenant-scoped scratch root through
+`get_temporary_workspace()`. The tool returns an opaque virtual root URI such
+as `workspace://ws_opaque_id/`, allowed capabilities, and expiry metadata; it
+never returns an absolute host path, physical root, or host filesystem identity.
+The wrapper maps a virtual URI to its physical scratch root only while handling
+the tool call. A caller may grant a separate durable root only through explicit
+profile configuration. The initial surface is:
+
+- `get_temporary_workspace()`;
+- `read_file`, `list_files`, and `search_files`, each accepting a virtual path;
+- `write_file(virtual_path, content, expected_absent_or_hash)`;
+- `replace_text(virtual_path, old_text, new_text, expected_occurrences,
+  expected_hash)`;
+- `delete_file(virtual_path, expected_hash)`, limited to one regular file; and
+- `changed_paths(workspace_uri)`.
+
+Virtual paths use the canonical form
+`workspace://<opaque-workspace-id>/<relative-posix-path>`. Tool inputs must
+reject host-absolute paths, bare relative paths, alternative URI schemes,
+encoded traversal, empty workspace identifiers, `.` or `..` segments, and a
+workspace identifier not owned by the current tenant and run. Tool results and
+audit records expose virtual paths only.
+
+The initial surface does not expose physical workspace paths:
+
+- neither model prompts nor tool schemas receive a host root;
+- a virtual path cannot be used as a host path outside the wrapper; and
+- all physical path resolution occurs after tenant, run, expiry, and virtual URI
+  validation at the wrapper's side-effect boundary.
+
+The DAR wrapper's catalog-bound `auto` mode is an explicit trusted policy that
+may disable per-operation prompting only for this fixed surface and its approved
+path grants. `--ask` overrides it with the wrapper approval broker. Neither mode
+adds a broader workspace capability.
+
+`write_file` creates or replaces one regular file only when its optimistic
+concurrency precondition holds. `replace_text` changes one known file only when
+the caller-provided occurrence and content-hash expectations match.
+`delete_file` removes one regular file only when its expected hash matches; it
+does not recursively delete directories. These tools neither create directory
+trees, follow symlinks, apply arbitrary patches, run commands, install packages,
+nor access the network. Separate capabilities must add those actions later.
+
+All wrapper write implementations must:
+
+- resolve every target against its granted root and reject traversal, symlinks,
+  devices, non-regular files, and paths whose parent is not an existing granted
+  directory;
+- enforce maximum file bytes, write bytes, changed-path count, and UTF-8/text
+  policy before mutation;
+- write a temporary file in the authorized target directory, flush it as the
+  backend supports, and atomically replace the target only within that same
+  filesystem; and
+- record path, pre/post content hashes, byte counts, operation ID, run ID, and
+  status in the audit store without recording raw file content in traces or
+  model-facing results.
+
+Temporary workspaces expire at run completion or their configured TTL. The
+wrapper removes the whole scratch root after expiry and marks its handle invalid;
+no later tool invocation may recreate or rebind its virtual workspace identity.
+
+`changed_paths(workspace_uri)` returns a bounded list of changed virtual paths
+with hashes, byte counts, and operation status. It never returns raw file
+contents. A backend that cannot provide the stated atomic replacement semantics
+must report that capability as unavailable rather than claim an atomic write.
+
 ## Functional Requirements
 
 ### FR-1: Require explicit workspace grants
@@ -138,6 +211,9 @@ Acceptance criteria:
 - Path authorization is repeated at the side-effect boundary or enforced by the
   sandbox backend so a symlink swap or other time-of-check/time-of-use change
   cannot redirect an approved operation outside the grant.
+- The out-of-the-box wrapper write tools resolve and open targets without
+  following symlinks, and create a target only below an already authorized,
+  existing parent directory.
 
 ### FR-2: Separate read, write, patch, delete, and shell capabilities
 
@@ -154,6 +230,10 @@ Acceptance criteria:
   grants.
 - Shell tools require explicit command capability and must not inherit file-write
   capability implicitly.
+- The out-of-the-box wrapper write slice exposes only `write_file`,
+  `replace_text`, `delete_file`, and `changed_paths` inside a temporary
+  workspace; it does not infer patch, command, package-install,
+  directory-creation, network, or shell permission.
 
 ### FR-3: Apply approval policy to mutating or risky actions
 
@@ -181,6 +261,8 @@ Acceptance criteria:
   optional CPU/memory constraints when the selected backend supports them.
 - File operations enforce max file size, max write size, max patch size, and max
   number of changed files.
+- The out-of-the-box wrapper tools enforce text/encoding policy and expected
+  content-hash or absence preconditions before replacing a file.
 - Tool results separate model-facing output, raw output, log preview, event
   payload, and sensitive trace fields.
 - Exceeding limits fails clearly and records a trace event.
@@ -211,6 +293,10 @@ Acceptance criteria:
 
 - Each mutating action records changed paths, action id, tool id, node id, run id,
   approval id when applicable, and before/after metadata when available.
+- Wrapper write audit records include only virtual path, pre/post content hash,
+  byte count, operation status, and correlation identifiers by default; raw file
+  content and physical filesystem paths are excluded from traces, events, and
+  model-facing results.
 - Workspace persistence policy distinguishes ephemeral, in-memory, local-folder,
   and external-checkpoint workspaces when implemented.
 - The runtime can report a summary of changed paths at workflow completion.
@@ -264,6 +350,8 @@ Lanham's `AI Agents in Action, Second Edition` reinforces several production
 safety concerns for future sandbox/workspace slices:
 
 - egress controls for network-capable tools and MCP servers
+- a per-workspace total-size quota, including quota reservation and deterministic
+  failure when writes would exceed the configured aggregate byte limit
 - prompt-injection and data-exfiltration defenses at tool and workspace
   boundaries
 - idempotency and replay declarations for mutating actions
@@ -307,3 +395,15 @@ backend capability reporting.
 - [ ] Staged validation and approval bind the exact operation later committed.
 - [ ] Pre-commit rollback leaves the durable workspace unchanged.
 - [ ] In-process `exec` cannot advertise sandboxed code-execution capability.
+- [ ] Wrapper `write_file` and `replace_text` reject traversal, symlink, device,
+      non-regular-file, missing-parent, size-limit, encoding, and stale-hash
+      inputs before mutation.
+- [ ] `get_temporary_workspace()` returns an opaque, tenant-scoped virtual root
+      URI rather than an absolute host path; its expiry invalidates all
+      subsequent access.
+- [ ] `delete_file` can remove only a hash-matched regular file inside the
+      temporary workspace and cannot delete a directory or escape the grant.
+- [ ] Wrapper writes use same-filesystem temporary replacement and report an
+      unavailable capability when atomic replacement cannot be guaranteed.
+- [ ] `changed_paths()` returns only bounded virtual paths, hashes, byte counts,
+      and operation status; it never returns raw file content or a physical path.
