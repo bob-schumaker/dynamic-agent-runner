@@ -295,8 +295,10 @@ SUPPORTED_CONTEXT_COMPACTION_STRATEGIES = {
     "basic",
     "rolling_summary",
     "provider",
+    "provider_remote",
     "off",
 }
+SUPPORTED_PROVIDER_CONTEXT_COMPACTION_FALLBACKS = {"basic", "error"}
 SUPPORTED_CONTEXT_COMPACTION_MODES = {"auto", "manual", "off"}
 SUPPORTED_CONTEXT_COMPACTION_MANUAL_MODES = {"disabled", "allowed", "required"}
 SUPPORTED_CONTEXT_COMPACTION_TRIGGERS = {
@@ -2878,6 +2880,45 @@ def _context_compaction_auto_errors(
         auto_label,
         errors,
     )
+    _provider_context_compaction_errors(auto, auto_label, errors)
+
+
+def _provider_context_compaction_errors(
+    auto: Mapping[str, Any],
+    auto_label: str,
+    errors: list[str],
+) -> None:
+    implementation = auto.get("implementation")
+    strategy = auto.get("strategy")
+    if implementation != "provider":
+        if strategy == "provider_remote":
+            errors.append(
+                f"{auto_label}.strategy 'provider_remote' requires implementation 'provider'"
+            )
+        return
+    if strategy != "provider_remote":
+        errors.append(
+            f"{auto_label}.implementation 'provider' requires strategy 'provider_remote'"
+        )
+    remote = auto.get("remote")
+    remote_label = f"{auto_label}.remote"
+    if not isinstance(remote, Mapping):
+        errors.append(f"{remote_label} must be a mapping for provider compaction")
+        return
+    provider_capability = remote.get("provider_capability")
+    if not isinstance(provider_capability, str) or not provider_capability.strip():
+        errors.append(f"{remote_label}.provider_capability must be a non-empty string")
+    _validate_optional_enum(
+        remote,
+        "fallback",
+        SUPPORTED_PROVIDER_CONTEXT_COMPACTION_FALLBACKS,
+        remote_label,
+        errors,
+    )
+    _validate_optional_positive_int(
+        remote, "max_replacement_messages", remote_label, errors
+    )
+    _validate_optional_bool(remote, "preserve_system_messages", remote_label, errors)
 
 
 def _context_compression_errors(

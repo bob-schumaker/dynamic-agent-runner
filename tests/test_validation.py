@@ -96,6 +96,34 @@ def test_valid_runtime_manifest_passes_validation() -> None:
     validate_mapping(valid_manifest_data())
 
 
+def test_provider_context_compaction_policy_requires_capability_and_valid_fallback() -> (
+    None
+):
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "prepare_model_input": {
+                "context_compaction": {
+                    "auto": {
+                        "enabled": True,
+                        "implementation": "provider",
+                        "strategy": "provider_remote",
+                        "remote": {"fallback": "model_summary"},
+                    }
+                }
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "provider_capability" in message
+    assert "fallback" in message
+
+
 def test_tool_descriptor_budget_policy_accepts_disabled_value() -> None:
     data = valid_manifest_data()
     data["runtime"] = {

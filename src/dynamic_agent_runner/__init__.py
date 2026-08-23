@@ -22,6 +22,11 @@ from dynamic_agent_runner.collaboration import (
     CollaborativeAgentSessionState,
 )
 from dynamic_agent_runner.context import RunContext, WorkflowExecutionContext
+from dynamic_agent_runner.context_compaction import (
+    ProviderContextCompactionRequest,
+    ProviderContextCompactionResult,
+    ProviderContextCompactor,
+)
 from dynamic_agent_runner.context_selection import (
     ContextSelection,
     ContextSelectionCandidate,
@@ -242,6 +247,9 @@ __all__ = [
     "ContextSelection",
     "ContextSelectionCandidate",
     "ContextSelector",
+    "ProviderContextCompactionRequest",
+    "ProviderContextCompactionResult",
+    "ProviderContextCompactor",
     "compile_agent_workflow",
     "DynamicAgentRunnerError",
     "GuardrailDecision",
