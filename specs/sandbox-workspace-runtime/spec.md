@@ -165,6 +165,29 @@ The initial surface does not expose physical workspace paths:
 - all physical path resolution occurs after tenant, run, expiry, and virtual URI
   validation at the wrapper's side-effect boundary.
 
+### Trusted File Ingress for Wrapper Operations
+
+Some wrapper operations need a caller-selected local input before a model runs,
+such as the HTML body for a prebuilt email-send operation. This is not a
+model-facing file-path tool and does not widen the virtual workspace contract.
+The trusted wrapper CLI or control plane may accept a physical source path only
+from its own caller, validate it against a configured input root with the same
+descriptor-relative no-follow primitive, then copy the opened regular file into
+a fresh private temporary workspace. It returns only the copied file's virtual
+URI, hash, and byte count to the operation planner; the source path never enters
+a model prompt, tool schema/result, trace, approval record, or audit record.
+
+Ingress applies the configured type, encoding, and byte limits before accepting
+the copy. It hashes the exact opened source descriptor and the committed private
+copy, rejects a mismatch, and binds the resulting virtual URI/hash to the
+operation. The subsequent handler reads only that private copy. A host cannot
+claim path-contained or symlink-safe body-file support if it reopens the source
+path after validation or lets the model supply the physical source path.
+
+The DAR authoring plugin's deterministic `send_email` operation depends on this
+ingress slice. Until its positive tests pass, that operation must be unavailable
+even when the profile's Fastmail send binding is otherwise configured.
+
 The workspace capability is bound to its issuing invocation; another run or
 tenant cannot use it. The wrapper serializes mutations per workspace and
 evaluates every expected-hash precondition while holding that mutation lock.
@@ -466,6 +489,9 @@ backend capability reporting.
 - [ ] `get_temporary_workspace()` returns an opaque, tenant-scoped virtual root
       URI rather than an absolute host path; its expiry invalidates all
       subsequent access.
+- [ ] Trusted file ingress rejects an out-of-root, symlinked, non-regular,
+      oversized, invalid-encoding, or parent-swap source and returns only a
+      hash-bound virtual URI for an accepted private copy.
 - [ ] Malformed, encoded, guessed, replayed, cross-run, and cross-tenant
       workspace URIs fail closed without exposing a physical path.
 - [ ] `delete_file` can remove only a hash-matched regular file inside the
