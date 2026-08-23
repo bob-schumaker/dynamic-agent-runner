@@ -9,11 +9,15 @@ Status: implementation-ready; no V2 runtime changes completed
       result-mismatch, unsupported behavior policy, malformed guarded input,
       and ordered multiple-declaration behavior.
 - [ ] T0.2 [tests] Assert abort emits redacted guardrail events and invokes no
-      approval, hook, retry, registry handler, state result, or node output.
+      approval, tool lifecycle hook, retry, registry handler, state result, or
+      node output; pre-existing node/workflow hooks remain unchanged.
   - Verify the handler subject contains only the copied, validated fields named
       in `spec.md`; no raw provider or interpreter object is exposed.
   - Verify a nested mutation attempted by a passing guardrail cannot alter the
       approval interruption or invoked handler arguments.
+  - Assert missing-adapter, handler-error, malformed-result, and id/phase
+      mismatch traces emit started → errored → `workflow_error`, with no raw
+      subject, arguments, or details.
 
 Start this slice by writing and running the focused RED tests. Do not begin
 implementation until those failures distinguish the absent V2 boundary from the

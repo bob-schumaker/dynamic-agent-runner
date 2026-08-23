@@ -96,7 +96,7 @@ V1 defers:
 
 The next slice adopts the implemented DAR-owned tool-invocation coordinator for
 caller-registered tool-input guardrails. It runs a pass-or-abort decision after
-registered-tool input validation and before approval, lifecycle hooks, retry,
+registered-tool input validation and before approval, tool lifecycle hooks, retry,
 or handler invocation. It applies only to existing direct `tool_use_step` and
 model-tool-loop origins.
 
@@ -128,10 +128,20 @@ mismatch, handler exception, or malformed result fails closed with
 at the first abort or error. A guarded request is prepared and input-validated
 before its first guardrail, whether or not approval is required. Invalid guarded
 requests fail with the existing registry validation error before a guardrail,
-approval, lifecycle hook, retry, or handler; a model-loop call retains its
+approval, tool lifecycle hook, retry, or handler; a model-loop call retains its
 existing pre-validation call observation. A guardrail must not be able to mutate
 the prepared invocation through nested subject values. Unguarded requests retain
 the current validation timing.
+
+For each selected declaration, V2 emits `guardrail_started`, then exactly one
+of `guardrail_passed`, `guardrail_aborted`, or `guardrail_errored`. Missing
+adapters, handler exceptions, malformed results, and id/phase mismatches use
+`guardrail_errored` before the terminal `workflow_error`. Its payload contains
+the declaration id, `tool_input` phase, node id, tool id, optional tool-call id,
+and a reason category; it excludes the subject, arguments, and details. An
+abort or error runs before `before_tool`/`after_tool`, retry, state-result
+writes, node output, or handler invocation. Existing node and workflow
+lifecycle observations remain outside this tool-input boundary.
 
 ## V2 Delivery Handoff
 

@@ -14,8 +14,9 @@ For direct steps and model-loop calls:
 3. run declared `tool_input` guardrails in manifest order on a copied subject
    mapping containing phase, tool id, node id, optional call id, and recursively
    copied validated arguments;
-4. on abort, emit redacted guardrail observations and raise
-   `GuardrailExecutionError` without approval, hooks, retry, or handler use;
+4. emit `guardrail_started`, then exactly one redacted pass, abort, or error
+   observation; on abort or error, raise `GuardrailExecutionError` without
+   approval, tool lifecycle hooks, retry, state-result writes, or handler use;
 5. on pass, continue existing approval, lifecycle, retry, registry, trace, and
    result behavior unchanged.
 
@@ -26,7 +27,9 @@ For direct steps and model-loop calls:
 - The executor selects declarations and supplies one private guardrail-runner
   callback to the coordinator. The callback receives declarations and the
   copied subject; it owns adapter lookup, result id/phase validation, redacted
-  observations, and `GuardrailExecutionError` normalization.
+  observations, and `GuardrailExecutionError` normalization. Error observations
+  carry declaration id, phase, node/tool ids, optional call id, and reason
+  category only; a terminal `workflow_error` follows.
 - Only `pass` and `abort` are live for tool input.
 - Every V2 `tool_input` declaration is required and must have a nonblank id;
   empty and whitespace-only ids fail runtime-manifest validation during
@@ -50,8 +53,13 @@ For direct steps and model-loop calls:
   missing-adapter, missing/whitespace-id, unsupported behavior policy,
   result-mismatch, malformed guarded input, and ordered multi-declaration
   behavior.
-- Assert no approval, hook, retry, registry invocation, or handler side effect
-  follows an abort.
+- Assert no approval, tool lifecycle hook, retry, registry invocation, or
+  handler side effect
+  follows an abort or error; node/workflow hooks that precede tool dispatch are
+  preserved, while `before_tool`/`after_tool` do not run.
+- Assert direct and model-loop missing-adapter, handler-error, malformed-result,
+  and id/phase-mismatch paths emit `guardrail_started`, `guardrail_errored`, and
+  redacted terminal `workflow_error` in order.
 - Assert nested mutation of the guardrail subject cannot alter an approval
   interruption or handler arguments.
 
