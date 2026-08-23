@@ -3,12 +3,25 @@
 
 ## Current Focus
 
+- `live-guardrail-execution` V2 is implementation-ready, not implemented. Its
+  next delivery target is caller-registered, pass-or-abort `tool_input`
+  guardrails for direct `tool_use_step` and model-tool-loop origins. The
+  contract is prepare/validate → guardrails → approval → hooks/retry/dispatch;
+  every V2 declaration is required and nonblank, subjects are recursively
+  copied, and missing/malformed/mismatched guardrail outcomes fail closed.
+  Commits `0d2d6c1` and `199912f` prepare and harden the delivery handoff.
+- The V2 slice depends on the implemented internal coordinator (`bda6333`),
+  which already unifies direct and model-loop dispatch. V2 must use a private
+  executor-supplied guardrail runner after guarded-path validation; no V2
+  runtime code or GREEN evidence exists yet. Readiness validation was Markdown
+  pre-commit plus the focused baseline (`163 passed`).
 - The shared DAR tool-invocation coordinator is implemented in `bda6333`.
   Direct `tool_use_step` and model-tool-loop calls now share approval,
   lifecycle, tracing, and registry-dispatch behavior. Approval-required input
   validation happens before an interruption; registry preparation binds the
-  validated arguments to a resolved tool. Provider, interpreter, guardrail, and
-  sandbox ingress remain separately scoped follow-up adopters.
+  validated arguments to a resolved tool. Provider, interpreter, and sandbox
+  ingress remain separately scoped follow-up adopters; tool-input guardrails
+  are now the implementation-ready V2 adopter described above.
 - LiteLLM is now an upstream `^1.97.0` runtime dependency. The temporary
   `dynamic_agent_runner.litellm` shim and vendored-wheel packaging flow are
   retired; direct sync/async Chat Completions transport remains the implemented

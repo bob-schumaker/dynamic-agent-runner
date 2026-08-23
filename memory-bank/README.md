@@ -31,5 +31,7 @@ The memory bank is background project memory. It is not a replacement for:
 - Treat `memory-bank/notes/historical-user-prompts.txt` as a durable
   prompt-history note. Append only substantive user prompts that are not already
   represented elsewhere in the note.
+- `memory-bank/` is the project-local memory location. Use Obsidian memory only
+  when the user explicitly requests an Obsidian-vault workflow.
 - Keep prompt-history entries verbatim enough to preserve diagnostic context,
   especially error snippets that drove feature work.

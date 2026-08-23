@@ -3,6 +3,13 @@
 
 ## Working
 
+- `live-guardrail-execution` V2 is implementation-ready through commits
+  `0d2d6c1` and `199912f`; no V2 runtime change is implemented. It adopts the
+  completed tool-invocation coordinator for direct and model-loop tool-input
+  guardrails. The required TDD evidence covers pass, abort, missing-id/adapter,
+  mismatched result, malformed guarded input, ordered declarations, and nested
+  subject-mutation isolation. Readiness validation passed Markdown pre-commit,
+  `git diff --check`, and the `163`-test focused baseline.
 - Shared DAR tool-invocation coordination is implemented in `bda6333`:
   direct-step and model-loop dispatch share approval, lifecycle hooks, tracing,
   result recording, and registry invocation. Registry preparation validates
