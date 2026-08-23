@@ -5,8 +5,9 @@ Status: implementation-ready; no V2 runtime changes completed
 ## Slice 0 — Tests and Contract
 
 - [ ] T0.1 [tests] Add RED direct and model-loop tests for declared tool-input
-      guardrail pass, abort, missing-adapter, missing-id, result-mismatch,
-      malformed guarded input, and ordered multiple-declaration behavior.
+      guardrail pass, abort, missing-adapter, missing/empty/whitespace id,
+      result-mismatch, unsupported behavior policy, malformed guarded input,
+      and ordered multiple-declaration behavior.
 - [ ] T0.2 [tests] Assert abort emits redacted guardrail events and invokes no
       approval, hook, retry, registry handler, state result, or node output.
   - Verify the handler subject contains only the copied, validated fields named
@@ -23,14 +24,18 @@ implemented V1 input-guardrail baseline.
 - [ ] T1.1 [implementation] Thread caller-supplied guardrail registry through
       one private executor-owned callback into the internal coordinator without
       widening package-root APIs.
-- [ ] T1.2 [implementation] Execute only validated tool-input pass/abort
+- [ ] T1.2 [implementation] Extend runtime-manifest validation so every V2
+      `tool_input` declaration has a nonblank id and an omitted (defaulting to
+      `abort`) or `abort` `behavior_on_tripwire` value.
+- [ ] T1.3 [implementation] Execute only validated tool-input pass/abort
       decisions before approval for guarded approval and non-approval calls;
-      fail closed on missing-id, missing/mismatched/error results; and preserve
-      unguarded and pass-path behavior.
+      fail closed on missing-id, unsupported behavior policy,
+      missing/mismatched/error results; and preserve unguarded and pass-path
+      behavior.
 
 ## Slice 2 — Completion Evidence
 
-- [ ] T2.1 [validation] Run focused guardrail, executor, tracing, capability,
-      import, full-suite, lint, package-build, and docs-build gates.
+- [ ] T2.1 [validation] Run focused guardrail, executor, tracing, validation,
+      capability, import, full-suite, lint, package-build, and docs-build gates.
 - [ ] T2.2 [docs] Record observed V2 behavior and leave deferred phases
       explicitly deferred.

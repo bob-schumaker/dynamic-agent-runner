@@ -28,8 +28,12 @@ For direct steps and model-loop calls:
   copied subject; it owns adapter lookup, result id/phase validation, redacted
   observations, and `GuardrailExecutionError` normalization.
 - Only `pass` and `abort` are live for tool input.
-- Every V2 `tool_input` declaration is required and must have a nonblank id.
-  Optional/degraded tool-input policy is deferred.
+- Every V2 `tool_input` declaration is required and must have a nonblank id;
+  empty and whitespace-only ids fail runtime-manifest validation during
+  preparation. Optional/degraded tool-input policy is deferred.
+- `behavior_on_tripwire` is omitted (which means `abort`) or `abort`; other
+  values fail runtime-manifest validation during preparation rather than being
+  interpreted as an unsupported decision.
 - A result must match its declaration id and `tool_input` phase. Missing
   adapters, handler errors, malformed results, and mismatches fail closed.
 - Multiple declarations stop at the first abort or error; unguarded requests
@@ -43,8 +47,9 @@ For direct steps and model-loop calls:
 ### WP1 — Characterize and test the boundary
 
 - Add RED executor/tracing tests for direct and model tool-input pass, abort,
-  missing-adapter, result-mismatch, malformed guarded input, and ordered
-  multi-declaration behavior.
+  missing-adapter, missing/whitespace-id, unsupported behavior policy,
+  result-mismatch, malformed guarded input, and ordered multi-declaration
+  behavior.
 - Assert no approval, hook, retry, registry invocation, or handler side effect
   follows an abort.
 - Assert nested mutation of the guardrail subject cannot alter an approval
@@ -68,11 +73,12 @@ For direct steps and model-loop calls:
 
 - Delivery target: `src/dynamic_agent_runner/`, `tests/`, and this spec package.
 - Primary implementation surfaces: `executor.py`, `guardrails.py`,
-  `tests/test_executor.py`, and `tests/test_tracing.py`; capability reporting is
-  conditional on exposing V2 coverage.
+  `validation.py`, `tests/test_executor.py`, `tests/test_tracing.py`, and
+  `tests/test_validation.py`; capability reporting is conditional on exposing
+  V2 coverage.
 - Implementation route: TDD in the work-package order above.
-- Acceptance: abort and missing-adapter behavior fail closed before approval or
-  handler invocation; pass behavior remains compatible for direct and model
-  origins.
+- Acceptance: abort, missing-adapter, and invalid policy behavior fail closed
+  before approval or handler invocation; pass behavior remains compatible for
+  direct and model origins.
 - Status: implementation-ready; this plan is ready to execute under its stated
   gates.

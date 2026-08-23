@@ -12,9 +12,10 @@ Status: implementation-ready; no V2 validation has run
   and node output.
 - Redacted trace assertions for tool-input phase observations.
 - Ordered multi-declaration, result-id/phase mismatch, and handler-error tests.
-- Missing-id and malformed guarded-input tests proving no guardrail, approval,
-  lifecycle hook, retry, or handler runs; model-loop calls retain their existing
-  pre-validation call observation.
+- Missing, empty, and whitespace-only ids; unsupported behavior-policy; and
+  malformed guarded-input tests proving manifest validation or invocation fails
+  before any guardrail, approval, lifecycle hook, retry, or handler runs;
+  model-loop calls retain their existing pre-validation call observation.
 - Subject assertions proving handlers receive only copied validated tool-input
   fields, never a raw handler, registry, provider callback, or interpreter;
   nested mutation cannot alter approval or handler arguments.
@@ -23,7 +24,8 @@ Status: implementation-ready; no V2 validation has run
 
 ```bash
 poetry run pytest tests/test_guardrails.py tests/test_executor.py \
-  tests/test_tracing.py tests/test_capabilities.py tests/test_import.py -q
+  tests/test_tracing.py tests/test_validation.py tests/test_capabilities.py \
+  tests/test_import.py -q
 poetry run ruff check src tests
 poetry run pytest -q
 poetry build
