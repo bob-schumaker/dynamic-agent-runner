@@ -73,7 +73,7 @@ from dynamic_agent_runner.registry import (
     RegisteredTool,
     ToolResult,
 )
-from dynamic_agent_runner.tracing import WorkflowTracer
+from dynamic_agent_runner.tracing import InMemoryTraceSink, WorkflowTracer
 
 
 class FakeResponses:
@@ -4581,6 +4581,7 @@ def loop_tool_workflow(
     max_steps: int | None = None,
     execution_policy_extra: dict[str, object] | None = None,
     node_extra: dict[str, object] | None = None,
+    guardrails: list[dict[str, object]] | None = None,
 ) -> LoadedAgentWorkflow:
     execution_policy: dict[str, object] = {
         "model": "gpt-test",
@@ -4603,19 +4604,20 @@ def loop_tool_workflow(
         ),
     }
     llm_node.update(node_extra or {})
-    return workflow_from(
-        {
-            "format_version": 1,
-            "package_type": "dynamic_agent_design",
-            "package_id": "loop-tool-agent",
-            "entrypoint": "analyze",
-            "packaging": {"mode": "hybrid_bundle"},
-            "runtime": {"execution_policy": execution_policy},
-            "nodes": [llm_node],
-            "edges": [],
-            "tools": tool_entries,
-        }
-    )
+    manifest: dict[str, object] = {
+        "format_version": 1,
+        "package_type": "dynamic_agent_design",
+        "package_id": "loop-tool-agent",
+        "entrypoint": "analyze",
+        "packaging": {"mode": "hybrid_bundle"},
+        "runtime": {"execution_policy": execution_policy},
+        "nodes": [llm_node],
+        "edges": [],
+        "tools": tool_entries,
+    }
+    if guardrails is not None:
+        manifest["extensions"] = {"guardrails": {"declarations": guardrails}}
+    return workflow_from(manifest)
 
 
 def test_execute_workflow_uses_model_facing_tool_output_in_context_and_trace() -> None:
@@ -6479,6 +6481,397 @@ def test_execute_workflow_aborts_on_input_guardrail_tripwire() -> None:
         )
 
     assert adapter.client.responses.calls == []
+
+
+def tool_input_guardrail_workflow(
+    *,
+    approval_required: bool = False,
+    declarations: list[dict[str, object]] | None = None,
+) -> LoadedAgentWorkflow:
+    tool: dict[str, object] = {"id": "search_repo"}
+    if approval_required:
+        tool["approval_required"] = "yes"
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-input-guardrail-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "extensions": {
+                "guardrails": {
+                    "declarations": declarations
+                    or [{"id": "safe_tool_args", "phase": "tool_input"}]
+                }
+            },
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": {"terms": ["agents"]}},
+                }
+            ],
+            "edges": [],
+            "tools": [tool],
+        }
+    )
+
+
+def test_execute_workflow_runs_tool_input_guardrail_after_validation() -> None:
+    observed_subjects: list[object] = []
+    observed_handler_arguments: list[object] = []
+
+    def guardrail(subject: object) -> GuardrailResult:
+        observed_subjects.append(deepcopy(subject))
+        assert isinstance(subject, dict)
+        subject["arguments"]["query"]["terms"].append("mutated")
+        return GuardrailResult(guardrail_id="safe_tool_args", phase="tool_input")
+
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "search_repo"}),
+                lambda arguments: (
+                    observed_handler_arguments.append(arguments) or {"ok": True}
+                ),
+            )
+        ]
+    )
+
+    result = execute_workflow(
+        tool_input_guardrail_workflow(),
+        prompt="Run",
+        tool_registry=registry,
+        guardrail_registry=InMemoryGuardrailRegistry({"safe_tool_args": guardrail}),
+    )
+
+    assert observed_subjects == [
+        {
+            "phase": "tool_input",
+            "tool_id": "search_repo",
+            "node_id": "lookup",
+            "arguments": {"query": {"terms": ["agents"]}},
+        }
+    ]
+    assert observed_handler_arguments == [{"query": {"terms": ["agents"]}}]
+    assert result.final_result == {"ok": True}
+    assert [event.event_type for event in result.state.trace_events] == [
+        "workflow_started",
+        "node_started",
+        "guardrail_started",
+        "guardrail_passed",
+        "tool_started",
+        "tool_invocation",
+        "retry_recorded",
+        "tool_result",
+        "tool_finished",
+        "node_completed",
+        "workflow_completed",
+    ]
+
+
+def test_execute_workflow_aborts_tool_input_guardrail_before_approval_or_tool_hooks() -> (
+    None
+):
+    calls: list[object] = []
+    hooks: list[str] = []
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {"id": "search_repo", "approval_required": "yes"}
+                ),
+                lambda arguments: calls.append(arguments) or {"ok": True},
+            )
+        ]
+    )
+    guardrails = InMemoryGuardrailRegistry(
+        {
+            "safe_tool_args": lambda _subject: GuardrailResult(
+                guardrail_id="safe_tool_args",
+                phase="tool_input",
+                decision=GuardrailDecision.ABORT,
+                reason_code="unsafe_arguments",
+            )
+        }
+    )
+
+    with pytest.raises(GuardrailExecutionError, match="unsafe_arguments"):
+        execute_workflow(
+            tool_input_guardrail_workflow(approval_required=True),
+            prompt="Run",
+            tool_registry=registry,
+            guardrail_registry=guardrails,
+            lifecycle_hooks=WorkflowLifecycleHooks(
+                before_tool=lambda _context: hooks.append("before_tool"),
+                after_tool=lambda _context: hooks.append("after_tool"),
+            ),
+        )
+
+    assert calls == []
+    assert hooks == []
+
+
+def test_execute_workflow_fails_closed_for_missing_tool_input_guardrail_adapter() -> (
+    None
+):
+    calls: list[object] = []
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "search_repo"}),
+                lambda arguments: calls.append(arguments) or {"ok": True},
+            )
+        ]
+    )
+
+    with pytest.raises(GuardrailExecutionError, match="missing_adapter"):
+        execute_workflow(
+            tool_input_guardrail_workflow(),
+            prompt="Run",
+            tool_registry=registry,
+        )
+
+    assert calls == []
+
+
+def test_execute_workflow_runs_tool_input_guardrails_in_manifest_order() -> None:
+    observed: list[str] = []
+    calls: list[object] = []
+    guardrails = InMemoryGuardrailRegistry(
+        {
+            "first": lambda _subject: (
+                observed.append("first")
+                or GuardrailResult(guardrail_id="first", phase="tool_input")
+            ),
+            "second": lambda _subject: (
+                observed.append("second")
+                or GuardrailResult(
+                    guardrail_id="second",
+                    phase="tool_input",
+                    decision=GuardrailDecision.ABORT,
+                    reason_code="second_blocks",
+                )
+            ),
+        }
+    )
+
+    with pytest.raises(GuardrailExecutionError, match="second_blocks"):
+        execute_workflow(
+            tool_input_guardrail_workflow(
+                declarations=[
+                    {"id": "first", "phase": "tool_input"},
+                    {"id": "second", "phase": "tool_input"},
+                ]
+            ),
+            prompt="Run",
+            tool_registry=InMemoryToolRegistry(
+                [
+                    RegisteredTool(
+                        ToolDefinition.from_mapping({"id": "search_repo"}),
+                        lambda arguments: calls.append(arguments) or {"ok": True},
+                    )
+                ]
+            ),
+            guardrail_registry=guardrails,
+        )
+
+    assert observed == ["first", "second"]
+    assert calls == []
+
+
+def test_execute_workflow_fails_closed_for_invalid_tool_input_guardrail_result() -> (
+    None
+):
+    secret = "do-not-trace-this"
+    registry = InMemoryToolRegistry([make_tool("search_repo", output={"ok": True})])
+    guardrails = InMemoryGuardrailRegistry(
+        {"safe_tool_args": lambda _subject: object()}  # type: ignore[dict-item]
+    )
+    sink = InMemoryTraceSink()
+
+    with pytest.raises(GuardrailExecutionError, match="malformed_result"):
+        execute_workflow(
+            tool_input_guardrail_workflow(),
+            prompt=secret,
+            tool_registry=registry,
+            guardrail_registry=guardrails,
+            trace_sink=sink,
+        )
+
+    error_event = next(
+        event for event in sink.events if event.event_type == "guardrail_errored"
+    )
+    assert error_event.payload == {
+        "guardrail_id": "safe_tool_args",
+        "phase": "tool_input",
+        "tool_id": "search_repo",
+        "node_id": "lookup",
+        "reason": "malformed_result",
+    }
+    assert secret not in repr(error_event.payload)
+
+
+def test_execute_workflow_aborts_guarded_model_tool_call_before_dispatch() -> None:
+    observed_subjects: list[object] = []
+    tool_calls: list[object] = []
+    workflow = loop_tool_workflow(
+        guardrails=[{"id": "safe_tool_args", "phase": "tool_input"}]
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            }
+        ]
+    )
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "search_repo"}),
+                lambda arguments: tool_calls.append(arguments) or {"ok": True},
+            )
+        ]
+    )
+    guardrails = InMemoryGuardrailRegistry(
+        {
+            "safe_tool_args": lambda subject: (
+                observed_subjects.append(subject)
+                or GuardrailResult(
+                    guardrail_id="safe_tool_args",
+                    phase="tool_input",
+                    decision=GuardrailDecision.ABORT,
+                    reason_code="unsafe_arguments",
+                )
+            )
+        }
+    )
+
+    with pytest.raises(GuardrailExecutionError, match="unsafe_arguments"):
+        execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=registry,
+            model_adapter=adapter,
+            guardrail_registry=guardrails,
+        )
+
+    assert observed_subjects == [
+        {
+            "phase": "tool_input",
+            "tool_id": "search_repo",
+            "node_id": "analyze",
+            "tool_call_id": "call_1",
+            "arguments": {"query": "agents"},
+        }
+    ]
+    assert tool_calls == []
+    assert len(adapter.client.responses.calls) == 1
+
+
+def test_execute_workflow_runs_passing_guardrail_for_model_tool_call() -> None:
+    subjects: list[object] = []
+    workflow = loop_tool_workflow(
+        guardrails=[{"id": "safe_tool_args", "phase": "tool_input"}]
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=InMemoryToolRegistry(
+            [make_tool("search_repo", output={"answer": "42"})]
+        ),
+        model_adapter=adapter,
+        guardrail_registry=InMemoryGuardrailRegistry(
+            {
+                "safe_tool_args": lambda subject: (
+                    subjects.append(subject)
+                    or GuardrailResult(
+                        guardrail_id="safe_tool_args", phase="tool_input"
+                    )
+                )
+            }
+        ),
+    )
+
+    assert result.final_result == "final answer"
+    assert subjects[0]["tool_call_id"] == "call_1"
+    assert result.state.tool_results["analyze.call_1"].success
+
+
+@pytest.mark.parametrize(
+    ("handler", "reason"),
+    [
+        (
+            lambda _subject: GuardrailResult(
+                guardrail_id="wrong_id", phase="tool_input"
+            ),
+            "result_identity_mismatch",
+        ),
+        (
+            lambda _subject: GuardrailResult(
+                guardrail_id="safe_tool_args", phase="input"
+            ),
+            "result_phase_mismatch",
+        ),
+        (
+            lambda _subject: (_ for _ in ()).throw(RuntimeError("adapter failed")),
+            "handler_error",
+        ),
+    ],
+)
+def test_execute_workflow_fails_closed_for_tool_input_guardrail_errors(
+    handler: object,
+    reason: str,
+) -> None:
+    sink = InMemoryTraceSink()
+    with pytest.raises(GuardrailExecutionError, match=reason):
+        execute_workflow(
+            tool_input_guardrail_workflow(),
+            prompt="Run",
+            tool_registry=InMemoryToolRegistry([make_tool("search_repo")]),
+            guardrail_registry=InMemoryGuardrailRegistry(
+                {"safe_tool_args": handler}  # type: ignore[dict-item]
+            ),
+            trace_sink=sink,
+        )
+
+    guardrail_events = [
+        event
+        for event in sink.events
+        if event.event_type
+        in {"guardrail_started", "guardrail_errored", "workflow_error"}
+    ]
+    assert [event.event_type for event in guardrail_events] == [
+        "guardrail_started",
+        "guardrail_errored",
+        "workflow_error",
+    ]
+    assert guardrail_events[1].payload["reason"] == reason
 
 
 def test_run_agent_workflow_returns_final_result() -> None:

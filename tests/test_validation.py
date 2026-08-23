@@ -705,8 +705,6 @@ def test_guardrail_metadata_is_preserved_and_validated() -> None:
                 {
                     "id": "safe_tool_args",
                     "phase": "tool_input",
-                    "behavior_on_tripwire": "reject_content",
-                    "reject_content_message": "Tool arguments were rejected.",
                 },
             ]
         }
@@ -722,8 +720,8 @@ def test_guardrail_metadata_is_preserved_and_validated() -> None:
         "input",
         "tool_input",
     ]
-    assert manifest.guardrails[1].behavior_on_tripwire == "reject_content"
-    assert manifest.guardrails[1].message == "Tool arguments were rejected."
+    assert manifest.guardrails[1].behavior_on_tripwire is None
+    assert manifest.guardrails[1].message is None
 
     validate_runtime_manifest(manifest)
 
@@ -770,6 +768,34 @@ def test_guardrail_reject_content_requires_message() -> None:
 
     with pytest.raises(WorkflowValidationError, match="must define message"):
         validate_mapping(data)
+
+
+@pytest.mark.parametrize("guardrail_id", [None, "", "   "])
+def test_tool_input_guardrails_require_nonblank_ids_and_abort_behavior(
+    guardrail_id: str | None,
+) -> None:
+    """Live tool-input guardrails only support fail-closed abort behavior."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "guardrails": {
+            "declarations": [
+                {
+                    "id": guardrail_id,
+                    "phase": "tool_input",
+                    "behavior_on_tripwire": "reject_content",
+                    "reject_content_message": "Do not run this tool.",
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "nonblank id" in message
+    assert "abort behavior" in message
 
 
 def test_mcp_extension_metadata_is_preserved_and_validated() -> None:

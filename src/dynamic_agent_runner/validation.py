@@ -993,28 +993,54 @@ def _guardrail_declaration_errors(manifest: RuntimeManifest) -> list[str]:
         errors.append("guardrails declarations must be a list")
         return errors
     for index, declaration in enumerate(manifest.guardrails):
-        if not declaration.id:
-            errors.append(f"guardrail declaration at position {index} is missing id")
-        if declaration.phase not in SUPPORTED_GUARDRAIL_PHASES:
-            errors.append(
-                f"guardrail declaration {declaration.id!r} has unsupported phase "
-                f"{declaration.phase!r}"
-            )
-        if declaration.behavior_on_tripwire not in SUPPORTED_GUARDRAIL_BEHAVIORS:
-            errors.append(
-                f"guardrail declaration {declaration.id!r} has unsupported "
-                "behavior_on_tripwire "
-                f"{declaration.behavior_on_tripwire!r}"
-            )
-        if (
-            declaration.behavior_on_tripwire == "reject_content"
-            and declaration.message is None
-        ):
-            errors.append(
-                f"guardrail declaration {declaration.id!r} with reject_content "
-                "must define message or reject_content_message"
-            )
+        errors.extend(_guardrail_declaration_entry_errors(index, declaration))
     return errors
+
+
+def _guardrail_declaration_entry_errors(index: int, declaration: Any) -> list[str]:
+    errors: list[str] = []
+    if not declaration.id:
+        errors.append(f"guardrail declaration at position {index} is missing id")
+    if declaration.phase == "tool_input":
+        _append_tool_input_guardrail_errors(errors, index, declaration)
+    else:
+        _append_deferred_guardrail_errors(errors, declaration)
+    if declaration.phase not in SUPPORTED_GUARDRAIL_PHASES:
+        errors.append(
+            f"guardrail declaration {declaration.id!r} has unsupported phase "
+            f"{declaration.phase!r}"
+        )
+    return errors
+
+
+def _append_tool_input_guardrail_errors(
+    errors: list[str], index: int, declaration: Any
+) -> None:
+    if not str(declaration.id or "").strip():
+        errors.append(
+            f"tool_input guardrail declaration at position {index} requires a nonblank id"
+        )
+    if declaration.behavior_on_tripwire not in {None, "abort"}:
+        errors.append(
+            f"tool_input guardrail declaration {declaration.id!r} only supports abort behavior"
+        )
+
+
+def _append_deferred_guardrail_errors(errors: list[str], declaration: Any) -> None:
+    if declaration.behavior_on_tripwire not in SUPPORTED_GUARDRAIL_BEHAVIORS:
+        errors.append(
+            f"guardrail declaration {declaration.id!r} has unsupported "
+            "behavior_on_tripwire "
+            f"{declaration.behavior_on_tripwire!r}"
+        )
+    if (
+        declaration.behavior_on_tripwire == "reject_content"
+        and declaration.message is None
+    ):
+        errors.append(
+            f"guardrail declaration {declaration.id!r} with reject_content "
+            "must define message or reject_content_message"
+        )
 
 
 def _mcp_registry_source_errors(manifest: RuntimeManifest) -> list[str]:

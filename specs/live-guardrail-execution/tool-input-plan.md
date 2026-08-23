@@ -88,5 +88,5 @@ For direct steps and model-loop calls:
 - Acceptance: abort, missing-adapter, and invalid policy behavior fail closed
   before approval or handler invocation; pass behavior remains compatible for
   direct and model origins.
-- Status: implementation-ready; this plan is ready to execute under its stated
-  gates.
+- Status: implemented; observed command evidence is recorded in
+  [`tool-input-validation.md`](tool-input-validation.md).

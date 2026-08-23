@@ -5,8 +5,7 @@
 - Feature slug: `live-guardrail-execution`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: implemented v1 input-guardrail baseline; v2 tool-input slice
-  implementation-ready
+- Status: implemented v1 input-guardrail baseline and v2 tool-input slice
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `extensions.guardrails.declarations`
@@ -71,7 +70,7 @@ V1 includes:
 
 V1 defers:
 
-- output, tool-input, and tool-output phase enforcement
+- output and tool-output phase enforcement
 - reject-content behavior
 - warning-only behavior
 - retries, timeout policy, and external provider adapters
@@ -89,8 +88,8 @@ V1 defers:
 - Implemented capability-status reporting for missing and live input guardrail
   adapter coverage.
 - Deferred output, tool-output, reject-content, warning-only, retries, timeouts,
-  and external guardrail provider adapters. Tool-input V2 is implementation-ready
-  under the boundary below; no V2 runtime change is yet implemented.
+  and external guardrail provider adapters. Tool-input V2 is implemented under
+  the boundary below.
 
 ## V2 Tool-Input Slice Boundary
 
@@ -158,8 +157,8 @@ lifecycle observations remain outside this tool-input boundary.
   existing behavior; invalid tool-input behavior policy and nested
   guardrail-subject mutation cannot alter approval or handler arguments.
 - Validation: [`tool-input-validation.md`](tool-input-validation.md).
-- Status: implementation-ready; this plan is ready to execute under its stated
-  gates.
+- Status: implemented; the observed validation evidence is recorded in
+  [`tool-input-validation.md`](tool-input-validation.md).
 
 ## Functional Requirements
 

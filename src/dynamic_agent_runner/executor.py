@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -28,7 +29,11 @@ from dynamic_agent_runner.errors import (
     ToolRegistryError,
     WorkflowExecutionError,
 )
-from dynamic_agent_runner.guardrails import GuardrailDecision, InMemoryGuardrailRegistry
+from dynamic_agent_runner.guardrails import (
+    GuardrailDecision,
+    GuardrailResult,
+    InMemoryGuardrailRegistry,
+)
 from dynamic_agent_runner.graph_mutation import ContextPruningMutation
 from dynamic_agent_runner.hooks import (
     ModelHookContext,
@@ -41,6 +46,7 @@ from dynamic_agent_runner.hooks import (
 from dynamic_agent_runner.models import (
     CompiledAgentWorkflow,
     ExecutionPlan,
+    GuardrailDeclaration,
     LoadedAgentWorkflow,
     PreparedNode,
     RuntimeEdge,
@@ -60,6 +66,7 @@ from dynamic_agent_runner.prompt_cache import (
     prompt_cache_policy_from_value,
 )
 from dynamic_agent_runner.registry import (
+    PreparedToolInvocation,
     RegisteredTool,
     ToolRegistry,
     ToolResult,
@@ -370,6 +377,7 @@ async def execute_workflow_async(
                     plan,
                     state,
                     context.tool_registry,
+                    context.guardrail_registry,
                     adapters,
                     tracer,
                     context.prompt_cache,
@@ -665,6 +673,7 @@ async def _execute_node_async(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     model_adapters: Sequence[ModelAdapter],
     tracer: WorkflowTracer,
     prompt_cache: bool | None,
@@ -680,6 +689,7 @@ async def _execute_node_async(
             plan,
             state,
             registry,
+            guardrail_registry,
             model_adapters,
             tracer,
             prompt_cache,
@@ -691,7 +701,7 @@ async def _execute_node_async(
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
-            node, plan, state, registry, tracer, lifecycle_hooks
+            node, plan, state, registry, guardrail_registry, tracer, lifecycle_hooks
         )
     if node.kind == "decision_step":
         return _execute_decision_step(node, state, tracer)
@@ -794,11 +804,166 @@ def _run_input_guardrails(
         raise GuardrailExecutionError(error)
 
 
+def _tool_input_guardrail_runner(
+    plan: ExecutionPlan,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
+    tracer: WorkflowTracer,
+    node: PreparedNode,
+    tool_call_id: str | None = None,
+) -> Callable[[PreparedToolInvocation], None] | None:
+    declarations = _tool_input_guardrail_declarations(plan)
+    if not declarations:
+        return None
+
+    def run(prepared: PreparedToolInvocation) -> None:
+        for declaration in declarations:
+            _run_tool_input_guardrail(
+                declaration,
+                prepared,
+                guardrail_registry,
+                tracer,
+                node,
+                tool_call_id,
+            )
+
+    return run
+
+
+def _tool_input_guardrail_declarations(
+    plan: ExecutionPlan,
+) -> tuple[GuardrailDeclaration, ...]:
+    return tuple(
+        declaration
+        for declaration in plan.workflow.runtime_manifest.guardrails
+        if declaration.phase == "tool_input"
+    )
+
+
+def _run_tool_input_guardrail(
+    declaration: GuardrailDeclaration,
+    prepared: PreparedToolInvocation,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
+    tracer: WorkflowTracer,
+    node: PreparedNode,
+    tool_call_id: str | None,
+) -> None:
+    guardrail_id = str(declaration.id)
+    payload = _tool_input_guardrail_payload(guardrail_id, prepared, node, tool_call_id)
+    tracer.emit("guardrail_started", node_id=str(node.id), payload=payload)
+    if guardrail_registry is None or not guardrail_registry.has_guardrail(guardrail_id):
+        _raise_tool_input_guardrail_error(
+            tracer, node, payload, "missing_adapter", guardrail_id
+        )
+    result = _run_tool_input_guardrail_handler(
+        guardrail_registry, guardrail_id, prepared, node, tool_call_id, tracer, payload
+    )
+    _record_tool_input_guardrail_result(result, guardrail_id, tracer, node, payload)
+
+
+def _tool_input_guardrail_payload(
+    guardrail_id: str,
+    prepared: PreparedToolInvocation,
+    node: PreparedNode,
+    tool_call_id: str | None,
+) -> dict[str, Any]:
+    payload = {
+        "guardrail_id": guardrail_id,
+        "phase": "tool_input",
+        "tool_id": prepared.tool.id,
+        "node_id": str(node.id),
+    }
+    if tool_call_id is not None:
+        payload["tool_call_id"] = tool_call_id
+    return payload
+
+
+def _run_tool_input_guardrail_handler(
+    guardrail_registry: InMemoryGuardrailRegistry,
+    guardrail_id: str,
+    prepared: PreparedToolInvocation,
+    node: PreparedNode,
+    tool_call_id: str | None,
+    tracer: WorkflowTracer,
+    payload: Mapping[str, Any],
+) -> GuardrailResult:
+    subject: dict[str, Any] = {
+        "phase": "tool_input",
+        "tool_id": prepared.tool.id,
+        "node_id": str(node.id),
+        "arguments": deepcopy(dict(prepared.arguments)),
+    }
+    if tool_call_id is not None:
+        subject["tool_call_id"] = tool_call_id
+    try:
+        result = guardrail_registry.run(guardrail_id, subject)
+    except Exception:  # noqa: BLE001 - adapters are caller-owned.
+        _raise_tool_input_guardrail_error(
+            tracer, node, payload, "handler_error", guardrail_id
+        )
+    if not isinstance(result, GuardrailResult):
+        _raise_tool_input_guardrail_error(
+            tracer, node, payload, "malformed_result", guardrail_id
+        )
+    return result
+
+
+def _record_tool_input_guardrail_result(
+    result: GuardrailResult,
+    guardrail_id: str,
+    tracer: WorkflowTracer,
+    node: PreparedNode,
+    payload: Mapping[str, Any],
+) -> None:
+    if result.guardrail_id != guardrail_id:
+        _raise_tool_input_guardrail_error(
+            tracer, node, payload, "result_identity_mismatch", guardrail_id
+        )
+    if result.phase != "tool_input":
+        _raise_tool_input_guardrail_error(
+            tracer, node, payload, "result_phase_mismatch", guardrail_id
+        )
+    if result.decision is GuardrailDecision.PASS:
+        tracer.emit("guardrail_passed", node_id=str(node.id), payload=payload)
+        return
+    if result.decision is GuardrailDecision.ABORT:
+        tracer.emit(
+            "guardrail_aborted",
+            node_id=str(node.id),
+            payload={**payload, "reason_code": result.reason_code},
+        )
+        error = f"tool-input guardrail {guardrail_id!r} aborted tool invocation"
+        if result.reason_code:
+            error = f"{error}: {result.reason_code}"
+        tracer.emit("workflow_error", node_id=str(node.id), payload={"error": error})
+        raise GuardrailExecutionError(error)
+    _raise_tool_input_guardrail_error(
+        tracer, node, payload, "unsupported_decision", guardrail_id
+    )
+
+
+def _raise_tool_input_guardrail_error(
+    tracer: WorkflowTracer,
+    node: PreparedNode,
+    payload: Mapping[str, Any],
+    reason: str,
+    guardrail_id: str,
+) -> None:
+    tracer.emit(
+        "guardrail_errored",
+        node_id=str(node.id),
+        payload={**payload, "reason": reason},
+    )
+    error = f"tool-input guardrail {guardrail_id!r} failed: {reason}"
+    tracer.emit("workflow_error", node_id=str(node.id), payload={"error": error})
+    raise GuardrailExecutionError(error)
+
+
 async def _execute_llm_step_async(
     node: PreparedNode,
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     model_adapters: Sequence[ModelAdapter],
     tracer: WorkflowTracer,
     prompt_cache: bool | None,
@@ -927,6 +1092,7 @@ async def _execute_llm_step_async(
             plan,
             state,
             registry,
+            guardrail_registry,
             prepared_input,
             response,
             tools,
@@ -1055,6 +1221,7 @@ async def _execute_model_tool_loop_async(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     prepared_input: PreparedModelInput,
     initial_response: ModelResponse,
     tools: Sequence[Mapping[str, Any]],
@@ -1106,6 +1273,7 @@ async def _execute_model_tool_loop_async(
                     tool_call_id,
                     iteration,
                     registry,
+                    guardrail_registry,
                     exposed_tools,
                     state,
                     tracer,
@@ -1311,18 +1479,24 @@ async def _coordinate_tool_invocation_async(
     tool: RegisteredTool,
     arguments: Mapping[str, Any],
     result_key: str,
-    invoke: Callable[[], Awaitable[ToolResult]],
+    invoke: Callable[[PreparedToolInvocation | None], Awaitable[ToolResult]],
     approval_reason: str,
     action_id: str | None = None,
     emit_tool_invocation: bool = False,
+    guardrail_runner: Callable[[PreparedToolInvocation], None] | None = None,
 ) -> ToolResult | WorkflowInterruptedResult:
     """Apply DAR's shared approval, lifecycle, and observation boundary."""
 
-    event_payload = {"tool_id": tool.id, "arguments": arguments}
+    prepared: PreparedToolInvocation | None = None
+    if guardrail_runner is not None:
+        prepared = registry.prepare_tool_invocation(tool.id, arguments)
+        guardrail_runner(prepared)
+    active_arguments = prepared.arguments if prepared is not None else arguments
+    event_payload = {"tool_id": tool.id, "arguments": active_arguments}
     if action_id is not None:
         event_payload["tool_call_id"] = action_id
     if _approval_required(tool):
-        prepared = registry.prepare_tool_invocation(tool.id, arguments)
+        prepared = prepared or registry.prepare_tool_invocation(tool.id, arguments)
         interruption = ApprovalInterruption(
             interruption_id=_new_approval_id(),
             run_id=str(state.run_id),
@@ -1380,11 +1554,11 @@ async def _coordinate_tool_invocation_async(
         ToolHookContext(
             node_id=str(node.id),
             tool_id=tool.id,
-            arguments=arguments,
+            arguments=active_arguments,
             run_id=state.run_id,
         ),
     )
-    result = await invoke()
+    result = await invoke(prepared)
     state.tool_results[result_key] = result
     trace_payload = result.trace_payload()
     if action_id is not None:
@@ -1408,7 +1582,7 @@ async def _coordinate_tool_invocation_async(
         ToolHookContext(
             node_id=str(node.id),
             tool_id=tool.id,
-            arguments=arguments,
+            arguments=active_arguments,
             result=result,
             error=result.error,
             run_id=state.run_id,
@@ -1424,6 +1598,7 @@ async def _invoke_model_tool_call_async(
     tool_call_id: str,
     iteration: int,
     registry: ToolRegistry,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     exposed_tools: Sequence[RegisteredTool],
     state: WorkflowExecutionState,
     tracer: WorkflowTracer,
@@ -1453,8 +1628,19 @@ async def _invoke_model_tool_call_async(
         arguments=arguments,
         result_key=f"{node.id}.{tool_call_id}",
         action_id=tool_call_id,
-        invoke=lambda: registry.invoke_tool_async(tool.id, arguments),
+        invoke=lambda prepared: (
+            registry.invoke_prepared_tool_async(prepared)
+            if prepared is not None
+            else registry.invoke_tool_async(tool.id, arguments)
+        ),
         approval_reason=f"model tool {tool.id!r} requires approval",
+        guardrail_runner=_tool_input_guardrail_runner(
+            plan,
+            guardrail_registry,
+            tracer,
+            node,
+            tool_call_id,
+        ),
     )
     if isinstance(coordinated, WorkflowInterruptedResult):
         return coordinated
@@ -1613,6 +1799,7 @@ async def _execute_tool_step_async(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ToolResult | WorkflowInterruptedResult:
@@ -1637,11 +1824,14 @@ async def _execute_tool_step_async(
         tool=tool,
         arguments=arguments,
         result_key=str(node.id),
-        invoke=lambda: _invoke_tool_with_retry_async(
-            node, registry, arguments, state, tracer
+        invoke=lambda prepared: _invoke_tool_with_retry_async(
+            node, registry, prepared or arguments, state, tracer
         ),
         approval_reason=f"tool {node.tool_id!r} requires approval",
         emit_tool_invocation=True,
+        guardrail_runner=_tool_input_guardrail_runner(
+            plan, guardrail_registry, tracer, node
+        ),
     )
     if isinstance(coordinated, WorkflowInterruptedResult):
         return coordinated
@@ -1687,7 +1877,7 @@ def _emit_status_notice(
 async def _invoke_tool_with_retry_async(
     node: PreparedNode,
     registry: ToolRegistry,
-    arguments: Mapping[str, Any],
+    arguments: Mapping[str, Any] | PreparedToolInvocation,
     state: WorkflowExecutionState,
     tracer: WorkflowTracer,
 ) -> ToolResult:
@@ -1697,7 +1887,11 @@ async def _invoke_tool_with_retry_async(
     last_result: ToolResult | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            result = await registry.invoke_tool_async(str(node.tool_id), arguments)
+            result = (
+                await registry.invoke_prepared_tool_async(arguments)
+                if isinstance(arguments, PreparedToolInvocation)
+                else await registry.invoke_tool_async(str(node.tool_id), arguments)
+            )
         except ToolRegistryError as exc:
             _record_retry(
                 state,
