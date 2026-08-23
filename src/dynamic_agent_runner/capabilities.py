@@ -26,6 +26,7 @@ _OWNER_DYNAMIC_AGENT_RUNNER = "dynamic-agent-runner"
 _OWNER_APPROVAL_INTERRUPTION = "approval-interruption-resume"
 _OWNER_ASYNC_SESSION = "async-session-memory-pipeline"
 _OWNER_CONTEXT_MANAGEMENT = "context-management-prepare-stage"
+_OWNER_PROVIDER_CONTEXT_COMPACTION = "provider-backed-context-compaction"
 _OWNER_GUARDRAILS = "live-guardrail-execution"
 _OWNER_MCP = "mcp-runtime-integration"
 _OWNER_PERSISTENT_SESSIONS = "persistent-agent-sessions"
@@ -129,6 +130,7 @@ def inspect_agent_package_capabilities(
     model_adapter_coverage: str | None = None,
     built_in_tool_packs: Iterable[str] | None = None,
     session_store: object | None = None,
+    provider_context_compactor: object | None = None,
     strict: bool = False,
 ) -> CapabilityStatusReport:
     """Inspect a workflow package's capabilities without executing it."""
@@ -154,6 +156,7 @@ def inspect_agent_package_capabilities(
         model_adapter_coverage=model_adapter_coverage,
         built_in_tool_packs=built_in_tool_packs,
         session_store=session_store,
+        provider_context_compactor=provider_context_compactor,
     )
 
 
@@ -171,6 +174,7 @@ def inspect_agent_workflow_capabilities(
     model_adapter_coverage: str | None = None,
     built_in_tool_packs: Iterable[str] | None = None,
     session_store: object | None = None,
+    provider_context_compactor: object | None = None,
     strict: bool = False,
 ) -> CapabilityStatusReport:
     """Inspect inline or already loaded workflow capabilities without execution."""
@@ -221,6 +225,7 @@ def inspect_agent_workflow_capabilities(
             model_adapter_coverage=model_adapter_coverage,
             built_in_tool_packs=built_in_tool_packs,
             session_store=session_store,
+            provider_context_compactor=provider_context_compactor,
         )
     except DynamicAgentRunnerError as exc:
         if strict:
@@ -240,6 +245,7 @@ def _inspect_loaded_workflow_capabilities(
     model_adapter_coverage: str | None,
     built_in_tool_packs: Iterable[str] | None,
     session_store: object | None,
+    provider_context_compactor: object | None,
 ) -> CapabilityStatusReport:
     plan = prepare_execution_plan(workflow)
     return CapabilityStatusReport.from_items(
@@ -254,6 +260,7 @@ def _inspect_loaded_workflow_capabilities(
             model_adapter_coverage=model_adapter_coverage,
             built_in_tool_packs=built_in_tool_packs,
             session_store=session_store,
+            provider_context_compactor=provider_context_compactor,
         ),
     )
 
@@ -315,6 +322,7 @@ def _capability_items(
     model_adapter_coverage: str | None,
     built_in_tool_packs: Iterable[str] | None,
     session_store: object | None,
+    provider_context_compactor: object | None,
 ) -> tuple[CapabilityStatusItem, ...]:
     manifest = workflow.runtime_manifest
     items: list[CapabilityStatusItem] = [
@@ -363,7 +371,12 @@ def _capability_items(
                 "Tool-use loop policy is preserved but iterative loops do not run.",
             )
         )
-    items.extend(_context_management_items(manifest.execution_policy))
+    items.extend(
+        _context_management_items(
+            manifest.execution_policy,
+            provider_context_compactor=provider_context_compactor,
+        )
+    )
     if manifest.handoffs:
         items.append(
             _metadata_only_item(
@@ -419,6 +432,8 @@ def _capability_items(
 
 def _context_management_items(
     execution_policy: Mapping[str, Any],
+    *,
+    provider_context_compactor: object | None = None,
 ) -> tuple[CapabilityStatusItem, ...]:
     prepare_model_input = execution_policy.get("prepare_model_input")
     if not isinstance(prepare_model_input, Mapping):
@@ -443,9 +458,22 @@ def _context_management_items(
             )
         )
     auto = compaction.get("auto")
-    if not isinstance(auto, Mapping) or auto.get("enabled") is not True:
+    if not isinstance(auto, Mapping):
         return tuple(items)
     implementation = str(auto.get("implementation") or "metadata_only")
+    if auto.get("enabled") is not True:
+        if implementation == "provider":
+            items.append(
+                CapabilityStatusItem(
+                    id="runtime.context.provider_compaction",
+                    label="Provider-backed context compaction",
+                    state=CapabilityState.DISABLED,
+                    category="runtime",
+                    summary="Provider-backed context compaction is disabled by policy.",
+                    owner=_OWNER_PROVIDER_CONTEXT_COMPACTION,
+                )
+            )
+        return tuple(items)
     items.append(
         CapabilityStatusItem(
             id="metadata.context.pre_turn_compaction",
@@ -465,6 +493,37 @@ def _context_management_items(
             },
         ),
     )
+    if implementation == "provider":
+        remote = auto.get("remote")
+        remote = remote if isinstance(remote, Mapping) else {}
+        capability = str(remote.get("provider_capability") or "")
+        capabilities = getattr(provider_context_compactor, "capabilities", {})
+        has_capability = (
+            isinstance(capabilities, Mapping) and capabilities.get(capability) is True
+        )
+        if provider_context_compactor is None:
+            state = CapabilityState.MISSING_COLLABORATOR
+            summary = (
+                "Provider compaction is configured but no collaborator was supplied."
+            )
+        elif not has_capability:
+            state = CapabilityState.UNSUPPORTED
+            summary = "The supplied provider compactor lacks the configured capability."
+        else:
+            state = CapabilityState.LIVE
+            summary = "Provider-backed context compaction is available."
+        items.append(
+            CapabilityStatusItem(
+                id="runtime.context.provider_compaction",
+                label="Provider-backed context compaction",
+                state=state,
+                category="runtime",
+                summary=summary,
+                owner=_OWNER_PROVIDER_CONTEXT_COMPACTION,
+                required_collaborator="ProviderContextCompactor",
+                details={"provider_capability": capability, "phase": "pre_turn"},
+            )
+        )
     return tuple(items)
 
 

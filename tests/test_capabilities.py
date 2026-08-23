@@ -809,6 +809,61 @@ def test_inspect_agent_package_capabilities_reports_pre_turn_compaction(
     }
 
 
+def test_provider_context_compaction_capability_reports_collaborator_state(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        """
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: provider-context-compaction-capability-agent
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            prepare_model_input:
+              context_compaction:
+                auto:
+                  enabled: true
+                  implementation: provider
+                  strategy: provider_remote
+                  remote:
+                    provider_capability: responses_compact
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {prompt}"
+        edges: []
+        """,
+    )
+
+    class FakeProviderCompactor:
+        capabilities = {"responses_compact": True}
+
+    missing = inspect_agent_package_capabilities(package_directory=package_dir)
+    live = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        provider_context_compactor=FakeProviderCompactor(),
+    )
+
+    missing_item = next(
+        item
+        for item in missing.items
+        if item.id == "runtime.context.provider_compaction"
+    )
+    live_item = next(
+        item for item in live.items if item.id == "runtime.context.provider_compaction"
+    )
+    assert missing_item.state is CapabilityState.MISSING_COLLABORATOR
+    assert live_item.state is CapabilityState.LIVE
+
+
 def test_inspect_agent_package_capabilities_reports_new_window_reset(
     tmp_path: Path,
 ) -> None:

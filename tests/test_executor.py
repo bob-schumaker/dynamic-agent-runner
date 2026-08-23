@@ -2017,6 +2017,89 @@ def test_prepare_model_input_pre_turn_compaction_replaces_over_threshold_context
     )
 
 
+def test_prepare_model_input_provider_compaction_replaces_over_threshold_context() -> (
+    None
+):
+    from dynamic_agent_runner import (
+        ProviderContextCompactionRequest,
+        ProviderContextCompactionResult,
+    )
+
+    class FakeProviderCompactor:
+        capabilities = {"responses_compact": True}
+
+        def __init__(self) -> None:
+            self.requests: list[ProviderContextCompactionRequest] = []
+
+        def compact(
+            self, request: ProviderContextCompactionRequest
+        ) -> ProviderContextCompactionResult:
+            self.requests.append(request)
+            return ProviderContextCompactionResult(
+                messages=(
+                    OpenAIMessage(role="developer", content="Compacted history."),
+                    OpenAIMessage(role="user", content="Answer finish."),
+                ),
+                provider_window_id="window-1",
+                token_baseline=3,
+            )
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "provider-pre-turn-compaction-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "threshold_ratio": 0.01,
+                                "implementation": "provider",
+                                "strategy": "provider_remote",
+                                "remote": {
+                                    "provider_capability": "responses_compact",
+                                    "fallback": "error",
+                                },
+                            }
+                        }
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt="finish " * 80)
+    adapter = make_adapter([])
+    adapter.context_windows = {"gpt-test": 1000}
+    compactor = FakeProviderCompactor()
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        provider_context_compactor=compactor,
+    )
+
+    assert compactor.requests[0].phase == "pre_turn"
+    assert prepared_input.messages[0].content == "Compacted history."
+    assert prepared_input.preparation.pre_turn_compaction["status"] == "complete"
+    assert prepared_input.preparation.pre_turn_compaction["window_id"] == "window-1"
+
+
 def test_prepare_model_input_new_window_reset_does_not_count_as_compaction() -> None:
     workflow = workflow_from(
         {
@@ -2134,6 +2217,85 @@ def test_execute_workflow_retries_once_after_context_overflow_with_compaction() 
         if event.event_type == "context_overflow_retry"
     ]
     assert retry_events[0].payload["status"] == "retrying"
+
+
+def test_execute_workflow_retries_once_after_context_overflow_with_provider_compaction() -> (
+    None
+):
+    from dynamic_agent_runner import (
+        ProviderContextCompactionRequest,
+        ProviderContextCompactionResult,
+    )
+
+    class FakeProviderCompactor:
+        capabilities = {"responses_compact": True}
+
+        def compact(
+            self, request: ProviderContextCompactionRequest
+        ) -> ProviderContextCompactionResult:
+            assert request.phase == "overflow_retry"
+            return ProviderContextCompactionResult(
+                messages=(OpenAIMessage(role="user", content="Compacted question."),),
+                provider_window_id="window-retry",
+            )
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "provider-overflow-retry-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "implementation": "provider",
+                                "strategy": "provider_remote",
+                                "retry_on_overflow": True,
+                                "remote": {
+                                    "provider_capability": "responses_compact",
+                                    "fallback": "error",
+                                },
+                            }
+                        }
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter(
+        [
+            RuntimeError("context_length_exceeded: too many tokens"),
+            {"id": "resp_retry", "output_text": "compacted answer"},
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="finish " * 80,
+        model_adapter=adapter,
+        provider_context_compactor=FakeProviderCompactor(),
+    )
+
+    assert result.final_result == "compacted answer"
+    retry_event = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "context_overflow_retry"
+    )
+    assert retry_event.payload["window_id"] == "window-retry"
 
 
 def test_prepare_model_input_reports_context_lanes() -> None:

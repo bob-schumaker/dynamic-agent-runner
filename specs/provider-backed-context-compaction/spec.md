@@ -5,7 +5,7 @@
 - Feature slug: `provider-backed-context-compaction`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: implementation-ready first slice; no runtime change implemented
+- Status: implemented first slice; provider transport remains caller-owned
 - Owner: context-management prepare stage plus model-provider adapters
 - Primary predecessor:
   - `specs/context-management-prepare-stage/spec.md`
@@ -257,7 +257,7 @@ poetry run ruff check src tests
 - Tasks: [`tasks.md`](tasks.md)
 - Validation record: [`validation.md`](validation.md)
 - Durable decisions: [`decision-log.md`](decision-log.md)
-- Status: implementation-ready. The first slice is bounded to the resolved
+- Status: implemented first slice. The first slice is bounded to the resolved
   contract above; no runtime implementation is authorized by this review alone.
 
 ## Resolved Questions

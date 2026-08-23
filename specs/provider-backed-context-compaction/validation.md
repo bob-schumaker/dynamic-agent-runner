@@ -1,6 +1,21 @@
 # Provider-Backed Context Compaction Validation Record
 
-Status: implementation-ready; no runtime validation has run
+Status: implemented first slice; documented gates passed 2026-08-23
+
+## Observed Evidence
+
+- `poetry run pytest tests/test_validation.py tests/test_executor.py
+  tests/test_capabilities.py tests/test_context_compaction.py -q`: 243 passed.
+- `poetry run ruff check src tests`: passed.
+- `poetry run pytest -q`: 699 passed, 4 skipped.
+- `poetry build`: passed.
+- `poetry run make -C docs html`: passed.
+
+The implementation uses only fake caller-owned compaction collaborators in
+tests. It supports thresholded pre-turn replacement and the existing single
+overflow retry, emits redacted metadata, reports missing/live collaborator
+capability state, and deliberately leaves mid-turn/tool-loop compaction and
+provider transport binding deferred.
 
 ## Required Evidence
 

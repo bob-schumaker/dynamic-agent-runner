@@ -18,6 +18,11 @@ from openai_model_registry.errors import ModelNotSupportedError
 
 from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.context import WorkflowExecutionContext
+from dynamic_agent_runner.context_compaction import (
+    ProviderContextCompactionRequest,
+    ProviderContextCompactionResult,
+    ProviderContextCompactor,
+)
 from dynamic_agent_runner.context_selection import (
     ContextSelection,
     ContextSelectionCandidate,
@@ -270,6 +275,7 @@ class PreparedModelInput:
     tool_choice_policy: Any = None
     response_format: Mapping[str, Any] | None = None
     context_compactor: ContextCompactor | None = None
+    provider_context_compactor: ProviderContextCompactor | None = None
 
     @property
     def part_names(self) -> tuple[str, ...]:
@@ -292,6 +298,7 @@ async def execute_workflow_async(
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
+    provider_context_compactor: ProviderContextCompactor | None = None,
     context_summarizer: ContextSummarizer | None = None,
     context_selector: ContextSelector | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
@@ -312,6 +319,7 @@ async def execute_workflow_async(
         lifecycle_hooks=lifecycle_hooks,
         model_adapter_coverage=model_adapter_coverage,
         context_selector=context_selector,
+        provider_context_compactor=provider_context_compactor,
     )
     plan = prepare_execution_plan(context.workflow)
     nodes = plan.nodes_by_id
@@ -386,6 +394,7 @@ async def execute_workflow_async(
                     context_compactor,
                     context_summarizer,
                     context.context_selector,
+                    context.provider_context_compactor,
                 )
             except Exception as exc:
                 tracer.emit(
@@ -456,6 +465,7 @@ def execute_workflow(
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
+    provider_context_compactor: ProviderContextCompactor | None = None,
     context_summarizer: ContextSummarizer | None = None,
     context_selector: ContextSelector | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
@@ -477,6 +487,7 @@ def execute_workflow(
             model_adapter_coverage=model_adapter_coverage,
             run_id=run_id,
             context_compactor=context_compactor,
+            provider_context_compactor=provider_context_compactor,
             context_summarizer=context_summarizer,
             context_selector=context_selector,
             session_messages=session_messages,
@@ -495,6 +506,7 @@ def prepare_model_input(
     prompt_cache: bool | None = None,
     model_adapter_coverage: str = "augmented",
     context_compactor: ContextCompactor | None = None,
+    provider_context_compactor: ProviderContextCompactor | None = None,
     context_summarizer: ContextSummarizer | None = None,
     context_selector: ContextSelector | None = None,
 ) -> PreparedModelInput:
@@ -525,6 +537,7 @@ def prepare_model_input(
         model=model,
         adapter=adapter,
         context_compactor=context_compactor,
+        provider_context_compactor=provider_context_compactor,
         context_summarizer=context_summarizer,
         context_selector=context_selector,
     )
@@ -604,6 +617,7 @@ def prepare_model_input(
         tool_choice_policy=node.tool_choice_policy,
         response_format=node.response_format,
         context_compactor=context_compactor,
+        provider_context_compactor=provider_context_compactor,
     )
 
 
@@ -632,6 +646,7 @@ def _normalize_execution_context(
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str | None,
     context_selector: ContextSelector | None,
+    provider_context_compactor: ProviderContextCompactor | None,
 ) -> WorkflowExecutionContext:
     if isinstance(workflow, WorkflowExecutionContext):
         if any(
@@ -646,6 +661,7 @@ def _normalize_execution_context(
                 lifecycle_hooks,
                 model_adapter_coverage,
                 context_selector,
+                provider_context_compactor,
             )
         ):
             raise WorkflowExecutionError(
@@ -665,6 +681,7 @@ def _normalize_execution_context(
         lifecycle_hooks=lifecycle_hooks,
         model_adapter_coverage=normalized_coverage,
         context_selector=context_selector,
+        provider_context_compactor=provider_context_compactor,
     )
 
 
@@ -682,6 +699,7 @@ async def _execute_node_async(
     context_compactor: ContextCompactor | None,
     context_summarizer: ContextSummarizer | None,
     context_selector: ContextSelector | None,
+    provider_context_compactor: ProviderContextCompactor | None,
 ) -> Any:
     if node.kind == "llm_step":
         return await _execute_llm_step_async(
@@ -698,6 +716,7 @@ async def _execute_node_async(
             context_compactor,
             context_summarizer,
             context_selector,
+            provider_context_compactor,
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
@@ -972,6 +991,7 @@ async def _execute_llm_step_async(
     context_compactor: ContextCompactor | None,
     context_summarizer: ContextSummarizer | None,
     context_selector: ContextSelector | None,
+    provider_context_compactor: ProviderContextCompactor | None,
 ) -> ModelResponse:
     prepared_input = prepare_model_input(
         node,
@@ -982,6 +1002,7 @@ async def _execute_llm_step_async(
         prompt_cache=prompt_cache,
         model_adapter_coverage=model_adapter_coverage,
         context_compactor=context_compactor,
+        provider_context_compactor=provider_context_compactor,
         context_summarizer=context_summarizer,
         context_selector=context_selector,
     )
@@ -1154,22 +1175,28 @@ async def _retry_model_after_context_overflow_async(
     auto = _context_compaction_auto_policy(
         _prepare_model_input_policy(plan.execution_policy)
     )
-    if (
-        not is_context_overflow_error(exc)
-        or auto.get("retry_on_overflow") is not True
-        or prepared_input.context_compactor is None
-    ):
+    if not is_context_overflow_error(exc) or auto.get("retry_on_overflow") is not True:
         return None
-    metadata = {
-        "phase": "overflow_retry",
-        "trigger": "provider_context_overflow",
-        "implementation": str(auto.get("implementation") or "injected"),
-        "status": "retrying",
-        "reason": "context_overflow",
-    }
-    replacement_messages = tuple(
-        prepared_input.context_compactor(prepared_input.messages, metadata)
-    )
+    implementation = str(auto.get("implementation") or "injected")
+    if implementation == "provider":
+        replacement_messages, metadata = _provider_overflow_replacement(
+            prepared_input, auto
+        )
+        if replacement_messages is None:
+            return None
+    elif prepared_input.context_compactor is not None:
+        metadata = {
+            "phase": "overflow_retry",
+            "trigger": "provider_context_overflow",
+            "implementation": implementation,
+            "status": "retrying",
+            "reason": "context_overflow",
+        }
+        replacement_messages = tuple(
+            prepared_input.context_compactor(prepared_input.messages, metadata)
+        )
+    else:
+        return None
     retry_request = build_openai_request(
         model=prepared_input.model,
         messages=replacement_messages,
@@ -1192,6 +1219,56 @@ async def _retry_model_after_context_overflow_async(
         },
     )
     return await _create_model_response_async(prepared_input.adapter, retry_request)
+
+
+def _provider_overflow_replacement(
+    prepared_input: PreparedModelInput,
+    auto: Mapping[str, Any],
+) -> tuple[tuple[OpenAIMessage, ...] | None, Mapping[str, Any]]:
+    remote = auto.get("remote")
+    remote = remote if isinstance(remote, Mapping) else {}
+    capability = str(remote.get("provider_capability") or "")
+    fallback = str(remote.get("fallback") or "basic")
+    compactor = prepared_input.provider_context_compactor
+    if compactor is None or compactor.capabilities.get(capability) is not True:
+        if fallback == "error":
+            raise WorkflowExecutionError("provider context compaction unavailable")
+        return None, {}
+    result = compactor.compact(
+        ProviderContextCompactionRequest(
+            messages=prepared_input.messages,
+            model=prepared_input.model,
+            phase="overflow_retry",
+            provider_capability=capability,
+            max_replacement_messages=int(remote.get("max_replacement_messages") or 32),
+            preserve_system_messages=remote.get("preserve_system_messages")
+            is not False,
+            tokens_before=estimate_messages_tokens(
+                tuple(
+                    {"role": message.role, "content": message.content}
+                    for message in prepared_input.messages
+                ),
+                model=prepared_input.model,
+            ).token_count,
+        )
+    )
+    if (
+        not isinstance(result, ProviderContextCompactionResult)
+        or not isinstance(result.messages, tuple)
+        or not result.messages
+        or not all(isinstance(message, OpenAIMessage) for message in result.messages)
+    ):
+        raise WorkflowExecutionError("provider context compaction returned no messages")
+    return result.messages, {
+        "phase": "overflow_retry",
+        "trigger": "provider_context_overflow",
+        "implementation": "provider",
+        "status": "retrying",
+        "reason": "context_overflow",
+        "provider_capability": capability,
+        "window_id": result.provider_window_id or str(uuid4()),
+        "token_baseline": result.token_baseline,
+    }
 
 
 def _iterative_loop_enabled(plan: ExecutionPlan) -> bool:
@@ -1448,6 +1525,7 @@ def _apply_mid_turn_compaction(
         prepared_input.adapter,
         model=prepared_input.model,
         context_compactor=prepared_input.context_compactor,
+        provider_context_compactor=None,
     )
     if not metadata:
         return tuple(messages), {}
@@ -2332,6 +2410,7 @@ def _apply_prepare_model_input_stage(
     model: str,
     adapter: ModelAdapter,
     context_compactor: ContextCompactor | None,
+    provider_context_compactor: ProviderContextCompactor | None,
     context_summarizer: ContextSummarizer | None,
     context_selector: ContextSelector | None,
 ) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
@@ -2449,6 +2528,7 @@ def _apply_prepare_model_input_stage(
         adapter,
         model=model,
         context_compactor=context_compactor,
+        provider_context_compactor=provider_context_compactor,
     )
 
     context_lanes = _context_lane_metadata(
@@ -3326,12 +3406,13 @@ def _apply_pre_turn_compaction(
     *,
     model: str,
     context_compactor: ContextCompactor | None,
+    provider_context_compactor: ProviderContextCompactor | None,
 ) -> tuple[list[tuple[str, OpenAIMessage]], Mapping[str, Any]]:
     auto = _context_compaction_auto_policy(policy)
     if auto.get("enabled") is not True:
         return list(parts), {}
     implementation = str(auto.get("implementation") or "metadata_only")
-    if implementation != "injected":
+    if implementation not in {"injected", "provider"}:
         return list(parts), {}
     messages = tuple(message for _part_name, message in parts)
     tokens_before = estimate_messages_tokens(
@@ -3355,6 +3436,15 @@ def _apply_pre_turn_compaction(
             "reason": "under_threshold",
             "tokens_after": tokens_before,
         }
+    if implementation == "provider":
+        return _apply_provider_pre_turn_compaction(
+            parts,
+            messages,
+            auto,
+            base_metadata,
+            model=model,
+            provider_context_compactor=provider_context_compactor,
+        )
     if context_compactor is None:
         return list(parts), {
             **base_metadata,
@@ -3380,6 +3470,150 @@ def _apply_pre_turn_compaction(
         "reason": "token_threshold_exceeded",
         "tokens_after": tokens_after,
     }
+
+
+def _apply_provider_pre_turn_compaction(
+    parts: Sequence[tuple[str, OpenAIMessage]],
+    messages: tuple[OpenAIMessage, ...],
+    auto: Mapping[str, Any],
+    base_metadata: Mapping[str, Any],
+    *,
+    model: str,
+    provider_context_compactor: ProviderContextCompactor | None,
+) -> tuple[list[tuple[str, OpenAIMessage]], Mapping[str, Any]]:
+    remote = auto.get("remote")
+    remote = remote if isinstance(remote, Mapping) else {}
+    capability = str(remote.get("provider_capability") or "")
+    fallback = str(remote.get("fallback") or "basic")
+    if (
+        provider_context_compactor is None
+        or provider_context_compactor.capabilities.get(capability) is not True
+    ):
+        reason = (
+            "provider_context_compactor_unavailable"
+            if provider_context_compactor is None
+            else "provider_capability_unavailable"
+        )
+        return _provider_compaction_fallback(
+            parts, base_metadata, fallback=fallback, reason=reason, model=model
+        )
+    try:
+        result = provider_context_compactor.compact(
+            ProviderContextCompactionRequest(
+                messages=messages,
+                model=model,
+                phase="pre_turn",
+                provider_capability=capability,
+                max_replacement_messages=int(
+                    remote.get("max_replacement_messages") or 32
+                ),
+                preserve_system_messages=remote.get("preserve_system_messages")
+                is not False,
+                tokens_before=int(base_metadata["tokens_before"]),
+            )
+        )
+    except Exception as exc:
+        return _provider_compaction_fallback(
+            parts,
+            base_metadata,
+            fallback=fallback,
+            reason=type(exc).__name__,
+            model=model,
+        )
+    if not isinstance(result, ProviderContextCompactionResult) or not result.messages:
+        raise WorkflowExecutionError("provider context compaction returned no messages")
+    if len(result.messages) > int(remote.get("max_replacement_messages") or 32):
+        raise WorkflowExecutionError(
+            "provider context compaction exceeded replacement limit"
+        )
+    if any(message.role == "tool" for message in result.messages):
+        raise WorkflowExecutionError(
+            "provider context compaction returned tool history"
+        )
+    if remote.get("preserve_system_messages") is not False:
+        pinned_messages = tuple(
+            message for message in messages if message.role in {"system", "developer"}
+        )
+        if (
+            pinned_messages
+            and result.messages[: len(pinned_messages)] != pinned_messages
+        ):
+            raise WorkflowExecutionError(
+                "provider context compaction did not preserve pinned messages"
+            )
+    tokens_after = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content}
+            for message in result.messages
+        ),
+        model=model,
+    ).token_count
+    return [
+        (f"pre_turn_compacted_{index}", message)
+        for index, message in enumerate(result.messages, start=1)
+    ], {
+        **base_metadata,
+        "status": "complete",
+        "reason": "token_threshold_exceeded",
+        "provider_capability": capability,
+        "window_id": result.provider_window_id or str(uuid4()),
+        "token_baseline": result.token_baseline,
+        "tokens_after": tokens_after,
+    }
+
+
+def _provider_compaction_fallback(
+    parts: Sequence[tuple[str, OpenAIMessage]],
+    base_metadata: Mapping[str, Any],
+    *,
+    fallback: str,
+    reason: str,
+    model: str,
+) -> tuple[list[tuple[str, OpenAIMessage]], Mapping[str, Any]]:
+    if fallback == "error":
+        raise WorkflowExecutionError(
+            f"provider context compaction unavailable: {reason}"
+        )
+    replacement_parts = _basic_provider_fallback_parts(parts)
+    tokens_after = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content}
+            for _part, message in replacement_parts
+        ),
+        model=model,
+    ).token_count
+    return replacement_parts, {
+        **base_metadata,
+        "status": "fallback",
+        "reason": reason,
+        "fallback": "basic",
+        "tokens_after": tokens_after,
+    }
+
+
+def _basic_provider_fallback_parts(
+    parts: Sequence[tuple[str, OpenAIMessage]],
+) -> list[tuple[str, OpenAIMessage]]:
+    messages = tuple(message for _part, message in parts)
+    pinned_count = 0
+    for message in messages:
+        if message.role not in {"system", "developer"}:
+            break
+        pinned_count += 1
+    if len(messages) <= pinned_count + 1:
+        return list(parts)
+    replacement = list(parts[:pinned_count])
+    replacement.append(
+        (
+            "pre_turn_fallback_summary",
+            OpenAIMessage(
+                role="developer",
+                content="Earlier context compacted by deterministic fallback.",
+            ),
+        )
+    )
+    replacement.append(("pre_turn_fallback_active", messages[-1]))
+    return replacement
 
 
 def _pre_turn_compaction_threshold(
