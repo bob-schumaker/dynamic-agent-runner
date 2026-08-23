@@ -3,6 +3,16 @@
 
 ## Current Focus
 
+- The shared DAR tool-invocation coordinator is implemented in `bda6333`.
+  Direct `tool_use_step` and model-tool-loop calls now share approval,
+  lifecycle, tracing, and registry-dispatch behavior. Approval-required input
+  validation happens before an interruption; registry preparation binds the
+  validated arguments to a resolved tool. Provider, interpreter, guardrail, and
+  sandbox ingress remain separately scoped follow-up adopters.
+- LiteLLM is now an upstream `^1.97.0` runtime dependency. The temporary
+  `dynamic_agent_runner.litellm` shim and vendored-wheel packaging flow are
+  retired; direct sync/async Chat Completions transport remains the implemented
+  L1 boundary, while broader Codex migration is deferred.
 - Latest committed spec-context slice: `a1f3011` added
   `specs/scratchpad-context-manager/spec.md` and recorded
   `sickn33/antigravity-awesome-skills` provenance across `specs/README.md`,

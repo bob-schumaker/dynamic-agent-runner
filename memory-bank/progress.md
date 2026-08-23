@@ -3,6 +3,15 @@
 
 ## Working
 
+- Shared DAR tool-invocation coordination is implemented in `bda6333`:
+  direct-step and model-loop dispatch share approval, lifecycle hooks, tracing,
+  result recording, and registry invocation. Registry preparation validates
+  approval-required input before interruption without invoking the handler.
+  Focused tests passed (192); the full suite passed (681 passed, 4 skipped),
+  along with Ruff, package build, and docs build.
+- LiteLLM provider-adapter L1 now uses upstream LiteLLM 1.97.0 directly; the
+  package-owned fallback shim and vendored wheel are retired. OCI cleanup and
+  broader Codex migration remain deferred.
 - Spec-context follow-up commit `a1f3011` is complete. It added the draft
   `scratchpad-context-manager` spec and folded Antigravity Awesome Skills
   provenance into existing owners instead of creating a duplicate context
