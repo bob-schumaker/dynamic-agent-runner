@@ -121,42 +121,45 @@ should depend on `sandbox-workspace-runtime` and `approval-interruption-resume`;
 it should own tool-pack naming and model-facing contracts, not path grants,
 approval binding, backend isolation, or resource enforcement.
 
-## Planned Out-of-the-Box Wrapper Write Slice
+## Planned Interactive Wrapper Scratch Workspace
 
-The DAR workflow wrapper can provide a useful default workspace surface before
-the full sandbox runtime exists. This planned, host-owned slice is enabled only
-when the wrapper profile/catalog exposes its fixed tools: DAR invokes those
-registered tools, while the wrapper owns the workspace root, path authorization,
-mutation semantics, and audit store. It does not make `sandbox_runtime` live
-inside DAR or add a DAR default write capability.
+The DAR workflow wrapper can later provide an interactive scratch surface. This
+planned, host-owned slice is enabled only when the wrapper profile/catalog
+exposes its fixed tools: DAR invokes those registered tools, while the wrapper
+owns the workspace root, path authorization, mutation semantics, and audit
+store. It does not make `sandbox_runtime` live inside DAR or add a DAR default
+write capability. It is not a prerequisite for the DAR authoring plugin's first
+release or its deterministic file-ingress/write extension.
 
 Each run may obtain a fresh tenant-scoped scratch root through
 `get_temporary_workspace()`. The tool returns an opaque virtual root URI such
-as `workspace://ws_opaque_id/`, allowed capabilities, and expiry metadata; it
+as `workspace://<workspace-id>/`, allowed capabilities, and expiry metadata; it
 never returns an absolute host path, physical root, or host filesystem identity.
 The wrapper maps a virtual URI to its physical scratch root only while handling
 the tool call. The initial surface is:
 
 - `get_temporary_workspace()`;
 - `read_file`, `list_files`, and `search_files`, each accepting a virtual path;
-- `write_file(virtual_path, content, expected_absent_or_hash)`;
+- `write_file(virtual_path, content, precondition)`, where `precondition` is
+  either `{kind: absent}` or `{kind: hash, value: <digest>}`;
 - `replace_text(virtual_path, old_text, new_text, expected_occurrences,
   expected_hash)`;
 - `delete_file(virtual_path, expected_hash)`, limited to one regular file; and
 - `changed_paths(workspace_uri)`.
 
 Virtual paths use the canonical form
-`workspace://<opaque-workspace-id>/<relative-posix-path>`. Tool inputs must
-reject host-absolute paths, bare relative paths, alternative URI schemes,
-encoded characters, userinfo, ports, queries, fragments, backslashes, control
-characters, duplicate or empty path segments, empty workspace identifiers, `.`
-or `..` segments, and a workspace identifier not owned by the trusted current
-tenant and run. The parser accepts only lower-case `workspace`, a CSPRNG opaque
-identifier, and POSIX relative path segments. Tenant, run, and workspace
-identity come from the trusted wrapper invocation context, never model-provided
-arguments; IDs are unguessable and never derived from that identity. Path fields
-in tool results and audit records expose virtual paths only. `read_file` may
-return bounded file content to the model; traces and audit records do not.
+`workspace://<workspace-id>/<relative-posix-path>`. The wrapper uses an exact
+ASCII wire parser, not a generic URI host parser: `workspace-id` is a fixed
+lower-case base32 CSPRNG identifier, and file paths contain one or more nonempty
+POSIX segments without percent encoding, backslashes, control characters, `.`,
+or `..`. The root URI is valid only for workspace-scoped operations such as
+`changed_paths`; file tools require a nonempty relative path. Reject every other
+scheme, authority decoration, query, fragment, or path form before any URI
+normalization. Tenant, run, and workspace identity come from the trusted wrapper
+invocation context, never model-provided arguments; IDs are unguessable and
+never derived from that identity. Path fields in tool results and audit records
+expose virtual paths only. `read_file` returns only bounded UTF-8 text or fails;
+traces and audit records do not contain its content.
 
 The initial surface does not expose physical workspace paths:
 
@@ -165,47 +168,53 @@ The initial surface does not expose physical workspace paths:
 - all physical path resolution occurs after tenant, run, expiry, and virtual URI
   validation at the wrapper's side-effect boundary.
 
-### Trusted File Ingress for Wrapper Operations
+### First Wrapper Prerequisite: Trusted File Ingress
 
-Some wrapper operations need a caller-selected local input before a model runs,
-such as the HTML body for a prebuilt email-send operation. This is not a
-model-facing file-path tool and does not widen the virtual workspace contract.
-The trusted wrapper CLI or control plane may accept a physical source path only
-from its own caller, validate it against a configured input root with the same
-descriptor-relative no-follow primitive, then copy the opened regular file into
-a fresh private temporary workspace. It returns only the copied file's virtual
-URI, hash, and byte count to the operation planner; the source path never enters
-a model prompt, tool schema/result, trace, approval record, or audit record.
+Some wrapper invocations need a caller-selected local input before a model runs,
+such as an HTML body for an email workflow. This is not a
+model-facing file-path tool and does not register the interactive scratch tools
+above. The trusted wrapper CLI or control plane may accept a physical source
+path only from its own caller, validate it against a configured input root with
+the same descriptor-relative no-follow primitive, then copy the opened regular
+file into a fresh private temporary workspace. It returns only an opaque,
+hash-bound input-artifact identifier and byte count to the workflow runner;
+the source path never enters a model prompt, tool schema/result, trace, approval
+record, or audit record.
 
-Ingress applies the configured type, encoding, and byte limits before accepting
-the copy. It hashes the exact opened source descriptor and the committed private
-copy, rejects a mismatch, and binds the resulting virtual URI/hash to the
-operation. The subsequent handler reads only that private copy. A host cannot
-claim path-contained or symlink-safe body-file support if it reopens the source
-path after validation or lets the model supply the physical source path.
+Ingress applies the configured type, encoding, request-size, and file-byte limits
+before accepting the copy. It streams the exact opened source descriptor once
+into the private temporary file while hashing that byte stream, then commits the
+copy atomically and binds its hash to the opaque artifact identifier and
+invocation. The subsequent handler reads only that private copy. A host cannot
+claim path-contained or symlink-safe body-file support if it rewinds or reopens
+the source path after validation or lets the model supply the physical source
+path.
 
-The DAR authoring plugin's deterministic `send_email` operation depends on this
-ingress slice. Until its positive tests pass, that operation must be unavailable
-even when the profile's Fastmail send binding is otherwise configured.
+The DAR authoring plugin's file-backed workflow invocations depend on this
+ingress slice. Until its positive tests pass, an invocation that accepts a local
+file must be unavailable even when its external tool binding is configured.
 
 The workspace capability is bound to its issuing invocation; another run or
 tenant cannot use it. The wrapper serializes mutations per workspace and
 evaluates every expected-hash precondition while holding that mutation lock.
 Reads, listings, and searches are bounded by configured file bytes, entries,
-recursion depth, result bytes, match count, and snippet bytes; they enumerate no
-symlink and return no physical path. The planned wrapper first slice has no
-aggregate workspace-size quota; that remains the explicitly deferred follow-up
-listed below.
+recursion depth, result bytes, match count, and snippet bytes; search is
+literal-only with a bounded query length, and all reads return UTF-8 text only.
+They enumerate no symlink and return no physical path. The planned interactive
+slice has no aggregate workspace-size quota; that remains the explicitly
+deferred follow-up listed below.
 
-The DAR wrapper's catalog-bound `auto` mode is an explicit trusted policy that
-may disable per-operation prompting only for this fixed surface and its approved
-path grants. Its binding includes the exact tool identifier and schema version,
-workspace root, operation limits, and—when a prebuilt operation supplies
-one—the virtual path and expected content hash. It cannot authorize an alias,
-delegated capability, MCP call, external export, or copying workspace contents
-to a durable or network destination. `--ask` overrides it with the wrapper
-approval broker, which displays the virtual path, operation, byte count, and
-pre/post hashes and rejects a stale operation. Neither mode adds a broader
+`workspace_tool_auto` is an explicit trusted policy that may disable per-tool
+prompting only for this fixed surface and its approved path grants. Its binding
+includes the exact tool identifier and schema version, workspace root, operation
+limits, and—when a prebuilt workflow supplies one—the virtual path and expected
+content hash. It cannot authorize an alias, delegated capability, external
+export, or copying workspace contents to a durable or network destination. The
+DAR authoring plugin's separate `workflow_auto` policy governs its approved
+workflow external-tool surface under its FR-6; neither policy changes DAR's independent
+`approval_required` metadata. `--ask` overrides `workspace_tool_auto` with the
+wrapper approval broker, which displays the virtual path, operation, byte count,
+and pre/post hashes and rejects a stale operation. Neither mode adds a broader
 workspace capability.
 
 `write_file` creates or replaces one regular file only when its optimistic
@@ -235,24 +244,38 @@ All wrapper write implementations must:
   status in the audit store without recording raw file content in traces or
   model-facing results.
 
-Temporary workspaces expire at run completion or their configured TTL. On expiry
-or completion the wrapper first changes the state from `active` to `closing`,
-denies new calls and mutations, waits for in-flight calls to finish, then removes
-the root with the same descriptor-relative no-follow traversal and records
-`deleted`. If cleanup fails, it records a redacted failure, quarantines the
-handle and physical root from all access, and retries through wrapper lifecycle
-management. A workspace ID/root is never recreated, reused, or rebound; an
-expiry race fails before mutation.
+Workspace roots and child directories are wrapper-owned and owner-only; the
+wrapper retains the root directory handle and verifies ownership/mode before
+use. The expected-hash contract assumes no untrusted co-writer can rename an
+entry inside that root. A hostile same-UID host process is out of scope for this
+in-process profile; a host that cannot establish private ownership must expose
+the profile as unavailable or use an OS-isolated backend.
 
-`changed_paths(workspace_uri)` returns a bounded list of changed virtual paths
-with hashes, byte counts, and operation status, sorted deterministically with
-an explicit truncation/continuation signal. It never returns raw file contents.
-Audit records are append-only, ordered by a workspace-local sequence number,
-and contain a correlation/event ID. Before mutation, the wrapper must verify it
-can record the audit intent; if completion recording fails after a mutation, it
-returns an explicit indeterminate audit-failure result rather than success. A
-backend that cannot provide the stated atomic replacement semantics must report
-that capability as unavailable rather than claim an atomic write.
+Temporary workspaces expire at run completion or their configured TTL. On expiry
+or completion the wrapper atomically changes state from `active` to `closing`
+under the workspace state lock, denies new leases, and requires each in-flight
+lease to recheck active state immediately before mutation. Each operation has a
+bounded deadline. Cleanup runs after leases drain or the deadline expires; the
+latter outcome quarantines the handle and root from all access. Cleanup uses the
+same descriptor-relative no-follow traversal and records `deleted` or a redacted
+quarantine failure. A workspace ID/root is never recreated, reused, or rebound;
+an expiry race fails before mutation.
+
+`changed_paths(workspace_uri)` returns a bounded list of changed virtual paths,
+opaque content-version tokens, byte counts, and operation status, sorted
+deterministically with an explicit truncation/continuation signal. It never
+returns raw file contents or cryptographic content hashes. Protected audit
+records retain path, hashes, byte counts, and operation status.
+
+Each mutation has a durable operation ID and an intent record before mutation.
+Audit storage uses an append-only write interface with access control; tamper
+evidence is a later audit feature. Where its store supports transactions, the
+wrapper atomically records completion with the mutation outcome. Otherwise, a
+completion failure or startup-detected unresolved intent produces an explicit
+`audit_incomplete`/indeterminate status; `changed_paths` must surface that state
+rather than report normal success. A backend that cannot provide the stated
+atomic replacement semantics must report that capability as unavailable rather
+than claim an atomic write.
 
 ## Functional Requirements
 
@@ -309,8 +332,8 @@ Mutating workspace actions must integrate with approval policy.
 Acceptance criteria:
 
 - Write, delete, patch, package-install, network, and shell actions default to
-  approval-required unless an explicit trusted policy disables approval. The
-  wrapper `auto` policy is such an exception only for its exact catalog-bound
+  approval-required unless an explicit trusted policy disables approval.
+  `workspace_tool_auto` is such an exception only for its exact catalog-bound
   scratch operations.
 - Approval records include command text, normalized working directory, requested
   path changes, declared side effects, and redacted environment details.
@@ -455,7 +478,7 @@ backend capability reporting.
 - What path-grant format should callers use?
 - What default approval policy should a future DAR-native write, patch, delete,
   shell, network, or package-install tool use? (The wrapper scratch profile uses
-  catalog-bound `auto` unless `--ask` is selected.)
+  catalog-bound `workspace_tool_auto` unless `--ask` is selected.)
 - Which command forms are allowed: argv-only, shell strings, allowlisted
   commands, or arbitrary commands with approval?
 - How should environment variables and secrets be passed or blocked?
@@ -476,7 +499,7 @@ backend capability reporting.
       attempts cannot escape a granted root.
 - [ ] Read-only grants reject write, patch, and delete operations.
 - [ ] Mutating actions produce approval interruptions by default, except for an
-      explicitly trusted wrapper `auto` operation.
+      explicitly trusted `workspace_tool_auto` operation.
 - [ ] Resource limits are enforced or unsupported limits fail during preparation.
 - [ ] Trace events include redacted audit records for mutating actions.
 - [ ] Backend capability mismatch fails before execution.
@@ -491,9 +514,13 @@ backend capability reporting.
       subsequent access.
 - [ ] Trusted file ingress rejects an out-of-root, symlinked, non-regular,
       oversized, invalid-encoding, or parent-swap source and returns only a
-      hash-bound virtual URI for an accepted private copy.
+      hash-bound opaque input-artifact identifier for an accepted private copy.
+- [ ] Concurrent source modification during trusted file ingress cannot change
+      the copied byte stream after its protected hash is bound to the operation.
 - [ ] Malformed, encoded, guessed, replayed, cross-run, and cross-tenant
       workspace URIs fail closed without exposing a physical path.
+- [ ] The root URI is accepted only for workspace-scoped operations; file tools
+      reject it, mixed-case identifiers, and every non-canonical wire form.
 - [ ] `delete_file` can remove only a hash-matched regular file inside the
       temporary workspace and cannot delete a directory or escape the grant.
 - [ ] Wrapper writes use same-filesystem temporary replacement and report an
@@ -502,7 +529,14 @@ backend capability reporting.
       the lock, and cannot both report success for the same stale content.
 - [ ] Expiry races deny the mutation; cleanup invalidates first, never reuses an
       ID/root, and quarantines access if no-follow cleanup fails.
+- [ ] Expiry during a read, write, or hung search cannot extend access past the
+      operation deadline or block the closing-to-quarantine transition forever.
 - [ ] Forced audit-intent or audit-completion failure cannot produce an
       unqualified successful mutation result.
-- [ ] `changed_paths()` returns only bounded virtual paths, hashes, byte counts,
-      and operation status; it never returns raw file content or a physical path.
+- [ ] Startup reconciliation marks an unresolved audit intent as
+      `audit_incomplete`; `changed_paths()` does not report normal success.
+- [ ] A private-root ownership/mode failure or externally raced final entry makes
+      the in-process profile unavailable rather than claiming hash preconditions.
+- [ ] `changed_paths()` returns only bounded virtual paths, opaque content-version
+      tokens, byte counts, and operation status; it never returns raw file
+      content, a cryptographic content hash, or a physical path.

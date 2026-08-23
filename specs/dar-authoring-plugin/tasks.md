@@ -8,40 +8,64 @@ its predecessors pass.
 
 ## G0: Package and Server Spike
 
-- [ ] RED: plugin-manifest discovery and isolated-installation tests.
+- [ ] RED: plugin-manifest discovery, approved-Artifactory exact-version
+      resolution, and isolated-`uvx` installation tests.
 - [ ] GREEN: create the `dar-authoring` plugin bundle and local stdio MCP server
-      entrypoint without undocumented path interpolation.
+      entrypoint without undocumented path interpolation; include the DAR
+      support runtime and all required package assets in the released wheel.
 - [ ] RED/GREEN: start/stop lifecycle test that proves the server exposes no
       execution tool before G1–G3 are configured.
+- [ ] RED/GREEN: clean-directory released-wheel test verifies its archive asset
+      hashes and receives a valid MCP `initialize` response without source-tree
+      paths or undeclared package indexes.
 
 ## G1: Catalog, Profile, and Capability Boundary
 
+- [ ] RED/GREEN: authoring tests accept a `WorkflowDescriptor` with no MCP
+      tools and no skills, and emit the canonical DAR package artifacts plus a
+      descriptor digest; separately prove optional declared capabilities become
+      package requirements.
+- [ ] RED/GREEN: package fixtures declare a bounded task-specific tool
+      invocation pattern and hybrid input contract; reject a package whose
+      graph exposes an undeclared general-purpose tool console.
+- [ ] RED/GREEN: authoring skill fixtures turn natural-language requests plus
+      supplied examples/files/documentation into a validated package directory;
+      deterministic ZIP export/import preserves the manifest and artifact
+      digests without executing package content.
+- [ ] RED/GREEN: a trusted preparation-skill/control-plane path imports a
+      directory or ZIP, resolves a compatible host profile, and registers an
+      immutable workflow identifier before the single runner tool is exposed.
 - [ ] RED: versioned `run_dar_workflow` request/response schema tests for
-      closed-set workflow, operation, and profile identifiers.
-- [ ] GREEN: immutable package/operation catalog with artifact, catalog, and
-      profile digests; reject arbitrary package paths, endpoints, commands, and
-      model-provided provisioning/approval fields.
+      closed-set workflow identifiers and a hybrid original-prompt,
+      structured-input, additional-context, and workspace-artifact envelope.
+- [ ] RED/GREEN: preparation derives only schema-valid structured fields without
+      workflow-tool access, preserves unmapped information within the declared
+      `additional_context` bound, and rejects over-limit or malformed inputs.
+- [ ] GREEN: immutable package/workflow catalog with artifact, descriptor, and
+      bound-profile digests; reject arbitrary package paths, endpoints, commands,
+      profile selections, and model-provided provisioning/approval fields.
 - [ ] RED/GREEN: server-authenticated tenant/actor ownership checks for every
       catalog, profile, connection, session, alias, approval, and trace lookup.
 - [ ] RED/GREEN: merge DAR capability inspection with wrapper capability checks;
       reject metadata-only or missing wrapper requirements before execution.
 
-## G2: Fastmail Control Plane and Surface Binding
+## G2: Optional MCP Connection Control Plane and Surface Binding
 
-- [ ] RED: profile without an authenticated least-scope connection returns
+- [ ] RED: a workflow that requires an unauthenticated least-scope connection returns
       `authentication_required`.
 - [ ] GREEN: human-only OAuth/API-token connection flow with secret storage
       outside package artifacts and immutable profile/scope binding.
-- [ ] RED/GREEN: approved Fastmail surface snapshot creation/review plus passive
+- [ ] RED/GREEN: approved MCP surface snapshot creation/review plus passive
       `tools/list` identity/input-schema drift detection on the run path.
 - [ ] RED/GREEN: construct host-authored, caller-supplied `MCPToolBinding`
-      handlers only from an approved snapshot; fake Fastmail tests only.
+      handlers only from an approved snapshot; fake MCP tests only.
 
 ## G3: Read-Only Workflow Runner
 
 - [ ] RED/GREEN: select a strict local model adapter and reject hosted fallback.
-- [ ] RED/GREEN: execute fake `list_unread` through approved profile bindings,
-      merged preflight, bounded result shaping, and deep-redacted tracing.
+- [ ] RED/GREEN: execute a no-tools workflow and a fake read-only MCP workflow
+      through approved profile bindings, merged preflight, bounded result
+      shaping, and deep-redacted tracing.
 - [ ] RED/GREEN: `--dry-run` validates catalog/profile/snapshot/path policy but
       invokes neither a model nor an MCP handler.
 
@@ -52,18 +76,22 @@ its predecessors pass.
       parent-swap races are rejected.
 - [ ] GREEN: use the sandbox specification's descriptor-relative no-follow
       primitive to copy the exact opened source into a fresh private workspace;
-      return only virtual URI, hash, and byte count.
+      return only an opaque input-artifact identifier, protected hash, and byte
+      count.
 - [ ] RED/GREEN: prove physical paths and raw body content are absent from model
       inputs, tool results, traces, audit records, and approval displays.
 
-## G5: Deterministic Write Workflow Runner
+## G5: Model-Directed External-Tool Workflow Runner
 
-- [ ] RED: model-directed, undeclared, drifted, or over-cardinality writes fail
-      before their external handler runs.
-- [ ] GREEN: use wrapper-private bindings whose handlers verify catalog-exact
-      argument projection, profile, snapshot, and G4 hash-bound file ingress.
-- [ ] RED/GREEN: default `auto` records the canonical external action; `--ask`
-      uses a short-lived, one-use, tenant/actor-bound atomic approval decision.
+- [ ] RED: undeclared, schema-invalid, drifted, or over-cardinality writes fail
+      before their external handler runs; a schema-valid model-directed call on
+      the approved surface is permitted.
+- [ ] GREEN: use wrapper-private bindings whose handlers verify the immutable
+      workflow profile, allowed tool set, schema, snapshot, and G4 hash-bound
+      file ingress where applicable.
+- [ ] RED/GREEN: default `workflow_auto` (the CLI's `auto` mode) records the
+      canonical external action; `--ask` uses a short-lived, one-use,
+      tenant/actor-bound atomic approval decision.
 - [ ] RED/GREEN: changing the package revision, recipient alias, subject, body
       hash, profile, or snapshot invalidates an outstanding `--ask` decision.
 
@@ -77,7 +105,7 @@ its predecessors pass.
 
 ## Focused Validation
 
-- [ ] All unit tests use fake model adapters, Fastmail handlers, approval stores,
+- [ ] All unit tests use fake model adapters, MCP handlers, approval stores,
       and filesystem primitives; no live Fastmail, Hugging Face, or model call.
 - [ ] A positive fixture is required before a gate's capability is reported live.
 - [ ] G5 may run only after G0–G4 pass; it must not replay a DAR approval
