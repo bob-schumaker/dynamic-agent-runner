@@ -3,6 +3,19 @@
 
 ## Working
 
+- `dar-authoring-plugin` is a proposed, gated implementation plan in `d4dfac6`.
+  It defines an Artifactory/`uvx` distributed plugin containing DAR support
+  tools and skills, while portable workflow directories/ZIPs stay local and
+  declarative. The authoring skill turns a natural-language task plus supplied
+  references into canonical DAR artifacts and a generated descriptor; host
+  preparation imports/validates the package and binds its declared capabilities.
+  The sole generic runner uses hybrid input—original prompt, optional validated
+  structured fields, bounded `additional_context`, and opaque ingressed files.
+  MCP connections and skills are optional package capabilities, and each
+  package defines a bounded task-specific tool invocation pattern. G0–G5 cover
+  plugin packaging, profile/capability isolation, optional MCP surfaces,
+  trusted ingress, and `workflow_auto`/`--ask`; no implementation is authorized
+  yet.
 - `live-guardrail-execution` V2 is implemented in `78f9d9c`. It adopts the
   shared coordinator for direct and model-loop tool-input guardrails after
   validated preparation and before approval or dispatch. The TDD evidence

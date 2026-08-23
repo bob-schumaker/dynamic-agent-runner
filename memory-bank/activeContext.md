@@ -3,6 +3,20 @@
 
 ## Current Focus
 
+- `dar-authoring-plugin` is now a proposed, fully scoped portable-workflow
+  wrapper in `d4dfac6`. The Artifactory/`uvx`-installed plugin carries the DAR
+  support runtime and authoring skills; generated workflow folders/ZIPs remain
+  local, host-neutral artifacts. Authoring consumes natural-language task
+  descriptions plus supplied examples/files/docs and emits canonical DAR
+  artifacts, a generated descriptor, and optional evaluation assets.
+- A package is a bounded task application, not a general-purpose tool console.
+  Preparation validates/imports a local folder or ZIP, resolves host-owned
+  profile bindings, and registers an immutable revision. Invocations retain the
+  original prompt, optionally include schema-validated structured input, retain
+  bounded unmapped `additional_context`, and pass user files only as opaque
+  ingressed artifacts. Optional MCP and skills are declared per package;
+  `workflow_auto` is the approved profile-bound default, with `--ask` and
+  `--dry-run` available. Implementation is gated G0–G5 and remains unstarted.
 - `live-guardrail-execution` V2 is implemented in `78f9d9c`: caller-registered
   pass-or-abort `tool_input` guardrails run after validated preparation and
   before approval, hooks, retry, or dispatch for direct `tool_use_step` and
