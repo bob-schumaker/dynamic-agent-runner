@@ -5,7 +5,7 @@
 - Feature slug: `tool-invocation-coordinator`
 - Mode: guided implementation preparation
 - Artifact type: cross-cutting internal runtime slice
-- Status: prepared for implementation; no shared coordinator exists yet
+- Status: implemented; shared direct/model tool-invocation coordinator validated
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related specs:
   - `specs/approval-interruption-resume/spec.md`
@@ -227,21 +227,21 @@ Acceptance criteria:
 
 ## Validation Checklist
 
-- [ ] Direct and model-loop requests enter one coordinator before registry dispatch.
-- [ ] Invalid approval-required arguments fail before approval is recorded.
-- [ ] Unresolved approval invokes no handler, hooks, retry attempt, tool-result,
+- [x] Direct and model-loop requests enter one coordinator before registry dispatch.
+- [x] Invalid approval-required arguments fail before approval is recorded.
+- [x] Unresolved approval invokes no handler, hooks, retry attempt, tool-result,
       node-output, or failure-policy state write; the direct node-input snapshot
       remains available.
-- [ ] The prepared invocation binds one resolved tool and copied argument mapping
+- [x] The prepared invocation binds one resolved tool and copied argument mapping
       across validation, approval, and handler dispatch.
-- [ ] Model-loop unknown, malformed, paused, and dispatched calls preserve their
+- [x] Model-loop unknown, malformed, paused, and dispatched calls preserve their
       specified event ordering.
-- [ ] Effectively exposed `direct_model_only` calls retain their current registry
+- [x] Effectively exposed `direct_model_only` calls retain their current registry
       invocation outcome.
-- [ ] Approved non-retry direct and model-loop paths preserve trace and result
+- [x] Approved non-retry direct and model-loop paths preserve trace and result
       compatibility.
-- [ ] Direct retry/failure paths preserve current behavior.
-- [ ] Handler failure emits the existing result/finished/after-hook sequence.
-- [ ] Focused tests, full tests, Ruff, docs build, and package build pass.
-- [ ] Related approval, guardrail, Apple, interpreter, and README records agree
+- [x] Direct retry/failure paths preserve current behavior.
+- [x] Handler failure emits the existing result/finished/after-hook sequence.
+- [x] Focused tests, full tests, Ruff, docs build, and package build pass.
+- [x] Related approval, guardrail, Apple, interpreter, and README records agree
       with the implemented boundary.

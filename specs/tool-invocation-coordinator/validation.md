@@ -42,4 +42,16 @@
 - Build: `poetry build`
 - Documentation: `make -C docs html`
 
-No implementation validation has been run yet.
+## Implementation Evidence
+
+- Registry RED: `poetry run pytest tests/test_registry.py -k
+  prepares_then_invokes_one_validated_tool -q` failed because the preparation
+  seam did not exist.
+- Registry GREEN: the same command passed (`1 passed, 43 deselected in 0.17s`).
+- Focused: `poetry run pytest tests/test_executor.py tests/test_registry.py
+  tests/test_hooks.py tests/test_tracing.py -q` passed (`192 passed in 0.66s`).
+- Full: `poetry run pytest -q` passed (`681 passed, 4 skipped in 1.77s`).
+- Lint: `poetry run ruff check src tests` passed.
+- Build: `poetry build` passed.
+- Documentation: `make -C docs html` passed.
+- Date: 2026-08-22

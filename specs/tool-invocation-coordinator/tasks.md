@@ -1,10 +1,10 @@
 # Tool Invocation Coordinator Task List
 
-Status: prepared for implementation; no runtime changes completed
+Status: implemented and validated
 
 ## Slice 0 — Baseline and Contract
 
-- [ ] T0.1 [tests] Add focused regression tests for direct and model-loop
+- [x] T0.1 [tests] Add focused regression tests for direct and model-loop
       approval, malformed approval-required arguments, hook order, preserved
       model-loop observation, non-approval failure behavior, handler failure,
       `direct_model_only` behavior, and direct node-input snapshots on pauses.
@@ -21,7 +21,7 @@ Status: prepared for implementation; no runtime changes completed
 
 ## Slice 1 — Prepared Registry Invocation
 
-- [ ] T1.1 [tests] Add RED registry tests for non-invoking preparation of a
+- [x] T1.1 [tests] Add RED registry tests for non-invoking preparation of a
       registered tool and malformed arguments, plus dispatch through the exact
       prepared value.
   - Spec: Coordinator Contract, FR-2
@@ -30,7 +30,7 @@ Status: prepared for implementation; no runtime changes completed
     and copied validated argument mapping for dispatch, and does not apply
     direct/model exposure policy.
 
-- [ ] T1.2 [implementation] Factor registry preparation and prepared dispatch
+- [x] T1.2 [implementation] Factor registry preparation and prepared dispatch
       so the coordinator can validate one resolved tool and normalized copied
       arguments before approval, then invoke that same value without applying
       origin-specific exposure policy during preparation.
@@ -39,7 +39,7 @@ Status: prepared for implementation; no runtime changes completed
 
 ## Slice 2 — Internal Coordinator and Model-Loop Migration
 
-- [ ] T2.1 [tests] Add RED tests proving an approval-required coordinator
+- [x] T2.1 [tests] Add RED tests proving an approval-required coordinator
       request validates before approval; an unresolved approval runs no hooks,
       retry attempt, tool-result/node-output/failure-policy state write, or
       handler; direct node-input snapshot remains; and model-loop unknown,
@@ -48,7 +48,7 @@ Status: prepared for implementation; no runtime changes completed
   - Files/components: new focused coordinator test module or
     `tests/test_executor.py`
 
-- [ ] T2.2 [implementation] Add dependency-light internal coordinator request
+- [x] T2.2 [implementation] Add dependency-light internal coordinator request
       and outcome types plus the async dispatch operation. Return a `ToolResult`
       or `ApprovalInterruption`; leave `WorkflowInterruptedResult` wrapping to
       the executor. Keep direct retry attempts inside the coordinator and report
@@ -57,7 +57,7 @@ Status: prepared for implementation; no runtime changes completed
   - Files/components: new `src/dynamic_agent_runner/tool_invocation.py` or an
     equivalent internal module selected to avoid circular imports
 
-- [ ] T2.3 [implementation] Route normalized model-loop requests through the
+- [x] T2.3 [implementation] Route normalized model-loop requests through the
       coordinator and remove the executor model-loop path's direct registry
       dispatch.
   - Spec: FR-1, FR-3
@@ -65,7 +65,7 @@ Status: prepared for implementation; no runtime changes completed
 
 ## Slice 3 — Direct-Step Migration
 
-- [ ] T3.1 [tests] Add RED parity tests for direct retries, fallback/error and
+- [x] T3.1 [tests] Add RED parity tests for direct retries, fallback/error and
       non-approval invalid-input behavior, output/state recording, trace
       compatibility, hooks, and `direct_model_only` error translation after
       coordinator migration.
@@ -73,21 +73,21 @@ Status: prepared for implementation; no runtime changes completed
   - Files/components: `tests/test_executor.py`, `tests/test_tracing.py`,
     `tests/test_hooks.py`
 
-- [ ] T3.2 [implementation] Route direct `tool_use_step` dispatch through the
+- [x] T3.2 [implementation] Route direct `tool_use_step` dispatch through the
       coordinator while retaining executor-owned node-output and control-flow
       behavior.
   - Spec: FR-1, FR-3
   - Files/components: `src/dynamic_agent_runner/executor.py`
 
-- [ ] T3.3 [implementation] Delete only duplicated executor dispatch branches
+- [x] T3.3 [implementation] Delete only duplicated executor dispatch branches
       that are covered by coordinator parity tests.
   - Spec: FR-3
   - Files/components: `src/dynamic_agent_runner/executor.py`
 
 ## Slice 4 — Completion Evidence
 
-- [ ] T4.1 [validation] Run focused regression, full test, lint, docs, and
+- [x] T4.1 [validation] Run focused regression, full test, lint, docs, and
       package-build gates from `plan.md`.
-- [ ] T4.2 [docs] Update this feature's validation record and dependent future
+- [x] T4.2 [docs] Update this feature's validation record and dependent future
       specs to show the completed coordinator boundary without enabling
       provider, interpreter, guardrail, or sandbox capabilities.

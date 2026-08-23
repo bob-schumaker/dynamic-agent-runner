@@ -17,6 +17,7 @@
   - `specs/openai-responses-tool-loop-compat/spec.md`
   - `specs/iterative-agent-loop-runtime/spec.md`
   - `specs/approval-interruption-resume/spec.md`
+  - `specs/tool-invocation-coordinator/spec.md`
   - `specs/model-event-streaming/spec.md`
   - `specs/mlx-local-model-adapter/spec.md`
 - Related implementation surfaces:
@@ -114,8 +115,8 @@ but they do not replace repeatable unit coverage or release validation.
   returned to DAR as JSON text in the normalized `ModelResponse.content`.
 - **Local execution**: DAR makes no provider network request; model execution is
   delegated in process to the macOS Foundation Models framework.
-- **Tool invocation coordinator**: a DAR-owned execution boundary that receives
-  provider-originated tool requests and applies DAR exposure, approval,
+- **Tool invocation coordinator**: a DAR-owned execution boundary whose first
+  slice supports direct and model-loop tool requests and applies DAR exposure, approval,
   lifecycle-hook, tracing, registry, state, and result-shaping behavior before
   any registered tool handler can run.
 
@@ -195,10 +196,11 @@ preferred when DAR schemas can be translated without loss; a gateway remains an
 allowed fallback only if it preserves the same coordinator and allowlist.
 
 A2 is not authorized for implementation by the A1 release boundary. Its plan
-must either depend on an approved model-emitted tool-call approval/resume
-contract or define a separately approved in-process approval resolver that
-preserves equivalent DAR state and correlation. The currently implemented
-direct `tool_use_step` interruption alone is not sufficient for Apple callbacks.
+must depend on the prepared coordinator's completed direct/model-loop slice and
+then on a separately approved provider-ingress plus approval-resolution contract
+that preserves DAR state and correlation. The current coordinator slice excludes
+provider callbacks and approval resolution; it does not by itself authorize or
+enable Apple callbacks.
 
 ### Deferred releases
 

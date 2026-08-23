@@ -728,6 +728,16 @@ Risks and questions:
 - Requires excellent examples for model reliability.
 - Could duplicate graph/node semantics instead of simplifying runtime behavior.
 
+Supporting design evidence: [BAML](https://github.com/BoundaryML/baml) is a
+separate typed agent/workflow language, not a DAR interpreter candidate. Its
+compiler typechecks source before lowering it to bytecode, and its VM preserves
+typed values while making externally scheduled work explicit. Candidate E should
+adopt only those lessons: a small fixed grammar, static validation before
+execution, typed tool-input and result contracts, and explicit suspension at the
+DAR-owned invocation coordinator. BAML itself is excluded because its runtime
+can dispatch its own LLM calls and HTTP requests and exposes environment-variable
+lookup; those capabilities would bypass DAR's policy boundary.
+
 ### Candidate F: Tightly constrained subprocess runtime
 
 Examples include a `node` subprocess with a generated harness or a Python
@@ -746,6 +756,66 @@ Risks and questions:
 - Harder to make portable and safe by default.
 - Risks conflicting with the requirement that interpreter support not inherit a
   whole host environment.
+
+### Candidate G: MicroPython WASM via `micropython-wasm`
+
+The upstream repository, <https://github.com/simonw/micropython-wasm>, was
+evaluated at commit `5e79a4f` (2026-06-06). It is an experimental Python package
+that runs a custom MicroPython WASI artifact through Wasmtime. This is an
+investigated candidate only; it is not selected and it does not authorize a
+dependency or implementation change.
+
+Potential strengths:
+
+- One-shot execution creates a fresh Wasmtime engine, store, WASI config, and
+  module instance, which fits a no-persistent-state first slice.
+- Its documented default capability model has no network and no host filesystem
+  unless a caller explicitly preopens a read-only directory.
+- It exposes Wasmtime linear-memory, fuel, and epoch-interruption wall-clock
+  limits, plus a cap on serialized host-callback results.
+- Its guest language is MicroPython rather than raw WASM, making it a more
+  plausible agent-authored loop language than Candidate C alone.
+
+Observed gaps and risks:
+
+- `host_functions` is a mapping of names directly to Python callables. The
+  guest bridge deserializes arguments and invokes that callable directly. DAR
+  must never pass registry handlers through that API: any future bridge needs a
+  single run- and node-scoped callback that enters the DAR-owned invocation
+  coordinator before a host action occurs, preserving exposure, validation,
+  approval, hooks, tracing, state, redaction, and result shaping.
+- The runtime currently accumulates stdout and stderr in unbounded byte lists.
+  Its own `future.md` identifies output caps as unfinished and recommends a
+  separate worker process with OS memory and CPU limits for high-risk untrusted
+  code. DAR must not rely on its in-process limits alone.
+- A local verification run, `uv run pytest -q`, resolved Wasmtime `48.0.0` on
+  CPython 3.12 and produced `67 passed, 1 failed`. The failed test expected a
+  preopened read-only directory to reject a write but no exception was raised.
+  Filesystem isolation is therefore unverified and must not be a DAR capability
+  claim until this regression is fixed and the compatible Wasmtime version is
+  pinned. This evaluation also does not establish compatibility with DAR's
+  Python 3.14 runtime.
+- `MicroPythonSession` holds a resident VM in a background thread and becomes
+  unusable after a fuel-exhaustion or other guest trap. `MicroPythonReplaySession`
+  re-executes previous successful snippets, including their external side
+  effects. Neither session model is suitable for a first DAR slice or durable
+  approval interruption/resume.
+- MicroPython compatibility, bundled WASM artifact size, package-index
+  availability, and supported-platform behavior still require dedicated
+  evaluation before this can compete with JavaScript, restricted-Python, and
+  DSL prototypes.
+
+Recommended evaluation boundary:
+
+- Prototype only a caller-registered, optional, fresh-instance adapter with no
+  `host_functions`, no preopened filesystem, no persistent/replay session, and
+  DAR-owned bounded capture around all returned output.
+- Do not expose bridged tools until the DAR-owned invocation coordinator exists;
+  when it does, expose at most one coordinator callback rather than arbitrary
+  handlers and prove denied approval prevents host invocation.
+- Require a pinned Wasmtime compatibility set, Python 3.14 validation,
+  output-flood handling, worker-process containment, and timeout/fuel/memory/
+  cancellation cleanup tests before any backend-selection decision.
 
 ## Non-Functional Requirements
 
@@ -882,9 +952,9 @@ Metrics to record:
       adding a runtime dependency.
 - [x] Define the stable model-facing gateway, multi-interpreter catalog, and
       non-executable descriptor boundary.
-- [ ] Specify or reuse a DAR-owned tool invocation coordinator that can preserve
-      approval, hooks, tracing, state, and result shaping for nested interpreter
-      calls.
+- [x] Prepare the shared DAR-owned tool invocation coordinator in
+      `specs/tool-invocation-coordinator/`; its first slice preserves the
+      direct/model-loop boundary before any interpreter bridge is enabled.
 - [ ] Prototype QuickJS-style JavaScript, restricted Python/AST, and mini-DSL
       candidates as custom adapters against fake registry tools.
 - [ ] Run benchmark fixtures and compare against current serial `llm_step` /
