@@ -1300,6 +1300,123 @@ def _message_from_model_input(
     )
 
 
+async def _coordinate_tool_invocation_async(
+    *,
+    node: PreparedNode,
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+    tracer: WorkflowTracer,
+    lifecycle_hooks: WorkflowLifecycleHooks | None,
+    registry: ToolRegistry,
+    tool: RegisteredTool,
+    arguments: Mapping[str, Any],
+    result_key: str,
+    invoke: Callable[[], Awaitable[ToolResult]],
+    approval_reason: str,
+    action_id: str | None = None,
+    emit_tool_invocation: bool = False,
+) -> ToolResult | WorkflowInterruptedResult:
+    """Apply DAR's shared approval, lifecycle, and observation boundary."""
+
+    event_payload = {"tool_id": tool.id, "arguments": arguments}
+    if action_id is not None:
+        event_payload["tool_call_id"] = action_id
+    if _approval_required(tool):
+        prepared = registry.prepare_tool_invocation(tool.id, arguments)
+        interruption = ApprovalInterruption(
+            interruption_id=_new_approval_id(),
+            run_id=str(state.run_id),
+            workflow_id=str(plan.workflow.runtime_manifest.package_id),
+            node_id=str(node.id),
+            tool_id=tool.id,
+            action_id=action_id,
+            arguments=prepared.arguments,
+            policy=_tool_policy_payload(tool),
+            reason=approval_reason,
+        )
+        approval_payload = {
+            "interruption_id": interruption.interruption_id,
+            "tool_id": tool.id,
+            "arguments": prepared.arguments,
+            "policy": interruption.policy,
+            "reason": interruption.reason,
+        }
+        if action_id is not None:
+            approval_payload["tool_call_id"] = action_id
+        tracer.emit(
+            "approval_requested",
+            node_id=str(node.id),
+            payload=approval_payload,
+            sensitive_fields=("arguments",),
+        )
+        paused_payload = {
+            "interruption_id": interruption.interruption_id,
+            "tool_id": tool.id,
+            "state": interruption.state.value,
+        }
+        if action_id is not None:
+            paused_payload["tool_call_id"] = action_id
+        tracer.emit("approval_paused", node_id=str(node.id), payload=paused_payload)
+        return WorkflowInterruptedResult(
+            final_result=None,
+            state=state,
+            interruption=interruption,
+        )
+    tracer.emit(
+        "tool_started",
+        node_id=str(node.id),
+        payload=event_payload,
+        sensitive_fields=("arguments",),
+    )
+    if emit_tool_invocation:
+        tracer.emit(
+            "tool_invocation",
+            node_id=str(node.id),
+            payload=event_payload,
+            sensitive_fields=("arguments",),
+        )
+    await invoke_lifecycle_hook_async(
+        lifecycle_hooks.registered_hook("before_tool") if lifecycle_hooks else None,
+        ToolHookContext(
+            node_id=str(node.id),
+            tool_id=tool.id,
+            arguments=arguments,
+            run_id=state.run_id,
+        ),
+    )
+    result = await invoke()
+    state.tool_results[result_key] = result
+    trace_payload = result.trace_payload()
+    if action_id is not None:
+        trace_payload = {"tool_call_id": action_id, **trace_payload}
+    tracer.emit(
+        "tool_result",
+        node_id=str(node.id),
+        payload=trace_payload,
+        sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
+    )
+    finished_payload = {
+        "tool_id": tool.id,
+        "success": result.success,
+        "error": result.error,
+    }
+    if action_id is not None:
+        finished_payload["tool_call_id"] = action_id
+    tracer.emit("tool_finished", node_id=str(node.id), payload=finished_payload)
+    await invoke_lifecycle_hook_async(
+        lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
+        ToolHookContext(
+            node_id=str(node.id),
+            tool_id=tool.id,
+            arguments=arguments,
+            result=result,
+            error=result.error,
+            run_id=state.run_id,
+        ),
+    )
+    return result
+
+
 async def _invoke_model_tool_call_async(
     node: PreparedNode,
     plan: ExecutionPlan,
@@ -1325,94 +1442,23 @@ async def _invoke_model_tool_call_async(
         },
         sensitive_fields=("arguments",),
     )
-    if _approval_required(tool):
-        interruption = ApprovalInterruption(
-            interruption_id=_new_approval_id(),
-            run_id=str(state.run_id),
-            workflow_id=str(plan.workflow.runtime_manifest.package_id),
-            node_id=str(node.id),
-            tool_id=tool.id,
-            action_id=tool_call_id,
-            arguments=arguments,
-            policy=_tool_policy_payload(tool),
-            reason=f"model tool {tool.id!r} requires approval",
-        )
-        tracer.emit(
-            "approval_requested",
-            node_id=str(node.id),
-            payload={
-                "interruption_id": interruption.interruption_id,
-                "tool_id": tool.id,
-                "tool_call_id": tool_call_id,
-                "arguments": arguments,
-                "policy": interruption.policy,
-                "reason": interruption.reason,
-            },
-            sensitive_fields=("arguments",),
-        )
-        tracer.emit(
-            "approval_paused",
-            node_id=str(node.id),
-            payload={
-                "interruption_id": interruption.interruption_id,
-                "tool_id": tool.id,
-                "tool_call_id": tool_call_id,
-                "state": interruption.state.value,
-            },
-        )
-        return WorkflowInterruptedResult(
-            final_result=None,
-            state=state,
-            interruption=interruption,
-        )
-    tracer.emit(
-        "tool_started",
-        node_id=str(node.id),
-        payload={
-            "tool_id": tool.id,
-            "tool_call_id": tool_call_id,
-            "arguments": arguments,
-        },
-        sensitive_fields=("arguments",),
+    coordinated = await _coordinate_tool_invocation_async(
+        node=node,
+        plan=plan,
+        state=state,
+        tracer=tracer,
+        lifecycle_hooks=lifecycle_hooks,
+        registry=registry,
+        tool=tool,
+        arguments=arguments,
+        result_key=f"{node.id}.{tool_call_id}",
+        action_id=tool_call_id,
+        invoke=lambda: registry.invoke_tool_async(tool.id, arguments),
+        approval_reason=f"model tool {tool.id!r} requires approval",
     )
-    await invoke_lifecycle_hook_async(
-        lifecycle_hooks.registered_hook("before_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=tool.id,
-            arguments=arguments,
-            run_id=state.run_id,
-        ),
-    )
-    result = await registry.invoke_tool_async(tool.id, arguments)
-    state.tool_results[f"{node.id}.{tool_call_id}"] = result
-    tracer.emit(
-        "tool_result",
-        node_id=str(node.id),
-        payload={"tool_call_id": tool_call_id, **result.trace_payload()},
-        sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
-    )
-    tracer.emit(
-        "tool_finished",
-        node_id=str(node.id),
-        payload={
-            "tool_id": tool.id,
-            "tool_call_id": tool_call_id,
-            "success": result.success,
-            "error": result.error,
-        },
-    )
-    await invoke_lifecycle_hook_async(
-        lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=tool.id,
-            arguments=arguments,
-            result=result,
-            error=result.error,
-            run_id=state.run_id,
-        ),
-    )
+    if isinstance(coordinated, WorkflowInterruptedResult):
+        return coordinated
+    result = coordinated
     if not result.success:
         raise WorkflowExecutionError(result.error or f"tool {tool.id!r} failed")
     return result
@@ -1581,97 +1627,28 @@ async def _execute_tool_step_async(
     arguments = _tool_arguments(node, state)
     state.node_inputs[str(node.id)] = arguments
     tool = registry.get_tool(str(node.tool_id))
-    if _approval_required(tool):
-        interruption = ApprovalInterruption(
-            interruption_id=_new_approval_id(),
-            run_id=str(state.run_id),
-            workflow_id=str(plan.workflow.runtime_manifest.package_id),
-            node_id=str(node.id),
-            tool_id=str(node.tool_id),
-            arguments=arguments,
-            policy=_tool_policy_payload(tool),
-            reason=f"tool {node.tool_id!r} requires approval",
-        )
-        tracer.emit(
-            "approval_requested",
-            node_id=str(node.id),
-            payload={
-                "interruption_id": interruption.interruption_id,
-                "tool_id": node.tool_id,
-                "arguments": arguments,
-                "policy": interruption.policy,
-                "reason": interruption.reason,
-            },
-            sensitive_fields=("arguments",),
-        )
-        tracer.emit(
-            "approval_paused",
-            node_id=str(node.id),
-            payload={
-                "interruption_id": interruption.interruption_id,
-                "tool_id": node.tool_id,
-                "state": interruption.state.value,
-            },
-        )
-        return WorkflowInterruptedResult(
-            final_result=None,
-            state=state,
-            interruption=interruption,
-        )
-    tracer.emit(
-        "tool_started",
-        node_id=str(node.id),
-        payload={"tool_id": node.tool_id, "arguments": arguments},
-        sensitive_fields=("arguments",),
-    )
-    tracer.emit(
-        "tool_invocation",
-        node_id=str(node.id),
-        payload={"tool_id": node.tool_id, "arguments": arguments},
-        sensitive_fields=("arguments",),
-    )
-    await invoke_lifecycle_hook_async(
-        lifecycle_hooks.registered_hook("before_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=str(node.tool_id),
-            arguments=arguments,
-            run_id=state.run_id,
+    coordinated = await _coordinate_tool_invocation_async(
+        node=node,
+        plan=plan,
+        state=state,
+        tracer=tracer,
+        lifecycle_hooks=lifecycle_hooks,
+        registry=registry,
+        tool=tool,
+        arguments=arguments,
+        result_key=str(node.id),
+        invoke=lambda: _invoke_tool_with_retry_async(
+            node, registry, arguments, state, tracer
         ),
+        approval_reason=f"tool {node.tool_id!r} requires approval",
+        emit_tool_invocation=True,
     )
-    result = await _invoke_tool_with_retry_async(
-        node, registry, arguments, state, tracer
-    )
-    state.tool_results[str(node.id)] = result
-    tracer.emit(
-        "tool_result",
-        node_id=str(node.id),
-        payload=result.trace_payload(),
-        sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
-    )
+    if isinstance(coordinated, WorkflowInterruptedResult):
+        return coordinated
+    result = coordinated
     if not result.success and _failure_behavior(node) == "error":
         error = result.error or f"tool {node.tool_id!r} failed"
         state.errors.append(error)
-        tracer.emit(
-            "tool_finished",
-            node_id=str(node.id),
-            payload={
-                "tool_id": node.tool_id,
-                "success": result.success,
-                "error": error,
-            },
-        )
-        await invoke_lifecycle_hook_async(
-            lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
-            ToolHookContext(
-                node_id=str(node.id),
-                tool_id=str(node.tool_id),
-                arguments=arguments,
-                result=result,
-                error=error,
-                run_id=state.run_id,
-            ),
-        )
         raise WorkflowExecutionError(error)
     if not result.success:
         _emit_status_notice(
@@ -1685,26 +1662,6 @@ async def _execute_tool_step_async(
             ),
             payload={"tool_id": node.tool_id, "error": result.error},
         )
-    tracer.emit(
-        "tool_finished",
-        node_id=str(node.id),
-        payload={
-            "tool_id": node.tool_id,
-            "success": result.success,
-            "error": result.error,
-        },
-    )
-    await invoke_lifecycle_hook_async(
-        lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=str(node.tool_id),
-            arguments=arguments,
-            result=result,
-            error=result.error,
-            run_id=state.run_id,
-        ),
-    )
     _record_outputs(node, result, state)
     return result
 

@@ -238,6 +238,36 @@ def test_registry_reports_missing_inputs_and_tool_failures() -> None:
         registry.get_tool("missing")
 
 
+def test_registry_prepares_then_invokes_one_validated_tool() -> None:
+    calls: list[dict[str, object]] = []
+
+    def handler(arguments: object) -> object:
+        calls.append(dict(arguments))
+        return {"ok": True}
+
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {
+                        "id": "prepared",
+                        "input_schema": {"type": "object", "required": ["query"]},
+                    }
+                ),
+                handler,
+            )
+        ]
+    )
+
+    prepared = registry.prepare_tool_invocation("prepared", {"query": "x"})
+
+    assert calls == []
+    assert prepared.tool.id == "prepared"
+    assert prepared.arguments == {"query": "x"}
+    assert asyncio.run(registry.invoke_prepared_tool_async(prepared)).success is True
+    assert calls == [{"query": "x"}]
+
+
 def test_registry_preserves_structured_tool_result_facets() -> None:
     expected = ToolResult(
         tool_id="facet_tool",
