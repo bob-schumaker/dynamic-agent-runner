@@ -28,7 +28,7 @@ new tool capabilities.
 
 ## Existing Baseline
 
-Two executor paths currently duplicate parts of the boundary:
+Before this completed slice, two executor paths duplicated parts of the boundary:
 
 - `_execute_tool_step_async(...)` resolves direct-step arguments, pauses for
   approval, emits lifecycle and trace events, applies retry and failure policy,

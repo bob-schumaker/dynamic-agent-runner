@@ -12,8 +12,12 @@ Status: implementation-ready; no V2 validation has run
   and node output.
 - Redacted trace assertions for tool-input phase observations.
 - Ordered multi-declaration, result-id/phase mismatch, and handler-error tests.
+- Missing-id and malformed guarded-input tests proving no guardrail, approval,
+  lifecycle hook, retry, or handler runs; model-loop calls retain their existing
+  pre-validation call observation.
 - Subject assertions proving handlers receive only copied validated tool-input
-  fields, never a raw handler, registry, provider callback, or interpreter.
+  fields, never a raw handler, registry, provider callback, or interpreter;
+  nested mutation cannot alter approval or handler arguments.
 
 ## Required Commands
 

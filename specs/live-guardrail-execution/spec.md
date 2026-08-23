@@ -104,10 +104,13 @@ V2 includes:
 
 - `phase: tool_input` declarations applied in manifest order to every supported
   tool origin
-- a caller-registered guardrail lookup where each handler receives a copied
-  mapping with `phase`, `tool_id`, `node_id`, optional `tool_call_id`, and
-  validated `arguments`
-- fail-closed missing-adapter behavior for required declarations
+- every V2 `tool_input` declaration is required and has a nonblank id; optional
+  or degraded tool-input policy is deferred
+- a private executor-supplied guardrail runner, not a raw guardrail registry,
+  receives the selected declarations and a recursively copied subject mapping
+  with `phase`, `tool_id`, `node_id`, optional `tool_call_id`, and validated
+  `arguments`
+- fail-closed missing-adapter behavior for every declaration
 - pass and abort decisions only
 - redacted tool-input guardrail trace events
 - direct and model-loop fake-backed tests proving an abort invokes no handler
@@ -120,8 +123,12 @@ For V2, each result must name the declaration id and `tool_input` phase; a
 mismatch, handler exception, or malformed result fails closed with
 `GuardrailExecutionError`. Multiple declarations run in manifest order and stop
 at the first abort or error. A guarded request is prepared and input-validated
-before its first guardrail; unguarded requests retain the current validation
-timing.
+before its first guardrail, whether or not approval is required. Invalid guarded
+requests fail with the existing registry validation error before a guardrail,
+approval, lifecycle hook, retry, or handler; a model-loop call retains its
+existing pre-validation call observation. A guardrail must not be able to mutate
+the prepared invocation through nested subject values. Unguarded requests retain
+the current validation timing.
 
 ## V2 Delivery Handoff
 
@@ -134,7 +141,8 @@ timing.
   [`tool-input-tasks.md`](tool-input-tasks.md), starting with Slice 0.
 - Acceptance: direct and model-loop tool-input abort and missing-adapter paths
   fail closed before approval or handler invocation, while pass paths preserve
-  existing behavior.
+  existing behavior; nested guardrail-subject mutation cannot alter approval or
+  handler arguments.
 - Validation: [`tool-input-validation.md`](tool-input-validation.md).
 - Status: implementation-ready; this plan is ready to execute under its stated
   gates.

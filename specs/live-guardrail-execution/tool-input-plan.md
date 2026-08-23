@@ -12,8 +12,8 @@ For direct steps and model-loop calls:
 1. resolve effective tool exposure and normalize arguments;
 2. validate registered-tool input;
 3. run declared `tool_input` guardrails in manifest order on a copied subject
-   mapping containing phase, tool id, node id, optional call id, and validated
-   arguments;
+   mapping containing phase, tool id, node id, optional call id, and recursively
+   copied validated arguments;
 4. on abort, emit redacted guardrail observations and raise
    `GuardrailExecutionError` without approval, hooks, retry, or handler use;
 5. on pass, continue existing approval, lifecycle, retry, registry, trace, and
@@ -23,7 +23,13 @@ For direct steps and model-loop calls:
 
 - Reuse `InMemoryGuardrailRegistry`, `GuardrailDecision`, and
   `GuardrailResult`; do not add provider adapters or public coordinator APIs.
+- The executor selects declarations and supplies one private guardrail-runner
+  callback to the coordinator. The callback receives declarations and the
+  copied subject; it owns adapter lookup, result id/phase validation, redacted
+  observations, and `GuardrailExecutionError` normalization.
 - Only `pass` and `abort` are live for tool input.
+- Every V2 `tool_input` declaration is required and must have a nonblank id.
+  Optional/degraded tool-input policy is deferred.
 - A result must match its declaration id and `tool_input` phase. Missing
   adapters, handler errors, malformed results, and mismatches fail closed.
 - Multiple declarations stop at the first abort or error; unguarded requests
@@ -37,14 +43,18 @@ For direct steps and model-loop calls:
 ### WP1 — Characterize and test the boundary
 
 - Add RED executor/tracing tests for direct and model tool-input pass, abort,
-  missing-adapter, result-mismatch, and ordered multi-declaration behavior.
+  missing-adapter, result-mismatch, malformed guarded input, and ordered
+  multi-declaration behavior.
 - Assert no approval, hook, retry, registry invocation, or handler side effect
   follows an abort.
+- Assert nested mutation of the guardrail subject cannot alter an approval
+  interruption or handler arguments.
 
 ### WP2 — Coordinator adoption
 
-- Add a narrow coordinator collaborator seam for tool-input guardrail lookup
-  and execution after guarded-path validation.
+- Add a narrow private callback seam for executor-owned declaration selection
+  and tool-input guardrail execution after guarded-path validation, for both
+  approval-required and non-approval requests.
 - Preserve existing input-guardrail behavior and all non-tool guardrail phases.
 
 ### WP3 — Validation and records
