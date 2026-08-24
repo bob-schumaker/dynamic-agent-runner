@@ -123,6 +123,11 @@ passes.
       receipts expose neither content nor paths, and wrong-owner/expired sets
       fail closed. Package, trace, fixture, and export enforcement follows with
       the authoring and publication paths.
+- [x] RED/GREEN: define an external authoring-evidence record containing only
+      corpus/prompt/package digests, opaque material-set ID, provider/model,
+      deterministic validator outcome, reviewer decision, pass criteria, and
+      retention policy. Persist it atomically with owner-only permissions; raw
+      prompts and material content have no record fields.
 - [ ] RED/GREEN: authoring skill fixtures turn natural-language requests plus an
       `AuthoringMaterialSet` projection into a validated package directory;
       unselected/private material cannot enter package, trace, evaluation fixture,

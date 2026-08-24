@@ -35,7 +35,7 @@ only path to an end-to-end authoring-plugin publication claim.
 | M1 | G0 — package/server spike | Minimal install/discovery proof, then release-integrity proof. | None |
 | M2 | G1 runtime core | Human-selected directory staging, policy compilation, and package-only preflight. Implemented. | M1 |
 | M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. Implemented. | M2 |
-| M4 | RA1 — authoring acceptance | M4.0 material projection is implemented; external adapted-skill behavior evidence remains. | M0, M2 |
+| M4 | RA1 — authoring acceptance | M4.0 material projection and M4.1 redacted evidence contract are implemented; external adapted-skill behavior remains. | M0, M2 |
 | M5 | G2 | Configured HTTPS MCP control plane and reviewed binding. Implemented through one configured client per host; M5.5 execution evidence is `93159e9`. | M2; M3 for M5.5 execution integration |
 | M6 | G4 | Trusted caller-file ingress. Implemented. | Focused tested sandbox descriptor-relative no-follow-copy primitive at a recorded prerequisite revision; M2 |
 | M7 | G5 | Model-directed external side effects with audit and local `--ask`. Implemented for reviewed generic MCP bindings; multi-client composition requires a follow-up slice. | M3; M5 for MCP actions; M6 for file arguments |
@@ -184,11 +184,11 @@ prompt through the sealed, catalog-only runner interface.
    Public receipts exclude content and paths; only the exact selected set can
    project bounded content. Package/trace/fixture/export exclusion is enforced
    by the later authoring and publication paths.
-2. **M4.1: Define the external authoring evidence contract.** Add a checked-in
-   harness interface and redacted evidence schema with corpus/prompt digests,
-   model/provider identifier, generated package digests, deterministic validator
-   result, named reviewer decision, explicit pass/fail criteria, and retention
-   policy.
+2. **M4.1: Define the external authoring evidence contract.** Implemented as
+   `AuthoringEvidence`: its atomic private record contains corpus/prompt and
+   package digests, opaque material-set id, model/provider identity,
+   deterministic validator result, named reviewer decision, pass criteria, and
+   retention policy. Raw prompt and material fields cannot be recorded.
 3. **M4.2: Run the external authoring harness.** Run the checked-in,
    de-identified corpus with the selected authoring model outside unit tests and
    record evidence through the M4.1 contract.
