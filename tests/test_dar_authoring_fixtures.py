@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from dynamic_agent_runner import load_agent_package_workflow
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "dar-authoring" / "invocations"
+TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
 EXPECTED_SKILLS = {
     "agent-development",
     "agent-tool-contract-design",
@@ -33,3 +35,10 @@ def test_target_invocation_fixtures_have_complete_deidentified_contracts() -> No
             assert material["disposition"] in {"reference_only", "distributable"}
             assert material["artifact_id"].startswith("authoring-material-")
             assert len(material["digest"]) == 64
+
+
+def test_no_tool_template_is_a_valid_dar_package() -> None:
+    workflow = load_agent_package_workflow(str(TEMPLATE_ROOT))
+
+    assert workflow.runtime_manifest.package_id == "dar-authoring-no-tool-template"
+    assert workflow.runtime_manifest.tools == ()
