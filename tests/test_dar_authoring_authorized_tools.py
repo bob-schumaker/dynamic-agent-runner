@@ -11,7 +11,10 @@ import pytest
 
 from dynamic_agent_runner import create_host_tool_registry  # noqa: E402
 
-from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger  # noqa: E402
+from dynamic_agent_runner.workflow_host.action_ledger import (  # noqa: E402
+    ActionLedgerError,
+    WorkflowActionLedger,
+)
 from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore  # noqa: E402
 from dynamic_agent_runner.workflow_host.argument_provenance import (  # noqa: E402
     ArgumentVerificationContext,
@@ -296,6 +299,43 @@ def test_authorized_binding_rejects_a_second_call_over_its_budget(
     assert client.calls == [
         ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
     ]
+
+
+def test_authorized_binding_prevents_dispatch_when_intent_audit_write_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fail_intent(*_args: object, **_kwargs: object) -> object:
+        raise ActionLedgerError("audit storage is unavailable")
+
+    monkeypatch.setattr(WorkflowActionLedger, "record_intent", fail_intent)
+    registry, client, _ = _registry(tmp_path)
+
+    result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert result.success is False
+    assert client.calls == []
+
+
+def test_authorized_binding_records_unknown_outcome_without_automatic_retry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    registry, client, state_path = _registry(tmp_path)
+
+    def fail_after_dispatch(name: str, arguments: dict[str, object]) -> object:
+        client.calls.append((name, arguments))
+        raise TimeoutError("transport timed out after dispatch")
+
+    monkeypatch.setattr(client, "call_tool", fail_after_dispatch)
+
+    result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+    replay = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert result.success is False
+    assert replay.success is False
+    assert client.calls == [
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
+    assert '"status":"outcome_unknown"' in state_path.read_text(encoding="utf-8")
 
 
 def test_authorized_binding_allows_a_revalidated_same_identity_reconnect(

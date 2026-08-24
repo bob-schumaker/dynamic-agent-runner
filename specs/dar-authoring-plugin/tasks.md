@@ -336,7 +336,7 @@ passes.
 - [x] RED/GREEN: local `--ask` blocks only at the wrapper handler boundary;
       approve invokes exactly once, while deny, cancel, and expiry produce a
       terminal non-executing result with no DAR continuation token or replay.
-- [ ] RED/GREEN: action ledger writes durable `intent` before dispatch and
+- [x] RED/GREEN: action ledger writes durable `intent` before dispatch and
       records `dispatched` plus a terminal status. Audit-store failure blocks
       dispatch; post-dispatch timeout/cancellation/reconnect is
       `outcome_unknown` and is never retried automatically. Retry a mutation
