@@ -35,7 +35,9 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
         "PyYAML>=6.0.3",
     ]
     assert project["project"]["scripts"] == {
-        "dar-authoring-mcp": "dar_workflow_server.server:console_main"
+        "dar-authoring-mcp": "dar_workflow_server.server:console_main",
+        "dar-workflow": "dar_workflow_server.cli:console_main",
+        "dar-workflow-run": "dar_workflow_server.cli:run_console_main",
     }
     server = mcp_config["mcpServers"]["dar-authoring"]
     assert server["command"] == "uvx"

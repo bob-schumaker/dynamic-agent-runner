@@ -10,6 +10,8 @@ dependencies = [
 
 [project.scripts]
 dar-authoring-mcp = "dar_workflow_server.server:console_main"
+dar-workflow = "dar_workflow_server.cli:console_main"
+dar-workflow-run = "dar_workflow_server.cli:run_console_main"
 
 [tool.poetry]
 packages = [
