@@ -87,17 +87,19 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    `initialize` evidence. The server advertises no execution tool. Stop here if
    the launch topology is unsupported.
 2. **M1.2: Lock the launcher supply chain.** After M1.1 succeeds, implement the
-   checked-in `uvx`
-   launch contract and verification of the selected plugin/DAR artifacts against
-   signed release metadata from a configured trusted-key root, with configured
-   expiry and minimum-version floor. Tests reject an unexpected index, non-exact
-   version, altered plugin or DAR wheel bytes, an unpinned transitive dependency,
-   expired metadata, untrusted or revoked signing keys, revoked artifact
-   versions, and a version below the floor; startup records all resolved
-   dependency identities without requiring an Artifactory network call.
-3. **M1.3: Prove release-candidate wheel isolation.** Build the plugin wheel
-   and test it from a clean directory: assets are present, startup records resolved
-   dependencies, and no source-tree path or execution tool is exposed.
+   checked-in `uvx` launch contract for DAR's `dynamic-agent-runner-mcp` entry
+   point and verification of the selected DAR artifacts against signed release
+   metadata from a configured trusted-key root, with configured expiry and
+   minimum-version floor. Tests reject an unexpected index, non-exact version,
+   altered DAR wheel bytes, an unpinned transitive dependency, expired metadata,
+   untrusted or revoked signing keys, revoked artifact versions, and a version
+   below the floor; startup records all resolved dependency identities without
+   requiring an Artifactory network call. The local plugin itself is not an
+   Artifactory artifact.
+3. **M1.3: Prove runtime-wheel isolation.** Resolve the DAR wheel from a clean
+   directory and test it there: its MCP entry point and runtime assets are
+   present, startup records resolved dependencies, and no source-tree path or
+   execution tool is exposed.
 
 M1 exit: a release-candidate plugin starts as a local stdio MCP server and is
 safe to discover, but cannot execute a workflow or be published.

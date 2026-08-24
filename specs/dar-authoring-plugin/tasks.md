@@ -31,18 +31,19 @@ passes.
 - [x] RED/GREEN: canonical basic-reasoning and bounded read-only-MCP templates
       load through DAR; the declared tool is task-specific, read-only, and capped
       at three calls. Both templates ship as plugin assets.
-- [ ] RED: plugin-manifest discovery, approved-Artifactory immutable artifact
+- [ ] RED: plugin-manifest discovery, approved-Artifactory immutable DAR-runtime
       resolution, hash-pinned dependency-lock verification, and isolated-`uvx`
       installation tests.
 - [ ] GREEN: create the `dar-authoring` plugin bundle and local stdio MCP server
-      entrypoint without undocumented path interpolation; include the DAR
-      support runtime and all required package assets in the released wheel.
+      launch contract without undocumented path interpolation; DAR provides the
+      `dynamic-agent-runner-mcp` entrypoint and includes all required runtime
+      assets in its released wheel.
 - [ ] RED/GREEN: start/stop lifecycle test that proves the server exposes no
       execution tool before G1–G3 are configured.
-- [ ] RED/GREEN: clean-directory released-wheel test verifies its archive asset
+- [ ] RED/GREEN: clean-directory DAR-wheel test verifies its archive asset
       hashes and receives a valid MCP `initialize` response without source-tree
       paths or undeclared package indexes.
-- [ ] RED/GREEN: launcher verifies the selected plugin/DAR wheel bytes against
+- [ ] RED/GREEN: launcher verifies the selected DAR wheel bytes against
       signed release metadata rooted in configured trusted keys; rejects
       unexpected indexes, a replaced artifact, expired metadata, revoked keys or
       versions, and a version below the configured security floor; and records
@@ -333,8 +334,9 @@ passes.
 - [x] RED/GREEN: deterministic local ZIP export rechecks the private staged
       manifest and payload digests without executing package content, and a
       ZIP round trip preserves the content digest.
-- [ ] RED/GREEN: a clean consumer installation verifies the published plugin
-      wheel, bundled assets, and a trusted portable package exchange.
+- [ ] RED/GREEN: a clean consumer installation verifies the locally installed
+      plugin, the published DAR wheel, bundled plugin assets, and a trusted
+      portable package exchange.
 
 ## Deferred After the First Release
 

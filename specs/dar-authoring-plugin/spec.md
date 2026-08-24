@@ -5,7 +5,8 @@
 - Status: proposed; not implementation authorization
 - Owner: dynamic-agent-runner
 - Target: a Codex plugin that authors and runs selected DAR-compatible workflow
-  packages, distributed from the approved Artifactory Python index
+  packages. The plugin is installed through the Codex plugin mechanism; it is
+  not a Python distribution published to Artifactory.
 - Prerequisite specifications:
   - `specs/sandbox-workspace-runtime/spec.md` for trusted file ingress before
     file-backed workflow inputs
@@ -41,15 +42,16 @@ host responsibilities coherent without expanding DAR's runtime boundary.
 
 ## Scope
 
-The Artifactory-published `dar-authoring` plugin shall include the adapted
-skills, DAR support tools, and a pinned compatible `dynamic-agent-runner`
-runtime dependency. Its MCP launcher uses an isolated `uvx` environment and a
-verified exact plugin version. Release metadata is verified from a configured
-trusted signing-key root, has an expiry and minimum accepted version, and can
-revoke a signing key or artifact version; an expired, revoked, or below-floor
-otherwise-valid release is rejected. A workflow package is instead a local
-directory or ZIP data artifact consumed by that plugin; it is not independently
-installed or executed by `uvx`.
+The locally installed `dar-authoring` plugin shall include the adapted skills,
+templates, and support configuration. Its MCP launcher uses an isolated `uvx`
+environment to install the pinned compatible `dynamic-agent-runner` runtime
+from the approved Artifactory Python index, then invokes DAR's generic stdio
+MCP entry point. The plugin itself is never resolved from that index. Release
+metadata is verified from a configured trusted signing-key root, has an expiry
+and minimum accepted version, and can revoke a signing key or artifact version;
+an expired, revoked, or below-floor otherwise-valid runtime release is rejected.
+A workflow package is instead a local directory or ZIP data artifact consumed
+by that plugin; it is not independently installed or executed by `uvx`.
 
 ### Release metadata v1
 
@@ -58,7 +60,7 @@ only `format_version: 1`, a non-empty key-id-to-Ed25519-public-key map, and a
 minimum accepted version for each named distribution. A release document is
 canonical UTF-8 JSON with sorted keys and no whitespace. Its unsigned payload
 contains `format_version: 1`, the exact configured index URL, an RFC 3339 UTC
-expiry, an exact distribution/version/SHA-256 entry for `dar-authoring` and
+expiry, an exact distribution/version/SHA-256 entry for
 `dynamic-agent-runner`, exact SHA-256 entries for every resolved transitive
 wheel, and explicit revoked key IDs and distribution/version pairs. A detached
 v1 Ed25519 envelope signs those exact unsigned bytes and names one trusted key
@@ -121,11 +123,14 @@ dar-authoring/
 ```
 
 The exact MCP packaging and installation mechanism is an implementation spike.
-It must run a local stdio MCP server through a checked-in `uvx` launch contract,
-resolve the exact plugin wheel only from the approved Artifactory index, and
-must not depend on undocumented plugin-path interpolation. Release verification
-must prove the published wheel contains all runtime package assets required for
-a clean-directory MCP `initialize` response; a source checkout is not proof.
+It must run DAR's local stdio MCP server through a checked-in `uvx` launch
+contract, resolve the exact DAR wheel only from the approved Artifactory index,
+and must not depend on undocumented plugin-path interpolation. The DAR
+distribution shall provide the `dynamic-agent-runner-mcp` entry point; it is a
+generic execution host and must not embed plugin authoring policy. Release
+verification must prove the resolved DAR wheel provides that entry point and all
+required runtime assets for a clean-directory MCP `initialize` response; a
+source checkout is not proof.
 
 ## Implementation Prerequisites and Release Gates
 
@@ -136,7 +141,7 @@ best-effort warning.
 
 | Gate | Required task | Unlocks | Must remain unavailable before the gate passes |
 | --- | --- | --- | --- |
-| G0 | Packaging spike: Artifactory exact-version wheel, isolated `uvx` installation/discovery, packaged-runtime asset verification, and local stdio MCP server lifecycle. | Plugin discovery only. | `run_dar_workflow` and wrapper CLI execution. |
+| G0 | Packaging spike: Artifactory exact-version DAR wheel, isolated `uvx` installation/discovery, packaged-runtime asset verification, and DAR stdio MCP server lifecycle. | Plugin discovery only. | `run_dar_workflow` and wrapper CLI execution. |
 | G1 | Immutable package catalog, installation identity, profile capability records, `WorkflowPolicy` compilation, and bounded preparation schemas. | Package-only preparation and catalog preflight. | Arbitrary package paths, caller-selected runtime profiles, executable aliases, and workflows with missing wrapper collaborators. |
 | G2 | Human-only connection control plane: credential storage, least-scope binding, approved MCP-surface snapshot creation/review, plugin-owned client lifecycle, and passive run-time drift detection. | Optional MCP profile preparation. | MCP-backed workflows, snapshot refresh from the model-facing tool, and credential/provisioning arguments. |
 | G3 | Generic execution runner: strict model selection, DAR preflight plus wrapper checks, deep-redacted trace/audit store, and `--dry-run`. | Workflows with no external tools. An MCP-backed read-only workflow also requires G2. | Workflows whose model or capability checks fail. |

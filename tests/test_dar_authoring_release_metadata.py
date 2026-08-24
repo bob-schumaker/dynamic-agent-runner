@@ -1,4 +1,4 @@
-"""Tests for signed canonical DAR-authoring release metadata."""
+"""Tests for signed canonical release metadata for the DAR runtime launcher."""
 
 from __future__ import annotations
 
@@ -110,15 +110,9 @@ def test_release_metadata_rejects_expired_or_signer_revocation() -> None:
 
 
 def test_release_metadata_binds_exact_index_and_wheel_bytes() -> None:
-    plugin_wheel = b"plugin wheel"
     dar_wheel = b"dar wheel"
     metadata = _metadata()
     metadata["artifacts"] = [
-        {
-            "name": "dar-authoring",
-            "version": "0.1.0",
-            "sha256": hashlib.sha256(plugin_wheel).hexdigest(),
-        },
         {
             "name": "dynamic-agent-runner",
             "version": "0.1.15",
@@ -129,19 +123,13 @@ def test_release_metadata_binds_exact_index_and_wheel_bytes() -> None:
     assert verify_release_artifacts(
         metadata=metadata,
         index_url="https://artifactory.example.test/simple",
-        required_versions={"dar-authoring": "0.1.0", "dynamic-agent-runner": "0.1.15"},
-        wheel_bytes={"dar-authoring": plugin_wheel, "dynamic-agent-runner": dar_wheel},
-    ) == (("dar-authoring", "0.1.0"), ("dynamic-agent-runner", "0.1.15"))
+        required_versions={"dynamic-agent-runner": "0.1.15"},
+        wheel_bytes={"dynamic-agent-runner": dar_wheel},
+    ) == (("dynamic-agent-runner", "0.1.15"),)
     with pytest.raises(ReleaseMetadataError, match="index"):
         verify_release_artifacts(
             metadata=metadata,
             index_url="https://wrong.example.test/simple",
-            required_versions={
-                "dar-authoring": "0.1.0",
-                "dynamic-agent-runner": "0.1.15",
-            },
-            wheel_bytes={
-                "dar-authoring": plugin_wheel,
-                "dynamic-agent-runner": dar_wheel,
-            },
+            required_versions={"dynamic-agent-runner": "0.1.15"},
+            wheel_bytes={"dynamic-agent-runner": dar_wheel},
         )
