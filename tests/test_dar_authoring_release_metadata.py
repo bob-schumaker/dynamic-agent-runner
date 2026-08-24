@@ -14,6 +14,7 @@ from dynamic_agent_runner.workflow_host.release_metadata import (  # noqa: E402
     ReleaseTrustRoot,
     ReleaseMetadataError,
     load_release_trust_root,
+    render_uv_requirements_lock,
     sign_release_metadata,
     unsigned_release_metadata_bytes,
     verify_release_metadata,
@@ -137,6 +138,38 @@ def test_release_metadata_binds_exact_index_and_wheel_bytes() -> None:
             required_versions={"dynamic-agent-runner": "0.1.15"},
             wheel_bytes={"dynamic-agent-runner": dar_wheel},
         )
+
+
+def test_release_metadata_renders_a_hash_enforced_uv_requirements_lock() -> None:
+    rendered = render_uv_requirements_lock(
+        (
+            ("helper", "2.0.0", "b" * 64),
+            ("dynamic-agent-runner", "0.1.16", "a" * 64),
+        )
+    )
+
+    assert rendered == (
+        "dynamic-agent-runner==0.1.16 \\\n"
+        "    --hash=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+        "helper==2.0.0 \\\n"
+        "    --hash=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "artifacts",
+    [
+        (("invalid name", "1.0", "a" * 64),),
+        (("helper", "not-a-version", "a" * 64),),
+        (("helper", "1.0", "invalid"),),
+        (("helper", "1.0", "a" * 64), ("helper", "2.0", "b" * 64)),
+    ],
+)
+def test_release_metadata_rejects_unsafe_or_ambiguous_uv_lock_artifacts(
+    artifacts: tuple[tuple[str, str, str], ...],
+) -> None:
+    with pytest.raises(ReleaseMetadataError, match="release lock"):
+        render_uv_requirements_lock(artifacts)
 
 
 def test_release_metadata_requires_an_exact_nonrevoked_artifact_set() -> None:

@@ -20,6 +20,7 @@ from packaging.version import InvalidVersion, Version
 
 _KEY_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+_DISTRIBUTION_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 _SIGNATURE_FIELDS = frozenset({"algorithm", "format_version", "key_id", "signature"})
 _METADATA_FIELDS = frozenset(
     {
@@ -240,6 +241,46 @@ def verify_release_artifacts(
             raise ReleaseMetadataError("release artifact hash is invalid")
         resolved.append((name, version, str(entry["sha256"])))
     return tuple(resolved)
+
+
+def render_uv_requirements_lock(
+    artifacts: tuple[tuple[str, str, str], ...],
+) -> str:
+    """Render verified release identities as a hash-enforced uv requirements lock.
+
+    The caller must obtain ``artifacts`` from :func:`verify_release_artifacts`.
+    This function defensively validates the output again because the rendered
+    text crosses into a command-line package installer.
+    """
+
+    if not artifacts:
+        raise ReleaseMetadataError("release lock artifacts are invalid")
+    rendered: list[tuple[str, str, str]] = []
+    names: set[str] = set()
+    for artifact in artifacts:
+        if not isinstance(artifact, tuple) or len(artifact) != 3:
+            raise ReleaseMetadataError("release lock artifacts are invalid")
+        name, version, digest = artifact
+        if (
+            not isinstance(name, str)
+            or _DISTRIBUTION_NAME.fullmatch(name) is None
+            or name in names
+            or not isinstance(version, str)
+            or not version
+            or not isinstance(digest, str)
+            or _SHA256.fullmatch(digest) is None
+        ):
+            raise ReleaseMetadataError("release lock artifacts are invalid")
+        try:
+            Version(version)
+        except InvalidVersion as error:
+            raise ReleaseMetadataError("release lock artifacts are invalid") from error
+        names.add(name)
+        rendered.append((name, version, digest))
+    return "".join(
+        f"{name}=={version} \\\n    --hash=sha256:{digest}\n"
+        for name, version, digest in sorted(rendered)
+    )
 
 
 def _validate_required_artifact_coverage(
