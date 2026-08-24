@@ -16,14 +16,14 @@ passes.
       fixture schema version, selected non-secret inputs, expected artifact
       properties, expected capability/refusal state, and private-material
       exclusion rules.
-- [ ] GREEN: copy `agent-development`, `agent-tool-contract-design`, and
+- [x] GREEN: copy `agent-development`, `agent-tool-contract-design`, and
       `agent-evaluation` from `ai-environment-roschuma` at recorded immutable
       source revisions; remove upstream-environment dependencies and rewrite
       their instructions so DAR package, wrapper, and evaluation contracts are
       authoritative. Add `adapted-skill-provenance.yaml` with source locator,
       revision, license/notice, redistribution review, copied path, and DAR
       modification summary for every copied skill.
-- [ ] RED/GREEN: plugin skill-discovery and target-invocation fixture tests prove
+- [x] RED/GREEN: plugin skill-discovery and target-invocation fixture tests prove
       each adapted skill, provenance entry, source revision, copied-path coverage,
       redistribution review, and fixture schema is present; lint declared artifact
       interfaces and unsafe-input expectations. These static tests do not claim

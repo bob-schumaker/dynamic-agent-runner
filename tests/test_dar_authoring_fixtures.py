@@ -11,6 +11,8 @@ from dynamic_agent_runner import load_agent_package_workflow
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "dar-authoring" / "invocations"
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+SKILL_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "skills"
+PROVENANCE_PATH = SKILL_ROOT / "adapted-skill-provenance.yaml"
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
 sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
 
@@ -67,3 +69,46 @@ def test_agent_development_fixture_declares_template_artifacts() -> None:
         (TEMPLATE_ROOT / artifact).is_file()
         for artifact in fixture["expected_artifacts"]
     )
+
+
+def test_adapted_skills_have_complete_immutable_provenance() -> None:
+    provenance = yaml.safe_load(PROVENANCE_PATH.read_text(encoding="utf-8"))
+
+    assert provenance["format_version"] == 1
+    assert provenance["source_locator"] == "../ai-environment-roschuma"
+    assert len(provenance["source_revision"]) == 40
+    assert set(provenance["skills"]) == EXPECTED_SKILLS
+    for skill_name, record in provenance["skills"].items():
+        skill_path = SKILL_ROOT / skill_name / "SKILL.md"
+
+        assert skill_path.is_file()
+        assert record["upstream_path"] == (f"corpus/capabilities/{skill_name}/SKILL.md")
+        assert record["copied_path"] == f"skills/{skill_name}/SKILL.md"
+        assert record["license_or_notice"]
+        assert record["redistribution_review"]
+        assert record["dar_modification_summary"]
+
+
+def test_adapted_skills_are_portable_and_cover_fixture_contracts() -> None:
+    expected_artifacts_by_skill = {
+        fixture["skill"]: set(fixture["expected_artifacts"])
+        for fixture in (
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted(FIXTURE_ROOT.glob("*.json"))
+        )
+    }
+
+    for skill_name, expected_artifacts in expected_artifacts_by_skill.items():
+        text = (SKILL_ROOT / skill_name / "SKILL.md").read_text(encoding="utf-8")
+
+        assert "AuthoringMaterialSet" in text
+        assert "corpus/" not in text
+        assert "../ai-environment-roschuma" not in text
+        assert all(artifact in text for artifact in expected_artifacts)
+
+    tool_contract = (SKILL_ROOT / "agent-tool-contract-design" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    assert "host-owned" in tool_contract
+    assert "endpoint URL" not in tool_contract
+    assert "credential" in tool_contract

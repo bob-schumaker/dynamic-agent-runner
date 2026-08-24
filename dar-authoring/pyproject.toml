@@ -22,6 +22,7 @@ packages = [
 include = [
     { path = ".codex-plugin/plugin.json", format = ["sdist", "wheel"] },
     { path = ".mcp.json", format = ["sdist", "wheel"] },
+    { path = "skills/**/*", format = ["sdist", "wheel"] },
 ]
 
 [[tool.poetry.source]]
