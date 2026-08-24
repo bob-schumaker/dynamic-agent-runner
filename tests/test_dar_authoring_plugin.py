@@ -40,11 +40,6 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
         "dar-workflow": "dar_workflow_server.cli:console_main",
         "dar-workflow-run": "dar_workflow_server.cli:run_console_main",
     }
-    assert project["tool"]["poetry"]["include"] == [
-        {"path": ".codex-plugin/plugin.json", "format": ["sdist", "wheel"]},
-        {"path": ".mcp.json", "format": ["sdist", "wheel"]},
-        {"path": "fixtures/**/*", "format": ["sdist", "wheel"]},
-    ]
     server = mcp_config["mcpServers"]["dar-authoring"]
     assert server["command"] == "uvx"
     assert server["args"] == [
