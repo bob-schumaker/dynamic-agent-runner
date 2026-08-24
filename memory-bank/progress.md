@@ -3,19 +3,22 @@
 
 ## Working
 
-- `dar-authoring-plugin` is a proposed, gated implementation plan in `d4dfac6`.
-  It defines an Artifactory/`uvx` distributed plugin containing DAR support
-  tools and skills, while portable workflow directories/ZIPs stay local and
-  declarative. The authoring skill turns a natural-language task plus supplied
-  references into canonical DAR artifacts and a generated descriptor; host
-  preparation imports/validates the package and binds its declared capabilities.
-  The sole generic runner uses hybrid input—original prompt, optional validated
-  structured fields, bounded `additional_context`, and opaque ingressed files.
-  MCP connections and skills are optional package capabilities, and each
-  package defines a bounded task-specific tool invocation pattern. G0–G5 cover
-  plugin packaging, profile/capability isolation, optional MCP surfaces,
-  trusted ingress, and `workflow_auto`/`--ask`; no implementation is authorized
-  yet.
+- `dar-authoring-plugin` has an implementation-ready staged plan in `564fb0a`,
+  but no implementation is authorized until a milestone or slice is scheduled.
+  M1 first proves a minimal installed-plugin/stdio launch before its `uvx` and
+  release-integrity hardening. M2 imports a human-selected directory package,
+  stages it privately, validates the no-tool descriptor, catalogs it, compiles
+  policy/capabilities, and exposes package-only preflight. M3 then binds an
+  eligible local model profile, seals prepared input, and runs the cataloged
+  package through the single generic no-tool runner and CLI.
+- The first vertical slice expressly omits MCP, external side effects, trusted
+  caller-file ingress, ZIP/signature exchange, tool-argument provenance, and
+  adapted-skill behavior. M0/M4 provide reproducible skill assets and external
+  authoring evidence; M5, M6, and M7 add HTTPS read-only MCP, file ingress, and
+  side effects independently after the core; M8 gates portable exchange and
+  publication. `PackagePreflightService` is package-only, while the later
+  `WorkflowInvocationPreparationService` is the sole issuer of sealed,
+  normally single-use `PreparedWorkflowInput`.
 - `live-guardrail-execution` V2 is implemented in `78f9d9c`. It adopts the
   shared coordinator for direct and model-loop tool-input guardrails after
   validated preparation and before approval or dispatch. The TDD evidence

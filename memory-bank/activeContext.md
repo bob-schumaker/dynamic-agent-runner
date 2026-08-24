@@ -3,20 +3,25 @@
 
 ## Current Focus
 
-- `dar-authoring-plugin` is now a proposed, fully scoped portable-workflow
-  wrapper in `d4dfac6`. The Artifactory/`uvx`-installed plugin carries the DAR
-  support runtime and authoring skills; generated workflow folders/ZIPs remain
-  local, host-neutral artifacts. Authoring consumes natural-language task
-  descriptions plus supplied examples/files/docs and emits canonical DAR
-  artifacts, a generated descriptor, and optional evaluation assets.
-- A package is a bounded task application, not a general-purpose tool console.
-  Preparation validates/imports a local folder or ZIP, resolves host-owned
-  profile bindings, and registers an immutable revision. Invocations retain the
-  original prompt, optionally include schema-validated structured input, retain
-  bounded unmapped `additional_context`, and pass user files only as opaque
-  ingressed artifacts. Optional MCP and skills are declared per package;
-  `workflow_auto` is the approved profile-bound default, with `--ask` and
-  `--dry-run` available. Implementation is gated G0–G5 and remains unstarted.
+- `dar-authoring-plugin` now has an implementation-ready staged plan in
+  `564fb0a`. The first runtime vertical slice is intentionally narrow:
+  human-selected fixture directory package → private staged root → immutable
+  `WorkflowPolicy` → eligible local-model `WorkflowRegistration` → sealed
+  `PreparedWorkflowInput` → `run_dar_workflow` / `dar-workflow-run`.
+- The first runner supports saved, task-specific no-tool workflows only. It
+  excludes adapted-skill behavior, ZIP import/export, package signatures,
+  caller-file ingress, MCP, tool-argument provenance, and side effects. M0/M4
+  own reproducible adapted-skill assets and external acceptance evidence; M8
+  owns portable ZIP exchange and publication. The plugin `uvx` topology is
+  first proved as M1.1 before supply-chain hardening; no implementation is
+  authorized until an individual milestone or slice is scheduled.
+- Runtime core authority is deliberately split: M2's
+  `PackagePreflightService` can inspect an imported package and never accepts
+  invocation input, registers a workflow, or invokes DAR. After an eligible
+  local profile registration, M3's `WorkflowInvocationPreparationService` is
+  the only issuer of single-use `PreparedWorkflowInput`. Optional MCP, trusted
+  file ingress, and `workflow_auto`/`--ask` side effects remain later G2, G4,
+  and G5 work.
 - `live-guardrail-execution` V2 is implemented in `78f9d9c`: caller-registered
   pass-or-abort `tool_input` guardrails run after validated preparation and
   before approval, hooks, retry, or dispatch for direct `tool_use_step` and
