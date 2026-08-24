@@ -6,10 +6,39 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
+
+from dar_workflow_server.authoring_materials import AuthoringMaterialSetProjection
 
 
 class AuthoringEvidenceError(ValueError):
     """Raised when an external authoring-evidence record is invalid."""
+
+
+@dataclass(frozen=True)
+class ExternalAuthoringHarnessRequest:
+    """Private input supplied to an external authoring harness, never recorded."""
+
+    skill_name: str
+    request: str
+    materials: AuthoringMaterialSetProjection
+
+
+@dataclass(frozen=True)
+class ExternalAuthoringHarnessOutcome:
+    """Redaction-safe external harness result before human release review."""
+
+    generated_package_digests: tuple[str, ...]
+    validator_result: str
+
+
+class ExternalAuthoringHarness(Protocol):
+    """Collaborator for an out-of-process authoring-model evaluation run."""
+
+    def run(
+        self, request: ExternalAuthoringHarnessRequest
+    ) -> ExternalAuthoringHarnessOutcome:
+        """Generate and validate one package without persisting private input."""
 
 
 @dataclass(frozen=True)
