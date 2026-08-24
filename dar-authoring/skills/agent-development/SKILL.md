@@ -20,6 +20,10 @@ this loaded `SKILL.md` file (never relative to the project cwd). Call it with
 user supplied for this design; its receipt is an `AuthoringMaterialSet`. Then
 call the same wrapper's
 `project-authoring-materials` with the returned opaque `material_set_id`.
+Each JSON member has exactly `role`, `content`, and `disposition`. Use
+`reference_only` for the user's goal, examples, documentation, and files;
+use `distributable` only when the user explicitly authorizes that material to
+be included in the generated package.
 Members are bounded and principal/expiry bound. Do not request or emit source
 paths, credentials, connection secrets, or unselected material.
 

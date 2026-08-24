@@ -78,6 +78,8 @@ def test_authoring_skill_uses_the_plugin_owned_dar_cli_wrapper() -> None:
     assert "dynamic-agent-runner==0.1.16" in text
     assert "../../scripts/dar-workflow" in skill
     assert "never relative to the project cwd" in skill
+    assert "exactly `role`, `content`, and `disposition`" in skill
+    assert "Use\n`reference_only`" in skill
 
 
 def test_dar_stdio_server_initializes_without_execution_tools_before_configuration(
