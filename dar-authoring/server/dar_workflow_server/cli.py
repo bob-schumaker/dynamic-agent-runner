@@ -60,6 +60,10 @@ def main(
             return 0
         host = LocalWorkflowHost.open(root)
         now = datetime.now(UTC)
+        mcp_result = _mcp_workflow_result(host, args, now=now)
+        if mcp_result is not None:
+            _write(write, mcp_result)
+            return 0
         if args.command == "select-package":
             _write(
                 write,
@@ -75,6 +79,7 @@ def main(
                 workflow_id=args.workflow_id,
                 package_source_handle=args.package_source_handle,
                 now=now,
+                mcp_binding_id=args.mcp_binding_id,
             )
             _write(
                 write,
@@ -177,11 +182,19 @@ def _parser() -> argparse.ArgumentParser:
     attach.add_argument("--peer-certificate-sha256", required=True)
     attach.add_argument("--timeout-seconds", type=int, default=10)
     attach.add_argument("--max-response-bytes", type=int, default=32_768)
+    commands.add_parser("inspect-mcp-tools")
+    review = commands.add_parser("review-mcp-surface")
+    review.add_argument("--approve-read-tool", action="append", default=[])
+    review.add_argument("--approve-tool", action="append", default=[])
+    bind = commands.add_parser("bind-mcp-package")
+    bind.add_argument("--package-source-handle", required=True)
+    bind.add_argument("--snapshot-id", required=True)
     select = commands.add_parser("select-package")
     select.add_argument("--path", required=True)
     register = commands.add_parser("register")
     register.add_argument("--workflow-id", required=True)
     register.add_argument("--package-source-handle", required=True)
+    register.add_argument("--mcp-binding-id")
     ingress = commands.add_parser("ingress-file")
     ingress.add_argument("--workflow-id", required=True)
     ingress.add_argument("--path", required=True)
@@ -237,6 +250,49 @@ def _mcp_control_result(
         )
         return {"status": "attached"}
     return None
+
+
+def _mcp_workflow_result(
+    host: LocalWorkflowHost, args: Any, *, now: datetime
+) -> dict[str, object] | None:
+    if args.command == "inspect-mcp-tools":
+        return {
+            "tools": [
+                {"name": tool.name, "input_schema": dict(tool.input_schema)}
+                for tool in host.discover_mcp_tools()
+            ]
+        }
+    if args.command == "review-mcp-surface":
+        snapshot = host.review_mcp_surface(
+            approved_read_only_tool_names=args.approve_read_tool,
+            approved_tool_side_effects=_approved_tool_effects(args.approve_tool),
+        )
+        return {"status": "reviewed", "snapshot_id": snapshot.snapshot_id}
+    if args.command == "bind-mcp-package":
+        binding = host.bind_mcp_package(
+            package_source_handle=args.package_source_handle,
+            snapshot_id=args.snapshot_id,
+            now=now,
+        )
+        return {"status": "bound", "binding_id": binding.binding_id}
+    return None
+
+
+def _approved_tool_effects(values: Sequence[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for value in values:
+        name, separator, effect = value.partition("=")
+        if (
+            not separator
+            or not name
+            or effect not in {"read", "write", "delete"}
+            or name in result
+        ):
+            raise LocalWorkflowHostError(
+                "approved MCP tool must use name=read|write|delete"
+            )
+        result[name] = effect
+    return result
 
 
 def _run_arguments(parser: argparse.ArgumentParser) -> None:

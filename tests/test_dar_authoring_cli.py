@@ -337,3 +337,91 @@ def test_cli_configures_generic_mcp_connection_without_exposing_api_token(
             },
         ),
     ]
+
+
+def test_cli_inspects_reviews_binds_and_registers_mcp_workflows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class Host:
+        def discover_mcp_tools(self) -> tuple[SimpleNamespace, ...]:
+            return (
+                SimpleNamespace(name="list_unread", input_schema={"type": "object"}),
+            )
+
+        def review_mcp_surface(self, **kwargs: object) -> SimpleNamespace:
+            calls.append(("review", kwargs))
+            return SimpleNamespace(snapshot_id="v1.snapshot")
+
+        def bind_mcp_package(self, **kwargs: object) -> SimpleNamespace:
+            calls.append(("bind", kwargs))
+            return SimpleNamespace(binding_id="v1.binding")
+
+        def register(self, **kwargs: object) -> SimpleNamespace:
+            calls.append(("register", kwargs))
+            return SimpleNamespace(
+                workflow_id="mail-reader",
+                registration_digest="a" * 64,
+                profile_id="v1.profile",
+            )
+
+    monkeypatch.setattr(cli.LocalWorkflowHost, "open", lambda root: Host())
+    state_args = ["--state-root", "/tmp/dar-authoring-test"]
+
+    status, tools = _invoke([*state_args, "inspect-mcp-tools"])
+    assert status == 0
+    assert tools == {
+        "tools": [{"input_schema": {"type": "object"}, "name": "list_unread"}]
+    }
+
+    status, snapshot = _invoke(
+        [
+            *state_args,
+            "review-mcp-surface",
+            "--approve-read-tool",
+            "list_unread",
+        ]
+    )
+    assert status == 0
+    assert snapshot == {"snapshot_id": "v1.snapshot", "status": "reviewed"}
+
+    status, binding = _invoke(
+        [
+            *state_args,
+            "bind-mcp-package",
+            "--package-source-handle",
+            "v1.source",
+            "--snapshot-id",
+            "v1.snapshot",
+        ]
+    )
+    assert status == 0
+    assert binding == {"binding_id": "v1.binding", "status": "bound"}
+
+    status, registration = _invoke(
+        [
+            *state_args,
+            "register",
+            "--workflow-id",
+            "mail-reader",
+            "--package-source-handle",
+            "v1.source",
+            "--mcp-binding-id",
+            "v1.binding",
+        ]
+    )
+    assert status == 0
+    assert registration["workflow_id"] == "mail-reader"
+    assert calls[0] == (
+        "review",
+        {
+            "approved_read_only_tool_names": ["list_unread"],
+            "approved_tool_side_effects": {},
+        },
+    )
+    assert calls[1][0] == "bind"
+    assert calls[1][1]["package_source_handle"] == "v1.source"
+    assert calls[1][1]["snapshot_id"] == "v1.snapshot"
+    assert calls[2][0] == "register"
+    assert calls[2][1]["mcp_binding_id"] == "v1.binding"
