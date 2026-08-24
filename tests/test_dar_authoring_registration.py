@@ -11,7 +11,11 @@ import pytest
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
 sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
 
-from dar_workflow_server.descriptor import TaskInvocation, WorkflowLimits  # noqa: E402
+from dar_workflow_server.descriptor import (  # noqa: E402
+    InputContract,
+    TaskInvocation,
+    WorkflowLimits,
+)
 from dar_workflow_server.policy import (  # noqa: E402
     CapabilityResolution,
     WorkflowPolicy,
@@ -34,6 +38,11 @@ def _policy(*, digest: str = "a" * 64) -> WorkflowPolicy:
         descriptor_digest="c" * 64,
         policy_digest=digest,
         model_profile_requirement="local-general-model",
+        input_contract=InputContract(
+            mode="hybrid",
+            additional_context_max_bytes=8192,
+            field_precedence="original_prompt",
+        ),
         task_invocation=TaskInvocation(
             entrypoint="answer",
             max_total_tool_calls=0,

@@ -74,6 +74,14 @@ class PackageCatalog:
             for digest in sorted(revisions)
         )
 
+    def revision(self, package_id: str, revision_digest: str) -> CatalogPackageRevision:
+        """Resolve one retained revision by its immutable package identity."""
+
+        for revision in self.revisions(package_id):
+            if revision.revision_digest == revision_digest:
+                return revision
+        raise PackageCatalogError("package revision is not cataloged")
+
     def _read(self) -> dict[str, dict[str, dict[str, str]]]:
         try:
             value = json.loads(self._path.read_text(encoding="utf-8"))

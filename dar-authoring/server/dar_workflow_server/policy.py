@@ -12,6 +12,7 @@ from dynamic_agent_runner import load_agent_package_workflow
 
 from dar_workflow_server.catalog import CatalogPackageRevision
 from dar_workflow_server.descriptor import (
+    InputContract,
     TaskInvocation,
     WorkflowDescriptor,
     WorkflowDescriptorError,
@@ -36,6 +37,7 @@ class WorkflowPolicy:
     descriptor_digest: str
     policy_digest: str
     model_profile_requirement: str
+    input_contract: InputContract
     task_invocation: TaskInvocation
     limits: WorkflowLimits
     required_capabilities: frozenset[str]
@@ -73,6 +75,11 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
             "revision_digest": revision.revision_digest,
             "descriptor_digest": descriptor_digest,
             "model_profile_requirement": descriptor.model_profile_requirement,
+            "input_contract": {
+                "mode": descriptor.input_contract.mode,
+                "additional_context_max_bytes": descriptor.input_contract.additional_context_max_bytes,
+                "field_precedence": descriptor.input_contract.field_precedence,
+            },
             "task_invocation": {
                 "entrypoint": descriptor.task_invocation.entrypoint,
                 "max_total_tool_calls": descriptor.task_invocation.max_total_tool_calls,
@@ -90,6 +97,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         descriptor_digest=descriptor_digest,
         policy_digest=policy_digest,
         model_profile_requirement=descriptor.model_profile_requirement,
+        input_contract=descriptor.input_contract,
         task_invocation=descriptor.task_invocation,
         limits=descriptor.limits,
         required_capabilities=required_capabilities,
