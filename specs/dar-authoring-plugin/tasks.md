@@ -38,7 +38,7 @@ passes.
       launch contract without undocumented path interpolation; DAR provides the
       `dynamic-agent-runner-mcp` entrypoint and includes all required runtime
       assets in its released wheel.
-- [ ] RED/GREEN: start/stop lifecycle test that proves the server exposes no
+- [x] RED/GREEN: start/stop lifecycle test that proves the server exposes no
       execution tool before G1–G3 are configured.
 - [ ] RED/GREEN: clean-directory DAR-wheel test verifies its archive asset
       hashes and receives a valid MCP `initialize` response without source-tree
