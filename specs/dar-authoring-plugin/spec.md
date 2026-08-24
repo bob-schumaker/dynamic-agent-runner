@@ -561,8 +561,15 @@ snapshot digest and identity attestation. It rechecks `{connection_id,
 authenticated_peer_identity, snapshot_digest}` and the full canonical
 `tools/list` identity/schema surface immediately before every dispatch. A
 reconnect to the same configured connection and authentication binding may
-proceed without human intervention only after that revalidation succeeds; the
-action ledger records the new live client generation. Credential rotation, peer
+proceed without human intervention after the wrapper reuses the stored
+connection-bound credential and successfully revalidates the peer and approved
+surface; the action ledger records the new live client generation. For OAuth,
+the wrapper shall refresh an expired access token with the stored refresh token
+and the connection's immutable, host-owned token configuration before opening a
+new client. It may make at most one refresh attempt for an authentication failure
+during connection setup; it must never retry a possibly dispatched remote tool
+call. A successful refresh atomically replaces the credential-store secret and
+preserves the same connection and scope binding. Credential rotation, peer
 identity change, or snapshot drift returns `surface_changed` or
 `capability_unavailable`; it never transparently replaces or widens a live
 binding during an authorized side-effect dispatch. Cancellation is
@@ -650,6 +657,18 @@ headers, and raw MCP instructions must never appear in package artifacts, tool
 requests/results, or traces. The control plane binds connections immutably to a
 profile and approved scope. Scope escalation, connection replacement, and
 revocation invalidate affected snapshots and pending approvals.
+
+An existing OAuth connection is reusable without a human authorization step.
+The host stores the refresh token only in its credential store and retains the
+provider token endpoint, public client identifier, and approved scopes only in
+the immutable connection authentication configuration. It refreshes before a
+reconnect when the access token is expired or once when connection setup returns
+an authentication failure. If no usable refresh token exists, the provider
+rejects refresh, or refreshed credentials still fail setup, the run returns
+`authentication_required`; it does not launch a browser or initiate consent.
+Only an explicit human control-plane reauthorization may replace those failed
+credentials. Refresh must not change endpoint, client identity, scopes, peer
+pin, or approved tool surface.
 
 An HTTPS MCP connection definition may select the generic
 `oauth_authorization_code_pkce_loopback` authorization handler. Its human-only

@@ -246,30 +246,36 @@ part of ordinary test execution.
 3. **M5.2b: Add human-only OAuth authorization-code PKCE loopback setup.** Test
    listener-first setup, state/exact-callback checking, one-time exchange, and
    secret exclusion.
-4. **M5.3: Add the HTTPS MCP lifecycle adapter.** Implement configured HTTPS
+4. **M5.2c: Reuse and refresh OAuth credentials on reconnect.** Persist only
+   immutable host-owned refresh configuration plus a credential-store token
+   bundle. Test refresh before reconnect, one setup-authentication-failure
+   refresh retry, atomic credential replacement, and the no-browser,
+   `authentication_required` failure path. Do not retry a remote tool call that
+   may already have been dispatched.
+5. **M5.3: Add the HTTPS MCP lifecycle adapter.** Implement configured HTTPS
    initialization, peer-identity pinning, timeout/cancellation/reconnect/cleanup,
    and bounded output with fake transport fixtures only.
-5. **M5.4a: Persist reviewed MCP surfaces.** Create approved snapshot records
+6. **M5.4a: Persist reviewed MCP surfaces.** Create approved snapshot records
    from identity/input-schema metadata and passive drift detection. Remote prose
    and annotations are untrusted and not retained as approval authority.
-6. **M5.4b: Retrieve and revalidate MCP surfaces.** Extend the configured HTTPS
+7. **M5.4b: Retrieve and revalidate MCP surfaces.** Extend the configured HTTPS
    client with bounded `tools/list`, then verify the current identity/input
    schema surface before binding or dispatch.
-7. **M5.4c: Persist a non-executing capability binding.** Bind a compiled
+8. **M5.4c: Persist a non-executing capability binding.** Bind a compiled
    read-only policy only to its exact authenticated client generation and a
    current human-reviewed surface. This opaque record has no remote handler;
    reconnect or drift invalidates the attempted binding.
-8. **M5.5a: Construct a read-only host handler.** Reload the opaque binding,
+9. **M5.5a: Construct a read-only host handler.** Reload the opaque binding,
    derive `HostToolBinding` schema and identity only from the reviewed current
    surface, and revalidate it immediately before bounded `tools/call` dispatch.
    A send-like tool is neither constructed nor dispatched.
-9. **M5.5b: Integrate a read-only binding with M3.** After the G1 bounded
-   task-invocation and declared-MCP-tool policy can compile a tool-bearing
-   package without opening a general-purpose console, register it only with a
-   current opaque binding, derive its host registry, and execute one fake
-   read-only MCP workflow. A fake send-like tool remains unavailable and its
-   handler does not run; generation drift before execution fails before model or
-   remote-tool dispatch.
+10. **M5.5b: Integrate a read-only binding with M3.** After the G1 bounded
+    task-invocation and declared-MCP-tool policy can compile a tool-bearing
+    package without opening a general-purpose console, register it only with a
+    current opaque binding, derive its host registry, and execute one fake
+    read-only MCP workflow. A fake send-like tool remains unavailable and its
+    handler does not run; generation drift before execution fails before model or
+    remote-tool dispatch.
 
 Do not add stdio or any unreviewed transport in this milestone.
 
