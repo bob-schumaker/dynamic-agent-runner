@@ -17,6 +17,9 @@ from dynamic_agent_runner.openai_client import ModelResponse, OpenAIClientAdapte
 
 from dar_workflow_server.host import (  # noqa: E402
     LocalWorkflowHost,
+    attach_mcp_client,
+    configure_mcp_api_token,
+    create_mcp_connection,
     configure_local_host,
 )
 from dar_workflow_server.mcp_client import MCPClientConfiguration  # noqa: E402
@@ -38,6 +41,22 @@ class _Responses:
 class _Client:
     def __init__(self) -> None:
         self.responses = _Responses()
+
+
+class _MemorySecretStore:
+    def __init__(self, **_: object) -> None:
+        self.values: dict[str, str] = {}
+
+    def store(self, secret: str) -> str:
+        reference = f"secret-{len(self.values) + 1}"
+        self.values[reference] = secret
+        return reference
+
+    def load(self, reference: str) -> str:
+        return self.values[reference]
+
+    def delete(self, reference: str) -> None:
+        self.values.pop(reference, None)
 
 
 def test_host_reopens_a_secret_free_configured_mcp_client(
@@ -75,6 +94,54 @@ def test_host_reopens_a_secret_free_configured_mcp_client(
     assert "connection" in host_json
     assert "authentication" in host_json
     assert "token" not in host_json
+
+
+def test_host_control_plane_binds_an_authenticated_generic_mcp_connection(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    monkeypatch.setattr(
+        "dar_workflow_server.host.create_local_adapter",
+        lambda profile: OpenAIClientAdapter(
+            _Client(), models=[profile.model_id], is_local=True
+        ),
+    )
+    monkeypatch.setattr(
+        "dar_workflow_server.connections.KeyringSecretStore", _MemorySecretStore
+    )
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=package_root,
+        model_id="local-model-v1",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    connection = create_mcp_connection(
+        root=tmp_path / "state",
+        endpoint="https://mcp.example.test/v1",
+        scopes={"mail.read"},
+        authentication_method="api_token",
+    )
+    authentication = configure_mcp_api_token(
+        root=tmp_path / "state",
+        connection_id=connection.connection_id,
+        token="secret-token",
+    )
+    configured = attach_mcp_client(
+        root=tmp_path / "state",
+        connection_id=connection.connection_id,
+        authentication_id=authentication.authentication_id,
+        peer_certificate_sha256="b" * 64,
+        timeout_seconds=10,
+        max_response_bytes=32_768,
+    )
+
+    assert configured.mcp_client_configuration is not None
+    assert configured.mcp_client_configuration.connection_id == connection.connection_id
+    assert "secret-token" not in (tmp_path / "state" / "records.json").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_host_composes_human_setup_with_sealed_dry_run(

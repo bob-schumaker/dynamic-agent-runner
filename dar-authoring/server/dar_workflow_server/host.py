@@ -14,7 +14,12 @@ from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
 from dar_workflow_server.action_ledger import WorkflowActionLedger
 from dar_workflow_server.approvals import WorkflowApprovalStore
 from dar_workflow_server.authorized_tools import LocalActionApprovalBroker
-from dar_workflow_server.connections import MCPConnectionControlPlane
+from dar_workflow_server.connections import (
+    MCPAuthentication,
+    MCPConnection,
+    MCPConnectionControlPlane,
+    MCPConnectionError,
+)
 from dar_workflow_server.mcp_binding import MCPWorkflowCapabilityBindingControlPlane
 from dar_workflow_server.mcp_client import (
     HTTPSJSONRPCMCPTransportFactory,
@@ -36,6 +41,7 @@ from dar_workflow_server.preparation import (
 from dar_workflow_server.profiles import (
     InstallationIdentityProvider,
     LocalModelProfileControlPlane,
+    LocalModelProfileError,
     create_local_adapter,
 )
 from dar_workflow_server.registration import (
@@ -110,6 +116,86 @@ def configure_local_host(
     )
     _write_configuration(root, configuration)
     return configuration
+
+
+def create_mcp_connection(
+    *,
+    root: Path,
+    endpoint: str,
+    scopes: Sequence[str],
+    authentication_method: str,
+) -> MCPConnection:
+    """Create one human-selected generic HTTPS MCP connection for this host."""
+
+    configuration, connections = _connection_control(root)
+    try:
+        return connections.create(
+            profile_id=configuration.profile_id,
+            endpoint=endpoint,
+            scopes=scopes,
+            authentication_method=authentication_method,
+        )
+    except MCPConnectionError as error:
+        raise LocalWorkflowHostError(
+            "MCP connection could not be configured"
+        ) from error
+
+
+def configure_mcp_api_token(
+    *, root: Path, connection_id: str, token: str
+) -> MCPAuthentication:
+    """Store one human-provided API token outside local host state."""
+
+    _, connections = _connection_control(root)
+    try:
+        return connections.configure_api_token(connection_id, token)
+    except MCPConnectionError as error:
+        raise LocalWorkflowHostError(
+            "MCP authentication could not be configured"
+        ) from error
+
+
+def attach_mcp_client(
+    *,
+    root: Path,
+    connection_id: str,
+    authentication_id: str,
+    peer_certificate_sha256: str,
+    timeout_seconds: int,
+    max_response_bytes: int,
+) -> LocalWorkflowHostConfiguration:
+    """Attach one authenticated, certificate-pinned MCP client to this host."""
+
+    configuration, connections = _connection_control(root)
+    try:
+        connection = connections.load(connection_id)
+        authentication = connections.load_authentication(authentication_id)
+    except MCPConnectionError as error:
+        raise LocalWorkflowHostError("MCP authentication is unavailable") from error
+    if (
+        connection.profile_id != configuration.profile_id
+        or authentication.connection_id != connection.connection_id
+    ):
+        raise LocalWorkflowHostError("MCP connection is not configured for this host")
+    try:
+        client_configuration = MCPClientConfiguration(
+            connection_id=connection.connection_id,
+            authentication_id=authentication.authentication_id,
+            peer_certificate_sha256=peer_certificate_sha256,
+            timeout_seconds=timeout_seconds,
+            max_response_bytes=max_response_bytes,
+        )
+    except MCPConnectionClientError as error:
+        raise LocalWorkflowHostError("MCP client configuration is invalid") from error
+    configured = LocalWorkflowHostConfiguration(
+        configuration.package_root,
+        configuration.profile_id,
+        configuration.workspace_input_root,
+        configuration.workspace_input_max_bytes,
+        client_configuration,
+    )
+    _write_configuration(root, configured)
+    return configured
 
 
 class LocalWorkflowHost:
@@ -446,6 +532,22 @@ def _mcp_client(
         configuration=client_configuration,
         transport_factory=HTTPSJSONRPCMCPTransportFactory(),
     )
+
+
+def _connection_control(
+    root: Path,
+) -> tuple[LocalWorkflowHostConfiguration, MCPConnectionControlPlane]:
+    _validate_root(root)
+    configuration = _read_configuration(root)
+    store = PrivateStateStore(root)
+    profiles = LocalModelProfileControlPlane(store=store)
+    try:
+        profiles.load(configuration.profile_id)
+    except LocalModelProfileError as error:
+        raise LocalWorkflowHostError(
+            "configured local profile is unavailable"
+        ) from error
+    return configuration, MCPConnectionControlPlane(store=store, profiles=profiles)
 
 
 def _mcp_configuration_mapping(
