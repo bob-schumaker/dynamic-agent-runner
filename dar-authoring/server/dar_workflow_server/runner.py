@@ -65,6 +65,14 @@ class RunDarWorkflowResult:
 
 
 @dataclass(frozen=True)
+class DryRunDarWorkflowResult:
+    """Non-executing proof that a sealed no-tool run remains runnable."""
+
+    status: str
+    workflow_id: str
+
+
+@dataclass(frozen=True)
 class RedactedRunTrace:
     """Minimal wrapper trace metadata that excludes raw workflow input and output."""
 
@@ -144,6 +152,29 @@ class WorkflowRunner:
         """Return copy-safe redacted run metadata for the host audit surface."""
 
         return tuple(self._traces)
+
+    def dry_run(
+        self, request: RunDarWorkflowRequest, *, now: datetime
+    ) -> DryRunDarWorkflowResult:
+        """Validate a sealed run without consuming input or invoking DAR."""
+
+        try:
+            registration, _, _ = self._preflight(request.workflow_id)
+            self._validate_adapter(registration)
+            self._preparation.load(
+                request.prepared_input_id, registration=registration, now=now
+            )
+        except (
+            WorkflowRegistrationError,
+            PackageCatalogError,
+            PolicyCompilationError,
+            PreparedWorkflowInputError,
+            RunDarWorkflowError,
+        ) as error:
+            if isinstance(error, RunDarWorkflowError):
+                raise
+            raise RunDarWorkflowError("registered workflow dry run failed") from error
+        return DryRunDarWorkflowResult("ready", request.workflow_id)
 
     def _preflight(self, workflow_id: str) -> tuple[WorkflowRegistration, Any, int]:
         registration = self._registrations.resolve(workflow_id)

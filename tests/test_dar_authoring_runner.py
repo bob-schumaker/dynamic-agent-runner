@@ -169,6 +169,34 @@ def test_runner_rejects_hosted_adapter_before_consuming_input(tmp_path: Path) ->
     assert client.responses.calls == []
 
 
+def test_runner_dry_run_preflights_without_consuming_or_calling_model(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, client = _runner(tmp_path)
+    prepared = preparation.prepare(
+        workflow_id="document-helper", prompt="Answer me.", now=NOW
+    )
+    request = RunDarWorkflowRequest.from_mapping(
+        {
+            "format_version": 1,
+            "workflow_id": "document-helper",
+            "prepared_input_id": prepared.prepared_input_id,
+        }
+    )
+
+    result = runner.dry_run(request, now=NOW)
+
+    assert result.status == "ready"
+    assert result.workflow_id == "document-helper"
+    assert (
+        preparation.load(
+            prepared.prepared_input_id, registration=registration, now=NOW
+        ).prompt
+        == "Answer me."
+    )
+    assert client.responses.calls == []
+
+
 def test_runner_fails_dar_preflight_before_model_entry(tmp_path: Path) -> None:
     runner, preparation, _, revision, client = _runner(tmp_path)
     prepared = preparation.prepare(
