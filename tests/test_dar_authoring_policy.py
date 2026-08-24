@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
@@ -28,7 +29,12 @@ NOW = datetime(2026, 8, 23, tzinfo=UTC)
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
 
 
-def _catalog_revision(tmp_path: Path, *, package_id: str | None = None):
+def _catalog_revision(
+    tmp_path: Path,
+    *,
+    package_id: str | None = None,
+    with_read_only_mcp_tool: bool = False,
+):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
     if package_id is not None:
@@ -39,6 +45,40 @@ def _catalog_revision(tmp_path: Path, *, package_id: str | None = None):
             ),
             encoding="utf-8",
         )
+    if with_read_only_mcp_tool:
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        descriptor_value["tools"] = [
+            {
+                "id": "mail_list_unread",
+                "kind": "mcp",
+                "remote_tool_name": "list_unread",
+                "side_effect": "read",
+            }
+        ]
+        descriptor_value["task_invocation"].update(
+            {"allowed_tool_ids": ["mail_list_unread"], "max_total_tool_calls": 3}
+        )
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+        runtime = source / "agent-runtime.yaml"
+        runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+        runtime_value["tools"] = [
+            {
+                "id": "mail_list_unread",
+                "label": "List unread mail",
+                "tool_type": "external_api",
+                "description_for_llm": "List unread mail.",
+                "adapter": "host.mcp",
+                "input_schema": {"type": "object", "properties": {}},
+                "side_effect": "read",
+                "approval_required": False,
+                "timeout": "runtime_default",
+                "retry_policy": "none",
+                "failure_behavior": "error",
+            }
+        ]
+        runtime_value["nodes"][0]["available_tools"] = ["mail_list_unread"]
+        runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -68,6 +108,23 @@ def test_capability_resolution_is_eligible_or_nonexecuting(tmp_path: Path) -> No
     assert unavailable.missing_capabilities == ("local_model",)
     assert eligible.status == "eligible"
     assert eligible.missing_capabilities == ()
+
+
+def test_read_only_mcp_policy_requires_its_nonexecuting_capability(
+    tmp_path: Path,
+) -> None:
+    policy = compile_workflow_policy(
+        _catalog_revision(tmp_path, with_read_only_mcp_tool=True)
+    )
+
+    assert policy.task_invocation.allowed_tool_ids == ("mail_list_unread",)
+    assert policy.required_capabilities == frozenset({"local_model", "mcp_read_only"})
+    unavailable = resolve_capabilities(policy, available_capabilities={"local_model"})
+    eligible = resolve_capabilities(
+        policy, available_capabilities={"local_model", "mcp_read_only"}
+    )
+    assert unavailable.missing_capabilities == ("mcp_read_only",)
+    assert eligible.status == "eligible"
 
 
 def test_policy_rejects_descriptor_package_identity_mismatch(tmp_path: Path) -> None:

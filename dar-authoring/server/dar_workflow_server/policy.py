@@ -66,7 +66,9 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
     if workflow.runtime_manifest.package_id != revision.package_id:
         raise PolicyCompilationError("DAR package_id does not match catalog")
     descriptor_digest = hashlib.sha256(descriptor_bytes).hexdigest()
-    required_capabilities = frozenset({"local_model"})
+    required_capabilities = frozenset(
+        {"local_model", *(("mcp_read_only",) if descriptor.declared_tools else ())}
+    )
     policy_digest = _digest(
         {
             "format_version": 1,
@@ -81,11 +83,19 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
             },
             "task_invocation": {
                 "entrypoint": descriptor.task_invocation.entrypoint,
+                "allowed_tool_ids": descriptor.task_invocation.allowed_tool_ids,
                 "max_total_tool_calls": descriptor.task_invocation.max_total_tool_calls,
                 "allowed_structured_input_fields": descriptor.task_invocation.allowed_structured_input_fields,
                 "allowed_artifact_roles": descriptor.task_invocation.allowed_artifact_roles,
                 "terminal_output_schema_ref": descriptor.task_invocation.terminal_output_schema_ref,
             },
+            "declared_tools": [
+                {
+                    "tool_id": tool.tool_id,
+                    "remote_tool_name": tool.remote_tool_name,
+                }
+                for tool in descriptor.declared_tools
+            ],
             "max_steps": descriptor.limits.max_steps,
             "required_capabilities": sorted(required_capabilities),
         }
