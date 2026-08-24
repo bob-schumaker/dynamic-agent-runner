@@ -20,8 +20,9 @@
   registration; paths and raw bodies are absent from the current CLI result,
   model request, and runner trace. Future G5 audit and approval surfaces must
   preserve that invariant.
-- `dar-authoring-plugin` M5 (G2) is complete through `8c8522f`; M7 (G5) has
-  host-level execution evidence through `93159e9`. The generic control plane offers human-only
+- `dar-authoring-plugin` M5 (G2) is complete through `8c8522f`; M7 (G5) is
+  complete for reviewed generic MCP bindings through `65f4882`. The generic
+  control plane offers human-only
   API-token or OAuth PKCE-loopback setup, reviewed MCP surfaces, package
   bindings, and read/write/delete classifications. A saved workflow executes
   with its declared generic MCP tool through DAR; no Fastmail-specific behavior
@@ -34,10 +35,12 @@
   before remote dispatch.
 - Side effects use descriptor-declared authority/provenance rules, immutable
   registration-bound handlers, a durable `workflow_auto` action ledger, and
-  local atomic `--ask` approvals. Default `workflow_auto` dispatches a
+  local atomic `--ask` approvals. Focused G5 tests now prove approval invalidates
+  on package/profile/snapshot/argument/artifact changes, audit failure blocks
+  dispatch, unknown post-dispatch outcomes do not retry, and concurrent prepared
+  input consumption has one winner. Default `workflow_auto` dispatches a
   pre-built workflow's reviewed action; `--dry-run` dispatches nothing.
-  G5 still needs a scope audit for multiple independently configured MCP
-  clients per workflow before declaring the general connection model complete.
+  Multiple independently configured MCP clients per workflow remain deferred.
 - `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
   through `50e928d`. Its base path has a host-managed strict-local
   loopback OpenAI-compatible profile, private immutable registration, sealed
@@ -61,11 +64,15 @@
   The runtime host modules live under `src/dynamic_agent_runner/workflow_host/`;
   focused M2 coverage is offline and uses fixture packages, local state files,
   and fake/local collaborators only.
-- M0 owns static adapted-skill assets and package templates; M4 still owns
-  external authoring behavior evidence. M8 owns portable ZIP exchange and
-  publication. M1 local-wheel/Codex discovery is proven, but production launch
-  remains blocked on a signed Artifactory `dynamic-agent-runner==0.1.16`
-  release and trusted launcher integration.
+- M0 owns static adapted-skill assets and package templates. M4.0/M4.1 now
+  provide opaque selected-material projection, host-owned atomic output writes,
+  deterministic finalization, and redacted evidence records; the remaining M4
+  gate is an external authoring-model harness over the checked-in corpus. The
+  packaged entry skill supports authoring, companion artifact routing, and later
+  generic saved-package invocation by configured-root name. M8 owns portable
+  ZIP exchange and publication. M1 local-wheel/Codex discovery is proven, but
+  production launch remains blocked on a signed Artifactory
+  `dynamic-agent-runner==0.1.16` release and trusted launcher integration.
 - Runtime core authority remains deliberately split: M2 preflight accepts only
   an opaque package-source handle and returns package/policy/capability data;
   it cannot accept invocation input, create a registration or alias, issue a

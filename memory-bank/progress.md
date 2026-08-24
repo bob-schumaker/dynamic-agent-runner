@@ -11,7 +11,8 @@
   license or notice existed in that checkout, which the record states plainly.
   Full DAR-authoring verification passed with 171 tests.
 - `dar-authoring-plugin` M5 (G2) is complete through `8c8522f`; M7 (G5) is
-  implemented through `93159e9`. Commits `d2d20bf`–`8c8522f` compose the configured generic HTTPS
+  complete for reviewed generic MCP bindings through `65f4882`. Commits
+  `d2d20bf`–`8c8522f` compose the configured generic HTTPS
   MCP client into the local host, expose human-only API-token/OAuth setup and
   reviewed surface/binding CLI paths, construct the model-facing host registry,
   and prove a saved workflow's fake MCP call end to end. A same-endpoint
@@ -31,9 +32,11 @@
 - Side effects are live only through declared, reviewed generic MCP bindings:
   `ArgumentProvenanceEnvelope` checks, registration-bound handlers, an
   at-most-once `workflow_auto` action ledger, local `--ask` approval, and
-  prepared-input consumption protect dispatch. Default auto approval is for a
-  pre-built workflow; `--dry-run` is non-dispatching. Broader multi-client MCP
-  composition and live-provider acceptance remain deferred.
+  prepared-input consumption protect dispatch. Commits `76bb846`, `05ba226`,
+  and `6d40581` add action-change invalidation, audit-failure/unknown-outcome,
+  and concurrent-consumption proof. Default auto approval is for a pre-built
+  workflow; `--dry-run` is non-dispatching. Broader multi-client MCP composition
+  and live-provider acceptance remain deferred.
 - `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
   through `50e928d`. `0084bc0` changes the single model-facing MCP tool to
   accept only workflow ID plus prompt and seal input internally; caller-supplied
@@ -52,9 +55,9 @@
   (`ced9982`), source handles (`e22bc18`), no-follow private package staging
   (`355debb`), immutable package catalog (`1518086`), policy compilation
   (`ab75e37`), and package-only preflight (`8a08669`). The standalone plugin
-  pins the Artifactory-published DAR `0.1.15` (`33b82ab`) and declares its
-  direct PyYAML dependency. M4 authoring evidence and M8 portable publication
-  remain.
+  pins DAR `0.1.16` for its production Artifactory launch contract and permits
+  an absolute local-wheel override only for pre-publication verification. M4
+  authoring evidence and M8 portable publication remain.
 - The original first vertical slice expressly omitted MCP, external side
   effects, trusted caller-file ingress, ZIP/signature exchange, tool-argument
   provenance, and adapted-skill behavior. M0, M5, M6, and M7 now cover the
@@ -63,6 +66,13 @@
   `PackagePreflightService` is package-only, while the later
   `WorkflowInvocationPreparationService` is the sole issuer of sealed,
   normally single-use `PreparedWorkflowInput`.
+- M4 now has host-controlled authoring material and package-output support:
+  `agent-development` issues/projects selected material, writes canonical files
+  only through opaque output handles, and finalizes the package; companion tool
+  and evaluation skills use the same handle. A later natural-language request
+  can invoke a configured-root saved package by name through the generic
+  wrapper. The external model corpus harness and human intent-fidelity review
+  are still required before calling M4 complete.
 - `live-guardrail-execution` V2 is implemented in `78f9d9c`. It adopts the
   shared coordinator for direct and model-loop tool-input guardrails after
   validated preparation and before approval or dispatch. The TDD evidence
