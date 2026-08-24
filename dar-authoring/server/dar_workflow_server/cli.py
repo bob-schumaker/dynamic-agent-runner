@@ -18,6 +18,7 @@ from dar_workflow_server.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
     attach_mcp_client,
+    authorize_mcp_oauth,
     configure_mcp_api_token,
     configure_local_host,
     create_mcp_connection,
@@ -176,6 +177,11 @@ def _parser() -> argparse.ArgumentParser:
     token = commands.add_parser("configure-mcp-api-token")
     token.add_argument("--connection-id", required=True)
     token.add_argument("--token-stdin", action="store_true")
+    oauth = commands.add_parser("authorize-mcp-oauth")
+    oauth.add_argument("--connection-id", required=True)
+    oauth.add_argument("--authorization-endpoint", required=True)
+    oauth.add_argument("--token-endpoint", required=True)
+    oauth.add_argument("--client-id", required=True)
     attach = commands.add_parser("attach-mcp-client")
     attach.add_argument("--connection-id", required=True)
     attach.add_argument("--authentication-id", required=True)
@@ -234,6 +240,18 @@ def _mcp_control_result(
             root=root,
             connection_id=args.connection_id,
             token=(read_stdin or sys.stdin.read)().strip(),
+        )
+        return {
+            "status": "authenticated",
+            "authentication_id": authentication.authentication_id,
+        }
+    if args.command == "authorize-mcp-oauth":
+        authentication = authorize_mcp_oauth(
+            root=root,
+            connection_id=args.connection_id,
+            authorization_endpoint=args.authorization_endpoint,
+            token_endpoint=args.token_endpoint,
+            client_id=args.client_id,
         )
         return {
             "status": "authenticated",

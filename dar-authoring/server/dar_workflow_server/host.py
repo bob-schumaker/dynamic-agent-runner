@@ -37,6 +37,11 @@ from dar_workflow_server.mcp_surfaces import (
     MCPSurfaceSnapshotControlPlane,
     MCPSurfaceSnapshotError,
 )
+from dar_workflow_server.oauth import (
+    OAuthAuthorizationService,
+    OAuthClientConfiguration,
+    OAuthError,
+)
 from dar_workflow_server.package_sources import PackageSourceSelectionPolicy
 from dar_workflow_server.policy import (
     PolicyCompilationError,
@@ -162,6 +167,30 @@ def configure_mcp_api_token(
         raise LocalWorkflowHostError(
             "MCP authentication could not be configured"
         ) from error
+
+
+def authorize_mcp_oauth(
+    *,
+    root: Path,
+    connection_id: str,
+    authorization_endpoint: str,
+    token_endpoint: str,
+    client_id: str,
+) -> MCPAuthentication:
+    """Complete one human OAuth PKCE loopback authorization for a connection."""
+
+    _, connections = _connection_control(root)
+    try:
+        return OAuthAuthorizationService(connections=connections).authorize(
+            connection_id,
+            configuration=OAuthClientConfiguration(
+                authorization_endpoint=authorization_endpoint,
+                token_endpoint=token_endpoint,
+                client_id=client_id,
+            ),
+        )
+    except (MCPConnectionError, OAuthError) as error:
+        raise LocalWorkflowHostError("MCP OAuth authorization failed") from error
 
 
 def attach_mcp_client(

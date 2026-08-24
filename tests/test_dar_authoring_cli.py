@@ -339,6 +339,52 @@ def test_cli_configures_generic_mcp_connection_without_exposing_api_token(
     ]
 
 
+def test_cli_authorizes_generic_mcp_oauth_through_human_loopback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    def authorize(**kwargs: object) -> SimpleNamespace:
+        calls.append(kwargs)
+        return SimpleNamespace(authentication_id="v1.authentication")
+
+    monkeypatch.setattr(cli, "authorize_mcp_oauth", authorize)
+    output: list[str] = []
+
+    assert (
+        main(
+            [
+                "--state-root",
+                "/tmp/dar-authoring-test",
+                "authorize-mcp-oauth",
+                "--connection-id",
+                "v1.connection",
+                "--authorization-endpoint",
+                "https://login.example.test/authorize",
+                "--token-endpoint",
+                "https://login.example.test/token",
+                "--client-id",
+                "public-client",
+            ],
+            write=output.append,
+        )
+        == 0
+    )
+    assert json.loads(output[0]) == {
+        "authentication_id": "v1.authentication",
+        "status": "authenticated",
+    }
+    assert calls == [
+        {
+            "root": Path("/tmp/dar-authoring-test"),
+            "connection_id": "v1.connection",
+            "authorization_endpoint": "https://login.example.test/authorize",
+            "token_endpoint": "https://login.example.test/token",
+            "client_id": "public-client",
+        }
+    ]
+
+
 def test_cli_inspects_reviews_binds_and_registers_mcp_workflows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
