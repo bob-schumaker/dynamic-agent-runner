@@ -20,6 +20,14 @@ class InputContract:
 
 
 @dataclass(frozen=True)
+class WorkspaceContract:
+    """Package-declared host constraints for opaque file artifacts."""
+
+    accepted_input_types: tuple[str, ...]
+    scratch_access: str
+
+
+@dataclass(frozen=True)
 class TaskInvocation:
     entrypoint: str
     max_total_tool_calls: int
@@ -50,6 +58,7 @@ class WorkflowDescriptor:
     purpose: str
     required_dar_version: str
     model_profile_requirement: str
+    workspace: WorkspaceContract
     input_contract: InputContract
     task_invocation: TaskInvocation
     declared_tools: tuple[DeclaredTool, ...]
@@ -69,6 +78,7 @@ class WorkflowDescriptor:
         if runtime.get("distribution") != "dynamic-agent-runner":
             raise WorkflowDescriptorError("dar_runtime.distribution is invalid")
         input_contract = _parse_input_contract(mapping.get("input_contract"))
+        workspace = _parse_workspace_contract(mapping.get("workspace"))
         task = _parse_task_invocation(mapping.get("task_invocation"))
         if task.allowed_tool_ids != tuple(tool.tool_id for tool in declared_tools):
             raise WorkflowDescriptorError(
@@ -91,6 +101,7 @@ class WorkflowDescriptor:
                 _mapping(mapping.get("model"), "model").get("profile_requirement"),
                 "model.profile_requirement",
             ),
+            workspace=workspace,
             input_contract=input_contract,
             task_invocation=task,
             declared_tools=declared_tools,
@@ -137,6 +148,22 @@ def _parse_input_contract(value: object) -> InputContract:
             mapping.get("additional_context_max_bytes"), "additional_context_max_bytes"
         ),
         field_precedence="original_prompt",
+    )
+
+
+def _parse_workspace_contract(value: object) -> WorkspaceContract:
+    mapping = _mapping(value, "workspace")
+    accepted_input_types = _string_list(
+        mapping.get("accepted_input_types"), "workspace.accepted_input_types"
+    )
+    if len(set(accepted_input_types)) != len(accepted_input_types):
+        raise WorkflowDescriptorError("workspace.accepted_input_types must be unique")
+    scratch_access = mapping.get("scratch_access")
+    if scratch_access != "none":
+        raise WorkflowDescriptorError("workspace.scratch_access is unavailable")
+    return WorkspaceContract(
+        accepted_input_types=accepted_input_types,
+        scratch_access=scratch_access,
     )
 
 

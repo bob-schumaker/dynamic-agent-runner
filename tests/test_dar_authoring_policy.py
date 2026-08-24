@@ -105,6 +105,7 @@ def test_policy_compiles_a_cataloged_no_tool_package(tmp_path: Path) -> None:
     assert len(policy.descriptor_digest) == 64
     assert len(policy.policy_digest) == 64
     assert policy.required_capabilities == frozenset({"local_model"})
+    assert policy.workspace.accepted_input_types == ("text/plain",)
 
 
 def test_capability_resolution_is_eligible_or_nonexecuting(tmp_path: Path) -> None:

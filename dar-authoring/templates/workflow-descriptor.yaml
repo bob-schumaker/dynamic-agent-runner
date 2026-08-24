@@ -8,6 +8,9 @@ model:
   profile_requirement: local-general-model
 skills: []
 tools: []
+workspace:
+  accepted_input_types: [text/plain]
+  scratch_access: none
 input_contract:
   mode: hybrid
   structured_input_schema: null

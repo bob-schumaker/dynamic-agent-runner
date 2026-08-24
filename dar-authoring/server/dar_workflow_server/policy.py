@@ -17,6 +17,7 @@ from dar_workflow_server.descriptor import (
     TaskInvocation,
     WorkflowDescriptor,
     WorkflowLimits,
+    WorkspaceContract,
     validate_no_tool_runtime_nodes,
 )
 
@@ -37,6 +38,7 @@ class WorkflowPolicy:
     descriptor_digest: str
     policy_digest: str
     model_profile_requirement: str
+    workspace: WorkspaceContract
     input_contract: InputContract
     task_invocation: TaskInvocation
     limits: WorkflowLimits
@@ -80,6 +82,10 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
             "revision_digest": revision.revision_digest,
             "descriptor_digest": descriptor_digest,
             "model_profile_requirement": descriptor.model_profile_requirement,
+            "workspace": {
+                "accepted_input_types": descriptor.workspace.accepted_input_types,
+                "scratch_access": descriptor.workspace.scratch_access,
+            },
             "input_contract": {
                 "mode": descriptor.input_contract.mode,
                 "additional_context_max_bytes": descriptor.input_contract.additional_context_max_bytes,
@@ -110,6 +116,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         descriptor_digest=descriptor_digest,
         policy_digest=policy_digest,
         model_profile_requirement=descriptor.model_profile_requirement,
+        workspace=descriptor.workspace,
         input_contract=descriptor.input_contract,
         task_invocation=descriptor.task_invocation,
         limits=descriptor.limits,

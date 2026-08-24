@@ -32,6 +32,10 @@ def _descriptor() -> dict[str, object]:
         "model": {"profile_requirement": "local-general-model"},
         "skills": [],
         "tools": [],
+        "workspace": {
+            "accepted_input_types": ["text/plain"],
+            "scratch_access": "none",
+        },
         "input_contract": {
             "mode": "hybrid",
             "structured_input_schema": None,
@@ -56,6 +60,8 @@ def test_valid_no_tool_descriptor_compiles() -> None:
 
     assert descriptor.package_id == "document-helper"
     assert descriptor.task_invocation.max_total_tool_calls == 0
+    assert descriptor.workspace.accepted_input_types == ("text/plain",)
+    assert descriptor.workspace.scratch_access == "none"
     assert descriptor.limits.max_steps == 8
     validate_no_tool_runtime_nodes(
         descriptor, (RuntimeNode(id="answer", kind="llm_step"),)
