@@ -12,6 +12,21 @@
   `surface_review_required` readiness result. Full authoring verification
   passed with 94 tests. G5 remains the exclusive owner of mutations and
   approval; M5 does not construct send-like handlers.
+- `dar-authoring-plugin` M6 (G4 trusted file ingress) is complete through
+  `7b17158`. Commits `cf98017`–`7b17158` provide descriptor-relative no-follow
+  bounded copies, private workspaces, opaque registration-bound artifacts, CLI
+  ingress/preparation, UTF-8 validation from the private copy, parent-swap
+  coverage, and non-blocking rejection of FIFOs/non-regular files. Focused
+  evidence proves public receipts and prepared inputs omit paths/content and
+  runner model requests/traces omit artifact IDs and bodies. Full authoring
+  verification passed with 128 tests.
+- `dar-authoring-plugin` G5 is in progress but still non-dispatching.
+  `f231f70` adds v1 provenance-envelope verification; `3a86c20` persists a
+  human-reviewed exact MCP side-effect class as metadata only; and `6d4d1d5`
+  adds descriptor approval/authority/source rules plus the unavailable
+  `mcp_side_effects` capability. The next work is an immutable
+  registration-bound action handler, durable `workflow_auto` ledger, and local
+  atomic `--ask` broker; no write/delete handler exists yet.
 - `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
   through `8c01d36`: strict loopback local-adapter configuration (`a660980`), sealed
   dry-run preflight (`8298711`), private host composition (`b922880`), local
@@ -29,8 +44,8 @@
   (`355debb`), immutable package catalog (`1518086`), policy compilation
   (`ab75e37`), and package-only preflight (`8a08669`). The standalone plugin
   pins the Artifactory-published DAR `0.1.15` (`33b82ab`) and declares its
-  direct PyYAML dependency. M4 authoring evidence, M6 trusted file ingress, M7
-  side effects, and M8 portable publication remain.
+  direct PyYAML dependency. M4 authoring evidence, M7 side effects, and M8
+  portable publication remain.
 - The first vertical slice expressly omits MCP, external side effects, trusted
   caller-file ingress, ZIP/signature exchange, tool-argument provenance, and
   adapted-skill behavior. M0/M4 provide reproducible skill assets and external

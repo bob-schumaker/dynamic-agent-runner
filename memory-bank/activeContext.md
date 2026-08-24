@@ -3,16 +3,34 @@
 
 ## Current Focus
 
+- `dar-authoring-plugin` M6 (G4 trusted file ingress) is complete through
+  `7b17158`. Caller files are copied through descriptor-relative, no-follow,
+  non-blocking descriptors into owner-only workspaces; outside-root paths,
+  symlinks, directories/FIFOs, oversize files, invalid UTF-8 text, and a
+  parent-swap race fail closed. The public ingress/CLI receipt contains only an
+  opaque ID, hash, byte count, and expiry. Preparation binds IDs to the exact
+  registration; paths and raw bodies are absent from the current CLI result,
+  model request, and runner trace. Future G5 audit and approval surfaces must
+  preserve that invariant.
+- `dar-authoring-plugin` G5 is in progress. `f231f70` adds a standalone v1
+  canonical argument-provenance verifier (UTF-8 spans, approved normalizations,
+  opaque references, and prohibited remote/additional-context laundering).
+  `3a86c20` lets the human MCP control plane record a reviewed `write`/`delete`
+  classification without exposing a handler. `6d4d1d5` adds explicit approved
+  side-effect metadata and per-argument authority/source policies to the
+  descriptor; capability resolution reports `mcp_side_effects`, which remains
+  unavailable until the registration-bound action handler, ledger, and local
+  `--ask` broker exist.
 - `dar-authoring-plugin` M5 (G2 generic HTTPS MCP read-only path) is complete
-  through `88b4b41`. It provides human-owned API-token and OAuth PKCE-loopback
-  setup, pinned/bounded HTTPS lifecycle and `tools/list`/`tools/call`, reviewed
-  read-only surface snapshots, opaque current-generation bindings, generic
-  `HostToolBinding` construction, and one fake end-to-end read-only workflow.
-  Readiness reports `authentication_required` without creating a session or
-  exposing a secret; reconnect or schema drift fails before remote dispatch.
-  No write/send-like tool is constructed before G5. M6 remains blocked on the
-  sandbox ingress primitive; M0/M1 provenance and release trust anchoring,
-  M4 authoring evidence, M7 side effects, and M8 publication remain.
+  through `88b4b41`, with later review-metadata support in `3a86c20`. It
+  provides human-owned API-token and OAuth PKCE-loopback setup, pinned/bounded
+  HTTPS lifecycle and `tools/list`/`tools/call`, reviewed snapshots, opaque
+  current-generation bindings, generic `HostToolBinding` construction, and one
+  fake end-to-end read-only workflow. Readiness reports
+  `authentication_required` without creating a session or exposing a secret;
+  reconnect or schema drift fails before remote dispatch. M0/M1 provenance and
+  release trust anchoring, M4 authoring evidence, M7 side effects, and M8
+  publication remain.
 - `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
   through `8c01d36`. A host-managed strict-local loopback OpenAI-compatible profile is
   persisted privately, a saved package is registered to its immutable profile,
