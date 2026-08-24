@@ -23,7 +23,7 @@ def test_project_declares_the_generic_stdio_mcp_entry_point() -> None:
     )
 
 
-def test_stdio_server_initializes_and_advertises_the_closed_workflow_tool() -> None:
+def test_stdio_server_hides_execution_tools_without_a_configured_host() -> None:
     stdin = StringIO(
         "\n".join(
             (
@@ -43,7 +43,35 @@ def test_stdio_server_initializes_and_advertises_the_closed_workflow_tool() -> N
         "name": "Dynamic Agent Runner",
         "version": version("dynamic-agent-runner"),
     }
-    assert responses[1]["result"]["tools"][0]["name"] == "run_dar_workflow"
+    assert responses[1]["result"]["tools"] == []
+
+
+def test_stdio_server_advertises_the_closed_tool_when_a_host_is_configured() -> None:
+    from dynamic_agent_runner.workflow_host.server import _Session
+
+    session = _Session(host_opener=lambda _root: object())
+    session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
+    session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')
+
+    response = session.handle('{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
+
+    assert response is not None
+    assert response["result"]["tools"] == [
+        {
+            "name": "run_dar_workflow",
+            "description": "Run one registered sealed local DAR workflow.",
+            "inputSchema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["format_version", "workflow_id", "prepared_input_id"],
+                "properties": {
+                    "format_version": {"const": 1},
+                    "workflow_id": {"type": "string", "minLength": 1},
+                    "prepared_input_id": {"type": "string", "minLength": 1},
+                },
+            },
+        }
+    ]
 
 
 def test_stdio_server_runs_only_closed_sealed_workflow_requests() -> None:

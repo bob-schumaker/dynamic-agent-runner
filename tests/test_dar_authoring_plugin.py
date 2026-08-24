@@ -56,7 +56,7 @@ def test_plugin_bundle_contains_only_local_authoring_assets() -> None:
     assert not any((PLUGIN_ROOT / "server").rglob("*.py"))
 
 
-def test_dar_stdio_server_initializes_and_exposes_the_closed_workflow_tool(
+def test_dar_stdio_server_initializes_without_execution_tools_before_configuration(
     tmp_path: Path,
 ) -> None:
     requests = [
@@ -103,31 +103,7 @@ def test_dar_stdio_server_initializes_and_exposes_the_closed_workflow_tool(
         {
             "jsonrpc": "2.0",
             "id": 2,
-            "result": {
-                "tools": [
-                    {
-                        "name": "run_dar_workflow",
-                        "description": "Run one registered sealed local DAR workflow.",
-                        "inputSchema": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": [
-                                "format_version",
-                                "workflow_id",
-                                "prepared_input_id",
-                            ],
-                            "properties": {
-                                "format_version": {"const": 1},
-                                "workflow_id": {"type": "string", "minLength": 1},
-                                "prepared_input_id": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                },
-                            },
-                        },
-                    }
-                ]
-            },
+            "result": {"tools": []},
         },
     ]
 

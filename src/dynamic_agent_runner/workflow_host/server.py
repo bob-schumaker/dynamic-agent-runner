@@ -83,10 +83,17 @@ class _Session:
         if not self._ready:
             return _error(request_id, -32002, "Server not initialized")
         if method == "tools/list":
-            return _result(request_id, {"tools": [_RUN_TOOL]})
+            return _result(request_id, {"tools": self._available_tools()})
         if method == "tools/call":
             return self._call_tool(request_id, params)
         return _error(request_id, -32601, "Method not found")
+
+    def _available_tools(self) -> list[dict[str, object]]:
+        try:
+            self._host_opener(_default_state_root())
+        except (ValueError, OSError):
+            return []
+        return [_RUN_TOOL]
 
     def _initialize(
         self,
