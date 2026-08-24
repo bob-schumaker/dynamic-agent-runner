@@ -212,9 +212,13 @@ prompt through the sealed, catalog-only runner interface.
    package digests, opaque material-set id, model/provider identity,
    deterministic validator result, named reviewer decision, pass criteria, and
    retention policy. Raw prompt and material fields cannot be recorded.
-3. **M4.2: Run the external authoring harness.** Run the checked-in,
-   de-identified corpus with the selected authoring model outside unit tests and
-   record evidence through the M4.1 contract.
+3. **M4.2: Run the external authoring harness.** The checked-in
+   `scripts/run_dar_authoring_harness.py` runner now passes a selected private
+   material projection to a caller-provided generator only through a temporary
+   request file, captures generator output, validates the expected artifacts and
+   finalized DAR package, and records only M4.1 redacted evidence. Run the
+   de-identified corpus with the selected authoring model outside unit tests;
+   that live evidence remains required.
 4. **M4.3: Gate the three target invocations.** Compare generated packages to
    fixture property contracts, require a human intent-fidelity review until a
    judge calibration is approved, and treat fixture property changes as reviewed
