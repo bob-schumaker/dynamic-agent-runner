@@ -50,6 +50,16 @@ UTF-8 body through the control plane at
 path. Do not copy `package-manifest.json`: finalization creates it after the
 required artifacts are written through the control plane.
 
+When the request needs a reviewed read-only MCP capability, start instead from
+the four files in `../../read-only-mcp-template`. The entry skill retains
+ownership of `agent-runtime.yaml`, `agent-design.md`, and `agent-graph.mmd`;
+it adapts their one declared tool, bounded call limit, and task-specific prompt
+to match the companion contract. Route the companion only to write
+`tool-index.yaml` and the updated `workflow-descriptor.yaml`, then reconcile
+its approved descriptor contract with the entry-owned runtime before
+finalization. The entry skill retains ownership of agent-runtime.yaml and
+finalization; the companion never creates a standalone package.
+
 ## Required authoring sequence
 
 Do not stop after a partial output. Complete these operations in order before

@@ -26,8 +26,17 @@ EVALUATION_FIXTURE = (
     / "invocations"
     / "agent-evaluation.json"
 )
+TOOL_CONTRACT_FIXTURE = (
+    REPO_ROOT
+    / "tests"
+    / "fixtures"
+    / "dar-authoring"
+    / "invocations"
+    / "agent-tool-contract-design.json"
+)
 TEMPLATE = REPO_ROOT / "dar-authoring" / "templates"
 EVALUATION_TEMPLATE = REPO_ROOT / "dar-authoring" / "evaluation-templates"
+READ_ONLY_MCP_TEMPLATE = REPO_ROOT / "dar-authoring" / "read-only-mcp-template"
 
 
 def _materials(tmp_path: Path) -> Path:
@@ -67,6 +76,29 @@ def _evaluation_materials(tmp_path: Path) -> Path:
                         "digest": "3" * 64,
                         "disposition": "reference_only",
                         "role": "package_contract",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _tool_contract_materials(tmp_path: Path) -> Path:
+    path = tmp_path / "tool-contract-materials.json"
+    path.write_text(
+        json.dumps(
+            {
+                "expires_at": "2026-08-25T00:00:00+00:00",
+                "material_set_id": "v1.tool-contract-material-set.signature",
+                "members": [
+                    {
+                        "artifact_id": "authoring-material-reviewed-tool-surface-v1",
+                        "content": "private selected reviewed tool surface",
+                        "digest": "2" * 64,
+                        "disposition": "reference_only",
+                        "role": "reviewed_tool_surface",
                     }
                 ],
             }
@@ -385,3 +417,100 @@ def test_harness_validates_companion_artifacts_in_the_entry_skill_package(
     assert (
         json.loads(evidence.read_text(encoding="utf-8"))["validator_result"] == "passed"
     )
+
+
+def test_harness_allows_a_tool_companion_to_replace_the_entry_descriptor(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.host import configure_local_host
+
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    configure_local_host(
+        root=state_root,
+        package_root=package_root,
+        model_id="local-test-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    generator = tmp_path / "tool_generator.py"
+    generator.write_text(
+        "\n".join(
+            [
+                "from __future__ import annotations",
+                "import json",
+                "from pathlib import Path",
+                "import sys",
+                "from dynamic_agent_runner.workflow_host.cli import main",
+                f"state_root = {str(state_root)!r}",
+                f"template_root = Path({str(READ_ONLY_MCP_TEMPLATE)!r})",
+                "request_path = Path(sys.argv[sys.argv.index('--request') + 1])",
+                "output_path = Path(sys.argv[sys.argv.index('--output') + 1])",
+                "request = json.loads(request_path.read_text(encoding='utf-8'))",
+                "assert request['companions'][0]['skill'] == 'agent-tool-contract-design'",
+                "def call(arguments, content=None):",
+                "    output = []",
+                "    status = main(['--state-root', state_root, *arguments],",
+                "                  write=output.append,",
+                "                  read_stdin=(lambda: content) if content is not None else None)",
+                "    assert status == 0",
+                "    return json.loads(output[0])",
+                "issued = call(['issue-authoring-materials', '--materials-json-stdin'],",
+                "              json.dumps([{'role': member['role'], 'content': member['content'],",
+                "                           'disposition': member['disposition']} for member in request['materials']['members']]))",
+                "call(['project-authoring-materials', '--material-set-id', issued['material_set_id']])",
+                "created = call(['create-authored-package', '--package-name', 'tool-helper'])",
+                "for source in template_root.iterdir():",
+                "    content = source.read_text(encoding='utf-8').replace('dar-authoring-read-only-mcp-template', 'tool-helper')",
+                "    call(['write-authored-package-file', '--authoring-output-id', created['authoring_output_id'],",
+                "          '--relative-path', source.name, '--content-stdin'], content)",
+                "tool_index = 'format_version: 1\\nindex_type: agent_runtime_tool_index\\nindex_id: tool-helper-index\\ntools:\\n  - id: lookup_records\\n    adapter: host.mcp\\n'",
+                "call(['write-authored-package-file', '--authoring-output-id', created['authoring_output_id'],",
+                "      '--relative-path', 'tool-index.yaml', '--content-stdin'], tool_index)",
+                "call(['finalize-authored-package', '--authoring-output-id', created['authoring_output_id'],",
+                "      '--material-set-id', issued['material_set_id']])",
+                "assert output_path.name == 'tool-helper'",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    evidence = tmp_path / "evidence" / "evidence.json"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(HARNESS),
+            "--fixture",
+            str(FIXTURE),
+            "--materials",
+            str(_materials(tmp_path)),
+            "--companion-fixture",
+            str(TOOL_CONTRACT_FIXTURE),
+            "--companion-materials",
+            str(_tool_contract_materials(tmp_path)),
+            "--provider",
+            "test-provider",
+            "--model-id",
+            "test-model",
+            "--reviewer-decision",
+            "approved",
+            "--evidence",
+            str(evidence),
+            "--pass-criterion",
+            "tool_companion_artifacts",
+            "--host-package-root",
+            str(package_root),
+            "--host-package-name",
+            "tool-helper",
+            "--generator",
+            sys.executable,
+            str(generator),
+        ],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        timeout=10,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert (package_root / "tool-helper" / "tool-index.yaml").is_file()

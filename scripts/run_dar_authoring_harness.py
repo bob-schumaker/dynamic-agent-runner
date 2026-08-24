@@ -62,22 +62,17 @@ def run_fixture(
         materials_paths=companion_materials_paths,
     )
     all_materials = _combined_materials((materials, *companion_materials))
+    expected_artifacts, artifact_contracts = _composed_artifact_contracts(
+        (fixture, *companion_fixtures)
+    )
     request = ExternalAuthoringHarnessRequest(
         skill_name=fixture["skill"], request=fixture["request"], materials=all_materials
     )
     outcome = _run_generator(
         request=request,
         companion_fixtures=companion_fixtures,
-        expected_artifacts=tuple(
-            artifact
-            for selected_fixture in (fixture, *companion_fixtures)
-            for artifact in selected_fixture["expected_artifacts"]
-        ),
-        artifact_contracts=tuple(
-            contract
-            for selected_fixture in (fixture, *companion_fixtures)
-            for contract in selected_fixture["artifact_contracts"]
-        ),
+        expected_artifacts=expected_artifacts,
+        artifact_contracts=artifact_contracts,
         generator=generator,
         timeout=timeout,
         host_package_root=host_package_root,
@@ -462,7 +457,8 @@ def _companions(
         if skill == "agent-development" or skill in skill_names:
             raise HarnessError("companion fixture skill is invalid")
         expected_artifacts = fixture["expected_artifacts"]
-        if any(artifact in artifact_paths for artifact in expected_artifacts):
+        conflicts = set(expected_artifacts) & artifact_paths
+        if conflicts - {"workflow-descriptor.yaml"}:
             raise HarnessError("companion fixture artifact conflicts with entry")
         companion_materials = _materials(
             json.loads(
@@ -476,6 +472,26 @@ def _companions(
         skill_names.add(skill)
         artifact_paths.update(expected_artifacts)
     return tuple(fixtures), tuple(materials), tuple(fixture_bytes)
+
+
+def _composed_artifact_contracts(
+    fixtures: Sequence[dict[str, object]],
+) -> tuple[tuple[str, ...], tuple[dict[str, object], ...]]:
+    artifacts: list[str] = []
+    contracts: dict[str, dict[str, object]] = {}
+    for fixture in fixtures:
+        for artifact in fixture["expected_artifacts"]:
+            if artifact not in artifacts:
+                artifacts.append(artifact)
+        for contract in fixture["artifact_contracts"]:
+            artifact = contract["artifact"]
+            assert isinstance(artifact, str)
+            contracts[artifact] = contract
+    if any(
+        fixture["skill"] == "agent-tool-contract-design" for fixture in fixtures[1:]
+    ):
+        contracts.pop("agent-runtime.yaml", None)
+    return tuple(artifacts), tuple(contracts.values())
 
 
 def _combined_materials(

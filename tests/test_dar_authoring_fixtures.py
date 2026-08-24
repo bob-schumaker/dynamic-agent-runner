@@ -194,6 +194,8 @@ def test_agent_development_skill_calls_the_host_authoring_control_plane() -> Non
     assert positions == sorted(positions)
     assert "Do not stop after a partial output" in text
     assert "skill-bundle/skills/<id>/SKILL.md" in text
+    assert "read-only-mcp-template" in text
+    assert "entry skill retains ownership of agent-runtime.yaml" in text
 
 
 def test_companion_skills_use_the_entry_skill_output_handle() -> None:
