@@ -11,6 +11,15 @@ from pathlib import Path
 from typing import Mapping
 
 from dar_workflow_server.policy import CapabilityResolution, WorkflowPolicy
+from dar_workflow_server.mcp_binding import (
+    MCPWorkflowCapabilityBindingControlPlane,
+    MCPWorkflowCapabilityBindingError,
+)
+from dar_workflow_server.mcp_surfaces import (
+    MCPSurfaceSnapshotControlPlane,
+    MCPSurfaceSnapshotError,
+)
+from dar_workflow_server.mcp_tools import MCPReadOnlyToolClient
 from dar_workflow_server.profiles import (
     LocalModelProfile,
     LocalModelProfileControlPlane,
@@ -33,6 +42,7 @@ class WorkflowRegistration:
     policy_digest: str
     profile_id: str
     model_id: str
+    mcp_binding_id: str | None = None
 
 
 class WorkflowRegistrationService:
@@ -44,11 +54,17 @@ class WorkflowRegistrationService:
         profiles: LocalModelProfileControlPlane,
         configured_profile_id: str,
         root: Path,
+        mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
+        mcp_client: MCPReadOnlyToolClient | None = None,
+        mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
     ) -> None:
         self._profiles = profiles
         self._configured_profile_id = configured_profile_id
         self._root = root
         self._path = root / "registrations.json"
+        self._mcp_bindings = mcp_bindings
+        self._mcp_client = mcp_client
+        self._mcp_surfaces = mcp_surfaces
         root.mkdir(mode=0o700, parents=True, exist_ok=True)
         mode = os.lstat(root).st_mode
         if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
@@ -60,6 +76,7 @@ class WorkflowRegistrationService:
         workflow_id: str,
         policy: WorkflowPolicy,
         capability_resolution: CapabilityResolution,
+        mcp_binding_id: str | None = None,
     ) -> WorkflowRegistration:
         """Create or retrieve a local alias for an eligible strict-local policy."""
 
@@ -70,7 +87,10 @@ class WorkflowRegistrationService:
             )
         profile = self._configured_profile()
         self._validate_profile(policy, profile)
-        registration = _registration_from(policy, profile, workflow_id)
+        bound_mcp_id = self._validate_mcp_binding(policy, mcp_binding_id)
+        registration = _registration_from(
+            policy, profile, workflow_id, mcp_binding_id=bound_mcp_id
+        )
         records = self._read()
         existing = records.get(workflow_id)
         if existing is not None:
@@ -114,6 +134,44 @@ class WorkflowRegistrationService:
         if "text_generation" not in profile.capabilities:
             raise WorkflowRegistrationError("configured profile lacks text_generation")
 
+    def _validate_mcp_binding(
+        self, policy: WorkflowPolicy, mcp_binding_id: str | None
+    ) -> str | None:
+        if not policy.declared_tools:
+            if mcp_binding_id is not None:
+                raise WorkflowRegistrationError(
+                    "no-tool policy cannot receive an MCP capability binding"
+                )
+            return None
+        if (
+            not isinstance(mcp_binding_id, str)
+            or not mcp_binding_id
+            or self._mcp_bindings is None
+            or self._mcp_client is None
+            or self._mcp_surfaces is None
+        ):
+            raise WorkflowRegistrationError("MCP capability binding is unavailable")
+        try:
+            binding = self._mcp_bindings.load(mcp_binding_id)
+            expected = {
+                tool.tool_id: tool.remote_tool_name for tool in policy.declared_tools
+            }
+            if (
+                binding.policy_digest != policy.policy_digest
+                or dict(binding.tool_id_to_remote_name) != expected
+            ):
+                raise WorkflowRegistrationError(
+                    "MCP capability binding does not match policy"
+                )
+            self._mcp_surfaces.verify_current_client(
+                binding.snapshot_id, self._mcp_client
+            )
+        except (MCPWorkflowCapabilityBindingError, MCPSurfaceSnapshotError) as error:
+            raise WorkflowRegistrationError(
+                "MCP capability binding is unavailable"
+            ) from error
+        return mcp_binding_id
+
     def _read(self) -> dict[str, dict[str, str]]:
         try:
             value = json.loads(self._path.read_text(encoding="utf-8"))
@@ -138,7 +196,11 @@ class WorkflowRegistrationService:
 
 
 def _registration_from(
-    policy: WorkflowPolicy, profile: LocalModelProfile, workflow_id: str
+    policy: WorkflowPolicy,
+    profile: LocalModelProfile,
+    workflow_id: str,
+    *,
+    mcp_binding_id: str | None,
 ) -> WorkflowRegistration:
     digest_input = {
         "format_version": 1,
@@ -149,6 +211,8 @@ def _registration_from(
         "profile_id": profile.profile_id,
         "model_id": profile.model_id,
     }
+    if mcp_binding_id is not None:
+        digest_input["mcp_binding_id"] = mcp_binding_id
     registration_digest = hashlib.sha256(
         json.dumps(digest_input, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -160,11 +224,12 @@ def _registration_from(
         policy_digest=policy.policy_digest,
         profile_id=profile.profile_id,
         model_id=profile.model_id,
+        mcp_binding_id=mcp_binding_id,
     )
 
 
 def _to_mapping(registration: WorkflowRegistration) -> dict[str, str]:
-    return {
+    result = {
         "workflow_id": registration.workflow_id,
         "registration_digest": registration.registration_digest,
         "package_id": registration.package_id,
@@ -173,6 +238,9 @@ def _to_mapping(registration: WorkflowRegistration) -> dict[str, str]:
         "profile_id": registration.profile_id,
         "model_id": registration.model_id,
     }
+    if registration.mcp_binding_id is not None:
+        result["mcp_binding_id"] = registration.mcp_binding_id
+    return result
 
 
 def _from_mapping(value: object) -> WorkflowRegistration:
@@ -182,11 +250,18 @@ def _from_mapping(value: object) -> WorkflowRegistration:
         values = {key: value[key] for key in _RECORD_FIELDS}
     except KeyError as error:
         raise WorkflowRegistrationError("registration catalog is invalid") from error
-    if set(value) != _RECORD_FIELDS or any(
+    if set(value) not in (_RECORD_FIELDS, _RECORD_FIELDS | {"mcp_binding_id"}) or any(
         not isinstance(item, str) or not item for item in values.values()
     ):
         raise WorkflowRegistrationError("registration catalog is invalid")
-    return WorkflowRegistration(**values)  # type: ignore[arg-type]
+    mcp_binding_id = value.get("mcp_binding_id")
+    if mcp_binding_id is not None and (
+        not isinstance(mcp_binding_id, str) or not mcp_binding_id
+    ):
+        raise WorkflowRegistrationError("registration catalog is invalid")
+    return WorkflowRegistration(  # type: ignore[arg-type]
+        **values, mcp_binding_id=mcp_binding_id
+    )
 
 
 _RECORD_FIELDS = {

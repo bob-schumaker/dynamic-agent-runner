@@ -240,13 +240,13 @@ part of ordinary test execution.
    derive `HostToolBinding` schema and identity only from the reviewed current
    surface, and revalidate it immediately before bounded `tools/call` dispatch.
    A send-like tool is neither constructed nor dispatched.
-9. **M5.5b: Integrate a read-only binding with M3.** Begin only after the pending
-   G1 bounded task-invocation and declared-MCP-tool policy slices can compile a
-   tool-bearing package without opening a general-purpose console. Construct
-   bindings only from a current snapshot and reject every non-read-only tool
-   until G5 passes, even if its connection and snapshot are otherwise valid.
-   Execute one fake read-only MCP workflow after M3 is live. A fake send-like
-   tool must be unavailable and its handler must not run.
+9. **M5.5b: Integrate a read-only binding with M3.** After the G1 bounded
+   task-invocation and declared-MCP-tool policy can compile a tool-bearing
+   package without opening a general-purpose console, register it only with a
+   current opaque binding, derive its host registry, and execute one fake
+   read-only MCP workflow. A fake send-like tool remains unavailable and its
+   handler does not run; generation drift before execution fails before model or
+   remote-tool dispatch.
 
 Do not add stdio or any unreviewed transport in this milestone.
 

@@ -168,6 +168,11 @@ passes.
       an approved current snapshot and opaque capability binding; before G5,
       reject every non-read-only side-effect class and prove a fake send-like
       handler is not invoked.
+- [x] RED/GREEN: a tool-bearing registration requires a current opaque
+      read-only MCP binding whose exact tool map matches the compiled policy;
+      the runner derives its host registry from that record, executes one fake
+      read-only workflow through shared capability resolution, and rejects
+      generation drift before model or remote-tool dispatch.
 - [ ] RED/GREEN: a read-only MCP registration is unavailable until both G2 and
       G3 pass and G1's bounded task-invocation / declared-MCP-tool policy can
       compile the tool-bearing package; then execute it through the shared

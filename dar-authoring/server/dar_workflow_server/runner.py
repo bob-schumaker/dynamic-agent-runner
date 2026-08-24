@@ -7,10 +7,21 @@ from datetime import datetime
 from typing import Any, Mapping
 from uuid import uuid4
 
-from dynamic_agent_runner import load_agent_package_workflow, run_agent_workflow
+from dynamic_agent_runner import (
+    create_host_tool_registry,
+    load_agent_package_workflow,
+    run_agent_workflow,
+)
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
 
 from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
+from dar_workflow_server.mcp_binding import MCPWorkflowCapabilityBindingControlPlane
+from dar_workflow_server.mcp_surfaces import MCPSurfaceSnapshotControlPlane
+from dar_workflow_server.mcp_tools import (
+    MCPReadOnlyToolClient,
+    MCPToolBindingError,
+    create_read_only_mcp_tool_bindings,
+)
 from dar_workflow_server.policy import PolicyCompilationError, compile_workflow_policy
 from dar_workflow_server.preparation import (
     PreparedWorkflowInputError,
@@ -92,11 +103,17 @@ class WorkflowRunner:
         catalog: PackageCatalog,
         preparation: WorkflowInvocationPreparationService,
         model_adapter: OpenAIClientAdapter,
+        mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
+        mcp_client: MCPReadOnlyToolClient | None = None,
+        mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
         self._preparation = preparation
         self._model_adapter = model_adapter
+        self._mcp_bindings = mcp_bindings
+        self._mcp_client = mcp_client
+        self._mcp_surfaces = mcp_surfaces
         self._traces: list[RedactedRunTrace] = []
 
     def run(
@@ -106,7 +123,9 @@ class WorkflowRunner:
 
         run_id = str(uuid4())
         try:
-            registration, package_root, max_steps = self._preflight(request.workflow_id)
+            registration, package_root, max_steps, tool_registry = self._preflight(
+                request.workflow_id
+            )
             self._validate_adapter(registration)
             sealed = self._preparation.consume(
                 request.prepared_input_id, registration=registration, now=now
@@ -116,6 +135,7 @@ class WorkflowRunner:
                 package_directory=str(package_root),
                 prompt=prompt,
                 model_adapter=self._model_adapter,
+                tool_registry=tool_registry,
                 max_steps=max_steps,
                 run_id=run_id,
             )
@@ -159,7 +179,7 @@ class WorkflowRunner:
         """Validate a sealed run without consuming input or invoking DAR."""
 
         try:
-            registration, _, _ = self._preflight(request.workflow_id)
+            registration, _, _, _ = self._preflight(request.workflow_id)
             self._validate_adapter(registration)
             self._preparation.load(
                 request.prepared_input_id, registration=registration, now=now
@@ -176,7 +196,9 @@ class WorkflowRunner:
             raise RunDarWorkflowError("registered workflow dry run failed") from error
         return DryRunDarWorkflowResult("ready", request.workflow_id)
 
-    def _preflight(self, workflow_id: str) -> tuple[WorkflowRegistration, Any, int]:
+    def _preflight(
+        self, workflow_id: str
+    ) -> tuple[WorkflowRegistration, Any, int, Any | None]:
         registration = self._registrations.resolve(workflow_id)
         revision = self._catalog.revision(
             registration.package_id, registration.revision_digest
@@ -184,8 +206,43 @@ class WorkflowRunner:
         policy = compile_workflow_policy(revision)
         if policy.policy_digest != registration.policy_digest:
             raise RunDarWorkflowError("registered workflow policy does not match")
-        load_agent_package_workflow(str(revision.package_root))
-        return registration, revision.package_root, policy.limits.max_steps
+        tool_registry = self._tool_registry(policy, registration)
+        load_agent_package_workflow(
+            str(revision.package_root), tool_registry=tool_registry
+        )
+        return (
+            registration,
+            revision.package_root,
+            policy.limits.max_steps,
+            tool_registry,
+        )
+
+    def _tool_registry(self, policy: Any, registration: WorkflowRegistration) -> Any:
+        if not policy.declared_tools:
+            if registration.mcp_binding_id is not None:
+                raise RunDarWorkflowError("no-tool registration has an MCP binding")
+            return None
+        if (
+            registration.mcp_binding_id is None
+            or self._mcp_bindings is None
+            or self._mcp_client is None
+            or self._mcp_surfaces is None
+        ):
+            raise RunDarWorkflowError("registered MCP capability is unavailable")
+        try:
+            return create_host_tool_registry(
+                create_read_only_mcp_tool_bindings(
+                    policy=policy,
+                    binding_id=registration.mcp_binding_id,
+                    binding_control=self._mcp_bindings,
+                    client=self._mcp_client,
+                    surfaces=self._mcp_surfaces,
+                )
+            )
+        except MCPToolBindingError as error:
+            raise RunDarWorkflowError(
+                "registered MCP capability is unavailable"
+            ) from error
 
     def _validate_adapter(self, registration: WorkflowRegistration) -> None:
         if not self._model_adapter.is_local:
