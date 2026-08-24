@@ -129,8 +129,13 @@ passes.
 
 - [ ] RED: a workflow that requires an unauthenticated least-scope connection returns
       `authentication_required`.
-- [ ] GREEN: human-only OAuth/API-token connection flow with secret storage
-      outside package artifacts and immutable profile/scope binding.
+- [x] GREEN: human-only API-token connection flow with secret storage outside
+      package artifacts and immutable profile/scope binding. The token is held
+      only by the OS credential manager; the private state store keeps an opaque
+      connection-bound credential reference.
+- [ ] GREEN: human-only OAuth authorization-code PKCE loopback connection flow
+      with secret storage outside package artifacts and immutable profile/scope
+      binding.
 - [ ] RED/GREEN: implement the first generic remote HTTPS MCP adapter with OAuth
       PKCE or a locally stored API token, pinned peer identity, and fake fixtures
       for scoped read/write/send-like surfaces. No other transport is advertised.

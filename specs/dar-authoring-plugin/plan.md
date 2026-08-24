@@ -216,17 +216,21 @@ part of ordinary test execution.
 1. **M5.1: Add human-owned connection records.** Define immutable
    profile/connection/scope records and credential-store references; return
    `authentication_required` without exposing credentials.
-2. **M5.2: Add human-only authentication handlers.** Implement API-token setup
-   and OAuth authorization-code PKCE loopback setup. Test listener-first,
-   state/exact-callback checking, one-time exchange, and secret exclusion.
-3. **M5.3: Add the HTTPS MCP lifecycle adapter.** Implement configured HTTPS
+2. **M5.2a: Add human-only API-token setup.** Store a human-provided token only
+   in the OS credential manager, bind its opaque reference to the immutable
+   connection, and reject cross-connection authentication use. Test secret
+   exclusion from state and returned records.
+3. **M5.2b: Add human-only OAuth authorization-code PKCE loopback setup.** Test
+   listener-first setup, state/exact-callback checking, one-time exchange, and
+   secret exclusion.
+4. **M5.3: Add the HTTPS MCP lifecycle adapter.** Implement configured HTTPS
    initialization, peer-identity pinning, timeout/cancellation/reconnect/cleanup,
    and bounded output with fake transport fixtures only.
-4. **M5.4: Review and bind MCP surfaces.** Create approved snapshot records and
+5. **M5.4: Review and bind MCP surfaces.** Create approved snapshot records and
    passive identity/input-schema drift detection. Construct bindings only from a
    current snapshot and reject every non-read-only tool until G5 passes, even if
    its connection and snapshot are otherwise valid.
-5. **M5.5: Integrate a read-only binding with M3.** Execute one fake read-only
+6. **M5.5: Integrate a read-only binding with M3.** Execute one fake read-only
    MCP workflow after M3 is live. A fake send-like tool must be unavailable and
    its handler must not run.
 

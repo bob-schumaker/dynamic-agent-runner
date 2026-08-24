@@ -33,6 +33,7 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
     assert project["project"]["name"] == "dar-authoring"
     assert project["project"]["dependencies"] == [
         "dynamic-agent-runner==0.1.15",
+        "keyring>=25.7.0",
         "PyYAML>=6.0.3",
     ]
     assert project["project"]["scripts"] == {
