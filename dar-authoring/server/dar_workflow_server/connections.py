@@ -42,6 +42,9 @@ class SecretStore(Protocol):
     def delete(self, reference: str) -> None:
         """Delete a previously stored secret after a failed setup."""
 
+    def replace(self, reference: str, secret: str) -> None:
+        """Atomically replace one existing secret without changing its reference."""
+
 
 class KeyringSecretStore:
     """Use the platform credential manager without putting secrets in state."""
@@ -76,6 +79,9 @@ class KeyringSecretStore:
             keyring.delete_password(self._SERVICE_NAME, self._account_name(reference))
         except Exception as error:
             raise SecretStoreError("credential store is unavailable") from error
+
+    def replace(self, reference: str, secret: str) -> None:
+        self._set(reference, secret)
 
     def _set(self, reference: str, secret: str) -> None:
         try:
@@ -121,6 +127,8 @@ class MCPAuthentication:
     authentication_method: str
     credential_ref: str
     authentication_status: str
+    oauth_token_endpoint: str | None = None
+    oauth_client_id: str | None = None
 
 
 class MCPConnectionControlPlane:
@@ -236,7 +244,12 @@ class MCPConnectionControlPlane:
         return self._store_authentication(connection, token)
 
     def configure_oauth_token(
-        self, connection_id: str, token_bundle: str
+        self,
+        connection_id: str,
+        token_bundle: str,
+        *,
+        token_endpoint: str,
+        client_id: str,
     ) -> MCPAuthentication:
         """Store an OAuth token bundle after the human-only PKCE exchange."""
 
@@ -245,10 +258,23 @@ class MCPConnectionControlPlane:
             raise MCPConnectionError("connection does not use OAuth authentication")
         if not isinstance(token_bundle, str) or not token_bundle:
             raise MCPConnectionError("OAuth token bundle is unavailable")
-        return self._store_authentication(connection, token_bundle)
+        _https_endpoint(token_endpoint)
+        if not isinstance(client_id, str) or not client_id:
+            raise MCPConnectionError("OAuth client_id is invalid")
+        return self._store_authentication(
+            connection,
+            token_bundle,
+            oauth_token_endpoint=token_endpoint,
+            oauth_client_id=client_id,
+        )
 
     def _store_authentication(
-        self, connection: MCPConnection, secret: str
+        self,
+        connection: MCPConnection,
+        secret: str,
+        *,
+        oauth_token_endpoint: str | None = None,
+        oauth_client_id: str | None = None,
     ) -> MCPAuthentication:
         """Persist only an opaque secret-store reference for one connection."""
 
@@ -264,6 +290,8 @@ class MCPConnectionControlPlane:
                     "connection_id": connection.connection_id,
                     "authentication_method": connection.authentication_method,
                     "credential_ref": credential_ref,
+                    "oauth_token_endpoint": oauth_token_endpoint,
+                    "oauth_client_id": oauth_client_id,
                 },
                 expires_at=datetime.max.replace(tzinfo=UTC),
                 now=datetime.now(UTC),
@@ -282,6 +310,8 @@ class MCPConnectionControlPlane:
             authentication_method=connection.authentication_method,
             credential_ref=credential_ref,
             authentication_status="authenticated",
+            oauth_token_endpoint=oauth_token_endpoint,
+            oauth_client_id=oauth_client_id,
         )
 
     def load_authentication(self, authentication_id: str) -> MCPAuthentication:
@@ -297,6 +327,8 @@ class MCPConnectionControlPlane:
             connection_id = record.payload["connection_id"]
             authentication_method = record.payload["authentication_method"]
             credential_ref = record.payload["credential_ref"]
+            oauth_token_endpoint = record.payload.get("oauth_token_endpoint")
+            oauth_client_id = record.payload.get("oauth_client_id")
         except (OpaqueRecordError, KeyError, TypeError) as error:
             raise MCPConnectionError("authentication record is unavailable") from error
         _opaque_id(connection_id, "connection_id")
@@ -309,13 +341,39 @@ class MCPConnectionControlPlane:
         connection = self.load(connection_id)
         if connection.authentication_method != authentication_method:
             raise MCPConnectionError("authentication record is invalid")
+        if authentication_method == "oauth_authorization_code_pkce_loopback":
+            _https_endpoint(oauth_token_endpoint)
+            if not isinstance(oauth_client_id, str) or not oauth_client_id:
+                raise MCPConnectionError("authentication record is invalid")
+        elif oauth_token_endpoint is not None or oauth_client_id is not None:
+            raise MCPConnectionError("authentication record is invalid")
         return MCPAuthentication(
             authentication_id=authentication_id,
             connection_id=connection_id,
             authentication_method=authentication_method,
             credential_ref=credential_ref,
             authentication_status="authenticated",
+            oauth_token_endpoint=oauth_token_endpoint,
+            oauth_client_id=oauth_client_id,
         )
+
+    def replace_oauth_credential(
+        self, authentication_id: str, token_bundle: str
+    ) -> None:
+        """Replace an OAuth secret in place without changing its authentication ID."""
+
+        authentication = self.load_authentication(authentication_id)
+        if (
+            authentication.authentication_method
+            != "oauth_authorization_code_pkce_loopback"
+        ):
+            raise MCPConnectionError("connection does not use OAuth authentication")
+        if not isinstance(token_bundle, str) or not token_bundle:
+            raise MCPConnectionError("OAuth token bundle is unavailable")
+        try:
+            self._secret_store.replace(authentication.credential_ref, token_bundle)
+        except SecretStoreError as error:
+            raise MCPConnectionError("credential store is unavailable") from error
 
     def credential_for_authentication(
         self, authentication_id: str

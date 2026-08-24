@@ -285,7 +285,10 @@ class OAuthAuthorizationService:
                 code_verifier=verifier,
             )
             return self._connections.configure_oauth_token(
-                connection.connection_id, bundle.secret_value()
+                connection.connection_id,
+                bundle.secret_value(),
+                token_endpoint=configuration.token_endpoint,
+                client_id=configuration.client_id,
             )
         except MCPConnectionError:
             raise

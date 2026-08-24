@@ -42,6 +42,9 @@ class MemorySecretStore:
     def delete(self, reference: str) -> None:
         self.values.pop(reference, None)
 
+    def replace(self, reference: str, secret: str) -> None:
+        self.values[reference] = secret
+
 
 class FakeReceiver:
     def __init__(self, callback: OAuthCallback, events: list[str]) -> None:
@@ -169,6 +172,8 @@ def test_oauth_binds_listener_before_browser_and_stores_only_token_reference(
         )
     ]
     assert authentication.authentication_status == "authenticated"
+    assert authentication.oauth_token_endpoint == "https://login.example.test/token"
+    assert authentication.oauth_client_id == "public-client-id"
     assert secrets.values == {
         "mcp-secret-v1-1": '{"access_token":"access-token","refresh_token":"refresh"}'
     }
@@ -176,6 +181,30 @@ def test_oauth_binds_listener_before_browser_and_stores_only_token_reference(
     assert "one-time-code" not in state_text
     assert "access-token" not in state_text
     assert "code-verifier" not in state_text
+
+
+def test_oauth_credential_replacement_preserves_its_connection_binding(
+    tmp_path: Path,
+) -> None:
+    control, connection_id, secrets = _control(tmp_path)
+    authentication = control.configure_oauth_token(
+        connection_id,
+        '{"access_token":"old","refresh_token":"refresh"}',
+        token_endpoint="https://login.example.test/token",
+        client_id="public-client-id",
+    )
+
+    control.replace_oauth_credential(
+        authentication.authentication_id,
+        '{"access_token":"new","refresh_token":"refresh"}',
+    )
+    reloaded, secret = control.credential_for_authentication(
+        authentication.authentication_id
+    )
+
+    assert reloaded == authentication
+    assert secret == '{"access_token":"new","refresh_token":"refresh"}'
+    assert len(secrets.values) == 1
 
 
 def test_oauth_rejects_bad_callback_state_without_exchanging_the_code(
