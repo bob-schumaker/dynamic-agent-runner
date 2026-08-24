@@ -123,9 +123,13 @@ class WorkflowRunner:
 
         run_id = str(uuid4())
         try:
-            registration, package_root, max_steps, tool_registry = self._preflight(
-                request.workflow_id
-            )
+            (
+                registration,
+                package_root,
+                max_steps,
+                tool_registry,
+                terminal_output_contract,
+            ) = self._preflight(request.workflow_id)
             self._validate_adapter(registration)
             sealed = self._preparation.consume(
                 request.prepared_input_id, registration=registration, now=now
@@ -139,7 +143,7 @@ class WorkflowRunner:
                 max_steps=max_steps,
                 run_id=run_id,
             )
-            output = _terminal_output(final_result)
+            output = _terminal_output(final_result, terminal_output_contract)
         except (
             WorkflowRegistrationError,
             PackageCatalogError,
@@ -179,7 +183,7 @@ class WorkflowRunner:
         """Validate a sealed run without consuming input or invoking DAR."""
 
         try:
-            registration, _, _, _ = self._preflight(request.workflow_id)
+            registration, _, _, _, _ = self._preflight(request.workflow_id)
             self._validate_adapter(registration)
             self._preparation.load(
                 request.prepared_input_id, registration=registration, now=now
@@ -198,7 +202,7 @@ class WorkflowRunner:
 
     def _preflight(
         self, workflow_id: str
-    ) -> tuple[WorkflowRegistration, Any, int, Any | None]:
+    ) -> tuple[WorkflowRegistration, Any, int, Any | None, Mapping[str, Any]]:
         registration = self._registrations.resolve(workflow_id)
         revision = self._catalog.revision(
             registration.package_id, registration.revision_digest
@@ -207,14 +211,20 @@ class WorkflowRunner:
         if policy.policy_digest != registration.policy_digest:
             raise RunDarWorkflowError("registered workflow policy does not match")
         tool_registry = self._tool_registry(policy, registration)
-        load_agent_package_workflow(
+        workflow = load_agent_package_workflow(
             str(revision.package_root), tool_registry=tool_registry
         )
+        terminal_output_contract = workflow.runtime_manifest.output_contracts.get(
+            policy.task_invocation.terminal_output_schema_ref
+        )
+        if not isinstance(terminal_output_contract, Mapping):
+            raise RunDarWorkflowError("registered terminal output contract is missing")
         return (
             registration,
             revision.package_root,
             policy.limits.max_steps,
             tool_registry,
+            terminal_output_contract,
         )
 
     def _tool_registry(self, policy: Any, registration: WorkflowRegistration) -> Any:
@@ -259,9 +269,19 @@ def _render_prompt(prompt: str, additional_context: str) -> str:
     return f"{prompt}\n\nAdditional context:\n{additional_context}"
 
 
-def _terminal_output(value: object) -> dict[str, str]:
+def _terminal_output(value: object, contract: Mapping[str, Any]) -> dict[str, str]:
     if not isinstance(value, str) or not value:
         raise RunDarWorkflowError("workflow terminal output is not a message")
     if len(value.encode("utf-8")) > 32 * 1024:
         raise RunDarWorkflowError("workflow terminal output exceeds the response limit")
-    return {"message": value}
+    output = {"message": value}
+    required_fields = contract.get("required_fields")
+    if not isinstance(required_fields, list) or any(
+        not isinstance(field, str) or not field for field in required_fields
+    ):
+        raise RunDarWorkflowError("registered terminal output contract is invalid")
+    if any(field not in output for field in required_fields):
+        raise RunDarWorkflowError(
+            "terminal output does not satisfy registered contract"
+        )
+    return output

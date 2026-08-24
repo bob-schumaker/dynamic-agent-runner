@@ -204,8 +204,8 @@ passes.
 - [x] RED/GREEN: `dar-workflow-run` accepts exactly the sealed workflow and
       prepared-input identifiers produced by local preparation; prove no run CLI
       path passes a raw prompt or file path to DAR.
-- [ ] RED/GREEN: validate terminal workflow output against the registered output
-      schema and return bounded redacted failure for malformed or excess output.
+- [x] RED/GREEN: validate terminal workflow output against the registered output
+      contract and return bounded redacted failure for malformed or excess output.
 - [x] RED/GREEN: `--dry-run` validates catalog, DAR private-package preflight,
       profile, and sealed-input policy but invokes neither a model nor a handler,
       and does not consume the input. Snapshot/file-ingress checks remain gated

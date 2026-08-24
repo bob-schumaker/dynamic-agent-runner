@@ -19,8 +19,8 @@ task_invocation:
   max_total_tool_calls: 0
   allowed_structured_input_fields: []
   allowed_artifact_roles: []
-  terminal_output_schema_ref: final-answer-v1
+  terminal_output_schema_ref: final_answer
 output:
-  schema_ref: final-answer-v1
+  schema_ref: final_answer
 limits:
   max_steps: 2

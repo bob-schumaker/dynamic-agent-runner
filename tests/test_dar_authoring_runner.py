@@ -123,9 +123,15 @@ class QueuedClient:
         self.responses = QueuedResponses(responses)
 
 
-def _runner(tmp_path: Path, *, local: bool = True):
+def _runner(
+    tmp_path: Path, *, local: bool = True, terminal_required_field: str = "message"
+):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
+    runtime_path = source / "agent-runtime.yaml"
+    runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
+    runtime["output_contracts"][0]["required_fields"] = [terminal_required_field]
+    runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -347,6 +353,32 @@ def test_runner_executes_one_sealed_no_tool_workflow(tmp_path: Path) -> None:
     assert len(client.responses.calls) == 1
     assert runner.traces()[-1].workflow_id == "document-helper"
     assert "Answer me." not in repr(runner.traces()[-1])
+
+
+def test_runner_rejects_terminal_output_that_misses_registered_contract_field(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, _, _, client = _runner(
+        tmp_path, terminal_required_field="answer"
+    )
+    prepared = preparation.prepare(
+        workflow_id="document-helper", prompt="Answer me.", now=NOW
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="terminal output"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": "document-helper",
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert len(client.responses.calls) == 1
+    assert runner.traces()[-1].status == "failed"
 
 
 def test_runner_executes_one_registered_reviewed_read_only_mcp_workflow(

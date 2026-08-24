@@ -34,6 +34,7 @@ def _catalog_revision(
     *,
     package_id: str | None = None,
     with_read_only_mcp_tool: bool = False,
+    terminal_output_schema_ref: str | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -45,6 +46,14 @@ def _catalog_revision(
             ),
             encoding="utf-8",
         )
+    if terminal_output_schema_ref is not None:
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        descriptor_value["output"]["schema_ref"] = terminal_output_schema_ref
+        descriptor_value["task_invocation"]["terminal_output_schema_ref"] = (
+            terminal_output_schema_ref
+        )
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
     if with_read_only_mcp_tool:
         descriptor = source / "workflow-descriptor.yaml"
         descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
@@ -131,4 +140,15 @@ def test_policy_rejects_descriptor_package_identity_mismatch(tmp_path: Path) -> 
     revision = _catalog_revision(tmp_path, package_id="other-package")
 
     with pytest.raises(PolicyCompilationError, match="package_id"):
+        compile_workflow_policy(revision)
+
+
+def test_policy_rejects_unknown_registered_terminal_output_contract(
+    tmp_path: Path,
+) -> None:
+    revision = _catalog_revision(
+        tmp_path, terminal_output_schema_ref="missing-contract"
+    )
+
+    with pytest.raises(PolicyCompilationError, match="terminal output contract"):
         compile_workflow_policy(revision)

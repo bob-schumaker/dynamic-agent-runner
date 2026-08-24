@@ -67,6 +67,8 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         raise PolicyCompilationError("descriptor package_id does not match catalog")
     if workflow.runtime_manifest.package_id != revision.package_id:
         raise PolicyCompilationError("DAR package_id does not match catalog")
+    if descriptor.output_schema_ref not in workflow.runtime_manifest.output_contracts:
+        raise PolicyCompilationError("registered terminal output contract is missing")
     descriptor_digest = hashlib.sha256(descriptor_bytes).hexdigest()
     required_capabilities = frozenset(
         {"local_model", *(("mcp_read_only",) if descriptor.declared_tools else ())}
