@@ -3,6 +3,16 @@
 
 ## Current Focus
 
+- `dar-authoring-plugin` M3 (G3 local no-tool runner) is implemented through
+  `68b0862`. A host-managed strict-local loopback OpenAI-compatible profile is
+  persisted privately, a saved package is registered to its immutable profile,
+  CLI preparation seals one prompt into a single-use opaque input, and the
+  runner preflights the private staged package before executing through DAR.
+  `dar-workflow` provides human local setup, source selection, registration,
+  preparation, and run; `dar-workflow-run` and MCP `run_dar_workflow` accept
+  only workflow and sealed-input identifiers. Dry runs neither consume input
+  nor invoke a model. G2 MCP bindings, G4 file ingress, G5 side effects/`--ask`,
+  structured invocation input, and portable archive exchange remain deferred.
 - `dar-authoring-plugin` M2 (G1 runtime core) is implemented through
   `8a08669`. A human-selected directory receives a principal/expiry-bound
   opaque source handle, is copied through descriptor-relative no-follow file
@@ -22,8 +32,8 @@
 - Runtime core authority remains deliberately split: M2 preflight accepts only
   an opaque package-source handle and returns package/policy/capability data;
   it cannot accept invocation input, create a registration or alias, issue a
-  prepared input, or invoke DAR. M3 next binds an eligible local profile,
-  seals `PreparedWorkflowInput`, and runs the saved package. Optional MCP,
+  prepared input, or invoke DAR. M3 binds an eligible local profile, seals
+  `PreparedWorkflowInput`, and runs the saved package. Optional MCP bindings,
   trusted file ingress, and `workflow_auto`/`--ask` side effects remain later
   G2, G4, and G5 work.
 - `live-guardrail-execution` V2 is implemented in `78f9d9c`: caller-registered

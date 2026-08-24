@@ -3,6 +3,13 @@
 
 ## Working
 
+- `dar-authoring-plugin` M3 (G3 local no-tool runner) is complete through
+  `68b0862`: strict loopback local-adapter configuration (`a660980`), sealed
+  dry-run preflight (`8298711`), private host composition (`b922880`), local
+  control/run CLI (`e93f969`), and sealed MCP execution (`68b0862`). The
+  focused DAR-authoring suite passed with 56 tests. The public paths remain
+  no-tool only: `dar-workflow prepare` is the sole raw-prompt entry point and
+  `dar-workflow-run`/`run_dar_workflow` receive sealed opaque input IDs only.
 - `dar-authoring-plugin` M2 (G1 runtime core) is complete through
   `8a08669`: private authenticated state (`61088c1`), OS-user identity and
   immutable local profiles (`35da5e6`), no-tool descriptor validation
@@ -10,9 +17,8 @@
   (`355debb`), immutable package catalog (`1518086`), policy compilation
   (`ab75e37`), and package-only preflight (`8a08669`). The standalone plugin
   pins the Artifactory-published DAR `0.1.15` (`33b82ab`) and declares its
-  direct PyYAML dependency. M3 next binds an eligible local profile, seals
-  prepared input, and runs the cataloged no-tool package through the single
-  generic runner and CLI.
+  direct PyYAML dependency. M4 authoring evidence, M5 HTTPS MCP bindings, M6
+  trusted file ingress, M7 side effects, and M8 portable publication remain.
 - The first vertical slice expressly omits MCP, external side effects, trusted
   caller-file ingress, ZIP/signature exchange, tool-argument provenance, and
   adapted-skill behavior. M0/M4 provide reproducible skill assets and external

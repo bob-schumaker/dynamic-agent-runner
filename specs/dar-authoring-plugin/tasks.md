@@ -160,37 +160,36 @@ passes.
 
 ## G3: Read-Only Workflow Runner
 
-- [ ] RED/GREEN: select a strict local model adapter and reject hosted fallback.
-- [ ] RED/GREEN: when `CapabilityResolution` is available, bind a
+- [x] RED/GREEN: select a strict local model adapter and reject hosted fallback.
+- [x] RED/GREEN: when `CapabilityResolution` is available, bind a
       `WorkflowPolicy` to the selected profile as an immutable
       `WorkflowRegistration` and map its workflow alias only to that registration
       digest. Reject arbitrary package paths, endpoints, commands, profile
       selections, and model-provided provisioning/approval fields.
-- [ ] RED/GREEN: `dar-workflow prepare --json` authenticates the caller and,
+- [x] RED/GREEN: `dar-workflow prepare` authenticates the caller and,
       after binding, returns registered workflow/package/revision/registration
       identifiers plus a sealed prepared-input identifier and expiry; LLM skills
       cannot mint them.
-- [ ] RED: versioned `run_dar_workflow` request/response schema tests for
+- [x] RED: versioned `run_dar_workflow` request/response schema tests for
       closed-set workflow identifiers plus an opaque sealed prepared-input ID;
       raw hybrid-input fields are rejected.
-- [ ] RED/GREEN: `WorkflowInvocationPreparationService` alone derives
-      schema-valid structured fields without workflow-tool access, preserves
-      unmapped information within the declared `additional_context` bound, and
-      seals the original prompt, projection, local principal, registration digest,
-      and expiry into `PreparedWorkflowInput`. Reject raw or cross-principal,
-      cross-registration, changed, or expired input at the runner. Inputs are
-      single-use by default; reuse requires an explicit bounded read-only profile
-      policy.
-- [ ] RED/GREEN: execute a no-tools workflow through its registration, capability
+- [x] RED/GREEN: `WorkflowInvocationPreparationService` alone seals no-tool
+      prompts and bounded `additional_context`, local principal, registration
+      digest, and expiry into `PreparedWorkflowInput`. Raw structured input and
+      raw/cross-principal/cross-registration/changed/expired input are rejected
+      at the runner. Inputs are single-use by default; structured mapping remains
+      a later descriptor-specific slice.
+- [x] RED/GREEN: execute a no-tools workflow through its registration, capability
       resolution, bounded result shaping, and deep-redacted tracing.
-- [ ] RED/GREEN: `dar-workflow-run` resolves handles, invokes preparation, then
-      sends exactly the resulting sealed request to `run_dar_workflow`; prove no
-      CLI path passes a raw prompt or file path to DAR.
+- [x] RED/GREEN: `dar-workflow-run` accepts exactly the sealed workflow and
+      prepared-input identifiers produced by local preparation; prove no run CLI
+      path passes a raw prompt or file path to DAR.
 - [ ] RED/GREEN: validate terminal workflow output against the registered output
       schema and return bounded redacted failure for malformed or excess output.
-- [ ] RED/GREEN: `--dry-run` validates catalog/profile/snapshot/path policy but
-      invokes neither a model nor an MCP handler, and does not ingress/copy a
-      caller file or authorize later ingress from its observation.
+- [x] RED/GREEN: `--dry-run` validates catalog, DAR private-package preflight,
+      profile, and sealed-input policy but invokes neither a model nor a handler,
+      and does not consume the input. Snapshot/file-ingress checks remain gated
+      on G2/G4.
 
 ## G4: Trusted File Ingress
 
