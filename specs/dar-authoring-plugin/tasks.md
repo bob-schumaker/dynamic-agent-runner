@@ -301,9 +301,11 @@ passes.
       key, and a recipient-host signed-package import. Explicitly selected
       distributable authoring material is included; private source material is
       absent.
-- [ ] RED/GREEN: deterministic ZIP export/import preserves manifest and artifact
-      digests without executing package content; a clean consumer installation
-      verifies the published plugin wheel and its bundled assets.
+- [x] RED/GREEN: deterministic local ZIP export rechecks the private staged
+      manifest and payload digests without executing package content, and a
+      ZIP round trip preserves the content digest.
+- [ ] RED/GREEN: a clean consumer installation verifies the published plugin
+      wheel, bundled assets, and a trusted portable package exchange.
 
 ## Deferred After the First Release
 

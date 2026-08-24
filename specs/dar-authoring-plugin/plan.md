@@ -220,9 +220,11 @@ part of ordinary test execution.
    manifest for portable exchange, record explicit local trust, load only
    human-configured publisher keys, and verify their signatures before a
    portable archive may become a catalog revision.
-4. **M8.1d: Export portable packages.** Add deterministic ZIP export that
-   preserves the verified manifest and artifact digests without executing
-   package content.
+4. **M8.1d: Export portable packages.** Implemented for an already-private
+   staged package: deterministic stored ZIP export rechecks the generated
+   manifest and payload hashes without executing package content, and round
+   trips through ZIP intake to the same content digest. Publisher trust remains
+   a prerequisite for interchange outside the local host.
 5. **M8.2: Run the first publication gate.** Require M3's no-tool runner
    evidence and M4's external authoring-skill evidence, then verify the released
    wheel from a clean consumer-install directory. No adapted skill or execution
