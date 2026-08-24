@@ -3,14 +3,16 @@
 
 ## Working
 
-- `dar-authoring-plugin` has an implementation-ready staged plan in `564fb0a`,
-  but no implementation is authorized until a milestone or slice is scheduled.
-  M1 first proves a minimal installed-plugin/stdio launch before its `uvx` and
-  release-integrity hardening. M2 imports a human-selected directory package,
-  stages it privately, validates the no-tool descriptor, catalogs it, compiles
-  policy/capabilities, and exposes package-only preflight. M3 then binds an
-  eligible local model profile, seals prepared input, and runs the cataloged
-  package through the single generic no-tool runner and CLI.
+- `dar-authoring-plugin` M2 (G1 runtime core) is complete through
+  `8a08669`: private authenticated state (`61088c1`), OS-user identity and
+  immutable local profiles (`35da5e6`), no-tool descriptor validation
+  (`ced9982`), source handles (`e22bc18`), no-follow private package staging
+  (`355debb`), immutable package catalog (`1518086`), policy compilation
+  (`ab75e37`), and package-only preflight (`8a08669`). The standalone plugin
+  pins the Artifactory-published DAR `0.1.15` (`33b82ab`) and declares its
+  direct PyYAML dependency. M3 next binds an eligible local profile, seals
+  prepared input, and runs the cataloged no-tool package through the single
+  generic runner and CLI.
 - The first vertical slice expressly omits MCP, external side effects, trusted
   caller-file ingress, ZIP/signature exchange, tool-argument provenance, and
   adapted-skill behavior. M0/M4 provide reproducible skill assets and external

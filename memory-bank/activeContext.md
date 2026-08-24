@@ -3,11 +3,15 @@
 
 ## Current Focus
 
-- `dar-authoring-plugin` now has an implementation-ready staged plan in
-  `564fb0a`. The first runtime vertical slice is intentionally narrow:
-  human-selected fixture directory package → private staged root → immutable
-  `WorkflowPolicy` → eligible local-model `WorkflowRegistration` → sealed
-  `PreparedWorkflowInput` → `run_dar_workflow` / `dar-workflow-run`.
+- `dar-authoring-plugin` M2 (G1 runtime core) is implemented through
+  `8a08669`. A human-selected directory receives a principal/expiry-bound
+  opaque source handle, is copied through descriptor-relative no-follow file
+  descriptors into a bounded private staging root, validated by DAR, cataloged
+  by immutable package/revision digest, compiled into `WorkflowPolicy`, and
+  returned only through package-handle-only `PackagePreflightService` results.
+  The new runtime modules live in `dar-authoring/server/dar_workflow_server/`;
+  focused M2 coverage is offline and uses fixture packages, local state files,
+  and fake/local collaborators only.
 - The first runner supports saved, task-specific no-tool workflows only. It
   excludes adapted-skill behavior, ZIP import/export, package signatures,
   caller-file ingress, MCP, tool-argument provenance, and side effects. M0/M4
@@ -15,13 +19,13 @@
   owns portable ZIP exchange and publication. The plugin `uvx` topology is
   first proved as M1.1 before supply-chain hardening; no implementation is
   authorized until an individual milestone or slice is scheduled.
-- Runtime core authority is deliberately split: M2's
-  `PackagePreflightService` can inspect an imported package and never accepts
-  invocation input, registers a workflow, or invokes DAR. After an eligible
-  local profile registration, M3's `WorkflowInvocationPreparationService` is
-  the only issuer of single-use `PreparedWorkflowInput`. Optional MCP, trusted
-  file ingress, and `workflow_auto`/`--ask` side effects remain later G2, G4,
-  and G5 work.
+- Runtime core authority remains deliberately split: M2 preflight accepts only
+  an opaque package-source handle and returns package/policy/capability data;
+  it cannot accept invocation input, create a registration or alias, issue a
+  prepared input, or invoke DAR. M3 next binds an eligible local profile,
+  seals `PreparedWorkflowInput`, and runs the saved package. Optional MCP,
+  trusted file ingress, and `workflow_auto`/`--ask` side effects remain later
+  G2, G4, and G5 work.
 - `live-guardrail-execution` V2 is implemented in `78f9d9c`: caller-registered
   pass-or-abort `tool_input` guardrails run after validated preparation and
   before approval, hooks, retry, or dispatch for direct `tool_use_step` and
