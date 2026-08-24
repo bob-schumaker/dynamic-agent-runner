@@ -30,6 +30,24 @@ NOW = datetime(2026, 8, 23, tzinfo=UTC)
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
 
 
+class _ArtifactVerifier:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str]] = []
+
+    def load(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> object:
+        self.calls.append((artifact_id, workflow_id, registration_digest))
+        if artifact_id != "v1.artifact":
+            raise ValueError("invalid artifact")
+        return object()
+
+
 def _prepared_service(tmp_path: Path):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -95,6 +113,55 @@ def test_preparation_seals_prompt_and_bounded_additional_context(
     assert not hasattr(prepared, "prompt")
     assert loaded.prompt == "Answer this request."
     assert loaded.additional_context == "Use the supplied background."
+
+
+def test_preparation_seals_only_verified_opaque_workspace_artifact_ids(
+    tmp_path: Path,
+) -> None:
+    _, registrations, registration, _, _ = _prepared_service(tmp_path)
+    verifier = _ArtifactVerifier()
+    service = WorkflowInvocationPreparationService(
+        registrations=registrations,
+        catalog=PackageCatalog(tmp_path / "catalog"),
+        store=PrivateStateStore(tmp_path / "state"),
+        artifact_verifier=verifier,
+    )
+
+    prepared = service.prepare(
+        workflow_id="document-helper",
+        prompt="Answer this request.",
+        workspace_artifact_ids=("v1.artifact",),
+        now=NOW,
+    )
+    loaded = service.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+
+    assert loaded.workspace_artifact_ids == ("v1.artifact",)
+    assert verifier.calls == [
+        ("v1.artifact", "document-helper", registration.registration_digest)
+    ]
+
+
+def test_preparation_rejects_unverified_or_duplicate_workspace_artifact_ids(
+    tmp_path: Path,
+) -> None:
+    service, _, _, _, _ = _prepared_service(tmp_path)
+
+    with pytest.raises(PreparedWorkflowInputError, match="artifact"):
+        service.prepare(
+            workflow_id="document-helper",
+            prompt="answer",
+            workspace_artifact_ids=("v1.artifact",),
+            now=NOW,
+        )
+    with pytest.raises(PreparedWorkflowInputError, match="artifact"):
+        service.prepare(
+            workflow_id="document-helper",
+            prompt="answer",
+            workspace_artifact_ids=("v1.artifact", "v1.artifact"),
+            now=NOW,
+        )
 
 
 def test_preparation_rejects_raw_structured_input_and_oversized_context(

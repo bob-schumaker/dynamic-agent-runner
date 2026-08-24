@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Mapping
+from typing import Mapping, Protocol, Sequence
 
 from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
 from dar_workflow_server.policy import PolicyCompilationError, compile_workflow_policy
@@ -19,6 +19,19 @@ from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
 
 class PreparedWorkflowInputError(ValueError):
     """Raised when a workflow input is not sealed for its exact registration."""
+
+
+class WorkspaceArtifactVerifier(Protocol):
+    """Private control-plane verifier for one opaque workspace artifact."""
+
+    def load(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> object: ...
 
 
 @dataclass(frozen=True)
@@ -38,6 +51,7 @@ class SealedWorkflowInput:
     prompt: str
     structured_input: dict[str, str]
     additional_context: str
+    workspace_artifact_ids: tuple[str, ...]
 
 
 class WorkflowInvocationPreparationService:
@@ -49,10 +63,12 @@ class WorkflowInvocationPreparationService:
         registrations: WorkflowRegistrationService,
         catalog: PackageCatalog,
         store: PrivateStateStore,
+        artifact_verifier: WorkspaceArtifactVerifier | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
         self._store = store
+        self._artifact_verifier = artifact_verifier
         self._identity = InstallationIdentityProvider()
 
     def prepare(
@@ -62,6 +78,7 @@ class WorkflowInvocationPreparationService:
         prompt: str,
         additional_context: str = "",
         structured_input: Mapping[str, str] | None = None,
+        workspace_artifact_ids: Sequence[str] = (),
         now: datetime,
     ) -> PreparedWorkflowInput:
         """Seal valid prompt/context input for one already registered workflow."""
@@ -75,6 +92,8 @@ class WorkflowInvocationPreparationService:
                 "structured input is unavailable for this no-tool workflow"
             )
         registration, policy = self._registration_policy(workflow_id)
+        artifact_ids = _artifact_ids(workspace_artifact_ids)
+        self._verify_artifacts(artifact_ids, registration=registration, now=now)
         if (
             len(additional_context.encode("utf-8"))
             > policy.input_contract.additional_context_max_bytes
@@ -93,6 +112,7 @@ class WorkflowInvocationPreparationService:
                     "prompt": prompt,
                     "structured_input": {},
                     "additional_context": additional_context,
+                    "workspace_artifact_ids": list(artifact_ids),
                 },
                 expires_at=expires_at,
                 now=now,
@@ -182,16 +202,59 @@ class WorkflowInvocationPreparationService:
             )
         return registration, policy
 
+    def _verify_artifacts(
+        self,
+        artifact_ids: tuple[str, ...],
+        *,
+        registration: WorkflowRegistration,
+        now: datetime,
+    ) -> None:
+        if not artifact_ids:
+            return
+        if self._artifact_verifier is None:
+            raise PreparedWorkflowInputError(
+                "workspace artifact verification is unavailable"
+            )
+        try:
+            for artifact_id in artifact_ids:
+                self._artifact_verifier.load(
+                    artifact_id,
+                    workflow_id=registration.workflow_id,
+                    registration_digest=registration.registration_digest,
+                    now=now,
+                )
+        except Exception as error:
+            raise PreparedWorkflowInputError(
+                "workspace artifact is unavailable"
+            ) from error
+
 
 def _sealed_input(payload: Mapping[str, object]) -> SealedWorkflowInput:
     prompt = payload.get("prompt")
     additional_context = payload.get("additional_context")
     structured_input = payload.get("structured_input")
+    workspace_artifact_ids = payload.get("workspace_artifact_ids")
     if (
         not isinstance(prompt, str)
         or not isinstance(additional_context, str)
         or not isinstance(structured_input, dict)
         or structured_input
+        or not isinstance(workspace_artifact_ids, list)
+        or _artifact_ids(workspace_artifact_ids) != tuple(workspace_artifact_ids)
     ):
         raise PreparedWorkflowInputError("prepared input is invalid")
-    return SealedWorkflowInput(prompt, {}, additional_context)
+    return SealedWorkflowInput(
+        prompt, {}, additional_context, tuple(workspace_artifact_ids)
+    )
+
+
+def _artifact_ids(value: Sequence[object]) -> tuple[str, ...]:
+    if isinstance(value, str) or len(value) > 16:
+        raise PreparedWorkflowInputError("workspace artifact identifiers are invalid")
+    artifact_ids = tuple(value)
+    if any(
+        not isinstance(artifact_id, str) or not artifact_id
+        for artifact_id in artifact_ids
+    ) or len(set(artifact_ids)) != len(artifact_ids):
+        raise PreparedWorkflowInputError("workspace artifact identifiers are invalid")
+    return artifact_ids
