@@ -15,7 +15,6 @@ from dar_workflow_server.descriptor import (
     InputContract,
     TaskInvocation,
     WorkflowDescriptor,
-    WorkflowDescriptorError,
     WorkflowLimits,
     validate_no_tool_runtime_nodes,
 )
@@ -60,7 +59,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         descriptor = WorkflowDescriptor.from_mapping(yaml.safe_load(descriptor_bytes))
         workflow = load_agent_package_workflow(str(revision.package_root))
         validate_no_tool_runtime_nodes(descriptor, workflow.runtime_manifest.nodes)
-    except (OSError, WorkflowDescriptorError, yaml.YAMLError, ValueError) as error:
+    except Exception as error:  # DAR loader errors vary by invalid package artifact.
         raise PolicyCompilationError("cataloged package policy is invalid") from error
     if descriptor.package_id != revision.package_id:
         raise PolicyCompilationError("descriptor package_id does not match catalog")

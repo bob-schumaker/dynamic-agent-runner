@@ -23,4 +23,4 @@ task_invocation:
 output:
   schema_ref: final-answer-v1
 limits:
-  max_steps: 1
+  max_steps: 2
