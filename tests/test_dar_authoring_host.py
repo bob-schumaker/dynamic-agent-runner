@@ -126,6 +126,19 @@ def test_host_ingresses_a_file_only_under_the_registered_workspace_contract(
 
     assert artifact.artifact_id.startswith("v1.")
     assert artifact.byte_count == len(b"document body")
+    prepared = host.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="Answer the request.",
+        workspace_artifact_ids=(artifact.artifact_id,),
+        now=NOW,
+    )
+    result = host.dry_run(
+        workflow_id=registration.workflow_id,
+        prepared_input_id=prepared.prepared_input_id,
+        now=NOW,
+    )
+    assert result.status == "ready"
+    assert str(document) not in str(result)
     with pytest.raises(ValueError, match="not configured"):
         configure_local_host(
             root=tmp_path / "no-ingress-state",

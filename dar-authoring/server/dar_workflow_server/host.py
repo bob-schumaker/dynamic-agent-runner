@@ -8,6 +8,7 @@ import stat
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Sequence
 
 from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
 from dar_workflow_server.package_sources import PackageSourceSelectionPolicy
@@ -135,11 +136,14 @@ class LocalWorkflowHost:
             configured_profile_id=profile.profile_id,
             root=root / "registrations",
         )
-        preparation = WorkflowInvocationPreparationService(
-            registrations=registrations, catalog=catalog, store=store
-        )
         workspace_ingress = _workspace_ingress_service(
             root=root, configuration=configuration, store=store
+        )
+        preparation = WorkflowInvocationPreparationService(
+            registrations=registrations,
+            catalog=catalog,
+            store=store,
+            artifact_verifier=workspace_ingress,
         )
         return cls(
             configuration=configuration,
@@ -182,12 +186,20 @@ class LocalWorkflowHost:
         )
 
     def prepare(
-        self, *, workflow_id: str, prompt: str, now: datetime
+        self,
+        *,
+        workflow_id: str,
+        prompt: str,
+        workspace_artifact_ids: Sequence[str] = (),
+        now: datetime,
     ) -> PreparedWorkflowInput:
         """Seal a local CLI prompt for a registered workflow."""
 
         return self._preparation.prepare(
-            workflow_id=workflow_id, prompt=prompt, now=now
+            workflow_id=workflow_id,
+            prompt=prompt,
+            workspace_artifact_ids=workspace_artifact_ids,
+            now=now,
         )
 
     def ingress_file(

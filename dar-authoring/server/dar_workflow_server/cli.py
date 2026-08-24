@@ -94,7 +94,10 @@ def main(
             return 0
         if args.command == "prepare":
             prepared = host.prepare(
-                workflow_id=args.workflow_id, prompt=args.prompt, now=now
+                workflow_id=args.workflow_id,
+                prompt=args.prompt,
+                workspace_artifact_ids=args.artifact_id,
+                now=now,
             )
             _write(
                 write,
@@ -159,6 +162,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare = commands.add_parser("prepare")
     prepare.add_argument("--workflow-id", required=True)
     prepare.add_argument("--prompt", required=True)
+    prepare.add_argument("--artifact-id", action="append", default=[])
     run = commands.add_parser("run")
     _run_arguments(run)
     return parser
