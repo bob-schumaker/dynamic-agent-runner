@@ -133,7 +133,7 @@ passes.
       package artifacts and immutable profile/scope binding. The token is held
       only by the OS credential manager; the private state store keeps an opaque
       connection-bound credential reference.
-- [ ] GREEN: human-only OAuth authorization-code PKCE loopback connection flow
+- [x] GREEN: human-only OAuth authorization-code PKCE loopback connection flow
       with secret storage outside package artifacts and immutable profile/scope
       binding.
 - [ ] RED/GREEN: implement the first generic remote HTTPS MCP adapter with OAuth

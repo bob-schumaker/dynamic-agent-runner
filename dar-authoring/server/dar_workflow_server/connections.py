@@ -225,9 +225,7 @@ class MCPConnectionControlPlane:
             "authentication_required",
         )
 
-    def configure_api_token(
-        self, connection_id: str, token: str
-    ) -> MCPAuthentication:
+    def configure_api_token(self, connection_id: str, token: str) -> MCPAuthentication:
         """Store a human-provided API token outside records and bind its reference."""
 
         connection = self.load(connection_id)
@@ -235,8 +233,27 @@ class MCPConnectionControlPlane:
             raise MCPConnectionError("connection does not use API-token authentication")
         if not isinstance(token, str) or not token:
             raise MCPConnectionError("API token must be a non-empty string")
+        return self._store_authentication(connection, token)
+
+    def configure_oauth_token(
+        self, connection_id: str, token_bundle: str
+    ) -> MCPAuthentication:
+        """Store an OAuth token bundle after the human-only PKCE exchange."""
+
+        connection = self.load(connection_id)
+        if connection.authentication_method != "oauth_authorization_code_pkce_loopback":
+            raise MCPConnectionError("connection does not use OAuth authentication")
+        if not isinstance(token_bundle, str) or not token_bundle:
+            raise MCPConnectionError("OAuth token bundle is unavailable")
+        return self._store_authentication(connection, token_bundle)
+
+    def _store_authentication(
+        self, connection: MCPConnection, secret: str
+    ) -> MCPAuthentication:
+        """Persist only an opaque secret-store reference for one connection."""
+
         try:
-            credential_ref = self._secret_store.store(token)
+            credential_ref = self._secret_store.store(secret)
         except SecretStoreError as error:
             raise MCPConnectionError("credential store is unavailable") from error
         try:
@@ -256,7 +273,9 @@ class MCPConnectionControlPlane:
                 self._secret_store.delete(credential_ref)
             except SecretStoreError:
                 pass
-            raise MCPConnectionError("authentication record could not be created") from error
+            raise MCPConnectionError(
+                "authentication record could not be created"
+            ) from error
         return MCPAuthentication(
             authentication_id=authentication_id,
             connection_id=connection.connection_id,
