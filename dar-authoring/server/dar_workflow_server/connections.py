@@ -317,6 +317,18 @@ class MCPConnectionControlPlane:
             authentication_status="authenticated",
         )
 
+    def credential_for_authentication(
+        self, authentication_id: str
+    ) -> tuple[MCPAuthentication, str]:
+        """Return one credential only to a host-owned transport constructor."""
+
+        authentication = self.load_authentication(authentication_id)
+        try:
+            secret = self._secret_store.load(authentication.credential_ref)
+        except SecretStoreError as error:
+            raise MCPConnectionError("credential is unavailable") from error
+        return authentication, secret
+
     def preflight(
         self, connection_id: str, *, authentication_id: str | None = None
     ) -> MCPConnectionPreflight:
@@ -327,13 +339,9 @@ class MCPConnectionControlPlane:
             return MCPConnectionPreflight(
                 connection.connection_id, connection.authentication_status
             )
-        authentication = self.load_authentication(authentication_id)
+        authentication, _ = self.credential_for_authentication(authentication_id)
         if authentication.connection_id != connection.connection_id:
             raise MCPConnectionError("authentication record is for another connection")
-        try:
-            self._secret_store.load(authentication.credential_ref)
-        except SecretStoreError as error:
-            raise MCPConnectionError("credential is unavailable") from error
         return MCPConnectionPreflight(
             connection.connection_id, authentication.authentication_status
         )

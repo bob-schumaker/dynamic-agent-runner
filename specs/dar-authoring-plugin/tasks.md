@@ -147,7 +147,7 @@ passes.
       skill, package, trace, or model-facing tool.
 - [ ] RED/GREEN: approved MCP surface snapshot creation/review plus passive
       `tools/list` identity/input-schema drift detection on the run path.
-- [ ] RED/GREEN: plugin-owned `MCPConnectionClient` fixtures cover configured
+- [x] RED/GREEN: plugin-owned `MCPConnectionClient` fixtures cover configured
       transport initialization, strict/unavailable startup, timeout,
       cancellation, reconnect, bounded output, and cleanup; no untested
       transport is advertised.
