@@ -37,6 +37,8 @@ def _action() -> ExternalAction:
         registration_digest="a" * 64,
         profile_id="v1.profile.signature",
         snapshot_id="v1.snapshot.signature",
+        connection_generation=1,
+        trace_correlation="run-1",
         tool_id="send_email",
         remote_tool_name="send_email",
         side_effect="write",
@@ -66,6 +68,8 @@ def test_ledger_persists_redacted_intent_then_dispatch_and_terminal_outcome(
     state = (tmp_path / "state" / "records.json").read_text(encoding="utf-8")
     assert "private email body" not in state
     assert "ada@example.test" not in state
+    assert '"connection_generation":"1"' in state
+    assert '"trace_correlation":"run-1"' in state
 
 
 def test_ledger_allows_exactly_one_atomic_dispatch_claim(tmp_path: Path) -> None:

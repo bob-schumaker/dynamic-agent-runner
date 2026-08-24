@@ -6,6 +6,7 @@ requires-python = ">=3.13,<3.15,!=3.14.1"
 dependencies = [
     "dynamic-agent-runner==0.1.15",
     "keyring>=25.7.0",
+    "jsonschema>=4.26.0,<5.0.0",
     "PyYAML>=6.0.3",
 ]
 

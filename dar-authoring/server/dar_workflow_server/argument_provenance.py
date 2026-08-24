@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 class ArgumentProvenanceError(ValueError):
@@ -17,6 +17,7 @@ class ArgumentSourcePolicy:
 
     allowed_kinds: frozenset[str]
     authority_field: bool
+    allowed_references: Mapping[str, frozenset[str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -109,7 +110,7 @@ def _verify_source(
         _verify_prompt_span(value, proof, context.original_prompt)
         return
     if kind in {"sealed_field", "artifact", "constant"}:
-        _verify_opaque_reference(value, proof, kind, context)
+        _verify_opaque_reference(value, proof, kind, context, policy)
         return
     if kind == "compose_content_v1":
         _verify_compose_content(value, proof, policy, context)
@@ -158,16 +159,24 @@ def _verify_opaque_reference(
     proof: dict[str, object],
     kind: str,
     context: ArgumentVerificationContext,
+    policy: ArgumentSourcePolicy | None = None,
 ) -> None:
     if set(proof) != {"kind", "ref"} or not isinstance(proof.get("ref"), str):
         raise ArgumentProvenanceError("opaque source reference is invalid")
+    reference = proof["ref"]
+    if (
+        policy is not None
+        and policy.allowed_references
+        and reference not in policy.allowed_references.get(kind, frozenset())
+    ):
+        raise ArgumentProvenanceError("opaque source reference is not permitted")
     references = {
         "sealed_field": context.sealed_fields,
         "artifact": context.artifact_values,
         "constant": context.constants,
     }[kind]
     try:
-        resolved = references[proof["ref"]]
+        resolved = references[reference]
     except KeyError as error:
         raise ArgumentProvenanceError(
             "opaque source reference is unavailable"
@@ -205,6 +214,7 @@ def _verify_compose_content(
             reference,
             kind,
             context,
+            policy,
         )
 
 

@@ -23,6 +23,8 @@ class ExternalAction:
     registration_digest: str
     profile_id: str
     snapshot_id: str
+    connection_generation: int
+    trace_correlation: str
     tool_id: str
     remote_tool_name: str
     side_effect: str
@@ -58,7 +60,12 @@ class WorkflowActionLedger:
             action_id = self._store.issue(
                 kind="workflow_action_intent",
                 owner=self._owner,
-                payload=_payload(digest, "intent"),
+                payload=_payload(
+                    digest,
+                    "intent",
+                    connection_generation=action.connection_generation,
+                    trace_correlation=action.trace_correlation,
+                ),
                 expires_at=datetime.max.replace(tzinfo=UTC),
                 now=now,
             )
@@ -77,13 +84,18 @@ class WorkflowActionLedger:
                 now=now,
             )
             action_digest = _action_digest_from_payload(intent.payload, "intent")
+            connection_generation, trace_correlation = _receipt_metadata(intent.payload)
             dispatch_id = self._store.consume_and_issue(
                 intent_id,
                 expected_kind="workflow_action_intent",
                 owner=self._owner,
                 new_kind="workflow_action_dispatched",
                 new_payload=_payload(
-                    action_digest, "dispatched", parent_action_id=intent_id
+                    action_digest,
+                    "dispatched",
+                    parent_action_id=intent_id,
+                    connection_generation=connection_generation,
+                    trace_correlation=trace_correlation,
                 ),
                 expires_at=datetime.max.replace(tzinfo=UTC),
                 now=now,
@@ -110,12 +122,19 @@ class WorkflowActionLedger:
                 now=now,
             )
             action_digest = _action_digest_from_payload(source.payload, source_status)
+            connection_generation, trace_correlation = _receipt_metadata(source.payload)
             terminal_id = self._store.consume_and_issue(
                 action_id,
                 expected_kind=f"workflow_action_{source_status}",
                 owner=self._owner,
                 new_kind="workflow_action_terminal",
-                new_payload=_payload(action_digest, status, parent_action_id=action_id),
+                new_payload=_payload(
+                    action_digest,
+                    status,
+                    parent_action_id=action_id,
+                    connection_generation=connection_generation,
+                    trace_correlation=trace_correlation,
+                ),
                 expires_at=datetime.max.replace(tzinfo=UTC),
                 now=now,
             )
@@ -156,6 +175,10 @@ def _action_digest(action: ExternalAction) -> str:
         ),
         "profile_id": _opaque_id(action.profile_id, "profile_id"),
         "snapshot_id": _opaque_id(action.snapshot_id, "snapshot_id"),
+        "connection_generation": _positive_int(
+            action.connection_generation, "connection_generation"
+        ),
+        "trace_correlation": _text(action.trace_correlation, "trace_correlation"),
         "tool_id": _text(action.tool_id, "tool_id"),
         "remote_tool_name": _text(action.remote_tool_name, "remote_tool_name"),
         "side_effect": _side_effect(action.side_effect),
@@ -168,21 +191,47 @@ def _action_digest(action: ExternalAction) -> str:
 
 
 def _payload(
-    action_digest: str, status: str, *, parent_action_id: str | None = None
+    action_digest: str,
+    status: str,
+    *,
+    parent_action_id: str | None = None,
+    connection_generation: int | None = None,
+    trace_correlation: str | None = None,
 ) -> dict[str, str]:
     payload = {"action_digest": action_digest, "status": status}
+    if connection_generation is not None:
+        payload["connection_generation"] = str(
+            _positive_int(connection_generation, "connection_generation")
+        )
+    if trace_correlation is not None:
+        payload["trace_correlation"] = _text(trace_correlation, "trace_correlation")
     if parent_action_id is not None:
         payload["parent_action_id"] = _opaque_id(parent_action_id, "parent_action_id")
     return payload
 
 
 def _action_digest_from_payload(payload: Mapping[str, object], status: str) -> str:
-    allowed = {"action_digest", "status"}
+    allowed = {
+        "action_digest",
+        "status",
+        "connection_generation",
+        "trace_correlation",
+    }
     if status == "dispatched":
         allowed.add("parent_action_id")
     if set(payload) != allowed or payload.get("status") != status:
         raise OpaqueRecordError("action ledger record is invalid")
     return _digest(payload.get("action_digest"), "action_digest")
+
+
+def _receipt_metadata(payload: Mapping[str, object]) -> tuple[int, str]:
+    value = payload.get("connection_generation")
+    if not isinstance(value, str) or not value.isdecimal():
+        raise OpaqueRecordError("action ledger record is invalid")
+    return (
+        _positive_int(int(value), "connection_generation"),
+        _text(payload.get("trace_correlation"), "trace_correlation"),
+    )
 
 
 def _text(value: object, label: str) -> str:
@@ -211,6 +260,12 @@ def _opaque_id(value: object, label: str) -> str:
 def _side_effect(value: object) -> str:
     if value not in {"write", "delete"}:
         raise ActionLedgerError("action side_effect is invalid")
+    return value
+
+
+def _positive_int(value: object, label: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ActionLedgerError(f"action {label} is invalid")
     return value
 
 
