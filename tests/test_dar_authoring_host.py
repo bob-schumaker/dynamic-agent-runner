@@ -14,7 +14,11 @@ import yaml
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
 sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
 
-from dynamic_agent_runner.openai_client import ModelResponse, OpenAIClientAdapter  # noqa: E402
+from dynamic_agent_runner.openai_client import (  # noqa: E402
+    ModelResponse,
+    ModelToolCall,
+    OpenAIClientAdapter,
+)
 
 from dar_workflow_server.host import (  # noqa: E402
     LocalWorkflowHost,
@@ -64,6 +68,8 @@ class _MemorySecretStore:
 
 
 class _ReviewedMCPClient:
+    calls: list[tuple[str, dict[str, object]]] = []
+
     def __init__(self, *, configuration: MCPClientConfiguration, **_: object) -> None:
         self.connection_id = configuration.connection_id
         self.authentication_id = configuration.authentication_id
@@ -83,6 +89,35 @@ class _ReviewedMCPClient:
                 input_schema={"type": "object", "properties": {}},
             ),
         )
+
+    def call_tool(self, name: str, arguments: dict[str, object]) -> dict[str, object]:
+        self.calls.append((name, arguments))
+        return {"content": [{"type": "text", "text": "three unread messages"}]}
+
+
+class _ToolClient:
+    def __init__(self) -> None:
+        self.responses = _ToolResponses()
+
+
+class _ToolResponses:
+    def __init__(self) -> None:
+        self._responses = iter(
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall(
+                            id="call-1", name="mail_list_unread", arguments="{}"
+                        ),
+                    ),
+                ),
+                ModelResponse(content="three unread messages"),
+            ]
+        )
+
+    def create(self, **_: object) -> ModelResponse:
+        return next(self._responses)
 
 
 def test_host_reopens_a_secret_free_configured_mcp_client(
@@ -253,6 +288,52 @@ def test_host_binds_a_staged_mcp_package_only_to_a_reviewed_surface(
     assert dict(binding.tool_id_to_remote_name) == {"mail_list_unread": "list_unread"}
 
 
+def test_host_runs_a_registered_reviewed_mcp_workflow(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "mail-reader"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    _add_read_only_mcp_tool(source)
+    root = _configured_reviewable_mcp_host(
+        root=tmp_path / "state", package_root=package_root, monkeypatch=monkeypatch
+    )
+    model_client = _ToolClient()
+    _ReviewedMCPClient.calls.clear()
+    monkeypatch.setattr(
+        "dar_workflow_server.host.create_local_adapter",
+        lambda profile: OpenAIClientAdapter(
+            model_client,
+            models=[profile.model_id, "local-model"],
+            is_local=True,
+        ),
+    )
+    host = LocalWorkflowHost.open(root)
+    snapshot = host.review_mcp_surface(approved_read_only_tool_names={"list_unread"})
+    source_handle = host.select_package(source, now=NOW)
+    binding = host.bind_mcp_package(
+        package_source_handle=source_handle, snapshot_id=snapshot.snapshot_id, now=NOW
+    )
+    registration = host.register(
+        workflow_id="mail-reader",
+        package_source_handle=source_handle,
+        mcp_binding_id=binding.binding_id,
+        now=NOW,
+    )
+    prepared = host.prepare(
+        workflow_id=registration.workflow_id, prompt="List unread email.", now=NOW
+    )
+
+    result = host.run(
+        workflow_id=registration.workflow_id,
+        prepared_input_id=prepared.prepared_input_id,
+        now=NOW,
+    )
+
+    assert result.output == {"message": "three unread messages"}
+    assert _ReviewedMCPClient.calls == [("list_unread", {})]
+
+
 def _configured_reviewable_mcp_host(
     *, root: Path, package_root: Path, monkeypatch
 ) -> Path:
@@ -309,10 +390,17 @@ def _add_read_only_mcp_tool(source: Path) -> None:
     descriptor_value["task_invocation"].update(
         {"allowed_tool_ids": ["mail_list_unread"], "max_total_tool_calls": 3}
     )
+    descriptor_value["limits"]["max_steps"] = 3
     descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
     runtime = source / "agent-runtime.yaml"
     runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
     runtime_value["package_id"] = "mail-reader"
+    runtime_value["runtime"]["execution_policy"]["max_steps"] = 3
+    runtime_value["runtime"]["execution_policy"]["tool_use_completion"] = {
+        "run_again": "required",
+        "stop_on_tool": "disabled",
+        "final_output": "default",
+    }
     runtime_value["tools"] = [
         {
             "id": "mail_list_unread",
