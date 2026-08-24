@@ -258,6 +258,10 @@ passes.
 - [x] RED/GREEN: real temporary local-host configuration causes DAR's stdio MCP
       server to expose exactly that one registered-workflow tool; an unconfigured
       host still exposes no execution tool.
+- [x] RED/GREEN: human-only `dar-workflow invoke` composes local package-source
+      selection, immutable no-tool registration, sealed preparation, and one run;
+      it exposes no corresponding model-facing MCP operation or tool-binding
+      shortcut.
 - [x] RED/GREEN: `WorkflowInvocationPreparationService` alone seals no-tool
       prompts and bounded `additional_context`, local principal, registration
       digest, and expiry into `PreparedWorkflowInput`. Raw structured input and

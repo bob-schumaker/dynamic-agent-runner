@@ -27,6 +27,77 @@ def _invoke(args: list[str]) -> tuple[int, dict[str, object]]:
     return result, json.loads(output[0])
 
 
+def test_cli_invokes_a_human_selected_no_tool_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Host:
+        def __init__(self) -> None:
+            self.calls: list[tuple[object, ...]] = []
+
+        def select_package(self, path: Path, *, now: object) -> str:
+            self.calls.append(("select", path, now))
+            return "source-handle"
+
+        def register(
+            self,
+            *,
+            workflow_id: str,
+            package_source_handle: str,
+            now: object,
+        ) -> SimpleNamespace:
+            self.calls.append(("register", workflow_id, package_source_handle, now))
+            return SimpleNamespace(workflow_id=workflow_id)
+
+        def prepare(
+            self, *, workflow_id: str, prompt: str, now: object
+        ) -> SimpleNamespace:
+            self.calls.append(("prepare", workflow_id, prompt, now))
+            return SimpleNamespace(prepared_input_id="prepared-input")
+
+        def run(
+            self, *, workflow_id: str, prepared_input_id: str, now: object
+        ) -> SimpleNamespace:
+            self.calls.append(("run", workflow_id, prepared_input_id, now))
+            return SimpleNamespace(
+                status="completed", run_id="run-1", output={"message": "done"}
+            )
+
+    host = Host()
+    monkeypatch.setattr(cli.LocalWorkflowHost, "open", lambda _root: host)
+    output: list[str] = []
+
+    assert (
+        main(
+            [
+                "--state-root",
+                "/private/state",
+                "invoke",
+                "--path",
+                "/private/packages/document-helper",
+                "--workflow-id",
+                "document-helper",
+                "--prompt",
+                "Answer the document question.",
+            ],
+            write=output.append,
+        )
+        == 0
+    )
+
+    assert [call[0] for call in host.calls] == [
+        "select",
+        "register",
+        "prepare",
+        "run",
+    ]
+    assert json.loads(output[0]) == {
+        "message": "done",
+        "run_id": "run-1",
+        "status": "completed",
+        "workflow_id": "document-helper",
+    }
+
+
 def _signed_archive(
     source: Path, *, key_id: str, private_key: Ed25519PrivateKey
 ) -> Path:

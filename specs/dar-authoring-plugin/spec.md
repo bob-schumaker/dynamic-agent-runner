@@ -762,6 +762,19 @@ the sealed internal runner with the returned `workflow_id` and
 DAR. Before G4, it rejects `--workspace-file` rather than attempting a local
 copy.
 
+For a no-tool v1 package, the human control-plane CLI also provides one local
+composition command:
+
+```text
+dar-workflow invoke --path <directory-or-zip> --workflow-id <id> --prompt <text>
+```
+
+It performs the same human-selected source-handle issuance, staged registration,
+sealed preparation, and execution in that order. This command is not exposed to
+the model-facing MCP server and accepts neither an MCP binding, model endpoint,
+approval mode, nor arbitrary tool configuration. Tool-bearing packages continue
+through their reviewed binding and dedicated preparation/run steps.
+
 - Default mode is `auto` (`workflow_auto`): execute schema-valid tool calls
   chosen by the workflow model within its declared, profile-allowed surface and
   record every external action in the audit trace.

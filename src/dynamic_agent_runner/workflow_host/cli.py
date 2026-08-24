@@ -73,6 +73,10 @@ def main(
         if mcp_result is not None:
             _write(write, mcp_result)
             return 0
+        invoke_result = _invoke_package_result(host, args, now=now)
+        if invoke_result is not None:
+            _write(write, invoke_result)
+            return 0
         package_result = _package_control_result(
             host, args, now=now, read_stdin=read_stdin
         )
@@ -170,6 +174,10 @@ def _parser() -> argparse.ArgumentParser:
     register.add_argument("--workflow-id", required=True)
     register.add_argument("--package-source-handle", required=True)
     register.add_argument("--mcp-binding-id")
+    invoke = commands.add_parser("invoke")
+    invoke.add_argument("--path", required=True)
+    invoke.add_argument("--workflow-id", required=True)
+    invoke.add_argument("--prompt", required=True)
     ingress = commands.add_parser("ingress-file")
     ingress.add_argument("--workflow-id", required=True)
     ingress.add_argument("--path", required=True)
@@ -391,6 +399,35 @@ def _package_control_result(
             "expires_at": prepared.expires_at.isoformat(),
         }
     return None
+
+
+def _invoke_package_result(
+    host: LocalWorkflowHost, args: Any, *, now: datetime
+) -> dict[str, object] | None:
+    if args.command != "invoke":
+        return None
+    package_source_handle = host.select_package(Path(args.path), now=now)
+    host.register(
+        workflow_id=args.workflow_id,
+        package_source_handle=package_source_handle,
+        now=now,
+    )
+    prepared = host.prepare(
+        workflow_id=args.workflow_id,
+        prompt=args.prompt,
+        now=now,
+    )
+    result = host.run(
+        workflow_id=args.workflow_id,
+        prepared_input_id=prepared.prepared_input_id,
+        now=now,
+    )
+    return {
+        "status": result.status,
+        "workflow_id": args.workflow_id,
+        "run_id": result.run_id,
+        **result.output,
+    }
 
 
 def _approved_tool_effects(values: Sequence[str]) -> dict[str, str]:

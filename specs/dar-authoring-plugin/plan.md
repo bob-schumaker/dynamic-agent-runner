@@ -183,6 +183,11 @@ provisioning.
    prompt text only at invocation preparation and passes only a
    `PreparedWorkflowInput` to DAR; the MCP server follows the same internal
    preparation path and exposes only workflow ID plus prompt.
+5. **M3.5: Compose local no-tool invocation.** Add the human-only
+   `dar-workflow invoke --path --workflow-id --prompt` convenience command. It
+   issues a source handle, registers only a no-tool eligible package, seals the
+   prompt, and runs the resulting registration; it is not an MCP tool and does
+   not accept tool bindings, model settings, or approval controls.
 
 M3 exit: a human can repeatedly prepare and run a saved no-tool package with a
 prompt through the sealed, catalog-only runner interface.
