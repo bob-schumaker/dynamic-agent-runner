@@ -210,8 +210,9 @@ prompt through the sealed, catalog-only runner interface.
 2. **M4.1: Define the external authoring evidence contract.** Implemented as
    `AuthoringEvidence`: its atomic private record contains corpus/prompt and
    package digests, opaque material-set id, model/provider identity,
-   deterministic validator result, named reviewer decision, pass criteria, and
-   retention policy. Raw prompt and material fields cannot be recorded.
+   deterministic validator result, reviewer identity and decision, pass
+   criteria, and retention policy. Raw prompt and material fields cannot be
+   recorded.
 3. **M4.2: Run the external authoring harness.** The checked-in
    `scripts/run_dar_authoring_harness.py` runner now passes a selected private
    material projection to a caller-provided generator only through a temporary
@@ -246,10 +247,10 @@ prompt through the sealed, catalog-only runner interface.
      - Package: `ecd3137019defe1d506dc222e9aa1cb480ed5d2ef2178a86abbe64220abd147b`
 
    Each record identifies provider `codex`, model `gpt-5.6-sol`, and a passed
-   validator result with redacted retention. M4 remains open until a human
-   reviewer identity and intent-fidelity decision are recorded; the current
-   evidence schema contains only the decision value and must not be represented
-   as that human-review proof.
+   validator result with redacted retention. These records predate the
+   reviewer-identity field and therefore cannot prove a human sign-off. M4
+   remains open until a human records that identity and an intent-fidelity
+   decision under the updated evidence contract.
 
 M4 exit: the adapted skills have behavioral evidence without making model calls
 part of ordinary test execution.

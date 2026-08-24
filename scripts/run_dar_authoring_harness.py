@@ -39,6 +39,7 @@ def run_fixture(
     generator: Sequence[str],
     provider: str,
     model_id: str,
+    reviewer_id: str,
     reviewer_decision: str,
     evidence_path: Path,
     pass_criteria: Sequence[str],
@@ -92,6 +93,7 @@ def run_fixture(
         authoring_model_id=_text(model_id, "model_id"),
         generated_package_digests=outcome.generated_package_digests,
         validator_result=outcome.validator_result,
+        reviewer_id=_text(reviewer_id, "reviewer id"),
         reviewer_decision=reviewer_decision,
         pass_criteria=_criteria(pass_criteria),
         retention_policy="redacted-evidence-v1",
@@ -632,6 +634,7 @@ def main() -> None:
     )
     parser.add_argument("--provider", required=True)
     parser.add_argument("--model-id", required=True)
+    parser.add_argument("--reviewer-id", required=True)
     parser.add_argument("--reviewer-decision", required=True)
     parser.add_argument("--evidence", dest="evidence_path", required=True, type=Path)
     parser.add_argument(

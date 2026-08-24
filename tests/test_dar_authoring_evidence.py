@@ -35,6 +35,7 @@ def _evidence(**overrides: object) -> AuthoringEvidence:
         "authoring_model_id": "local-test-model",
         "generated_package_digests": ("c" * 64,),
         "validator_result": "passed",
+        "reviewer_id": "human-reviewer",
         "reviewer_decision": "approved",
         "pass_criteria": ("package_loader", "fixture_contract"),
         "retention_policy": "redacted-evidence-v1",
@@ -59,6 +60,7 @@ def test_evidence_is_redacted_and_written_atomically(tmp_path: Path) -> None:
         "pass_criteria": ["package_loader", "fixture_contract"],
         "prompt_digest": "b" * 64,
         "retention_policy": "redacted-evidence-v1",
+        "reviewer_id": "human-reviewer",
         "reviewer_decision": "approved",
         "validator_result": "passed",
     }
@@ -83,6 +85,7 @@ def test_evidence_records_a_failed_generation_without_a_valid_package_digest() -
         ("corpus_digest", "not-a-digest"),
         ("validator_result", "unknown"),
         ("reviewer_decision", "pending"),
+        ("reviewer_id", ""),
         ("pass_criteria", ()),
         ("retention_policy", ""),
     ),

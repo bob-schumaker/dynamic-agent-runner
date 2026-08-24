@@ -86,6 +86,7 @@ class AuthoringEvidence:
     authoring_model_id: str
     generated_package_digests: tuple[str, ...]
     validator_result: str
+    reviewer_id: str
     reviewer_decision: str
     pass_criteria: tuple[str, ...]
     retention_policy: str
@@ -102,6 +103,7 @@ class AuthoringEvidence:
             raise AuthoringEvidenceError("generated package digests are required")
         for digest in self.generated_package_digests:
             _digest(digest, "generated_package_digests")
+        _text(self.reviewer_id, "reviewer_id")
         if self.reviewer_decision not in {"approved", "rejected"}:
             raise AuthoringEvidenceError("reviewer decision is invalid")
         if not self.pass_criteria or any(
@@ -123,6 +125,7 @@ class AuthoringEvidence:
             "authoring_model_id": self.authoring_model_id,
             "generated_package_digests": list(self.generated_package_digests),
             "validator_result": self.validator_result,
+            "reviewer_id": self.reviewer_id,
             "reviewer_decision": self.reviewer_decision,
             "pass_criteria": list(self.pass_criteria),
             "retention_policy": self.retention_policy,
