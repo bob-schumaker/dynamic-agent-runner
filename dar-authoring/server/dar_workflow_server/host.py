@@ -27,7 +27,12 @@ from dar_workflow_server.mcp_client import (
     MCPConnectionClient,
     MCPConnectionClientError,
 )
-from dar_workflow_server.mcp_surfaces import MCPSurfaceSnapshotControlPlane
+from dar_workflow_server.mcp_surfaces import (
+    MCPDiscoveredTool,
+    MCPSurfaceSnapshot,
+    MCPSurfaceSnapshotControlPlane,
+    MCPSurfaceSnapshotError,
+)
 from dar_workflow_server.package_sources import PackageSourceSelectionPolicy
 from dar_workflow_server.policy import (
     PolicyCompilationError,
@@ -213,6 +218,8 @@ class LocalWorkflowHost:
         runner: WorkflowRunner,
         workspace_ingress: WorkspaceIngressService | None,
         mcp_client: MCPConnectionClient | None = None,
+        mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
+        mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
     ) -> None:
         self._configuration = configuration
         self._sources = sources
@@ -223,6 +230,8 @@ class LocalWorkflowHost:
         self._runner = runner
         self._workspace_ingress = workspace_ingress
         self._mcp_client = mcp_client
+        self._mcp_surfaces = mcp_surfaces
+        self._mcp_bindings = mcp_bindings
 
     @classmethod
     def open(cls, root: Path) -> LocalWorkflowHost:
@@ -288,12 +297,50 @@ class LocalWorkflowHost:
             ),
             workspace_ingress=workspace_ingress,
             mcp_client=mcp_client,
+            mcp_surfaces=surfaces if mcp_client is not None else None,
+            mcp_bindings=mcp_bindings if mcp_client is not None else None,
         )
 
     def select_package(self, path: Path, *, now: datetime) -> str:
         """Return an opaque handle for one human-selected package directory."""
 
         return self._sources.select_directory(path, now=now)
+
+    def review_mcp_surface(
+        self,
+        *,
+        approved_read_only_tool_names: Sequence[str],
+        approved_tool_side_effects: dict[str, str] | None = None,
+    ) -> MCPSurfaceSnapshot:
+        """Discover and persist exactly one human-approved configured MCP surface."""
+
+        self._ensure_mcp_client(policy_requires_mcp=True)
+        if self._mcp_client is None or self._mcp_surfaces is None:
+            raise LocalWorkflowHostError("MCP client is not configured")
+        try:
+            return self._mcp_surfaces.create(
+                connection_id=self._mcp_client.connection_id,
+                authentication_id=self._mcp_client.authentication_id,
+                connection_generation=self._mcp_client.current_generation,
+                tools=self._mcp_client.list_tools(),
+                approved_read_only_tool_names=approved_read_only_tool_names,
+                approved_tool_side_effects=approved_tool_side_effects,
+            )
+        except (MCPConnectionClientError, MCPSurfaceSnapshotError) as error:
+            raise LocalWorkflowHostError("MCP surface review is unavailable") from error
+
+    def discover_mcp_tools(self) -> tuple[MCPDiscoveredTool, ...]:
+        """Return the current configured MCP tool names and schemas for human review."""
+
+        self._ensure_mcp_client(policy_requires_mcp=True)
+        if self._mcp_client is None:
+            raise LocalWorkflowHostError("MCP client is not configured")
+        try:
+            return self._mcp_client.list_tools()
+        except MCPConnectionClientError as error:
+            raise LocalWorkflowHostError(
+                "MCP surface discovery is unavailable"
+            ) from error
 
     def register(
         self,

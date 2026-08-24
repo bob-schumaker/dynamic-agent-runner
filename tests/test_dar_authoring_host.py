@@ -23,6 +23,7 @@ from dar_workflow_server.host import (  # noqa: E402
     configure_local_host,
 )
 from dar_workflow_server.mcp_client import MCPClientConfiguration  # noqa: E402
+from dar_workflow_server.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -44,8 +45,10 @@ class _Client:
 
 
 class _MemorySecretStore:
+    values: dict[str, str] = {}
+
     def __init__(self, **_: object) -> None:
-        self.values: dict[str, str] = {}
+        return None
 
     def store(self, secret: str) -> str:
         reference = f"secret-{len(self.values) + 1}"
@@ -57,6 +60,28 @@ class _MemorySecretStore:
 
     def delete(self, reference: str) -> None:
         self.values.pop(reference, None)
+
+
+class _ReviewedMCPClient:
+    def __init__(self, *, configuration: MCPClientConfiguration, **_: object) -> None:
+        self.connection_id = configuration.connection_id
+        self.authentication_id = configuration.authentication_id
+        self.current_generation = 1
+
+    def initialize(self) -> None:
+        return None
+
+    def list_tools(self) -> tuple[MCPDiscoveredTool, ...]:
+        return (
+            MCPDiscoveredTool(
+                name="list_unread",
+                input_schema={"type": "object", "properties": {}},
+            ),
+            MCPDiscoveredTool(
+                name="send_email",
+                input_schema={"type": "object", "properties": {}},
+            ),
+        )
 
 
 def test_host_reopens_a_secret_free_configured_mcp_client(
@@ -142,6 +167,65 @@ def test_host_control_plane_binds_an_authenticated_generic_mcp_connection(
     assert "secret-token" not in (tmp_path / "state" / "records.json").read_text(
         encoding="utf-8"
     )
+
+
+def test_host_reviews_only_the_human_approved_generic_mcp_surface(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    monkeypatch.setattr(
+        "dar_workflow_server.host.create_local_adapter",
+        lambda profile: OpenAIClientAdapter(
+            _Client(), models=[profile.model_id], is_local=True
+        ),
+    )
+    monkeypatch.setattr(
+        "dar_workflow_server.connections.KeyringSecretStore", _MemorySecretStore
+    )
+    monkeypatch.setattr(
+        "dar_workflow_server.host.MCPConnectionClient", _ReviewedMCPClient
+    )
+    root = tmp_path / "state"
+    configure_local_host(
+        root=root,
+        package_root=package_root,
+        model_id="local-model-v1",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    connection = create_mcp_connection(
+        root=root,
+        endpoint="https://mcp.example.test/v1",
+        scopes={"mail.read"},
+        authentication_method="api_token",
+    )
+    authentication = configure_mcp_api_token(
+        root=root, connection_id=connection.connection_id, token="secret-token"
+    )
+    attach_mcp_client(
+        root=root,
+        connection_id=connection.connection_id,
+        authentication_id=authentication.authentication_id,
+        peer_certificate_sha256="a" * 64,
+        timeout_seconds=10,
+        max_response_bytes=32_768,
+    )
+
+    host = LocalWorkflowHost.open(root)
+    assert {tool.name for tool in host.discover_mcp_tools()} == {
+        "list_unread",
+        "send_email",
+    }
+    snapshot = host.review_mcp_surface(
+        approved_read_only_tool_names={"list_unread"},
+        approved_tool_side_effects={"send_email": "write"},
+    )
+
+    assert snapshot.snapshot_id.startswith("v1.")
+    assert dict(snapshot.tool_side_effects) == {
+        "list_unread": "read",
+        "send_email": "write",
+    }
 
 
 def test_host_composes_human_setup_with_sealed_dry_run(
