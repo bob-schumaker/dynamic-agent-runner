@@ -249,6 +249,9 @@ passes.
       only a closed-set workflow identifier and prompt, internally seals that
       prompt, and rejects caller-supplied prepared IDs or raw hybrid-input
       fields before preparation or execution.
+- [x] RED/GREEN: real temporary local-host configuration causes DAR's stdio MCP
+      server to expose exactly that one registered-workflow tool; an unconfigured
+      host still exposes no execution tool.
 - [x] RED/GREEN: `WorkflowInvocationPreparationService` alone seals no-tool
       prompts and bounded `additional_context`, local principal, registration
       digest, and expiry into `PreparedWorkflowInput`. Raw structured input and

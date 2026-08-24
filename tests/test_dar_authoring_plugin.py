@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from importlib.metadata import version
@@ -106,6 +107,67 @@ def test_dar_stdio_server_initializes_without_execution_tools_before_configurati
             "result": {"tools": []},
         },
     ]
+
+
+def test_dar_stdio_server_exposes_the_registered_workflow_tool_after_configuration(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.host import configure_local_host
+
+    state_root = tmp_path / "state"
+    configure_local_host(
+        root=state_root,
+        package_root=tmp_path,
+        model_id="local-test-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    requests = [
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"protocolVersion": "2025-06-18"},
+        },
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+    ]
+    environment = {**os.environ, "DAR_AUTHORING_STATE_ROOT": str(state_root)}
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "dynamic_agent_runner.mcp_server", "--stdio"],
+        input="".join(f"{json.dumps(request)}\n" for request in requests),
+        capture_output=True,
+        cwd=tmp_path,
+        encoding="utf-8",
+        env=environment,
+        check=False,
+        timeout=5,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    responses = _read_json_lines(completed.stdout)
+    assert responses[-1] == {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {
+            "tools": [
+                {
+                    "name": "run_dar_workflow",
+                    "description": "Run one registered local DAR workflow.",
+                    "inputSchema": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["format_version", "workflow_id", "prompt"],
+                        "properties": {
+                            "format_version": {"const": 1},
+                            "workflow_id": {"type": "string", "minLength": 1},
+                            "prompt": {"type": "string", "minLength": 1},
+                        },
+                    },
+                }
+            ]
+        },
+    }
 
 
 def test_server_seals_input_before_running_a_registered_workflow() -> None:
