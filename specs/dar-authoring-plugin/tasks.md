@@ -265,6 +265,9 @@ passes.
       selection, immutable registration, sealed preparation, and one run. It
       accepts only an already reviewed opaque MCP binding, preserves `--dry-run`
       and local `--ask`, and exposes no corresponding model-facing MCP operation.
+- [x] RED/GREEN: `dar-workflow invoke --workspace-file` ingresses only under an
+      unambiguous registered one-role/one-media-type contract; ambiguous packages
+      require explicit ingress and dry runs reject files before any copy.
 - [x] RED/GREEN: `WorkflowInvocationPreparationService` alone seals no-tool
       prompts and bounded `additional_context`, local principal, registration
       digest, and expiry into `PreparedWorkflowInput`. Raw structured input and

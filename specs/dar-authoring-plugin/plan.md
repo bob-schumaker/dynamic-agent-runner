@@ -189,7 +189,8 @@ provisioning.
    profile and an optional already-reviewed opaque MCP binding, seals the
    prompt, and runs the resulting registration. It is not an MCP tool and does
    not accept model settings or tool provisioning; it preserves `--dry-run` and
-   local `--ask` behavior.
+   local `--ask` behavior. A supplied workspace file is admitted only through a
+   one-role/one-media-type registered contract; dry run rejects it before ingress.
 
 M3 exit: a human can repeatedly prepare and run a saved no-tool package with a
 prompt through the sealed, catalog-only runner interface.

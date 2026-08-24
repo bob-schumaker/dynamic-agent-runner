@@ -577,6 +577,13 @@ def test_host_ingresses_a_file_only_under_the_registered_workspace_contract(
 
     assert artifact.artifact_id.startswith("v1.")
     assert artifact.byte_count == len(b"document body")
+    default_artifact = host.ingress_default_file(
+        workflow_id=registration.workflow_id,
+        path=document,
+        now=NOW,
+    )
+    assert default_artifact.artifact_id.startswith("v1.")
+    assert default_artifact.byte_count == len(b"document body")
     prepared = host.prepare(
         workflow_id=registration.workflow_id,
         prompt="Answer the request.",

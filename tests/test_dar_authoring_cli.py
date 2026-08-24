@@ -184,6 +184,97 @@ def test_cli_dry_runs_a_human_selected_package_with_a_reviewed_mcp_binding(
     }
 
 
+def test_cli_invokes_with_an_unambiguous_workspace_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Host:
+        def select_package(self, path: Path, *, now: object) -> str:
+            return "source-handle"
+
+        def register(self, **_kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(workflow_id="document-helper")
+
+        def ingress_default_file(
+            self, *, workflow_id: str, path: Path, now: object
+        ) -> SimpleNamespace:
+            assert workflow_id == "document-helper"
+            assert path == Path("/private/input/document.txt")
+            return SimpleNamespace(artifact_id="workspace-artifact")
+
+        def prepare(
+            self,
+            *,
+            workflow_id: str,
+            prompt: str,
+            workspace_artifact_ids: tuple[str, ...],
+            now: object,
+        ) -> SimpleNamespace:
+            assert workflow_id == "document-helper"
+            assert prompt == "Answer the document question."
+            assert workspace_artifact_ids == ("workspace-artifact",)
+            return SimpleNamespace(prepared_input_id="prepared-input")
+
+        def run(self, **_kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                status="completed", run_id="run-1", output={"message": "done"}
+            )
+
+    monkeypatch.setattr(cli.LocalWorkflowHost, "open", lambda _root: Host())
+    output: list[str] = []
+
+    assert (
+        main(
+            [
+                "--state-root",
+                "/private/state",
+                "invoke",
+                "--path",
+                "/private/packages/document-helper",
+                "--workflow-id",
+                "document-helper",
+                "--prompt",
+                "Answer the document question.",
+                "--workspace-file",
+                "/private/input/document.txt",
+            ],
+            write=output.append,
+        )
+        == 0
+    )
+
+    assert json.loads(output[0])["status"] == "completed"
+
+
+def test_cli_dry_run_rejects_workspace_files_before_ingress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Host:
+        def select_package(self, **_kwargs: object) -> None:
+            raise AssertionError("dry run with a file must not select or ingress")
+
+    monkeypatch.setattr(cli.LocalWorkflowHost, "open", lambda _root: Host())
+
+    assert (
+        main(
+            [
+                "--state-root",
+                "/private/state",
+                "invoke",
+                "--path",
+                "/private/packages/document-helper",
+                "--workflow-id",
+                "document-helper",
+                "--prompt",
+                "Answer the document question.",
+                "--workspace-file",
+                "/private/input/document.txt",
+                "--dry-run",
+            ]
+        )
+        == 2
+    )
+
+
 def _signed_archive(
     source: Path, *, key_id: str, private_key: Ed25519PrivateKey
 ) -> Path:

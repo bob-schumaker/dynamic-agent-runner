@@ -179,6 +179,7 @@ def _parser() -> argparse.ArgumentParser:
     invoke.add_argument("--workflow-id", required=True)
     invoke.add_argument("--prompt", required=True)
     invoke.add_argument("--mcp-binding-id")
+    invoke.add_argument("--workspace-file", action="append", default=[])
     invoke.add_argument("--dry-run", action="store_true")
     invoke.add_argument("--ask", action="store_true")
     ingress = commands.add_parser("ingress-file")
@@ -409,6 +410,8 @@ def _invoke_package_result(
 ) -> dict[str, object] | None:
     if args.command != "invoke":
         return None
+    if args.dry_run and args.workspace_file:
+        raise LocalWorkflowHostError("dry run cannot accept workspace files")
     package_source_handle = host.select_package(Path(args.path), now=now)
     host.register(
         workflow_id=args.workflow_id,
@@ -416,11 +419,22 @@ def _invoke_package_result(
         now=now,
         mcp_binding_id=args.mcp_binding_id,
     )
-    prepared = host.prepare(
-        workflow_id=args.workflow_id,
-        prompt=args.prompt,
-        now=now,
+    artifact_ids = tuple(
+        host.ingress_default_file(
+            workflow_id=args.workflow_id,
+            path=Path(path),
+            now=now,
+        ).artifact_id
+        for path in args.workspace_file
     )
+    preparation = {
+        "workflow_id": args.workflow_id,
+        "prompt": args.prompt,
+        "now": now,
+    }
+    if artifact_ids:
+        preparation["workspace_artifact_ids"] = artifact_ids
+    prepared = host.prepare(**preparation)
     if args.dry_run:
         result = host.dry_run(
             workflow_id=args.workflow_id,

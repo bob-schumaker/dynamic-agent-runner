@@ -764,15 +764,17 @@ real run it resolves permitted local paths into handles (and uses G4 ingress for
 `--workspace-file`), calls `WorkflowInvocationPreparationService`, then invokes
 the sealed internal runner with the returned `workflow_id` and
 `prepared_input_id`. It must never pass its raw prompt or file path directly to
-DAR. Before G4, it rejects `--workspace-file` rather than attempting a local
-copy.
+DAR. Before G4, it rejects `--workspace-file`; once G4 is available, it uses
+only the registered workspace contract rather than attempting an unconstrained
+local copy.
 
-For a no-tool v1 package, the human control-plane CLI also provides one local
+For a registered v1 package, the human control-plane CLI also provides one local
 composition command:
 
 ```text
 dar-workflow invoke --path <directory-or-zip> --workflow-id <id> \
-  --prompt <text> [--mcp-binding-id <opaque-id>] [--dry-run] [--ask]
+  --prompt <text> [--mcp-binding-id <opaque-id>] \
+  [--workspace-file <path>]... [--dry-run] [--ask]
 ```
 
 It performs the same human-selected source-handle issuance, staged registration,
@@ -781,7 +783,10 @@ already reviewed opaque host capability; the command cannot configure or widen
 it. `--dry-run` validates without model or handler dispatch, while `--ask`
 uses the local broker for a side-effecting registered workflow. This command is
 not exposed to the model-facing MCP server and accepts neither a model endpoint
-nor arbitrary tool configuration.
+nor arbitrary tool configuration. `--workspace-file` is accepted only when the
+registered descriptor has exactly one artifact role and one accepted media type;
+otherwise the caller must use explicit `ingress-file`. Dry runs reject workspace
+files before source selection or ingress.
 
 - Default mode is `auto` (`workflow_auto`): execute schema-valid tool calls
   chosen by the workflow model within its declared, profile-allowed surface and

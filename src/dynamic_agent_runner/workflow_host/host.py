@@ -601,6 +601,45 @@ class LocalWorkflowHost:
                 "workspace input artifact is unavailable"
             ) from error
 
+    def ingress_default_file(
+        self,
+        *,
+        workflow_id: str,
+        path: Path,
+        now: datetime,
+    ) -> WorkspaceInputArtifact:
+        """Ingress one file only when its registered contract is unambiguous."""
+
+        try:
+            registration = self._registrations.resolve(workflow_id)
+            revision = self._catalog.revision(
+                registration.package_id, registration.revision_digest
+            )
+            policy = compile_workflow_policy(revision)
+        except (
+            WorkflowRegistrationError,
+            PackageCatalogError,
+            PolicyCompilationError,
+        ) as error:
+            raise LocalWorkflowHostError(
+                "workflow registration is unavailable"
+            ) from error
+        if policy.policy_digest != registration.policy_digest:
+            raise LocalWorkflowHostError("workflow registration policy does not match")
+        roles = policy.task_invocation.allowed_artifact_roles
+        media_types = policy.workspace.accepted_input_types
+        if len(roles) != 1 or len(media_types) != 1:
+            raise LocalWorkflowHostError(
+                "workspace input requires an explicit role and media type"
+            )
+        return self.ingress_file(
+            workflow_id=workflow_id,
+            path=path,
+            role=roles[0],
+            media_type=media_types[0],
+            now=now,
+        )
+
     def dry_run(
         self, *, workflow_id: str, prepared_input_id: str, now: datetime
     ) -> DryRunDarWorkflowResult:
