@@ -84,20 +84,20 @@ passes.
 - [x] RED/GREEN: accept a task-specific declared read-only MCP tool set with
       unique IDs, exact `allowed_tool_ids`, and finite total-call limit; reject
       undeclared runtime tools and every non-read side effect before G5.
-- [ ] RED/GREEN: authoring tests accept a `WorkflowDescriptor` with no MCP
+- [x] RED/GREEN: authoring tests accept a `WorkflowDescriptor` with no MCP
       tools and no skills, and emit the canonical DAR package artifacts plus a
       descriptor digest; separately prove optional declared capabilities become
       package requirements.
 - [x] RED/GREEN: map generated nonempty skill declarations to DAR's
       `skill-bundle/`, `bundled_path`, `skill_refs`, and enabled
       `skill_source_resolution` metadata; prove external skill paths fail.
-- [ ] RED/GREEN: package fixtures declare a bounded task-specific tool
+- [x] RED/GREEN: package fixtures declare a bounded task-specific tool
       invocation pattern and hybrid input contract; reject a package whose
       graph exposes an undeclared general-purpose tool console.
-- [ ] RED/GREEN: validate `task_invocation` tool sets, finite total-call limits,
+- [x] RED/GREEN: validate `task_invocation` tool sets, finite total-call limits,
       permitted structured fields and artifact roles, and terminal
       output schema before DAR executes a node.
-- [ ] RED/GREEN: validate each final tool argument against its declared source
+- [x] RED/GREEN: validate each final tool argument against its declared source
       policy. Destination, authorization, capability-selection, and external
       identity fields reject `additional_context`, tool-result, and remote
       instruction flow; adversarial prompt-injection fixtures prove rejection.
@@ -106,11 +106,11 @@ passes.
       `revision_digest`, with idempotent reimport, explicit collision handling,
       and retained prior revisions. G3 creates installation-local workflow aliases
       only for executable registrations.
-- [ ] RED/GREEN: `PackagePreflightService` imports a directory or ZIP only
+- [x] RED/GREEN: `PackagePreflightService` imports a directory or ZIP only
       through a pre-issued source handle and compiles an immutable
       `WorkflowPolicy`. G1 validates requirements but creates neither a live
       profile binding nor an executable workflow alias.
-- [ ] RED/GREEN: `WorkflowPolicy` compilation is the sole logical policy
+- [x] RED/GREEN: `WorkflowPolicy` compilation is the sole logical policy
       derivation path. Descriptor/task policy produces one policy digest; any
       mismatched duplicated field is rejected.
 - [x] RED/GREEN: capability resolution returns a non-executing unavailable result
@@ -120,26 +120,26 @@ passes.
       and a deterministic unavailable-capability result where required; it cannot
       accept invocation input or return a workflow alias, registration, or
       prepared input before G3 and the applicable capability gate pass.
-- [ ] RED/GREEN: preflight accepts only local-principal/expiry-bound opaque
+- [x] RED/GREEN: preflight accepts only local-principal/expiry-bound opaque
       package-source handles. A human-selected local CLI path resolves to a
       handle before preparation; LLM skills and MCP callers cannot select an
       arbitrary host path or redirect an existing handle.
-- [ ] RED/GREEN: `PackageSourceSelectionPolicy` records human-managed allowed
+- [x] RED/GREEN: `PackageSourceSelectionPolicy` records human-managed allowed
       roots and rejects absent root configuration, noncanonical paths, and
       no-follow validation failures before it issues a package-source handle.
 - [ ] RED/GREEN: when a skill names a local package without a source handle,
       return only `source_selection_required`; a human-only picker or
       `dar-workflow select-package` issues the handle without exposing its path
       to the skill.
-- [ ] RED/GREEN: `InstallationIdentityProvider` supplies a stable local principal
+- [x] RED/GREEN: `InstallationIdentityProvider` supplies a stable local principal
       from the local OS-user trust boundary to CLI, MCP server, preparation, and
       runner. Restart and forged-principal tests prove requests cannot provide or
       override it; same-user processes are one v1 authority boundary.
-- [ ] RED/GREEN: one private per-user state store and authenticated opaque-record
+- [x] RED/GREEN: one private per-user state store and authenticated opaque-record
       format define handle kind, owner, payload digest, issuance/expiry,
       active/revoked/consumed state, restart persistence, cleanup, and revocation
       before any source, catalog, registration, or prepared-input handle is issued.
-- [ ] RED/GREEN: human-only `ProfileCapabilityRecord` creation/update establishes
+- [x] RED/GREEN: human-only `ProfileCapabilityRecord` creation/update establishes
       immutable local profile capability records before resolution; callers,
       skills, and MCP requests cannot supply or alter them.
 - [x] RED/GREEN: produce one deterministic `CapabilityResolution` from the
