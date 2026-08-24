@@ -168,18 +168,19 @@ provisioning.
    with explicit maximum uses and expiry.
 3. **M3.3: Expose the one runner interface.** Add the versioned
    `run_dar_workflow` request/response schema and server path. It accepts only a
-   catalog workflow id plus opaque prepared-input id, runs DAR package-loader
-   preflight only against the immutable private staged package root, invokes DAR
-   through its library API with a fake strict local adapter, validates terminal
-   output, and emits bounded redacted tracing. A catalog-valid but DAR-preflight-
-   invalid revision fails before model or handler entry.
+   catalog workflow ID and prompt, seals the prompt internally, runs DAR
+   package-loader preflight only against the immutable private staged package
+   root, invokes DAR through its library API with a fake strict local adapter,
+   validates terminal output, and emits bounded redacted tracing. The sealed ID
+   never reaches the MCP caller. A catalog-valid but DAR-preflight-invalid
+   revision fails before model or handler entry.
 4. **M3.4: Add the local CLI façade and dry run.** Implement
    `dar-workflow select-package`, `dar-workflow prepare`, and
    `dar-workflow-run` as handle/preparation façades over the same runner. Test
    that `--dry-run` calls neither a model nor a handler. The CLI may accept raw
    prompt text only at invocation preparation and passes only a
-   `PreparedWorkflowInput` to DAR; `run_dar_workflow` accepts only workflow and
-   sealed-input identifiers.
+   `PreparedWorkflowInput` to DAR; the MCP server follows the same internal
+   preparation path and exposes only workflow ID plus prompt.
 
 M3 exit: a human can repeatedly prepare and run a saved no-tool package with a
 prompt through the sealed, catalog-only runner interface.

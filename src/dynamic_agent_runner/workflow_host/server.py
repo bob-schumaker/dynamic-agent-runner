@@ -12,8 +12,6 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost
-from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowRequest
-
 
 SERVER_NAME = "Dynamic Agent Runner"
 SERVER_VERSION = version("dynamic-agent-runner")
@@ -109,27 +107,34 @@ class _Session:
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-                "instructions": "Prepare workflow input through the local dar-workflow CLI before calling run_dar_workflow.",
+                "instructions": "Run registered workflows through the local DAR host.",
             },
         )
 
     def _call_tool(self, request_id: str | int, params: object) -> dict[str, Any]:
-        if not isinstance(params, Mapping) or params.get("name") != "run_dar_workflow":
+        if not isinstance(params, Mapping):
             return _error(request_id, -32602, "Invalid tool request")
         arguments = params.get("arguments")
         if not isinstance(arguments, Mapping):
             return _error(request_id, -32602, "Invalid tool request")
+        if params.get("name") != "run_dar_workflow":
+            return _error(request_id, -32602, "Invalid tool request")
         try:
-            request = RunDarWorkflowRequest.from_mapping(arguments)
             host = self._host_opener(_default_state_root())
+            prepared = _prepare_request(host, arguments)
             result = host.run(
-                workflow_id=request.workflow_id,
-                prepared_input_id=request.prepared_input_id,
+                workflow_id=prepared[0],
+                prepared_input_id=prepared[1],
                 now=datetime.now(UTC),
             )
         except (ValueError, OSError):
             return _error(request_id, -32000, "Workflow run failed")
-        payload = {"status": result.status, "run_id": result.run_id, **result.output}
+        payload = {
+            "status": result.status,
+            "workflow_id": prepared[0],
+            "run_id": result.run_id,
+            **result.output,
+        }
         return _result(
             request_id,
             {
@@ -148,18 +153,42 @@ class _Session:
 
 _RUN_TOOL = {
     "name": "run_dar_workflow",
-    "description": "Run one registered sealed local DAR workflow.",
+    "description": "Run one registered local DAR workflow.",
     "inputSchema": {
         "type": "object",
         "additionalProperties": False,
-        "required": ["format_version", "workflow_id", "prepared_input_id"],
+        "required": ["format_version", "workflow_id", "prompt"],
         "properties": {
             "format_version": {"const": 1},
             "workflow_id": {"type": "string", "minLength": 1},
-            "prepared_input_id": {"type": "string", "minLength": 1},
+            "prompt": {"type": "string", "minLength": 1},
         },
     },
 }
+
+
+def _prepare_request(
+    host: LocalWorkflowHost, arguments: Mapping[str, object]
+) -> tuple[str, str]:
+    if set(arguments) != {"format_version", "workflow_id", "prompt"}:
+        raise ValueError("workflow run request is invalid")
+    if arguments.get("format_version") != 1:
+        raise ValueError("workflow run request is invalid")
+    workflow_id = arguments.get("workflow_id")
+    prompt = arguments.get("prompt")
+    if (
+        not isinstance(workflow_id, str)
+        or not workflow_id
+        or not isinstance(prompt, str)
+        or not prompt
+    ):
+        raise ValueError("workflow run request is invalid")
+    prepared = host.prepare(
+        workflow_id=workflow_id,
+        prompt=prompt,
+        now=datetime.now(UTC),
+    )
+    return workflow_id, prepared.prepared_input_id
 
 
 def _default_state_root() -> Path:

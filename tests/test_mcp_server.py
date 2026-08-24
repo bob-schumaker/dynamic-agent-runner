@@ -46,7 +46,7 @@ def test_stdio_server_hides_execution_tools_without_a_configured_host() -> None:
     assert responses[1]["result"]["tools"] == []
 
 
-def test_stdio_server_advertises_the_closed_tool_when_a_host_is_configured() -> None:
+def test_stdio_server_advertises_one_bound_workflow_tool_when_configured() -> None:
     from dynamic_agent_runner.workflow_host.server import _Session
 
     session = _Session(host_opener=lambda _root: object())
@@ -59,28 +59,75 @@ def test_stdio_server_advertises_the_closed_tool_when_a_host_is_configured() -> 
     assert response["result"]["tools"] == [
         {
             "name": "run_dar_workflow",
-            "description": "Run one registered sealed local DAR workflow.",
+            "description": "Run one registered local DAR workflow.",
             "inputSchema": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["format_version", "workflow_id", "prepared_input_id"],
+                "required": ["format_version", "workflow_id", "prompt"],
                 "properties": {
                     "format_version": {"const": 1},
                     "workflow_id": {"type": "string", "minLength": 1},
-                    "prepared_input_id": {"type": "string", "minLength": 1},
+                    "prompt": {"type": "string", "minLength": 1},
                 },
             },
         }
     ]
 
 
-def test_stdio_server_runs_only_closed_sealed_workflow_requests() -> None:
+def test_stdio_server_seals_input_before_running_a_registered_workflow() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from dynamic_agent_runner.workflow_host.preparation import PreparedWorkflowInput
+    from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowResult
+    from dynamic_agent_runner.workflow_host.server import _Session
+
+    class Host:
+        def prepare(self, *, workflow_id: str, prompt: str, now: object):
+            assert workflow_id == "document-helper"
+            assert prompt == "Answer this document question."
+            assert isinstance(now, datetime)
+            return PreparedWorkflowInput(
+                prepared_input_id="v1.sealed.signature",
+                workflow_id=workflow_id,
+                registration_digest="registration-digest",
+                expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            )
+
+        def run(self, *, workflow_id: str, prepared_input_id: str, now: object):
+            assert workflow_id == "document-helper"
+            assert prepared_input_id == "v1.sealed.signature"
+            assert isinstance(now, datetime)
+            return RunDarWorkflowResult(
+                status="completed", run_id="run-1", output={"message": "done"}
+            )
+
+    session = _Session(host_opener=lambda _root: Host())
+    session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
+    session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')
+
+    response = session.handle(
+        """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run_dar_workflow","arguments":{"format_version":1,"workflow_id":"document-helper","prompt":"Answer this document question."}}}"""
+    )
+
+    assert response is not None
+    assert response["result"]["structuredContent"] == {
+        "status": "completed",
+        "workflow_id": "document-helper",
+        "run_id": "run-1",
+        "message": "done",
+    }
+
+
+def test_stdio_server_rejects_a_caller_supplied_prepared_input() -> None:
     from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowResult
     from dynamic_agent_runner.workflow_host.server import _Session
 
     class Host:
         def __init__(self) -> None:
             self.calls: list[dict[str, str]] = []
+
+        def prepare(self, *, workflow_id: str, prompt: str, now: object):
+            raise AssertionError("caller-supplied prepared input must be rejected")
 
         def run(self, *, workflow_id: str, prepared_input_id: str, now: object):
             self.calls.append(
@@ -102,12 +149,31 @@ def test_stdio_server_runs_only_closed_sealed_workflow_requests() -> None:
         """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run_dar_workflow","arguments":{"format_version":1,"workflow_id":"document-helper","prepared_input_id":"v1.sealed.signature"}}}"""
     )
 
-    assert host.calls == [
-        {"workflow_id": "document-helper", "prepared_input_id": "v1.sealed.signature"}
-    ]
+    assert host.calls == []
     assert response is not None
-    assert response["result"]["structuredContent"] == {
-        "status": "completed",
-        "run_id": "run-1",
-        "message": "done",
+    assert response["error"] == {
+        "code": -32000,
+        "message": "Workflow run failed",
+    }
+
+
+def test_stdio_server_rejects_unsealed_hybrid_fields() -> None:
+    from dynamic_agent_runner.workflow_host.server import _Session
+
+    class Host:
+        def prepare(self, **_kwargs: object):
+            raise AssertionError("unsealed fields must be rejected before preparation")
+
+    session = _Session(host_opener=lambda _root: Host())
+    session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
+    session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')
+
+    response = session.handle(
+        """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run_dar_workflow","arguments":{"format_version":1,"workflow_id":"document-helper","prompt":"Answer this document question.","additional_context":"not accepted"}}}"""
+    )
+
+    assert response is not None
+    assert response["error"] == {
+        "code": -32000,
+        "message": "Workflow run failed",
     }

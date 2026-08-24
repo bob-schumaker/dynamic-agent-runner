@@ -599,26 +599,27 @@ binding during an authorized side-effect dispatch. Cancellation is
 capability-negotiated. A cancelled non-cancellable external mutation has an
 indeterminate outcome and cannot be retried automatically.
 
-The versioned request contract shall have this shape:
+The versioned model-facing request contract shall have this shape:
 
 ```json
 {
   "format_version": 1,
   "workflow_id": "email-assistant",
-  "prepared_input_id": "prepared_input_opaque_id"
+  "prompt": "Send the prepared workflow's registered email."
 }
 ```
 
 `workflow_id` is a closed-set identifier from a host-managed workflow catalog.
-`prepared_input_id` resolves only to an unexpired sealed input for that local
-principal and exact registration digest; the runner verifies the service
-issuer/key ID and canonical digest before use.
+The MCP server sends `prompt` only to `WorkflowInvocationPreparationService`,
+which issues an unexpired sealed input for that local principal and exact
+registration digest. The opaque prepared-input ID never reaches the MCP caller;
+the runner verifies the service issuer/key ID and canonical digest before use.
 A side-effect-capable workflow atomically consumes its prepared input at run
 creation, so it cannot be replayed or concurrently reused; a read-only profile
-may declare a bounded reusable-input policy. The model-facing runner never
-accepts raw prompts, structured fields, additional context, or artifact
-identifiers. It is workflow input, not a request to alter a package or profile.
-The tool must reject
+may declare a bounded reusable-input policy. The model-facing tool accepts only
+the workflow's prompt; it rejects structured fields, additional context,
+artifact identifiers, and caller-supplied prepared-input IDs. Its prompt is
+workflow input, not a request to alter a package or profile. The tool must reject
 arbitrary package paths, executable commands, model endpoints, MCP endpoint
 values, skill sources, profile identifiers, and unsealed hybrid-input fields in
 invocation arguments. It shall not accept
@@ -756,10 +757,10 @@ dar-workflow-run --workflow <id> --prompt <text> \
 `dar-workflow-run` is a convenience façade, not a second execution path. For a
 real run it resolves permitted local paths into handles (and uses G4 ingress for
 `--workspace-file`), calls `WorkflowInvocationPreparationService`, then invokes
-only `run_dar_workflow` with the returned `workflow_id` and
-`prepared_input_id`. It
-must never pass its raw prompt or file path directly to DAR. Before G4, it
-rejects `--workspace-file` rather than attempting a local copy.
+the sealed internal runner with the returned `workflow_id` and
+`prepared_input_id`. It must never pass its raw prompt or file path directly to
+DAR. Before G4, it rejects `--workspace-file` rather than attempting a local
+copy.
 
 - Default mode is `auto` (`workflow_auto`): execute schema-valid tool calls
   chosen by the workflow model within its declared, profile-allowed surface and
@@ -1077,7 +1078,7 @@ connection alone cannot produce an image.
 {
   "format_version": 1,
   "workflow_id": "email-assistant",
-  "prepared_input_id": "prepared_input_opaque_id"
+  "prompt": "Send the attached HTML body to email-group with subject Subject."
 }
 ```
 
@@ -1130,7 +1131,7 @@ index.
 {
   "format_version": 1,
   "workflow_id": "embedding",
-  "prepared_input_id": "prepared_input_opaque_id"
+  "prompt": "Create the registered embedding output for the supplied document."
 }
 ```
 

@@ -97,7 +97,7 @@ def test_dar_stdio_server_initializes_without_execution_tools_before_configurati
                     "name": "Dynamic Agent Runner",
                     "version": version("dynamic-agent-runner"),
                 },
-                "instructions": "Prepare workflow input through the local dar-workflow CLI before calling run_dar_workflow.",
+                "instructions": "Run registered workflows through the local DAR host.",
             },
         },
         {
@@ -108,13 +108,26 @@ def test_dar_stdio_server_initializes_without_execution_tools_before_configurati
     ]
 
 
-def test_server_runs_only_closed_sealed_workflow_requests() -> None:
+def test_server_seals_input_before_running_a_registered_workflow() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from dynamic_agent_runner.workflow_host.preparation import PreparedWorkflowInput
     from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowResult
     from dynamic_agent_runner.workflow_host.server import _Session
 
     class Host:
         def __init__(self) -> None:
             self.calls: list[dict[str, str]] = []
+
+        def prepare(self, *, workflow_id: str, prompt: str, now):
+            assert workflow_id == "document-helper"
+            assert prompt == "Answer this document question."
+            return PreparedWorkflowInput(
+                prepared_input_id="v1.sealed.signature",
+                workflow_id=workflow_id,
+                registration_digest="registration-digest",
+                expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            )
 
         def run(self, *, workflow_id: str, prepared_input_id: str, now):
             self.calls.append(
@@ -154,7 +167,7 @@ def test_server_runs_only_closed_sealed_workflow_requests() -> None:
                     "arguments": {
                         "format_version": 1,
                         "workflow_id": "document-helper",
-                        "prepared_input_id": "v1.sealed.signature",
+                        "prompt": "Answer this document question.",
                     },
                 },
             }
@@ -166,6 +179,7 @@ def test_server_runs_only_closed_sealed_workflow_requests() -> None:
     ]
     assert response["result"]["structuredContent"] == {
         "status": "completed",
+        "workflow_id": "document-helper",
         "run_id": "run-1",
         "message": "done",
     }

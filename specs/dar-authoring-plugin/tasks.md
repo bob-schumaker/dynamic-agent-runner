@@ -242,11 +242,13 @@ passes.
       selections, and model-provided provisioning/approval fields.
 - [x] RED/GREEN: `dar-workflow prepare` authenticates the caller and,
       after binding, returns registered workflow/package/revision/registration
-      identifiers plus a sealed prepared-input identifier and expiry; LLM skills
-      cannot mint them.
-- [x] RED: versioned `run_dar_workflow` request/response schema tests for
-      closed-set workflow identifiers plus an opaque sealed prepared-input ID;
-      raw hybrid-input fields are rejected.
+      identifiers plus a sealed prepared-input identifier and expiry. The
+      model-facing server alone may request this service for a registered
+      workflow; it never returns the resulting identifier to the MCP caller.
+- [x] RED/GREEN: versioned `run_dar_workflow` request/response schema accepts
+      only a closed-set workflow identifier and prompt, internally seals that
+      prompt, and rejects caller-supplied prepared IDs or raw hybrid-input
+      fields before preparation or execution.
 - [x] RED/GREEN: `WorkflowInvocationPreparationService` alone seals no-tool
       prompts and bounded `additional_context`, local principal, registration
       digest, and expiry into `PreparedWorkflowInput`. Raw structured input and
