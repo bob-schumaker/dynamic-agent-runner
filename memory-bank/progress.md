@@ -12,13 +12,16 @@
   `surface_review_required` readiness result. Full authoring verification
   passed with 94 tests. G5 remains the exclusive owner of mutations and
   approval; M5 does not construct send-like handlers.
-- `dar-authoring-plugin` M3 (G3 local no-tool runner) is complete through
-  `68b0862`: strict loopback local-adapter configuration (`a660980`), sealed
+- `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
+  through `8c01d36`: strict loopback local-adapter configuration (`a660980`), sealed
   dry-run preflight (`8298711`), private host composition (`b922880`), local
   control/run CLI (`e93f969`), and sealed MCP execution (`68b0862`). The
   focused DAR-authoring suite passed with 56 tests. The public paths remain
   no-tool only: `dar-workflow prepare` is the sole raw-prompt entry point and
   `dar-workflow-run`/`run_dar_workflow` receive sealed opaque input IDs only.
+  The terminal schema reference must name a runtime output contract; the wrapper
+  validates final shaped output and redacts malformed-contract failures. Full
+  DAR-authoring coverage passed with 96 tests.
 - `dar-authoring-plugin` M2 (G1 runtime core) is complete through
   `8a08669`: private authenticated state (`61088c1`), OS-user identity and
   immutable local profiles (`35da5e6`), no-tool descriptor validation

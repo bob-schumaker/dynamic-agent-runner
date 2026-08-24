@@ -13,16 +13,18 @@
   No write/send-like tool is constructed before G5. M6 remains blocked on the
   sandbox ingress primitive; M0/M1 provenance and release trust anchoring,
   M4 authoring evidence, M7 side effects, and M8 publication remain.
-- `dar-authoring-plugin` M3 (G3 local no-tool runner) is implemented through
-  `68b0862`. A host-managed strict-local loopback OpenAI-compatible profile is
+- `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
+  through `8c01d36`. A host-managed strict-local loopback OpenAI-compatible profile is
   persisted privately, a saved package is registered to its immutable profile,
   CLI preparation seals one prompt into a single-use opaque input, and the
   runner preflights the private staged package before executing through DAR.
   `dar-workflow` provides human local setup, source selection, registration,
   preparation, and run; `dar-workflow-run` and MCP `run_dar_workflow` accept
   only workflow and sealed-input identifiers. Dry runs neither consume input
-  nor invoke a model. G4 file ingress, G5 side effects/`--ask`, structured
-  invocation input, and portable archive exchange remain deferred.
+  nor invoke a model. The terminal schema reference must name a runtime output
+  contract; malformed terminal output fails without raw-output disclosure. G4
+  file ingress, G5 side effects/`--ask`, structured invocation input, and
+  portable archive exchange remain deferred.
 - `dar-authoring-plugin` M2 (G1 runtime core) is implemented through
   `8a08669`. A human-selected directory receives a principal/expiry-bound
   opaque source handle, is copied through descriptor-relative no-follow file
