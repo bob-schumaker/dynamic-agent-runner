@@ -35,6 +35,7 @@ class WorkflowPolicy:
     revision_digest: str
     descriptor_digest: str
     policy_digest: str
+    model_profile_requirement: str
     task_invocation: TaskInvocation
     limits: WorkflowLimits
     required_capabilities: frozenset[str]
@@ -71,6 +72,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
             "package_id": revision.package_id,
             "revision_digest": revision.revision_digest,
             "descriptor_digest": descriptor_digest,
+            "model_profile_requirement": descriptor.model_profile_requirement,
             "task_invocation": {
                 "entrypoint": descriptor.task_invocation.entrypoint,
                 "max_total_tool_calls": descriptor.task_invocation.max_total_tool_calls,
@@ -87,6 +89,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         revision_digest=revision.revision_digest,
         descriptor_digest=descriptor_digest,
         policy_digest=policy_digest,
+        model_profile_requirement=descriptor.model_profile_requirement,
         task_invocation=descriptor.task_invocation,
         limits=descriptor.limits,
         required_capabilities=required_capabilities,

@@ -35,6 +35,7 @@ class LocalModelProfile:
     profile_id: str
     model_id: str
     adapter_id: str
+    profile_requirement: str
     capabilities: frozenset[str]
 
 
@@ -51,10 +52,12 @@ class LocalModelProfileControlPlane:
         model_id: str,
         adapter_id: str,
         capabilities: Iterable[str],
+        profile_requirement: str = "local-general-model",
     ) -> LocalModelProfile:
         """Persist an immutable record for the one supported local adapter type."""
 
         _nonempty(model_id, "model_id")
+        _nonempty(profile_requirement, "profile_requirement")
         if adapter_id != "strict-local-adapter-v1":
             raise LocalModelProfileError(
                 "adapter_id must identify a supported local adapter"
@@ -70,12 +73,15 @@ class LocalModelProfileControlPlane:
             payload={
                 "model_id": model_id,
                 "adapter_id": adapter_id,
+                "profile_requirement": profile_requirement,
                 "capabilities": sorted(capability_set),
             },
             expires_at=datetime.max.replace(tzinfo=UTC),
             now=datetime.now(UTC),
         )
-        return LocalModelProfile(handle, model_id, adapter_id, capability_set)
+        return LocalModelProfile(
+            handle, model_id, adapter_id, profile_requirement, capability_set
+        )
 
     def load(self, profile_id: str) -> LocalModelProfile:
         """Load an immutable profile owned by this installation principal."""
@@ -93,17 +99,21 @@ class LocalModelProfileControlPlane:
         try:
             model_id = payload["model_id"]
             adapter_id = payload["adapter_id"]
+            profile_requirement = payload["profile_requirement"]
             capabilities = frozenset(payload["capabilities"])
         except (KeyError, TypeError) as error:
             raise LocalModelProfileError("local model profile is invalid") from error
         _nonempty(model_id, "model_id")
+        _nonempty(profile_requirement, "profile_requirement")
         if adapter_id != "strict-local-adapter-v1":
             raise LocalModelProfileError("local model profile is invalid")
         if not capabilities or any(
             not isinstance(item, str) or not item for item in capabilities
         ):
             raise LocalModelProfileError("local model profile is invalid")
-        return LocalModelProfile(profile_id, model_id, adapter_id, capabilities)
+        return LocalModelProfile(
+            profile_id, model_id, adapter_id, profile_requirement, capabilities
+        )
 
 
 def _uid() -> str:

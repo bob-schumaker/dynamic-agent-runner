@@ -52,6 +52,7 @@ def test_human_control_plane_creates_immutable_local_model_profile(
     assert loaded == created
     assert loaded.model_id == "local-model-v1"
     assert loaded.adapter_id == "strict-local-adapter-v1"
+    assert loaded.profile_requirement == "local-general-model"
     assert loaded.capabilities == frozenset({"text_generation"})
     assert loaded.profile_id.startswith("v1.")
 
