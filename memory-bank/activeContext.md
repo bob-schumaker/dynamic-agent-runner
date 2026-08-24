@@ -39,31 +39,31 @@
   G5 still needs a scope audit for multiple independently configured MCP
   clients per workflow before declaring the general connection model complete.
 - `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
-  through `8c01d36`. Its no-tool base path has a host-managed strict-local
-  loopback OpenAI-compatible profile,
-  persisted privately, a saved package is registered to its immutable profile,
-  CLI preparation seals one prompt into a single-use opaque input, and the
-  runner preflights the private staged package before executing through DAR.
-  `dar-workflow` provides human local setup, source selection, registration,
-  preparation, and run; `dar-workflow-run` and MCP `run_dar_workflow` accept
-  only workflow and sealed-input identifiers. Dry runs neither consume input
-  nor invoke a model. The terminal schema reference must name a runtime output
-  contract; malformed terminal output fails without raw-output disclosure. M5,
-  M6, and M7 later add reviewed MCP, file ingress, and side-effect paths;
-  portable archive exchange remains deferred.
+  through `14dfbf5`. Its no-tool base path has a host-managed strict-local
+  loopback OpenAI-compatible profile, private immutable registration, sealed
+  preparation, and DAR preflight. The one model-facing MCP tool now accepts
+  only `{format_version, workflow_id, prompt}`, seals the prompt internally,
+  and never returns a prepared-input ID. A real local-wheel Codex smoke with a
+  temporary configured host discovered exactly that tool; the temporary
+  marketplace and host state were removed. Human-only `dar-workflow invoke`
+  composes source selection, no-tool registration, preparation, and execution
+  for a local directory or ZIP. Tool-bearing workflows still require their
+  reviewed binding; `--dry-run` and `--ask` remain on the existing sealed-run
+  control path. Full validation passed with 960 tests and 4 skips.
 - `dar-authoring-plugin` M2 (G1 runtime core) is implemented through
   `8a08669`. A human-selected directory receives a principal/expiry-bound
   opaque source handle, is copied through descriptor-relative no-follow file
   descriptors into a bounded private staging root, validated by DAR, cataloged
   by immutable package/revision digest, compiled into `WorkflowPolicy`, and
   returned only through package-handle-only `PackagePreflightService` results.
-  The new runtime modules live in `dar-authoring/server/dar_workflow_server/`;
+  The runtime host modules live under `src/dynamic_agent_runner/workflow_host/`;
   focused M2 coverage is offline and uses fixture packages, local state files,
   and fake/local collaborators only.
-- M0 now owns static adapted-skill assets and package templates; M4 still owns
+- M0 owns static adapted-skill assets and package templates; M4 still owns
   external authoring behavior evidence. M8 owns portable ZIP exchange and
-  publication. The plugin `uvx` topology remains to be verified through M1.1,
-  followed by release-integrity hardening.
+  publication. M1 local-wheel/Codex discovery is proven, but production launch
+  remains blocked on a signed Artifactory `dynamic-agent-runner==0.1.16`
+  release and trusted launcher integration.
 - Runtime core authority remains deliberately split: M2 preflight accepts only
   an opaque package-source handle and returns package/policy/capability data;
   it cannot accept invocation input, create a registration or alias, issue a

@@ -35,15 +35,14 @@
   pre-built workflow; `--dry-run` is non-dispatching. Broader multi-client MCP
   composition and live-provider acceptance remain deferred.
 - `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
-  through `8c01d36`: strict loopback local-adapter configuration (`a660980`), sealed
-  dry-run preflight (`8298711`), private host composition (`b922880`), local
-  control/run CLI (`e93f969`), and sealed MCP execution (`68b0862`). The
-  focused DAR-authoring suite passed with 56 tests. The public paths remain
-  no-tool only: `dar-workflow prepare` is the sole raw-prompt entry point and
-  `dar-workflow-run`/`run_dar_workflow` receive sealed opaque input IDs only.
-  The terminal schema reference must name a runtime output contract; the wrapper
-  validates final shaped output and redacts malformed-contract failures. Full
-  DAR-authoring coverage passed with 96 tests.
+  through `14dfbf5`. `0084bc0` changes the single model-facing MCP tool to
+  accept only workflow ID plus prompt and seal input internally; caller-supplied
+  prepared IDs and hybrid fields fail before preparation. `bcb86a1` proves a
+  configured host exposes that exact tool, `35b9ac9` records a real temporary
+  Codex local-wheel discovery, and `14dfbf5` adds human-only `dar-workflow
+  invoke` for no-tool local directory/ZIP composition. The full suite passed
+  with 960 tests and 4 skips. Production plugin launch still awaits the signed
+  Artifactory DAR 0.1.16 release and trusted launcher integration.
 - `dar-authoring-plugin` M2 (G1 runtime core) is complete through
   `8a08669`: private authenticated state (`61088c1`), OS-user identity and
   immutable local profiles (`35da5e6`), no-tool descriptor validation
