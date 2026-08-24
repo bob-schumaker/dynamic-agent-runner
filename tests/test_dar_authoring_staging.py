@@ -68,9 +68,15 @@ def _write_source_manifest(source: Path) -> bytes:
     value = json.dumps(
         {
             "content_digest": digest.hexdigest(),
+            "dar_runtime": {
+                "distribution": "dynamic-agent-runner",
+                "required_version": "0.1.15",
+            },
+            "descriptor_format_version": 1,
             "files": entries,
-            "format_version": 1,
+            "format_version": 2,
             "package_id": "dar-authoring-no-tool-template",
+            "runtime_format_version": 1,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -140,8 +146,14 @@ def test_staging_writes_a_canonical_content_manifest(tmp_path: Path) -> None:
     manifest = json.loads(
         (staged.root / "package-manifest.json").read_text(encoding="utf-8")
     )
-    assert manifest["format_version"] == 1
+    assert manifest["format_version"] == 2
     assert manifest["package_id"] == "dar-authoring-no-tool-template"
+    assert manifest["runtime_format_version"] == 1
+    assert manifest["descriptor_format_version"] == 1
+    assert manifest["dar_runtime"] == {
+        "distribution": "dynamic-agent-runner",
+        "required_version": "0.1.15",
+    }
     assert manifest["content_digest"] == staged.digest
     assert manifest["files"] == [
         {
@@ -183,6 +195,24 @@ def test_staging_rejects_a_source_manifest_that_does_not_match_the_payload(
     handle, store = _selection(tmp_path, source)
 
     with pytest.raises(PackageStagingError, match="manifest does not match"):
+        PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+            handle, now=NOW
+        )
+
+
+def test_staging_rejects_an_incompatible_package_descriptor(tmp_path: Path) -> None:
+    source = _source_package(tmp_path)
+    descriptor = source / "workflow-descriptor.yaml"
+    descriptor.write_text(
+        descriptor.read_text(encoding="utf-8").replace(
+            "package_id: dar-authoring-no-tool-template",
+            "package_id: other-package",
+        ),
+        encoding="utf-8",
+    )
+    handle, store = _selection(tmp_path, source)
+
+    with pytest.raises(PackageStagingError, match="descriptor is incompatible"):
         PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
             handle, now=NOW
         )

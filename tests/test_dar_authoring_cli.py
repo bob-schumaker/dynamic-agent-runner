@@ -46,9 +46,15 @@ def _signed_archive(
     manifest = json.dumps(
         {
             "content_digest": digest.hexdigest(),
+            "dar_runtime": {
+                "distribution": "dynamic-agent-runner",
+                "required_version": "0.1.15",
+            },
+            "descriptor_format_version": 1,
             "files": files,
-            "format_version": 1,
+            "format_version": 2,
             "package_id": "dar-authoring-no-tool-template",
+            "runtime_format_version": 1,
         },
         sort_keys=True,
         separators=(",", ":"),

@@ -21,7 +21,10 @@ from dar_workflow_server.policy import (  # noqa: E402
     compile_workflow_policy,
     resolve_capabilities,
 )
-from dar_workflow_server.staging import PrivatePackageStager  # noqa: E402
+from dar_workflow_server.staging import (  # noqa: E402
+    PackageStagingError,
+    PrivatePackageStager,
+)
 from dar_workflow_server.state import PrivateStateStore  # noqa: E402
 
 
@@ -212,11 +215,9 @@ def test_side_effecting_mcp_policy_requires_a_separate_unavailable_capability(
     assert unavailable.missing_capabilities == ("mcp_side_effects",)
 
 
-def test_policy_rejects_descriptor_package_identity_mismatch(tmp_path: Path) -> None:
-    revision = _catalog_revision(tmp_path, package_id="other-package")
-
-    with pytest.raises(PolicyCompilationError, match="package_id"):
-        compile_workflow_policy(revision)
+def test_staging_rejects_descriptor_package_identity_mismatch(tmp_path: Path) -> None:
+    with pytest.raises(PackageStagingError, match="descriptor is incompatible"):
+        _catalog_revision(tmp_path, package_id="other-package")
 
 
 def test_policy_rejects_unknown_registered_terminal_output_contract(

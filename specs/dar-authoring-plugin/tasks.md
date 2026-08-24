@@ -301,8 +301,9 @@ passes.
       reproduce the exact staged payload inventory and digest.
 - [x] RED/GREEN: enforce a bounded 100:1 ZIP compression ratio per member and
       across the declared archive before extraction.
-- [ ] RED/GREEN: extend the portable manifest schema with package and DAR
-      compatibility requirements.
+- [x] RED/GREEN: canonical-manifest-v2 binds the runtime and descriptor schema
+      versions plus the descriptor's exact DAR distribution/version requirement;
+      a descriptor/package identity mismatch fails before publication.
 - [x] RED/GREEN: an Ed25519 primitive signs and verifies exact canonical
       manifest bytes, binds a bounded publisher key ID, and rejects unknown
       publishers, altered manifests, malformed signatures, and malformed key
@@ -321,7 +322,7 @@ passes.
       the immutable catalog revision records `publisher_signature` plus the
       signing key ID. The recipient-host CLI fixture proves trust, selection, and
       registration end to end.
-- [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
+- [ ] RED/GREEN: canonical-manifest-v2 Ed25519 export/import fixtures prove
       signer/key-id binding, rejection of an unknown locally trusted publisher
       key, and a recipient-host signed-package import. Explicitly selected
       distributable authoring material is included; private source material is

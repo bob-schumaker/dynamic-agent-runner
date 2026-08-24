@@ -254,8 +254,9 @@ absolute, parent-traversal, duplicate, symlink, hard-link, device, and special
 entries; enforces configured entry-count, uncompressed-byte, per-file, and
 compression-ratio limits; and uses descriptor-relative no-follow writes. V1
 rejects a member or archive whose declared expansion exceeds 100:1. Its
-canonical manifest enumerates every regular file path, byte count, and SHA-256,
-the package/schema version, and DAR compatibility requirement. Extraction is
+canonical-manifest-v2 enumerates every regular file path, byte count, and
+SHA-256, its runtime and descriptor schema versions, and the descriptor's exact
+DAR distribution/version requirement. Extraction is
 accepted only when the enumerated files and digests match exactly. A locally
 authored package requires an explicit local trust confirmation recorded against
 its manifest digest; a package received from another publisher requires a valid
@@ -273,7 +274,7 @@ idempotent; an alias collision fails unless the caller explicitly registers a ne
 alias; prior revisions remain addressable for trace/audit retention and are never
 silently rebound.
 
-The signed payload is canonical-manifest-v1: the complete manifest file list,
+The signed payload is canonical-manifest-v2: the complete manifest file list,
 file hashes and byte counts, package/schema/DAR compatibility versions, and
 `package_id`. V1 accepts Ed25519 signatures carrying a key ID. Each installation
 keeps an explicit local allowlist of trusted publisher key fingerprints; an

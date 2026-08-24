@@ -16,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 from pathlib import PurePosixPath
 
+import yaml
+
 from dynamic_agent_runner import load_agent_package_workflow
 
 from dar_workflow_server.profiles import InstallationIdentityProvider
@@ -105,6 +107,7 @@ class PrivatePackageStager:
                 package_id=workflow.runtime_manifest.package_id,
                 content_digest=digest,
                 entries=entries,
+                compatibility=_package_compatibility(temporary_root, workflow),
             )
             if source_type == "zip" and source_manifest is None:
                 raise PackageStagingError("portable ZIP source manifest is missing")
@@ -412,19 +415,65 @@ def _content_manifest_bytes(
     package_id: str | None,
     content_digest: str,
     entries: list[tuple[str, str, int]],
+    compatibility: Mapping[str, object],
 ) -> bytes:
     if not package_id:
         raise PackageStagingError("staged package has no package_id")
     payload = {
         "content_digest": content_digest,
+        "dar_runtime": compatibility["dar_runtime"],
+        "descriptor_format_version": compatibility["descriptor_format_version"],
         "files": [
             {"byte_count": size, "path": path, "sha256": file_digest}
             for path, file_digest, size in sorted(entries)
         ],
-        "format_version": 1,
+        "format_version": 2,
         "package_id": package_id,
+        "runtime_format_version": compatibility["runtime_format_version"],
     }
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _package_compatibility(root: Path, workflow: object) -> dict[str, object]:
+    descriptor_path = root / "workflow-descriptor.yaml"
+    try:
+        descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as error:
+        raise PackageStagingError("package descriptor is invalid") from error
+    runtime_manifest = getattr(workflow, "runtime_manifest", None)
+    runtime_format_version = getattr(runtime_manifest, "format_version", None)
+    package_id = getattr(runtime_manifest, "package_id", None)
+    if (
+        not isinstance(descriptor, Mapping)
+        or descriptor.get("package_id") != package_id
+        or not _positive_int(runtime_format_version)
+        or not _positive_int(descriptor.get("format_version"))
+    ):
+        raise PackageStagingError("package descriptor is incompatible")
+    dar_runtime = descriptor.get("dar_runtime")
+    if (
+        not isinstance(dar_runtime, Mapping)
+        or set(dar_runtime) != {"distribution", "required_version"}
+        or not _nonempty_string(dar_runtime.get("distribution"))
+        or not _nonempty_string(dar_runtime.get("required_version"))
+    ):
+        raise PackageStagingError("package descriptor is incompatible")
+    return {
+        "dar_runtime": {
+            "distribution": dar_runtime["distribution"],
+            "required_version": dar_runtime["required_version"],
+        },
+        "descriptor_format_version": descriptor["format_version"],
+        "runtime_format_version": runtime_format_version,
+    }
+
+
+def _positive_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _nonempty_string(value: object) -> bool:
+    return isinstance(value, str) and bool(value)
 
 
 def _write_content_manifest(root: Path, encoded: bytes) -> None:

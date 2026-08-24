@@ -66,11 +66,16 @@ def _verified_payload(staged: StagedPackage) -> dict[str, bytes]:
         raise PackageExportError("staged package manifest is invalid")
     files = value.get("files")
     if (
-        value.get("format_version") != 1
+        value.get("format_version") != 2
         or value.get("content_digest") != staged.digest
         or not isinstance(value.get("package_id"), str)
         or not value["package_id"]
         or not isinstance(files, list)
+        or not isinstance(value.get("runtime_format_version"), int)
+        or isinstance(value["runtime_format_version"], bool)
+        or not isinstance(value.get("descriptor_format_version"), int)
+        or isinstance(value["descriptor_format_version"], bool)
+        or not _valid_dar_runtime(value.get("dar_runtime"))
     ):
         raise PackageExportError("staged package manifest is invalid")
     payload: dict[str, bytes] = {_MANIFEST_NAME: manifest}
@@ -94,6 +99,17 @@ def _verified_payload(staged: StagedPackage) -> dict[str, bytes]:
     if _content_digest(entries) != staged.digest:
         raise PackageExportError("staged package manifest does not match payload")
     return payload
+
+
+def _valid_dar_runtime(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and set(value) == {"distribution", "required_version"}
+        and isinstance(value["distribution"], str)
+        and bool(value["distribution"])
+        and isinstance(value["required_version"], str)
+        and bool(value["required_version"])
+    )
 
 
 def _validate_destination(destination: Path) -> None:
