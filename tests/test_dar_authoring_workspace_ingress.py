@@ -124,6 +124,24 @@ def test_ingress_rejects_outside_and_symlinked_sources_without_an_artifact(
             )
 
 
+def test_ingress_rejects_non_utf8_text_content_without_an_artifact(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input" / "document.txt"
+    source.parent.mkdir()
+    source.write_bytes(b"not valid utf-8: \xff")
+    (tmp_path / "private-workspaces").mkdir(mode=0o700)
+
+    with pytest.raises(WorkspaceIngressError, match="UTF-8"):
+        _service(tmp_path).ingress(
+            source_path=source,
+            role="document",
+            media_type="text/plain",
+            policy=_policy(),
+            now=NOW,
+        )
+
+
 def test_artifact_load_rejects_a_different_workflow_registration_or_expiry(
     tmp_path: Path,
 ) -> None:

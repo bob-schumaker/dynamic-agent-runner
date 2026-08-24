@@ -189,13 +189,14 @@ the source path never enters a model prompt, tool schema/result, trace, approval
 record, or audit record.
 
 Ingress applies the configured type, encoding, request-size, and file-byte limits
-before accepting the copy. It streams the exact opened source descriptor once
+before accepting the artifact. It streams the exact opened source descriptor once
 into the private temporary file while hashing that byte stream, then commits the
-copy atomically and binds its hash to the opaque artifact identifier and
-invocation. The subsequent handler reads only that private copy. A host cannot
-claim path-contained or symlink-safe body-file support if it rewinds or reopens
-the source path after validation or lets the model supply the physical source
-path.
+copy atomically. The implementation validates the configured encoding only from
+that private copy; in the initial profile every `text/*` input is strict UTF-8.
+It then binds the hash to the opaque artifact identifier and invocation. The
+subsequent handler reads only that private copy. A host cannot claim
+path-contained or symlink-safe body-file support if it rewinds or reopens the
+source path after validation or lets the model supply the physical source path.
 
 The DAR authoring plugin's file-backed workflow invocations depend on this
 ingress slice. Until its positive tests pass, an invocation that accepts a local

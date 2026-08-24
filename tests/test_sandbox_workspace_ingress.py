@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import dynamic_agent_runner.sandbox_workspace as sandbox_workspace
 from dynamic_agent_runner.sandbox_workspace import (
     SandboxWorkspaceError,
     copy_regular_file_no_follow,
@@ -83,6 +84,54 @@ def test_copy_regular_file_no_follow_rejects_symlinked_source_component(
             destination_name="input.txt",
             max_bytes=100,
         )
+
+
+def test_copy_regular_file_no_follow_keeps_the_opened_parent_during_a_swap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_root = tmp_path / "input"
+    source = source_root / "nested" / "message.txt"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"trusted body")
+    replacement = tmp_path / "replacement"
+    replacement.mkdir()
+    (replacement / "message.txt").write_bytes(b"attacker body")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    original_open = os.open
+    swapped = False
+
+    def swap_parent(
+        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal swapped
+        if path == "message.txt" and not swapped:
+            swapped = True
+            source.parent.rename(source_root / "parked")
+            os.symlink(replacement, source.parent)
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "open", swap_parent)
+    monkeypatch.setattr(
+        sandbox_workspace, "_require_posix_no_follow_support", lambda: None
+    )
+
+    copied = copy_regular_file_no_follow(
+        source_root=source_root,
+        source_relative_path="nested/message.txt",
+        workspace_root=workspace,
+        destination_name="input.txt",
+        max_bytes=100,
+    )
+
+    assert swapped
+    assert copied.byte_count == len(b"trusted body")
+    assert (workspace / "input.txt").read_bytes() == b"trusted body"
 
 
 def test_copy_regular_file_no_follow_rejects_nonregular_and_oversize_sources(

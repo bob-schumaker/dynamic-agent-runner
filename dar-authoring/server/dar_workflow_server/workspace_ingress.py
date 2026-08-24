@@ -113,6 +113,7 @@ class WorkspaceIngressService:
                 destination_name="content",
                 max_bytes=self._max_file_bytes,
             )
+            _validate_text_encoding(workspace.root / copied.relative_path, media_type)
             expires_at = now.astimezone(UTC) + self._artifact_ttl
             artifact_id = self._store.issue(
                 kind="workspace_input_artifact",
@@ -222,6 +223,17 @@ def _validate_policy(policy: WorkspaceIngressPolicy) -> None:
         )
     ):
         raise WorkspaceIngressError("workspace ingress policy is invalid")
+
+
+def _validate_text_encoding(content_path: Path, media_type: str) -> None:
+    if not media_type.startswith("text/"):
+        return
+    try:
+        content_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise WorkspaceIngressError(
+            "text workspace input is not valid UTF-8"
+        ) from error
 
 
 def _stored_artifact(

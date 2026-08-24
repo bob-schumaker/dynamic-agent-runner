@@ -220,12 +220,12 @@ passes.
       primitive to copy the exact opened source into a fresh private workspace;
       return only an opaque input-artifact identifier, protected hash, and byte
       count.
-- [ ] RED/GREEN: `WorkspaceIngressService` is the sole sandbox-copy caller;
+- [x] RED/GREEN: `WorkspaceIngressService` is the sole sandbox-copy caller;
       profile roots and descriptor roles/types determine its acceptance, and
       preparation receives only its opaque artifact record.
 - [ ] RED/GREEN: prove physical paths and raw body content are absent from model
       inputs, tool results, traces, audit records, and approval displays.
-- [ ] RED/GREEN: extend preparation only after ingress with opaque artifact IDs
+- [x] RED/GREEN: extend preparation only after ingress with opaque artifact IDs
       and versions; it never reads a physical path or performs its own copy.
 
 ## G5: Model-Directed External-Tool Workflow Runner
