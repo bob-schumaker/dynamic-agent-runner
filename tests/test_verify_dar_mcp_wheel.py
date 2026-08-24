@@ -146,6 +146,7 @@ def test_verifier_runs_local_wheel_with_isolated_uvx_environment(
 def test_verifier_rejects_a_wheel_with_a_corrupted_record_hash(tmp_path: Path) -> None:
     wheel = tmp_path / "dynamic_agent_runner-9.8.7-py3-none-any.whl"
     fake_uvx = tmp_path / "uvx"
+    capture = tmp_path / "uvx-invocation.json"
     _write_wheel(wheel, corrupt_record=True)
     _write_fake_uvx(fake_uvx)
 
@@ -159,6 +160,7 @@ def test_verifier_rejects_a_wheel_with_a_corrupted_record_hash(tmp_path: Path) -
             str(fake_uvx),
         ],
         cwd=tmp_path,
+        env={**os.environ, "FAKE_UVX_CAPTURE": str(capture)},
         capture_output=True,
         text=True,
         check=False,
@@ -166,3 +168,4 @@ def test_verifier_rejects_a_wheel_with_a_corrupted_record_hash(tmp_path: Path) -
 
     assert result.returncode == 2
     assert "wheel RECORD hash is invalid" in result.stderr
+    assert not capture.exists()
