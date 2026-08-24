@@ -48,14 +48,22 @@ def _source_package(tmp_path: Path) -> Path:
 def _write_source_manifest(source: Path) -> bytes:
     entries = []
     digest = hashlib.sha256()
-    for path in sorted(source.iterdir()):
-        if path.name == "package-manifest.json":
+    for path in sorted(source.rglob("*")):
+        relative_path = path.relative_to(source).as_posix()
+        if not path.is_file() or relative_path in {
+            "package-manifest.json",
+            "package-signature.json",
+        }:
             continue
         body = path.read_bytes()
         body_digest = hashlib.sha256(body).hexdigest()
-        digest.update(f"{path.name}\0{body_digest}\0{len(body)}\n".encode("utf-8"))
+        digest.update(f"{relative_path}\0{body_digest}\0{len(body)}\n".encode("utf-8"))
         entries.append(
-            {"byte_count": len(body), "path": path.name, "sha256": body_digest}
+            {
+                "byte_count": len(body),
+                "path": relative_path,
+                "sha256": body_digest,
+            }
         )
     value = json.dumps(
         {
@@ -73,6 +81,7 @@ def _write_source_manifest(source: Path) -> bytes:
 
 def _archive_package(tmp_path: Path) -> Path:
     source = _source_package(tmp_path)
+    _write_source_manifest(source)
     archive = source.parent / "document-helper.zip"
     with zipfile.ZipFile(archive, "w") as package:
         for path in sorted(source.iterdir()):
@@ -195,6 +204,22 @@ def test_staging_imports_a_human_selected_zip_through_the_private_copy(
     assert not list((tmp_path / "private").glob(".extract-*"))
 
 
+def test_staging_rejects_a_portable_zip_without_a_source_manifest(
+    tmp_path: Path,
+) -> None:
+    source = _source_package(tmp_path)
+    archive = source.parent / "document-helper.zip"
+    with zipfile.ZipFile(archive, "w") as package:
+        for path in sorted(source.iterdir()):
+            package.write(path, path.name)
+    handle, store = _archive_selection(tmp_path, archive)
+
+    with pytest.raises(PackageStagingError, match="portable ZIP.*manifest"):
+        PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+            handle, now=NOW
+        )
+
+
 def test_staging_verifies_a_human_selected_publisher_signed_zip(
     tmp_path: Path,
 ) -> None:
@@ -310,9 +335,15 @@ def test_staging_rejects_duplicate_zip_members(tmp_path: Path) -> None:
 def test_staging_creates_missing_parent_directories_for_zip_members(
     tmp_path: Path,
 ) -> None:
-    archive = _archive_package(tmp_path)
-    with zipfile.ZipFile(archive, "a") as package:
-        package.writestr("assets/input.txt", "input")
+    source = _source_package(tmp_path)
+    (source / "assets").mkdir()
+    (source / "assets" / "input.txt").write_text("input", encoding="utf-8")
+    _write_source_manifest(source)
+    archive = source.parent / "document-helper.zip"
+    with zipfile.ZipFile(archive, "w") as package:
+        for path in sorted(source.rglob("*")):
+            if path.is_file():
+                package.write(path, path.relative_to(source).as_posix())
     handle, store = _archive_selection(tmp_path, archive)
 
     staged = PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(

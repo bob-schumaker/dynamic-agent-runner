@@ -296,9 +296,12 @@ passes.
 - [x] RED/GREEN: when a source supplies the canonical manifest, the staged
       payload's package ID, file paths, bytes, hashes, and content digest must
       reproduce its exact canonical bytes; a mismatch fails before publication.
-- [ ] RED/GREEN: portable ZIP import requires a source-supplied canonical
-      manifest with schema and DAR-compatibility requirements before it reaches
-      the existing staged-package boundary; enforce a compression-ratio limit.
+- [x] RED/GREEN: every portable ZIP import requires a source-supplied canonical
+      manifest before it reaches the staged-package boundary; the manifest must
+      reproduce the exact staged payload inventory and digest.
+- [ ] RED/GREEN: extend the portable manifest schema with package and DAR
+      compatibility requirements, then enforce a bounded ZIP compression ratio
+      before extraction.
 - [x] RED/GREEN: an Ed25519 primitive signs and verifies exact canonical
       manifest bytes, binds a bounded publisher key ID, and rejects unknown
       publishers, altered manifests, malformed signatures, and malformed key

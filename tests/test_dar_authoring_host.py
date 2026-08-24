@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import shutil
 import sys
 import zipfile
@@ -34,6 +36,31 @@ from dar_workflow_server.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+
+
+def _write_portable_manifest(source: Path) -> None:
+    digest = hashlib.sha256()
+    files = []
+    for path in sorted(source.iterdir()):
+        body = path.read_bytes()
+        file_digest = hashlib.sha256(body).hexdigest()
+        digest.update(f"{path.name}\0{file_digest}\0{len(body)}\n".encode("utf-8"))
+        files.append(
+            {"byte_count": len(body), "path": path.name, "sha256": file_digest}
+        )
+    (source / "package-manifest.json").write_text(
+        json.dumps(
+            {
+                "content_digest": digest.hexdigest(),
+                "files": files,
+                "format_version": 1,
+                "package_id": "dar-authoring-no-tool-template",
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
 
 
 class _Responses:
@@ -127,6 +154,7 @@ def test_host_selects_and_registers_a_local_zip_package(
     package_root = tmp_path / "packages"
     source = package_root / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
+    _write_portable_manifest(source)
     archive = package_root / "document-helper.zip"
     with zipfile.ZipFile(archive, "w") as package:
         for path in sorted(source.iterdir()):

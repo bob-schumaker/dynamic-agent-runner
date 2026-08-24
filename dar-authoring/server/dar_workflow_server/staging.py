@@ -105,6 +105,8 @@ class PrivatePackageStager:
                 content_digest=digest,
                 entries=entries,
             )
+            if source_type == "zip" and source_manifest is None:
+                raise PackageStagingError("portable ZIP source manifest is missing")
             if source_manifest is not None and not secrets.compare_digest(
                 source_manifest, expected_manifest
             ):
