@@ -83,7 +83,10 @@ The plugin shall provide:
 
 Profile creation, OAuth completion, external MCP-surface review, and credential
 rotation are a human-only wrapper control plane (local settings UI, CLI, or
-admin API), not model-facing MCP operations.
+admin API), not model-facing MCP operations. The separately constrained
+authoring-material and package-finalization commands may be called by the
+authoring skill only while acting on a user's explicit package-authoring request;
+they cannot configure a profile, connection, credential, or approval policy.
 
 The plugin shall be a package-authoring plugin. It shall not add authoring,
 evaluation, credential, MCP discovery, or model-server lifecycle responsibilities
@@ -201,17 +204,42 @@ Acceptance criteria:
 The entry skill shall accept a user's natural-language description of the
 desired workflow, together with explicitly supplied examples, files, and
 documentation. Inline prompt text is intentional authoring input. Referenced
-material is instead supplied through a human-issued `AuthoringMaterialSet` of
-opaque, bounded, versioned artifact references. Each member is reference-only or
-explicitly distributable; skills receive only the approved content projection and
-metadata, never a physical path. The set is principal- and expiry-bound. It shall
-use those materials to generate a canonical, immutable DAR workflow package
+material is instead supplied through a user-authorized, skill-invoked
+`AuthoringMaterialSet` of opaque, bounded, versioned artifact references. Each
+member is reference-only or explicitly distributable; skills receive only the
+approved content projection and metadata, never a physical source path. The set
+is principal- and expiry-bound. It shall use those materials to generate a
+canonical, immutable DAR workflow package
 revision. The user is not required to write a descriptor. The generated versioned
 `WorkflowDescriptor` is the package's authoring-to-runtime handoff and records
 the design decisions the skill made; `run_dar_workflow` is not an authoring or
 provisioning API. Every capability below is optional. A basic reasoning workflow
 therefore needs only its purpose and model requirement; a workflow with no MCP
 tools and no skills is valid.
+
+The host exposes the following local authoring control-plane commands to the
+entry skill. They are not model-facing MCP operations and do not expose runner
+prepared-input identifiers, profile configuration, credentials, or connection
+provisioning:
+
+```text
+issue-authoring-materials --materials-json-stdin
+  -> opaque receipt: material_set_id, member role/disposition/digest, expiry
+project-authoring-materials --material-set-id <opaque-id>
+  -> exactly the selected bounded content projection
+finalize-authored-package --path <configured-package-root child>
+  --material-set-id <opaque-id>
+  -> deterministic manifest plus redacted package/descriptor validation result
+```
+
+The authoring skill calls these commands itself after the user asks it to build
+a package. It asks the user only for missing task decisions or human-only setup
+(for example, local-model profile selection, OAuth consent, or MCP surface
+review). Finalization accepts only a symlink-free directory beneath the
+configured package root, excludes every `reference_only` member before writing
+the manifest, and returns no selected material content. The resulting directory
+is the saved package that a later `dar-workflow invoke` request can run with a
+new prompt and permitted workspace artifacts.
 
 ```yaml
 format_version: 1
@@ -327,9 +355,11 @@ replace its model, skills, tools, or connection in a run request. The authoring
 result shall include the package artifacts, a capability report, and any
 evaluation plan requested by the generated descriptor.
 
-Authoring may later use package-generation tools, but this specification does
-not assume, expose, or require any such tool. Its v1 contract is the skill's
-validated artifact output.
+V1 authoring uses the local command surface above rather than a second
+model-facing MCP runner tool. It intentionally grants only selected-material
+projection and finalization of a DAR-valid package under the configured output
+root; it does not grant profile, credential, MCP-server, signing-key, or generic
+host-administration authority.
 
 The package's graph and tool contracts define a specifically bounded task, not a
 general-purpose interactive tool console. For every declared MCP or host tool,

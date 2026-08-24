@@ -15,6 +15,7 @@ from dynamic_agent_runner.workflow_host.authoring_materials import (  # noqa: E4
 from dynamic_agent_runner.workflow_host.authoring_output import (  # noqa: E402
     AuthoringOutputError,
     build_authored_package_manifest,
+    finalize_authored_package,
     validate_authored_package,
     write_authored_package_manifest,
 )
@@ -78,12 +79,13 @@ def test_rejects_reference_only_authoring_material_in_generated_package(
     )
 
     with pytest.raises(AuthoringOutputError, match="reference-only"):
-        validate_authored_package(
+        finalize_authored_package(
             package_root=package,
             materials=_projection(
                 _member(content="secret design brief", disposition="reference_only")
             ),
         )
+    assert not (package / "package-manifest.json").exists()
 
 
 def test_rejects_a_generated_package_without_its_canonical_manifest(

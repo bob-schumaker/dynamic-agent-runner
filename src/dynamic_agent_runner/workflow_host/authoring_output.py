@@ -95,6 +95,22 @@ def write_authored_package_manifest(package_root: Path) -> bytes:
     return manifest
 
 
+def finalize_authored_package(
+    *, package_root: Path, materials: AuthoringMaterialSetProjection
+) -> AuthoredPackageValidation:
+    """Write and validate a package only after private material exclusion passes."""
+
+    if not isinstance(package_root, Path) or not isinstance(
+        materials, AuthoringMaterialSetProjection
+    ):
+        raise AuthoringOutputError("authoring output is invalid")
+    files = _package_files(package_root)
+    _reject_reference_only_material(files, materials)
+    _load_package_contract(package_root)
+    write_authored_package_manifest(package_root)
+    return validate_authored_package(package_root=package_root, materials=materials)
+
+
 def validate_authored_package(
     *, package_root: Path, materials: AuthoringMaterialSetProjection
 ) -> AuthoredPackageValidation:

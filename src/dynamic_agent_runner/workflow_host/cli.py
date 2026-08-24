@@ -14,6 +14,9 @@ from typing import Any
 
 from dynamic_agent_runner.workflow_host.action_ledger import ExternalAction
 from dynamic_agent_runner.workflow_host.approvals import WorkflowApproval
+from dynamic_agent_runner.workflow_host.authoring_materials import (
+    AuthoringMaterialInput,
+)
 from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDecision
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
@@ -69,6 +72,12 @@ def main(
             return 0
         host = LocalWorkflowHost.open(root)
         now = datetime.now(UTC)
+        authoring_result = _authoring_control_result(
+            host, args, now=now, read_stdin=read_stdin
+        )
+        if authoring_result is not None:
+            _write(write, authoring_result)
+            return 0
         mcp_result = _mcp_workflow_result(host, args, now=now)
         if mcp_result is not None:
             _write(write, mcp_result)
@@ -124,6 +133,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     configure.add_argument("--model-id", required=True)
     configure.add_argument("--base-url", required=True)
+    issue_materials = commands.add_parser("issue-authoring-materials")
+    issue_materials.add_argument("--materials-json-stdin", action="store_true")
+    project_materials = commands.add_parser("project-authoring-materials")
+    project_materials.add_argument("--material-set-id", required=True)
+    finalize = commands.add_parser("finalize-authored-package")
+    finalize.add_argument("--path", required=True)
+    finalize.add_argument("--material-set-id", required=True)
     connection = commands.add_parser("create-mcp-connection")
     connection.add_argument("--endpoint", required=True)
     connection.add_argument("--scope", action="append", required=True)
@@ -249,6 +265,87 @@ def _mcp_control_result(
         )
         return {"status": "attached"}
     return None
+
+
+def _authoring_control_result(
+    host: LocalWorkflowHost,
+    args: Any,
+    *,
+    now: datetime,
+    read_stdin: Callable[[], str] | None,
+) -> dict[str, object] | None:
+    if args.command == "issue-authoring-materials":
+        if not args.materials_json_stdin:
+            raise LocalWorkflowHostError(
+                "authoring materials must be supplied on stdin"
+            )
+        materials = _authoring_materials_from_stdin((read_stdin or sys.stdin.read)())
+        receipt = host.issue_authoring_materials(materials=materials, now=now)
+        return {
+            "expires_at": receipt.expires_at.isoformat(),
+            "material_set_id": receipt.material_set_id,
+            "members": [
+                {
+                    "artifact_id": member.artifact_id,
+                    "digest": member.digest,
+                    "disposition": member.disposition,
+                    "role": member.role,
+                }
+                for member in receipt.members
+            ],
+        }
+    if args.command == "project-authoring-materials":
+        projection = host.project_authoring_materials(args.material_set_id, now=now)
+        return {
+            "expires_at": projection.expires_at.isoformat(),
+            "material_set_id": projection.material_set_id,
+            "members": [
+                {
+                    "artifact_id": member.artifact_id,
+                    "content": member.content,
+                    "digest": member.digest,
+                    "disposition": member.disposition,
+                    "role": member.role,
+                }
+                for member in projection.members
+            ],
+        }
+    if args.command == "finalize-authored-package":
+        finalized = host.finalize_authored_package(
+            package_root=Path(args.path),
+            material_set_id=args.material_set_id,
+            now=now,
+        )
+        return {
+            "descriptor_digest": finalized.descriptor_digest,
+            "file_count": finalized.file_count,
+            "package_digest": finalized.package_digest,
+            "package_id": finalized.package_id,
+            "status": "finalized",
+        }
+    return None
+
+
+def _authoring_materials_from_stdin(value: str) -> tuple[AuthoringMaterialInput, ...]:
+    try:
+        parsed = json.loads(value)
+        if not isinstance(parsed, list):
+            raise ValueError
+        materials = tuple(
+            AuthoringMaterialInput(
+                role=member["role"],
+                content=member["content"],
+                disposition=member["disposition"],
+            )
+            for member in parsed
+            if isinstance(member, dict)
+            and set(member) == {"role", "content", "disposition"}
+        )
+        if len(materials) != len(parsed):
+            raise ValueError
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise LocalWorkflowHostError("authoring material input is invalid") from error
+    return materials
 
 
 def _publisher_control_result(args: Any, *, root: Path) -> dict[str, object] | None:

@@ -16,6 +16,17 @@ from dynamic_agent_runner.workflow_host.catalog import (
 )
 from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger
 from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore
+from dynamic_agent_runner.workflow_host.authoring_materials import (
+    AuthoringMaterialInput,
+    AuthoringMaterialService,
+    AuthoringMaterialSetProjection,
+    AuthoringMaterialSetReceipt,
+)
+from dynamic_agent_runner.workflow_host.authoring_output import (
+    AuthoredPackageValidation,
+    AuthoringOutputError,
+    finalize_authored_package,
+)
 from dynamic_agent_runner.workflow_host.authorized_tools import (
     LocalActionApprovalBroker,
 )
@@ -100,6 +111,9 @@ from dynamic_agent_runner.workflow_host.workspace_ingress import (
 
 
 _DEFAULT_WORKSPACE_INPUT_MAX_BYTES = 8 * 1024 * 1024
+_AUTHORING_MATERIAL_MAX_BYTES = 256 * 1024
+_AUTHORING_MATERIAL_MAX_MEMBERS = 16
+_AUTHORING_MATERIAL_TTL = timedelta(hours=1)
 
 
 class LocalWorkflowHostError(ValueError):
@@ -308,6 +322,7 @@ class LocalWorkflowHost:
         preparation: WorkflowInvocationPreparationService,
         runner: WorkflowRunner,
         workspace_ingress: WorkspaceIngressService | None,
+        authoring_materials: AuthoringMaterialService,
         mcp_client: MCPConnectionClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
@@ -320,6 +335,7 @@ class LocalWorkflowHost:
         self._preparation = preparation
         self._runner = runner
         self._workspace_ingress = workspace_ingress
+        self._authoring_materials = authoring_materials
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
         self._mcp_bindings = mcp_bindings
@@ -391,6 +407,13 @@ class LocalWorkflowHost:
                 ),
             ),
             workspace_ingress=workspace_ingress,
+            authoring_materials=AuthoringMaterialService(
+                store=store,
+                owner=InstallationIdentityProvider().principal,
+                max_material_bytes=_AUTHORING_MATERIAL_MAX_BYTES,
+                max_materials=_AUTHORING_MATERIAL_MAX_MEMBERS,
+                material_ttl=_AUTHORING_MATERIAL_TTL,
+            ),
             mcp_client=mcp_client,
             mcp_surfaces=surfaces if mcp_client is not None else None,
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
@@ -402,6 +425,41 @@ class LocalWorkflowHost:
         if path.suffix.lower() == ".zip":
             return self._sources.select_zip(path, now=now)
         return self._sources.select_directory(path, now=now)
+
+    def issue_authoring_materials(
+        self,
+        *,
+        materials: tuple[AuthoringMaterialInput, ...],
+        now: datetime,
+    ) -> AuthoringMaterialSetReceipt:
+        """Persist the authoring input explicitly approved for one skill run."""
+
+        return self._authoring_materials.issue(materials=materials, now=now)
+
+    def project_authoring_materials(
+        self, material_set_id: str, *, now: datetime
+    ) -> AuthoringMaterialSetProjection:
+        """Return the exact host-approved content projection to an authoring skill."""
+
+        return self._authoring_materials.project(material_set_id, now=now)
+
+    def finalize_authored_package(
+        self,
+        *,
+        package_root: Path,
+        material_set_id: str,
+        now: datetime,
+    ) -> AuthoredPackageValidation:
+        """Finalize one allowed-root package after deterministic material checks."""
+
+        self._sources.select_directory(package_root, now=now)
+        try:
+            return finalize_authored_package(
+                package_root=package_root,
+                materials=self.project_authoring_materials(material_set_id, now=now),
+            )
+        except AuthoringOutputError as error:
+            raise LocalWorkflowHostError("authored package is invalid") from error
 
     def select_publisher_package(self, path: Path, *, now: datetime) -> str:
         """Return an opaque handle for one human-selected publisher ZIP package."""

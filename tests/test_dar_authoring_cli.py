@@ -275,6 +275,124 @@ def test_cli_dry_run_rejects_workspace_files_before_ingress(
     )
 
 
+def test_cli_projects_selected_authoring_material_only_after_host_issuance(
+    tmp_path: Path,
+) -> None:
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    state_args = ["--state-root", str(state_root)]
+    status, _ = _invoke(
+        [
+            *state_args,
+            "configure-local-model",
+            "--package-root",
+            str(package_root),
+            "--model-id",
+            "local-model-v1",
+            "--base-url",
+            "http://127.0.0.1:11434/v1",
+        ]
+    )
+    assert status == 0
+
+    issued_output: list[str] = []
+    assert (
+        main(
+            [*state_args, "issue-authoring-materials", "--materials-json-stdin"],
+            write=issued_output.append,
+            read_stdin=lambda: json.dumps(
+                [
+                    {
+                        "role": "example",
+                        "content": "private design example",
+                        "disposition": "reference_only",
+                    }
+                ]
+            ),
+        )
+        == 0
+    )
+    receipt = json.loads(issued_output[0])
+    assert "content" not in issued_output[0]
+
+    status, projection = _invoke(
+        [
+            *state_args,
+            "project-authoring-materials",
+            "--material-set-id",
+            receipt["material_set_id"],
+        ]
+    )
+
+    assert status == 0
+    assert projection["members"] == [
+        {
+            "artifact_id": receipt["members"][0]["artifact_id"],
+            "content": "private design example",
+            "digest": receipt["members"][0]["digest"],
+            "disposition": "reference_only",
+            "role": "example",
+        }
+    ]
+
+
+def test_cli_finalizes_a_host_selected_authored_package(
+    tmp_path: Path,
+) -> None:
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    package = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, package)
+    state_args = ["--state-root", str(state_root)]
+    status, _ = _invoke(
+        [
+            *state_args,
+            "configure-local-model",
+            "--package-root",
+            str(package_root),
+            "--model-id",
+            "local-model-v1",
+            "--base-url",
+            "http://127.0.0.1:11434/v1",
+        ]
+    )
+    assert status == 0
+    issued_output: list[str] = []
+    assert (
+        main(
+            [*state_args, "issue-authoring-materials", "--materials-json-stdin"],
+            write=issued_output.append,
+            read_stdin=lambda: json.dumps(
+                [
+                    {
+                        "role": "example",
+                        "content": "private design example",
+                        "disposition": "reference_only",
+                    }
+                ]
+            ),
+        )
+        == 0
+    )
+    receipt = json.loads(issued_output[0])
+
+    status, finalized = _invoke(
+        [
+            *state_args,
+            "finalize-authored-package",
+            "--path",
+            str(package),
+            "--material-set-id",
+            receipt["material_set_id"],
+        ]
+    )
+
+    assert status == 0
+    assert finalized["package_id"] == "dar-authoring-no-tool-template"
+    assert len(finalized["package_digest"]) == 64
+    assert (package / "package-manifest.json").is_file()
+
+
 def _signed_archive(
     source: Path, *, key_id: str, private_key: Ed25519PrivateKey
 ) -> Path:

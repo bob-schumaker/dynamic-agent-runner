@@ -176,3 +176,11 @@ def test_adapted_skills_are_portable_and_cover_fixture_contracts() -> None:
     assert "authoring_runtime_unavailable" in (
         SKILL_ROOT / "agent-development" / "SKILL.md"
     ).read_text(encoding="utf-8")
+
+
+def test_agent_development_skill_calls_the_host_authoring_control_plane() -> None:
+    text = (SKILL_ROOT / "agent-development" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "issue-authoring-materials" in text
+    assert "project-authoring-materials" in text
+    assert "finalize-authored-package" in text

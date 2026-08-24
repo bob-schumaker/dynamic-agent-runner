@@ -154,6 +154,12 @@ passes.
       receipts expose neither content nor paths, and wrong-owner/expired sets
       fail closed. Package, trace, fixture, and export enforcement follows with
       the authoring and publication paths.
+- [x] RED/GREEN: expose the skill-callable local authoring control plane:
+      issue selected JSON material through stdin, project only an opaque
+      material-set ID, and finalize a DAR-valid directory beneath the configured
+      package root. Finalization excludes `reference_only` material before
+      writing its deterministic manifest; it cannot configure profiles,
+      credentials, MCP connections, or approval policy.
 - [x] RED/GREEN: define an external authoring-evidence record containing only
       corpus/prompt/package digests, opaque material-set ID, provider/model,
       deterministic validator outcome, reviewer decision, pass criteria, and
