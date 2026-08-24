@@ -61,6 +61,7 @@ def _service(tmp_path: Path, *, profile_requirement: str = "local-general-model"
     profile = profiles.create(
         model_id="local-model-v1",
         adapter_id="strict-local-adapter-v1",
+        base_url="http://127.0.0.1:11434/v1",
         capabilities={"text_generation"},
         profile_requirement=profile_requirement,
     )
@@ -106,6 +107,7 @@ def test_registration_rejects_a_hosted_adapter_fallback(tmp_path: Path) -> None:
                 profile_id=profile_id,
                 model_id="hosted-model-v1",
                 adapter_id="hosted-adapter-v1",
+                base_url="https://models.example.test/v1",
                 profile_requirement="local-general-model",
                 capabilities=frozenset({"text_generation"}),
             )

@@ -70,6 +70,7 @@ def _runner(tmp_path: Path, *, local: bool = True):
     profile = profiles.create(
         model_id="local-model-v1",
         adapter_id="strict-local-adapter-v1",
+        base_url="http://127.0.0.1:11434/v1",
         capabilities={"text_generation"},
     )
     registrations = WorkflowRegistrationService(
