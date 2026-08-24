@@ -341,7 +341,7 @@ passes.
       dispatch; post-dispatch timeout/cancellation/reconnect is
       `outcome_unknown` and is never retried automatically. Retry a mutation
       only through a remote idempotency contract bound to the action digest.
-- [ ] RED/GREEN: atomically consume a side-effect-capable prepared input at run
+- [x] RED/GREEN: atomically consume a side-effect-capable prepared input at run
       creation. Concurrent/replayed consumption fails; prompt-only actions pass
       without G4, while file-backed actions require G4.
 

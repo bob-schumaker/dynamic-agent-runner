@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 import yaml
@@ -719,6 +721,38 @@ def test_side_effecting_prepared_input_cannot_be_replayed(tmp_path: Path) -> Non
     with pytest.raises(RunDarWorkflowError, match="registered workflow run failed"):
         runner.run(request, now=NOW)
 
+    assert mcp_client.calls == [
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
+
+
+def test_side_effecting_prepared_input_has_one_concurrent_consumer(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, mcp_client, _ = _tool_runner(tmp_path, side_effect=True)
+    prepared = preparation.prepare(
+        workflow_id="mail-reader", prompt="ada@example.test\nWelcome!", now=NOW
+    )
+    request = RunDarWorkflowRequest.from_mapping(
+        {
+            "format_version": 1,
+            "workflow_id": "mail-reader",
+            "prepared_input_id": prepared.prepared_input_id,
+        }
+    )
+    barrier = Barrier(2)
+
+    def consume_once() -> str:
+        barrier.wait()
+        try:
+            return runner.run(request, now=NOW).status
+        except RunDarWorkflowError:
+            return "rejected"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(executor.map(lambda _index: consume_once(), range(2)))
+
+    assert sorted(outcomes) == ["completed", "rejected"]
     assert mcp_client.calls == [
         ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
     ]
