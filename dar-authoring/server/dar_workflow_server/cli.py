@@ -74,13 +74,14 @@ def main(
             _write(write, mcp_result)
             return 0
         if args.command == "select-package":
+            select = (
+                host.select_publisher_package
+                if args.publisher_signed
+                else host.select_package
+            )
             _write(
                 write,
-                {
-                    "package_source_handle": host.select_package(
-                        Path(args.path), now=now
-                    )
-                },
+                {"package_source_handle": select(Path(args.path), now=now)},
             )
             return 0
         if args.command == "register":
@@ -211,6 +212,7 @@ def _parser() -> argparse.ArgumentParser:
     bind.add_argument("--snapshot-id", required=True)
     select = commands.add_parser("select-package")
     select.add_argument("--path", required=True)
+    select.add_argument("--publisher-signed", action="store_true")
     register = commands.add_parser("register")
     register.add_argument("--workflow-id", required=True)
     register.add_argument("--package-source-handle", required=True)

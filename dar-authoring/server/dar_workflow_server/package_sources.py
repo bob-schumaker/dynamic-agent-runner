@@ -12,6 +12,7 @@ from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
 
 
 _HUMAN_SELECTED_LOCAL = "human_selected_local"
+_PUBLISHER_SIGNATURE = "publisher_signature"
 
 
 class PackageSourceSelectionError(ValueError):
@@ -57,6 +58,16 @@ class PackageSourceSelectionPolicy:
     def select_zip(self, path: Path, *, now: datetime) -> str:
         """Validate a configured ZIP selection and return only an opaque ID."""
 
+        return self._select_zip(path, now=now, trust=_HUMAN_SELECTED_LOCAL)
+
+    def select_publisher_zip(self, path: Path, *, now: datetime) -> str:
+        """Select a publisher-signed ZIP for trusted-signature verification."""
+
+        return self._select_zip(path, now=now, trust=_PUBLISHER_SIGNATURE)
+
+    def _select_zip(self, path: Path, *, now: datetime, trust: str) -> str:
+        """Issue one ZIP source handle with explicit human-selected provenance."""
+
         root = self._validated_allowed_root()
         candidate = _canonical_path(path, "package ZIP")
         try:
@@ -74,7 +85,7 @@ class PackageSourceSelectionPolicy:
                     "source_type": "zip",
                     "source_root": str(root),
                     "source_path": str(candidate),
-                    "trust": _HUMAN_SELECTED_LOCAL,
+                    "trust": trust,
                 },
                 expires_at=now.astimezone(UTC) + timedelta(minutes=5),
                 now=now,

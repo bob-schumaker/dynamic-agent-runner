@@ -347,7 +347,11 @@ class LocalWorkflowHost:
             sources=PackageSourceSelectionPolicy(
                 allowed_root=configuration.package_root, store=store
             ),
-            stager=PrivatePackageStager(store=store, private_root=root / "staging"),
+            stager=PrivatePackageStager(
+                store=store,
+                private_root=root / "staging",
+                trusted_keys=PublisherTrustStore(root).trusted_keys,
+            ),
             catalog=catalog,
             registrations=registrations,
             preparation=preparation,
@@ -383,6 +387,13 @@ class LocalWorkflowHost:
         if path.suffix.lower() == ".zip":
             return self._sources.select_zip(path, now=now)
         return self._sources.select_directory(path, now=now)
+
+    def select_publisher_package(self, path: Path, *, now: datetime) -> str:
+        """Return an opaque handle for one human-selected publisher ZIP package."""
+
+        if path.suffix.lower() != ".zip":
+            raise LocalWorkflowHostError("publisher package must be a ZIP")
+        return self._sources.select_publisher_zip(path, now=now)
 
     def review_mcp_surface(
         self,

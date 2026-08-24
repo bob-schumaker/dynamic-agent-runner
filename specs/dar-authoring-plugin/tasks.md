@@ -310,8 +310,13 @@ passes.
 - [x] RED/GREEN: a local owner-only publisher store accepts only valid Ed25519
       public keys under bounded human-configured IDs, prevents silent
       replacement, exposes redaction-safe identities, and supports explicit
-      key revocation through local CLI control-plane commands. Import wiring
-      remains separate.
+      key revocation through local CLI control-plane commands.
+- [x] RED/GREEN: an explicitly selected publisher-signed ZIP must supply a
+      source manifest that exactly matches the staged payload and a detached
+      Ed25519 signature from a currently trusted local key before catalog import;
+      the immutable catalog revision records `publisher_signature` plus the
+      signing key ID. The recipient-host CLI fixture proves trust, selection, and
+      registration end to end.
 - [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
       signer/key-id binding, rejection of an unknown locally trusted publisher
       key, and a recipient-host signed-package import. Explicitly selected

@@ -12,12 +12,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
 sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
 
 from dar_workflow_server.package_sources import PackageSourceSelectionPolicy  # noqa: E402
+from dar_workflow_server.package_signatures import sign_manifest  # noqa: E402
 from dar_workflow_server.staging import (  # noqa: E402
     PackageStagingError,
     PrivatePackageStager,
@@ -84,6 +86,20 @@ def _archive_selection(tmp_path: Path, archive: Path) -> tuple[str, PrivateState
         allowed_root=archive.parent, store=store
     ).select_zip(archive, now=NOW)
     return handle, store
+
+
+def _signed_archive(tmp_path: Path, *, key_id: str, private_key: bytes) -> Path:
+    source = _source_package(tmp_path)
+    manifest = _write_source_manifest(source)
+    signature = sign_manifest(manifest=manifest, key_id=key_id, private_key=private_key)
+    (source / "package-signature.json").write_text(
+        json.dumps(signature, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+    archive = source.parent / "document-helper.zip"
+    with zipfile.ZipFile(archive, "w") as package:
+        for path in sorted(source.iterdir()):
+            package.write(path, path.name)
+    return archive
 
 
 def test_staging_copies_selected_package_and_validates_dar(tmp_path: Path) -> None:
@@ -177,6 +193,50 @@ def test_staging_imports_a_human_selected_zip_through_the_private_copy(
     assert staged.file_count == 4
     assert staged.byte_count > 0
     assert not list((tmp_path / "private").glob(".extract-*"))
+
+
+def test_staging_verifies_a_human_selected_publisher_signed_zip(
+    tmp_path: Path,
+) -> None:
+    key_id = "publisher.example.v1"
+    private_key = Ed25519PrivateKey.generate()
+    archive = _signed_archive(
+        tmp_path, key_id=key_id, private_key=private_key.private_bytes_raw()
+    )
+    store = PrivateStateStore(tmp_path / "state")
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=archive.parent, store=store
+    ).select_publisher_zip(archive, now=NOW)
+
+    staged = PrivatePackageStager(
+        store=store,
+        private_root=tmp_path / "private",
+        trusted_keys=lambda: {key_id: private_key.public_key().public_bytes_raw()},
+    ).stage(handle, now=NOW)
+
+    assert staged.trust == "publisher_signature"
+    assert staged.publisher_key_id == key_id
+    assert not (staged.root / "package-signature.json").exists()
+
+
+def test_staging_rejects_an_untrusted_publisher_signed_zip(tmp_path: Path) -> None:
+    private_key = Ed25519PrivateKey.generate()
+    archive = _signed_archive(
+        tmp_path,
+        key_id="publisher.example.v1",
+        private_key=private_key.private_bytes_raw(),
+    )
+    store = PrivateStateStore(tmp_path / "state")
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=archive.parent, store=store
+    ).select_publisher_zip(archive, now=NOW)
+
+    with pytest.raises(PackageStagingError, match="publisher signature"):
+        PrivatePackageStager(
+            store=store,
+            private_root=tmp_path / "private",
+            trusted_keys=lambda: {},
+        ).stage(handle, now=NOW)
 
 
 @pytest.mark.parametrize(

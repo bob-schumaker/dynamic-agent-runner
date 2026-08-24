@@ -214,14 +214,15 @@ part of ordinary test execution.
    source payload path, byte count, and SHA-256. The generated manifest is not
    yet a source-supplied or publisher-signed trust assertion.
 3. **M8.1c: Verify portable package trust.** Source-supplied manifests, when
-   present, are now compared byte-for-byte to the canonical private payload
-   inventory before publication. A tested Ed25519 exact-manifest signature
-   primitive is available, and each human-selected local source now records
-   `human_selected_local` against its immutable revision/content-manifest
-   digest. An owner-only, revocable store now accepts human-configured publisher
-   keys, but the trust policy must next require a source manifest for portable
-   exchange and verify those keys' signatures before a
-   portable archive may become a catalog revision.
+   present, are compared byte-for-byte to the canonical private payload
+   inventory before publication. A human can explicitly select a
+   publisher-signed ZIP; it must supply that exact manifest plus a detached
+   Ed25519 signature from a currently trusted local publisher key before staging
+   or catalog import, and its revision records the signing key ID. Each ordinary
+   human-selected local source records `human_selected_local` against its
+   immutable revision/content-manifest digest. The remaining trust work is to
+   require source manifests for every portable ZIP exchange, enforce the ZIP
+   compression-ratio limit, and complete a signing-export path.
 4. **M8.1d: Export portable packages.** Implemented for an already-private
    staged package: deterministic stored ZIP export rechecks the generated
    manifest and payload hashes without executing package content, and round

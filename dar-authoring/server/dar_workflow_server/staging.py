@@ -10,6 +10,7 @@ import secrets
 import shutil
 import stat
 import zipfile
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +19,10 @@ from pathlib import PurePosixPath
 from dynamic_agent_runner import load_agent_package_workflow
 
 from dar_workflow_server.profiles import InstallationIdentityProvider
+from dar_workflow_server.package_signatures import (
+    PackageSignatureError,
+    verify_manifest,
+)
 from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
 
 
@@ -26,7 +31,9 @@ MAX_PACKAGE_BYTES = 64 * 1024 * 1024
 MAX_PACKAGE_FILES = 256
 _READ_SIZE = 64 * 1024
 _PACKAGE_MANIFEST_NAME = "package-manifest.json"
+_PACKAGE_SIGNATURE_NAME = "package-signature.json"
 _HUMAN_SELECTED_LOCAL = "human_selected_local"
+_PUBLISHER_SIGNATURE = "publisher_signature"
 
 
 class PackageStagingError(ValueError):
@@ -42,15 +49,23 @@ class StagedPackage:
     file_count: int
     byte_count: int
     trust: str
+    publisher_key_id: str | None = None
 
 
 class PrivatePackageStager:
     """Stage a selected directory or safely extracted ZIP through one copy path."""
 
-    def __init__(self, *, store: PrivateStateStore, private_root: Path) -> None:
+    def __init__(
+        self,
+        *,
+        store: PrivateStateStore,
+        private_root: Path,
+        trusted_keys: Callable[[], Mapping[str, bytes]] | None = None,
+    ) -> None:
         self._store = store
         self._private_root = private_root
         self._identity = InstallationIdentityProvider()
+        self._trusted_keys = trusted_keys or (lambda: {})
 
     def stage(self, source_handle: str, *, now: datetime) -> StagedPackage:
         """Stage, validate, and seal one local-control-plane package source."""
@@ -72,7 +87,7 @@ class PrivatePackageStager:
                 _extract_zip(source_root, source_path, extraction_root)
                 source_fd = _open_absolute_directory(extraction_root)
             entries: list[tuple[str, str, int]] = []
-            source_manifest = _copy_directory(
+            source_manifest, source_signature = _copy_directory(
                 source_fd,
                 temporary_root,
                 relative_path="",
@@ -96,6 +111,12 @@ class PrivatePackageStager:
                 raise PackageStagingError(
                     "package source manifest does not match payload"
                 )
+            publisher_key_id = self._verify_publisher_signature(
+                trust=trust,
+                manifest=expected_manifest,
+                source_manifest=source_manifest,
+                source_signature=source_signature,
+            )
             _write_content_manifest(temporary_root, expected_manifest)
             final_root = private_root / f"package-{digest}"
             if final_root.exists():
@@ -103,7 +124,14 @@ class PrivatePackageStager:
             else:
                 os.replace(temporary_root, final_root)
                 _seal_tree(final_root)
-            return StagedPackage(final_root, digest, file_count, byte_count, trust)
+            return StagedPackage(
+                final_root,
+                digest,
+                file_count,
+                byte_count,
+                trust,
+                publisher_key_id,
+            )
         finally:
             if source_fd >= 0:
                 os.close(source_fd)
@@ -129,7 +157,7 @@ class PrivatePackageStager:
         if source_type not in {"directory", "zip"}:
             raise PackageStagingError("package source type is invalid")
         trust = payload.get("trust")
-        if trust != _HUMAN_SELECTED_LOCAL:
+        if trust not in {_HUMAN_SELECTED_LOCAL, _PUBLISHER_SIGNATURE}:
             raise PackageStagingError("package source trust is invalid")
         root = _absolute_path(payload.get("source_root"), "package source root")
         path = _absolute_path(payload.get("source_path"), "package source path")
@@ -140,6 +168,32 @@ class PrivatePackageStager:
                 "package source path is outside its root"
             ) from error
         return source_type, root, path, trust
+
+    def _verify_publisher_signature(
+        self,
+        *,
+        trust: str,
+        manifest: bytes,
+        source_manifest: bytes | None,
+        source_signature: bytes | None,
+    ) -> str | None:
+        if trust == _HUMAN_SELECTED_LOCAL:
+            return None
+        if source_manifest is None or source_signature is None:
+            raise PackageStagingError("publisher-signed package metadata is missing")
+        try:
+            signature = json.loads(source_signature)
+            if not isinstance(signature, Mapping):
+                raise PackageSignatureError("package signature is invalid")
+            return verify_manifest(
+                manifest=manifest,
+                signature=signature,
+                trusted_keys=self._trusted_keys(),
+            )
+        except (PackageSignatureError, TypeError, ValueError) as error:
+            raise PackageStagingError(
+                "package publisher signature is invalid"
+            ) from error
 
 
 def _private_directory(path: Path) -> Path:
@@ -254,11 +308,15 @@ def _copy_directory(
     *,
     relative_path: str,
     entries: list[tuple[str, str, int]],
-) -> bytes | None:
+) -> tuple[bytes | None, bytes | None]:
     source_manifest: bytes | None = None
+    source_signature: bytes | None = None
     for name in sorted(os.listdir(source_fd)):
         if not relative_path and name == _PACKAGE_MANIFEST_NAME:
-            source_manifest = _read_source_manifest(source_fd, name)
+            source_manifest = _read_source_metadata(source_fd, name)
+            continue
+        if not relative_path and name == _PACKAGE_SIGNATURE_NAME:
+            source_signature = _read_source_metadata(source_fd, name)
             continue
         try:
             source_stat = os.lstat(name, dir_fd=source_fd)
@@ -286,7 +344,7 @@ def _copy_directory(
             _copy_file(source_fd, name, child_destination, child_relative_path, entries)
         else:
             raise PackageStagingError("package source contains a non-regular entry")
-    return source_manifest
+    return source_manifest, source_signature
 
 
 def _copy_file(
@@ -377,7 +435,7 @@ def _write_content_manifest(root: Path, encoded: bytes) -> None:
     os.replace(temporary, destination)
 
 
-def _read_source_manifest(source_parent_fd: int, name: str) -> bytes:
+def _read_source_metadata(source_parent_fd: int, name: str) -> bytes:
     try:
         source_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=source_parent_fd)
     except OSError as error:

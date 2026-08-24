@@ -4,14 +4,20 @@ from __future__ import annotations
 
 import shutil
 import sys
+import hashlib
+import json
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
 sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
 
 from dar_workflow_server.catalog import PackageCatalog  # noqa: E402
+from dar_workflow_server.package_signatures import sign_manifest  # noqa: E402
 from dar_workflow_server.package_sources import PackageSourceSelectionPolicy  # noqa: E402
 from dar_workflow_server.staging import PrivatePackageStager  # noqa: E402
 from dar_workflow_server.state import PrivateStateStore  # noqa: E402
@@ -33,6 +39,52 @@ def _stage(tmp_path: Path, content: str | None = None):
     return PrivatePackageStager(store=store, private_root=tmp_path / "staging").stage(
         source_handle, now=NOW
     )
+
+
+def _stage_publisher_signed(tmp_path: Path):
+    source = tmp_path / "packages" / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    digest = hashlib.sha256()
+    files = []
+    for path in sorted(source.iterdir()):
+        body = path.read_bytes()
+        file_digest = hashlib.sha256(body).hexdigest()
+        digest.update(f"{path.name}\0{file_digest}\0{len(body)}\n".encode("utf-8"))
+        files.append(
+            {"byte_count": len(body), "path": path.name, "sha256": file_digest}
+        )
+    manifest = json.dumps(
+        {
+            "content_digest": digest.hexdigest(),
+            "files": files,
+            "format_version": 1,
+            "package_id": "dar-authoring-no-tool-template",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    (source / "package-manifest.json").write_bytes(manifest)
+    key_id = "publisher.example.v1"
+    private_key = Ed25519PrivateKey.generate()
+    signature = sign_manifest(
+        manifest=manifest, key_id=key_id, private_key=private_key.private_bytes_raw()
+    )
+    (source / "package-signature.json").write_text(
+        json.dumps(signature, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+    archive = source.parent / "document-helper.zip"
+    with zipfile.ZipFile(archive, "w") as package:
+        for path in sorted(source.iterdir()):
+            package.write(path, path.name)
+    store = PrivateStateStore(tmp_path / "state")
+    source_handle = PackageSourceSelectionPolicy(
+        allowed_root=archive.parent, store=store
+    ).select_publisher_zip(archive, now=NOW)
+    return PrivatePackageStager(
+        store=store,
+        private_root=tmp_path / "staging",
+        trusted_keys=lambda: {key_id: private_key.public_key().public_bytes_raw()},
+    ).stage(source_handle, now=NOW)
 
 
 def test_catalog_reimport_is_idempotent(tmp_path: Path) -> None:
@@ -75,3 +127,17 @@ def test_catalog_revisions_survive_reopen(tmp_path: Path) -> None:
 
     assert len(revisions) == 1
     assert revisions[0].revision_digest == staged.digest
+
+
+def test_catalog_retains_verified_publisher_provenance(tmp_path: Path) -> None:
+    staged = _stage_publisher_signed(tmp_path)
+    catalog = PackageCatalog(tmp_path / "catalog")
+
+    revision = catalog.import_staged(staged)
+    reopened = PackageCatalog(tmp_path / "catalog").revision(
+        revision.package_id, revision.revision_digest
+    )
+
+    assert revision.trust == "publisher_signature"
+    assert revision.publisher_key_id == "publisher.example.v1"
+    assert reopened == revision

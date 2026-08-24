@@ -26,6 +26,7 @@ class CatalogPackageRevision:
     revision_digest: str
     package_root: Path
     trust: str
+    publisher_key_id: str | None = None
 
 
 class PackageCatalog:
@@ -52,10 +53,23 @@ class PackageCatalog:
             raise PackageCatalogError("staged package has no package_id")
         if not _is_digest(staged.digest):
             raise PackageCatalogError("staged package digest is invalid")
-        if staged.trust != "human_selected_local":
+        if staged.trust == "human_selected_local":
+            if staged.publisher_key_id is not None:
+                raise PackageCatalogError("staged package publisher is invalid")
+        elif staged.trust == "publisher_signature":
+            if (
+                not isinstance(staged.publisher_key_id, str)
+                or not staged.publisher_key_id
+            ):
+                raise PackageCatalogError("staged package publisher is invalid")
+        else:
             raise PackageCatalogError("staged package trust is invalid")
         revision = CatalogPackageRevision(
-            package_id, staged.digest, package_root, staged.trust
+            package_id,
+            staged.digest,
+            package_root,
+            staged.trust,
+            staged.publisher_key_id,
         )
         packages = self._read()
         revisions = packages.setdefault(package_id, {})
@@ -65,6 +79,7 @@ class PackageCatalog:
         revisions[staged.digest] = {
             "package_root": str(package_root),
             "trust": staged.trust,
+            "publisher_key_id": staged.publisher_key_id,
         }
         self._write(packages)
         return revision
@@ -116,9 +131,16 @@ def _revision_from_mapping(
         raise PackageCatalogError("package catalog is invalid")
     root = value.get("package_root")
     trust = value.get("trust")
-    if not isinstance(root, str) or trust not in {"human_selected_local"}:
+    publisher_key_id = value.get("publisher_key_id")
+    if not isinstance(root, str):
         raise PackageCatalogError("package catalog is invalid")
-    return CatalogPackageRevision(package_id, digest, Path(root), trust)
+    if trust == "human_selected_local" and publisher_key_id is None:
+        return CatalogPackageRevision(package_id, digest, Path(root), trust)
+    if trust == "publisher_signature" and isinstance(publisher_key_id, str):
+        return CatalogPackageRevision(
+            package_id, digest, Path(root), trust, publisher_key_id
+        )
+    raise PackageCatalogError("package catalog is invalid")
 
 
 def _is_digest(value: object) -> bool:

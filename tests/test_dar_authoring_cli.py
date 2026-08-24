@@ -6,6 +6,8 @@ import json
 import shutil
 import sys
 import base64
+import hashlib
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -27,6 +29,50 @@ def _invoke(args: list[str]) -> tuple[int, dict[str, object]]:
     output: list[str] = []
     result = main(args, write=output.append)
     return result, json.loads(output[0])
+
+
+def _signed_archive(
+    source: Path, *, key_id: str, private_key: Ed25519PrivateKey
+) -> Path:
+    digest = hashlib.sha256()
+    files = []
+    for path in sorted(source.iterdir()):
+        body = path.read_bytes()
+        file_digest = hashlib.sha256(body).hexdigest()
+        digest.update(f"{path.name}\0{file_digest}\0{len(body)}\n".encode("utf-8"))
+        files.append(
+            {"byte_count": len(body), "path": path.name, "sha256": file_digest}
+        )
+    manifest = json.dumps(
+        {
+            "content_digest": digest.hexdigest(),
+            "files": files,
+            "format_version": 1,
+            "package_id": "dar-authoring-no-tool-template",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    (source / "package-manifest.json").write_bytes(manifest)
+    signature = private_key.sign(manifest)
+    (source / "package-signature.json").write_text(
+        json.dumps(
+            {
+                "algorithm": "ed25519",
+                "format_version": 1,
+                "key_id": key_id,
+                "signature": base64.b64encode(signature).decode("ascii"),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    archive = source.parent / "document-helper.zip"
+    with zipfile.ZipFile(archive, "w") as package:
+        for path in sorted(source.iterdir()):
+            package.write(path, path.name)
+    return archive
 
 
 def test_cli_manages_human_trusted_publisher_keys(tmp_path: Path) -> None:
@@ -56,6 +102,72 @@ def test_cli_manages_human_trusted_publisher_keys(tmp_path: Path) -> None:
     )
     assert status == 0
     assert revoked == {"key_id": key_id, "status": "revoked"}
+
+
+def test_cli_registers_a_trusted_publisher_signed_zip(tmp_path: Path) -> None:
+    root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    source = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    key_id = "publisher.example.v1"
+    private_key = Ed25519PrivateKey.generate()
+    archive = _signed_archive(source, key_id=key_id, private_key=private_key)
+    state_args = ["--state-root", str(root)]
+
+    status, _ = _invoke(
+        [
+            *state_args,
+            "configure-local-model",
+            "--package-root",
+            str(package_root),
+            "--model-id",
+            "local-model-v1",
+            "--base-url",
+            "http://127.0.0.1:11434/v1",
+        ]
+    )
+    assert status == 0
+    status, _ = _invoke(
+        [
+            *state_args,
+            "trust-publisher",
+            "--key-id",
+            key_id,
+            "--public-key-base64",
+            base64.b64encode(private_key.public_key().public_bytes_raw()).decode(
+                "ascii"
+            ),
+        ]
+    )
+    assert status == 0
+    status, selected = _invoke(
+        [
+            *state_args,
+            "select-package",
+            "--path",
+            str(archive),
+            "--publisher-signed",
+        ]
+    )
+    assert status == 0
+    status, _ = _invoke(
+        [
+            *state_args,
+            "register",
+            "--workflow-id",
+            "publisher-package",
+            "--package-source-handle",
+            selected["package_source_handle"],
+        ]
+    )
+
+    assert status == 0
+    catalog = json.loads((root / "catalog" / "packages.json").read_text())
+    revisions = catalog["packages"]["dar-authoring-no-tool-template"]
+    assert len(revisions) == 1
+    revision = next(iter(revisions.values()))
+    assert revision["trust"] == "publisher_signature"
+    assert revision["publisher_key_id"] == key_id
 
 
 def test_cli_configures_selects_registers_prepares_and_dry_runs(tmp_path: Path) -> None:
