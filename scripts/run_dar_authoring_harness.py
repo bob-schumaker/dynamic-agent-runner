@@ -45,6 +45,8 @@ def run_fixture(
     timeout: float,
     host_package_root: Path | None = None,
     host_package_name: str | None = None,
+    companion_fixture_paths: Sequence[Path] = (),
+    companion_materials_paths: Sequence[Path] = (),
 ) -> dict[str, object]:
     """Run one generator privately and persist only its redacted evidence."""
 
@@ -54,13 +56,28 @@ def run_fixture(
         json.loads(_decode(_read_bytes(materials_path, "materials"), "materials")),
         fixture["selected_materials"],
     )
+    companion_fixtures, companion_materials, companion_bytes = _companions(
+        entry_fixture=fixture,
+        fixture_paths=companion_fixture_paths,
+        materials_paths=companion_materials_paths,
+    )
+    all_materials = _combined_materials((materials, *companion_materials))
     request = ExternalAuthoringHarnessRequest(
-        skill_name=fixture["skill"], request=fixture["request"], materials=materials
+        skill_name=fixture["skill"], request=fixture["request"], materials=all_materials
     )
     outcome = _run_generator(
         request=request,
-        expected_artifacts=fixture["expected_artifacts"],
-        artifact_contracts=fixture["artifact_contracts"],
+        companion_fixtures=companion_fixtures,
+        expected_artifacts=tuple(
+            artifact
+            for selected_fixture in (fixture, *companion_fixtures)
+            for artifact in selected_fixture["expected_artifacts"]
+        ),
+        artifact_contracts=tuple(
+            contract
+            for selected_fixture in (fixture, *companion_fixtures)
+            for contract in selected_fixture["artifact_contracts"]
+        ),
         generator=generator,
         timeout=timeout,
         host_package_root=host_package_root,
@@ -68,9 +85,14 @@ def run_fixture(
     )
     _validate_review(reviewer_decision, outcome.validator_result)
     evidence = AuthoringEvidence(
-        corpus_digest=hashlib.sha256(fixture_bytes).hexdigest(),
-        prompt_digest=hashlib.sha256(request.request.encode("utf-8")).hexdigest(),
-        material_set_id=materials.material_set_id,
+        corpus_digest=_combined_digest((fixture_bytes, *companion_bytes)),
+        prompt_digest=_combined_digest(
+            tuple(
+                selected_fixture["request"].encode("utf-8")
+                for selected_fixture in (fixture, *companion_fixtures)
+            )
+        ),
+        material_set_id=all_materials.material_set_id,
         authoring_provider=_text(provider, "provider"),
         authoring_model_id=_text(model_id, "model_id"),
         generated_package_digests=outcome.generated_package_digests,
@@ -86,6 +108,7 @@ def run_fixture(
 def _run_generator(
     *,
     request: ExternalAuthoringHarnessRequest,
+    companion_fixtures: Sequence[dict[str, object]],
     expected_artifacts: tuple[str, ...],
     artifact_contracts: tuple[dict[str, object], ...],
     generator: Sequence[str],
@@ -107,7 +130,7 @@ def _run_generator(
             host_package_root=host_package_root,
             host_package_name=host_package_name,
         )
-        _write_private_request(request_path, request)
+        _write_private_request(request_path, request, companion_fixtures)
         try:
             result = subprocess.run(
                 [
@@ -182,7 +205,9 @@ def _output_path(
 
 
 def _write_private_request(
-    destination: Path, request: ExternalAuthoringHarnessRequest
+    destination: Path,
+    request: ExternalAuthoringHarnessRequest,
+    companion_fixtures: Sequence[dict[str, object]],
 ) -> None:
     value = {
         "format_version": 1,
@@ -201,6 +226,14 @@ def _write_private_request(
                 for member in request.materials.members
             ],
         },
+        "companions": [
+            {
+                "expected_artifacts": list(companion["expected_artifacts"]),
+                "request": companion["request"],
+                "skill": companion["skill"],
+            }
+            for companion in companion_fixtures
+        ],
     }
     descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
@@ -399,6 +432,76 @@ def _materials(
     )
 
 
+def _companions(
+    *,
+    entry_fixture: dict[str, object],
+    fixture_paths: Sequence[Path],
+    materials_paths: Sequence[Path],
+) -> tuple[
+    tuple[dict[str, object], ...],
+    tuple[AuthoringMaterialSetProjection, ...],
+    tuple[bytes, ...],
+]:
+    if len(fixture_paths) != len(materials_paths):
+        raise HarnessError("companion fixtures and materials must pair exactly")
+    if not fixture_paths:
+        return (), (), ()
+    if entry_fixture["skill"] != "agent-development":
+        raise HarnessError("companion fixtures require agent-development entry")
+    fixtures: list[dict[str, object]] = []
+    materials: list[AuthoringMaterialSetProjection] = []
+    fixture_bytes: list[bytes] = []
+    skill_names = {entry_fixture["skill"]}
+    artifact_paths = set(entry_fixture["expected_artifacts"])
+    for fixture_path, materials_path in zip(
+        fixture_paths, materials_paths, strict=True
+    ):
+        content = _read_bytes(fixture_path, "companion fixture")
+        fixture = _fixture(json.loads(_decode(content, "companion fixture")))
+        skill = fixture["skill"]
+        if skill == "agent-development" or skill in skill_names:
+            raise HarnessError("companion fixture skill is invalid")
+        expected_artifacts = fixture["expected_artifacts"]
+        if any(artifact in artifact_paths for artifact in expected_artifacts):
+            raise HarnessError("companion fixture artifact conflicts with entry")
+        companion_materials = _materials(
+            json.loads(
+                _decode(_read_bytes(materials_path, "companion materials"), "materials")
+            ),
+            fixture["selected_materials"],
+        )
+        fixtures.append(fixture)
+        materials.append(companion_materials)
+        fixture_bytes.append(content)
+        skill_names.add(skill)
+        artifact_paths.update(expected_artifacts)
+    return tuple(fixtures), tuple(materials), tuple(fixture_bytes)
+
+
+def _combined_materials(
+    material_sets: Sequence[AuthoringMaterialSetProjection],
+) -> AuthoringMaterialSetProjection:
+    if len(material_sets) == 1:
+        return material_sets[0]
+    members = tuple(
+        member for material_set in material_sets for member in material_set.members
+    )
+    if len({member.artifact_id for member in members}) != len(members):
+        raise HarnessError("companion material artifacts must be distinct")
+    identity = "\n".join(
+        f"{member.artifact_id}:{member.digest}" for member in members
+    ).encode("utf-8")
+    return AuthoringMaterialSetProjection(
+        material_set_id=f"combined-{hashlib.sha256(identity).hexdigest()}",
+        members=members,
+        expires_at=min(material_set.expires_at for material_set in material_sets),
+    )
+
+
+def _combined_digest(parts: Sequence[bytes]) -> str:
+    return hashlib.sha256(b"\0".join(parts)).hexdigest()
+
+
 def _fixture_materials(materials: Sequence[object]) -> None:
     for material in materials:
         if not isinstance(material, dict) or set(material) != {
@@ -497,6 +600,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", dest="fixture_path", required=True, type=Path)
     parser.add_argument("--materials", dest="materials_path", required=True, type=Path)
+    parser.add_argument(
+        "--companion-fixture",
+        dest="companion_fixture_paths",
+        action="append",
+        default=[],
+        type=Path,
+    )
+    parser.add_argument(
+        "--companion-materials",
+        dest="companion_materials_paths",
+        action="append",
+        default=[],
+        type=Path,
+    )
     parser.add_argument("--provider", required=True)
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--reviewer-decision", required=True)

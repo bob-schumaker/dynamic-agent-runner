@@ -18,7 +18,16 @@ FIXTURE = (
     / "invocations"
     / "agent-development.json"
 )
+EVALUATION_FIXTURE = (
+    REPO_ROOT
+    / "tests"
+    / "fixtures"
+    / "dar-authoring"
+    / "invocations"
+    / "agent-evaluation.json"
+)
 TEMPLATE = REPO_ROOT / "dar-authoring" / "templates"
+EVALUATION_TEMPLATE = REPO_ROOT / "dar-authoring" / "evaluation-templates"
 
 
 def _materials(tmp_path: Path) -> Path:
@@ -35,6 +44,29 @@ def _materials(tmp_path: Path) -> Path:
                         "digest": "1" * 64,
                         "disposition": "reference_only",
                         "role": "example_text",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _evaluation_materials(tmp_path: Path) -> Path:
+    path = tmp_path / "evaluation-materials.json"
+    path.write_text(
+        json.dumps(
+            {
+                "expires_at": "2026-08-25T00:00:00+00:00",
+                "material_set_id": "v1.evaluation-material-set.signature",
+                "members": [
+                    {
+                        "artifact_id": "authoring-material-package-contract-v1",
+                        "content": "private selected package contract",
+                        "digest": "3" * 64,
+                        "disposition": "reference_only",
+                        "role": "package_contract",
                     }
                 ],
             }
@@ -248,6 +280,108 @@ def test_harness_accepts_a_package_finalized_by_the_host_control_plane(
 
     assert completed.returncode == 0, completed.stderr
     assert (package_root / "document-helper" / "package-manifest.json").is_file()
+    assert (
+        json.loads(evidence.read_text(encoding="utf-8"))["validator_result"] == "passed"
+    )
+
+
+def test_harness_validates_companion_artifacts_in_the_entry_skill_package(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.host import configure_local_host
+
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    configure_local_host(
+        root=state_root,
+        package_root=package_root,
+        model_id="local-test-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    generator = tmp_path / "companion_generator.py"
+    generator.write_text(
+        "\n".join(
+            [
+                "from __future__ import annotations",
+                "import json",
+                "from pathlib import Path",
+                "import sys",
+                "from dynamic_agent_runner.workflow_host.cli import main",
+                f"state_root = {str(state_root)!r}",
+                f"template_root = Path({str(TEMPLATE)!r})",
+                f"evaluation_root = Path({str(EVALUATION_TEMPLATE)!r})",
+                "request_path = Path(sys.argv[sys.argv.index('--request') + 1])",
+                "output_path = Path(sys.argv[sys.argv.index('--output') + 1])",
+                "request = json.loads(request_path.read_text(encoding='utf-8'))",
+                "assert request['companions'][0]['skill'] == 'agent-evaluation'",
+                "def call(arguments, content=None):",
+                "    output = []",
+                "    status = main(['--state-root', state_root, *arguments],",
+                "                  write=output.append,",
+                "                  read_stdin=(lambda: content) if content is not None else None)",
+                "    assert status == 0",
+                "    return json.loads(output[0])",
+                "issued = call(['issue-authoring-materials', '--materials-json-stdin'],",
+                "              json.dumps([{'role': member['role'], 'content': member['content'],",
+                "                           'disposition': member['disposition']} for member in request['materials']['members']]))",
+                "call(['project-authoring-materials', '--material-set-id', issued['material_set_id']])",
+                "created = call(['create-authored-package', '--package-name', 'document-helper'])",
+                "for source_root in (template_root, evaluation_root):",
+                "    for source in source_root.iterdir():",
+                "        call(['write-authored-package-file', '--authoring-output-id', created['authoring_output_id'],",
+                "              '--relative-path', source.name, '--content-stdin'],",
+                "             source.read_text(encoding='utf-8'))",
+                "call(['finalize-authored-package', '--authoring-output-id', created['authoring_output_id'],",
+                "      '--material-set-id', issued['material_set_id']])",
+                "assert output_path.name == 'document-helper'",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    evidence = tmp_path / "evidence" / "evidence.json"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(HARNESS),
+            "--fixture",
+            str(FIXTURE),
+            "--materials",
+            str(_materials(tmp_path)),
+            "--companion-fixture",
+            str(EVALUATION_FIXTURE),
+            "--companion-materials",
+            str(_evaluation_materials(tmp_path)),
+            "--provider",
+            "test-provider",
+            "--model-id",
+            "test-model",
+            "--reviewer-decision",
+            "approved",
+            "--evidence",
+            str(evidence),
+            "--pass-criterion",
+            "companion_artifacts",
+            "--host-package-root",
+            str(package_root),
+            "--host-package-name",
+            "document-helper",
+            "--generator",
+            sys.executable,
+            str(generator),
+        ],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        timeout=10,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    generated = package_root / "document-helper"
+    assert (generated / "eval-plan.md").is_file()
+    assert (generated / "evaluation-fixtures.json").is_file()
+    assert (generated / "regression-gate.yaml").is_file()
     assert (
         json.loads(evidence.read_text(encoding="utf-8"))["validator_result"] == "passed"
     )
