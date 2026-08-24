@@ -77,6 +77,21 @@ class OAuthTokenBundle:
             value["expires_at"] = self.expires_at.astimezone(UTC).isoformat()
         return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
+    @classmethod
+    def from_secret_value(cls, value: str) -> OAuthTokenBundle:
+        """Parse a token bundle retrieved only from host-owned secret storage."""
+
+        try:
+            payload = json.loads(value)
+            expires_at = _stored_expiry(payload.get("expires_at"))
+            return cls(
+                access_token=payload["access_token"],
+                refresh_token=payload.get("refresh_token"),
+                expires_at=expires_at,
+            )
+        except (AttributeError, KeyError, TypeError, ValueError, OAuthError) as error:
+            raise OAuthError("OAuth credential is invalid") from error
+
 
 class OAuthCallbackReceiver(Protocol):
     """A listener that is already bound before the external browser opens."""
@@ -113,6 +128,19 @@ class OAuthTokenExchanger(Protocol):
         code_verifier: str,
     ) -> OAuthTokenBundle:
         """Exchange one code without exposing token material to callers."""
+
+
+class OAuthTokenRefresher(Protocol):
+    """Refresh an OAuth credential without user interaction."""
+
+    def refresh(
+        self,
+        *,
+        token_endpoint: str,
+        client_id: str,
+        refresh_token: str,
+    ) -> OAuthTokenBundle:
+        """Refresh one token bundle without exposing token material to callers."""
 
 
 class ExternalOAuthBrowser:
@@ -218,19 +246,37 @@ class HttpOAuthTokenExchanger:
         try:
             with urlopen(request, timeout=30) as response:  # noqa: S310
                 payload = json.loads(response.read().decode("utf-8"))
-            access_token = payload["access_token"]
-            refresh_token = payload.get("refresh_token")
-            expires_at = _expiry_from_response(payload.get("expires_in"))
+            return _token_bundle_from_response(payload)
         except Exception as error:
             raise OAuthError("OAuth code exchange failed") from error
+
+    def refresh(
+        self,
+        *,
+        token_endpoint: str,
+        client_id: str,
+        refresh_token: str,
+    ) -> OAuthTokenBundle:
+        """Refresh a public-client OAuth credential over HTTPS."""
+
+        request = Request(
+            token_endpoint,
+            data=urlencode(
+                {
+                    "grant_type": "refresh_token",
+                    "client_id": client_id,
+                    "refresh_token": refresh_token,
+                }
+            ).encode("ascii"),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
         try:
-            return OAuthTokenBundle(
-                access_token=access_token,
-                refresh_token=refresh_token,
-                expires_at=expires_at,
-            )
-        except OAuthError as error:
-            raise OAuthError("OAuth code exchange failed") from error
+            with urlopen(request, timeout=30) as response:  # noqa: S310
+                payload = json.loads(response.read().decode("utf-8"))
+            return _token_bundle_from_response(payload)
+        except Exception as error:
+            raise OAuthError("OAuth token refresh failed") from error
 
 
 class OAuthAuthorizationService:
@@ -381,3 +427,27 @@ def _expiry_from_response(value: object) -> datetime | None:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise OAuthError("OAuth code exchange failed")
     return datetime.now(UTC) + timedelta(seconds=value)
+
+
+def _stored_expiry(value: object) -> datetime | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise OAuthError("OAuth credential is invalid")
+    try:
+        expiry = datetime.fromisoformat(value)
+    except ValueError as error:
+        raise OAuthError("OAuth credential is invalid") from error
+    if expiry.tzinfo is None:
+        raise OAuthError("OAuth credential is invalid")
+    return expiry
+
+
+def _token_bundle_from_response(payload: object) -> OAuthTokenBundle:
+    if not isinstance(payload, dict):
+        raise OAuthError("OAuth token response is invalid")
+    return OAuthTokenBundle(
+        access_token=payload["access_token"],
+        refresh_token=payload.get("refresh_token"),
+        expires_at=_expiry_from_response(payload.get("expires_in")),
+    )

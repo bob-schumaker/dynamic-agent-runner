@@ -19,6 +19,7 @@ from dar_workflow_server.connections import (  # noqa: E402
     MCPConnectionError,
 )
 from dar_workflow_server.oauth import (  # noqa: E402
+    HttpOAuthTokenExchanger,
     OAuthAuthorizationService,
     OAuthCallback,
     OAuthClientConfiguration,
@@ -218,6 +219,46 @@ def test_oauth_token_bundle_serializes_an_optional_utc_expiry() -> None:
         "access_token": "access",
         "expires_at": "2026-08-24T12:00:00+00:00",
     }
+
+
+def test_http_oauth_exchanger_uses_refresh_token_grant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"access_token":"refreshed","expires_in":60}'
+
+    requests = []
+
+    def fake_urlopen(request: object, *, timeout: int) -> FakeResponse:
+        requests.append((request, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr("dar_workflow_server.oauth.urlopen", fake_urlopen)
+
+    bundle = HttpOAuthTokenExchanger().refresh(
+        token_endpoint="https://login.example.test/token",
+        client_id="public-client-id",
+        refresh_token="refresh-token",
+    )
+
+    request, timeout = requests[0]
+    assert timeout == 30
+    assert request.full_url == "https://login.example.test/token"
+    assert parse_qs(request.data.decode("ascii")) == {
+        "grant_type": ["refresh_token"],
+        "client_id": ["public-client-id"],
+        "refresh_token": ["refresh-token"],
+    }
+    assert bundle.access_token == "refreshed"
+    assert bundle.refresh_token is None
+    assert bundle.expires_at is not None
 
 
 def test_oauth_rejects_bad_callback_state_without_exchanging_the_code(

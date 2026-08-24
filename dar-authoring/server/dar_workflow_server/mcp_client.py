@@ -8,20 +8,27 @@ import json
 import hashlib
 import ssl
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from threading import Event
 from typing import Any, Callable, Mapping, Protocol
 from urllib.parse import urlsplit
 
 from dar_workflow_server.connections import (
     MCPAuthentication,
+    MCPConnection,
     MCPConnectionControlPlane,
     MCPConnectionError,
 )
 from dar_workflow_server.mcp_surfaces import MCPDiscoveredTool
+from dar_workflow_server.oauth import OAuthError, OAuthTokenBundle, OAuthTokenRefresher
 
 
 class MCPConnectionClientError(ValueError):
     """Raised when a configured MCP transport cannot remain safely bound."""
+
+
+class MCPConnectionAuthenticationError(MCPConnectionClientError):
+    """Raised only when MCP setup rejects the presented credential."""
 
 
 @dataclass(frozen=True)
@@ -197,6 +204,10 @@ class HTTPSJSONRPCMCPTransportSession:
                 },
             )
             response = connection.getresponse()
+            if response.status in {401, 403}:
+                raise MCPConnectionAuthenticationError(
+                    "HTTPS MCP initialization authentication was rejected"
+                )
             if response.status != 200:
                 raise MCPConnectionClientError("HTTPS MCP initialization was rejected")
             body = response.read(max_response_bytes + 1)
@@ -310,6 +321,8 @@ class MCPConnectionClient:
     connections: MCPConnectionControlPlane
     configuration: MCPClientConfiguration
     transport_factory: HTTPSMCPTransportFactory
+    oauth_refresher: OAuthTokenRefresher | None = None
+    now: Callable[[], datetime] = lambda: datetime.now(UTC)
     _session: HTTPSMCPTransportSession | None = field(
         default=None, init=False, repr=False
     )
@@ -343,33 +356,15 @@ class MCPConnectionClient:
         _raise_if_cancelled(cancellation)
         if self._session is not None:
             raise MCPConnectionClientError("MCP connection is already initialized")
-        try:
-            connection = self.connections.load(self.configuration.connection_id)
-            authentication, secret = self.connections.credential_for_authentication(
-                self.configuration.authentication_id
-            )
-        except MCPConnectionError as error:
-            raise MCPConnectionClientError(
-                "configured connection is unavailable"
-            ) from error
-        if authentication.connection_id != connection.connection_id:
-            raise MCPConnectionClientError(
-                "authentication is bound to another connection"
-            )
+        connection, authentication, secret = self._configured_connection()
         session: HTTPSMCPTransportSession | None = None
         try:
-            session = self.transport_factory.open(
-                endpoint=connection.endpoint,
-                bearer_token=_bearer_token(authentication, secret),
-                timeout_seconds=self.configuration.timeout_seconds,
+            session, response = self._initialize_bound_session(
+                connection=connection,
+                authentication=authentication,
+                secret=secret,
+                cancellation=cancellation,
             )
-            _raise_if_cancelled(cancellation)
-            response = session.initialize(
-                timeout_seconds=self.configuration.timeout_seconds,
-                max_response_bytes=self.configuration.max_response_bytes,
-            )
-            _raise_if_cancelled(cancellation)
-            _validate_response(response, self.configuration)
         except MCPConnectionClientError:
             if session is not None:
                 session.close()
@@ -387,6 +382,128 @@ class MCPConnectionClient:
             protocol_version=response.protocol_version,
             server_name=response.server_name,
         )
+
+    def _configured_connection(
+        self,
+    ) -> tuple[MCPConnection, MCPAuthentication, str]:
+        try:
+            connection = self.connections.load(self.configuration.connection_id)
+            authentication, secret = self.connections.credential_for_authentication(
+                self.configuration.authentication_id
+            )
+        except MCPConnectionError as error:
+            raise MCPConnectionClientError(
+                "configured connection is unavailable"
+            ) from error
+        if authentication.connection_id != connection.connection_id:
+            raise MCPConnectionClientError(
+                "authentication is bound to another connection"
+            )
+        return (
+            connection,
+            authentication,
+            self._refresh_expired_oauth_credential(authentication, secret),
+        )
+
+    def _initialize_bound_session(
+        self,
+        *,
+        connection: MCPConnection,
+        authentication: MCPAuthentication,
+        secret: str,
+        cancellation: Event | None,
+    ) -> tuple[HTTPSMCPTransportSession, MCPTransportResponse]:
+        for setup_attempt in range(2):
+            try:
+                return self._open_initialized_session(
+                    endpoint=connection.endpoint,
+                    authentication=authentication,
+                    secret=secret,
+                    cancellation=cancellation,
+                )
+            except MCPConnectionAuthenticationError as error:
+                if (
+                    authentication.authentication_method
+                    != "oauth_authorization_code_pkce_loopback"
+                ):
+                    raise
+                if setup_attempt != 0:
+                    raise MCPConnectionClientError(
+                        "OAuth authentication is required"
+                    ) from error
+                secret = self._refresh_expired_oauth_credential(
+                    authentication, secret, force=True
+                )
+        raise MCPConnectionClientError("OAuth authentication is required")
+
+    def _open_initialized_session(
+        self,
+        *,
+        endpoint: str,
+        authentication: MCPAuthentication,
+        secret: str,
+        cancellation: Event | None,
+    ) -> tuple[HTTPSMCPTransportSession, MCPTransportResponse]:
+        _raise_if_cancelled(cancellation)
+        session = self.transport_factory.open(
+            endpoint=endpoint,
+            bearer_token=_bearer_token(authentication, secret),
+            timeout_seconds=self.configuration.timeout_seconds,
+        )
+        try:
+            _raise_if_cancelled(cancellation)
+            response = session.initialize(
+                timeout_seconds=self.configuration.timeout_seconds,
+                max_response_bytes=self.configuration.max_response_bytes,
+            )
+            _raise_if_cancelled(cancellation)
+            _validate_response(response, self.configuration)
+            return session, response
+        except Exception:
+            session.close()
+            raise
+
+    def _refresh_expired_oauth_credential(
+        self, authentication: MCPAuthentication, secret: str, *, force: bool = False
+    ) -> str:
+        if (
+            authentication.authentication_method
+            != "oauth_authorization_code_pkce_loopback"
+        ):
+            return secret
+        try:
+            bundle = OAuthTokenBundle.from_secret_value(secret)
+            if not force and (
+                bundle.expires_at is None or bundle.expires_at > self.now()
+            ):
+                return secret
+            if (
+                bundle.refresh_token is None
+                or authentication.oauth_token_endpoint is None
+                or authentication.oauth_client_id is None
+            ):
+                raise OAuthError("OAuth credential cannot be refreshed")
+            refresher = self.oauth_refresher or _default_oauth_refresher()
+            refreshed = refresher.refresh(
+                token_endpoint=authentication.oauth_token_endpoint,
+                client_id=authentication.oauth_client_id,
+                refresh_token=bundle.refresh_token,
+            )
+            if refreshed.refresh_token is None:
+                refreshed = OAuthTokenBundle(
+                    access_token=refreshed.access_token,
+                    refresh_token=bundle.refresh_token,
+                    expires_at=refreshed.expires_at,
+                )
+            replacement = refreshed.secret_value()
+            self.connections.replace_oauth_credential(
+                authentication.authentication_id, replacement
+            )
+            return replacement
+        except (MCPConnectionError, OAuthError, ValueError) as error:
+            raise MCPConnectionClientError(
+                "OAuth authentication is required"
+            ) from error
 
     def reconnect(
         self, *, cancellation: Event | None = None
@@ -475,6 +592,12 @@ def _bearer_token(authentication: MCPAuthentication, secret: str) -> str:
     if not isinstance(access_token, str) or not access_token:
         raise MCPConnectionClientError("OAuth credential is invalid")
     return access_token
+
+
+def _default_oauth_refresher() -> OAuthTokenRefresher:
+    from dar_workflow_server.oauth import HttpOAuthTokenExchanger
+
+    return HttpOAuthTokenExchanger()
 
 
 def _raise_if_cancelled(cancellation: Event | None) -> None:

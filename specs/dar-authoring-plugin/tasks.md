@@ -163,7 +163,7 @@ passes.
       accepts one callback, exchanges its code once, and returns only connection
       status. Tokens, code, callback query, and listener details never reach a
       skill, package, trace, or model-facing tool.
-- [ ] RED/GREEN: make an already-authorized OAuth connection reusable without
+- [x] RED/GREEN: make an already-authorized OAuth connection reusable without
       human intervention. Persist only host-owned refresh configuration and a
       credential-store refresh token; refresh an expired access token before
       reconnect, or once after setup authentication failure, atomically replace
