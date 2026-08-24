@@ -161,7 +161,9 @@ passes.
       handlers only from an approved snapshot; before G5, reject every non-read-
       only side-effect class and prove a fake send-like handler is not invoked.
 - [ ] RED/GREEN: a read-only MCP registration is unavailable until both G2 and
-      G3 pass; then execute it through the shared capability resolution path.
+      G3 pass and G1's bounded task-invocation / declared-MCP-tool policy can
+      compile the tool-bearing package; then execute it through the shared
+      capability resolution path.
 
 ## G3: Read-Only Workflow Runner
 
