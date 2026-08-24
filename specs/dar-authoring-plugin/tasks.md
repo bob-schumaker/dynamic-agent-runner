@@ -140,16 +140,16 @@ passes.
 - [x] GREEN: human-only OAuth authorization-code PKCE loopback connection flow
       with secret storage outside package artifacts and immutable profile/scope
       binding.
-- [ ] RED/GREEN: implement the first generic remote HTTPS MCP adapter with OAuth
+- [x] RED/GREEN: implement the first generic remote HTTPS MCP adapter with OAuth
       PKCE or a locally stored API token, pinned peer identity, and fake fixtures
       for scoped read/write/send-like surfaces. No other transport is advertised.
-- [ ] RED/GREEN: the HTTPS connection definition's human-only
+- [x] RED/GREEN: the HTTPS connection definition's human-only
       `oauth_authorization_code_pkce_loopback` handler binds an ephemeral local
       callback before launching the browser, verifies PKCE/state/exact redirect,
       accepts one callback, exchanges its code once, and returns only connection
       status. Tokens, code, callback query, and listener details never reach a
       skill, package, trace, or model-facing tool.
-- [ ] RED/GREEN: approved MCP surface snapshot creation/review plus passive
+- [x] RED/GREEN: approved MCP surface snapshot creation/review plus passive
       `tools/list` identity/input-schema drift detection on the run path.
 - [x] RED/GREEN: plugin-owned `MCPConnectionClient` fixtures cover configured
       transport initialization, strict/unavailable startup, timeout,
@@ -159,7 +159,7 @@ passes.
       read-only MCP tools to exactly one authenticated client generation and
       current human-reviewed surface; neither this record nor its control plane
       constructs a remote tool handler.
-- [ ] RED/GREEN: bind every handler to one transport-specific identity,
+- [x] RED/GREEN: bind every handler to one transport-specific identity,
       connection generation, and surface snapshot; reconnect, rotation, or
       drift before dispatch fails closed rather than widening a live binding.
 - [x] RED/GREEN: disconnect/reconnect or peer failover between preflight and
@@ -174,10 +174,9 @@ passes.
       the runner derives its host registry from that record, executes one fake
       read-only workflow through shared capability resolution, and rejects
       generation drift before model or remote-tool dispatch.
-- [ ] RED/GREEN: a read-only MCP registration is unavailable until both G2 and
-      G3 pass and G1's bounded task-invocation / declared-MCP-tool policy can
-      compile the tool-bearing package; then execute it through the shared
-      capability resolution path.
+- [x] RED/GREEN: a read-only MCP registration requires G1's bounded task-
+      invocation / declared-MCP-tool policy and a current G2 binding before it
+      can execute through the shared capability-resolution path.
 
 ## G3: Read-Only Workflow Runner
 

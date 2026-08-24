@@ -3,6 +3,16 @@
 
 ## Current Focus
 
+- `dar-authoring-plugin` M5 (G2 generic HTTPS MCP read-only path) is complete
+  through `88b4b41`. It provides human-owned API-token and OAuth PKCE-loopback
+  setup, pinned/bounded HTTPS lifecycle and `tools/list`/`tools/call`, reviewed
+  read-only surface snapshots, opaque current-generation bindings, generic
+  `HostToolBinding` construction, and one fake end-to-end read-only workflow.
+  Readiness reports `authentication_required` without creating a session or
+  exposing a secret; reconnect or schema drift fails before remote dispatch.
+  No write/send-like tool is constructed before G5. M6 remains blocked on the
+  sandbox ingress primitive; M0/M1 provenance and release trust anchoring,
+  M4 authoring evidence, M7 side effects, and M8 publication remain.
 - `dar-authoring-plugin` M3 (G3 local no-tool runner) is implemented through
   `68b0862`. A host-managed strict-local loopback OpenAI-compatible profile is
   persisted privately, a saved package is registered to its immutable profile,
@@ -11,8 +21,8 @@
   `dar-workflow` provides human local setup, source selection, registration,
   preparation, and run; `dar-workflow-run` and MCP `run_dar_workflow` accept
   only workflow and sealed-input identifiers. Dry runs neither consume input
-  nor invoke a model. G2 MCP bindings, G4 file ingress, G5 side effects/`--ask`,
-  structured invocation input, and portable archive exchange remain deferred.
+  nor invoke a model. G4 file ingress, G5 side effects/`--ask`, structured
+  invocation input, and portable archive exchange remain deferred.
 - `dar-authoring-plugin` M2 (G1 runtime core) is implemented through
   `8a08669`. A human-selected directory receives a principal/expiry-bound
   opaque source handle, is copied through descriptor-relative no-follow file
@@ -33,9 +43,8 @@
   an opaque package-source handle and returns package/policy/capability data;
   it cannot accept invocation input, create a registration or alias, issue a
   prepared input, or invoke DAR. M3 binds an eligible local profile, seals
-  `PreparedWorkflowInput`, and runs the saved package. Optional MCP bindings,
-  trusted file ingress, and `workflow_auto`/`--ask` side effects remain later
-  G2, G4, and G5 work.
+  `PreparedWorkflowInput`, and runs the saved package. Trusted file ingress and
+  `workflow_auto`/`--ask` side effects remain later G4 and G5 work.
 - `live-guardrail-execution` V2 is implemented in `78f9d9c`: caller-registered
   pass-or-abort `tool_input` guardrails run after validated preparation and
   before approval, hooks, retry, or dispatch for direct `tool_use_step` and
