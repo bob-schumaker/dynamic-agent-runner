@@ -50,7 +50,7 @@ def test_staging_copies_selected_package_and_validates_dar(tmp_path: Path) -> No
 
     assert staged.root.is_dir()
     assert staged.root != source
-    assert staged.file_count == 3
+    assert staged.file_count == 4
     assert staged.byte_count > 0
     assert len(staged.digest) == 64
     assert (staged.root / "agent-runtime.yaml").read_text(encoding="utf-8") == (

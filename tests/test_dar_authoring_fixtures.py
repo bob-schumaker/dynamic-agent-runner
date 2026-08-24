@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
+import yaml
 from dynamic_agent_runner import load_agent_package_workflow
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "dar-authoring" / "invocations"
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
+sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
+
+from dar_workflow_server.descriptor import WorkflowDescriptor  # noqa: E402
+
 EXPECTED_SKILLS = {
     "agent-development",
     "agent-tool-contract-design",
@@ -39,6 +46,13 @@ def test_target_invocation_fixtures_have_complete_deidentified_contracts() -> No
 
 def test_no_tool_template_is_a_valid_dar_package() -> None:
     workflow = load_agent_package_workflow(str(TEMPLATE_ROOT))
+    descriptor = WorkflowDescriptor.from_mapping(
+        yaml.safe_load(
+            (TEMPLATE_ROOT / "workflow-descriptor.yaml").read_text(encoding="utf-8")
+        )
+    )
 
     assert workflow.runtime_manifest.package_id == "dar-authoring-no-tool-template"
     assert workflow.runtime_manifest.tools == ()
+    assert descriptor.package_id == workflow.runtime_manifest.package_id
+    assert descriptor.task_invocation.max_total_tool_calls == 0
