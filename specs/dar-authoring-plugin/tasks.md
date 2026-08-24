@@ -292,6 +292,10 @@ passes.
 - [ ] RED/GREEN: portable ZIP import requires a source-supplied canonical
       manifest with schema and DAR-compatibility requirements before it reaches
       the existing staged-package boundary; enforce a compression-ratio limit.
+- [x] RED/GREEN: an Ed25519 primitive signs and verifies exact canonical
+      manifest bytes, binds a bounded publisher key ID, and rejects unknown
+      publishers, altered manifests, malformed signatures, and malformed key
+      material. It does not persist keys or authorize import on its own.
 - [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
       signer/key-id binding, rejection of an unknown locally trusted publisher
       key, and a recipient-host signed-package import. Explicitly selected

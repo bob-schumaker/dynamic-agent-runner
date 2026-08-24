@@ -215,9 +215,11 @@ part of ordinary test execution.
    yet a source-supplied or publisher-signed trust assertion.
 3. **M8.1c: Verify portable package trust.** Source-supplied manifests, when
    present, are now compared byte-for-byte to the canonical private payload
-   inventory before publication; the trust policy must next require one for
-   portable exchange, record explicit local trust, and verify trusted-publisher
-   Ed25519 signatures before a portable archive may become a catalog revision.
+   inventory before publication. A tested Ed25519 exact-manifest signature
+   primitive is available, but the trust policy must next require a source
+   manifest for portable exchange, record explicit local trust, load only
+   human-configured publisher keys, and verify their signatures before a
+   portable archive may become a catalog revision.
 4. **M8.1d: Export portable packages.** Add deterministic ZIP export that
    preserves the verified manifest and artifact digests without executing
    package content.
