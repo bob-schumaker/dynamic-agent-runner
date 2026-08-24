@@ -237,6 +237,13 @@ finalize-authored-package --authoring-output-id <opaque-id>
   -> deterministic manifest plus redacted package/descriptor validation result
 ```
 
+The skill invokes those commands through its plugin-local
+`../../scripts/dar-workflow` wrapper. That wrapper resolves the same exact,
+Artifactory-pinned DAR release as `.mcp.json`; a `DAR_AUTHORING_DAR_WHEEL`
+absolute-wheel override is permitted only for local pre-publication verification.
+The override is not a release trust mechanism and must not appear in a published
+plugin configuration.
+
 The authoring skill calls these commands itself after the user asks it to build
 a package. It asks the user only for missing task decisions or human-only setup
 (for example, local-model profile selection, OAuth consent, or MCP surface

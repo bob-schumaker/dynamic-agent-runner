@@ -47,6 +47,7 @@ def test_plugin_bundle_contains_only_local_authoring_assets() -> None:
         "skills/agent-development/SKILL.md",
         "skills/agent-tool-contract-design/SKILL.md",
         "skills/agent-evaluation/SKILL.md",
+        "scripts/dar-workflow",
         "templates/workflow-descriptor.yaml",
         "read-only-mcp-template/workflow-descriptor.yaml",
         "tool-templates/tool-index.yaml",
@@ -59,6 +60,20 @@ def test_plugin_bundle_contains_only_local_authoring_assets() -> None:
         if path.is_file()
     }
     assert not any((PLUGIN_ROOT / "server").rglob("*.py"))
+
+
+def test_authoring_skill_uses_the_plugin_owned_dar_cli_wrapper() -> None:
+    wrapper = PLUGIN_ROOT / "scripts" / "dar-workflow"
+    text = wrapper.read_text(encoding="utf-8")
+    skill = (PLUGIN_ROOT / "skills" / "agent-development" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert wrapper.is_file()
+    assert os.access(wrapper, os.X_OK)
+    assert "DAR_AUTHORING_DAR_WHEEL" in text
+    assert "dynamic-agent-runner==0.1.16" in text
+    assert "../../scripts/dar-workflow" in skill
 
 
 def test_dar_stdio_server_initializes_without_execution_tools_before_configuration(

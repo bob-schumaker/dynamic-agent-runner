@@ -1,0 +1,12 @@
+#!/bin/sh
+# Resolve DAR identically for installed users and local-wheel verification.
+set -eu
+
+if [ -n "${DAR_AUTHORING_DAR_WHEEL:-}" ]; then
+    exec uvx --from "$DAR_AUTHORING_DAR_WHEEL" dar-workflow "$@"
+fi
+
+exec uvx \
+    --default-index https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple \
+    --from dynamic-agent-runner==0.1.16 \
+    dar-workflow "$@"

@@ -14,16 +14,18 @@ acceptance or regression evidence is requested.
 
 Accept a natural-language goal and any supplied examples, documentation, or
 files through the host-owned authoring control plane. Call
-`issue-authoring-materials --materials-json-stdin` with only the material the
-user supplied for this design; its receipt is an `AuthoringMaterialSet`. Then
-call `project-authoring-materials` with the returned opaque `material_set_id`.
+`../../scripts/dar-workflow issue-authoring-materials --materials-json-stdin`
+with only the material the user supplied for this design; its receipt is an
+`AuthoringMaterialSet`. Then call the same wrapper's
+`project-authoring-materials` with the returned opaque `material_set_id`.
 Members are bounded and principal/expiry bound. Do not request or emit source
 paths, credentials, connection secrets, or unselected material.
 
-Call `create-authored-package` with the requested package name. Keep its opaque
-`authoring_output_id` and use `write-authored-package-file --content-stdin` for
-each generated artifact. Do not write package files through a physical path or
-reuse a prior output directory.
+Call the wrapper's `create-authored-package` with the requested package name.
+Keep its opaque `authoring_output_id` and use its
+`write-authored-package-file --content-stdin` command for each generated
+artifact. Do not write package files through a physical path or reuse a prior
+output directory.
 
 Decide whether a fixed workflow, one LLM step, or a bounded tool loop is the
 smallest honest design. A workflow is task-specific, not a general interactive
@@ -49,9 +51,10 @@ The descriptor defines the package purpose, local model-profile requirement,
 hybrid input contract, bounded `additional_context`, accepted workspace artifact
 roles, terminal output schema, and every optional capability. Use DAR-supported
 nodes and validate the package with the DAR loader before presenting it. Call
-`finalize-authored-package` with `authoring_output_id` and `material_set_id` to
-write the deterministic manifest and verify private-material exclusion. Do not
-invent manifest digests or return an unfinalized directory as a workflow package.
+the wrapper's `finalize-authored-package` with `authoring_output_id` and
+`material_set_id` to write the deterministic manifest and verify
+private-material exclusion. Do not invent manifest digests or return an
+unfinalized directory as a workflow package.
 
 For a tool-free task, emit no tools and no skills. For optional tooling, name
 only a reviewed host-owned tool capability in the descriptor; the package does
@@ -64,5 +67,7 @@ workflow can run.
 Return the configured-root package name or archive selected by the caller, its
 manifest and descriptor digests, the required host capabilities, and any
 deliberate refusal. A later request invokes the saved directory with
-`dar-workflow invoke --package-name <package-name>`. Do not invoke
-`run_dar_workflow` while authoring.
+`../../scripts/dar-workflow invoke --package-name <package-name>`. For local
+wheel verification only, set `DAR_AUTHORING_DAR_WHEEL` to the exact absolute
+wheel path before calling the wrapper. Do not invoke `run_dar_workflow` while
+authoring.
