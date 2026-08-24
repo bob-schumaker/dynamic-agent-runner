@@ -43,6 +43,32 @@ def _source_package(tmp_path: Path) -> Path:
     return source
 
 
+def _write_source_manifest(source: Path) -> bytes:
+    entries = []
+    digest = hashlib.sha256()
+    for path in sorted(source.iterdir()):
+        if path.name == "package-manifest.json":
+            continue
+        body = path.read_bytes()
+        body_digest = hashlib.sha256(body).hexdigest()
+        digest.update(f"{path.name}\0{body_digest}\0{len(body)}\n".encode("utf-8"))
+        entries.append(
+            {"byte_count": len(body), "path": path.name, "sha256": body_digest}
+        )
+    value = json.dumps(
+        {
+            "content_digest": digest.hexdigest(),
+            "files": entries,
+            "format_version": 1,
+            "package_id": "dar-authoring-no-tool-template",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    (source / "package-manifest.json").write_bytes(value)
+    return value
+
+
 def _archive_package(tmp_path: Path) -> Path:
     source = _source_package(tmp_path)
     archive = source.parent / "document-helper.zip"
@@ -109,14 +135,29 @@ def test_staging_writes_a_canonical_content_manifest(tmp_path: Path) -> None:
     ]
 
 
-def test_staging_rejects_a_source_supplied_manifest_until_it_can_verify_it(
+def test_staging_accepts_a_source_manifest_that_matches_the_payload(
     tmp_path: Path,
 ) -> None:
     source = _source_package(tmp_path)
-    (source / "package-manifest.json").write_text("{}", encoding="utf-8")
+    expected_manifest = _write_source_manifest(source)
     handle, store = _selection(tmp_path, source)
 
-    with pytest.raises(PackageStagingError, match="source-supplied manifest"):
+    staged = PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+        handle, now=NOW
+    )
+
+    assert (staged.root / "package-manifest.json").read_bytes() == expected_manifest
+
+
+def test_staging_rejects_a_source_manifest_that_does_not_match_the_payload(
+    tmp_path: Path,
+) -> None:
+    source = _source_package(tmp_path)
+    _write_source_manifest(source)
+    (source / "agent-design.md").write_text("changed", encoding="utf-8")
+    handle, store = _selection(tmp_path, source)
+
+    with pytest.raises(PackageStagingError, match="manifest does not match"):
         PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
             handle, now=NOW
         )

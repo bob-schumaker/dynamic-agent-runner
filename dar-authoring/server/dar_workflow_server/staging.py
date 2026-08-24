@@ -68,7 +68,7 @@ class PrivatePackageStager:
                 _extract_zip(source_root, source_path, extraction_root)
                 source_fd = _open_absolute_directory(extraction_root)
             entries: list[tuple[str, str, int]] = []
-            _copy_directory(
+            source_manifest = _copy_directory(
                 source_fd,
                 temporary_root,
                 relative_path="",
@@ -81,12 +81,18 @@ class PrivatePackageStager:
                 raise PackageStagingError(
                     "DAR validation failed for staged package"
                 ) from error
-            _write_content_manifest(
-                temporary_root,
+            expected_manifest = _content_manifest_bytes(
                 package_id=workflow.runtime_manifest.package_id,
                 content_digest=digest,
                 entries=entries,
             )
+            if source_manifest is not None and not secrets.compare_digest(
+                source_manifest, expected_manifest
+            ):
+                raise PackageStagingError(
+                    "package source manifest does not match payload"
+                )
+            _write_content_manifest(temporary_root, expected_manifest)
             final_root = private_root / f"package-{digest}"
             if final_root.exists():
                 shutil.rmtree(temporary_root)
@@ -241,10 +247,12 @@ def _copy_directory(
     *,
     relative_path: str,
     entries: list[tuple[str, str, int]],
-) -> None:
+) -> bytes | None:
+    source_manifest: bytes | None = None
     for name in sorted(os.listdir(source_fd)):
         if not relative_path and name == _PACKAGE_MANIFEST_NAME:
-            raise PackageStagingError("package source has a source-supplied manifest")
+            source_manifest = _read_source_manifest(source_fd, name)
+            continue
         try:
             source_stat = os.lstat(name, dir_fd=source_fd)
         except FileNotFoundError as error:
@@ -271,6 +279,7 @@ def _copy_directory(
             _copy_file(source_fd, name, child_destination, child_relative_path, entries)
         else:
             raise PackageStagingError("package source contains a non-regular entry")
+    return source_manifest
 
 
 def _copy_file(
@@ -330,13 +339,12 @@ def _package_digest(entries: list[tuple[str, str, int]]) -> tuple[str, int, int]
     return digest.hexdigest(), len(entries), byte_count
 
 
-def _write_content_manifest(
-    root: Path,
+def _content_manifest_bytes(
     *,
     package_id: str | None,
     content_digest: str,
     entries: list[tuple[str, str, int]],
-) -> None:
+) -> bytes:
     if not package_id:
         raise PackageStagingError("staged package has no package_id")
     payload = {
@@ -348,7 +356,10 @@ def _write_content_manifest(
         "format_version": 1,
         "package_id": package_id,
     }
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _write_content_manifest(root: Path, encoded: bytes) -> None:
     destination = root / _PACKAGE_MANIFEST_NAME
     temporary = root / f".manifest-{secrets.token_hex(16)}.tmp"
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -357,6 +368,29 @@ def _write_content_manifest(
     finally:
         os.close(descriptor)
     os.replace(temporary, destination)
+
+
+def _read_source_manifest(source_parent_fd: int, name: str) -> bytes:
+    try:
+        source_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=source_parent_fd)
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise PackageStagingError("package source contains a symlink") from error
+        raise PackageStagingError("package source changed during staging") from error
+    try:
+        source_stat = os.fstat(source_fd)
+        if not stat.S_ISREG(source_stat.st_mode):
+            raise PackageStagingError("package source contains a non-regular entry")
+        if source_stat.st_size > MAX_FILE_BYTES:
+            raise PackageStagingError("package source file exceeds size limit")
+        body = bytearray()
+        while chunk := os.read(source_fd, _READ_SIZE):
+            body.extend(chunk)
+            if len(body) > MAX_FILE_BYTES:
+                raise PackageStagingError("package source file exceeds size limit")
+        return bytes(body)
+    finally:
+        os.close(source_fd)
 
 
 def _seal_tree(root: Path) -> None:

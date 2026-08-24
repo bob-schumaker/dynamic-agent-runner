@@ -286,8 +286,11 @@ passes.
       content manifest that records the package ID, staged content digest, and
       every source payload path, byte count, and SHA-256. It is generated only
       after DAR validates the private copy and is not counted as source payload.
-- [ ] RED/GREEN: ZIP import verifies a source-supplied canonical manifest's
-      file paths, bytes, hashes, schema, and DAR compatibility before it reaches
+- [x] RED/GREEN: when a source supplies the canonical manifest, the staged
+      payload's package ID, file paths, bytes, hashes, and content digest must
+      reproduce its exact canonical bytes; a mismatch fails before publication.
+- [ ] RED/GREEN: portable ZIP import requires a source-supplied canonical
+      manifest with schema and DAR-compatibility requirements before it reaches
       the existing staged-package boundary; enforce a compression-ratio limit.
 - [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
       signer/key-id binding, rejection of an unknown locally trusted publisher

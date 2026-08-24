@@ -213,9 +213,11 @@ part of ordinary test execution.
    `package-manifest.json` that binds the package ID, content digest, and every
    source payload path, byte count, and SHA-256. The generated manifest is not
    yet a source-supplied or publisher-signed trust assertion.
-3. **M8.1c: Verify portable package trust.** Require source-supplied manifest
-   validation, explicit local-trust confirmation, and trusted-publisher Ed25519
-   package verification before a portable archive may become a catalog revision.
+3. **M8.1c: Verify portable package trust.** Source-supplied manifests, when
+   present, are now compared byte-for-byte to the canonical private payload
+   inventory before publication; the trust policy must next require one for
+   portable exchange, record explicit local trust, and verify trusted-publisher
+   Ed25519 signatures before a portable archive may become a catalog revision.
 4. **M8.1d: Export portable packages.** Add deterministic ZIP export that
    preserves the verified manifest and artifact digests without executing
    package content.
