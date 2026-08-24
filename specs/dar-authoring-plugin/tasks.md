@@ -40,6 +40,11 @@ passes.
       assets in its released wheel.
 - [x] RED/GREEN: start/stop lifecycle test that proves the server exposes no
       execution tool before G1–G3 are configured.
+- [x] RED/GREEN: developer local-wheel verifier builds a DAR wheel and launches
+      `dynamic-agent-runner-mcp` through `uvx --from <absolute-wheel-path>` in
+      an isolated temporary directory; it confirms the wheel's version and MCP
+      `initialize` identity without resolving DAR from a package index. This is
+      pre-build-system evidence, not release-trust evidence.
 - [ ] RED/GREEN: clean-directory DAR-wheel test verifies its archive asset
       hashes and receives a valid MCP `initialize` response without source-tree
       paths or undeclared package indexes.

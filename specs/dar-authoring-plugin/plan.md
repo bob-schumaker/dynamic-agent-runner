@@ -99,7 +99,10 @@ fixture-contract validation; publication remains blocked on M4 and M8.
 3. **M1.3: Prove runtime-wheel isolation.** Resolve the DAR wheel from a clean
    directory and test it there: its MCP entry point and runtime assets are
    present, startup records resolved dependencies, and no source-tree path or
-   execution tool is exposed.
+   execution tool is exposed. Until the build system publishes a candidate, the
+   developer check builds a local wheel and runs `uvx --from <absolute-wheel>`
+   in an isolated temporary directory; this proves local-wheel behavior only and
+   does not substitute for the Artifactory release-trust gate.
 
 M1 exit: the local plugin starts DAR's release-candidate stdio MCP server and
 is safe to discover, but cannot execute an unprepared workflow or be published.
