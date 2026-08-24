@@ -84,8 +84,11 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    prove a checked-in manifest can start a local stdio server from an installed
    artifact without source-path interpolation. Record the supported manifest
    fields, installation path, environment contract, and clean-directory MCP
-   `initialize` evidence. The server advertises no execution tool. Stop here if
-   the launch topology is unsupported.
+   `initialize` evidence. Also install a temporary local-wheel marketplace copy
+   and confirm Codex registers its stdio command, then remove it. The server
+   advertises no execution tool before the local host is configured; this
+   evidence must not be reported as workflow invocation. Stop here if the launch
+   topology is unsupported.
 2. **M1.2: Lock the launcher supply chain.** After M1.1 succeeds, implement the
    checked-in `uvx` launch contract for DAR's `dynamic-agent-runner-mcp` entry
    point and verification of the selected DAR artifacts against signed release

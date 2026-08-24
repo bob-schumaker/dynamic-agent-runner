@@ -46,6 +46,13 @@ passes.
       an isolated temporary directory; it confirms the wheel's version and MCP
       `initialize` identity without resolving DAR from a package index. This is
       pre-build-system evidence, not release-trust evidence.
+- [x] Local Codex smoke evidence: a temporary marketplace copy whose `.mcp.json`
+      references the freshly built absolute DAR wheel installs through `codex
+      plugin add` and appears enabled in `codex mcp list`; the temporary plugin
+      and marketplace are then removed. A no-side-effect Codex discovery turn
+      correctly finds no callable DAR tool without a configured local host. This
+      proves plugin registration and command resolution only, not host setup or
+      workflow invocation.
 - [x] RED/GREEN: signed-release verification renders only its exact, validated
       distribution/version/SHA-256 identities as a hash-enforced `uv`
       requirements lock. Rendering rejects malformed or duplicate identities;
