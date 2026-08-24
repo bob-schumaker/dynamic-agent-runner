@@ -117,8 +117,13 @@ dar-authoring/
     agent-design.md
     agent-runtime.yaml
     agent-graph.mmd
+    workflow-descriptor.yaml
+  tool-templates/
     tool-index.yaml
+  evaluation-templates/
     eval-plan.md
+    evaluation-fixtures.json
+    regression-gate.yaml
 ```
 
 The exact MCP packaging and installation mechanism is an implementation spike.

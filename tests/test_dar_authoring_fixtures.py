@@ -11,6 +11,12 @@ from dynamic_agent_runner import load_agent_package_workflow
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "dar-authoring" / "invocations"
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+TOOL_TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1] / "dar-authoring" / "tool-templates"
+)
+EVALUATION_TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1] / "dar-authoring" / "evaluation-templates"
+)
 READ_ONLY_MCP_TEMPLATE_ROOT = (
     Path(__file__).resolve().parents[1] / "dar-authoring" / "read-only-mcp-template"
 )
@@ -82,6 +88,31 @@ def test_read_only_mcp_template_is_a_bounded_dar_package() -> None:
     assert descriptor.task_invocation.allowed_tool_ids == ("lookup_records",)
     assert descriptor.task_invocation.max_total_tool_calls == 3
     assert descriptor.declared_tools[0].side_effect == "read"
+
+
+def test_plugin_ships_tool_and_evaluation_starter_artifacts() -> None:
+    tool_index = yaml.safe_load(
+        (TOOL_TEMPLATE_ROOT / "tool-index.yaml").read_text(encoding="utf-8")
+    )
+    evaluation_fixtures = json.loads(
+        (EVALUATION_TEMPLATE_ROOT / "evaluation-fixtures.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    regression_gate = yaml.safe_load(
+        (EVALUATION_TEMPLATE_ROOT / "regression-gate.yaml").read_text(encoding="utf-8")
+    )
+
+    assert tool_index == {"format_version": 1, "tools": []}
+    assert "## Scope" in (EVALUATION_TEMPLATE_ROOT / "eval-plan.md").read_text(
+        encoding="utf-8"
+    )
+    assert evaluation_fixtures == {"format_version": 1, "cases": []}
+    assert regression_gate == {
+        "format_version": 1,
+        "decision_owner": "human_reviewer",
+        "pass_criteria": [],
+    }
 
 
 def test_agent_development_fixture_declares_finalized_package_artifacts(

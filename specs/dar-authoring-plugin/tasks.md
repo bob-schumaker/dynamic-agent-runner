@@ -31,6 +31,9 @@ passes.
 - [x] RED/GREEN: canonical basic-reasoning and bounded read-only-MCP templates
       load through DAR; the declared tool is task-specific, read-only, and capped
       at three calls. Both templates ship as plugin assets.
+- [x] RED/GREEN: plugin starter assets cover the tool-index and evaluation
+      artifact contracts promised by the three adapted skills; their empty v1
+      structures are deterministic and make no live-provider claim.
 - [ ] RED: plugin-manifest discovery, approved-Artifactory immutable DAR-runtime
       resolution, hash-pinned dependency-lock verification, and isolated-`uvx`
       installation tests.

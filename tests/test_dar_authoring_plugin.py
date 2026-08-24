@@ -49,6 +49,10 @@ def test_plugin_bundle_contains_only_local_authoring_assets() -> None:
         "skills/agent-evaluation/SKILL.md",
         "templates/workflow-descriptor.yaml",
         "read-only-mcp-template/workflow-descriptor.yaml",
+        "tool-templates/tool-index.yaml",
+        "evaluation-templates/eval-plan.md",
+        "evaluation-templates/evaluation-fixtures.json",
+        "evaluation-templates/regression-gate.yaml",
     } <= {
         path.relative_to(PLUGIN_ROOT).as_posix()
         for path in PLUGIN_ROOT.rglob("*")
