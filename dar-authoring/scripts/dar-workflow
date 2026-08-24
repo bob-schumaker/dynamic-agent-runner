@@ -6,6 +6,10 @@ if [ -z "${UV_CACHE_DIR:-}" ] && [ -n "${DAR_AUTHORING_STATE_ROOT:-}" ]; then
     export UV_CACHE_DIR="$DAR_AUTHORING_STATE_ROOT/uv-cache"
 fi
 
+if [ -z "${UV_TOOL_DIR:-}" ] && [ -n "${DAR_AUTHORING_STATE_ROOT:-}" ]; then
+    export UV_TOOL_DIR="$DAR_AUTHORING_STATE_ROOT/uv-tools"
+fi
+
 if [ -n "${DAR_AUTHORING_DAR_WHEEL:-}" ]; then
     exec uvx --from "$DAR_AUTHORING_DAR_WHEEL" dar-workflow "$@"
 fi
