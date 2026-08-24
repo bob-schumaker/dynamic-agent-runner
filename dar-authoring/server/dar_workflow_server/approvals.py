@@ -77,6 +77,22 @@ class WorkflowApprovalStore:
             raise WorkflowApprovalError("approval is unavailable") from error
         return WorkflowApproval(granted_id, digest, pending.expires_at)
 
+    def deny(self, approval_id: str, *, action_digest: str, now: datetime) -> None:
+        """Irreversibly revoke one matching pending approval."""
+
+        digest = _digest(action_digest)
+        try:
+            pending = self._store.load(
+                approval_id,
+                expected_kind="workflow_action_approval_pending",
+                owner=self._owner,
+                now=now,
+            )
+            _require_digest(pending.payload, digest)
+            self._store.revoke(approval_id, owner=self._owner, now=now)
+        except OpaqueRecordError as error:
+            raise WorkflowApprovalError("approval is unavailable") from error
+
     def consume(self, approval_id: str, *, action_digest: str, now: datetime) -> None:
         """Atomically spend exactly one matching granted approval at dispatch."""
 

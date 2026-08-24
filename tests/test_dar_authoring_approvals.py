@@ -74,3 +74,13 @@ def test_approval_expires_without_creating_a_grant(tmp_path: Path) -> None:
             action_digest=DIGEST,
             now=NOW + timedelta(minutes=2),
         )
+
+
+def test_denied_approval_cannot_later_be_granted(tmp_path: Path) -> None:
+    approvals = _approvals(tmp_path)
+    pending = approvals.request(action_digest=DIGEST, now=NOW)
+
+    approvals.deny(pending.approval_id, action_digest=DIGEST, now=NOW)
+
+    with pytest.raises(WorkflowApprovalError, match="unavailable"):
+        approvals.grant(pending.approval_id, action_digest=DIGEST, now=NOW)
