@@ -82,6 +82,9 @@ def test_authoring_skill_uses_the_plugin_owned_dar_cli_wrapper() -> None:
     assert "Use\n`reference_only`" in skill
     assert "start from the four files in `../../templates`" in skill
     assert "Do not\ncopy `package-manifest.json`" in skill
+    assert "invoke --package-name <package-name> --workflow-id" in skill
+    assert "`workflow_auto` policy" in skill
+    assert "source_selection_required" in skill
 
 
 def test_dar_stdio_server_initializes_without_execution_tools_before_configuration(

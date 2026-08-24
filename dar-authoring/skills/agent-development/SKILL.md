@@ -75,6 +75,20 @@ not start servers, obtain credentials, or configure an MCP connection. Explain
 that a human later configures, reviews, and binds the connection before a saved
 workflow can run.
 
+## Saved-package invocation
+
+When the user asks to use a saved configured-root package by name, call the
+same wrapper with `invoke --package-name <package-name> --workflow-id
+<workflow-id> --prompt <the new user request>`. The host applies its default
+`workflow_auto` policy. Add `--dry-run` or `--ask` only when the user explicitly
+requests that mode. Do not configure a model, connection, credential, approval
+policy, or tool surface as part of invocation.
+
+For a directory or ZIP reference that has not already been selected by the
+human host, return `source_selection_required` with only its display name. Do
+not request, expose, or guess a physical path. Do not invoke a workflow during
+the package-authoring request that creates it.
+
 ## Handoff
 
 Return the configured-root package name or archive selected by the caller, its
