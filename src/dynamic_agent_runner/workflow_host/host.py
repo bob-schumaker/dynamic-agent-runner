@@ -442,6 +442,13 @@ class LocalWorkflowHost:
             return self._sources.select_zip(path, now=now)
         return self._sources.select_directory(path, now=now)
 
+    def select_authored_package(self, package_name: str, *, now: datetime) -> str:
+        """Select one configured-root authored package by its user-facing name."""
+
+        return self.select_package(
+            self._authoring_outputs.package_path_for_name(package_name), now=now
+        )
+
     def issue_authoring_materials(
         self,
         *,

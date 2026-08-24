@@ -473,6 +473,44 @@ def test_cli_builds_and_finalizes_a_host_owned_authored_package(
     assert (package_root / "document-helper" / "package-manifest.json").is_file()
 
 
+def test_cli_dry_runs_a_host_owned_package_by_name(tmp_path: Path) -> None:
+    root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    source = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    state_args = ["--state-root", str(root)]
+    status, _ = _invoke(
+        [
+            *state_args,
+            "configure-local-model",
+            "--package-root",
+            str(package_root),
+            "--model-id",
+            "local-model-v1",
+            "--base-url",
+            "http://127.0.0.1:11434/v1",
+        ]
+    )
+    assert status == 0
+
+    status, result = _invoke(
+        [
+            *state_args,
+            "invoke",
+            "--package-name",
+            "document-helper",
+            "--workflow-id",
+            "document-helper",
+            "--prompt",
+            "Answer the document question.",
+            "--dry-run",
+        ]
+    )
+
+    assert status == 0
+    assert result == {"status": "ready", "workflow_id": "document-helper"}
+
+
 def _signed_archive(
     source: Path, *, key_id: str, private_key: Ed25519PrivateKey
 ) -> Path:

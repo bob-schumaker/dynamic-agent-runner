@@ -199,7 +199,9 @@ def _parser() -> argparse.ArgumentParser:
     register.add_argument("--package-source-handle", required=True)
     register.add_argument("--mcp-binding-id")
     invoke = commands.add_parser("invoke")
-    invoke.add_argument("--path", required=True)
+    invoke_target = invoke.add_mutually_exclusive_group(required=True)
+    invoke_target.add_argument("--path")
+    invoke_target.add_argument("--package-name")
     invoke.add_argument("--workflow-id", required=True)
     invoke.add_argument("--prompt", required=True)
     invoke.add_argument("--mcp-binding-id")
@@ -547,7 +549,11 @@ def _invoke_package_result(
         return None
     if args.dry_run and args.workspace_file:
         raise LocalWorkflowHostError("dry run cannot accept workspace files")
-    package_source_handle = host.select_package(Path(args.path), now=now)
+    package_source_handle = (
+        host.select_authored_package(args.package_name, now=now)
+        if args.package_name is not None
+        else host.select_package(Path(args.path), now=now)
+    )
     host.register(
         workflow_id=args.workflow_id,
         package_source_handle=package_source_handle,

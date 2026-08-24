@@ -161,7 +161,8 @@ passes.
       atomic, path-contained, no-follow, and receipt-traced; finalization
       excludes `reference_only` material before writing its deterministic
       manifest. It cannot configure profiles, credentials, MCP connections, or
-      approval policy.
+      approval policy. The later invocation command accepts the saved opaque
+      package name without exposing the configured output-root path.
 - [x] RED/GREEN: define an external authoring-evidence record containing only
       corpus/prompt/package digests, opaque material-set ID, provider/model,
       deterministic validator outcome, reviewer decision, pass criteria, and

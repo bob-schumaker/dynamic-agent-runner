@@ -247,8 +247,9 @@ replacements, and returns file path/hash/byte-count receipts rather than raw
 content. Finalization accepts only that symlink-free host-created directory,
 excludes every `reference_only` member before writing the manifest, and returns
 no selected material content. The resulting configured-root directory is the
-saved package that a later `dar-workflow invoke` request can run with a new
-prompt and permitted workspace artifacts.
+saved package that a later `dar-workflow invoke --package-name <name>` request
+can run with a new prompt and permitted workspace artifacts without exposing the
+configured output-root path.
 
 ```yaml
 format_version: 1

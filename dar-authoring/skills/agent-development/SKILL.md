@@ -63,4 +63,6 @@ workflow can run.
 
 Return the configured-root package name or archive selected by the caller, its
 manifest and descriptor digests, the required host capabilities, and any
-deliberate refusal. Do not invoke `run_dar_workflow` while authoring.
+deliberate refusal. A later request invokes the saved directory with
+`dar-workflow invoke --package-name <package-name>`. Do not invoke
+`run_dar_workflow` while authoring.

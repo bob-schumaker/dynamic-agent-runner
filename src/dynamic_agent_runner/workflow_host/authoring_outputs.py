@@ -136,6 +136,14 @@ class AuthoringOutputService:
         os.close(descriptor)
         return self._output_root / package_name
 
+    def package_path_for_name(self, package_name: str) -> Path:
+        """Return a validated configured-root package path for later invocation."""
+
+        _validate_package_name(package_name)
+        descriptor = _open_output_directory(self._output_root, package_name)
+        os.close(descriptor)
+        return self._output_root / package_name
+
     def _package_name(self, output_id: str, *, now: datetime) -> str:
         try:
             record = self._store.load(
