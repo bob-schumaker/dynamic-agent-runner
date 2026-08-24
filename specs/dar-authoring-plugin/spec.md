@@ -310,6 +310,19 @@ instructions. The authoring skill must label any permitted model-generated
 transform, and wrapper dispatch validates this policy against the final
 normalized tool invocation.
 
+The model-facing representation of a final tool call is an
+`ArgumentProvenanceEnvelope`, not an unannotated JSON object. Every argument
+contains its normalized value and one source proof. A sealed field, artifact, or
+package constant is represented by an opaque reference that the wrapper resolves
+server-side. A cited-prompt value carries canonical prompt offsets and a declared
+normalization; the wrapper verifies that applying it to the sealed original
+prompt yields the final value. A model-generated transform is permitted only for
+non-authority content fields and names its sealed/artifact/constant inputs; the
+wrapper supplies only those inputs to the transform context and rejects tool
+output or `additional_context` references. `AuthorizedToolBinding` validates the
+envelope, removes source metadata, and dispatches only the normalized remote-tool
+arguments. A raw value or unverifiable source proof fails before handler entry.
+
 `WorkflowRegistration` is the one immutable runtime authorization record. At
 registration, the wrapper compiles the portable descriptor and tool-index with a
 selected host profile and approved surface snapshots. It records the package and
@@ -361,6 +374,12 @@ Acceptance criteria:
   judge-based checks and records the judge or human-review policy.
 - Tests use fake model adapters, fake tool registries, or an external harness;
   they do not call Fastmail, Hugging Face, or a live model.
+- G1 release acceptance includes a de-identified, checked-in authoring corpus
+  covering basic, MCP, ambiguous, supplied-material, and adversarial tool-policy
+  requests. Deterministic package, schema, task-policy, and provenance checks
+  must all pass. An external harness records the authoring model, prompt, and
+  package revision; until an automated judge is calibrated against human review,
+  a human reviews every release-corpus package for intent fidelity and task scope.
 
 ## MCP Execution Tool
 
@@ -383,6 +402,17 @@ local CLI, not as a second model-facing MCP tool:
 ```text
 dar-workflow prepare --package-source <opaque-source-handle> --prompt <text> \
   --json
+```
+
+When an authoring skill receives a natural-language package reference such as
+`custom-email.zip` but has no source handle, it returns a non-executing
+`source_selection_required` result containing only the requested display name.
+The local plugin client then presents a human file/directory picker or the local
+CLI command below; only a confirmed selection creates a handle. The picker and
+path are never exposed to the skill.
+
+```text
+dar-workflow select-package --path <human-selected-path> --json
 ```
 
 Its authenticated request binds the local principal, optional registered alias,
@@ -450,6 +480,14 @@ cleanup, and strict-versus-unavailable failure behavior. No transport, schema
 discovery, or lifecycle behavior is advertised until a positive adapter fixture
 proves it. This is wrapper functionality, not a claim that DAR's current MCP
 runtime opens live transports.
+
+V1's first live external transport is configured HTTPS MCP. It supports the
+human control plane's OAuth authorization-code flow with PKCE or a locally stored
+API token, and binds the resulting authenticated HTTPS peer to the approved
+surface snapshot. This is a generic transport contract, not a Fastmail feature;
+the references above demonstrate an HTTPS endpoint with OAuth and scoped
+read/write/send consent. Stdio and any other transport remain unavailable until
+their own adapter fixtures and lifecycle policy pass.
 
 Connection identity is transport-specific: an HTTPS profile pins its validated
 TLS/server identity, while any future stdio profile must pin a configured
@@ -538,6 +576,20 @@ headers, and raw MCP instructions must never appear in package artifacts, tool
 requests/results, or traces. The control plane binds connections immutably to a
 profile and approved scope. Scope escalation, connection replacement, and
 revocation invalidate affected snapshots and pending approvals.
+
+An HTTPS MCP connection definition may select the generic
+`oauth_authorization_code_pkce_loopback` authorization handler. Its human-only
+control-plane operation launches the provider authorization URL, after first
+binding a fresh loopback listener on an ephemeral port. It uses a registered
+`http://localhost/<provider-specific-path>` redirect template, a high-entropy
+PKCE verifier/challenge and state value, accepts exactly one callback, verifies
+the state and exact callback URI, exchanges the one-time code, and stores the
+result only in the connection credential store. It returns a bounded connection
+status, never a code, token, or callback query to a skill or model-facing tool.
+The handler is available only when the provider registration explicitly permits
+loopback redirects; otherwise the connection definition must choose a different
+human-approved redirect handler. This is part of the generic MCP connection
+definition, not Fastmail-specific workflow behavior.
 
 Snapshot comparison shall use canonical identity and input-schema digests plus a
 pinned HTTPS server identity. The wrapper supplies host-authored semantic
@@ -803,6 +855,14 @@ interpolation is required.
 
 ## Example workflow descriptors and invocation
 
+| Requested outcome | Availability |
+| --- | --- |
+| Design and run a local no-tool workflow | v1 base (G0, G1, G3) |
+| Run a configured read-only email workflow | G2 + G3 |
+| Send email from prompt-only content | G2 + G5 |
+| Send email using a local body file | G2 + G4 + G5 |
+| Return a document embedding | Deferred until an embedding profile and host adapter ship |
+
 ### Email workflow with an optional MCP connection
 
 The authoring skill can produce a descriptor like this. `email_connection` is a
@@ -905,6 +965,8 @@ original prompt—not the physical path. It seals these as one
 `PreparedWorkflowInput`; only its opaque identifier reaches `run_dar_workflow`.
 
 ### Embedding workflow
+
+This is a deferred profile example, not a v1 availability claim.
 
 The authoring descriptor may instead declare a host-registered embedding tool
 for `model/embedding-model`, a text workspace input, and a vector output schema.

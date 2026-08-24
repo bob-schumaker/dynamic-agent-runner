@@ -44,10 +44,19 @@ gate passes.
       policy. Destination, authorization, capability-selection, and external
       identity fields reject `additional_context`, tool-result, and remote
       instruction flow; adversarial prompt-injection fixtures prove rejection.
+- [ ] RED/GREEN: require an `ArgumentProvenanceEnvelope` for every model-facing
+      tool argument. Verify sealed references, artifact references, package
+      constants, and canonical prompt spans; reject raw/unverifiable values and
+      remote-output or additional-context references in a model transform.
 - [ ] RED/GREEN: authoring skill fixtures turn natural-language requests plus
       supplied examples/files/documentation into a validated package directory;
       deterministic ZIP export/import preserves the manifest and artifact
       digests without executing package content.
+- [ ] RED/GREEN: run a de-identified checked-in authoring corpus through an
+      external release harness. Record authoring model/prompt/package revision,
+      require deterministic package and policy checks to pass, and route every
+      release-corpus package to human intent-fidelity review until a judge is
+      calibrated.
 - [ ] RED/GREEN: ZIP import rejects traversal, duplicate, link, special, and
       over-limit entries; verify manifest file paths, bytes, hashes, schema, and
       DAR compatibility before immutable registration. Require recorded local
@@ -78,6 +87,10 @@ gate passes.
       package-source handles. A human-selected local CLI path resolves to a
       handle before preparation; LLM skills and MCP callers cannot select an
       arbitrary host path or redirect an existing handle.
+- [ ] RED/GREEN: when a skill names a local package without a source handle,
+      return only `source_selection_required`; a human-only picker or
+      `dar-workflow select-package` issues the handle without exposing its path
+      to the skill.
 - [ ] RED: versioned `run_dar_workflow` request/response schema tests for
       closed-set workflow identifiers plus an opaque sealed prepared-input ID;
       raw hybrid-input fields are rejected.
@@ -107,6 +120,15 @@ gate passes.
       `authentication_required`.
 - [ ] GREEN: human-only OAuth/API-token connection flow with secret storage
       outside package artifacts and immutable profile/scope binding.
+- [ ] RED/GREEN: implement the first generic remote HTTPS MCP adapter with OAuth
+      PKCE or a locally stored API token, pinned peer identity, and fake fixtures
+      for scoped read/write/send-like surfaces. No other transport is advertised.
+- [ ] RED/GREEN: the HTTPS connection definition's human-only
+      `oauth_authorization_code_pkce_loopback` handler binds an ephemeral local
+      callback before launching the browser, verifies PKCE/state/exact redirect,
+      accepts one callback, exchanges its code once, and returns only connection
+      status. Tokens, code, callback query, and listener details never reach a
+      skill, package, trace, or model-facing tool.
 - [ ] RED/GREEN: approved MCP surface snapshot creation/review plus passive
       `tools/list` identity/input-schema drift detection on the run path.
 - [ ] RED/GREEN: plugin-owned `MCPConnectionClient` fixtures cover configured
