@@ -117,6 +117,12 @@ passes.
 
 ## RA1: Authoring Release Evidence
 
+- [x] RED/GREEN: issue principal/expiry-bound `AuthoringMaterialSet` receipts
+      with opaque references, role, digest, and reference-only/distributable
+      disposition. Project only the selected bounded text to a skill; public
+      receipts expose neither content nor paths, and wrong-owner/expired sets
+      fail closed. Package, trace, fixture, and export enforcement follows with
+      the authoring and publication paths.
 - [ ] RED/GREEN: authoring skill fixtures turn natural-language requests plus an
       `AuthoringMaterialSet` projection into a validated package directory;
       unselected/private material cannot enter package, trace, evaluation fixture,
