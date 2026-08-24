@@ -128,8 +128,9 @@ planned, host-owned slice is enabled only when the wrapper profile/catalog
 exposes its fixed tools: DAR invokes those registered tools, while the wrapper
 owns the workspace root, path authorization, mutation semantics, and audit
 store. It does not make `sandbox_runtime` live inside DAR or add a DAR default
-write capability. It is not a prerequisite for the DAR authoring plugin's first
-release or its deterministic file-ingress/write extension.
+write capability. This interactive scratch surface is not a prerequisite for the
+DAR authoring plugin's no-tool base or trusted file-ingress slice; file-backed
+workflow invocations instead depend on the separate ingress contract below.
 
 Each run may obtain a fresh tenant-scoped scratch root through
 `get_temporary_workspace()`. The tool returns an opaque virtual root URI such

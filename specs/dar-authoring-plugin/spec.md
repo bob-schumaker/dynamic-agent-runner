@@ -85,6 +85,7 @@ dar-authoring/
   .codex-plugin/plugin.json
   .mcp.json
   skills/
+    adapted-skill-provenance.yaml
     agent-development/SKILL.md
     agent-tool-contract-design/SKILL.md
     agent-evaluation/SKILL.md
@@ -115,7 +116,7 @@ best-effort warning.
 | Gate | Required task | Unlocks | Must remain unavailable before the gate passes |
 | --- | --- | --- | --- |
 | G0 | Packaging spike: Artifactory exact-version wheel, isolated `uvx` installation/discovery, packaged-runtime asset verification, and local stdio MCP server lifecycle. | Plugin discovery only. | `run_dar_workflow` and wrapper CLI execution. |
-| G1 | Immutable package catalog, installation identity, profile capability records, `WorkflowRegistration` compilation, and bounded request/response schemas. | Package-only preparation and catalog preflight. | Arbitrary package paths, caller-selected runtime profiles, and workflows with missing wrapper collaborators. |
+| G1 | Immutable package catalog, installation identity, profile capability records, `WorkflowPolicy` compilation, and bounded preparation schemas. | Package-only preparation and catalog preflight. | Arbitrary package paths, caller-selected runtime profiles, executable aliases, and workflows with missing wrapper collaborators. |
 | G2 | Human-only connection control plane: credential storage, least-scope binding, approved MCP-surface snapshot creation/review, plugin-owned client lifecycle, and passive run-time drift detection. | Optional MCP profile preparation. | MCP-backed workflows, snapshot refresh from the model-facing tool, and credential/provisioning arguments. |
 | G3 | Generic execution runner: strict model selection, DAR preflight plus wrapper checks, deep-redacted trace/audit store, and `--dry-run`. | Workflows with no external tools. An MCP-backed read-only workflow also requires G2. | Workflows whose model or capability checks fail. |
 | G4 | Trusted file ingress from `sandbox-workspace-runtime`: no-follow, bounded copy from a configured caller input root into a private workspace, with hash-bound opaque input artifacts. | File-backed workflow inputs. | A workflow invocation accepting a local file reference. |
@@ -151,6 +152,12 @@ remove dependencies on the upstream environment, and make the DAR-specific
 artifact and host contracts authoritative. Fixture outputs from each adapted
 skill must validate against the DAR package loader.
 
+`skills/adapted-skill-provenance.yaml` shall cover every copied skill with its
+upstream repository/source locator, immutable revision, copied path, applicable
+license or bundled notice, recorded redistribution review, and concise
+DAR-specific modification summary. It is the reproducible adaptation baseline;
+the plugin must reject a copied skill missing that coverage.
+
 Acceptance criteria:
 
 - A basic reasoning package and a bounded tool-use package can be authored from
@@ -162,14 +169,19 @@ Acceptance criteria:
 ### Natural-language authoring and workflow descriptor
 
 The entry skill shall accept a user's natural-language description of the
-desired workflow, together with any supplied examples, files, and documentation.
-It shall use those materials to generate a canonical, immutable DAR workflow
-package revision. The user is not required to write a descriptor. The generated
-versioned `WorkflowDescriptor` is the package's authoring-to-runtime handoff and
-records the design decisions the skill made; `run_dar_workflow` is not an
-authoring or provisioning API. Every capability below is optional. A basic
-reasoning workflow therefore needs only its purpose and model requirement; a
-workflow with no MCP tools and no skills is valid.
+desired workflow, together with explicitly supplied examples, files, and
+documentation. Inline prompt text is intentional authoring input. Referenced
+material is instead supplied through a human-issued `AuthoringMaterialSet` of
+opaque, bounded, versioned artifact references. Each member is reference-only or
+explicitly distributable; skills receive only the approved content projection and
+metadata, never a physical path. The set is principal- and expiry-bound. It shall
+use those materials to generate a canonical, immutable DAR workflow package
+revision. The user is not required to write a descriptor. The generated versioned
+`WorkflowDescriptor` is the package's authoring-to-runtime handoff and records
+the design decisions the skill made; `run_dar_workflow` is not an authoring or
+provisioning API. Every capability below is optional. A basic reasoning workflow
+therefore needs only its purpose and model requirement; a workflow with no MCP
+tools and no skills is valid.
 
 ```yaml
 format_version: 1
@@ -249,11 +261,12 @@ review.
 Directory import uses the same bounded, descriptor-relative no-follow staging
 copy and validation as ZIP import; trust is never attached to a mutable source
 directory. A package identity is the portable `package_id` plus its manifest
-`revision_digest`. Host registration creates an installation-local
-`workflow_id` alias bound immutably to that pair. Re-import of the same digest
-is idempotent; an alias collision fails unless the caller explicitly registers a
-new alias; prior revisions remain addressable for trace/audit retention and are
-never silently rebound.
+`revision_digest`. Once G3 and the applicable capability gates bind that policy,
+host registration creates an installation-local `workflow_id` alias bound
+immutably to that executable registration. Re-import of the same digest is
+idempotent; an alias collision fails unless the caller explicitly registers a new
+alias; prior revisions remain addressable for trace/audit retention and are never
+silently rebound.
 
 The signed payload is canonical-manifest-v1: the complete manifest file list,
 file hashes and byte counts, package/schema/DAR compatibility versions, and
@@ -263,21 +276,24 @@ unknown key rejects a received package. The authoring skill cannot access signin
 keys. A separate local signing control plane may sign an explicitly selected
 export after displaying its manifest digest.
 
-Authoring inputs are private by default. The skill may retain only redacted
-provenance in traces and may copy a source file, documentation excerpt, or image
-into a distributable package only when the user explicitly selects it for
-inclusion and the package manifest records its role and digest. Unselected
-authoring material, credentials, and source paths must not become package files,
-package-local skills, traces, or evaluation fixtures.
+Authoring inputs are private by default. An `AuthoringMaterialSet` member may be
+copied into a distributable package only when the human marks that exact versioned
+reference distributable and the package manifest records its role and digest.
+The skill may retain only redacted provenance in traces. Unselected or
+reference-only authoring material, credentials, and source paths must not become
+package files, package-local skills, traces, evaluation fixtures, or exports.
 
 The generated package records the descriptor digest, exact DAR runtime
 compatibility requirement, and exact capability requirements. The preparation
 path rejects a package whose DAR requirement does not match the runtime bundled
-by the installed plugin. Registration compiles the descriptor and tool contracts
-with one compatible host profile into an immutable `WorkflowRegistration`; the
-caller cannot replace its model, skills, tools, or connection in a run request.
-The authoring result shall include the package artifacts, a capability report,
-and any evaluation plan requested by the generated descriptor.
+by the installed plugin. G1 compiles the descriptor and tool contracts into an
+immutable `WorkflowPolicy`; it validates logical requirements without contacting
+or binding a live profile, MCP connection, or deferred capability. A later
+capability-eligible preparation binds one compatible profile and approved surface
+snapshots to that policy as an immutable `WorkflowRegistration`; the caller cannot
+replace its model, skills, tools, or connection in a run request. The authoring
+result shall include the package artifacts, a capability report, and any
+evaluation plan requested by the generated descriptor.
 
 Authoring may later use package-generation tools, but this specification does
 not assume, expose, or require any such tool. Its v1 contract is the skill's
@@ -311,28 +327,38 @@ transform, and wrapper dispatch validates this policy against the final
 normalized tool invocation.
 
 The model-facing representation of a final tool call is an
-`ArgumentProvenanceEnvelope`, not an unannotated JSON object. Every argument
-contains its normalized value and one source proof. A sealed field, artifact, or
-package constant is represented by an opaque reference that the wrapper resolves
-server-side. A cited-prompt value carries canonical prompt offsets and a declared
-normalization; the wrapper verifies that applying it to the sealed original
-prompt yields the final value. A model-generated transform is permitted only for
-non-authority content fields and names its sealed/artifact/constant inputs; the
-wrapper supplies only those inputs to the transform context and rejects tool
-output or `additional_context` references. `AuthorizedToolBinding` validates the
-envelope, removes source metadata, and dispatches only the normalized remote-tool
-arguments. A raw value or unverifiable source proof fails before handler entry.
+`ArgumentProvenanceEnvelope v1`, not an unannotated JSON object. Its canonical
+UTF-8 JSON serialization carries a format version, normalized argument values,
+and exactly one typed source proof per argument. V1 prompt spans use UTF-8 byte
+offsets into the sealed original prompt and one normalization identifier from the
+versioned wrapper registry (`identity` or `trim_ascii_whitespace`). The wrapper
+recomputes the span and normalization before it accepts the value. A sealed
+field, artifact, or package constant is represented by an opaque reference that
+the wrapper resolves server-side.
 
-`WorkflowRegistration` is the one immutable runtime authorization record. At
-registration, the wrapper compiles the portable descriptor and tool-index with a
-selected host profile and approved surface snapshots. It records the package and
-descriptor digests, profile and snapshot digests, resolved task policy,
-workspace policy, model selection, and execution limits under one registration
-digest. The descriptor is the sole source for logical task policy; the profile
-only supplies reusable host capabilities. The catalog maps a local `workflow_id`
-alias to a registration digest. Preparation and handlers reference that digest
-rather than independently reconfiguring those policies; compilation rejects a
-descriptor/profile mismatch.
+V1 model-generated content uses a short wrapper-owned transform registry with
+typed inputs and outputs; it is permitted only for non-authority content fields.
+`compose_content_v1` is the initial transform: the wrapper supplies only its
+declared sealed/artifact/constant inputs to a bounded model composition context
+and records the transform identifier and input references. It is not a proof of
+semantic derivation, so it can never supply destination, authorization,
+capability-selection, or external-identity fields. Tool output and
+`additional_context` are not transform inputs. `AuthorizedToolBinding` verifies
+canonical serialization, source proofs, normalization, transform identifier, and
+typed inputs; it removes source metadata and dispatches only normalized
+remote-tool arguments. A raw value or unverifiable source proof fails before
+handler entry.
+
+`WorkflowPolicy` is the immutable, gate-independent compilation of portable
+descriptor and tool-index policy: package/descriptor digests, task policy,
+workspace policy, limits, and required capability declarations. It contains no
+live host binding. `WorkflowRegistration` is the later executable authorization
+record: it binds one `WorkflowPolicy` to a compatible profile, model selection,
+and, when G2 applies, approved surface snapshots. The descriptor is the sole
+source for logical task policy; the profile only supplies reusable host
+capabilities. The catalog maps a local `workflow_id` alias only to an executable
+registration. Preparation and handlers reference that digest rather than
+independently reconfiguring policy; binding rejects a policy/profile mismatch.
 
 ### FR-2: `agent-tool-contract-design` defines host-owned tools
 
@@ -381,20 +407,46 @@ Acceptance criteria:
   package revision; until an automated judge is calibrated against human review,
   a human reviews every release-corpus package for intent fidelity and task scope.
 
+### Target skill invocation patterns
+
+Before wrapper implementation, the plugin shall build and test its three adapted
+skills against checked-in target invocation fixtures. These fixtures are the
+initial contract to meet and may be revised through a reviewed spec/task change
+when implementation evidence finds a defect or ambiguity. They do not require a
+live model in unit tests.
+
+| Skill | Target invocation | Required result |
+| --- | --- | --- |
+| `agent-development` | “Design a bounded DAR workflow that answers questions about supplied text using this local model and these examples.” | Canonical DAR artifacts, `WorkflowDescriptor`, finite `task_invocation`, capability report, and no undeclared tools. |
+| `agent-tool-contract-design` | “Add this approved connection requirement and reviewed MCP tool surface to the workflow; define its normalized schema, limits, approval class, and permitted argument sources.” | `tool-index.yaml`/descriptor changes with a host-managed connection requirement, reviewed semantic tool identifiers and schemas, side-effect metadata, and `ArgumentProvenanceEnvelope` policy. It refuses endpoint, OAuth, credential, or live-discovery design input. |
+| `agent-evaluation` | “Create acceptance cases and a regression gate for this package, including tool failure and prompt-injection behavior.” | Evaluation plan, deterministic fixtures, rubric/judge policy, and a regression gate that does not execute live external services. |
+
+The fixture corpus shall use a versioned schema and contain the request, selected
+non-secret `AuthoringMaterialSet` projections, expected artifact properties,
+expected refusal/capability result, and private-material exclusion rules.
+Deterministic tests validate fixture property contracts and package loading. A
+separate external release harness executes the adapted skills with the chosen
+authoring model and compares their artifacts with those properties; it supplies
+no unselected material. No test requires byte-identical prose or a live
+Fastmail, Hugging Face, or model call.
+
 ## MCP Execution Tool
 
 ### Package preparation is separate from execution
 
 Before a package can run, `WorkflowPreparationService` validates/imports it from
-an already-issued package-source handle, resolves a compatible host profile, and
-creates an immutable `WorkflowRegistration` with a local `workflow_id` alias.
-Preparation is a trusted local control-plane action, not a second model-facing
-MCP execution tool. An authoring or preparation skill may request the service
-and interpret its result, but it never receives a package path or ZIP, performs
-the import, or selects a profile. The service may ask a human to complete
-connection authentication or select an already configured compatible profile. It
-must not invent credentials, enable undeclared capabilities, or silently modify
-package artifacts.
+an already-issued package-source handle and compiles its `WorkflowPolicy`.
+`CapabilityResolution` then determines whether the currently passed gates can
+bind that policy to a compatible profile as an executable
+`WorkflowRegistration` with a local `workflow_id` alias. A package with an MCP,
+embedding, or other unavailable requirement returns a non-executing capability
+result; G1 never fabricates a live binding. Preparation is a trusted local
+control-plane action, not a second model-facing MCP execution tool. An authoring
+or preparation skill may request the service and interpret its result, but it
+never receives a package path or ZIP, performs the import, or selects a profile.
+The service may ask a human to complete connection authentication or select an
+already configured compatible profile. It must not invent credentials, enable
+undeclared capabilities, or silently modify package artifacts.
 
 The trusted control plane exposes this preparation contract to skills and the
 local CLI, not as a second model-facing MCP tool:
@@ -424,27 +476,31 @@ bounded no-follow source check. The handle is principal/expiry-bound and cannot
 be redirected to another path. Direct local `--package` and
 `--workspace-file` conveniences resolve to these handles before preparation
 after G4 passes; they are not available to an LLM skill or model-facing MCP
-caller. Its bounded response returns
-`workflow_id`, `package_id`, `revision_digest`, `registration_digest`,
-`prepared_input_id`, and expiry, or a discriminated non-executing preparation
-error. The authoring/preparation LLM may request this operation and interpret its
-result, but cannot perform its security-sensitive validation, select an arbitrary
-host path, or manufacture its identifiers.
+caller. Package-only preparation returns `package_id`, `revision_digest`,
+`workflow_policy_digest`, and a discriminated capability result. Only after G3
+and all required capability gates bind the policy to a profile does it return
+`workflow_id`, `registration_digest`, `prepared_input_id`, and expiry. The
+authoring/preparation LLM may request this operation and interpret its result,
+but cannot perform its security-sensitive validation, select an arbitrary host
+path, or manufacture its identifiers.
 
 For example, a request to use `custom-email.zip` to send an email causes the
 skill to request preparation with a previously issued package-source handle.
-The service imports and prepares the package if necessary, derives the package's
-validated structured input and bounded additional context without invoking a
-workflow tool, then calls the generic runner with its registered `workflow_id`.
-After G4, it may also bind explicitly ingressed local inputs. A later request can
-reuse that registered workflow with the same hybrid input preparation.
+The service imports and compiles the package policy. If the required MCP
+capability is not live, it returns `capability_unavailable`; it neither provisions
+nor registers the package. Once the relevant gates are live, preparation derives
+the package's validated structured input and bounded additional context without
+invoking a workflow tool, binds the policy, and calls the generic runner with its
+registered `workflow_id`. After G4, it may also bind explicitly ingressed local
+inputs. A later request can reuse that registered workflow with the same hybrid
+input preparation.
 
-An authenticated non-model `WorkflowPreparationService` creates a
-local-principal-, registration-digest-, and expiry-bound `PreparedWorkflowInput`.
-It contains the original prompt, only schema-valid structured fields, bounded
-`additional_context`, opaque artifact identifiers and versions when G4 is live,
-issuer/key ID, canonical schema version, and a canonical digest. It is sealed
-with a service key unavailable to skills. The
+After executable registration, an authenticated non-model
+`WorkflowPreparationService` creates a local-principal-, registration-digest-,
+and expiry-bound `PreparedWorkflowInput`. It contains the original prompt, only
+schema-valid structured fields, bounded `additional_context`, opaque artifact
+identifiers and versions when G4 is live, issuer/key ID, canonical schema version,
+and a canonical digest. It is sealed with a service key unavailable to skills. The
 structured fields are an explicitly labeled projection of the original prompt,
 not a more authoritative instruction source; the package's `field_precedence`
 rule applies before prompt construction. It may only project explicit user
@@ -768,20 +824,23 @@ Acceptance criteria:
 
 ### FR-8: Capability resolution contract
 
-Before every execution, the wrapper shall create one versioned
-`CapabilityResolution` from the `WorkflowRegistration`, selected profile,
-required surface snapshots, active gates, DAR's capability inspector, and
-wrapper-owned checks. It returns deterministic availability, reason codes, and
-source provenance for each requirement. All entry surfaces consume this result;
-they do not separately reinterpret descriptor metadata. Execution fails closed
-when a required capability is absent or only represented as DAR metadata.
+Before binding, the wrapper shall create one versioned `CapabilityResolution`
+from the `WorkflowPolicy`, declared profile capability records, active gates,
+DAR's capability inspector, and wrapper-owned checks. It returns deterministic
+eligibility or non-executing unavailability, reason codes, and source provenance
+for every requirement. Only an eligible resolution can bind the policy to a
+`WorkflowRegistration`; before every execution, the wrapper rechecks that same
+resolution against the registration's selected profile and required surface
+snapshots. All entry surfaces consume this result; they do not separately
+reinterpret descriptor metadata. Execution fails closed when a required
+capability is absent or only represented as DAR metadata.
 
 The supported v1 capability contract contains only independently enabled live
 capabilities; it does not imply that every profile exposes every integration:
 
 | Host capability | Wrapper responsibility |
 | --- | --- |
-| Package catalog | Resolve an approved `WorkflowRegistration`, validate artifacts, and run capability preflight. |
+| Package catalog | Compile and retain immutable `WorkflowPolicy` records; resolve an executable `WorkflowRegistration` only after capability preflight. |
 | Model manager | Select matching local adapters, enforce strict coverage, preflight local assets, and apply bounded generation settings. Hosted adapters are a later profile slice. |
 | Tool manager | Assemble declared host bindings; configured MCP bindings require G2. |
 | Secrets and files | Store credentials outside package artifacts. File references require G4 ingress and enforce workspace-root, size, type, and content-hash policies. |
@@ -991,8 +1050,9 @@ initially fail for the required behavior.
 
 1. **G0:** Validate plugin manifest and skill discovery.
 2. **G1:** Load generated basic, MCP-backed email, and embedding fixture packages
-   with DAR; compile matching descriptors and profiles into registrations, and
-   reject every mismatched projected policy field.
+   with DAR; compile descriptors into `WorkflowPolicy` records, return
+   non-executing unavailability for unavailable collaborators, and reject every
+   mismatched projected policy field. G2/G3 bind eligible policies to profiles.
 3. **G3:** Execute a no-tools workflow with a fake local model adapter and prove
    `--dry-run` invokes neither model nor tool handler.
 4. **G2 + G3:** Execute a fake read-only MCP workflow and prove provisioning

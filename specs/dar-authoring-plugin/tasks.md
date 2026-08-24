@@ -10,6 +10,23 @@ gate passes.
 
 ## G0: Package and Server Spike
 
+- [ ] RED: add checked-in target invocation fixtures for all three adapted skills
+      before copying or rewriting them. Each fixture defines a user request,
+      fixture schema version, selected non-secret inputs, expected artifact
+      properties, expected capability/refusal state, and private-material
+      exclusion rules.
+- [ ] GREEN: copy `agent-development`, `agent-tool-contract-design`, and
+      `agent-evaluation` from `ai-environment-roschuma` at recorded immutable
+      source revisions; remove upstream-environment dependencies and rewrite
+      their instructions so DAR package, wrapper, and evaluation contracts are
+      authoritative. Add `adapted-skill-provenance.yaml` with source locator,
+      revision, license/notice, redistribution review, copied path, and DAR
+      modification summary for every copied skill.
+- [ ] RED/GREEN: plugin skill-discovery and target-invocation fixture tests prove
+      each adapted skill, provenance entry, source revision, copied-path coverage,
+      redistribution review, and fixture schema is present; lint declared artifact
+      interfaces and unsafe-input expectations. These static tests do not claim
+      model routing or refusal behavior and do not invoke a model.
 - [ ] RED: plugin-manifest discovery, approved-Artifactory immutable artifact
       resolution, hash-pinned dependency-lock verification, and isolated-`uvx`
       installation tests.
@@ -45,44 +62,58 @@ gate passes.
       identity fields reject `additional_context`, tool-result, and remote
       instruction flow; adversarial prompt-injection fixtures prove rejection.
 - [ ] RED/GREEN: require an `ArgumentProvenanceEnvelope` for every model-facing
-      tool argument. Verify sealed references, artifact references, package
-      constants, and canonical prompt spans; reject raw/unverifiable values and
-      remote-output or additional-context references in a model transform.
+      tool argument. Verify v1 canonical serialization, UTF-8 byte spans,
+      normalization identifiers, sealed/artifact/constant references, and typed
+      transform inputs; reject raw/unverifiable values and remote-output or
+      additional-context references in a model transform.
 - [ ] RED/GREEN: authoring skill fixtures turn natural-language requests plus
-      supplied examples/files/documentation into a validated package directory;
+      an `AuthoringMaterialSet` projection into a validated package directory;
       deterministic ZIP export/import preserves the manifest and artifact
       digests without executing package content.
+- [ ] RED/GREEN: human-only authoring-material selection creates a principal- and
+      expiry-bound `AuthoringMaterialSet` of bounded versioned artifact refs with
+      reference-only/distributable status. Skills receive only approved
+      projections; unselected/private material cannot enter package, trace,
+      evaluation fixture, or export.
 - [ ] RED/GREEN: run a de-identified checked-in authoring corpus through an
       external release harness. Record authoring model/prompt/package revision,
       require deterministic package and policy checks to pass, and route every
       release-corpus package to human intent-fidelity review until a judge is
       calibrated.
+- [ ] RED/GREEN: execute the three target skill invocation fixtures through the
+      external authoring harness. Require the resulting artifacts to satisfy the
+      same checked-in property contracts and behavioral routing/refusal
+      expectations; record authoring model/prompt/reviewer evidence and review
+      fixture-schema or expected-property changes as acceptance-contract changes.
 - [ ] RED/GREEN: ZIP import rejects traversal, duplicate, link, special, and
       over-limit entries; verify manifest file paths, bytes, hashes, schema, and
-      DAR compatibility before immutable registration. Require recorded local
+      DAR compatibility before immutable policy compilation. Require recorded local
       trust for locally authored packages and a configured trusted-publisher-key
       signature for received packages.
 - [ ] RED/GREEN: directory import makes the same private no-follow staging copy
-      before validation; registration identity is `package_id` plus immutable
-      `revision_digest`, with installation-local workflow aliases, idempotent
-      reimport,
-      explicit collision handling, and retained prior revisions.
+      before validation; package identity is `package_id` plus immutable
+      `revision_digest`, with idempotent reimport, explicit collision handling,
+      and retained prior revisions. G3 creates installation-local workflow aliases
+      only for executable registrations.
 - [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
       signer/key-id binding, rejection of an unknown locally trusted publisher
       key, and a recipient-host signed-package import. Explicitly selected
       distributable authoring material is included; private source material is
       absent.
-- [ ] RED/GREEN: `WorkflowPreparationService` imports a
-      directory or ZIP only through a pre-issued source handle, resolves a
-      compatible host profile, compiles an immutable `WorkflowRegistration`, and
-      registers its workflow alias before the single runner tool is exposed.
-- [ ] RED/GREEN: `WorkflowRegistration` compilation is the sole policy derivation
-      path: descriptor/task policy plus profile/snapshot capabilities produce one
-      registration digest, while any mismatched duplicated field is rejected.
-- [ ] RED/GREEN: `dar-workflow prepare --json` authenticates the caller and
-      returns only registered workflow/package/revision/registration identifiers
-      plus a sealed prepared-input identifier and expiry; LLM skills cannot mint
-      them.
+- [ ] RED/GREEN: `WorkflowPreparationService` imports a directory or ZIP only
+      through a pre-issued source handle and compiles an immutable
+      `WorkflowPolicy`. G1 validates requirements but creates neither a live
+      profile binding nor an executable workflow alias.
+- [ ] RED/GREEN: `WorkflowPolicy` compilation is the sole logical policy
+      derivation path. Descriptor/task policy produces one policy digest; any
+      mismatched duplicated field is rejected.
+- [ ] RED/GREEN: capability resolution returns a non-executing unavailable result
+      for a required G2/deferred collaborator. Only the eligible gate binds a
+      `WorkflowPolicy` to profile/snapshot data as `WorkflowRegistration`.
+- [ ] RED/GREEN: package-only preparation returns the package/policy identifiers
+      and a deterministic unavailable-capability result where required; it never
+      returns a workflow alias, registration, or prepared input before G3 and the
+      applicable capability gate pass.
 - [ ] RED/GREEN: preparation accepts only local-principal/expiry-bound opaque
       package-source handles. A human-selected local CLI path resolves to a
       handle before preparation; LLM skills and MCP callers cannot select an
@@ -91,28 +122,15 @@ gate passes.
       return only `source_selection_required`; a human-only picker or
       `dar-workflow select-package` issues the handle without exposing its path
       to the skill.
-- [ ] RED: versioned `run_dar_workflow` request/response schema tests for
-      closed-set workflow identifiers plus an opaque sealed prepared-input ID;
-      raw hybrid-input fields are rejected.
 - [ ] RED/GREEN: preparation derives only schema-valid structured fields without
       workflow-tool access, preserves unmapped information within the declared
       `additional_context` bound, and rejects over-limit or malformed inputs.
-- [ ] RED/GREEN: preparation seals the original prompt, structured projection,
-      additional context, local principal, registration digest, and expiry into
-      `PreparedWorkflowInput`; reject raw or cross-principal, cross-registration,
-      changed, or expired input at the runner.
-- [ ] RED/GREEN: validate preparation-service issuer/key, canonical schema, and
-      registration binding. Reusable read-only inputs require an explicit bounded
-      profile policy.
-- [ ] GREEN: immutable package/workflow catalog maps each alias only to its
-      registration digest; reject arbitrary package paths, endpoints, commands,
-      profile selections, and model-provided provisioning/approval fields.
 - [ ] RED/GREEN: `InstallationIdentityProvider` supplies a stable local principal
       to CLI, MCP server, preparation, and runner. Cross-client and restart tests
       prove requests cannot provide or override it.
 - [ ] RED/GREEN: produce one deterministic `CapabilityResolution` from the
-      registration, profile, active gates, and DAR inspection; reject
-      metadata-only or missing wrapper requirements before execution.
+      `WorkflowPolicy`, declared profile capabilities, active gates, and DAR
+      inspection; reject metadata-only or missing requirements before binding.
 
 ## G2: Optional MCP Connection Control Plane and Surface Binding
 
@@ -149,6 +167,23 @@ gate passes.
 ## G3: Read-Only Workflow Runner
 
 - [ ] RED/GREEN: select a strict local model adapter and reject hosted fallback.
+- [ ] RED/GREEN: when `CapabilityResolution` is available, bind a
+      `WorkflowPolicy` to the selected profile as an immutable
+      `WorkflowRegistration` and map its workflow alias only to that registration
+      digest. Reject arbitrary package paths, endpoints, commands, profile
+      selections, and model-provided provisioning/approval fields.
+- [ ] RED/GREEN: `dar-workflow prepare --json` authenticates the caller and,
+      after binding, returns registered workflow/package/revision/registration
+      identifiers plus a sealed prepared-input identifier and expiry; LLM skills
+      cannot mint them.
+- [ ] RED: versioned `run_dar_workflow` request/response schema tests for
+      closed-set workflow identifiers plus an opaque sealed prepared-input ID;
+      raw hybrid-input fields are rejected.
+- [ ] RED/GREEN: preparation seals the original prompt, structured projection,
+      additional context, local principal, registration digest, and expiry into
+      `PreparedWorkflowInput`; reject raw or cross-principal, cross-registration,
+      changed, or expired input at the runner. Reusable read-only inputs require
+      an explicit bounded profile policy.
 - [ ] RED/GREEN: execute a no-tools workflow through its registration, capability
       resolution, bounded result shaping, and deep-redacted tracing.
 - [ ] RED/GREEN: `dar-workflow-run` resolves handles, invokes preparation, then
