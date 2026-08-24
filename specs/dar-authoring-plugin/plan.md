@@ -226,11 +226,15 @@ part of ordinary test execution.
 4. **M5.3: Add the HTTPS MCP lifecycle adapter.** Implement configured HTTPS
    initialization, peer-identity pinning, timeout/cancellation/reconnect/cleanup,
    and bounded output with fake transport fixtures only.
-5. **M5.4: Review and bind MCP surfaces.** Create approved snapshot records and
-   passive identity/input-schema drift detection. Construct bindings only from a
-   current snapshot and reject every non-read-only tool until G5 passes, even if
-   its connection and snapshot are otherwise valid.
-6. **M5.5: Integrate a read-only binding with M3.** Execute one fake read-only
+5. **M5.4a: Persist reviewed MCP surfaces.** Create approved snapshot records
+   from identity/input-schema metadata and passive drift detection. Remote prose
+   and annotations are untrusted and not retained as approval authority.
+6. **M5.4b: Retrieve and revalidate MCP surfaces.** Extend the configured HTTPS
+   client with bounded `tools/list`, then verify the current identity/input
+   schema surface before binding or dispatch.
+7. **M5.5: Integrate a read-only binding with M3.** Construct bindings only from
+   a current snapshot and reject every non-read-only tool until G5 passes, even
+   if its connection and snapshot are otherwise valid. Execute one fake read-only
    MCP workflow after M3 is live. A fake send-like tool must be unavailable and
    its handler must not run.
 
