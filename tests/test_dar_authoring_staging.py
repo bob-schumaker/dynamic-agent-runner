@@ -316,6 +316,23 @@ def test_staging_rejects_zip_members_above_the_file_size_limit(
         )
 
 
+def test_staging_rejects_zip_members_above_the_compression_ratio_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    allowed_root = tmp_path / "packages"
+    allowed_root.mkdir()
+    archive = allowed_root / "compressed.zip"
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as package:
+        package.writestr("agent-design.md", "a" * 4096)
+    monkeypatch.setattr("dar_workflow_server.staging.MAX_ZIP_COMPRESSION_RATIO", 2)
+    handle, store = _archive_selection(tmp_path, archive)
+
+    with pytest.raises(PackageStagingError, match="compression ratio"):
+        PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+            handle, now=NOW
+        )
+
+
 def test_staging_rejects_duplicate_zip_members(tmp_path: Path) -> None:
     allowed_root = tmp_path / "packages"
     allowed_root.mkdir()

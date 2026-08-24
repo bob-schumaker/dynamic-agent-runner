@@ -252,7 +252,8 @@ bundle; import extracts and validates it before registration.
 Import first streams an archive into a fresh private staging root. It rejects
 absolute, parent-traversal, duplicate, symlink, hard-link, device, and special
 entries; enforces configured entry-count, uncompressed-byte, per-file, and
-compression-ratio limits; and uses descriptor-relative no-follow writes. Its
+compression-ratio limits; and uses descriptor-relative no-follow writes. V1
+rejects a member or archive whose declared expansion exceeds 100:1. Its
 canonical manifest enumerates every regular file path, byte count, and SHA-256,
 the package/schema version, and DAR compatibility requirement. Extraction is
 accepted only when the enumerated files and digests match exactly. A locally

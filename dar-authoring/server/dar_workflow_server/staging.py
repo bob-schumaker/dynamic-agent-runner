@@ -29,6 +29,7 @@ from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_PACKAGE_BYTES = 64 * 1024 * 1024
 MAX_PACKAGE_FILES = 256
+MAX_ZIP_COMPRESSION_RATIO = 100
 _READ_SIZE = 64 * 1024
 _PACKAGE_MANIFEST_NAME = "package-manifest.json"
 _PACKAGE_SIGNATURE_NAME = "package-signature.json"
@@ -489,6 +490,7 @@ def _validated_zip_members(
     members: list[tuple[PurePosixPath, zipfile.ZipInfo]] = []
     seen: set[PurePosixPath] = set()
     total_bytes = 0
+    total_compressed_bytes = 0
     for member in archive.infolist():
         relative_path = _zip_member_path(member)
         if relative_path in seen:
@@ -498,6 +500,10 @@ def _validated_zip_members(
         seen.add(relative_path)
         _validate_zip_member_type(member)
         total_bytes = _zip_member_total_bytes(member, total_bytes)
+        total_compressed_bytes = _zip_member_compressed_bytes(
+            member, total_compressed_bytes
+        )
+        _validate_zip_compression_ratio(total_bytes, total_compressed_bytes)
         if len(seen) > MAX_PACKAGE_FILES:
             raise PackageStagingError("package source exceeds file limit")
         members.append((relative_path, member))
@@ -514,6 +520,24 @@ def _zip_member_total_bytes(member: zipfile.ZipInfo, total_bytes: int) -> int:
     if total_bytes > MAX_PACKAGE_BYTES:
         raise PackageStagingError("package source exceeds size limit")
     return total_bytes
+
+
+def _zip_member_compressed_bytes(member: zipfile.ZipInfo, total_bytes: int) -> int:
+    if member.is_dir():
+        return total_bytes
+    if member.file_size and not member.compress_size:
+        raise PackageStagingError("package source archive exceeds compression ratio")
+    return total_bytes + member.compress_size
+
+
+def _validate_zip_compression_ratio(
+    uncompressed_bytes: int, compressed_bytes: int
+) -> None:
+    if uncompressed_bytes and (
+        not compressed_bytes
+        or uncompressed_bytes > compressed_bytes * MAX_ZIP_COMPRESSION_RATIO
+    ):
+        raise PackageStagingError("package source archive exceeds compression ratio")
 
 
 def _reject_zip_parent_conflicts(
