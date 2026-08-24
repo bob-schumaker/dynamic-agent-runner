@@ -11,10 +11,12 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from dar_workflow_server.package_signatures import PackageSignatureError, sign_manifest
 from dar_workflow_server.staging import StagedPackage
 
 
 _MANIFEST_NAME = "package-manifest.json"
+_SIGNATURE_NAME = "package-signature.json"
 _ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
 
@@ -28,6 +30,7 @@ class ExportedPackage:
 
     content_digest: str
     byte_count: int
+    publisher_key_id: str | None = None
 
 
 def export_staged_package(
@@ -36,6 +39,43 @@ def export_staged_package(
     """Write a deterministic ZIP only after verifying the private content manifest."""
 
     payload = _verified_payload(staged)
+    return _write_exported_package(
+        payload=payload, destination=destination, content_digest=staged.digest
+    )
+
+
+def export_signed_staged_package(
+    *, staged: StagedPackage, destination: Path, key_id: str, private_key: bytes
+) -> ExportedPackage:
+    """Write a deterministic publisher-signed ZIP from an already-private package."""
+
+    payload = _verified_payload(staged)
+    try:
+        signature = sign_manifest(
+            manifest=payload[_MANIFEST_NAME], key_id=key_id, private_key=private_key
+        )
+    except PackageSignatureError as error:
+        raise PackageExportError("package signing material is invalid") from error
+    payload[_SIGNATURE_NAME] = json.dumps(
+        signature, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return _write_exported_package(
+        payload=payload,
+        destination=destination,
+        content_digest=staged.digest,
+        publisher_key_id=key_id,
+    )
+
+
+def _write_exported_package(
+    *,
+    payload: dict[str, bytes],
+    destination: Path,
+    content_digest: str,
+    publisher_key_id: str | None = None,
+) -> ExportedPackage:
+    """Write one canonical ZIP payload without retaining a private signing key."""
+
     _validate_destination(destination)
     temporary = destination.parent / f".{destination.name}.{secrets.token_hex(16)}.tmp"
     try:
@@ -51,7 +91,7 @@ def export_staged_package(
     finally:
         if temporary.exists():
             temporary.unlink()
-    return ExportedPackage(staged.digest, destination.stat().st_size)
+    return ExportedPackage(content_digest, destination.stat().st_size, publisher_key_id)
 
 
 def _verified_payload(staged: StagedPackage) -> dict[str, bytes]:

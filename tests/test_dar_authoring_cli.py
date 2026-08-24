@@ -110,6 +110,129 @@ def test_cli_manages_human_trusted_publisher_keys(tmp_path: Path) -> None:
     assert revoked == {"key_id": key_id, "status": "revoked"}
 
 
+def test_cli_exports_a_signed_package_with_key_material_only_on_stdin(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    source = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    state_args = ["--state-root", str(root)]
+    key_id = "publisher.example.v1"
+    private_key = Ed25519PrivateKey.generate()
+
+    status, _ = _invoke(
+        [
+            *state_args,
+            "configure-local-model",
+            "--package-root",
+            str(package_root),
+            "--model-id",
+            "local-model-v1",
+            "--base-url",
+            "http://127.0.0.1:11434/v1",
+        ]
+    )
+    assert status == 0
+    status, selected = _invoke([*state_args, "select-package", "--path", str(source)])
+    assert status == 0
+    status, previewed = _invoke(
+        [
+            *state_args,
+            "preview-package",
+            "--package-source-handle",
+            selected["package_source_handle"],
+        ]
+    )
+    assert status == 0
+    assert previewed["status"] == "previewed"
+    output: list[str] = []
+    private_key_base64 = base64.b64encode(private_key.private_bytes_raw()).decode(
+        "ascii"
+    )
+    archive = package_root / "document-helper-signed.zip"
+
+    status = main(
+        [
+            *state_args,
+            "export-signed-package",
+            "--package-source-handle",
+            selected["package_source_handle"],
+            "--destination",
+            str(archive),
+            "--key-id",
+            key_id,
+            "--expected-content-digest",
+            previewed["content_digest"],
+            "--private-key-stdin",
+        ],
+        write=output.append,
+        read_stdin=lambda: private_key_base64,
+    )
+
+    assert status == 0
+    exported = json.loads(output[0])
+    assert exported["status"] == "exported"
+    assert exported["byte_count"] == archive.stat().st_size
+    assert len(exported["content_digest"]) == 64
+    assert exported["publisher_key_id"] == key_id
+    assert private_key_base64 not in output[0]
+
+
+def test_cli_does_not_read_a_signing_key_without_digest_confirmation(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    source = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    state_args = ["--state-root", str(root)]
+
+    status, _ = _invoke(
+        [
+            *state_args,
+            "configure-local-model",
+            "--package-root",
+            str(package_root),
+            "--model-id",
+            "local-model-v1",
+            "--base-url",
+            "http://127.0.0.1:11434/v1",
+        ]
+    )
+    assert status == 0
+    status, selected = _invoke([*state_args, "select-package", "--path", str(source)])
+    assert status == 0
+
+    key_was_read = False
+
+    def read_key() -> str:
+        nonlocal key_was_read
+        key_was_read = True
+        return "not-used"
+
+    assert (
+        main(
+            [
+                *state_args,
+                "export-signed-package",
+                "--package-source-handle",
+                selected["package_source_handle"],
+                "--destination",
+                str(package_root / "signed.zip"),
+                "--key-id",
+                "publisher.example.v1",
+                "--expected-content-digest",
+                "wrong",
+                "--private-key-stdin",
+            ],
+            read_stdin=read_key,
+        )
+        == 2
+    )
+    assert not key_was_read
+
+
 def test_cli_registers_a_trusted_publisher_signed_zip(tmp_path: Path) -> None:
     root = tmp_path / "state"
     package_root = tmp_path / "packages"

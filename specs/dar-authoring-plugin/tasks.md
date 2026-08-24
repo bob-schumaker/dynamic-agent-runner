@@ -322,7 +322,7 @@ passes.
       the immutable catalog revision records `publisher_signature` plus the
       signing key ID. The recipient-host CLI fixture proves trust, selection, and
       registration end to end.
-- [ ] RED/GREEN: canonical-manifest-v2 Ed25519 export/import fixtures prove
+- [x] RED/GREEN: canonical-manifest-v2 Ed25519 export/import fixtures prove
       signer/key-id binding, rejection of an unknown locally trusted publisher
       key, and a recipient-host signed-package import. Explicitly selected
       distributable authoring material is included; private source material is

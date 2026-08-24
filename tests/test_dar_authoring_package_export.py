@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import shutil
 import sys
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
 sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
 
 from dar_workflow_server.package_export import (  # noqa: E402
     PackageExportError,
+    export_signed_staged_package,
     export_staged_package,
 )
 from dar_workflow_server.package_sources import PackageSourceSelectionPolicy  # noqa: E402
@@ -71,3 +74,34 @@ def test_export_rejects_a_tampered_private_payload(tmp_path: Path) -> None:
 
     with pytest.raises(PackageExportError, match="does not match"):
         export_staged_package(staged=staged, destination=tmp_path / "export.zip")
+
+
+def test_signed_export_round_trips_through_trusted_publisher_import(
+    tmp_path: Path,
+) -> None:
+    staged, store = _stage(tmp_path)
+    key_id = "publisher.example.v1"
+    private_key = Ed25519PrivateKey.generate()
+    archive = tmp_path / "exports" / "signed.zip"
+
+    receipt = export_signed_staged_package(
+        staged=staged,
+        destination=archive,
+        key_id=key_id,
+        private_key=private_key.private_bytes_raw(),
+    )
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=archive.parent, store=store
+    ).select_publisher_zip(archive, now=NOW)
+    imported = PrivatePackageStager(
+        store=store,
+        private_root=tmp_path / "imports",
+        trusted_keys=lambda: {key_id: private_key.public_key().public_bytes_raw()},
+    ).stage(handle, now=NOW)
+
+    with zipfile.ZipFile(archive) as exported:
+        assert "package-signature.json" in exported.namelist()
+    assert receipt.content_digest == staged.digest
+    assert receipt.publisher_key_id == key_id
+    assert imported.digest == staged.digest
+    assert imported.publisher_key_id == key_id

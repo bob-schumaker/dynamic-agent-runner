@@ -42,6 +42,11 @@ from dar_workflow_server.oauth import (
     OAuthClientConfiguration,
     OAuthError,
 )
+from dar_workflow_server.package_export import (
+    ExportedPackage,
+    PackageExportError,
+    export_signed_staged_package,
+)
 from dar_workflow_server.package_sources import PackageSourceSelectionPolicy
 from dar_workflow_server.policy import (
     PolicyCompilationError,
@@ -74,7 +79,7 @@ from dar_workflow_server.runner import (
     RunDarWorkflowResult,
     WorkflowRunner,
 )
-from dar_workflow_server.staging import PrivatePackageStager
+from dar_workflow_server.staging import PrivatePackageStager, StagedPackage
 from dar_workflow_server.state import PrivateStateStore
 from dar_workflow_server.workspace_ingress import (
     WorkspaceIngressError,
@@ -394,6 +399,40 @@ class LocalWorkflowHost:
         if path.suffix.lower() != ".zip":
             raise LocalWorkflowHostError("publisher package must be a ZIP")
         return self._sources.select_publisher_zip(path, now=now)
+
+    def export_signed_package(
+        self,
+        *,
+        package_source_handle: str,
+        destination: Path,
+        key_id: str,
+        private_key: bytes,
+        expected_content_digest: str,
+        now: datetime,
+    ) -> ExportedPackage:
+        """Create one human-directed signed portable ZIP without retaining its key."""
+
+        staged = self.preview_package(
+            package_source_handle=package_source_handle, now=now
+        )
+        if expected_content_digest != staged.digest:
+            raise LocalWorkflowHostError("package content digest was not confirmed")
+        try:
+            return export_signed_staged_package(
+                staged=staged,
+                destination=destination,
+                key_id=key_id,
+                private_key=private_key,
+            )
+        except PackageExportError as error:
+            raise LocalWorkflowHostError("package export failed") from error
+
+    def preview_package(
+        self, *, package_source_handle: str, now: datetime
+    ) -> StagedPackage:
+        """Stage one human-selected package and return its redaction-safe digest."""
+
+        return self._stager.stage(package_source_handle, now=now)
 
     def review_mcp_surface(
         self,

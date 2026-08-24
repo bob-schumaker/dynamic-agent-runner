@@ -73,66 +73,11 @@ def main(
         if mcp_result is not None:
             _write(write, mcp_result)
             return 0
-        if args.command == "select-package":
-            select = (
-                host.select_publisher_package
-                if args.publisher_signed
-                else host.select_package
-            )
-            _write(
-                write,
-                {"package_source_handle": select(Path(args.path), now=now)},
-            )
-            return 0
-        if args.command == "register":
-            registration = host.register(
-                workflow_id=args.workflow_id,
-                package_source_handle=args.package_source_handle,
-                now=now,
-                mcp_binding_id=args.mcp_binding_id,
-            )
-            _write(
-                write,
-                {
-                    "workflow_id": registration.workflow_id,
-                    "registration_digest": registration.registration_digest,
-                    "profile_id": registration.profile_id,
-                },
-            )
-            return 0
-        if args.command == "ingress-file":
-            artifact = host.ingress_file(
-                workflow_id=args.workflow_id,
-                path=Path(args.path),
-                role=args.role,
-                media_type=args.media_type,
-                now=now,
-            )
-            _write(
-                write,
-                {
-                    "artifact_id": artifact.artifact_id,
-                    "content_hash": artifact.content_hash,
-                    "byte_count": artifact.byte_count,
-                    "expires_at": artifact.expires_at.isoformat(),
-                },
-            )
-            return 0
-        if args.command == "prepare":
-            prepared = host.prepare(
-                workflow_id=args.workflow_id,
-                prompt=args.prompt,
-                workspace_artifact_ids=args.artifact_id,
-                now=now,
-            )
-            _write(
-                write,
-                {
-                    "prepared_input_id": prepared.prepared_input_id,
-                    "workflow_id": prepared.workflow_id,
-                    "expires_at": prepared.expires_at.isoformat(),
-                },
-            )
+        package_result = _package_control_result(
+            host, args, now=now, read_stdin=read_stdin
+        )
+        if package_result is not None:
+            _write(write, package_result)
             return 0
         return _run(host, args, now=now, write=write)
     except (LocalWorkflowHostError, ValueError) as error:
@@ -213,6 +158,14 @@ def _parser() -> argparse.ArgumentParser:
     select = commands.add_parser("select-package")
     select.add_argument("--path", required=True)
     select.add_argument("--publisher-signed", action="store_true")
+    export = commands.add_parser("export-signed-package")
+    export.add_argument("--package-source-handle", required=True)
+    export.add_argument("--destination", required=True)
+    export.add_argument("--key-id", required=True)
+    export.add_argument("--expected-content-digest", required=True)
+    export.add_argument("--private-key-stdin", action="store_true")
+    preview = commands.add_parser("preview-package")
+    preview.add_argument("--package-source-handle", required=True)
     register = commands.add_parser("register")
     register.add_argument("--workflow-id", required=True)
     register.add_argument("--package-source-handle", required=True)
@@ -341,6 +294,102 @@ def _mcp_workflow_result(
             now=now,
         )
         return {"status": "bound", "binding_id": binding.binding_id}
+    return None
+
+
+def _package_control_result(
+    host: LocalWorkflowHost,
+    args: Any,
+    *,
+    now: datetime,
+    read_stdin: Callable[[], str] | None,
+) -> dict[str, object] | None:
+    if args.command == "select-package":
+        select = (
+            host.select_publisher_package
+            if args.publisher_signed
+            else host.select_package
+        )
+        return {"package_source_handle": select(Path(args.path), now=now)}
+    if args.command == "export-signed-package":
+        previewed = host.preview_package(
+            package_source_handle=args.package_source_handle, now=now
+        )
+        if args.expected_content_digest != previewed.digest:
+            raise LocalWorkflowHostError("package content digest was not confirmed")
+        if not args.private_key_stdin:
+            raise LocalWorkflowHostError(
+                "package signing key must be supplied on stdin"
+            )
+        try:
+            private_key = base64.b64decode(
+                (read_stdin or sys.stdin.read)().strip().encode("ascii"),
+                validate=True,
+            )
+        except (UnicodeEncodeError, ValueError) as error:
+            raise LocalWorkflowHostError("package signing key is invalid") from error
+        exported = host.export_signed_package(
+            package_source_handle=args.package_source_handle,
+            destination=Path(args.destination),
+            key_id=args.key_id,
+            private_key=private_key,
+            expected_content_digest=args.expected_content_digest,
+            now=now,
+        )
+        return {
+            "byte_count": exported.byte_count,
+            "content_digest": exported.content_digest,
+            "publisher_key_id": exported.publisher_key_id,
+            "status": "exported",
+        }
+    if args.command == "preview-package":
+        staged = host.preview_package(
+            package_source_handle=args.package_source_handle, now=now
+        )
+        return {
+            "byte_count": staged.byte_count,
+            "content_digest": staged.digest,
+            "file_count": staged.file_count,
+            "status": "previewed",
+        }
+    if args.command == "register":
+        registration = host.register(
+            workflow_id=args.workflow_id,
+            package_source_handle=args.package_source_handle,
+            now=now,
+            mcp_binding_id=args.mcp_binding_id,
+        )
+        return {
+            "workflow_id": registration.workflow_id,
+            "registration_digest": registration.registration_digest,
+            "profile_id": registration.profile_id,
+        }
+    if args.command == "ingress-file":
+        artifact = host.ingress_file(
+            workflow_id=args.workflow_id,
+            path=Path(args.path),
+            role=args.role,
+            media_type=args.media_type,
+            now=now,
+        )
+        return {
+            "artifact_id": artifact.artifact_id,
+            "content_hash": artifact.content_hash,
+            "byte_count": artifact.byte_count,
+            "expires_at": artifact.expires_at.isoformat(),
+        }
+    if args.command == "prepare":
+        prepared = host.prepare(
+            workflow_id=args.workflow_id,
+            prompt=args.prompt,
+            workspace_artifact_ids=args.artifact_id,
+            now=now,
+        )
+        return {
+            "prepared_input_id": prepared.prepared_input_id,
+            "workflow_id": prepared.workflow_id,
+            "expires_at": prepared.expires_at.isoformat(),
+        }
     return None
 
 

@@ -221,13 +221,15 @@ part of ordinary test execution.
    or catalog import, and its revision records the signing key ID. Each ordinary
    human-selected local source records `human_selected_local` against its
    immutable revision/content-manifest digest. Every portable ZIP now requires
-   its source manifest before staging. The remaining trust work is a
-   signing-export path.
+   its source manifest before staging.
 4. **M8.1d: Export portable packages.** Implemented for an already-private
    staged package: deterministic stored ZIP export rechecks the generated
    manifest and payload hashes without executing package content, and round
-   trips through ZIP intake to the same content digest. Publisher trust remains
-   a prerequisite for interchange outside the local host.
+   trips through ZIP intake to the same content digest. Human-only signed export
+   previews the manifest content digest, requires its exact confirmation before
+   reading base64 key material from stdin, emits a detached Ed25519 signature,
+   and does not retain private signing material. Publisher trust remains a
+   prerequisite for interchange outside the local host.
 5. **M8.2: Run the first publication gate.** Require M3's no-tool runner
    evidence and M4's external authoring-skill evidence, then verify the released
    wheel from a clean consumer-install directory. No adapted skill or execution
