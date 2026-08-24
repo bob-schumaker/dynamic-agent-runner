@@ -12,10 +12,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from dar_workflow_server.action_ledger import ExternalAction
-from dar_workflow_server.approvals import WorkflowApproval
-from dar_workflow_server.authorized_tools import LocalApprovalDecision
-from dar_workflow_server.host import (
+from dynamic_agent_runner.workflow_host.action_ledger import ExternalAction
+from dynamic_agent_runner.workflow_host.approvals import WorkflowApproval
+from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDecision
+from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
     attach_mcp_client,

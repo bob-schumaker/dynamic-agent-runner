@@ -20,8 +20,9 @@
 
 Provide a Codex plugin named `dar-authoring` for designing, validating, and
 executing selected Dynamic Agent Runner (DAR) workflow packages. The plugin
-owns authoring policy and the full host-runtime integration; DAR remains the
-generic graph executor.
+owns authoring policy, skills, templates, and launch configuration. DAR owns
+the generic workflow-host runtime and stdio MCP entry point; it does not own
+authoring policy.
 
 ## References
 
@@ -112,8 +113,6 @@ dar-authoring/
     agent-development/SKILL.md
     agent-tool-contract-design/SKILL.md
     agent-evaluation/SKILL.md
-  server/
-    dar_workflow_server/
   templates/
     agent-design.md
     agent-runtime.yaml

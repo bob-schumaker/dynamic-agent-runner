@@ -10,7 +10,10 @@ from datetime import UTC, datetime
 from typing import Iterable
 from urllib.parse import urlsplit
 
-from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
+from dynamic_agent_runner.workflow_host.state import (
+    OpaqueRecordError,
+    PrivateStateStore,
+)
 from dynamic_agent_runner.local_models import (
     LocalOpenAIEndpointConfig,
     create_local_openai_adapter,

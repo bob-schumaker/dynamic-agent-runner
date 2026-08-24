@@ -10,12 +10,15 @@ from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import Iterable, Mapping, Protocol
 
-from dar_workflow_server.connections import (
+from dynamic_agent_runner.workflow_host.connections import (
     MCPConnectionControlPlane,
     MCPConnectionError,
 )
-from dar_workflow_server.profiles import InstallationIdentityProvider
-from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
+from dynamic_agent_runner.workflow_host.profiles import InstallationIdentityProvider
+from dynamic_agent_runner.workflow_host.state import (
+    OpaqueRecordError,
+    PrivateStateStore,
+)
 
 
 class MCPSurfaceSnapshotError(ValueError):

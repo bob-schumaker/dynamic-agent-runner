@@ -4,18 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import os
-import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
-from dar_workflow_server.workspace_ingress import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.workspace_ingress import (  # noqa: E402
     WorkspaceIngressError,
     WorkspaceIngressPolicy,
     WorkspaceIngressService,

@@ -3,24 +3,22 @@
 from __future__ import annotations
 
 import shutil
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.catalog import PackageCatalog  # noqa: E402
-from dar_workflow_server.package_sources import PackageSourceSelectionPolicy  # noqa: E402
-from dar_workflow_server.preflight import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.catalog import PackageCatalog  # noqa: E402
+from dynamic_agent_runner.workflow_host.package_sources import (
+    PackageSourceSelectionPolicy,
+)  # noqa: E402
+from dynamic_agent_runner.workflow_host.preflight import (  # noqa: E402
     PackagePreflightError,
     PackagePreflightService,
 )
-from dar_workflow_server.staging import PrivatePackageStager  # noqa: E402
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)

@@ -7,14 +7,17 @@ from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import Mapping
 
-from dar_workflow_server.mcp_surfaces import (
+from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     CurrentMCPSurfaceClient,
     MCPSurfaceSnapshotControlPlane,
     MCPSurfaceSnapshotError,
 )
-from dar_workflow_server.policy import WorkflowPolicy
-from dar_workflow_server.profiles import InstallationIdentityProvider
-from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
+from dynamic_agent_runner.workflow_host.policy import WorkflowPolicy
+from dynamic_agent_runner.workflow_host.profiles import InstallationIdentityProvider
+from dynamic_agent_runner.workflow_host.state import (
+    OpaqueRecordError,
+    PrivateStateStore,
+)
 
 
 class MCPWorkflowCapabilityBindingError(ValueError):

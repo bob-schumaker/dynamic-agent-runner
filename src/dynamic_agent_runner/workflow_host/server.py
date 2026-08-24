@@ -7,18 +7,16 @@ import os
 import sys
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, TextIO
 
-if __package__ in {None, ""}:  # pragma: no cover - exercised by subprocess smoke test.
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from dar_workflow_server.host import LocalWorkflowHost
-from dar_workflow_server.runner import RunDarWorkflowRequest
+from dynamic_agent_runner.workflow_host.host import LocalWorkflowHost
+from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowRequest
 
 
-SERVER_NAME = "DAR Authoring"
-SERVER_VERSION = "0.1.0"
+SERVER_NAME = "Dynamic Agent Runner"
+SERVER_VERSION = version("dynamic-agent-runner")
 PROTOCOL_VERSION = "2025-06-18"
 
 
@@ -36,7 +34,7 @@ def main(
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
     if values != ["--stdio"]:
-        print("Usage: dar-authoring-mcp --stdio", file=stderr)
+        print("Usage: dynamic-agent-runner-mcp --stdio", file=stderr)
         return 2
 
     session = _Session()

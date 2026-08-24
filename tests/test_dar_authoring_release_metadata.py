@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import sys
 import hashlib
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.release_metadata import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.release_metadata import (  # noqa: E402
     ReleaseMetadataError,
     sign_release_metadata,
     unsigned_release_metadata_bytes,

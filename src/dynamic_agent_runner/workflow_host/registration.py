@@ -10,17 +10,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-from dar_workflow_server.policy import CapabilityResolution, WorkflowPolicy
-from dar_workflow_server.mcp_binding import (
+from dynamic_agent_runner.workflow_host.policy import (
+    CapabilityResolution,
+    WorkflowPolicy,
+)
+from dynamic_agent_runner.workflow_host.mcp_binding import (
     MCPWorkflowCapabilityBindingControlPlane,
     MCPWorkflowCapabilityBindingError,
 )
-from dar_workflow_server.mcp_surfaces import (
+from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     MCPSurfaceSnapshotControlPlane,
     MCPSurfaceSnapshotError,
 )
-from dar_workflow_server.mcp_tools import MCPReadOnlyToolClient
-from dar_workflow_server.profiles import (
+from dynamic_agent_runner.workflow_host.mcp_tools import MCPReadOnlyToolClient
+from dynamic_agent_runner.workflow_host.profiles import (
     LocalModelProfile,
     LocalModelProfileControlPlane,
     LocalModelProfileError,

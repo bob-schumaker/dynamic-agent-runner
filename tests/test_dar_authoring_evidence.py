@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.authoring_evidence import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.authoring_evidence import (  # noqa: E402
     AuthoringEvidence,
     AuthoringEvidenceError,
     write_authoring_evidence,

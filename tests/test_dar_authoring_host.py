@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-import sys
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,24 +13,21 @@ import pytest
 import yaml
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
 from dynamic_agent_runner.openai_client import (  # noqa: E402
     ModelResponse,
     ModelToolCall,
     OpenAIClientAdapter,
 )
 
-from dar_workflow_server.host import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.host import (  # noqa: E402
     LocalWorkflowHost,
     attach_mcp_client,
     configure_mcp_api_token,
     create_mcp_connection,
     configure_local_host,
 )
-from dar_workflow_server.mcp_client import MCPClientConfiguration  # noqa: E402
-from dar_workflow_server.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
+from dynamic_agent_runner.workflow_host.mcp_client import MCPClientConfiguration  # noqa: E402
+from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -54,7 +50,7 @@ def _write_portable_manifest(source: Path) -> None:
                 "content_digest": digest.hexdigest(),
                 "dar_runtime": {
                     "distribution": "dynamic-agent-runner",
-                    "required_version": "0.1.15",
+                    "required_version": "0.1.16",
                 },
                 "descriptor_format_version": 1,
                 "files": files,
@@ -166,7 +162,7 @@ def test_host_selects_and_registers_a_local_zip_package(
         for path in sorted(source.iterdir()):
             package.write(path, path.name)
     monkeypatch.setattr(
-        "dar_workflow_server.host.create_local_adapter",
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
             _Client(), models=[profile.model_id], is_local=True
         ),
@@ -195,7 +191,7 @@ def test_host_reopens_a_secret_free_configured_mcp_client(
     package_root = tmp_path / "packages"
     package_root.mkdir()
     monkeypatch.setattr(
-        "dar_workflow_server.host.create_local_adapter",
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
             _Client(), models=[profile.model_id], is_local=True
         ),
@@ -232,13 +228,14 @@ def test_host_control_plane_binds_an_authenticated_generic_mcp_connection(
     package_root = tmp_path / "packages"
     package_root.mkdir()
     monkeypatch.setattr(
-        "dar_workflow_server.host.create_local_adapter",
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
             _Client(), models=[profile.model_id], is_local=True
         ),
     )
     monkeypatch.setattr(
-        "dar_workflow_server.connections.KeyringSecretStore", _MemorySecretStore
+        "dynamic_agent_runner.workflow_host.connections.KeyringSecretStore",
+        _MemorySecretStore,
     )
     configure_local_host(
         root=tmp_path / "state",
@@ -280,16 +277,18 @@ def test_host_reviews_only_the_human_approved_generic_mcp_surface(
     package_root = tmp_path / "packages"
     package_root.mkdir()
     monkeypatch.setattr(
-        "dar_workflow_server.host.create_local_adapter",
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
             _Client(), models=[profile.model_id], is_local=True
         ),
     )
     monkeypatch.setattr(
-        "dar_workflow_server.connections.KeyringSecretStore", _MemorySecretStore
+        "dynamic_agent_runner.workflow_host.connections.KeyringSecretStore",
+        _MemorySecretStore,
     )
     monkeypatch.setattr(
-        "dar_workflow_server.host.MCPConnectionClient", _ReviewedMCPClient
+        "dynamic_agent_runner.workflow_host.host.MCPConnectionClient",
+        _ReviewedMCPClient,
     )
     root = tmp_path / "state"
     configure_local_host(
@@ -370,7 +369,7 @@ def test_host_runs_a_registered_reviewed_mcp_workflow(
     model_client = _ToolClient()
     _ReviewedMCPClient.calls.clear()
     monkeypatch.setattr(
-        "dar_workflow_server.host.create_local_adapter",
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
             model_client,
             models=[profile.model_id, "local-model"],
@@ -407,16 +406,18 @@ def _configured_reviewable_mcp_host(
     *, root: Path, package_root: Path, monkeypatch
 ) -> Path:
     monkeypatch.setattr(
-        "dar_workflow_server.host.create_local_adapter",
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
             _Client(), models=[profile.model_id], is_local=True
         ),
     )
     monkeypatch.setattr(
-        "dar_workflow_server.connections.KeyringSecretStore", _MemorySecretStore
+        "dynamic_agent_runner.workflow_host.connections.KeyringSecretStore",
+        _MemorySecretStore,
     )
     monkeypatch.setattr(
-        "dar_workflow_server.host.MCPConnectionClient", _ReviewedMCPClient
+        "dynamic_agent_runner.workflow_host.host.MCPConnectionClient",
+        _ReviewedMCPClient,
     )
     configure_local_host(
         root=root,
@@ -497,7 +498,7 @@ def test_host_composes_human_setup_with_sealed_dry_run(
     shutil.copytree(TEMPLATE_ROOT, source)
     client = _Client()
     monkeypatch.setattr(
-        "dar_workflow_server.host.create_local_adapter",
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
             client, models=[profile.model_id], is_local=True
         ),
@@ -547,7 +548,7 @@ def test_host_ingresses_a_file_only_under_the_registered_workspace_contract(
     document = input_root / "document.txt"
     document.write_text("document body", encoding="utf-8")
     monkeypatch.setattr(
-        "dar_workflow_server.host.create_local_adapter",
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
             _Client(), models=[profile.model_id], is_local=True
         ),

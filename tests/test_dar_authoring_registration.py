@@ -2,33 +2,29 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.descriptor import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     InputContract,
     TaskInvocation,
     WorkflowLimits,
 )
-from dar_workflow_server.policy import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.policy import (  # noqa: E402
     CapabilityResolution,
     WorkflowPolicy,
 )
-from dar_workflow_server.profiles import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     LocalModelProfile,
     LocalModelProfileControlPlane,
 )
-from dar_workflow_server.registration import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.registration import (  # noqa: E402
     WorkflowRegistrationError,
     WorkflowRegistrationService,
 )
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 def _policy(*, digest: str = "a" * 64) -> WorkflowPolicy:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import yaml
@@ -16,10 +15,8 @@ READ_ONLY_MCP_TEMPLATE_ROOT = (
 )
 SKILL_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "skills"
 PROVENANCE_PATH = SKILL_ROOT / "adapted-skill-provenance.yaml"
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
 
-from dar_workflow_server.descriptor import WorkflowDescriptor  # noqa: E402
+from dynamic_agent_runner.workflow_host.descriptor import WorkflowDescriptor  # noqa: E402
 
 EXPECTED_SKILLS = {
     "agent-development",

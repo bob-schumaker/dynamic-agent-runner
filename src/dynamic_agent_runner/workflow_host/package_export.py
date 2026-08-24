@@ -11,8 +11,11 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from dar_workflow_server.package_signatures import PackageSignatureError, sign_manifest
-from dar_workflow_server.staging import StagedPackage
+from dynamic_agent_runner.workflow_host.package_signatures import (
+    PackageSignatureError,
+    sign_manifest,
+)
+from dynamic_agent_runner.workflow_host.staging import StagedPackage
 
 
 _MANIFEST_NAME = "package-manifest.json"

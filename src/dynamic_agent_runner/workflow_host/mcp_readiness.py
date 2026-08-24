@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dar_workflow_server.connections import (
+from dynamic_agent_runner.workflow_host.connections import (
     MCPConnectionControlPlane,
     MCPConnectionError,
 )
-from dar_workflow_server.policy import WorkflowPolicy
+from dynamic_agent_runner.workflow_host.policy import WorkflowPolicy
 
 
 class MCPWorkflowReadinessError(ValueError):

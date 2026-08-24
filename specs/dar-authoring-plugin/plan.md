@@ -101,8 +101,8 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    present, startup records resolved dependencies, and no source-tree path or
    execution tool is exposed.
 
-M1 exit: a release-candidate plugin starts as a local stdio MCP server and is
-safe to discover, but cannot execute a workflow or be published.
+M1 exit: the local plugin starts DAR's release-candidate stdio MCP server and
+is safe to discover, but cannot execute an unprepared workflow or be published.
 
 ### M2 — G1 runtime core
 

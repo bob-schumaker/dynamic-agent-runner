@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shutil
-import sys
 import hashlib
 import json
 import zipfile
@@ -13,14 +12,13 @@ from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.catalog import PackageCatalog  # noqa: E402
-from dar_workflow_server.package_signatures import sign_manifest  # noqa: E402
-from dar_workflow_server.package_sources import PackageSourceSelectionPolicy  # noqa: E402
-from dar_workflow_server.staging import PrivatePackageStager  # noqa: E402
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.catalog import PackageCatalog  # noqa: E402
+from dynamic_agent_runner.workflow_host.package_signatures import sign_manifest  # noqa: E402
+from dynamic_agent_runner.workflow_host.package_sources import (
+    PackageSourceSelectionPolicy,
+)  # noqa: E402
+from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -58,7 +56,7 @@ def _stage_publisher_signed(tmp_path: Path):
             "content_digest": digest.hexdigest(),
             "dar_runtime": {
                 "distribution": "dynamic-agent-runner",
-                "required_version": "0.1.15",
+                "required_version": "0.1.16",
             },
             "descriptor_format_version": 1,
             "files": files,

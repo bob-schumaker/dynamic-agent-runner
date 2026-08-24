@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
 import pytest
 
 from dynamic_agent_runner.models import RuntimeNode
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.descriptor import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     WorkflowDescriptor,
     WorkflowDescriptorError,
     validate_no_tool_runtime_nodes,

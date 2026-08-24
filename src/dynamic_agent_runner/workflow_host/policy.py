@@ -10,8 +10,8 @@ from typing import Any, Iterable
 import yaml
 from dynamic_agent_runner import load_agent_package_workflow
 
-from dar_workflow_server.catalog import CatalogPackageRevision
-from dar_workflow_server.descriptor import (
+from dynamic_agent_runner.workflow_host.catalog import CatalogPackageRevision
+from dynamic_agent_runner.workflow_host.descriptor import (
     DeclaredTool,
     InputContract,
     TaskInvocation,

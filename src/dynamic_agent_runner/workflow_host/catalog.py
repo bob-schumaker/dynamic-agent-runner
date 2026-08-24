@@ -11,7 +11,7 @@ from typing import Any, Mapping
 
 from dynamic_agent_runner import load_agent_package_workflow
 
-from dar_workflow_server.staging import StagedPackage
+from dynamic_agent_runner.workflow_host.staging import StagedPackage
 
 
 class PackageCatalogError(ValueError):

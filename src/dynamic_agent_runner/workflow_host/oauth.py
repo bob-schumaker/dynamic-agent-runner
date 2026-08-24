@@ -17,7 +17,7 @@ from typing import Callable, Protocol
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
-from dar_workflow_server.connections import (
+from dynamic_agent_runner.workflow_host.connections import (
     MCPAuthentication,
     MCPConnectionControlPlane,
     MCPConnectionError,

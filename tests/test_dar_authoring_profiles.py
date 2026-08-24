@@ -2,29 +2,29 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.profiles import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     InstallationIdentityProvider,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
     create_local_adapter,
 )
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 def test_installation_identity_is_stable_and_cannot_be_caller_supplied(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("dar_workflow_server.profiles.getpass.getuser", lambda: "ada")
-    monkeypatch.setattr("dar_workflow_server.profiles.os.getuid", lambda: 501)
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.getpass.getuser", lambda: "ada"
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.os.getuid", lambda: 501
+    )
 
     provider = InstallationIdentityProvider()
 
@@ -37,8 +37,12 @@ def test_installation_identity_is_stable_and_cannot_be_caller_supplied(
 def test_human_control_plane_creates_immutable_local_model_profile(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("dar_workflow_server.profiles.getpass.getuser", lambda: "ada")
-    monkeypatch.setattr("dar_workflow_server.profiles.os.getuid", lambda: 501)
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.getpass.getuser", lambda: "ada"
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.os.getuid", lambda: 501
+    )
     control_plane = LocalModelProfileControlPlane(
         store=PrivateStateStore(tmp_path / "state"),
     )
@@ -63,8 +67,12 @@ def test_human_control_plane_creates_immutable_local_model_profile(
 def test_profile_rejects_empty_or_nonlocal_definition(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("dar_workflow_server.profiles.getpass.getuser", lambda: "ada")
-    monkeypatch.setattr("dar_workflow_server.profiles.os.getuid", lambda: 501)
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.getpass.getuser", lambda: "ada"
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.os.getuid", lambda: 501
+    )
     control_plane = LocalModelProfileControlPlane(
         store=PrivateStateStore(tmp_path / "state"),
     )
@@ -88,8 +96,12 @@ def test_profile_rejects_empty_or_nonlocal_definition(
 def test_profile_requires_loopback_endpoint_and_constructs_local_adapter(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("dar_workflow_server.profiles.getpass.getuser", lambda: "ada")
-    monkeypatch.setattr("dar_workflow_server.profiles.os.getuid", lambda: 501)
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.getpass.getuser", lambda: "ada"
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.os.getuid", lambda: 501
+    )
     control_plane = LocalModelProfileControlPlane(
         store=PrivateStateStore(tmp_path / "state"),
     )
@@ -116,7 +128,8 @@ def test_profile_requires_loopback_endpoint_and_constructs_local_adapter(
         return sentinel
 
     monkeypatch.setattr(
-        "dar_workflow_server.profiles.create_local_openai_adapter", fake_create
+        "dynamic_agent_runner.workflow_host.profiles.create_local_openai_adapter",
+        fake_create,
     )
 
     assert create_local_adapter(created) is sentinel

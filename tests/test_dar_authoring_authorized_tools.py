@@ -5,44 +5,41 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-import sys
 
 import pytest
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
 
 from dynamic_agent_runner import create_host_tool_registry  # noqa: E402
 
-from dar_workflow_server.action_ledger import WorkflowActionLedger  # noqa: E402
-from dar_workflow_server.approvals import WorkflowApprovalStore  # noqa: E402
-from dar_workflow_server.argument_provenance import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger  # noqa: E402
+from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.argument_provenance import (  # noqa: E402
     ArgumentVerificationContext,
 )
-from dar_workflow_server.authorized_tools import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
     LocalActionApprovalBroker,
     LocalApprovalDecision,
     create_authorized_mcp_tool_bindings,
 )
-from dar_workflow_server.connections import MCPConnectionControlPlane  # noqa: E402
-from dar_workflow_server.descriptor import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.connections import MCPConnectionControlPlane  # noqa: E402
+from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     ArgumentSourceRule,
     DeclaredTool,
     InputContract,
     TaskInvocation,
     WorkflowLimits,
 )
-from dar_workflow_server.mcp_binding import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.mcp_binding import (  # noqa: E402
     MCPWorkflowCapabilityBindingControlPlane,
 )
-from dar_workflow_server.mcp_surfaces import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.mcp_surfaces import (  # noqa: E402
     MCPDiscoveredTool,
     MCPSurfaceSnapshotControlPlane,
 )
-from dar_workflow_server.policy import WorkflowPolicy  # noqa: E402
-from dar_workflow_server.profiles import LocalModelProfileControlPlane  # noqa: E402
-from dar_workflow_server.registration import WorkflowRegistration  # noqa: E402
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.policy import WorkflowPolicy  # noqa: E402
+from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane  # noqa: E402
+from dynamic_agent_runner.workflow_host.registration import WorkflowRegistration  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 NOW = datetime(2026, 8, 24, tzinfo=UTC)

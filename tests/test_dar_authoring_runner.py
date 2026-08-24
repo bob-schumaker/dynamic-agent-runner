@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shutil
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -11,43 +10,47 @@ import pytest
 import yaml
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
 from dynamic_agent_runner.openai_client import (  # noqa: E402
     ModelToolCall,
     ModelResponse,
     OpenAIClientAdapter,
 )
 
-from dar_workflow_server.catalog import PackageCatalog  # noqa: E402
-from dar_workflow_server.action_ledger import WorkflowActionLedger  # noqa: E402
-from dar_workflow_server.approvals import WorkflowApprovalStore  # noqa: E402
-from dar_workflow_server.authorized_tools import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.catalog import PackageCatalog  # noqa: E402
+from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger  # noqa: E402
+from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
     LocalActionApprovalBroker,
     LocalApprovalDecision,
 )
-from dar_workflow_server.connections import MCPConnectionControlPlane  # noqa: E402
-from dar_workflow_server.mcp_binding import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.connections import MCPConnectionControlPlane  # noqa: E402
+from dynamic_agent_runner.workflow_host.mcp_binding import (  # noqa: E402
     MCPWorkflowCapabilityBindingControlPlane,
 )
-from dar_workflow_server.mcp_surfaces import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.mcp_surfaces import (  # noqa: E402
     MCPDiscoveredTool,
     MCPSurfaceSnapshotControlPlane,
 )
-from dar_workflow_server.package_sources import PackageSourceSelectionPolicy  # noqa: E402
-from dar_workflow_server.policy import compile_workflow_policy, resolve_capabilities  # noqa: E402
-from dar_workflow_server.preparation import WorkflowInvocationPreparationService  # noqa: E402
-from dar_workflow_server.profiles import LocalModelProfileControlPlane  # noqa: E402
-from dar_workflow_server.registration import WorkflowRegistrationService  # noqa: E402
-from dar_workflow_server.runner import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.package_sources import (
+    PackageSourceSelectionPolicy,
+)  # noqa: E402
+from dynamic_agent_runner.workflow_host.policy import (
+    compile_workflow_policy,
+    resolve_capabilities,
+)  # noqa: E402
+from dynamic_agent_runner.workflow_host.preparation import (
+    WorkflowInvocationPreparationService,
+)  # noqa: E402
+from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane  # noqa: E402
+from dynamic_agent_runner.workflow_host.registration import WorkflowRegistrationService  # noqa: E402
+from dynamic_agent_runner.workflow_host.runner import (  # noqa: E402
     RunDarWorkflowError,
     RunDarWorkflowRequest,
     WorkflowRunner,
 )
-from dar_workflow_server.staging import PrivatePackageStager  # noqa: E402
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
-from dar_workflow_server.workspace_ingress import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.workspace_ingress import (  # noqa: E402
     MaterializedWorkspaceInputArtifact,
 )
 

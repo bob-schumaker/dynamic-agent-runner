@@ -10,78 +10,88 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Sequence
 
-from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
-from dar_workflow_server.action_ledger import WorkflowActionLedger
-from dar_workflow_server.approvals import WorkflowApprovalStore
-from dar_workflow_server.authorized_tools import LocalActionApprovalBroker
-from dar_workflow_server.connections import (
+from dynamic_agent_runner.workflow_host.catalog import (
+    PackageCatalog,
+    PackageCatalogError,
+)
+from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger
+from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore
+from dynamic_agent_runner.workflow_host.authorized_tools import (
+    LocalActionApprovalBroker,
+)
+from dynamic_agent_runner.workflow_host.connections import (
     MCPAuthentication,
     MCPConnection,
     MCPConnectionControlPlane,
     MCPConnectionError,
 )
-from dar_workflow_server.mcp_binding import (
+from dynamic_agent_runner.workflow_host.mcp_binding import (
     MCPWorkflowCapabilityBinding,
     MCPWorkflowCapabilityBindingControlPlane,
     MCPWorkflowCapabilityBindingError,
 )
-from dar_workflow_server.mcp_client import (
+from dynamic_agent_runner.workflow_host.mcp_client import (
     HTTPSJSONRPCMCPTransportFactory,
     MCPClientConfiguration,
     MCPConnectionClient,
     MCPConnectionClientError,
 )
-from dar_workflow_server.mcp_surfaces import (
+from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     MCPDiscoveredTool,
     MCPSurfaceSnapshot,
     MCPSurfaceSnapshotControlPlane,
     MCPSurfaceSnapshotError,
 )
-from dar_workflow_server.oauth import (
+from dynamic_agent_runner.workflow_host.oauth import (
     OAuthAuthorizationService,
     OAuthClientConfiguration,
     OAuthError,
 )
-from dar_workflow_server.package_export import (
+from dynamic_agent_runner.workflow_host.package_export import (
     ExportedPackage,
     PackageExportError,
     export_signed_staged_package,
 )
-from dar_workflow_server.package_sources import PackageSourceSelectionPolicy
-from dar_workflow_server.policy import (
+from dynamic_agent_runner.workflow_host.package_sources import (
+    PackageSourceSelectionPolicy,
+)
+from dynamic_agent_runner.workflow_host.policy import (
     PolicyCompilationError,
     compile_workflow_policy,
     resolve_capabilities,
 )
-from dar_workflow_server.publisher_trust import (
+from dynamic_agent_runner.workflow_host.publisher_trust import (
     PublisherTrustError,
     PublisherTrustStore,
     TrustedPublisher,
 )
-from dar_workflow_server.preparation import (
+from dynamic_agent_runner.workflow_host.preparation import (
     PreparedWorkflowInput,
     WorkflowInvocationPreparationService,
 )
-from dar_workflow_server.profiles import (
+from dynamic_agent_runner.workflow_host.profiles import (
     InstallationIdentityProvider,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
     create_local_adapter,
 )
-from dar_workflow_server.registration import (
+from dynamic_agent_runner.workflow_host.registration import (
     WorkflowRegistration,
     WorkflowRegistrationError,
     WorkflowRegistrationService,
 )
-from dar_workflow_server.runner import (
+from dynamic_agent_runner.workflow_host.runner import (
     DryRunDarWorkflowResult,
     RunDarWorkflowRequest,
     RunDarWorkflowResult,
     WorkflowRunner,
 )
-from dar_workflow_server.staging import PrivatePackageStager, StagedPackage
-from dar_workflow_server.state import PrivateStateStore
-from dar_workflow_server.workspace_ingress import (
+from dynamic_agent_runner.workflow_host.staging import (
+    PrivatePackageStager,
+    StagedPackage,
+)
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore
+from dynamic_agent_runner.workflow_host.workspace_ingress import (
     WorkspaceIngressError,
     WorkspaceIngressPolicy,
     WorkspaceIngressService,

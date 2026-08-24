@@ -3,28 +3,29 @@
 from __future__ import annotations
 
 import shutil
-import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.catalog import PackageCatalog  # noqa: E402
-from dar_workflow_server.package_sources import PackageSourceSelectionPolicy  # noqa: E402
-from dar_workflow_server.policy import compile_workflow_policy, resolve_capabilities  # noqa: E402
-from dar_workflow_server.preparation import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.catalog import PackageCatalog  # noqa: E402
+from dynamic_agent_runner.workflow_host.package_sources import (
+    PackageSourceSelectionPolicy,
+)  # noqa: E402
+from dynamic_agent_runner.workflow_host.policy import (
+    compile_workflow_policy,
+    resolve_capabilities,
+)  # noqa: E402
+from dynamic_agent_runner.workflow_host.preparation import (  # noqa: E402
     PreparedWorkflowInputError,
     WorkflowInvocationPreparationService,
 )
-from dar_workflow_server.profiles import LocalModelProfileControlPlane  # noqa: E402
-from dar_workflow_server.registration import WorkflowRegistrationService  # noqa: E402
-from dar_workflow_server.staging import PrivatePackageStager  # noqa: E402
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
-from dar_workflow_server.workspace_ingress import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane  # noqa: E402
+from dynamic_agent_runner.workflow_host.registration import WorkflowRegistrationService  # noqa: E402
+from dynamic_agent_runner.workflow_host.staging import PrivatePackageStager  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.workspace_ingress import (  # noqa: E402
     MaterializedWorkspaceInputArtifact,
 )
 
@@ -291,7 +292,8 @@ def test_prepared_input_is_single_use_and_principal_bound(
 
     another = service.prepare(workflow_id="document-helper", prompt="answer", now=NOW)
     monkeypatch.setattr(
-        "dar_workflow_server.profiles.getpass.getuser", lambda: "another-user"
+        "dynamic_agent_runner.workflow_host.profiles.getpass.getuser",
+        lambda: "another-user",
     )
     with pytest.raises(PreparedWorkflowInputError, match="invalid"):
         service.load(another.prepared_input_id, registration=registration, now=NOW)

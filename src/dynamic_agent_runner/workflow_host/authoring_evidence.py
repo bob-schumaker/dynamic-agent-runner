@@ -8,7 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from dar_workflow_server.authoring_materials import AuthoringMaterialSetProjection
+from dynamic_agent_runner.workflow_host.authoring_materials import (
+    AuthoringMaterialSetProjection,
+)
 
 
 class AuthoringEvidenceError(ValueError):

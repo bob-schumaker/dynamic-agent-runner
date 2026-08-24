@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import shutil
-import sys
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -15,16 +14,15 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.package_sources import PackageSourceSelectionPolicy  # noqa: E402
-from dar_workflow_server.package_signatures import sign_manifest  # noqa: E402
-from dar_workflow_server.staging import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.package_sources import (
+    PackageSourceSelectionPolicy,
+)  # noqa: E402
+from dynamic_agent_runner.workflow_host.package_signatures import sign_manifest  # noqa: E402
+from dynamic_agent_runner.workflow_host.staging import (  # noqa: E402
     PackageStagingError,
     PrivatePackageStager,
 )
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -70,7 +68,7 @@ def _write_source_manifest(source: Path) -> bytes:
             "content_digest": digest.hexdigest(),
             "dar_runtime": {
                 "distribution": "dynamic-agent-runner",
-                "required_version": "0.1.15",
+                "required_version": "0.1.16",
             },
             "descriptor_format_version": 1,
             "files": entries,
@@ -152,7 +150,7 @@ def test_staging_writes_a_canonical_content_manifest(tmp_path: Path) -> None:
     assert manifest["descriptor_format_version"] == 1
     assert manifest["dar_runtime"] == {
         "distribution": "dynamic-agent-runner",
-        "required_version": "0.1.15",
+        "required_version": "0.1.16",
     }
     assert manifest["content_digest"] == staged.digest
     assert manifest["files"] == [
@@ -337,7 +335,7 @@ def test_staging_rejects_zip_members_above_the_file_size_limit(
     archive = allowed_root / "oversize.zip"
     with zipfile.ZipFile(archive, "w") as package:
         package.writestr("agent-design.md", "oversize")
-    monkeypatch.setattr("dar_workflow_server.staging.MAX_FILE_BYTES", 4)
+    monkeypatch.setattr("dynamic_agent_runner.workflow_host.staging.MAX_FILE_BYTES", 4)
     handle, store = _archive_selection(tmp_path, archive)
 
     with pytest.raises(PackageStagingError, match="file exceeds size limit"):
@@ -354,7 +352,9 @@ def test_staging_rejects_zip_members_above_the_compression_ratio_limit(
     archive = allowed_root / "compressed.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as package:
         package.writestr("agent-design.md", "a" * 4096)
-    monkeypatch.setattr("dar_workflow_server.staging.MAX_ZIP_COMPRESSION_RATIO", 2)
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.staging.MAX_ZIP_COMPRESSION_RATIO", 2
+    )
     handle, store = _archive_selection(tmp_path, archive)
 
     with pytest.raises(PackageStagingError, match="compression ratio"):

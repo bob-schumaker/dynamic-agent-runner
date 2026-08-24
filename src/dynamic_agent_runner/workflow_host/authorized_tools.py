@@ -14,37 +14,37 @@ from jsonschema.validators import validator_for
 
 from dynamic_agent_runner import HostToolBinding
 
-from dar_workflow_server.action_ledger import (
+from dynamic_agent_runner.workflow_host.action_ledger import (
     ActionLedgerError,
     ActionLedgerEvent,
     ExternalAction,
     WorkflowActionLedger,
 )
-from dar_workflow_server.argument_provenance import (
+from dynamic_agent_runner.workflow_host.argument_provenance import (
     ArgumentProvenanceError,
     ArgumentSourcePolicy,
     ArgumentVerificationContext,
     verify_argument_provenance,
 )
-from dar_workflow_server.approvals import (
+from dynamic_agent_runner.workflow_host.approvals import (
     WorkflowApproval,
     WorkflowApprovalError,
     WorkflowApprovalStore,
 )
-from dar_workflow_server.descriptor import DeclaredTool
-from dar_workflow_server.mcp_binding import (
+from dynamic_agent_runner.workflow_host.descriptor import DeclaredTool
+from dynamic_agent_runner.workflow_host.mcp_binding import (
     MCPWorkflowCapabilityBinding,
     MCPWorkflowCapabilityBindingControlPlane,
     MCPWorkflowCapabilityBindingError,
 )
-from dar_workflow_server.mcp_surfaces import (
+from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     CurrentMCPSurfaceClient,
     MCPDiscoveredTool,
     MCPSurfaceSnapshotControlPlane,
     MCPSurfaceSnapshotError,
 )
-from dar_workflow_server.policy import WorkflowPolicy
-from dar_workflow_server.registration import WorkflowRegistration
+from dynamic_agent_runner.workflow_host.policy import WorkflowPolicy
+from dynamic_agent_runner.workflow_host.registration import WorkflowRegistration
 
 
 class AuthorizedMCPToolClient(CurrentMCPSurfaceClient, Protocol):

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -12,11 +11,8 @@ from threading import Event
 import pytest
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.connections import MCPConnectionControlPlane  # noqa: E402
-from dar_workflow_server.mcp_client import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.connections import MCPConnectionControlPlane  # noqa: E402
+from dynamic_agent_runner.workflow_host.mcp_client import (  # noqa: E402
     MCPClientConfiguration,
     MCPConnectionAuthenticationError,
     MCPConnectionClient,
@@ -24,10 +20,10 @@ from dar_workflow_server.mcp_client import (  # noqa: E402
     MCPTransportResponse,
     HTTPSJSONRPCMCPTransportFactory,
 )
-from dar_workflow_server.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
-from dar_workflow_server.oauth import OAuthTokenBundle  # noqa: E402
-from dar_workflow_server.profiles import LocalModelProfileControlPlane  # noqa: E402
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
+from dynamic_agent_runner.workflow_host.oauth import OAuthTokenBundle  # noqa: E402
+from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 PIN = "a" * 64

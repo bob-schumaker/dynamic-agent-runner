@@ -6,16 +6,27 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Mapping, Protocol, Sequence, runtime_checkable
 
-from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
-from dar_workflow_server.policy import PolicyCompilationError, compile_workflow_policy
-from dar_workflow_server.profiles import InstallationIdentityProvider
-from dar_workflow_server.registration import (
+from dynamic_agent_runner.workflow_host.catalog import (
+    PackageCatalog,
+    PackageCatalogError,
+)
+from dynamic_agent_runner.workflow_host.policy import (
+    PolicyCompilationError,
+    compile_workflow_policy,
+)
+from dynamic_agent_runner.workflow_host.profiles import InstallationIdentityProvider
+from dynamic_agent_runner.workflow_host.registration import (
     WorkflowRegistration,
     WorkflowRegistrationError,
     WorkflowRegistrationService,
 )
-from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
-from dar_workflow_server.workspace_ingress import MaterializedWorkspaceInputArtifact
+from dynamic_agent_runner.workflow_host.state import (
+    OpaqueRecordError,
+    PrivateStateStore,
+)
+from dynamic_agent_runner.workflow_host.workspace_ingress import (
+    MaterializedWorkspaceInputArtifact,
+)
 
 
 class PreparedWorkflowInputError(ValueError):

@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.connections import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.connections import (  # noqa: E402
     MCPConnectionControlPlane,
     MCPConnectionError,
 )
-from dar_workflow_server.profiles import LocalModelProfileControlPlane  # noqa: E402
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 class MemorySecretStore:
@@ -40,8 +36,12 @@ class MemorySecretStore:
 def test_human_connection_record_is_immutable_and_has_no_credential(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("dar_workflow_server.profiles.getpass.getuser", lambda: "ada")
-    monkeypatch.setattr("dar_workflow_server.profiles.os.getuid", lambda: 501)
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.getpass.getuser", lambda: "ada"
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.os.getuid", lambda: 501
+    )
     store = PrivateStateStore(tmp_path / "state")
     profiles = LocalModelProfileControlPlane(store=store)
     profile = profiles.create(
@@ -70,8 +70,12 @@ def test_human_connection_record_is_immutable_and_has_no_credential(
 def test_human_api_token_setup_uses_only_an_opaque_secret_reference(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("dar_workflow_server.profiles.getpass.getuser", lambda: "ada")
-    monkeypatch.setattr("dar_workflow_server.profiles.os.getuid", lambda: 501)
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.getpass.getuser", lambda: "ada"
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.os.getuid", lambda: 501
+    )
     store = PrivateStateStore(tmp_path / "state")
     profiles = LocalModelProfileControlPlane(store=store)
     profile = profiles.create(

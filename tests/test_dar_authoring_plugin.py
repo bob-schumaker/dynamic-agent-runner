@@ -5,15 +5,12 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-import tomllib
-import zipfile
+from importlib.metadata import version
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_ROOT = REPO_ROOT / "dar-authoring"
-SERVER_PATH = PLUGIN_ROOT / "server" / "dar_workflow_server" / "server.py"
-sys.path.insert(0, str(PLUGIN_ROOT / "server"))
 
 
 def _read_json_lines(output: str) -> list[dict[str, object]]:
@@ -25,25 +22,9 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
         (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     mcp_config = json.loads((PLUGIN_ROOT / ".mcp.json").read_text(encoding="utf-8"))
-    project = tomllib.loads(
-        (PLUGIN_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    )
 
     assert manifest["name"] == "dar-authoring"
     assert manifest["mcpServers"] == "./.mcp.json"
-    assert project["project"]["name"] == "dar-authoring"
-    assert project["project"]["dependencies"] == [
-        "dynamic-agent-runner==0.1.16",
-        "cryptography>=49.0.0,<50.0.0",
-        "keyring>=25.7.0",
-        "jsonschema>=4.26.0,<5.0.0",
-        "PyYAML>=6.0.3",
-    ]
-    assert project["project"]["scripts"] == {
-        "dar-authoring-mcp": "dar_workflow_server.server:console_main",
-        "dar-workflow": "dar_workflow_server.cli:console_main",
-        "dar-workflow-run": "dar_workflow_server.cli:run_console_main",
-    }
     server = mcp_config["mcpServers"]["dar-authoring"]
     assert server["command"] == "uvx"
     assert server["args"] == [
@@ -58,40 +39,26 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
     assert not any(value.startswith(("/", "./", "../")) for value in server["args"])
 
 
-def test_built_plugin_wheel_contains_launch_assets_and_console_scripts() -> None:
-    completed = subprocess.run(
-        ["poetry", "build", "--format", "wheel"],
-        cwd=PLUGIN_ROOT,
-        capture_output=True,
-        encoding="utf-8",
-        check=False,
-        timeout=30,
-    )
-
-    assert completed.returncode == 0, completed.stderr
-    wheel = PLUGIN_ROOT / "dist" / "dar_authoring-0.1.0-py3-none-any.whl"
-    with zipfile.ZipFile(wheel) as archive:
-        names = set(archive.namelist())
-        entry_points = archive.read(
-            "dar_authoring-0.1.0.dist-info/entry_points.txt"
-        ).decode("utf-8")
-
+def test_plugin_bundle_contains_only_local_authoring_assets() -> None:
     assert {
         ".codex-plugin/plugin.json",
         ".mcp.json",
-        "dar_workflow_server/server.py",
         "skills/agent-development/SKILL.md",
         "skills/agent-tool-contract-design/SKILL.md",
         "skills/agent-evaluation/SKILL.md",
         "templates/workflow-descriptor.yaml",
         "read-only-mcp-template/workflow-descriptor.yaml",
-    } <= names
-    assert "dar-authoring-mcp=dar_workflow_server.server:console_main" in entry_points
-    assert "dar-workflow=dar_workflow_server.cli:console_main" in entry_points
-    assert "dar-workflow-run=dar_workflow_server.cli:run_console_main" in entry_points
+    } <= {
+        path.relative_to(PLUGIN_ROOT).as_posix()
+        for path in PLUGIN_ROOT.rglob("*")
+        if path.is_file()
+    }
+    assert not any((PLUGIN_ROOT / "server").rglob("*.py"))
 
 
-def test_stdio_server_initializes_and_exposes_no_tools(tmp_path: Path) -> None:
+def test_dar_stdio_server_initializes_and_exposes_the_closed_workflow_tool(
+    tmp_path: Path,
+) -> None:
     requests = [
         {
             "jsonrpc": "2.0",
@@ -108,7 +75,7 @@ def test_stdio_server_initializes_and_exposes_no_tools(tmp_path: Path) -> None:
     ]
 
     completed = subprocess.run(
-        [sys.executable, str(SERVER_PATH), "--stdio"],
+        [sys.executable, "-m", "dynamic_agent_runner.mcp_server", "--stdio"],
         input="".join(f"{json.dumps(request)}\n" for request in requests),
         capture_output=True,
         cwd=tmp_path,
@@ -127,8 +94,8 @@ def test_stdio_server_initializes_and_exposes_no_tools(tmp_path: Path) -> None:
                 "protocolVersion": "2025-06-18",
                 "capabilities": {"tools": {}},
                 "serverInfo": {
-                    "name": "DAR Authoring",
-                    "version": "0.1.0",
+                    "name": "Dynamic Agent Runner",
+                    "version": version("dynamic-agent-runner"),
                 },
                 "instructions": "Prepare workflow input through the local dar-workflow CLI before calling run_dar_workflow.",
             },
@@ -166,8 +133,8 @@ def test_stdio_server_initializes_and_exposes_no_tools(tmp_path: Path) -> None:
 
 
 def test_server_runs_only_closed_sealed_workflow_requests() -> None:
-    from dar_workflow_server.runner import RunDarWorkflowResult
-    from dar_workflow_server.server import _Session
+    from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowResult
+    from dynamic_agent_runner.workflow_host.server import _Session
 
     class Host:
         def __init__(self) -> None:

@@ -13,14 +13,18 @@ from threading import Event
 from typing import Any, Callable, Mapping, Protocol
 from urllib.parse import urlsplit
 
-from dar_workflow_server.connections import (
+from dynamic_agent_runner.workflow_host.connections import (
     MCPAuthentication,
     MCPConnection,
     MCPConnectionControlPlane,
     MCPConnectionError,
 )
-from dar_workflow_server.mcp_surfaces import MCPDiscoveredTool
-from dar_workflow_server.oauth import OAuthError, OAuthTokenBundle, OAuthTokenRefresher
+from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool
+from dynamic_agent_runner.workflow_host.oauth import (
+    OAuthError,
+    OAuthTokenBundle,
+    OAuthTokenRefresher,
+)
 
 
 class MCPConnectionClientError(ValueError):
@@ -595,7 +599,7 @@ def _bearer_token(authentication: MCPAuthentication, secret: str) -> str:
 
 
 def _default_oauth_refresher() -> OAuthTokenRefresher:
-    from dar_workflow_server.oauth import HttpOAuthTokenExchanger
+    from dynamic_agent_runner.workflow_host.oauth import HttpOAuthTokenExchanger
 
     return HttpOAuthTokenExchanger()
 

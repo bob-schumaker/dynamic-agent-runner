@@ -5,21 +5,17 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-import sys
 from threading import Barrier
 
 import pytest
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.action_ledger import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.action_ledger import (  # noqa: E402
     ActionLedgerError,
     ExternalAction,
     WorkflowActionLedger,
 )
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)

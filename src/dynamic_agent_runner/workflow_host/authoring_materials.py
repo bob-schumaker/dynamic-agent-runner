@@ -7,7 +7,10 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
+from dynamic_agent_runner.workflow_host.state import (
+    OpaqueRecordError,
+    PrivateStateStore,
+)
 
 
 class AuthoringMaterialError(ValueError):

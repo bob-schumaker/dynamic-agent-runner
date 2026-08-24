@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import sys
 import base64
 import hashlib
 import zipfile
@@ -15,11 +14,8 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server import cli  # noqa: E402
-from dar_workflow_server.cli import main, run_main  # noqa: E402
+from dynamic_agent_runner.workflow_host import cli  # noqa: E402
+from dynamic_agent_runner.workflow_host.cli import main, run_main  # noqa: E402
 
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
@@ -48,7 +44,7 @@ def _signed_archive(
             "content_digest": digest.hexdigest(),
             "dar_runtime": {
                 "distribution": "dynamic-agent-runner",
-                "required_version": "0.1.15",
+                "required_version": "0.1.16",
             },
             "descriptor_format_version": 1,
             "files": files,

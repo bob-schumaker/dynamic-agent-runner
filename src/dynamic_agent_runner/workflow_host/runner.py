@@ -14,29 +14,41 @@ from dynamic_agent_runner import (
 )
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
 
-from dar_workflow_server.action_ledger import WorkflowActionLedger
-from dar_workflow_server.argument_provenance import ArgumentVerificationContext
-from dar_workflow_server.approvals import WorkflowApprovalStore
-from dar_workflow_server.authorized_tools import (
+from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger
+from dynamic_agent_runner.workflow_host.argument_provenance import (
+    ArgumentVerificationContext,
+)
+from dynamic_agent_runner.workflow_host.approvals import WorkflowApprovalStore
+from dynamic_agent_runner.workflow_host.authorized_tools import (
     AuthorizedMCPToolClient,
     AuthorizedToolBindingError,
     LocalActionApprovalBroker,
     create_authorized_mcp_tool_bindings,
 )
-from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
-from dar_workflow_server.mcp_binding import MCPWorkflowCapabilityBindingControlPlane
-from dar_workflow_server.mcp_surfaces import MCPSurfaceSnapshotControlPlane
-from dar_workflow_server.mcp_tools import (
+from dynamic_agent_runner.workflow_host.catalog import (
+    PackageCatalog,
+    PackageCatalogError,
+)
+from dynamic_agent_runner.workflow_host.mcp_binding import (
+    MCPWorkflowCapabilityBindingControlPlane,
+)
+from dynamic_agent_runner.workflow_host.mcp_surfaces import (
+    MCPSurfaceSnapshotControlPlane,
+)
+from dynamic_agent_runner.workflow_host.mcp_tools import (
     MCPToolBindingError,
     create_read_only_mcp_tool_bindings,
 )
-from dar_workflow_server.policy import PolicyCompilationError, compile_workflow_policy
-from dar_workflow_server.preparation import (
+from dynamic_agent_runner.workflow_host.policy import (
+    PolicyCompilationError,
+    compile_workflow_policy,
+)
+from dynamic_agent_runner.workflow_host.preparation import (
     PreparedWorkflowInputError,
     SealedWorkflowInput,
     WorkflowInvocationPreparationService,
 )
-from dar_workflow_server.registration import (
+from dynamic_agent_runner.workflow_host.registration import (
     WorkflowRegistration,
     WorkflowRegistrationError,
     WorkflowRegistrationService,

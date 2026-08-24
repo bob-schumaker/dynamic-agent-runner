@@ -8,12 +8,15 @@ import secrets
 from typing import Iterable, Protocol
 from urllib.parse import urlsplit
 
-from dar_workflow_server.profiles import (
+from dynamic_agent_runner.workflow_host.profiles import (
     InstallationIdentityProvider,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
 )
-from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
+from dynamic_agent_runner.workflow_host.state import (
+    OpaqueRecordError,
+    PrivateStateStore,
+)
 
 
 SUPPORTED_TRANSPORT = "https_mcp_v1"

@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.publisher_trust import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.publisher_trust import (  # noqa: E402
     PublisherTrustError,
     PublisherTrustStore,
 )

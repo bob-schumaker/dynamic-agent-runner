@@ -6,17 +6,20 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable
 
-from dar_workflow_server.catalog import (
+from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
     PackageCatalogError,
 )
-from dar_workflow_server.policy import (
+from dynamic_agent_runner.workflow_host.policy import (
     CapabilityResolution,
     PolicyCompilationError,
     compile_workflow_policy,
     resolve_capabilities,
 )
-from dar_workflow_server.staging import PackageStagingError, PrivatePackageStager
+from dynamic_agent_runner.workflow_host.staging import (
+    PackageStagingError,
+    PrivatePackageStager,
+)
 
 
 class PackagePreflightError(ValueError):

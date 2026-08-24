@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,14 +10,11 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 
-PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
-sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
-
-from dar_workflow_server.connections import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.connections import (  # noqa: E402
     MCPConnectionControlPlane,
     MCPConnectionError,
 )
-from dar_workflow_server.oauth import (  # noqa: E402
+from dynamic_agent_runner.workflow_host.oauth import (  # noqa: E402
     HttpOAuthTokenExchanger,
     OAuthAuthorizationService,
     OAuthCallback,
@@ -26,8 +22,8 @@ from dar_workflow_server.oauth import (  # noqa: E402
     OAuthTokenBundle,
     _callback_from_query,
 )
-from dar_workflow_server.profiles import LocalModelProfileControlPlane  # noqa: E402
-from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.workflow_host.profiles import LocalModelProfileControlPlane  # noqa: E402
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 class MemorySecretStore:
@@ -240,7 +236,9 @@ def test_http_oauth_exchanger_uses_refresh_token_grant(
         requests.append((request, timeout))
         return FakeResponse()
 
-    monkeypatch.setattr("dar_workflow_server.oauth.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.oauth.urlopen", fake_urlopen
+    )
 
     bundle = HttpOAuthTokenExchanger().refresh(
         token_endpoint="https://login.example.test/token",

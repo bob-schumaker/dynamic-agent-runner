@@ -7,17 +7,17 @@ from typing import Protocol
 
 from dynamic_agent_runner import HostToolBinding
 
-from dar_workflow_server.mcp_binding import (
+from dynamic_agent_runner.workflow_host.mcp_binding import (
     MCPWorkflowCapabilityBindingControlPlane,
     MCPWorkflowCapabilityBindingError,
 )
-from dar_workflow_server.mcp_surfaces import (
+from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     CurrentMCPSurfaceClient,
     MCPDiscoveredTool,
     MCPSurfaceSnapshotControlPlane,
     MCPSurfaceSnapshotError,
 )
-from dar_workflow_server.policy import WorkflowPolicy
+from dynamic_agent_runner.workflow_host.policy import WorkflowPolicy
 
 
 class MCPReadOnlyToolClient(CurrentMCPSurfaceClient, Protocol):
