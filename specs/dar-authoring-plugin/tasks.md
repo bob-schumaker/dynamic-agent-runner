@@ -331,7 +331,7 @@ passes.
 - [x] RED/GREEN: default `workflow_auto` (the CLI's `auto` mode) records the
       canonical external action; `--ask` uses a short-lived, one-use,
       local-principal-bound atomic approval decision.
-- [ ] RED/GREEN: changing the package revision, recipient alias, subject, body
+- [x] RED/GREEN: changing the package revision, recipient alias, subject, body
       hash, profile, or snapshot invalidates an outstanding `--ask` decision.
 - [x] RED/GREEN: local `--ask` blocks only at the wrapper handler boundary;
       approve invokes exactly once, while deny, cancel, and expiry produce a

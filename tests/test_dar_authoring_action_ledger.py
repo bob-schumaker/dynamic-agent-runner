@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
@@ -14,6 +15,10 @@ from dynamic_agent_runner.workflow_host.action_ledger import (  # noqa: E402
     ActionLedgerError,
     ExternalAction,
     WorkflowActionLedger,
+)
+from dynamic_agent_runner.workflow_host.approvals import (  # noqa: E402
+    WorkflowApprovalError,
+    WorkflowApprovalStore,
 )
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
@@ -66,6 +71,51 @@ def test_ledger_persists_redacted_intent_then_dispatch_and_terminal_outcome(
     assert "ada@example.test" not in state
     assert '"connection_generation":"1"' in state
     assert '"trace_correlation":"run-1"' in state
+
+
+@pytest.mark.parametrize(
+    "changed_action",
+    (
+        lambda action: replace(action, registration_digest="c" * 64),
+        lambda action: replace(action, profile_id="v1.profile.changed"),
+        lambda action: replace(action, snapshot_id="v1.snapshot.changed"),
+        lambda action: replace(
+            action,
+            normalized_arguments={
+                **action.normalized_arguments,
+                "recipient": "bea@example.test",
+            },
+        ),
+        lambda action: replace(
+            action,
+            normalized_arguments={
+                **action.normalized_arguments,
+                "subject": "Changed subject",
+            },
+        ),
+        lambda action: replace(
+            action,
+            workspace_artifact_hashes={"v1.body-artifact": "sha256:" + "c" * 64},
+        ),
+    ),
+)
+def test_pending_approval_rejects_every_action_digest_change(
+    tmp_path: Path, changed_action
+) -> None:
+    ledger = _ledger(tmp_path)
+    owner = "local-os-user-v1:501:ada"
+    approvals = WorkflowApprovalStore(
+        store=PrivateStateStore(tmp_path / "state"), owner=owner
+    )
+    original = ledger.record_intent(_action(), now=NOW)
+    changed = ledger.record_intent(changed_action(_action()), now=NOW)
+    pending = approvals.request(action_digest=original.action_digest, now=NOW)
+
+    assert changed.action_digest != original.action_digest
+    with pytest.raises(WorkflowApprovalError, match="does not match"):
+        approvals.grant(
+            pending.approval_id, action_digest=changed.action_digest, now=NOW
+        )
 
 
 def test_ledger_allows_exactly_one_atomic_dispatch_claim(tmp_path: Path) -> None:
