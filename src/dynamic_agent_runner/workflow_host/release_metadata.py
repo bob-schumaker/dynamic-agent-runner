@@ -277,7 +277,7 @@ def render_uv_requirements_lock(
             raise ReleaseMetadataError("release lock artifacts are invalid") from error
         names.add(name)
         rendered.append((name, version, digest))
-    return "".join(
+    return "--require-hashes\n" + "".join(
         f"{name}=={version} \\\n    --hash=sha256:{digest}\n"
         for name, version, digest in sorted(rendered)
     )

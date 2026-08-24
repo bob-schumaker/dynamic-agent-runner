@@ -149,6 +149,7 @@ def test_release_metadata_renders_a_hash_enforced_uv_requirements_lock() -> None
     )
 
     assert rendered == (
+        "--require-hashes\n"
         "dynamic-agent-runner==0.1.16 \\\n"
         "    --hash=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
         "helper==2.0.0 \\\n"
