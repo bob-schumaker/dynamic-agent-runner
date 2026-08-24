@@ -18,7 +18,7 @@ from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
 
 
 class MCPWorkflowCapabilityBindingError(ValueError):
-    """Raised when a workflow cannot bind to a reviewed read-only MCP surface."""
+    """Raised when a workflow cannot bind to a reviewed MCP surface."""
 
 
 @dataclass(frozen=True)
@@ -51,13 +51,15 @@ class MCPWorkflowCapabilityBindingControlPlane:
         snapshot_id: str,
         client: CurrentMCPSurfaceClient,
     ) -> MCPWorkflowCapabilityBinding:
-        """Persist one human-reviewed read-only binding for a compiled policy."""
+        """Persist one human-reviewed binding for a compiled policy."""
 
         mapping = _declared_tool_mapping(policy)
         try:
             snapshot = self._surfaces.verify_current_client(snapshot_id, client)
-            for remote_tool_name in mapping.values():
-                self._surfaces.require_read_only_tool(snapshot_id, remote_tool_name)
+            for tool in policy.declared_tools:
+                self._surfaces.require_approved_tool(
+                    snapshot_id, tool.remote_tool_name, tool.side_effect
+                )
             binding_id = self._store.issue(
                 kind="mcp_workflow_capability_binding",
                 owner=self._identity.principal,
@@ -121,10 +123,17 @@ class MCPWorkflowCapabilityBindingControlPlane:
 
 
 def _declared_tool_mapping(policy: WorkflowPolicy) -> dict[str, str]:
-    if "mcp_read_only" not in policy.required_capabilities or not policy.declared_tools:
+    if not policy.declared_tools:
         raise MCPWorkflowCapabilityBindingError(
-            "policy does not declare read-only MCP capability"
+            "policy does not declare an MCP capability"
         )
+    required_capability = (
+        "mcp_side_effects"
+        if any(tool.side_effect != "read" for tool in policy.declared_tools)
+        else "mcp_read_only"
+    )
+    if required_capability not in policy.required_capabilities:
+        raise MCPWorkflowCapabilityBindingError("policy MCP capability is invalid")
     tool_ids = tuple(tool.tool_id for tool in policy.declared_tools)
     if tool_ids != policy.task_invocation.allowed_tool_ids:
         raise MCPWorkflowCapabilityBindingError("policy tool declaration is invalid")

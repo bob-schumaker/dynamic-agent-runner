@@ -132,6 +132,24 @@ def _policy(*, remote_tool_name: str = "list_unread") -> WorkflowPolicy:
     )
 
 
+def _side_effect_policy() -> WorkflowPolicy:
+    policy = _policy(remote_tool_name="send_email")
+    return WorkflowPolicy(
+        **{
+            **policy.__dict__,
+            "required_capabilities": frozenset({"local_model", "mcp_side_effects"}),
+            "declared_tools": (
+                DeclaredTool(
+                    "mail_tool",
+                    "send_email",
+                    side_effect="write",
+                    approval_required=True,
+                ),
+            ),
+        }
+    )
+
+
 def test_binding_requires_current_approved_read_only_surface(tmp_path: Path) -> None:
     store, surfaces, snapshot, client = _setup(tmp_path)
     binding = MCPWorkflowCapabilityBindingControlPlane(
@@ -157,3 +175,29 @@ def test_binding_rejects_send_like_or_drifted_surface(tmp_path: Path) -> None:
     client.current_generation = 2
     with pytest.raises(MCPWorkflowCapabilityBindingError, match="surface_changed"):
         control.bind(policy=_policy(), snapshot_id=snapshot.snapshot_id, client=client)
+
+
+def test_binding_allows_only_the_exact_reviewed_side_effect(tmp_path: Path) -> None:
+    store, surfaces, snapshot, client = _setup(tmp_path)
+    control = MCPWorkflowCapabilityBindingControlPlane(store=store, surfaces=surfaces)
+
+    with pytest.raises(MCPWorkflowCapabilityBindingError, match="not approved"):
+        control.bind(
+            policy=_side_effect_policy(),
+            snapshot_id=snapshot.snapshot_id,
+            client=client,
+        )
+
+    reviewed = surfaces.create(
+        connection_id=client.connection_id,
+        authentication_id=client.authentication_id,
+        connection_generation=client.current_generation,
+        tools=client.list_tools(),
+        approved_read_only_tool_names={"list_unread"},
+        approved_tool_side_effects={"send_email": "write"},
+    )
+    binding = control.bind(
+        policy=_side_effect_policy(), snapshot_id=reviewed.snapshot_id, client=client
+    )
+
+    assert binding.tool_id_to_remote_name == {"mail_tool": "send_email"}
