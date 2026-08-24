@@ -82,16 +82,13 @@ class PrivateStateStore:
             raise OpaqueRecordError("expires_at must be after now")
         payload_copy = _canonical_payload(payload)
         handle = self._new_handle()
-        raw_record = {
-            "kind": kind,
-            "owner": owner,
-            "payload": payload_copy,
-            "payload_digest": _digest(payload_copy),
-            "issued_at": _timestamp(issued_at),
-            "expires_at": _timestamp(expiry),
-            "state": "active",
-        }
-        raw_record["mac"] = self._record_mac(raw_record)
+        raw_record = self._new_raw_record(
+            kind=kind,
+            owner=owner,
+            payload=payload_copy,
+            issued_at=issued_at,
+            expires_at=expiry,
+        )
         with self._mutation_lock():
             records = self._read_records()
             records[handle] = raw_record
@@ -146,6 +143,53 @@ class PrivateStateStore:
             )
             self._change_state_in_records(records, handle, "consumed")
             return record
+
+    def consume_and_issue(
+        self,
+        handle: str,
+        *,
+        expected_kind: str,
+        owner: str,
+        new_kind: str,
+        new_payload: Mapping[str, Any],
+        expires_at: datetime,
+        now: datetime,
+    ) -> str:
+        """Atomically consume one active record and issue its replacement."""
+
+        _require_nonempty(expected_kind, "expected_kind")
+        _require_nonempty(new_kind, "new_kind")
+        _require_nonempty(owner, "owner")
+        issued_at = _as_utc(now, "now")
+        expiry = _as_utc(expires_at, "expires_at")
+        if expiry <= issued_at:
+            raise OpaqueRecordError("expires_at must be after now")
+        payload_copy = _canonical_payload(new_payload)
+        replacement = self._new_handle()
+        replacement_record = self._new_raw_record(
+            kind=new_kind,
+            owner=owner,
+            payload=payload_copy,
+            issued_at=issued_at,
+            expires_at=expiry,
+        )
+        with self._mutation_lock():
+            records = self._read_records()
+            self._active_record(
+                handle,
+                expected_kind=expected_kind,
+                owner=owner,
+                now=now,
+                records=records,
+            )
+            raw_record = records.get(handle)
+            if raw_record is None:
+                raise OpaqueRecordError("unknown or forged opaque record")
+            raw_record["state"] = "consumed"
+            raw_record["mac"] = self._record_mac(raw_record)
+            records[replacement] = replacement_record
+            self._write_records(records)
+        return replacement
 
     def _validated_record(self, handle: str, *, owner: str) -> OpaqueRecord:
         return self._validated_record_from_records(
@@ -222,6 +266,27 @@ class PrivateStateStore:
         token = secrets.token_urlsafe(32)
         signature = _handle_signature(self._key, token)
         return f"v1.{token}.{signature}"
+
+    def _new_raw_record(
+        self,
+        *,
+        kind: str,
+        owner: str,
+        payload: dict[str, Any],
+        issued_at: datetime,
+        expires_at: datetime,
+    ) -> dict[str, Any]:
+        raw_record = {
+            "kind": kind,
+            "owner": owner,
+            "payload": payload,
+            "payload_digest": _digest(payload),
+            "issued_at": _timestamp(issued_at),
+            "expires_at": _timestamp(expires_at),
+            "state": "active",
+        }
+        raw_record["mac"] = self._record_mac(raw_record)
+        return raw_record
 
     def _validate_handle(self, handle: str) -> None:
         parts = handle.split(".") if isinstance(handle, str) else []

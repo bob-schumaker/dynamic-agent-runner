@@ -143,6 +143,41 @@ def test_concurrent_consumers_have_exactly_one_winner(tmp_path: Path) -> None:
     assert results.count(False) == 1
 
 
+def test_consume_and_issue_moves_records_under_one_lock(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    handle = store.issue(
+        kind="prepared_input",
+        owner="local-user",
+        payload={"value": "one"},
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    replacement = store.consume_and_issue(
+        handle,
+        expected_kind="prepared_input",
+        owner="local-user",
+        new_kind="dispatched_action",
+        new_payload={"status": "dispatched"},
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+
+    with pytest.raises(OpaqueRecordError, match="consumed"):
+        store.load(
+            handle,
+            expected_kind="prepared_input",
+            owner="local-user",
+            now=NOW,
+        )
+    assert store.load(
+        replacement,
+        expected_kind="dispatched_action",
+        owner="local-user",
+        now=NOW,
+    ).payload == {"status": "dispatched"}
+
+
 def test_forged_or_tampered_records_are_rejected(tmp_path: Path) -> None:
     store = _store(tmp_path)
     handle = store.issue(
