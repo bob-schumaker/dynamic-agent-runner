@@ -235,3 +235,105 @@ def test_run_cli_passes_ask_as_a_host_only_broker(
     assert calls[0]["prepared_input_id"] == "v1.input.signature"
     assert calls[0]["approval_broker"] is not None
     assert output == ['{"message":"done","run_id":"run-1","status":"completed"}']
+
+
+def test_cli_configures_generic_mcp_connection_without_exposing_api_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def create(**kwargs: object) -> SimpleNamespace:
+        calls.append(("create", kwargs))
+        return SimpleNamespace(connection_id="v1.connection")
+
+    def configure_token(**kwargs: object) -> SimpleNamespace:
+        calls.append(("token", kwargs))
+        return SimpleNamespace(authentication_id="v1.authentication")
+
+    def attach(**kwargs: object) -> SimpleNamespace:
+        calls.append(("attach", kwargs))
+        return SimpleNamespace()
+
+    monkeypatch.setattr(cli, "create_mcp_connection", create)
+    monkeypatch.setattr(cli, "configure_mcp_api_token", configure_token)
+    monkeypatch.setattr(cli, "attach_mcp_client", attach)
+    state_args = ["--state-root", "/tmp/dar-authoring-test"]
+
+    status, connection = _invoke(
+        [
+            *state_args,
+            "create-mcp-connection",
+            "--endpoint",
+            "https://mcp.example.test/v1",
+            "--scope",
+            "mail.read",
+            "--authentication-method",
+            "api_token",
+        ]
+    )
+    assert status == 0
+    assert connection == {"connection_id": "v1.connection", "status": "created"}
+
+    output: list[str] = []
+    status = main(
+        [
+            *state_args,
+            "configure-mcp-api-token",
+            "--connection-id",
+            "v1.connection",
+            "--token-stdin",
+        ],
+        write=output.append,
+        read_stdin=lambda: "secret-token\n",
+    )
+    assert status == 0
+    assert json.loads(output[0]) == {
+        "authentication_id": "v1.authentication",
+        "status": "authenticated",
+    }
+    assert "secret-token" not in output[0]
+
+    status, attached = _invoke(
+        [
+            *state_args,
+            "attach-mcp-client",
+            "--connection-id",
+            "v1.connection",
+            "--authentication-id",
+            "v1.authentication",
+            "--peer-certificate-sha256",
+            "a" * 64,
+        ]
+    )
+    assert status == 0
+    assert attached == {"status": "attached"}
+    assert calls == [
+        (
+            "create",
+            {
+                "root": Path("/tmp/dar-authoring-test"),
+                "endpoint": "https://mcp.example.test/v1",
+                "scopes": ["mail.read"],
+                "authentication_method": "api_token",
+            },
+        ),
+        (
+            "token",
+            {
+                "root": Path("/tmp/dar-authoring-test"),
+                "connection_id": "v1.connection",
+                "token": "secret-token",
+            },
+        ),
+        (
+            "attach",
+            {
+                "root": Path("/tmp/dar-authoring-test"),
+                "connection_id": "v1.connection",
+                "authentication_id": "v1.authentication",
+                "peer_certificate_sha256": "a" * 64,
+                "timeout_seconds": 10,
+                "max_response_bytes": 32_768,
+            },
+        ),
+    ]

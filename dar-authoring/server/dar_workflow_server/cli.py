@@ -17,7 +17,10 @@ from dar_workflow_server.authorized_tools import LocalApprovalDecision
 from dar_workflow_server.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
+    attach_mcp_client,
+    configure_mcp_api_token,
     configure_local_host,
+    create_mcp_connection,
 )
 
 
@@ -25,6 +28,7 @@ def main(
     argv: Sequence[str] | None = None,
     *,
     write: Callable[[str], None] = print,
+    read_stdin: Callable[[], str] | None = None,
 ) -> int:
     """Run local setup, package selection, preparation, or sealed execution."""
 
@@ -49,6 +53,10 @@ def main(
                 write,
                 {"status": "configured", "profile_id": configured.profile_id},
             )
+            return 0
+        control_result = _mcp_control_result(args, root=root, read_stdin=read_stdin)
+        if control_result is not None:
+            _write(write, control_result)
             return 0
         host = LocalWorkflowHost.open(root)
         now = datetime.now(UTC)
@@ -152,6 +160,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     configure.add_argument("--model-id", required=True)
     configure.add_argument("--base-url", required=True)
+    connection = commands.add_parser("create-mcp-connection")
+    connection.add_argument("--endpoint", required=True)
+    connection.add_argument("--scope", action="append", required=True)
+    connection.add_argument(
+        "--authentication-method",
+        required=True,
+        choices=("api_token", "oauth_authorization_code_pkce_loopback"),
+    )
+    token = commands.add_parser("configure-mcp-api-token")
+    token.add_argument("--connection-id", required=True)
+    token.add_argument("--token-stdin", action="store_true")
+    attach = commands.add_parser("attach-mcp-client")
+    attach.add_argument("--connection-id", required=True)
+    attach.add_argument("--authentication-id", required=True)
+    attach.add_argument("--peer-certificate-sha256", required=True)
+    attach.add_argument("--timeout-seconds", type=int, default=10)
+    attach.add_argument("--max-response-bytes", type=int, default=32_768)
     select = commands.add_parser("select-package")
     select.add_argument("--path", required=True)
     register = commands.add_parser("register")
@@ -173,6 +198,45 @@ def _parser() -> argparse.ArgumentParser:
 
 def _state_root_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--state-root", default=str(_default_state_root()))
+
+
+def _mcp_control_result(
+    args: Any,
+    *,
+    root: Path,
+    read_stdin: Callable[[], str] | None,
+) -> dict[str, object] | None:
+    if args.command == "create-mcp-connection":
+        connection = create_mcp_connection(
+            root=root,
+            endpoint=args.endpoint,
+            scopes=args.scope,
+            authentication_method=args.authentication_method,
+        )
+        return {"status": "created", "connection_id": connection.connection_id}
+    if args.command == "configure-mcp-api-token":
+        if not args.token_stdin:
+            raise LocalWorkflowHostError("API token must be supplied on stdin")
+        authentication = configure_mcp_api_token(
+            root=root,
+            connection_id=args.connection_id,
+            token=(read_stdin or sys.stdin.read)().strip(),
+        )
+        return {
+            "status": "authenticated",
+            "authentication_id": authentication.authentication_id,
+        }
+    if args.command == "attach-mcp-client":
+        attach_mcp_client(
+            root=root,
+            connection_id=args.connection_id,
+            authentication_id=args.authentication_id,
+            peer_certificate_sha256=args.peer_certificate_sha256,
+            timeout_seconds=args.timeout_seconds,
+            max_response_bytes=args.max_response_bytes,
+        )
+        return {"status": "attached"}
+    return None
 
 
 def _run_arguments(parser: argparse.ArgumentParser) -> None:
