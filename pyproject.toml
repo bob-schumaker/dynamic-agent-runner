@@ -1,6 +1,6 @@
 [project]
 name = "dynamic-agent-runner"
-version = "0.1.0"
+version = "0.1.16"
 description = ""
 authors = [
     {name = "Bob Schumaker",email = "bob.schumaker@oracle.com"}
@@ -9,7 +9,7 @@ dynamic = ["dependencies", "requires-python"]
 
 [project.scripts]
 dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
-dar-authoring-mcp = "dar_authoring_plugin.server:console_main"
+dynamic-agent-runner-mcp = "dynamic_agent_runner.mcp_server:console_main"
 graphify-extract = "dynamic_agent_runner.tools.graphify_cli:console_main"
 
 [project.entry-points.pyinstaller40]

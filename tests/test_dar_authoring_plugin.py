@@ -33,7 +33,7 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
     assert manifest["mcpServers"] == "./.mcp.json"
     assert project["project"]["name"] == "dar-authoring"
     assert project["project"]["dependencies"] == [
-        "dynamic-agent-runner==0.1.15",
+        "dynamic-agent-runner==0.1.16",
         "cryptography>=49.0.0,<50.0.0",
         "keyring>=25.7.0",
         "jsonschema>=4.26.0,<5.0.0",
@@ -50,8 +50,8 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
         "--default-index",
         "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple",
         "--from",
-        "dar-authoring==0.1.0",
-        "dar-authoring-mcp",
+        "dynamic-agent-runner==0.1.16",
+        "dynamic-agent-runner-mcp",
         "--stdio",
     ]
     assert all("{" not in value for value in server["args"])

@@ -3,7 +3,7 @@ package_id: dar-authoring-no-tool-template
 purpose: Answer one bounded user request with a local model and no tools.
 dar_runtime:
   distribution: dynamic-agent-runner
-  required_version: 0.1.15
+  required_version: 0.1.16
 model:
   profile_requirement: local-general-model
 skills: []
