@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 import yaml
@@ -38,11 +38,13 @@ class WorkflowPolicy:
     descriptor_digest: str
     policy_digest: str
     model_profile_requirement: str
-    workspace: WorkspaceContract
     input_contract: InputContract
     task_invocation: TaskInvocation
     limits: WorkflowLimits
     required_capabilities: frozenset[str]
+    workspace: WorkspaceContract = field(
+        default_factory=lambda: WorkspaceContract((), "none")
+    )
     declared_tools: tuple[DeclaredTool, ...] = ()
 
 
