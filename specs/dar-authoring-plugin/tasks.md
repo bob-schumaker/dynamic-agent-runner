@@ -142,7 +142,8 @@ passes.
       corpus/prompt/package digests, opaque material-set ID, provider/model,
       deterministic validator outcome, reviewer decision, pass criteria, and
       retention policy. Persist it atomically with owner-only permissions; raw
-      prompts and material content have no record fields.
+      prompts and material content have no record fields. A failed validator may
+      record no valid package digest; a passed result must identify its package.
 - [x] RED/GREEN: deterministic external-authoring output validation accepts only
       a DAR-valid, descriptor-valid, symlink-free controlled package directory
       with a host-generated canonical package manifest, and returns redacted

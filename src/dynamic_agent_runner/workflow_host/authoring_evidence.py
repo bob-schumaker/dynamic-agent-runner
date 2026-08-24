@@ -64,12 +64,12 @@ class AuthoringEvidence:
         _text(self.material_set_id, "material_set_id")
         _text(self.authoring_provider, "authoring_provider")
         _text(self.authoring_model_id, "authoring_model_id")
-        if not self.generated_package_digests:
+        if self.validator_result not in {"passed", "failed"}:
+            raise AuthoringEvidenceError("validator result is invalid")
+        if not self.generated_package_digests and self.validator_result != "failed":
             raise AuthoringEvidenceError("generated package digests are required")
         for digest in self.generated_package_digests:
             _digest(digest, "generated_package_digests")
-        if self.validator_result not in {"passed", "failed"}:
-            raise AuthoringEvidenceError("validator result is invalid")
         if self.reviewer_decision not in {"approved", "rejected"}:
             raise AuthoringEvidenceError("reviewer decision is invalid")
         if not self.pass_criteria or any(

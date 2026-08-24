@@ -56,11 +56,20 @@ def test_evidence_is_redacted_and_written_atomically(tmp_path: Path) -> None:
     assert destination.stat().st_mode & 0o777 == 0o600
 
 
+def test_evidence_records_a_failed_generation_without_a_valid_package_digest() -> None:
+    evidence = _evidence(
+        generated_package_digests=(),
+        validator_result="failed",
+        reviewer_decision="rejected",
+    )
+
+    assert evidence.to_mapping()["generated_package_digests"] == []
+
+
 @pytest.mark.parametrize(
     "field,value",
     (
         ("corpus_digest", "not-a-digest"),
-        ("generated_package_digests", ()),
         ("validator_result", "unknown"),
         ("reviewer_decision", "pending"),
         ("pass_criteria", ()),
@@ -72,3 +81,8 @@ def test_evidence_rejects_invalid_release_decision_fields(
 ) -> None:
     with pytest.raises(AuthoringEvidenceError):
         _evidence(**{field: value})
+
+
+def test_evidence_requires_a_valid_package_digest_for_a_passed_generation() -> None:
+    with pytest.raises(AuthoringEvidenceError, match="generated package digests"):
+        _evidence(generated_package_digests=())
