@@ -300,6 +300,10 @@ passes.
       `human_selected_local` decision through staging and records it against
       the immutable catalog revision/content-manifest digest; an unrecognized
       staged trust value fails closed at catalog import.
+- [x] RED/GREEN: a local owner-only publisher store accepts only valid Ed25519
+      public keys under bounded human-configured IDs, prevents silent
+      replacement, exposes redaction-safe identities, and supports explicit
+      key revocation. Import wiring remains separate.
 - [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
       signer/key-id binding, rejection of an unknown locally trusted publisher
       key, and a recipient-host signed-package import. Explicitly selected

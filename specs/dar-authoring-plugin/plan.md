@@ -218,9 +218,9 @@ part of ordinary test execution.
    inventory before publication. A tested Ed25519 exact-manifest signature
    primitive is available, and each human-selected local source now records
    `human_selected_local` against its immutable revision/content-manifest
-   digest. The trust policy must next require a source manifest for portable
-   exchange, load only human-configured publisher keys, and verify their
-   signatures before a
+   digest. An owner-only, revocable store now accepts human-configured publisher
+   keys, but the trust policy must next require a source manifest for portable
+   exchange and verify those keys' signatures before a
    portable archive may become a catalog revision.
 4. **M8.1d: Export portable packages.** Implemented for an already-private
    staged package: deterministic stored ZIP export rechecks the generated
