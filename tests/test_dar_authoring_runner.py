@@ -21,6 +21,7 @@ from dynamic_agent_runner.openai_client import (  # noqa: E402
 )
 
 from dar_workflow_server.catalog import PackageCatalog  # noqa: E402
+from dar_workflow_server.action_ledger import WorkflowActionLedger  # noqa: E402
 from dar_workflow_server.connections import MCPConnectionControlPlane  # noqa: E402
 from dar_workflow_server.mcp_binding import (  # noqa: E402
     MCPWorkflowCapabilityBindingControlPlane,
@@ -210,22 +211,46 @@ def _runner(
     )
 
 
-def _tool_runner(tmp_path: Path):
+def _tool_runner(tmp_path: Path, *, side_effect: bool = False):
     source = tmp_path / "packages" / "mail-reader"
     shutil.copytree(TEMPLATE_ROOT, source)
     descriptor_path = source / "workflow-descriptor.yaml"
     descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
     descriptor["package_id"] = "mail-reader"
+    remote_tool_name = "send_email" if side_effect else "list_unread"
+    tool_id = "mail_send" if side_effect else "mail_lookup"
     descriptor["tools"] = [
         {
-            "id": "mail_lookup",
+            "id": tool_id,
             "kind": "mcp",
-            "remote_tool_name": "list_unread",
-            "side_effect": "read",
+            "remote_tool_name": remote_tool_name,
+            "side_effect": "write" if side_effect else "read",
+            **({"approval_required": True} if side_effect else {}),
         }
     ]
     descriptor["task_invocation"].update(
-        {"allowed_tool_ids": ["mail_lookup"], "max_total_tool_calls": 1}
+        {
+            "allowed_tool_ids": [tool_id],
+            "max_total_tool_calls": 1,
+            **(
+                {
+                    "argument_sources": {
+                        tool_id: {
+                            "recipient": {
+                                "sources": ["cited_original_prompt_span"],
+                                "authority": True,
+                            },
+                            "body": {
+                                "sources": ["cited_original_prompt_span"],
+                                "authority": False,
+                            },
+                        }
+                    }
+                }
+                if side_effect
+                else {}
+            ),
+        }
     )
     descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
     runtime_path = source / "agent-runtime.yaml"
@@ -238,25 +263,37 @@ def _tool_runner(tmp_path: Path):
     }
     runtime["tools"] = [
         {
-            "id": "mail_lookup",
+            "id": tool_id,
             "label": "List unread mail",
             "tool_type": "external_api",
             "description_for_llm": "List unread mail.",
             "adapter": "host.mcp",
-            "input_schema": {
-                "type": "object",
-                "properties": {"folder": {"type": "string"}},
-                "required": ["folder"],
-                "additionalProperties": False,
-            },
-            "side_effect": "read",
-            "approval_required": False,
+            "input_schema": (
+                {
+                    "type": "object",
+                    "properties": {
+                        "recipient": {"type": "string"},
+                        "body": {"type": "string"},
+                    },
+                    "required": ["recipient", "body"],
+                    "additionalProperties": False,
+                }
+                if side_effect
+                else {
+                    "type": "object",
+                    "properties": {"folder": {"type": "string"}},
+                    "required": ["folder"],
+                    "additionalProperties": False,
+                }
+            ),
+            "side_effect": "write" if side_effect else "read",
+            "approval_required": side_effect,
             "timeout": "runtime_default",
             "retry_policy": "none",
             "failure_behavior": "error",
         }
     ]
-    runtime["nodes"][0]["available_tools"] = ["mail_lookup"]
+    runtime["nodes"][0]["available_tools"] = [tool_id]
     runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
@@ -289,13 +326,29 @@ def _tool_runner(tmp_path: Path):
     mcp_client = FakeMCPClient(
         connection.connection_id, authentication.authentication_id
     )
+    if side_effect:
+        mcp_client._tools = (
+            MCPDiscoveredTool(
+                name="send_email",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "recipient": {"type": "string"},
+                        "body": {"type": "string"},
+                    },
+                    "required": ["recipient", "body"],
+                    "additionalProperties": False,
+                },
+            ),
+        )
     surfaces = MCPSurfaceSnapshotControlPlane(store=store, connections=connections)
     snapshot = surfaces.create(
         connection_id=connection.connection_id,
         authentication_id=authentication.authentication_id,
         connection_generation=1,
         tools=mcp_client.list_tools(),
-        approved_read_only_tool_names={"list_unread"},
+        approved_read_only_tool_names={"list_unread"} if not side_effect else (),
+        approved_tool_side_effects={"send_email": "write"} if side_effect else None,
     )
     mcp_bindings = MCPWorkflowCapabilityBindingControlPlane(
         store=store, surfaces=surfaces
@@ -315,12 +368,22 @@ def _tool_runner(tmp_path: Path):
         workflow_id="mail-reader",
         policy=policy,
         capability_resolution=resolve_capabilities(
-            policy, available_capabilities={"local_model", "mcp_read_only"}
+            policy,
+            available_capabilities=(
+                {"local_model", "mcp_side_effects"}
+                if side_effect
+                else {"local_model", "mcp_read_only"}
+            ),
         ),
         mcp_binding_id=mcp_binding.binding_id,
     )
     preparation = WorkflowInvocationPreparationService(
         registrations=registrations, catalog=catalog, store=store
+    )
+    tool_arguments = (
+        '{"provenance_envelope":"{\\"arguments\\":{\\"body\\":\\"Welcome!\\",\\"recipient\\":\\"ada@example.test\\"},\\"format_version\\":1,\\"sources\\":{\\"body\\":{\\"end_byte\\":25,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":17},\\"recipient\\":{\\"end_byte\\":16,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":0}}}"}'
+        if side_effect
+        else '{"folder":"inbox"}'
     )
     model_client = QueuedClient(
         [
@@ -329,8 +392,8 @@ def _tool_runner(tmp_path: Path):
                 tool_calls=(
                     ModelToolCall(
                         id="call_1",
-                        name="mail_lookup",
-                        arguments='{"folder":"inbox"}',
+                        name=tool_id,
+                        arguments=tool_arguments,
                     ),
                 ),
             ),
@@ -349,6 +412,11 @@ def _tool_runner(tmp_path: Path):
             mcp_bindings=mcp_bindings,
             mcp_client=mcp_client,
             mcp_surfaces=surfaces,
+            action_ledger=(
+                WorkflowActionLedger(store=store, owner="local-os-user-v1:501:ada")
+                if side_effect
+                else None
+            ),
         ),
         preparation,
         mcp_client,
@@ -460,7 +528,60 @@ def test_runner_executes_one_registered_reviewed_read_only_mcp_workflow(
 
     assert result.output == {"message": "three unread messages"}
     assert mcp_client.calls == [("list_unread", {"folder": "inbox"})]
+
+
+def test_runner_executes_one_registered_reviewed_side_effecting_mcp_workflow(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, mcp_client, model_client = _tool_runner(
+        tmp_path, side_effect=True
+    )
+    prepared = preparation.prepare(
+        workflow_id="mail-reader", prompt="ada@example.test\nWelcome!", now=NOW
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": "mail-reader",
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.status == "completed"
+    assert mcp_client.calls == [
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
     assert len(model_client.responses.calls) == 2
+
+
+def test_side_effecting_workflow_dry_run_constructs_no_action(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, mcp_client, model_client = _tool_runner(
+        tmp_path, side_effect=True
+    )
+    prepared = preparation.prepare(
+        workflow_id="mail-reader", prompt="ada@example.test\nWelcome!", now=NOW
+    )
+
+    result = runner.dry_run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": "mail-reader",
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.status == "ready"
+    assert mcp_client.calls == []
+    assert model_client.responses.calls == []
 
 
 def test_runner_rejects_mcp_generation_drift_before_consuming_input(

@@ -14,17 +14,24 @@ from dynamic_agent_runner import (
 )
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
 
+from dar_workflow_server.action_ledger import WorkflowActionLedger
+from dar_workflow_server.argument_provenance import ArgumentVerificationContext
+from dar_workflow_server.authorized_tools import (
+    AuthorizedMCPToolClient,
+    AuthorizedToolBindingError,
+    create_authorized_mcp_tool_bindings,
+)
 from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
 from dar_workflow_server.mcp_binding import MCPWorkflowCapabilityBindingControlPlane
 from dar_workflow_server.mcp_surfaces import MCPSurfaceSnapshotControlPlane
 from dar_workflow_server.mcp_tools import (
-    MCPReadOnlyToolClient,
     MCPToolBindingError,
     create_read_only_mcp_tool_bindings,
 )
 from dar_workflow_server.policy import PolicyCompilationError, compile_workflow_policy
 from dar_workflow_server.preparation import (
     PreparedWorkflowInputError,
+    SealedWorkflowInput,
     WorkflowInvocationPreparationService,
 )
 from dar_workflow_server.registration import (
@@ -104,8 +111,9 @@ class WorkflowRunner:
         preparation: WorkflowInvocationPreparationService,
         model_adapter: OpenAIClientAdapter,
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
-        mcp_client: MCPReadOnlyToolClient | None = None,
+        mcp_client: AuthorizedMCPToolClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
+        action_ledger: WorkflowActionLedger | None = None,
     ) -> None:
         self._registrations = registrations
         self._catalog = catalog
@@ -114,23 +122,29 @@ class WorkflowRunner:
         self._mcp_bindings = mcp_bindings
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
+        self._action_ledger = action_ledger
         self._traces: list[RedactedRunTrace] = []
 
     def run(
         self, request: RunDarWorkflowRequest, *, now: datetime
     ) -> RunDarWorkflowResult:
-        """Preflight, consume, and execute one sealed saved no-tool workflow."""
+        """Preflight, consume, and execute one sealed saved workflow."""
 
         run_id = str(uuid4())
         try:
             (
                 registration,
                 package_root,
-                max_steps,
-                tool_registry,
+                policy,
                 terminal_output_contract,
             ) = self._preflight(request.workflow_id)
             self._validate_adapter(registration)
+            sealed = self._preparation.load(
+                request.prepared_input_id, registration=registration, now=now
+            )
+            tool_registry = self._tool_registry(
+                policy, registration, sealed=sealed, run_id=run_id, now=now
+            )
             sealed = self._preparation.consume(
                 request.prepared_input_id, registration=registration, now=now
             )
@@ -140,7 +154,7 @@ class WorkflowRunner:
                 prompt=prompt,
                 model_adapter=self._model_adapter,
                 tool_registry=tool_registry,
-                max_steps=max_steps,
+                max_steps=policy.limits.max_steps,
                 run_id=run_id,
             )
             output = _terminal_output(final_result, terminal_output_contract)
@@ -183,10 +197,13 @@ class WorkflowRunner:
         """Validate a sealed run without consuming input or invoking DAR."""
 
         try:
-            registration, _, _, _, _ = self._preflight(request.workflow_id)
+            registration, _, policy, _ = self._preflight(request.workflow_id)
             self._validate_adapter(registration)
-            self._preparation.load(
+            sealed = self._preparation.load(
                 request.prepared_input_id, registration=registration, now=now
+            )
+            self._tool_registry(
+                policy, registration, sealed=sealed, run_id="dry-run", now=now
             )
         except (
             WorkflowRegistrationError,
@@ -202,7 +219,7 @@ class WorkflowRunner:
 
     def _preflight(
         self, workflow_id: str
-    ) -> tuple[WorkflowRegistration, Any, int, Any | None, Mapping[str, Any]]:
+    ) -> tuple[WorkflowRegistration, Any, Any, Mapping[str, Any]]:
         registration = self._registrations.resolve(workflow_id)
         revision = self._catalog.revision(
             registration.package_id, registration.revision_digest
@@ -210,10 +227,7 @@ class WorkflowRunner:
         policy = compile_workflow_policy(revision)
         if policy.policy_digest != registration.policy_digest:
             raise RunDarWorkflowError("registered workflow policy does not match")
-        tool_registry = self._tool_registry(policy, registration)
-        workflow = load_agent_package_workflow(
-            str(revision.package_root), tool_registry=tool_registry
-        )
+        workflow = load_agent_package_workflow(str(revision.package_root))
         terminal_output_contract = workflow.runtime_manifest.output_contracts.get(
             policy.task_invocation.terminal_output_schema_ref
         )
@@ -222,12 +236,19 @@ class WorkflowRunner:
         return (
             registration,
             revision.package_root,
-            policy.limits.max_steps,
-            tool_registry,
+            policy,
             terminal_output_contract,
         )
 
-    def _tool_registry(self, policy: Any, registration: WorkflowRegistration) -> Any:
+    def _tool_registry(
+        self,
+        policy: Any,
+        registration: WorkflowRegistration,
+        *,
+        sealed: SealedWorkflowInput,
+        run_id: str,
+        now: datetime,
+    ) -> Any:
         if not policy.declared_tools:
             if registration.mcp_binding_id is not None:
                 raise RunDarWorkflowError("no-tool registration has an MCP binding")
@@ -240,6 +261,30 @@ class WorkflowRunner:
         ):
             raise RunDarWorkflowError("registered MCP capability is unavailable")
         try:
+            if "mcp_side_effects" in policy.required_capabilities:
+                if self._action_ledger is None:
+                    raise RunDarWorkflowError("external action audit is unavailable")
+                return create_host_tool_registry(
+                    create_authorized_mcp_tool_bindings(
+                        policy=policy,
+                        registration=registration,
+                        binding_id=registration.mcp_binding_id,
+                        binding_control=self._mcp_bindings,
+                        client=self._mcp_client,
+                        surfaces=self._mcp_surfaces,
+                        provenance=ArgumentVerificationContext(
+                            original_prompt=sealed.prompt,
+                            sealed_fields=sealed.structured_input,
+                            artifact_values={},
+                            constants={},
+                            argument_policies={},
+                        ),
+                        workspace_artifact_hashes={},
+                        trace_correlation=run_id,
+                        ledger=self._action_ledger,
+                        now=now,
+                    )
+                )
             return create_host_tool_registry(
                 create_read_only_mcp_tool_bindings(
                     policy=policy,
@@ -249,7 +294,7 @@ class WorkflowRunner:
                     surfaces=self._mcp_surfaces,
                 )
             )
-        except MCPToolBindingError as error:
+        except (AuthorizedToolBindingError, MCPToolBindingError) as error:
             raise RunDarWorkflowError(
                 "registered MCP capability is unavailable"
             ) from error
