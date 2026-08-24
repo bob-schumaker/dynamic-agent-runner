@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -15,12 +17,32 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 VERIFIER = REPOSITORY_ROOT / "scripts" / "verify_dar_mcp_wheel.py"
 
 
-def _write_wheel(path: Path, *, version: str = "9.8.7") -> None:
-    with zipfile.ZipFile(path, "w") as archive:
-        archive.writestr(
-            f"dynamic_agent_runner-{version}.dist-info/METADATA",
-            f"Name: dynamic-agent-runner\nVersion: {version}\n",
+def _record_digest(data: bytes) -> str:
+    return "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(data).digest()).decode(
+        "ascii"
+    ).rstrip("=")
+
+
+def _write_wheel(
+    path: Path, *, version: str = "9.8.7", corrupt_record: bool = False
+) -> None:
+    metadata_name = f"dynamic_agent_runner-{version}.dist-info/METADATA"
+    package_name = "dynamic_agent_runner/__init__.py"
+    record_name = f"dynamic_agent_runner-{version}.dist-info/RECORD"
+    metadata = f"Name: dynamic-agent-runner\nVersion: {version}\n".encode()
+    package = b'"""test package"""\n'
+    recorded_package = b"corrupted package\n" if corrupt_record else package
+    record = "\n".join(
+        (
+            f"{metadata_name},{_record_digest(metadata)},{len(metadata)}",
+            f"{package_name},{_record_digest(recorded_package)},{len(package)}",
+            f"{record_name},,",
         )
+    )
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(metadata_name, metadata)
+        archive.writestr(package_name, package)
+        archive.writestr(record_name, record)
 
 
 def _write_fake_uvx(path: Path) -> None:
@@ -119,3 +141,28 @@ def test_verifier_runs_local_wheel_with_isolated_uvx_environment(
     assert tool_directory.name == "uv-tools"
     assert cache_directory.parent.name == invocation_directory.name
     assert tool_directory.parent.name == invocation_directory.name
+
+
+def test_verifier_rejects_a_wheel_with_a_corrupted_record_hash(tmp_path: Path) -> None:
+    wheel = tmp_path / "dynamic_agent_runner-9.8.7-py3-none-any.whl"
+    fake_uvx = tmp_path / "uvx"
+    _write_wheel(wheel, corrupt_record=True)
+    _write_fake_uvx(fake_uvx)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(VERIFIER),
+            "--wheel",
+            str(wheel),
+            "--uvx",
+            str(fake_uvx),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "wheel RECORD hash is invalid" in result.stderr

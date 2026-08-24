@@ -67,7 +67,7 @@ passes.
       requirements lock. Rendering rejects malformed or duplicate identities;
       using that lock from the portable plugin remains part of the unresolved
       Codex launch-topology gate.
-- [ ] RED/GREEN: clean-directory DAR-wheel test verifies its archive asset
+- [x] RED/GREEN: clean-directory DAR-wheel test verifies its archive asset
       hashes and receives a valid MCP `initialize` response without source-tree
       paths or undeclared package indexes.
 - [ ] RED/GREEN: launcher verifies the selected DAR wheel bytes against

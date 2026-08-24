@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import csv
 from email.parser import BytesParser
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -16,6 +19,76 @@ import zipfile
 
 class VerificationError(Exception):
     """The local wheel did not satisfy the MCP smoke-check contract."""
+
+
+def _verify_wheel_record(wheel: Path) -> None:
+    """Verify every wheel payload against its PEP 427 ``RECORD`` entry."""
+
+    try:
+        with zipfile.ZipFile(wheel) as archive:
+            entries = _archive_entries(archive)
+            record_path = _record_path(entries)
+            recorded = _record_entries(archive, record_path)
+            if set(recorded) != set(entries):
+                raise VerificationError("wheel RECORD does not cover archive assets")
+            for path, row in recorded.items():
+                _verify_record_entry(archive, path, row, record_path)
+    except zipfile.BadZipFile as error:
+        raise VerificationError("wheel archive is invalid") from error
+
+
+def _archive_entries(archive: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
+    entries: dict[str, zipfile.ZipInfo] = {}
+    for entry in archive.infolist():
+        if entry.is_dir():
+            continue
+        if entry.filename in entries:
+            raise VerificationError("wheel archive contains duplicate entries")
+        entries[entry.filename] = entry
+    return entries
+
+
+def _record_path(entries: dict[str, zipfile.ZipInfo]) -> str:
+    record_paths = [name for name in entries if name.endswith(".dist-info/RECORD")]
+    if len(record_paths) != 1:
+        raise VerificationError("wheel must contain exactly one RECORD file")
+    return record_paths[0]
+
+
+def _record_entries(archive: zipfile.ZipFile, record_path: str) -> dict[str, list[str]]:
+    try:
+        record = archive.read(record_path).decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise VerificationError("wheel RECORD is not valid UTF-8") from error
+    entries: dict[str, list[str]] = {}
+    for row in csv.reader(record.splitlines()):
+        if len(row) != 3 or not row[0] or row[0] in entries:
+            raise VerificationError("wheel RECORD is invalid")
+        entries[row[0]] = row
+    return entries
+
+
+def _verify_record_entry(
+    archive: zipfile.ZipFile, path: str, row: list[str], record_path: str
+) -> None:
+    digest, size = row[1:]
+    if path == record_path:
+        if digest or size:
+            raise VerificationError("wheel RECORD self-entry is invalid")
+        return
+    if not digest.startswith("sha256=") or not size.isdecimal():
+        raise VerificationError("wheel RECORD entry is invalid")
+    try:
+        expected_digest = base64.urlsafe_b64decode(
+            digest.removeprefix("sha256=") + "==="
+        )
+    except (ValueError, TypeError) as error:
+        raise VerificationError("wheel RECORD entry is invalid") from error
+    data = archive.read(path)
+    if len(data) != int(size):
+        raise VerificationError("wheel RECORD size is invalid")
+    if hashlib.sha256(data).digest() != expected_digest:
+        raise VerificationError("wheel RECORD hash is invalid")
 
 
 def _wheel_version(wheel: Path) -> str:
@@ -68,6 +141,7 @@ def verify_local_wheel(*, wheel: Path, uvx: str, timeout: float) -> dict[str, An
     resolved_wheel = wheel.resolve()
     if not resolved_wheel.is_file():
         raise VerificationError(f"wheel does not exist: {resolved_wheel}")
+    _verify_wheel_record(resolved_wheel)
     expected_version = _wheel_version(resolved_wheel)
     requests = (
         "\n".join(

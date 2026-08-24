@@ -106,8 +106,9 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    present, startup records resolved dependencies, and no source-tree path or
    execution tool is exposed. Until the build system publishes a candidate, the
    developer check builds a local wheel and runs `uvx --from <absolute-wheel>`
-   in an isolated temporary directory; this proves local-wheel behavior only and
-   does not substitute for the Artifactory release-trust gate.
+   in an isolated temporary directory after verifying every archive payload
+   against its wheel `RECORD`; this proves local-wheel behavior only and does
+   not substitute for the Artifactory release-trust gate.
 
 M1 exit: the local plugin starts DAR's release-candidate stdio MCP server and
 is safe to discover, but cannot execute an unprepared workflow or be published.
