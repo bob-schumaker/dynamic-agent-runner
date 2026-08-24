@@ -51,6 +51,23 @@ otherwise-valid release is rejected. A workflow package is instead a local
 directory or ZIP data artifact consumed by that plugin; it is not independently
 installed or executed by `uvx`.
 
+### Release metadata v1
+
+The launcher trust root is a human-configured local JSON document containing
+only `format_version: 1`, a non-empty key-id-to-Ed25519-public-key map, and a
+minimum accepted version for each named distribution. A release document is
+canonical UTF-8 JSON with sorted keys and no whitespace. Its unsigned payload
+contains `format_version: 1`, the exact configured index URL, an RFC 3339 UTC
+expiry, an exact distribution/version/SHA-256 entry for `dar-authoring` and
+`dynamic-agent-runner`, exact SHA-256 entries for every resolved transitive
+wheel, and explicit revoked key IDs and distribution/version pairs. A detached
+v1 Ed25519 envelope signs those exact unsigned bytes and names one trusted key
+ID. The verifier rejects any extra or missing field, non-exact version, wrong
+index, expired document, unknown/revoked signer, revoked artifact, below-floor
+version, or byte-hash mismatch. It returns only resolved distribution names,
+versions, and hashes for startup tracing; URLs, key material, and signatures are
+not model-facing data.
+
 The plugin shall provide:
 
 1. three DAR-scoped Codex skills;

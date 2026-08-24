@@ -47,6 +47,9 @@ passes.
       unexpected indexes, a replaced artifact, expired metadata, revoked keys or
       versions, and a version below the configured security floor; and records
       the resolved dependency identities at startup.
+      Release metadata v1 uses canonical JSON, a detached Ed25519 key-id
+      envelope, exact artifact hashes, explicit transitive-wheel pins, an expiry,
+      minimum distribution versions, and explicit signer/artifact revocations.
 
 ## G1: Catalog, Profile, and Capability Boundary
 
