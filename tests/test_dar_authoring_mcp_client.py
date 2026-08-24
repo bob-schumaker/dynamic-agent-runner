@@ -21,6 +21,7 @@ from dar_workflow_server.mcp_client import (  # noqa: E402
     MCPTransportResponse,
     HTTPSJSONRPCMCPTransportFactory,
 )
+from dar_workflow_server.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
 from dar_workflow_server.profiles import LocalModelProfileControlPlane  # noqa: E402
 from dar_workflow_server.state import PrivateStateStore  # noqa: E402
 
@@ -48,6 +49,7 @@ class FakeSession:
     def __init__(self, response: MCPTransportResponse) -> None:
         self._response = response
         self.initialize_calls: list[tuple[int, int]] = []
+        self.list_tools_calls: list[tuple[int, int]] = []
         self.closed = False
 
     def initialize(
@@ -58,6 +60,17 @@ class FakeSession:
 
     def close(self) -> None:
         self.closed = True
+
+    def list_tools(
+        self, *, timeout_seconds: int, max_response_bytes: int
+    ) -> tuple[MCPDiscoveredTool, ...]:
+        self.list_tools_calls.append((timeout_seconds, max_response_bytes))
+        return (
+            MCPDiscoveredTool(
+                name="list_unread",
+                input_schema={"type": "object", "properties": {}},
+            ),
+        )
 
 
 class FakeFactory:
@@ -173,6 +186,25 @@ def test_client_honors_cancellation_and_reconnects_with_a_new_generation(
     assert factory.sessions[1].closed is True
 
 
+def test_client_lists_only_bounded_schema_surface_after_initialization(
+    tmp_path: Path,
+) -> None:
+    factory = FakeFactory([_response()])
+    client, _, _ = _client(tmp_path, factory)
+
+    with pytest.raises(MCPConnectionClientError, match="not initialized"):
+        client.list_tools()
+    client.initialize()
+
+    assert client.list_tools() == (
+        MCPDiscoveredTool(
+            name="list_unread",
+            input_schema={"type": "object", "properties": {}},
+        ),
+    )
+    assert factory.sessions[0].list_tools_calls == [(12, 128)]
+
+
 def test_client_fails_closed_when_configured_https_startup_is_unavailable(
     tmp_path: Path,
 ) -> None:
@@ -276,3 +308,42 @@ def test_https_json_rpc_transport_hashes_peer_certificate_and_bounds_body() -> N
     assert b"initialize" in connection.requests[0][2]
     session.close()
     assert connection.closed is True
+
+
+def test_https_json_rpc_transport_retrieves_tools_list_only_after_initialize() -> None:
+    certificate = b"peer-certificate"
+    initialized = (
+        b'{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18",'
+        b'"serverInfo":{"name":"example-mcp"}}}'
+    )
+    tools = (
+        b'{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"list_unread",'
+        b'"inputSchema":{"type":"object","properties":{}}}]}}'
+    )
+
+    class SequentialConnection(FakeHTTPSConnection):
+        def __init__(self) -> None:
+            super().__init__(initialized, certificate)
+            self._responses = [FakeHTTPResponse(initialized), FakeHTTPResponse(tools)]
+
+        def getresponse(self) -> FakeHTTPResponse:
+            return self._responses.pop(0)
+
+    connection = SequentialConnection()
+    session = HTTPSJSONRPCMCPTransportFactory(
+        connection_factory=lambda **_kwargs: connection
+    ).open(
+        endpoint="https://mcp.example.test/v1",
+        bearer_token="token",
+        timeout_seconds=12,
+    )
+
+    session.initialize(timeout_seconds=12, max_response_bytes=512)
+
+    assert session.list_tools(timeout_seconds=12, max_response_bytes=512) == (
+        MCPDiscoveredTool(
+            name="list_unread",
+            input_schema={"type": "object", "properties": {}},
+        ),
+    )
+    assert b"tools/list" in connection.requests[1][2]

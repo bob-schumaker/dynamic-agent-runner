@@ -17,6 +17,7 @@ from dar_workflow_server.connections import (
     MCPConnectionControlPlane,
     MCPConnectionError,
 )
+from dar_workflow_server.mcp_surfaces import MCPDiscoveredTool
 
 
 class MCPConnectionClientError(ValueError):
@@ -89,6 +90,11 @@ class HTTPSMCPTransportSession(Protocol):
     def close(self) -> None:
         """Release all transport resources."""
 
+    def list_tools(
+        self, *, timeout_seconds: int, max_response_bytes: int
+    ) -> tuple[MCPDiscoveredTool, ...]:
+        """Return the bounded remote `tools/list` identity/schema surface."""
+
 
 class HTTPSMCPTransportFactory(Protocol):
     """Construct a session only from host-owned connection data."""
@@ -141,6 +147,7 @@ class HTTPSJSONRPCMCPTransportSession:
         self._timeout_seconds = timeout_seconds
         self._connection_factory = connection_factory
         self._connection: http.client.HTTPSConnection | None = None
+        self._initialized = False
 
     def initialize(
         self, *, timeout_seconds: int, max_response_bytes: int
@@ -191,6 +198,7 @@ class HTTPSJSONRPCMCPTransportSession:
             raise
         except Exception as error:
             raise MCPConnectionClientError("HTTPS MCP initialization failed") from error
+        self._initialized = True
         return MCPTransportResponse(
             peer_certificate_sha256=hashlib.sha256(certificate).hexdigest(),
             body_bytes=len(body),
@@ -198,10 +206,70 @@ class HTTPSJSONRPCMCPTransportSession:
             server_name=result["server_name"],
         )
 
+    def list_tools(
+        self, *, timeout_seconds: int, max_response_bytes: int
+    ) -> tuple[MCPDiscoveredTool, ...]:
+        if not self._initialized:
+            raise MCPConnectionClientError("HTTPS MCP session is not initialized")
+        body = self._json_rpc_request(
+            method="tools/list",
+            request_id=2,
+            params={},
+            timeout_seconds=timeout_seconds,
+            max_response_bytes=max_response_bytes,
+        )
+        return _discovered_tools(body)
+
     def close(self) -> None:
         if self._connection is not None:
             self._connection.close()
             self._connection = None
+        self._initialized = False
+
+    def _json_rpc_request(
+        self,
+        *,
+        method: str,
+        request_id: int,
+        params: dict[str, object],
+        timeout_seconds: int,
+        max_response_bytes: int,
+    ) -> bytes:
+        if timeout_seconds != self._timeout_seconds:
+            raise MCPConnectionClientError("HTTPS MCP timeout changed after connection")
+        if self._connection is None:
+            raise MCPConnectionClientError("HTTPS MCP session is unavailable")
+        payload = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": method,
+                "params": params,
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+        try:
+            self._connection.request(
+                "POST",
+                self._path,
+                body=payload,
+                headers={
+                    "Accept": "application/json, text/event-stream",
+                    "Authorization": f"Bearer {self._bearer_token}",
+                    "Content-Type": "application/json",
+                },
+            )
+            response = self._connection.getresponse()
+            if response.status != 200:
+                raise MCPConnectionClientError("HTTPS MCP request was rejected")
+            body = response.read(max_response_bytes + 1)
+        except MCPConnectionClientError:
+            raise
+        except Exception as error:
+            raise MCPConnectionClientError("HTTPS MCP request failed") from error
+        if len(body) > max_response_bytes:
+            raise MCPConnectionClientError("HTTPS MCP response is too large")
+        return body
 
 
 @dataclass
@@ -276,6 +344,23 @@ class MCPConnectionClient:
 
         self.close()
         return self.initialize(cancellation=cancellation)
+
+    def list_tools(self) -> tuple[MCPDiscoveredTool, ...]:
+        """Return only the current bounded remote identity/schema surface."""
+
+        if self._session is None:
+            raise MCPConnectionClientError("HTTPS MCP connection is not initialized")
+        try:
+            return self._session.list_tools(
+                timeout_seconds=self.configuration.timeout_seconds,
+                max_response_bytes=self.configuration.max_response_bytes,
+            )
+        except MCPConnectionClientError:
+            self.close()
+            raise
+        except Exception as error:
+            self.close()
+            raise MCPConnectionClientError("HTTPS MCP tools/list failed") from error
 
     def close(self) -> None:
         """Release the current session without retaining a usable remote handle."""
@@ -362,3 +447,24 @@ def _initialization_result(body: bytes) -> dict[str, str]:
     if not isinstance(server_name, str) or not server_name:
         raise MCPConnectionClientError("HTTPS MCP initialization response is invalid")
     return {"protocol_version": protocol_version, "server_name": server_name}
+
+
+def _discovered_tools(body: bytes) -> tuple[MCPDiscoveredTool, ...]:
+    try:
+        raw_tools = json.loads(body.decode("utf-8"))["result"]["tools"]
+    except (KeyError, TypeError, UnicodeDecodeError, ValueError) as error:
+        raise MCPConnectionClientError(
+            "HTTPS MCP tools/list response is invalid"
+        ) from error
+    if not isinstance(raw_tools, list):
+        raise MCPConnectionClientError("HTTPS MCP tools/list response is invalid")
+    tools: list[MCPDiscoveredTool] = []
+    for raw_tool in raw_tools:
+        if not isinstance(raw_tool, dict):
+            raise MCPConnectionClientError("HTTPS MCP tools/list response is invalid")
+        name = raw_tool.get("name")
+        input_schema = raw_tool.get("inputSchema")
+        if not isinstance(name, str) or not isinstance(input_schema, dict):
+            raise MCPConnectionClientError("HTTPS MCP tools/list response is invalid")
+        tools.append(MCPDiscoveredTool(name=name, input_schema=input_schema))
+    return tuple(tools)
