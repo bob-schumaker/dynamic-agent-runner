@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
 from pathlib import Path
+import shutil
 
 import pytest
 
@@ -11,7 +13,16 @@ import pytest
 from dynamic_agent_runner.workflow_host.authoring_evidence import (  # noqa: E402
     AuthoringEvidence,
     AuthoringEvidenceError,
+    ExternalAuthoringHarnessRequest,
+    ValidatingExternalAuthoringHarness,
     write_authoring_evidence,
+)
+from dynamic_agent_runner.workflow_host.authoring_materials import (  # noqa: E402
+    AuthoringMaterialProjectionMember,
+    AuthoringMaterialSetProjection,
+)
+from dynamic_agent_runner.workflow_host.authoring_output import (  # noqa: E402
+    write_authored_package_manifest,
 )
 
 
@@ -86,3 +97,108 @@ def test_evidence_rejects_invalid_release_decision_fields(
 def test_evidence_requires_a_valid_package_digest_for_a_passed_generation() -> None:
     with pytest.raises(AuthoringEvidenceError, match="generated package digests"):
         _evidence(generated_package_digests=())
+
+
+def test_validating_external_harness_projects_only_selected_material_and_redacts_output(
+    tmp_path: Path,
+) -> None:
+    template = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+    requests: list[ExternalAuthoringHarnessRequest] = []
+
+    class Generator:
+        def generate(self, request: ExternalAuthoringHarnessRequest) -> Path:
+            requests.append(request)
+            package = tmp_path / "generated-package"
+            shutil.copytree(template, package)
+            write_authored_package_manifest(package)
+            return package
+
+    request = ExternalAuthoringHarnessRequest(
+        skill_name="agent-development",
+        request="Create a bounded document workflow.",
+        materials=AuthoringMaterialSetProjection(
+            material_set_id="v1.material-set.example",
+            members=(
+                AuthoringMaterialProjectionMember(
+                    artifact_id="v1.material.example",
+                    digest="a" * 64,
+                    role="example",
+                    disposition="reference_only",
+                    content="selected private example",
+                ),
+            ),
+            expires_at=datetime(2026, 8, 24, tzinfo=UTC),
+        ),
+    )
+
+    outcome = ValidatingExternalAuthoringHarness(Generator()).run(request)
+
+    assert requests == [request]
+    assert outcome.validator_result == "passed"
+    assert len(outcome.generated_package_digests) == 1
+    assert str(tmp_path) not in repr(outcome)
+    assert "selected private example" not in repr(outcome)
+
+
+def test_validating_external_harness_redacts_an_invalid_generated_package(
+    tmp_path: Path,
+) -> None:
+    template = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+
+    class Generator:
+        def generate(self, request: ExternalAuthoringHarnessRequest) -> Path:
+            package = tmp_path / "generated-package"
+            shutil.copytree(template, package)
+            design = package / "agent-design.md"
+            design.write_text(
+                design.read_text(encoding="utf-8") + "\nselected private example\n",
+                encoding="utf-8",
+            )
+            write_authored_package_manifest(package)
+            return package
+
+    request = ExternalAuthoringHarnessRequest(
+        skill_name="agent-development",
+        request="Create a bounded document workflow.",
+        materials=AuthoringMaterialSetProjection(
+            material_set_id="v1.material-set.example",
+            members=(
+                AuthoringMaterialProjectionMember(
+                    artifact_id="v1.material.example",
+                    digest="a" * 64,
+                    role="example",
+                    disposition="reference_only",
+                    content="selected private example",
+                ),
+            ),
+            expires_at=datetime(2026, 8, 24, tzinfo=UTC),
+        ),
+    )
+
+    outcome = ValidatingExternalAuthoringHarness(Generator()).run(request)
+
+    assert outcome == type(outcome)((), "failed")
+    assert str(tmp_path) not in repr(outcome)
+    assert "selected private example" not in repr(outcome)
+
+
+def test_validating_external_harness_redacts_generator_failures() -> None:
+    class BrokenGenerator:
+        def generate(self, request: ExternalAuthoringHarnessRequest) -> Path:
+            del request
+            raise RuntimeError("private generator failure")
+
+    request = ExternalAuthoringHarnessRequest(
+        skill_name="agent-development",
+        request="Create a bounded document workflow.",
+        materials=AuthoringMaterialSetProjection(
+            material_set_id="v1.material-set.example",
+            members=(),
+            expires_at=datetime(2026, 8, 24, tzinfo=UTC),
+        ),
+    )
+
+    outcome = ValidatingExternalAuthoringHarness(BrokenGenerator()).run(request)
+
+    assert outcome == type(outcome)((), "failed")
+    assert "private generator failure" not in repr(outcome)

@@ -11,6 +11,9 @@ from typing import Protocol
 from dynamic_agent_runner.workflow_host.authoring_materials import (
     AuthoringMaterialSetProjection,
 )
+from dynamic_agent_runner.workflow_host.authoring_output import (
+    validate_authored_package,
+)
 
 
 class AuthoringEvidenceError(ValueError):
@@ -41,6 +44,35 @@ class ExternalAuthoringHarness(Protocol):
         self, request: ExternalAuthoringHarnessRequest
     ) -> ExternalAuthoringHarnessOutcome:
         """Generate and validate one package without persisting private input."""
+
+
+class PackageGeneratingAuthoringHarness(Protocol):
+    """Private collaborator that returns one controlled generated directory."""
+
+    def generate(self, request: ExternalAuthoringHarnessRequest) -> Path:
+        """Generate one package directory from the selected authoring request."""
+
+
+class ValidatingExternalAuthoringHarness:
+    """Validate external package output before returning a redacted outcome."""
+
+    def __init__(self, generator: PackageGeneratingAuthoringHarness) -> None:
+        self._generator = generator
+
+    def run(
+        self, request: ExternalAuthoringHarnessRequest
+    ) -> ExternalAuthoringHarnessOutcome:
+        """Generate and validate without returning paths or material content."""
+
+        try:
+            package_root = self._generator.generate(request)
+            validation = validate_authored_package(
+                package_root=package_root,
+                materials=request.materials,
+            )
+        except Exception:  # noqa: BLE001 - external authoring harnesses vary.
+            return ExternalAuthoringHarnessOutcome((), "failed")
+        return ExternalAuthoringHarnessOutcome((validation.package_digest,), "passed")
 
 
 @dataclass(frozen=True)

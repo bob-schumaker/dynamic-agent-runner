@@ -150,6 +150,10 @@ passes.
       package/descriptor digests. It rejects embedding any `reference_only`
       `AuthoringMaterialSet` member before evidence recording; the manifest is
       accepted by the existing portable-package staging boundary.
+- [x] RED/GREEN: the validating external-harness adapter gives a package
+      generator only its `ExternalAuthoringHarnessRequest`, validates its
+      directory output against the selected material projection, and returns
+      only a passed package digest or a redacted failed outcome.
 - [ ] RED/GREEN: authoring skill fixtures turn natural-language requests plus an
       `AuthoringMaterialSet` projection into a validated package directory;
       unselected/private material cannot enter package, trace, evaluation fixture,
