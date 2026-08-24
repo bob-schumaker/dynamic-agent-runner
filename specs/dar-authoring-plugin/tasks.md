@@ -53,6 +53,12 @@ passes.
       correctly finds no callable DAR tool without a configured local host. This
       proves plugin registration and command resolution only, not host setup or
       workflow invocation.
+- [x] Configured Codex smoke evidence: a temporary local host state supplied to
+      the same local-wheel marketplace copy lets a no-side-effect Codex turn
+      discover exactly `mcp__dar_authoring.run_dar_workflow` with
+      `format_version`, `workflow_id`, and `prompt`; it performs no workflow
+      invocation and all temporary plugin, marketplace, and host-state files are
+      removed afterward.
 - [x] RED/GREEN: signed-release verification renders only its exact, validated
       distribution/version/SHA-256 identities as a hash-enforced `uv`
       requirements lock. Rendering rejects malformed or duplicate identities;

@@ -87,7 +87,9 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    `initialize` evidence. Also install a temporary local-wheel marketplace copy
    and confirm Codex registers its stdio command, then remove it. The server
    advertises no execution tool before the local host is configured; this
-   evidence must not be reported as workflow invocation. Stop here if the launch
+   evidence must not be reported as workflow invocation. With a temporary
+   configured host state, a second no-side-effect Codex discovery must expose
+   exactly `run_dar_workflow` and its closed input schema. Stop here if the launch
    topology is unsupported.
 2. **M1.2: Lock the launcher supply chain.** After M1.1 succeeds, implement the
    checked-in `uvx` launch contract for DAR's `dynamic-agent-runner-mcp` entry
