@@ -39,7 +39,11 @@ class PackageSourceSelectionPolicy:
             return self._store.issue(
                 kind="package_source",
                 owner=self._identity.principal,
-                payload={"source_type": "directory", "source_path": str(candidate)},
+                payload={
+                    "source_type": "directory",
+                    "source_root": str(root),
+                    "source_path": str(candidate),
+                },
                 expires_at=now.astimezone(UTC) + timedelta(minutes=5),
                 now=now,
             )
