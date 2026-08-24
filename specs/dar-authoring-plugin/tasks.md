@@ -161,7 +161,7 @@ passes.
 - [ ] RED/GREEN: bind every handler to one transport-specific identity,
       connection generation, and surface snapshot; reconnect, rotation, or
       drift before dispatch fails closed rather than widening a live binding.
-- [ ] RED/GREEN: disconnect/reconnect or peer failover between preflight and
+- [x] RED/GREEN: disconnect/reconnect or peer failover between preflight and
       handler dispatch returns `surface_changed` or `capability_unavailable` and
       never invokes a replacement client under the prior authorization.
 - [x] RED/GREEN: construct host-authored `HostToolBinding` handlers only from

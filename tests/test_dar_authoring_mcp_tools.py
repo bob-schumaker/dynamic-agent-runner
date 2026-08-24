@@ -69,6 +69,9 @@ class CurrentClient:
         self.calls.append((name, arguments))
         return {"content": [{"type": "text", "text": "three unread messages"}]}
 
+    def reconnect(self) -> None:
+        self.current_generation += 1
+
 
 def _policy() -> WorkflowPolicy:
     return WorkflowPolicy(
@@ -173,7 +176,9 @@ def test_host_binding_dispatches_only_the_current_reviewed_read_only_tool(
     assert client.calls == [("list_unread", {"folder": "inbox"})]
 
 
-def test_host_binding_rejects_drift_before_remote_tool_dispatch(tmp_path: Path) -> None:
+def test_host_binding_rejects_reconnect_before_remote_tool_dispatch(
+    tmp_path: Path,
+) -> None:
     surfaces, binding_control, binding, client = _setup(tmp_path)
     registry = create_host_tool_registry(
         create_read_only_mcp_tool_bindings(
@@ -184,7 +189,7 @@ def test_host_binding_rejects_drift_before_remote_tool_dispatch(tmp_path: Path) 
             surfaces=surfaces,
         )
     )
-    client.current_generation = 2
+    client.reconnect()
 
     result = registry.invoke_tool("mail_lookup", {"folder": "inbox"})
 
