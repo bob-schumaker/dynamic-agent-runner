@@ -154,6 +154,10 @@ passes.
       transport initialization, strict/unavailable startup, timeout,
       cancellation, reconnect, bounded output, and cleanup; no untested
       transport is advertised.
+- [x] RED/GREEN: persist a non-executing binding from a policy's declared
+      read-only MCP tools to exactly one authenticated client generation and
+      current human-reviewed surface; neither this record nor its control plane
+      constructs a remote tool handler.
 - [ ] RED/GREEN: bind every handler to one transport-specific identity,
       connection generation, and surface snapshot; reconnect, rotation, or
       drift before dispatch fails closed rather than widening a live binding.

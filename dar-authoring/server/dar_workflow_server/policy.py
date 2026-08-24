@@ -12,6 +12,7 @@ from dynamic_agent_runner import load_agent_package_workflow
 
 from dar_workflow_server.catalog import CatalogPackageRevision
 from dar_workflow_server.descriptor import (
+    DeclaredTool,
     InputContract,
     TaskInvocation,
     WorkflowDescriptor,
@@ -40,6 +41,7 @@ class WorkflowPolicy:
     task_invocation: TaskInvocation
     limits: WorkflowLimits
     required_capabilities: frozenset[str]
+    declared_tools: tuple[DeclaredTool, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -110,6 +112,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         task_invocation=descriptor.task_invocation,
         limits=descriptor.limits,
         required_capabilities=required_capabilities,
+        declared_tools=descriptor.declared_tools,
     )
 
 

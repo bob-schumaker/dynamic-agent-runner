@@ -7,7 +7,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Iterable, Mapping
+from typing import Iterable, Mapping, Protocol
 
 from dar_workflow_server.connections import (
     MCPConnectionControlPlane,
@@ -39,6 +39,17 @@ class MCPSurfaceSnapshot:
     connection_generation: int
     tool_set_digest: str
     read_only_tool_names: frozenset[str]
+
+
+class CurrentMCPSurfaceClient(Protocol):
+    """The current, initialized client identity required for surface binding."""
+
+    connection_id: str
+    authentication_id: str
+    current_generation: int
+
+    def list_tools(self) -> tuple[MCPDiscoveredTool, ...]:
+        """Return the currently exposed remote tool surface."""
 
 
 class MCPSurfaceSnapshotControlPlane:
@@ -156,6 +167,20 @@ class MCPSurfaceSnapshotControlPlane:
         if _digest(_canonical_tools(current_tools)) != snapshot.tool_set_digest:
             raise MCPSurfaceSnapshotError("surface_changed")
         return snapshot
+
+    def verify_current_client(
+        self, snapshot_id: str, client: CurrentMCPSurfaceClient
+    ) -> MCPSurfaceSnapshot:
+        """Verify that a live client is the reviewed authenticated generation."""
+
+        snapshot = self.load(snapshot_id)
+        if (
+            client.connection_id != snapshot.connection_id
+            or client.authentication_id != snapshot.authentication_id
+            or client.current_generation != snapshot.connection_generation
+        ):
+            raise MCPSurfaceSnapshotError("surface_changed")
+        return self.verify_current(snapshot_id, client.list_tools())
 
 
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")

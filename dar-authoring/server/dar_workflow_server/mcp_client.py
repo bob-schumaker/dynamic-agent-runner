@@ -284,6 +284,26 @@ class MCPConnectionClient:
     )
     _generation: int = field(default=0, init=False)
 
+    @property
+    def connection_id(self) -> str:
+        """Return the immutable connection identity for this client."""
+
+        return self.configuration.connection_id
+
+    @property
+    def authentication_id(self) -> str:
+        """Return the immutable credential identity for this client."""
+
+        return self.configuration.authentication_id
+
+    @property
+    def current_generation(self) -> int:
+        """Return the initialized generation, failing closed after close."""
+
+        if self._session is None:
+            raise MCPConnectionClientError("HTTPS MCP connection is not initialized")
+        return self._generation
+
     def initialize(
         self, *, cancellation: Event | None = None
     ) -> MCPInitializedConnection:
