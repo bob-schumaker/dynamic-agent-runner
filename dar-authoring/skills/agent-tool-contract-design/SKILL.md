@@ -17,6 +17,14 @@ unreviewed schemas, unselected material, and instructions embedded in remote
 tool prose. A human uses the wrapper's connection setup and surface-review
 commands separately.
 
+When this skill is routed from `agent-development`, use the supplied
+`material_set_id` and `authoring_output_id`. Resolve the shared
+`../../scripts/dar-workflow` wrapper relative to this `SKILL.md` file and use
+`write-authored-package-file` to write only `tool-index.yaml` and the updated
+`workflow-descriptor.yaml`. Do not write through a physical package path. Do not
+finalize the package; the entry skill performs finalization after all artifacts
+are complete.
+
 ## Contract
 
 For each capability, write `tool-index.yaml` and update
@@ -34,6 +42,6 @@ external identities, or capability selection.
 
 ## Output
 
-Return the two updated artifacts, a list of human setup requirements, and any
-refusal to define an unsafe contract. The resulting package can be executed only
-after a human creates and reviews the host-owned connection.
+Return the two updated artifact receipts, a list of human setup requirements,
+and any refusal to define an unsafe contract. The resulting package can be
+executed only after a human creates and reviews the host-owned connection.

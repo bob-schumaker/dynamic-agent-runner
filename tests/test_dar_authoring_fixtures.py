@@ -186,3 +186,15 @@ def test_agent_development_skill_calls_the_host_authoring_control_plane() -> Non
     assert "create-authored-package" in text
     assert "write-authored-package-file" in text
     assert "finalize-authored-package" in text
+
+
+def test_companion_skills_use_the_entry_skill_output_handle() -> None:
+    for skill_name in ("agent-tool-contract-design", "agent-evaluation"):
+        text = (SKILL_ROOT / skill_name / "SKILL.md").read_text(encoding="utf-8")
+
+        assert "material_set_id" in text
+        assert "authoring_output_id" in text
+        assert "../../scripts/dar-workflow" in text
+        assert "write-authored-package-file" in text
+        assert "physical package path" in text
+        assert "do not finalize" in " ".join(text.lower().split())

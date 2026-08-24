@@ -15,6 +15,13 @@ Use the package contract and approved `AuthoringMaterialSet` projections only.
 Do not include live-service credentials, raw prompt history, unselected
 material, or external tool output in an evaluation artifact.
 
+When this skill is routed from `agent-development`, use the supplied
+`material_set_id` and `authoring_output_id`. Resolve the shared
+`../../scripts/dar-workflow` wrapper relative to this `SKILL.md` file and use
+`write-authored-package-file` for each evaluation artifact. Do not write
+through a physical package path. Do not finalize the package; the entry skill
+finalizes the complete package.
+
 ## Output
 
 Create:
