@@ -1,7 +1,7 @@
 {
   "expected_artifacts": [
     "tool-index.yaml",
-    "workflow-descriptor.json"
+    "workflow-descriptor.yaml"
   ],
   "expected_capability_or_refusal": "refuse_endpoint_oauth_credential_or_live_discovery_input",
   "private_material_exclusions": [

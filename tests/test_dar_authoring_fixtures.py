@@ -56,3 +56,14 @@ def test_no_tool_template_is_a_valid_dar_package() -> None:
     assert workflow.runtime_manifest.tools == ()
     assert descriptor.package_id == workflow.runtime_manifest.package_id
     assert descriptor.task_invocation.max_total_tool_calls == 0
+
+
+def test_agent_development_fixture_declares_template_artifacts() -> None:
+    fixture = json.loads(
+        (FIXTURE_ROOT / "agent-development.json").read_text(encoding="utf-8")
+    )
+
+    assert all(
+        (TEMPLATE_ROOT / artifact).is_file()
+        for artifact in fixture["expected_artifacts"]
+    )
