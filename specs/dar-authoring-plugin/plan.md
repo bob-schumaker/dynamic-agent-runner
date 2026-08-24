@@ -227,7 +227,10 @@ prompt through the sealed, catalog-only runner interface.
    per-artifact YAML/JSON requirements and forbidden text for each fixture;
    compare live generated packages to those contracts, require a human
    intent-fidelity review until a judge calibration is approved, and treat
-   fixture property changes as reviewed acceptance-contract changes.
+   fixture property changes as reviewed acceptance-contract changes. Run each
+   companion-skill fixture inside an `agent-development` authoring session with
+   the host-issued `material_set_id` and `authoring_output_id`; companion skills
+   do not create or finalize a standalone package.
 
 M4 exit: the adapted skills have behavioral evidence without making model calls
 part of ordinary test execution.

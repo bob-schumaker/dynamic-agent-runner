@@ -191,7 +191,9 @@ passes.
       external authoring harness. Require the resulting artifacts to satisfy the
       same checked-in property contracts and behavioral routing/refusal
       expectations; review fixture-schema or expected-property changes as
-      acceptance-contract changes.
+      acceptance-contract changes. Execute companion fixtures inside an
+      `agent-development` session with host-issued material/output handles; do
+      not treat companion output as a standalone finalized package.
 
 ## G2: Optional MCP Connection Control Plane and Surface Binding
 
