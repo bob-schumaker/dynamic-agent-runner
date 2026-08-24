@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sys
+import json
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -205,6 +207,17 @@ def test_oauth_credential_replacement_preserves_its_connection_binding(
     assert reloaded == authentication
     assert secret == '{"access_token":"new","refresh_token":"refresh"}'
     assert len(secrets.values) == 1
+
+
+def test_oauth_token_bundle_serializes_an_optional_utc_expiry() -> None:
+    expiry = datetime(2026, 8, 24, 12, 0, tzinfo=UTC)
+
+    bundle = OAuthTokenBundle(access_token="access", expires_at=expiry)
+
+    assert json.loads(bundle.secret_value()) == {
+        "access_token": "access",
+        "expires_at": "2026-08-24T12:00:00+00:00",
+    }
 
 
 def test_oauth_rejects_bad_callback_state_without_exchanging_the_code(

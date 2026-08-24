@@ -11,6 +11,7 @@ import secrets
 import time
 import webbrowser
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Callable, Protocol
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
@@ -56,6 +57,7 @@ class OAuthTokenBundle:
 
     access_token: str = field(repr=False)
     refresh_token: str | None = field(default=None, repr=False)
+    expires_at: datetime | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.access_token, str) or not self.access_token:
@@ -64,11 +66,15 @@ class OAuthTokenBundle:
             not isinstance(self.refresh_token, str) or not self.refresh_token
         ):
             raise OAuthError("token exchange returned an invalid refresh token")
+        if self.expires_at is not None and self.expires_at.tzinfo is None:
+            raise OAuthError("token exchange returned an invalid expiry")
 
     def secret_value(self) -> str:
         value: dict[str, str] = {"access_token": self.access_token}
         if self.refresh_token is not None:
             value["refresh_token"] = self.refresh_token
+        if self.expires_at is not None:
+            value["expires_at"] = self.expires_at.astimezone(UTC).isoformat()
         return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
@@ -214,12 +220,14 @@ class HttpOAuthTokenExchanger:
                 payload = json.loads(response.read().decode("utf-8"))
             access_token = payload["access_token"]
             refresh_token = payload.get("refresh_token")
+            expires_at = _expiry_from_response(payload.get("expires_in"))
         except Exception as error:
             raise OAuthError("OAuth code exchange failed") from error
         try:
             return OAuthTokenBundle(
                 access_token=access_token,
                 refresh_token=refresh_token,
+                expires_at=expires_at,
             )
         except OAuthError as error:
             raise OAuthError("OAuth code exchange failed") from error
@@ -365,3 +373,11 @@ def _secret_text(value: object, name: str) -> str:
     if not isinstance(value, str) or not value:
         raise OAuthError(f"{name} is unavailable")
     return value
+
+
+def _expiry_from_response(value: object) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise OAuthError("OAuth code exchange failed")
+    return datetime.now(UTC) + timedelta(seconds=value)
