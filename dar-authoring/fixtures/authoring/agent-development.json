@@ -1,0 +1,30 @@
+{
+  "expected": {
+    "artifact_properties": [
+      "agent-design.md",
+      "agent-runtime.yaml",
+      "agent-graph.mmd",
+      "workflow-descriptor.yaml",
+      "finite-task-invocation",
+      "no-undeclared-tools"
+    ],
+    "capability_result": "accepted",
+    "refusal_fields": []
+  },
+  "format_version": 1,
+  "materials": [
+    {
+      "artifact_id": "example-qa",
+      "classification": "distributable",
+      "content_projection": "Question and answer examples for a local document helper.",
+      "version": "1"
+    }
+  ],
+  "private_material_exclusions": [
+    "source-path",
+    "credential",
+    "unselected-material"
+  ],
+  "request": "Design a bounded DAR workflow that answers questions about supplied text using this local model and these examples.",
+  "skill_id": "agent-development"
+}

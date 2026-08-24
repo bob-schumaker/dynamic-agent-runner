@@ -1,0 +1,27 @@
+{
+  "expected": {
+    "artifact_properties": [
+      "eval-plan.md",
+      "deterministic-fixtures",
+      "rubric-or-judge-policy",
+      "regression-gate"
+    ],
+    "capability_result": "accepted",
+    "refusal_fields": []
+  },
+  "format_version": 1,
+  "materials": [
+    {
+      "artifact_id": "package-contract",
+      "classification": "distributable",
+      "content_projection": "De-identified package capability and task-invocation contract.",
+      "version": "1"
+    }
+  ],
+  "private_material_exclusions": [
+    "live-service-credential",
+    "private-evaluation-input"
+  ],
+  "request": "Create acceptance cases and a regression gate for this package, including tool failure and prompt-injection behavior.",
+  "skill_id": "agent-evaluation"
+}

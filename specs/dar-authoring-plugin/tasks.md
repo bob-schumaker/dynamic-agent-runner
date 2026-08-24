@@ -11,7 +11,7 @@ passes.
 
 ## G0: Package and Server Spike
 
-- [ ] RED: add checked-in target invocation fixtures for all three adapted skills
+- [x] RED: add checked-in target invocation fixtures for all three adapted skills
       before copying or rewriting them. Each fixture defines a user request,
       fixture schema version, selected non-secret inputs, expected artifact
       properties, expected capability/refusal state, and private-material
