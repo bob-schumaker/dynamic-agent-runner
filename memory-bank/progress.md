@@ -10,15 +10,16 @@
   source revision is `967c9f621b017f042c55c6ae73019588ee426e30`; no top-level
   license or notice existed in that checkout, which the record states plainly.
   Full DAR-authoring verification passed with 171 tests.
-- `dar-authoring-plugin` M5 (G2) and M7 (G5) are implemented through
-  `93159e9`. Commits `d2d20bf`–`93159e9` compose the configured generic HTTPS
+- `dar-authoring-plugin` M5 (G2) is complete through `8c8522f`; M7 (G5) is
+  implemented through `93159e9`. Commits `d2d20bf`–`8c8522f` compose the configured generic HTTPS
   MCP client into the local host, expose human-only API-token/OAuth setup and
   reviewed surface/binding CLI paths, construct the model-facing host registry,
   and prove a saved workflow's fake MCP call end to end. A same-endpoint
-  reconnect automatically revalidates persisted identity and canonical schema;
-  it neither launches OAuth nor asks the human again. Identity/schema drift
-  fails closed before remote dispatch. Full authoring verification passed with
-  168 tests.
+  reconnect refreshes an expired token before setup, and a 401/403 setup
+  rejection gets one bounded refresh retry. The replacement keeps the credential
+  reference stable, revalidates the configured peer/surface, and otherwise
+  reports `authentication_required` without browser flow or remote tool-call
+  retry. Full authoring verification passed with 227 tests.
 - `dar-authoring-plugin` M6 (G4 trusted file ingress) is complete through
   `7b17158`. Commits `cf98017`–`7b17158` provide descriptor-relative no-follow
   bounded copies, private workspaces, opaque registration-bound artifacts, CLI

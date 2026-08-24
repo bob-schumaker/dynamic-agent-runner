@@ -20,14 +20,18 @@
   registration; paths and raw bodies are absent from the current CLI result,
   model request, and runner trace. Future G5 audit and approval surfaces must
   preserve that invariant.
-- `dar-authoring-plugin` M5 (G2) and M7 (G5) have host-level execution
-  evidence through `93159e9`. The generic control plane offers human-only
+- `dar-authoring-plugin` M5 (G2) is complete through `8c8522f`; M7 (G5) has
+  host-level execution evidence through `93159e9`. The generic control plane offers human-only
   API-token or OAuth PKCE-loopback setup, reviewed MCP surfaces, package
   bindings, and read/write/delete classifications. A saved workflow executes
   with its declared generic MCP tool through DAR; no Fastmail-specific behavior
-  exists. A reconnect to the same endpoint requires no human action when the
-  saved connection/authentication identity and reviewed tool schema revalidate
-  unchanged. Identity or schema drift fails closed before remote dispatch.
+  exists. Stored OAuth refresh configuration is host-owned and its token bundle
+  remains in the credential store. An expired credential refreshes before
+  setup; a 401/403 setup rejection permits one refresh-and-reconnect attempt.
+  The credential reference stays stable, peer-pin/surface checks revalidate,
+  refresh failure or a second rejection is `authentication_required`, and
+  remote tool calls are never retried. Identity or schema drift fails closed
+  before remote dispatch.
 - Side effects use descriptor-declared authority/provenance rules, immutable
   registration-bound handlers, a durable `workflow_auto` action ledger, and
   local atomic `--ask` approvals. Default `workflow_auto` dispatches a
