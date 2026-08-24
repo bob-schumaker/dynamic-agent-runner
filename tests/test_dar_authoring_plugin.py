@@ -80,6 +80,8 @@ def test_authoring_skill_uses_the_plugin_owned_dar_cli_wrapper() -> None:
     assert "never relative to the project cwd" in skill
     assert "exactly `role`, `content`, and `disposition`" in skill
     assert "Use\n`reference_only`" in skill
+    assert "start from the four files in `../../templates`" in skill
+    assert "Do not\ncopy `package-manifest.json`" in skill
 
 
 def test_dar_stdio_server_initializes_without_execution_tools_before_configuration(

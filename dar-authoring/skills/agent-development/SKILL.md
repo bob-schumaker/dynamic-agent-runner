@@ -38,6 +38,13 @@ smallest honest design. A workflow is task-specific, not a general interactive
 assistant. Every loop has a finite step or iteration limit and a terminal output
 contract.
 
+For a tool-free workflow, start from the four files in `../../templates`, also
+resolved relative to this `SKILL.md` file. Adapt the package id, purpose,
+model-profile requirement, prompt, graph labels, input contract, and output
+contract to the request; retain the finite no-tool invocation pattern. Do not
+copy `package-manifest.json`: finalization creates it after the four authored
+files are written through the control plane.
+
 ## Output
 
 Before writing a package, require the host's DAR loader and authoring control
