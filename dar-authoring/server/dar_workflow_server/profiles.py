@@ -148,7 +148,7 @@ def create_local_adapter(profile: LocalModelProfile) -> OpenAIClientAdapter:
     return create_local_openai_adapter(
         LocalOpenAIEndpointConfig(
             base_url=profile.base_url,
-            model_aliases=(profile.model_id,),
+            model_aliases=(profile.model_id, "local-model"),
             expected_model_id=profile.model_id,
         )
     )

@@ -122,5 +122,5 @@ def test_profile_requires_loopback_endpoint_and_constructs_local_adapter(
     assert create_local_adapter(created) is sentinel
     config = observed["config"]
     assert config.base_url == "http://localhost:11434/v1"  # type: ignore[union-attr]
-    assert config.model_aliases == ("local-model-v1",)  # type: ignore[union-attr]
+    assert config.model_aliases == ("local-model-v1", "local-model")  # type: ignore[union-attr]
     assert config.expected_model_id == "local-model-v1"  # type: ignore[union-attr]
