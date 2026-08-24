@@ -47,6 +47,9 @@ from dar_workflow_server.runner import (  # noqa: E402
 )
 from dar_workflow_server.staging import PrivatePackageStager  # noqa: E402
 from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dar_workflow_server.workspace_ingress import (  # noqa: E402
+    MaterializedWorkspaceInputArtifact,
+)
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -157,6 +160,38 @@ class FakeApprovalBroker:
         return self.decision
 
 
+class BodyArtifactVerifier:
+    def load(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> object:
+        if artifact_id != "v1.body" or workflow_id != "mail-reader":
+            raise ValueError("unexpected artifact")
+        return object()
+
+    def materialize(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceInputArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceInputArtifact(
+            "v1.body", "sha256:" + "b" * 64, "body", "Body from artifact"
+        )
+
+
 def _runner(
     tmp_path: Path,
     *,
@@ -231,6 +266,8 @@ def _tool_runner(
     *,
     side_effect: bool = False,
     approval_broker: LocalActionApprovalBroker | None = None,
+    body_from_artifact: bool = False,
+    artifact_verifier: object | None = None,
 ):
     source = tmp_path / "packages" / "mail-reader"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -261,7 +298,11 @@ def _tool_runner(
                                 "authority": True,
                             },
                             "body": {
-                                "sources": ["cited_original_prompt_span"],
+                                "sources": (
+                                    ["artifact_role:body"]
+                                    if body_from_artifact
+                                    else ["cited_original_prompt_span"]
+                                ),
                                 "authority": False,
                             },
                         }
@@ -272,6 +313,8 @@ def _tool_runner(
             ),
         }
     )
+    if body_from_artifact:
+        descriptor["task_invocation"]["allowed_artifact_roles"] = ["body"]
     descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
     runtime_path = source / "agent-runtime.yaml"
     runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
@@ -398,10 +441,15 @@ def _tool_runner(
         mcp_binding_id=mcp_binding.binding_id,
     )
     preparation = WorkflowInvocationPreparationService(
-        registrations=registrations, catalog=catalog, store=store
+        registrations=registrations,
+        catalog=catalog,
+        store=store,
+        artifact_verifier=artifact_verifier,  # type: ignore[arg-type]
     )
     tool_arguments = (
-        '{"provenance_envelope":"{\\"arguments\\":{\\"body\\":\\"Welcome!\\",\\"recipient\\":\\"ada@example.test\\"},\\"format_version\\":1,\\"sources\\":{\\"body\\":{\\"end_byte\\":25,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":17},\\"recipient\\":{\\"end_byte\\":16,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":0}}}"}'
+        '{"provenance_envelope":"{\\"arguments\\":{\\"body\\":\\"Body from artifact\\",\\"recipient\\":\\"ada@example.test\\"},\\"format_version\\":1,\\"sources\\":{\\"body\\":{\\"kind\\":\\"artifact\\",\\"ref\\":\\"body\\"},\\"recipient\\":{\\"end_byte\\":16,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":0}}}"}'
+        if body_from_artifact
+        else '{"provenance_envelope":"{\\"arguments\\":{\\"body\\":\\"Welcome!\\",\\"recipient\\":\\"ada@example.test\\"},\\"format_version\\":1,\\"sources\\":{\\"body\\":{\\"end_byte\\":25,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":17},\\"recipient\\":{\\"end_byte\\":16,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":0}}}"}'
         if side_effect
         else '{"folder":"inbox"}'
     )
@@ -608,6 +656,66 @@ def test_runner_uses_a_local_broker_only_when_ask_is_selected(
 
     assert result.status == "completed"
     assert len(broker.actions) == 1
+    assert mcp_client.calls == [
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
+
+
+def test_runner_materializes_a_hash_bound_artifact_only_for_the_handler(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, mcp_client, model_client = _tool_runner(
+        tmp_path,
+        side_effect=True,
+        body_from_artifact=True,
+        artifact_verifier=BodyArtifactVerifier(),
+    )
+    prepared = preparation.prepare(
+        workflow_id="mail-reader",
+        prompt="ada@example.test\nUntrusted body",
+        workspace_artifact_ids=("v1.body",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": "mail-reader",
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.status == "completed"
+    assert mcp_client.calls == [
+        (
+            "send_email",
+            {"recipient": "ada@example.test", "body": "Body from artifact"},
+        )
+    ]
+    assert "Body from artifact" not in repr(model_client.responses.calls)
+
+
+def test_side_effecting_prepared_input_cannot_be_replayed(tmp_path: Path) -> None:
+    runner, preparation, mcp_client, _ = _tool_runner(tmp_path, side_effect=True)
+    prepared = preparation.prepare(
+        workflow_id="mail-reader", prompt="ada@example.test\nWelcome!", now=NOW
+    )
+    request = RunDarWorkflowRequest.from_mapping(
+        {
+            "format_version": 1,
+            "workflow_id": "mail-reader",
+            "prepared_input_id": prepared.prepared_input_id,
+        }
+    )
+
+    runner.run(request, now=NOW)
+
+    with pytest.raises(RunDarWorkflowError, match="registered workflow run failed"):
+        runner.run(request, now=NOW)
+
     assert mcp_client.calls == [
         ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
     ]

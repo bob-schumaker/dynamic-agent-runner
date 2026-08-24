@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Mapping, Protocol, Sequence
+from typing import Mapping, Protocol, Sequence, runtime_checkable
 
 from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
 from dar_workflow_server.policy import PolicyCompilationError, compile_workflow_policy
@@ -15,6 +15,7 @@ from dar_workflow_server.registration import (
     WorkflowRegistrationService,
 )
 from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
+from dar_workflow_server.workspace_ingress import MaterializedWorkspaceInputArtifact
 
 
 class PreparedWorkflowInputError(ValueError):
@@ -32,6 +33,20 @@ class WorkspaceArtifactVerifier(Protocol):
         registration_digest: str,
         now: datetime,
     ) -> object: ...
+
+
+@runtime_checkable
+class WorkspaceArtifactMaterializer(WorkspaceArtifactVerifier, Protocol):
+    """Private verifier that can provide hash-checked text only to a handler."""
+
+    def materialize(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceInputArtifact: ...
 
 
 @dataclass(frozen=True)
@@ -180,6 +195,40 @@ class WorkflowInvocationPreparationService:
         except OpaqueRecordError as error:
             raise PreparedWorkflowInputError("prepared input is unavailable") from error
         return sealed
+
+    def materialize_workspace_artifacts(
+        self,
+        sealed: SealedWorkflowInput,
+        *,
+        registration: WorkflowRegistration,
+        now: datetime,
+    ) -> tuple[MaterializedWorkspaceInputArtifact, ...]:
+        """Resolve sealed artifacts into private hash-verified handler values."""
+
+        if not sealed.workspace_artifact_ids:
+            return ()
+        materializer = self._artifact_verifier
+        if not isinstance(materializer, WorkspaceArtifactMaterializer):
+            raise PreparedWorkflowInputError(
+                "workspace artifact materialization is unavailable"
+            )
+        try:
+            artifacts = tuple(
+                materializer.materialize(
+                    artifact_id,
+                    workflow_id=registration.workflow_id,
+                    registration_digest=registration.registration_digest,
+                    now=now,
+                )
+                for artifact_id in sealed.workspace_artifact_ids
+            )
+        except Exception as error:
+            raise PreparedWorkflowInputError(
+                "workspace artifact materialization is unavailable"
+            ) from error
+        if len({artifact.role for artifact in artifacts}) != len(artifacts):
+            raise PreparedWorkflowInputError("workspace artifact roles are ambiguous")
+        return artifacts
 
     def _registration_policy(self, workflow_id: str):
         try:

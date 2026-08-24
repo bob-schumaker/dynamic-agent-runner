@@ -24,6 +24,9 @@ from dar_workflow_server.profiles import LocalModelProfileControlPlane  # noqa: 
 from dar_workflow_server.registration import WorkflowRegistrationService  # noqa: E402
 from dar_workflow_server.staging import PrivatePackageStager  # noqa: E402
 from dar_workflow_server.state import PrivateStateStore  # noqa: E402
+from dar_workflow_server.workspace_ingress import (  # noqa: E402
+    MaterializedWorkspaceInputArtifact,
+)
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -46,6 +49,26 @@ class _ArtifactVerifier:
         if artifact_id != "v1.artifact":
             raise ValueError("invalid artifact")
         return object()
+
+
+class _MaterializingArtifactVerifier(_ArtifactVerifier):
+    def materialize(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceInputArtifact:
+        self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        return MaterializedWorkspaceInputArtifact(
+            artifact_id, "sha256:" + "a" * 64, "body", "<p>Hello</p>"
+        )
 
 
 def _prepared_service(tmp_path: Path):
@@ -155,6 +178,38 @@ def test_preparation_rejects_unverified_or_duplicate_workspace_artifact_ids(
             workspace_artifact_ids=("v1.artifact",),
             now=NOW,
         )
+
+
+def test_preparation_materializes_only_verified_private_artifacts(
+    tmp_path: Path,
+) -> None:
+    _, registrations, registration, _, _ = _prepared_service(tmp_path)
+    verifier = _MaterializingArtifactVerifier()
+    service = WorkflowInvocationPreparationService(
+        registrations=registrations,
+        catalog=PackageCatalog(tmp_path / "catalog"),
+        store=PrivateStateStore(tmp_path / "state"),
+        artifact_verifier=verifier,
+    )
+    prepared = service.prepare(
+        workflow_id="document-helper",
+        prompt="Answer this request.",
+        workspace_artifact_ids=("v1.artifact",),
+        now=NOW,
+    )
+    sealed = service.load(
+        prepared.prepared_input_id, registration=registration, now=NOW
+    )
+
+    artifacts = service.materialize_workspace_artifacts(
+        sealed, registration=registration, now=NOW
+    )
+
+    assert artifacts == (
+        MaterializedWorkspaceInputArtifact(
+            "v1.artifact", "sha256:" + "a" * 64, "body", "<p>Hello</p>"
+        ),
+    )
     with pytest.raises(PreparedWorkflowInputError, match="artifact"):
         service.prepare(
             workflow_id="document-helper",

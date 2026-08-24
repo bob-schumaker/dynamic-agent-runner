@@ -280,6 +280,9 @@ class WorkflowRunner:
                     raise RunDarWorkflowError("external action audit is unavailable")
                 if approval_broker is not None and self._approval_store is None:
                     raise RunDarWorkflowError("local approval is unavailable")
+                artifacts = self._preparation.materialize_workspace_artifacts(
+                    sealed, registration=registration, now=now
+                )
                 return create_host_tool_registry(
                     create_authorized_mcp_tool_bindings(
                         policy=policy,
@@ -291,11 +294,17 @@ class WorkflowRunner:
                         provenance=ArgumentVerificationContext(
                             original_prompt=sealed.prompt,
                             sealed_fields=sealed.structured_input,
-                            artifact_values={},
+                            artifact_values={
+                                artifact.role: artifact.content
+                                for artifact in artifacts
+                            },
                             constants={},
                             argument_policies={},
                         ),
-                        workspace_artifact_hashes={},
+                        workspace_artifact_hashes={
+                            artifact.artifact_id: artifact.content_hash
+                            for artifact in artifacts
+                        },
                         trace_correlation=run_id,
                         ledger=self._action_ledger,
                         approval_store=(

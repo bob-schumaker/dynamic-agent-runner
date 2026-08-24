@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import stat
+from hashlib import sha256
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -51,6 +52,16 @@ class StoredWorkspaceInputArtifact:
     byte_count: int
     role: str
     media_type: str
+
+
+@dataclass(frozen=True)
+class MaterializedWorkspaceInputArtifact:
+    """Hash-verified text material available only to a wrapper handler."""
+
+    artifact_id: str
+    content_hash: str
+    role: str
+    content: str
 
 
 class WorkspaceIngressService:
@@ -177,6 +188,38 @@ class WorkspaceIngressService:
             private_workspace_parent=self._private_workspace_parent,
         )
 
+    def materialize(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> MaterializedWorkspaceInputArtifact:
+        """Read one private text artifact only after rechecking its hash."""
+
+        artifact = self.load(
+            artifact_id,
+            workflow_id=workflow_id,
+            registration_digest=registration_digest,
+            now=now,
+        )
+        if not artifact.media_type.startswith("text/"):
+            raise WorkspaceIngressError("workspace input content is unavailable")
+        content = _read_verified_private_content(artifact)
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise WorkspaceIngressError(
+                "workspace input content is unavailable"
+            ) from error
+        return MaterializedWorkspaceInputArtifact(
+            artifact.artifact_id,
+            artifact.content_hash,
+            artifact.role,
+            text,
+        )
+
 
 def _require_absolute_directory(path: Path, *, label: str) -> None:
     if not path.is_absolute() or "." in path.parts or ".." in path.parts:
@@ -234,6 +277,48 @@ def _validate_text_encoding(content_path: Path, media_type: str) -> None:
         raise WorkspaceIngressError(
             "text workspace input is not valid UTF-8"
         ) from error
+
+
+def _read_verified_private_content(artifact: StoredWorkspaceInputArtifact) -> bytes:
+    workspace = artifact.content_path.parent
+    try:
+        workspace_mode = os.lstat(workspace).st_mode
+        if stat.S_ISLNK(workspace_mode) or not stat.S_ISDIR(workspace_mode):
+            raise OSError("workspace is not a directory")
+        directory_fd = os.open(workspace, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            content_fd = os.open(
+                artifact.content_path.name,
+                os.O_RDONLY | os.O_NOFOLLOW,
+                dir_fd=directory_fd,
+            )
+            try:
+                metadata = os.fstat(content_fd)
+                if (
+                    not stat.S_ISREG(metadata.st_mode)
+                    or metadata.st_size != artifact.byte_count
+                ):
+                    raise OSError("workspace content metadata changed")
+                chunks: list[bytes] = []
+                remaining = artifact.byte_count
+                while remaining:
+                    chunk = os.read(content_fd, min(remaining, 64 * 1024))
+                    if not chunk:
+                        raise OSError("workspace content changed")
+                    chunks.append(chunk)
+                    remaining -= len(chunk)
+                if os.read(content_fd, 1):
+                    raise OSError("workspace content changed")
+            finally:
+                os.close(content_fd)
+        finally:
+            os.close(directory_fd)
+    except OSError as error:
+        raise WorkspaceIngressError("workspace input content is unavailable") from error
+    content = b"".join(chunks)
+    if f"sha256:{sha256(content).hexdigest()}" != artifact.content_hash:
+        raise WorkspaceIngressError("workspace input content does not match artifact")
+    return content
 
 
 def _stored_artifact(

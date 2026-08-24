@@ -172,3 +172,44 @@ def test_artifact_load_rejects_a_different_workflow_registration_or_expiry(
             registration_digest="a" * 64,
             now=NOW + timedelta(minutes=5),
         )
+
+
+def test_materialize_rechecks_the_private_artifact_content_hash(tmp_path: Path) -> None:
+    source = tmp_path / "input" / "document.txt"
+    source.parent.mkdir()
+    source.write_text("document body", encoding="utf-8")
+    (tmp_path / "private-workspaces").mkdir(mode=0o700)
+    service = _service(tmp_path)
+    artifact = service.ingress(
+        source_path=source,
+        role="document",
+        media_type="text/plain",
+        policy=_policy(),
+        now=NOW,
+    )
+
+    materialized = service.materialize(
+        artifact.artifact_id,
+        workflow_id="document-helper",
+        registration_digest="a" * 64,
+        now=NOW,
+    )
+
+    assert materialized.artifact_id == artifact.artifact_id
+    assert materialized.role == "document"
+    assert materialized.content == "document body"
+    loaded = service.load(
+        artifact.artifact_id,
+        workflow_id="document-helper",
+        registration_digest="a" * 64,
+        now=NOW,
+    )
+    loaded.content_path.write_text("changed", encoding="utf-8")
+
+    with pytest.raises(WorkspaceIngressError, match="content"):
+        service.materialize(
+            artifact.artifact_id,
+            workflow_id="document-helper",
+            registration_digest="a" * 64,
+            now=NOW,
+        )
