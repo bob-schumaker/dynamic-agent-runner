@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 from datetime import UTC, datetime
 
@@ -10,7 +11,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 from dynamic_agent_runner.workflow_host.release_metadata import (  # noqa: E402
+    ReleaseTrustRoot,
     ReleaseMetadataError,
+    load_release_trust_root,
     sign_release_metadata,
     unsigned_release_metadata_bytes,
     verify_release_metadata,
@@ -196,7 +199,6 @@ def test_release_metadata_rejects_malformed_artifact_digests_and_revocations() -
             required_versions={"dynamic-agent-runner": "0.1.15"},
             wheel_bytes={"dynamic-agent-runner": b"dar wheel"},
         )
-
     metadata["artifacts"][0]["sha256"] = hashlib.sha256(b"dar wheel").hexdigest()
     metadata["revoked_artifacts"] = [{"name": "dynamic-agent-runner"}]
     with pytest.raises(ReleaseMetadataError, match="revocations"):
@@ -206,3 +208,68 @@ def test_release_metadata_rejects_malformed_artifact_digests_and_revocations() -
             required_versions={"dynamic-agent-runner": "0.1.15"},
             wheel_bytes={"dynamic-agent-runner": b"dar wheel"},
         )
+
+
+def test_release_trust_root_decodes_keys_and_enforces_version_floors() -> None:
+    private_key = Ed25519PrivateKey.generate()
+    root = load_release_trust_root(
+        {
+            "format_version": 1,
+            "trusted_keys": {
+                "release-root": base64.b64encode(
+                    private_key.public_key().public_bytes_raw()
+                ).decode("ascii"),
+            },
+            "minimum_versions": {"dynamic-agent-runner": "0.1.16rc1"},
+        }
+    )
+    assert isinstance(root, ReleaseTrustRoot)
+    assert root.trusted_keys == {
+        "release-root": private_key.public_key().public_bytes_raw(),
+    }
+
+    dar_wheel = b"dar wheel"
+    metadata = _metadata()
+    metadata["artifacts"] = [
+        {
+            "name": "dynamic-agent-runner",
+            "version": "0.1.16",
+            "sha256": hashlib.sha256(dar_wheel).hexdigest(),
+        },
+    ]
+    assert verify_release_artifacts(
+        metadata=metadata,
+        index_url="https://artifactory.example.test/simple",
+        required_versions={"dynamic-agent-runner": "0.1.16"},
+        wheel_bytes={"dynamic-agent-runner": dar_wheel},
+        minimum_versions=root.minimum_versions,
+    )
+
+    metadata["artifacts"][0]["version"] = "0.1.16rc1"
+    with pytest.raises(ReleaseMetadataError, match="below the security floor"):
+        verify_release_artifacts(
+            metadata=metadata,
+            index_url="https://artifactory.example.test/simple",
+            required_versions={"dynamic-agent-runner": "0.1.16rc1"},
+            wheel_bytes={"dynamic-agent-runner": dar_wheel},
+            minimum_versions={"dynamic-agent-runner": "0.1.16"},
+        )
+
+
+@pytest.mark.parametrize(
+    "root",
+    [
+        {},
+        {"format_version": 1, "trusted_keys": {}, "minimum_versions": {}},
+        {
+            "format_version": 1,
+            "trusted_keys": {"release-root": "not base64"},
+            "minimum_versions": {"dynamic-agent-runner": "not a version"},
+        },
+    ],
+)
+def test_release_trust_root_rejects_malformed_configuration(
+    root: dict[str, object],
+) -> None:
+    with pytest.raises(ReleaseMetadataError, match="trust root"):
+        load_release_trust_root(root)

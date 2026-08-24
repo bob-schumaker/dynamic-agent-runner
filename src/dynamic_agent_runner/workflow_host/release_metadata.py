@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from cryptography.exceptions import InvalidSignature
@@ -14,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
 )
+from packaging.version import InvalidVersion, Version
 
 
 _KEY_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
@@ -33,6 +35,64 @@ _METADATA_FIELDS = frozenset(
 
 class ReleaseMetadataError(ValueError):
     """Raised when signed launcher release metadata cannot be trusted."""
+
+
+@dataclass(frozen=True)
+class ReleaseTrustRoot:
+    """Human-configured release signing keys and per-distribution version floors."""
+
+    trusted_keys: Mapping[str, bytes]
+    minimum_versions: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "trusted_keys", dict(self.trusted_keys))
+        object.__setattr__(self, "minimum_versions", dict(self.minimum_versions))
+
+
+def load_release_trust_root(value: Mapping[str, object]) -> ReleaseTrustRoot:
+    """Decode and validate the local JSON-compatible v1 launcher trust root."""
+
+    required_fields = frozenset({"format_version", "trusted_keys", "minimum_versions"})
+    if not isinstance(value, Mapping) or set(value) != required_fields:
+        raise ReleaseMetadataError("release trust root is invalid")
+    if value.get("format_version") != 1:
+        raise ReleaseMetadataError("release trust root is invalid")
+    return ReleaseTrustRoot(
+        trusted_keys=_decode_trusted_keys(value.get("trusted_keys")),
+        minimum_versions=_minimum_versions(value.get("minimum_versions")),
+    )
+
+
+def _decode_trusted_keys(value: object) -> dict[str, bytes]:
+    if not isinstance(value, Mapping) or not value:
+        raise ReleaseMetadataError("release trust root is invalid")
+    trusted_keys: dict[str, bytes] = {}
+    for key_id, encoded_key in value.items():
+        _key_id(key_id)
+        if not isinstance(encoded_key, str):
+            raise ReleaseMetadataError("release trust root is invalid")
+        try:
+            public_key = base64.b64decode(encoded_key.encode("ascii"), validate=True)
+            Ed25519PublicKey.from_public_bytes(public_key)
+        except (TypeError, ValueError, UnicodeEncodeError) as error:
+            raise ReleaseMetadataError("release trust root is invalid") from error
+        trusted_keys[key_id] = public_key
+    return trusted_keys
+
+
+def _minimum_versions(value: object) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        raise ReleaseMetadataError("release trust root is invalid")
+    floors: dict[str, str] = {}
+    for name, version in value.items():
+        if not isinstance(name, str) or not name or not isinstance(version, str):
+            raise ReleaseMetadataError("release trust root is invalid")
+        try:
+            Version(version)
+        except InvalidVersion as error:
+            raise ReleaseMetadataError("release trust root is invalid") from error
+        floors[name] = version
+    return floors
 
 
 def unsigned_release_metadata_bytes(metadata: Mapping[str, object]) -> bytes:
@@ -131,6 +191,7 @@ def verify_release_artifacts(
     index_url: str,
     required_versions: Mapping[str, str],
     wheel_bytes: Mapping[str, bytes],
+    minimum_versions: Mapping[str, str] | None = None,
 ) -> tuple[tuple[str, str, str], ...]:
     """Verify that selected wheel bytes exactly match signed release entries."""
 
@@ -165,6 +226,7 @@ def verify_release_artifacts(
         required_versions=required_versions,
         wheel_bytes=wheel_bytes,
     )
+    _validate_version_floors(required_versions, minimum_versions)
     revoked = _revoked_artifacts(metadata["revoked_artifacts"])
     resolved: list[tuple[str, str, str]] = []
     for name, version in sorted(required_versions.items()):
@@ -219,6 +281,24 @@ def _revoked_artifacts(value: object) -> frozenset[tuple[str, str]]:
             raise ReleaseMetadataError("release artifact revocations are invalid")
         revoked.add(pair)
     return frozenset(revoked)
+
+
+def _validate_version_floors(
+    required_versions: Mapping[str, str], minimum_versions: Mapping[str, str] | None
+) -> None:
+    if minimum_versions is None:
+        return
+    for name, version in required_versions.items():
+        floor = minimum_versions.get(name)
+        if not isinstance(floor, str):
+            raise ReleaseMetadataError("release security floor is unavailable")
+        try:
+            if Version(version) < Version(floor):
+                raise ReleaseMetadataError(
+                    "release artifact is below the security floor"
+                )
+        except InvalidVersion as error:
+            raise ReleaseMetadataError("release security floor is invalid") from error
 
 
 def _key_id(value: object) -> None:
