@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sys
@@ -22,6 +23,9 @@ from dar_workflow_server.host import (
     configure_mcp_api_token,
     configure_local_host,
     create_mcp_connection,
+    revoke_package_publisher,
+    trust_package_publisher,
+    trusted_package_publishers,
 )
 
 
@@ -54,6 +58,10 @@ def main(
                 write,
                 {"status": "configured", "profile_id": configured.profile_id},
             )
+            return 0
+        publisher_result = _publisher_control_result(args, root=root)
+        if publisher_result is not None:
+            _write(write, publisher_result)
             return 0
         control_result = _mcp_control_result(args, root=root, read_stdin=read_stdin)
         if control_result is not None:
@@ -188,6 +196,12 @@ def _parser() -> argparse.ArgumentParser:
     attach.add_argument("--peer-certificate-sha256", required=True)
     attach.add_argument("--timeout-seconds", type=int, default=10)
     attach.add_argument("--max-response-bytes", type=int, default=32_768)
+    trust_publisher = commands.add_parser("trust-publisher")
+    trust_publisher.add_argument("--key-id", required=True)
+    trust_publisher.add_argument("--public-key-base64", required=True)
+    commands.add_parser("list-trusted-publishers")
+    revoke_publisher = commands.add_parser("revoke-trusted-publisher")
+    revoke_publisher.add_argument("--key-id", required=True)
     commands.add_parser("inspect-mcp-tools")
     review = commands.add_parser("review-mcp-surface")
     review.add_argument("--approve-read-tool", action="append", default=[])
@@ -267,6 +281,38 @@ def _mcp_control_result(
             max_response_bytes=args.max_response_bytes,
         )
         return {"status": "attached"}
+    return None
+
+
+def _publisher_control_result(args: Any, *, root: Path) -> dict[str, object] | None:
+    if args.command == "trust-publisher":
+        try:
+            public_key = base64.b64decode(
+                args.public_key_base64.encode("ascii"), validate=True
+            )
+        except (UnicodeEncodeError, ValueError) as error:
+            raise LocalWorkflowHostError("publisher public key is invalid") from error
+        publisher = trust_package_publisher(
+            root=root, key_id=args.key_id, public_key=public_key
+        )
+        return {
+            "key_id": publisher.key_id,
+            "public_key_sha256": publisher.public_key_sha256,
+            "status": "trusted",
+        }
+    if args.command == "list-trusted-publishers":
+        return {
+            "publishers": [
+                {
+                    "key_id": publisher.key_id,
+                    "public_key_sha256": publisher.public_key_sha256,
+                }
+                for publisher in trusted_package_publishers(root=root)
+            ]
+        }
+    if args.command == "revoke-trusted-publisher":
+        revoke_package_publisher(root=root, key_id=args.key_id)
+        return {"key_id": args.key_id, "status": "revoked"}
     return None
 
 

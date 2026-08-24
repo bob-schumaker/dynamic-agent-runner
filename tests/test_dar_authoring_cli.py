@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+import base64
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
@@ -25,6 +27,35 @@ def _invoke(args: list[str]) -> tuple[int, dict[str, object]]:
     output: list[str] = []
     result = main(args, write=output.append)
     return result, json.loads(output[0])
+
+
+def test_cli_manages_human_trusted_publisher_keys(tmp_path: Path) -> None:
+    state_args = ["--state-root", str(tmp_path / "state")]
+    key_id = "publisher.example.v1"
+    public_key = base64.b64encode(
+        Ed25519PrivateKey.generate().public_key().public_bytes_raw()
+    ).decode("ascii")
+
+    status, added = _invoke(
+        [
+            *state_args,
+            "trust-publisher",
+            "--key-id",
+            key_id,
+            "--public-key-base64",
+            public_key,
+        ]
+    )
+    assert status == 0
+    assert added["key_id"] == key_id
+    status, listed = _invoke([*state_args, "list-trusted-publishers"])
+    assert status == 0
+    assert listed["publishers"][0]["key_id"] == key_id
+    status, revoked = _invoke(
+        [*state_args, "revoke-trusted-publisher", "--key-id", key_id]
+    )
+    assert status == 0
+    assert revoked == {"key_id": key_id, "status": "revoked"}
 
 
 def test_cli_configures_selects_registers_prepares_and_dry_runs(tmp_path: Path) -> None:

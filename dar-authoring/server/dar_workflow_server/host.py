@@ -48,6 +48,11 @@ from dar_workflow_server.policy import (
     compile_workflow_policy,
     resolve_capabilities,
 )
+from dar_workflow_server.publisher_trust import (
+    PublisherTrustError,
+    PublisherTrustStore,
+    TrustedPublisher,
+)
 from dar_workflow_server.preparation import (
     PreparedWorkflowInput,
     WorkflowInvocationPreparationService,
@@ -130,6 +135,44 @@ def configure_local_host(
     )
     _write_configuration(root, configuration)
     return configuration
+
+
+def trust_package_publisher(
+    *, root: Path, key_id: str, public_key: bytes
+) -> TrustedPublisher:
+    """Persist one human-confirmed portable package publisher key."""
+
+    _validate_root(root)
+    try:
+        return PublisherTrustStore(root).add(key_id=key_id, public_key=public_key)
+    except PublisherTrustError as error:
+        raise LocalWorkflowHostError(
+            "package publisher could not be trusted"
+        ) from error
+
+
+def trusted_package_publishers(*, root: Path) -> tuple[TrustedPublisher, ...]:
+    """Return redaction-safe human-configured publisher identities."""
+
+    _validate_root(root)
+    try:
+        return PublisherTrustStore(root).publishers()
+    except PublisherTrustError as error:
+        raise LocalWorkflowHostError(
+            "package publisher trust is unavailable"
+        ) from error
+
+
+def revoke_package_publisher(*, root: Path, key_id: str) -> None:
+    """Revoke one human-configured portable package publisher key."""
+
+    _validate_root(root)
+    try:
+        PublisherTrustStore(root).revoke(key_id)
+    except PublisherTrustError as error:
+        raise LocalWorkflowHostError(
+            "package publisher could not be revoked"
+        ) from error
 
 
 def create_mcp_connection(
