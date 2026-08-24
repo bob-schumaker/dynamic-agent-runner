@@ -72,6 +72,8 @@ def test_authoring_skill_uses_the_plugin_owned_dar_cli_wrapper() -> None:
     assert wrapper.is_file()
     assert os.access(wrapper, os.X_OK)
     assert "DAR_AUTHORING_DAR_WHEEL" in text
+    assert "UV_CACHE_DIR" in text
+    assert '"$DAR_AUTHORING_STATE_ROOT/uv-cache"' in text
     assert "dynamic-agent-runner==0.1.16" in text
     assert "../../scripts/dar-workflow" in skill
     assert "never relative to the project cwd" in skill
