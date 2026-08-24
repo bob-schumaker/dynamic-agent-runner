@@ -7,16 +7,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 import sys
 
+import pytest
+
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
 sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
 
 from dynamic_agent_runner import create_host_tool_registry  # noqa: E402
 
 from dar_workflow_server.action_ledger import WorkflowActionLedger  # noqa: E402
+from dar_workflow_server.approvals import WorkflowApprovalStore  # noqa: E402
 from dar_workflow_server.argument_provenance import (  # noqa: E402
     ArgumentVerificationContext,
 )
 from dar_workflow_server.authorized_tools import (  # noqa: E402
+    LocalActionApprovalBroker,
+    LocalApprovalDecision,
     create_authorized_mcp_tool_bindings,
 )
 from dar_workflow_server.connections import MCPConnectionControlPlane  # noqa: E402
@@ -41,6 +46,23 @@ from dar_workflow_server.state import PrivateStateStore  # noqa: E402
 
 
 NOW = datetime(2026, 8, 24, tzinfo=UTC)
+
+
+class FakeApprovalBroker:
+    def __init__(self, decision: LocalApprovalDecision) -> None:
+        self._decision = decision
+        self.actions: list[object] = []
+        self.approvals: list[object] = []
+
+    def decide(self, *, action: object, approval: object) -> LocalApprovalDecision:
+        self.actions.append(action)
+        self.approvals.append(approval)
+        return self._decision
+
+
+class BrokenApprovalBroker:
+    def decide(self, *, action: object, approval: object) -> LocalApprovalDecision:
+        raise RuntimeError("terminal is unavailable")
 
 
 class MemorySecretStore:
@@ -183,7 +205,11 @@ def _envelope() -> str:
     )
 
 
-def _registry(tmp_path: Path):
+def _registry(
+    tmp_path: Path,
+    *,
+    approval_broker: LocalActionApprovalBroker | None = None,
+):
     store, surfaces, bindings, binding, registration, client = _setup(tmp_path)
     tools = create_authorized_mcp_tool_bindings(
         policy=_policy(),
@@ -202,6 +228,12 @@ def _registry(tmp_path: Path):
         workspace_artifact_hashes={},
         trace_correlation="run-1",
         ledger=WorkflowActionLedger(store=store, owner="local-os-user-v1:501:ada"),
+        approval_store=(
+            WorkflowApprovalStore(store=store, owner="local-os-user-v1:501:ada")
+            if approval_broker is not None
+            else None
+        ),
+        approval_broker=approval_broker,
         now=NOW,
     )
     return create_host_tool_registry(tools), client, tmp_path / "state" / "records.json"
@@ -279,3 +311,57 @@ def test_authorized_binding_rejects_snapshot_drift_before_dispatch(
 
     assert result.success is False
     assert client.calls == []
+
+
+def test_authorized_binding_dispatches_only_after_local_approval(
+    tmp_path: Path,
+) -> None:
+    broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
+    registry, client, _ = _registry(tmp_path, approval_broker=broker)
+
+    result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert result.success is True
+    assert len(broker.actions) == 1
+    assert len(broker.approvals) == 1
+    assert client.calls == [
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
+
+
+@pytest.mark.parametrize(
+    ("decision", "terminal_status"),
+    [
+        (LocalApprovalDecision.DENIED, "denied"),
+        (LocalApprovalDecision.CANCELLED, "cancelled"),
+    ],
+)
+def test_authorized_binding_does_not_dispatch_a_rejected_local_approval(
+    tmp_path: Path,
+    decision: LocalApprovalDecision,
+    terminal_status: str,
+) -> None:
+    broker = FakeApprovalBroker(decision)
+    registry, client, state_path = _registry(tmp_path, approval_broker=broker)
+
+    result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert result.success is False
+    assert len(broker.actions) == 1
+    assert client.calls == []
+    assert f'"status":"{terminal_status}"' in state_path.read_text(encoding="utf-8")
+
+
+def test_authorized_binding_fails_closed_when_local_approval_fails(
+    tmp_path: Path,
+) -> None:
+    registry, client, state_path = _registry(
+        tmp_path,
+        approval_broker=BrokenApprovalBroker(),
+    )
+
+    result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert result.success is False
+    assert client.calls == []
+    assert '"status":"failed"' in state_path.read_text(encoding="utf-8")

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
+from enum import StrEnum
 from threading import Lock
 from typing import Protocol
 
@@ -15,6 +16,7 @@ from dynamic_agent_runner import HostToolBinding
 
 from dar_workflow_server.action_ledger import (
     ActionLedgerError,
+    ActionLedgerEvent,
     ExternalAction,
     WorkflowActionLedger,
 )
@@ -23,6 +25,11 @@ from dar_workflow_server.argument_provenance import (
     ArgumentSourcePolicy,
     ArgumentVerificationContext,
     verify_argument_provenance,
+)
+from dar_workflow_server.approvals import (
+    WorkflowApproval,
+    WorkflowApprovalError,
+    WorkflowApprovalStore,
 )
 from dar_workflow_server.descriptor import DeclaredTool
 from dar_workflow_server.mcp_binding import (
@@ -53,6 +60,23 @@ class AuthorizedToolBindingError(ValueError):
     """Raised when a side-effecting MCP action is not safe to dispatch."""
 
 
+class LocalApprovalDecision(StrEnum):
+    """The only local-host decisions allowed for a reviewed action."""
+
+    APPROVED = "approved"
+    DENIED = "denied"
+    CANCELLED = "cancelled"
+
+
+class LocalActionApprovalBroker(Protocol):
+    """Host-only presenter for one exact action; never exposed to the model."""
+
+    def decide(
+        self, *, action: ExternalAction, approval: WorkflowApproval
+    ) -> LocalApprovalDecision:
+        """Return the local human's final decision for this action."""
+
+
 def create_authorized_mcp_tool_bindings(
     *,
     policy: WorkflowPolicy,
@@ -65,11 +89,15 @@ def create_authorized_mcp_tool_bindings(
     workspace_artifact_hashes: Mapping[str, str],
     trace_correlation: str,
     ledger: WorkflowActionLedger,
+    approval_store: WorkflowApprovalStore | None = None,
+    approval_broker: LocalActionApprovalBroker | None = None,
     now: datetime,
 ) -> tuple[HostToolBinding, ...]:
     """Create wrapper-private bindings from one immutable side-effect policy."""
 
     _require_registration(policy, registration, binding_id)
+    if (approval_store is None) != (approval_broker is None):
+        raise AuthorizedToolBindingError("local approval is unavailable")
     if not isinstance(trace_correlation, str) or not trace_correlation:
         raise AuthorizedToolBindingError("trace correlation is invalid")
     try:
@@ -99,6 +127,8 @@ def create_authorized_mcp_tool_bindings(
             workspace_artifact_hashes=workspace_artifact_hashes,
             trace_correlation=trace_correlation,
             ledger=ledger,
+            approval_store=approval_store,
+            approval_broker=approval_broker,
             now=now,
             counter=counter,
         )
@@ -120,6 +150,8 @@ def _binding(
     workspace_artifact_hashes: Mapping[str, str],
     trace_correlation: str,
     ledger: WorkflowActionLedger,
+    approval_store: WorkflowApprovalStore | None,
+    approval_broker: LocalActionApprovalBroker | None,
     now: datetime,
     counter: _CallCounter,
 ) -> HostToolBinding:
@@ -137,20 +169,26 @@ def _binding(
                 current.snapshot_id, tool.remote_tool_name, tool.side_effect
             )
             counter.claim()
-            intent = ledger.record_intent(
-                ExternalAction(
-                    workflow_id=registration.workflow_id,
-                    registration_digest=registration.registration_digest,
-                    profile_id=registration.profile_id,
-                    snapshot_id=current.snapshot_id,
-                    connection_generation=current.connection_generation,
-                    trace_correlation=trace_correlation,
-                    tool_id=tool.tool_id,
-                    remote_tool_name=tool.remote_tool_name,
-                    side_effect=tool.side_effect,
-                    normalized_arguments=normalized,
-                    workspace_artifact_hashes=workspace_artifact_hashes,
-                ),
+            action = ExternalAction(
+                workflow_id=registration.workflow_id,
+                registration_digest=registration.registration_digest,
+                profile_id=registration.profile_id,
+                snapshot_id=current.snapshot_id,
+                connection_generation=current.connection_generation,
+                trace_correlation=trace_correlation,
+                tool_id=tool.tool_id,
+                remote_tool_name=tool.remote_tool_name,
+                side_effect=tool.side_effect,
+                normalized_arguments=normalized,
+                workspace_artifact_hashes=workspace_artifact_hashes,
+            )
+            intent = ledger.record_intent(action, now=now)
+            _require_local_approval(
+                action=action,
+                intent=intent,
+                approval_store=approval_store,
+                approval_broker=approval_broker,
+                ledger=ledger,
                 now=now,
             )
             dispatched = ledger.claim_dispatch(intent.action_id, now=now)
@@ -200,6 +238,70 @@ def _binding(
         side_effect=tool.side_effect,
         approval_required="no",
     )
+
+
+def _require_local_approval(
+    *,
+    action: ExternalAction,
+    intent: ActionLedgerEvent,
+    approval_store: WorkflowApprovalStore | None,
+    approval_broker: LocalActionApprovalBroker | None,
+    ledger: WorkflowActionLedger,
+    now: datetime,
+) -> None:
+    if approval_store is None or approval_broker is None:
+        return
+    try:
+        approval = approval_store.request(action_digest=intent.action_digest, now=now)
+        decision = approval_broker.decide(action=action, approval=approval)
+        if decision is LocalApprovalDecision.APPROVED:
+            granted = approval_store.grant(
+                approval.approval_id, action_digest=intent.action_digest, now=now
+            )
+            approval_store.consume(
+                granted.approval_id, action_digest=intent.action_digest, now=now
+            )
+            return
+        if decision is LocalApprovalDecision.DENIED:
+            approval_store.deny(
+                approval.approval_id, action_digest=intent.action_digest, now=now
+            )
+            _record_non_dispatch_terminal(ledger, intent.action_id, "denied", now)
+            raise AuthorizedToolBindingError("external action was denied")
+        if decision is LocalApprovalDecision.CANCELLED:
+            approval_store.deny(
+                approval.approval_id, action_digest=intent.action_digest, now=now
+            )
+            _record_non_dispatch_terminal(ledger, intent.action_id, "cancelled", now)
+            raise AuthorizedToolBindingError("external action was cancelled")
+        approval_store.deny(
+            approval.approval_id, action_digest=intent.action_digest, now=now
+        )
+        _record_non_dispatch_terminal(ledger, intent.action_id, "failed", now)
+    except AuthorizedToolBindingError:
+        raise
+    except (WorkflowApprovalError, ActionLedgerError) as error:
+        _try_record_non_dispatch_terminal(ledger, intent.action_id, "failed", now)
+        raise AuthorizedToolBindingError("local approval is unavailable") from error
+    except Exception as error:  # noqa: BLE001 - local UI adapters vary.
+        _try_record_non_dispatch_terminal(ledger, intent.action_id, "failed", now)
+        raise AuthorizedToolBindingError("local approval is unavailable") from error
+    raise AuthorizedToolBindingError("local approval decision is invalid")
+
+
+def _record_non_dispatch_terminal(
+    ledger: WorkflowActionLedger, action_id: str, status: str, now: datetime
+) -> None:
+    ledger.record_terminal(action_id, status, now=now)
+
+
+def _try_record_non_dispatch_terminal(
+    ledger: WorkflowActionLedger, action_id: str, status: str, now: datetime
+) -> None:
+    try:
+        ledger.record_terminal(action_id, status, now=now)
+    except ActionLedgerError:
+        return
 
 
 def _require_registration(
