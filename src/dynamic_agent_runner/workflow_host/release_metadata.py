@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 
 
 _KEY_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _SIGNATURE_FIELDS = frozenset({"algorithm", "format_version", "key_id", "signature"})
 _METADATA_FIELDS = frozenset(
     {
@@ -130,7 +131,7 @@ def verify_release_artifacts(
     index_url: str,
     required_versions: Mapping[str, str],
     wheel_bytes: Mapping[str, bytes],
-) -> tuple[tuple[str, str], ...]:
+) -> tuple[tuple[str, str, str], ...]:
     """Verify that selected wheel bytes exactly match signed release entries."""
 
     unsigned_release_metadata_bytes(metadata)
@@ -149,24 +150,75 @@ def verify_release_artifacts(
         digest = entry.get("sha256")
         if (
             not isinstance(name, str)
+            or not name
             or not isinstance(version, str)
+            or not version
             or not isinstance(digest, str)
-            or len(digest) != 64
+            or _SHA256.fullmatch(digest) is None
         ):
             raise ReleaseMetadataError("release artifacts are invalid")
         if name in entries:
             raise ReleaseMetadataError("release artifacts are invalid")
         entries[name] = entry
-    resolved: list[tuple[str, str]] = []
+    _validate_required_artifact_coverage(
+        entries=entries,
+        required_versions=required_versions,
+        wheel_bytes=wheel_bytes,
+    )
+    revoked = _revoked_artifacts(metadata["revoked_artifacts"])
+    resolved: list[tuple[str, str, str]] = []
     for name, version in sorted(required_versions.items()):
         entry = entries.get(name)
         data = wheel_bytes.get(name)
         if entry is None or entry["version"] != version or not isinstance(data, bytes):
             raise ReleaseMetadataError("release artifact is unavailable")
+        if (name, version) in revoked:
+            raise ReleaseMetadataError("release artifact is revoked")
         if hashlib.sha256(data).hexdigest() != entry["sha256"]:
             raise ReleaseMetadataError("release artifact hash is invalid")
-        resolved.append((name, version))
+        resolved.append((name, version, str(entry["sha256"])))
     return tuple(resolved)
+
+
+def _validate_required_artifact_coverage(
+    *,
+    entries: Mapping[str, Mapping[str, object]],
+    required_versions: Mapping[str, str],
+    wheel_bytes: Mapping[str, bytes],
+) -> None:
+    if set(required_versions) != set(entries) or set(wheel_bytes) != set(entries):
+        raise ReleaseMetadataError("release artifact coverage is invalid")
+    for name, version in required_versions.items():
+        if (
+            not isinstance(name, str)
+            or not name
+            or not isinstance(version, str)
+            or not version
+        ):
+            raise ReleaseMetadataError("release artifact coverage is invalid")
+
+
+def _revoked_artifacts(value: object) -> frozenset[tuple[str, str]]:
+    revoked: set[tuple[str, str]] = set()
+    if not isinstance(value, list):
+        raise ReleaseMetadataError("release artifact revocations are invalid")
+    for entry in value:
+        if not isinstance(entry, Mapping) or set(entry) != {"name", "version"}:
+            raise ReleaseMetadataError("release artifact revocations are invalid")
+        name = entry.get("name")
+        version = entry.get("version")
+        if (
+            not isinstance(name, str)
+            or not name
+            or not isinstance(version, str)
+            or not version
+        ):
+            raise ReleaseMetadataError("release artifact revocations are invalid")
+        pair = (name, version)
+        if pair in revoked:
+            raise ReleaseMetadataError("release artifact revocations are invalid")
+        revoked.add(pair)
+    return frozenset(revoked)
 
 
 def _key_id(value: object) -> None:

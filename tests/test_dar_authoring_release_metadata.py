@@ -120,11 +120,89 @@ def test_release_metadata_binds_exact_index_and_wheel_bytes() -> None:
         index_url="https://artifactory.example.test/simple",
         required_versions={"dynamic-agent-runner": "0.1.15"},
         wheel_bytes={"dynamic-agent-runner": dar_wheel},
-    ) == (("dynamic-agent-runner", "0.1.15"),)
+    ) == (
+        (
+            "dynamic-agent-runner",
+            "0.1.15",
+            hashlib.sha256(dar_wheel).hexdigest(),
+        ),
+    )
     with pytest.raises(ReleaseMetadataError, match="index"):
         verify_release_artifacts(
             metadata=metadata,
             index_url="https://wrong.example.test/simple",
             required_versions={"dynamic-agent-runner": "0.1.15"},
             wheel_bytes={"dynamic-agent-runner": dar_wheel},
+        )
+
+
+def test_release_metadata_requires_an_exact_nonrevoked_artifact_set() -> None:
+    dar_wheel = b"dar wheel"
+    helper_wheel = b"helper wheel"
+    metadata = _metadata()
+    metadata["artifacts"] = [
+        {
+            "name": "dynamic-agent-runner",
+            "version": "0.1.15",
+            "sha256": hashlib.sha256(dar_wheel).hexdigest(),
+        },
+        {
+            "name": "helper",
+            "version": "2.0.0",
+            "sha256": hashlib.sha256(helper_wheel).hexdigest(),
+        },
+    ]
+
+    with pytest.raises(ReleaseMetadataError, match="coverage"):
+        verify_release_artifacts(
+            metadata=metadata,
+            index_url="https://artifactory.example.test/simple",
+            required_versions={"dynamic-agent-runner": "0.1.15"},
+            wheel_bytes={"dynamic-agent-runner": dar_wheel},
+        )
+
+    metadata["revoked_artifacts"] = [
+        {"name": "dynamic-agent-runner", "version": "0.1.15"}
+    ]
+    with pytest.raises(ReleaseMetadataError, match="revoked"):
+        verify_release_artifacts(
+            metadata=metadata,
+            index_url="https://artifactory.example.test/simple",
+            required_versions={
+                "dynamic-agent-runner": "0.1.15",
+                "helper": "2.0.0",
+            },
+            wheel_bytes={
+                "dynamic-agent-runner": dar_wheel,
+                "helper": helper_wheel,
+            },
+        )
+
+
+def test_release_metadata_rejects_malformed_artifact_digests_and_revocations() -> None:
+    metadata = _metadata()
+    metadata["artifacts"] = [
+        {
+            "name": "dynamic-agent-runner",
+            "version": "0.1.15",
+            "sha256": "g" * 64,
+        },
+    ]
+
+    with pytest.raises(ReleaseMetadataError, match="artifacts"):
+        verify_release_artifacts(
+            metadata=metadata,
+            index_url="https://artifactory.example.test/simple",
+            required_versions={"dynamic-agent-runner": "0.1.15"},
+            wheel_bytes={"dynamic-agent-runner": b"dar wheel"},
+        )
+
+    metadata["artifacts"][0]["sha256"] = hashlib.sha256(b"dar wheel").hexdigest()
+    metadata["revoked_artifacts"] = [{"name": "dynamic-agent-runner"}]
+    with pytest.raises(ReleaseMetadataError, match="revocations"):
+        verify_release_artifacts(
+            metadata=metadata,
+            index_url="https://artifactory.example.test/simple",
+            required_versions={"dynamic-agent-runner": "0.1.15"},
+            wheel_bytes={"dynamic-agent-runner": b"dar wheel"},
         )
