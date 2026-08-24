@@ -130,8 +130,9 @@ passes.
 
 ## G2: Optional MCP Connection Control Plane and Surface Binding
 
-- [ ] RED: a workflow that requires an unauthenticated least-scope connection returns
-      `authentication_required`.
+- [x] RED/GREEN: a workflow that requires an unauthenticated least-scope
+      connection returns `authentication_required` without a session, secret,
+      binding, or remote-tool dispatch.
 - [x] GREEN: human-only API-token connection flow with secret storage outside
       package artifacts and immutable profile/scope binding. The token is held
       only by the OS credential manager; the private state store keeps an opaque
