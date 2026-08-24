@@ -31,7 +31,7 @@ only path to an end-to-end authoring-plugin publication claim.
 
 | Milestone | Gate | Outcome | Depends on |
 | --- | --- | --- | --- |
-| M0 | RA0 — authoring baseline | M0.1/M0.2 fixture contracts and portable adapted-skill provenance are implemented; M0.3 remains. | None |
+| M0 | RA0 — authoring baseline | Static adapted-skill provenance, fixture contracts, and canonical basic/tool package templates are implemented. | None |
 | M1 | G0 — package/server spike | Minimal install/discovery proof, then release-integrity proof. | None |
 | M2 | G1 runtime core | Human-selected directory staging, policy compilation, and package-only preflight. Implemented. | M1 |
 | M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. Implemented. | M2 |

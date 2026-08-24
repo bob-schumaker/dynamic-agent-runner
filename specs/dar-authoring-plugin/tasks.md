@@ -28,6 +28,9 @@ passes.
       redistribution review, and fixture schema is present; lint declared artifact
       interfaces and unsafe-input expectations. These static tests do not claim
       model routing or refusal behavior and do not invoke a model.
+- [x] RED/GREEN: canonical basic-reasoning and bounded read-only-MCP templates
+      load through DAR; the declared tool is task-specific, read-only, and capped
+      at three calls. Both templates ship as plugin assets.
 - [ ] RED: plugin-manifest discovery, approved-Artifactory immutable artifact
       resolution, hash-pinned dependency-lock verification, and isolated-`uvx`
       installation tests.

@@ -11,6 +11,9 @@ from dynamic_agent_runner import load_agent_package_workflow
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "dar-authoring" / "invocations"
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
+READ_ONLY_MCP_TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1] / "dar-authoring" / "read-only-mcp-template"
+)
 SKILL_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "skills"
 PROVENANCE_PATH = SKILL_ROOT / "adapted-skill-provenance.yaml"
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
@@ -60,6 +63,26 @@ def test_no_tool_template_is_a_valid_dar_package() -> None:
     assert descriptor.task_invocation.max_total_tool_calls == 0
 
 
+def test_read_only_mcp_template_is_a_bounded_dar_package() -> None:
+    workflow = load_agent_package_workflow(str(READ_ONLY_MCP_TEMPLATE_ROOT))
+    descriptor = WorkflowDescriptor.from_mapping(
+        yaml.safe_load(
+            (READ_ONLY_MCP_TEMPLATE_ROOT / "workflow-descriptor.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+
+    assert (
+        workflow.runtime_manifest.package_id == "dar-authoring-read-only-mcp-template"
+    )
+    assert workflow.runtime_manifest.tools[0].id == "lookup_records"
+    assert workflow.runtime_manifest.execution_policy["max_steps"] == 3
+    assert descriptor.task_invocation.allowed_tool_ids == ("lookup_records",)
+    assert descriptor.task_invocation.max_total_tool_calls == 3
+    assert descriptor.declared_tools[0].side_effect == "read"
+
+
 def test_agent_development_fixture_declares_template_artifacts() -> None:
     fixture = json.loads(
         (FIXTURE_ROOT / "agent-development.json").read_text(encoding="utf-8")
@@ -105,6 +128,8 @@ def test_adapted_skills_are_portable_and_cover_fixture_contracts() -> None:
         assert "corpus/" not in text
         assert "../ai-environment-roschuma" not in text
         assert all(artifact in text for artifact in expected_artifacts)
+        assert "unselected" in text
+        assert "credential" in text
 
     tool_contract = (SKILL_ROOT / "agent-tool-contract-design" / "SKILL.md").read_text(
         encoding="utf-8"
