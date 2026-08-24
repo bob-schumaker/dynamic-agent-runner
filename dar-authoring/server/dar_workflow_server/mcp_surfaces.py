@@ -7,6 +7,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from types import MappingProxyType
 from typing import Iterable, Mapping, Protocol
 
 from dar_workflow_server.connections import (
@@ -38,7 +39,17 @@ class MCPSurfaceSnapshot:
     authentication_id: str
     connection_generation: int
     tool_set_digest: str
-    read_only_tool_names: frozenset[str]
+    tool_side_effects: Mapping[str, str]
+
+    @property
+    def read_only_tool_names(self) -> frozenset[str]:
+        """Return the compatibility view for the currently executable G2 surface."""
+
+        return frozenset(
+            name
+            for name, side_effect in self.tool_side_effects.items()
+            if side_effect == "read"
+        )
 
 
 class CurrentMCPSurfaceClient(Protocol):
@@ -70,6 +81,7 @@ class MCPSurfaceSnapshotControlPlane:
         connection_generation: int,
         tools: Iterable[MCPDiscoveredTool],
         approved_read_only_tool_names: Iterable[str],
+        approved_tool_side_effects: Mapping[str, str] | None = None,
     ) -> MCPSurfaceSnapshot:
         """Persist the human-approved read-only subset of one discovered surface."""
 
@@ -81,11 +93,11 @@ class MCPSurfaceSnapshotControlPlane:
         except MCPConnectionError as error:
             raise MCPSurfaceSnapshotError("connection is unavailable") from error
         discovered = _canonical_tools(tools)
-        approved = frozenset(approved_read_only_tool_names)
-        if not approved.issubset({item["name"] for item in discovered}):
-            raise MCPSurfaceSnapshotError("approved read-only tool is unknown")
-        if any(not isinstance(name, str) or not name for name in approved):
-            raise MCPSurfaceSnapshotError("approved read-only tool is invalid")
+        approved = _approved_tool_side_effects(
+            approved_read_only_tool_names, approved_tool_side_effects
+        )
+        if not set(approved).issubset({item["name"] for item in discovered}):
+            raise MCPSurfaceSnapshotError("approved tool is unknown")
         digest = _digest(discovered)
         try:
             snapshot_id = self._store.issue(
@@ -96,7 +108,12 @@ class MCPSurfaceSnapshotControlPlane:
                     "authentication_id": authentication_id,
                     "connection_generation": connection_generation,
                     "tool_set_digest": digest,
-                    "read_only_tool_names": sorted(approved),
+                    "read_only_tool_names": sorted(
+                        name
+                        for name, side_effect in approved.items()
+                        if side_effect == "read"
+                    ),
+                    "tool_side_effects": dict(approved),
                 },
                 expires_at=datetime.max.replace(tzinfo=UTC),
                 now=datetime.now(UTC),
@@ -111,7 +128,7 @@ class MCPSurfaceSnapshotControlPlane:
             authentication_id=authentication_id,
             connection_generation=connection_generation,
             tool_set_digest=digest,
-            read_only_tool_names=approved,
+            tool_side_effects=MappingProxyType(approved),
         )
 
     def load(self, snapshot_id: str) -> MCPSurfaceSnapshot:
@@ -129,7 +146,7 @@ class MCPSurfaceSnapshotControlPlane:
             authentication_id = payload["authentication_id"]
             connection_generation = payload["connection_generation"]
             tool_set_digest = payload["tool_set_digest"]
-            read_only_tool_names = frozenset(payload["read_only_tool_names"])
+            tool_side_effects = _loaded_tool_side_effects(payload)
         except (OpaqueRecordError, KeyError, TypeError) as error:
             raise MCPSurfaceSnapshotError("surface snapshot is unavailable") from error
         _opaque_id(connection_id, "connection_id")
@@ -137,15 +154,13 @@ class MCPSurfaceSnapshotControlPlane:
         _positive_generation(connection_generation)
         if not isinstance(tool_set_digest, str) or len(tool_set_digest) != 64:
             raise MCPSurfaceSnapshotError("surface snapshot is invalid")
-        if any(not isinstance(name, str) or not name for name in read_only_tool_names):
-            raise MCPSurfaceSnapshotError("surface snapshot is invalid")
         return MCPSurfaceSnapshot(
             snapshot_id=snapshot_id,
             connection_id=connection_id,
             authentication_id=authentication_id,
             connection_generation=connection_generation,
             tool_set_digest=tool_set_digest,
-            read_only_tool_names=read_only_tool_names,
+            tool_side_effects=MappingProxyType(tool_side_effects),
         )
 
     def require_read_only_tool(
@@ -154,8 +169,20 @@ class MCPSurfaceSnapshotControlPlane:
         """Return the snapshot only if one requested tool was explicitly approved."""
 
         snapshot = self.load(snapshot_id)
-        if tool_name not in snapshot.read_only_tool_names:
+        if snapshot.tool_side_effects.get(tool_name) != "read":
             raise MCPSurfaceSnapshotError("tool is not approved for read-only use")
+        return snapshot
+
+    def require_approved_tool(
+        self, snapshot_id: str, tool_name: str, side_effect: str
+    ) -> MCPSurfaceSnapshot:
+        """Return the snapshot only for the exact human-reviewed effect class."""
+
+        if side_effect not in _SIDE_EFFECT_CLASSES:
+            raise MCPSurfaceSnapshotError("approved tool side effect is invalid")
+        snapshot = self.load(snapshot_id)
+        if snapshot.tool_side_effects.get(tool_name) != side_effect:
+            raise MCPSurfaceSnapshotError("tool is not approved for this side effect")
         return snapshot
 
     def verify_current(
@@ -193,6 +220,44 @@ class MCPSurfaceSnapshotControlPlane:
 
 
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
+_SIDE_EFFECT_CLASSES = frozenset({"read", "write", "delete"})
+
+
+def _approved_tool_side_effects(
+    read_only_names: Iterable[str], additional: Mapping[str, str] | None
+) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for name in read_only_names:
+        if not isinstance(name, str) or not name:
+            raise MCPSurfaceSnapshotError("approved read-only tool is invalid")
+        result[name] = "read"
+    if additional is None:
+        return result
+    if not isinstance(additional, Mapping):
+        raise MCPSurfaceSnapshotError("approved tool side effects are invalid")
+    for name, side_effect in additional.items():
+        if (
+            not isinstance(name, str)
+            or not name
+            or not isinstance(side_effect, str)
+            or side_effect not in _SIDE_EFFECT_CLASSES
+            or name in result
+        ):
+            raise MCPSurfaceSnapshotError("approved tool side effect is invalid")
+        result[name] = side_effect
+    return result
+
+
+def _loaded_tool_side_effects(payload: Mapping[str, object]) -> dict[str, str]:
+    value = payload.get("tool_side_effects")
+    if value is None:
+        value = dict.fromkeys(payload["read_only_tool_names"], "read")
+    if not isinstance(value, Mapping):
+        raise MCPSurfaceSnapshotError("surface snapshot is invalid")
+    try:
+        return _approved_tool_side_effects((), value)
+    except MCPSurfaceSnapshotError as error:
+        raise MCPSurfaceSnapshotError("surface snapshot is invalid") from error
 
 
 def _canonical_tools(tools: Iterable[MCPDiscoveredTool]) -> list[dict[str, object]]:

@@ -101,6 +101,51 @@ def test_snapshot_allows_only_human_reviewed_read_only_tools(tmp_path: Path) -> 
         control.require_read_only_tool(snapshot.snapshot_id, "send_email")
 
 
+def test_snapshot_records_a_reviewed_write_tool_without_dispatch(
+    tmp_path: Path,
+) -> None:
+    control, connection_id, authentication_id = _control(tmp_path)
+
+    snapshot = control.create(
+        connection_id=connection_id,
+        authentication_id=authentication_id,
+        connection_generation=1,
+        tools=_tools(),
+        approved_read_only_tool_names=set(),
+        approved_tool_side_effects={"send_email": "write"},
+    )
+
+    assert snapshot.tool_side_effects == {"send_email": "write"}
+    assert (
+        control.require_approved_tool(snapshot.snapshot_id, "send_email", "write")
+        == snapshot
+    )
+    with pytest.raises(MCPSurfaceSnapshotError, match="not approved"):
+        control.require_read_only_tool(snapshot.snapshot_id, "send_email")
+    with pytest.raises(MCPSurfaceSnapshotError, match="not approved"):
+        control.require_approved_tool(snapshot.snapshot_id, "send_email", "delete")
+
+
+def test_snapshot_rejects_unknown_or_invalid_side_effect_class(
+    tmp_path: Path,
+) -> None:
+    control, connection_id, authentication_id = _control(tmp_path)
+
+    for side_effects in (
+        {"missing": "write"},
+        {"send_email": "anything"},
+    ):
+        with pytest.raises(MCPSurfaceSnapshotError, match="approved"):
+            control.create(
+                connection_id=connection_id,
+                authentication_id=authentication_id,
+                connection_generation=1,
+                tools=_tools(),
+                approved_read_only_tool_names=set(),
+                approved_tool_side_effects=side_effects,
+            )
+
+
 def test_snapshot_detects_tool_or_input_schema_drift(tmp_path: Path) -> None:
     control, connection_id, authentication_id = _control(tmp_path)
     snapshot = control.create(

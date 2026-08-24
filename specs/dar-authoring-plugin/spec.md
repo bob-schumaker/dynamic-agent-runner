@@ -629,6 +629,11 @@ before it creates or updates the snapshot. The run path may passively call
 `tools/list` to detect a changed identity or input schema, but creates bindings
 only from an already approved snapshot and cannot update it.
 
+The reviewed snapshot also records the exact side-effect class for every
+approved remote tool. Recording a `write` or `delete` classification is
+control-plane metadata only: it neither exposes the tool to DAR nor creates a
+dispatch handler before G5's registration-bound action path passes.
+
 The wrapper shall return `authentication_required` when OAuth has not been
 completed. It shall return `surface_changed` when a required remote tool is
 missing or its material input schema has changed. The normalized output contract
