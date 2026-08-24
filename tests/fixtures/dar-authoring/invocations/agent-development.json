@@ -1,0 +1,25 @@
+{
+  "expected_artifacts": [
+    "agent-design.md",
+    "agent-runtime.yaml",
+    "agent-graph.mmd",
+    "workflow-descriptor.json"
+  ],
+  "expected_capability_or_refusal": "no_tools_required",
+  "private_material_exclusions": [
+    "physical_path",
+    "unselected_source_text",
+    "credentials"
+  ],
+  "request": "Design a bounded DAR workflow that answers questions about supplied text using this local model and these examples.",
+  "schema_version": 1,
+  "selected_materials": [
+    {
+      "artifact_id": "authoring-material-text-sample-v1",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "disposition": "reference_only",
+      "role": "example_text"
+    }
+  ],
+  "skill": "agent-development"
+}

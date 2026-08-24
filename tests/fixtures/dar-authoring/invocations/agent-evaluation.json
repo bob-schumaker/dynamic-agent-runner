@@ -1,0 +1,24 @@
+{
+  "expected_artifacts": [
+    "eval-plan.md",
+    "evaluation-fixtures.json",
+    "regression-gate.yaml"
+  ],
+  "expected_capability_or_refusal": "offline_external_service_free_evaluation",
+  "private_material_exclusions": [
+    "live_service_credentials",
+    "raw_prompt_history",
+    "unselected_material"
+  ],
+  "request": "Create acceptance cases and a regression gate for this package, including tool failure and prompt-injection behavior.",
+  "schema_version": 1,
+  "selected_materials": [
+    {
+      "artifact_id": "authoring-material-package-contract-v1",
+      "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "disposition": "reference_only",
+      "role": "package_contract"
+    }
+  ],
+  "skill": "agent-evaluation"
+}
