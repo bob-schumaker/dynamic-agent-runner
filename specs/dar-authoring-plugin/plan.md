@@ -232,6 +232,25 @@ prompt through the sealed, catalog-only runner interface.
    the host-issued `material_set_id` and `authoring_output_id`; companion skills
    do not create or finalize a standalone package.
 
+   External de-identified Codex runs on 2026-08-24 passed the deterministic
+   harness after the entry-purpose contract was strengthened:
+
+   - `agent-development`
+     - Corpus: `9e9a5f43af4450127603c033aab9979e7fa86d6d9260468ac4a2f2bcba83a553`
+     - Package: `1dc345f03250abf14e9adf50bddf83001f101f9d9d94125749b2a046606c2432`
+   - `agent-development` plus `agent-evaluation`
+     - Corpus: `dc866c1354e4205aa6ca181fc622df43fbf7a78ee737f4348df7c32cae612b11`
+     - Package: `0e252f36ab2f0dd7b11742de2d4fbfbdac377dab924e5e46196e195e98fa02b9`
+   - `agent-development` plus `agent-tool-contract-design`
+     - Corpus: `3d772a4a6c1c8dacf637c4852cb86536123d2759d9d5fd91742ef05dd6eb9ac9`
+     - Package: `ecd3137019defe1d506dc222e9aa1cb480ed5d2ef2178a86abbe64220abd147b`
+
+   Each record identifies provider `codex`, model `gpt-5.6-sol`, and a passed
+   validator result with redacted retention. M4 remains open until a human
+   reviewer identity and intent-fidelity decision are recorded; the current
+   evidence schema contains only the decision value and must not be represented
+   as that human-review proof.
+
 M4 exit: the adapted skills have behavioral evidence without making model calls
 part of ordinary test execution.
 
