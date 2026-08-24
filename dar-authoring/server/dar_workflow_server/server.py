@@ -3,9 +3,18 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, TextIO
+
+if __package__ in {None, ""}:  # pragma: no cover - exercised by subprocess smoke test.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from dar_workflow_server.host import LocalWorkflowHost
+from dar_workflow_server.runner import RunDarWorkflowRequest
 
 
 SERVER_NAME = "DAR Authoring"
@@ -42,9 +51,10 @@ def main(
 
 
 class _Session:
-    def __init__(self) -> None:
+    def __init__(self, *, host_opener=LocalWorkflowHost.open) -> None:
         self._initialized = False
         self._ready = False
+        self._host_opener = host_opener
 
     def handle(self, line: str) -> dict[str, Any] | None:
         try:
@@ -67,10 +77,17 @@ class _Session:
             return None
         if request_id is None:
             return None
+        return self._ready_request(request_id, method, message.get("params"))
+
+    def _ready_request(
+        self, request_id: str | int, method: str, params: object
+    ) -> dict[str, Any]:
         if not self._ready:
             return _error(request_id, -32002, "Server not initialized")
         if method == "tools/list":
-            return _result(request_id, {"tools": []})
+            return _result(request_id, {"tools": [_RUN_TOOL]})
+        if method == "tools/call":
+            return self._call_tool(request_id, params)
         return _error(request_id, -32601, "Method not found")
 
     def _initialize(
@@ -87,9 +104,68 @@ class _Session:
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-                "instructions": "Workflow execution is unavailable until G1 and G3 pass.",
+                "instructions": "Prepare workflow input through the local dar-workflow CLI before calling run_dar_workflow.",
             },
         )
+
+    def _call_tool(self, request_id: str | int, params: object) -> dict[str, Any]:
+        if not isinstance(params, Mapping) or params.get("name") != "run_dar_workflow":
+            return _error(request_id, -32602, "Invalid tool request")
+        arguments = params.get("arguments")
+        if not isinstance(arguments, Mapping):
+            return _error(request_id, -32602, "Invalid tool request")
+        try:
+            request = RunDarWorkflowRequest.from_mapping(arguments)
+            host = self._host_opener(_default_state_root())
+            result = host.run(
+                workflow_id=request.workflow_id,
+                prepared_input_id=request.prepared_input_id,
+                now=datetime.now(UTC),
+            )
+        except (ValueError, OSError):
+            return _error(request_id, -32000, "Workflow run failed")
+        payload = {"status": result.status, "run_id": result.run_id, **result.output}
+        return _result(
+            request_id,
+            {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            payload, sort_keys=True, separators=(",", ":")
+                        ),
+                    }
+                ],
+                "structuredContent": payload,
+            },
+        )
+
+
+_RUN_TOOL = {
+    "name": "run_dar_workflow",
+    "description": "Run one registered sealed local DAR workflow.",
+    "inputSchema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["format_version", "workflow_id", "prepared_input_id"],
+        "properties": {
+            "format_version": {"const": 1},
+            "workflow_id": {"type": "string", "minLength": 1},
+            "prepared_input_id": {"type": "string", "minLength": 1},
+        },
+    },
+}
+
+
+def _default_state_root() -> Path:
+    configured = os.environ.get("DAR_AUTHORING_STATE_ROOT")
+    if configured:
+        return Path(configured)
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "dar-authoring"
+    return Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / (
+        "dar-authoring"
+    )
 
 
 def _request_id(message: object) -> str | int | None:

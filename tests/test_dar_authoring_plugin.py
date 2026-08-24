@@ -12,6 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_ROOT = REPO_ROOT / "dar-authoring"
 SERVER_PATH = PLUGIN_ROOT / "server" / "dar_workflow_server" / "server.py"
+sys.path.insert(0, str(PLUGIN_ROOT / "server"))
 
 
 def _read_json_lines(output: str) -> list[dict[str, object]]:
@@ -92,8 +93,99 @@ def test_stdio_server_initializes_and_exposes_no_tools(tmp_path: Path) -> None:
                     "name": "DAR Authoring",
                     "version": "0.1.0",
                 },
-                "instructions": "Workflow execution is unavailable until G1 and G3 pass.",
+                "instructions": "Prepare workflow input through the local dar-workflow CLI before calling run_dar_workflow.",
             },
         },
-        {"jsonrpc": "2.0", "id": 2, "result": {"tools": []}},
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "result": {
+                "tools": [
+                    {
+                        "name": "run_dar_workflow",
+                        "description": "Run one registered sealed local DAR workflow.",
+                        "inputSchema": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "format_version",
+                                "workflow_id",
+                                "prepared_input_id",
+                            ],
+                            "properties": {
+                                "format_version": {"const": 1},
+                                "workflow_id": {"type": "string", "minLength": 1},
+                                "prepared_input_id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                },
+                            },
+                        },
+                    }
+                ]
+            },
+        },
     ]
+
+
+def test_server_runs_only_closed_sealed_workflow_requests() -> None:
+    from dar_workflow_server.runner import RunDarWorkflowResult
+    from dar_workflow_server.server import _Session
+
+    class Host:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, str]] = []
+
+        def run(self, *, workflow_id: str, prepared_input_id: str, now):
+            self.calls.append(
+                {
+                    "workflow_id": workflow_id,
+                    "prepared_input_id": prepared_input_id,
+                }
+            )
+            return RunDarWorkflowResult(
+                status="completed", run_id="run-1", output={"message": "done"}
+            )
+
+    host = Host()
+    session = _Session(host_opener=lambda _root: host)
+    session.handle(
+        json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {"protocolVersion": "2025-06-18"},
+            }
+        )
+    )
+    session.handle(
+        json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"})
+    )
+
+    response = session.handle(
+        json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "run_dar_workflow",
+                    "arguments": {
+                        "format_version": 1,
+                        "workflow_id": "document-helper",
+                        "prepared_input_id": "v1.sealed.signature",
+                    },
+                },
+            }
+        )
+    )
+
+    assert host.calls == [
+        {"workflow_id": "document-helper", "prepared_input_id": "v1.sealed.signature"}
+    ]
+    assert response["result"]["structuredContent"] == {
+        "status": "completed",
+        "run_id": "run-1",
+        "message": "done",
+    }
