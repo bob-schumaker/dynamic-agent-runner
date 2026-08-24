@@ -17,6 +17,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from dynamic_agent_runner.workflow_host.package_sources import (
     PackageSourceSelectionPolicy,
 )  # noqa: E402
+from dynamic_agent_runner.workflow_host.authoring_output import (  # noqa: E402
+    write_authored_package_manifest,
+)
 from dynamic_agent_runner.workflow_host.package_signatures import sign_manifest  # noqa: E402
 from dynamic_agent_runner.workflow_host.staging import (  # noqa: E402
     PackageStagingError,
@@ -44,43 +47,7 @@ def _source_package(tmp_path: Path) -> Path:
 
 
 def _write_source_manifest(source: Path) -> bytes:
-    entries = []
-    digest = hashlib.sha256()
-    for path in sorted(source.rglob("*")):
-        relative_path = path.relative_to(source).as_posix()
-        if not path.is_file() or relative_path in {
-            "package-manifest.json",
-            "package-signature.json",
-        }:
-            continue
-        body = path.read_bytes()
-        body_digest = hashlib.sha256(body).hexdigest()
-        digest.update(f"{relative_path}\0{body_digest}\0{len(body)}\n".encode("utf-8"))
-        entries.append(
-            {
-                "byte_count": len(body),
-                "path": relative_path,
-                "sha256": body_digest,
-            }
-        )
-    value = json.dumps(
-        {
-            "content_digest": digest.hexdigest(),
-            "dar_runtime": {
-                "distribution": "dynamic-agent-runner",
-                "required_version": "0.1.16",
-            },
-            "descriptor_format_version": 1,
-            "files": entries,
-            "format_version": 2,
-            "package_id": "dar-authoring-no-tool-template",
-            "runtime_format_version": 1,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    (source / "package-manifest.json").write_bytes(value)
-    return value
+    return write_authored_package_manifest(source)
 
 
 def _archive_package(tmp_path: Path) -> Path:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 
 import yaml
 from dynamic_agent_runner import load_agent_package_workflow
@@ -17,6 +18,9 @@ SKILL_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "skills"
 PROVENANCE_PATH = SKILL_ROOT / "adapted-skill-provenance.yaml"
 
 from dynamic_agent_runner.workflow_host.descriptor import WorkflowDescriptor  # noqa: E402
+from dynamic_agent_runner.workflow_host.authoring_output import (  # noqa: E402
+    write_authored_package_manifest,
+)
 
 EXPECTED_SKILLS = {
     "agent-development",
@@ -80,14 +84,18 @@ def test_read_only_mcp_template_is_a_bounded_dar_package() -> None:
     assert descriptor.declared_tools[0].side_effect == "read"
 
 
-def test_agent_development_fixture_declares_template_artifacts() -> None:
+def test_agent_development_fixture_declares_finalized_package_artifacts(
+    tmp_path: Path,
+) -> None:
     fixture = json.loads(
         (FIXTURE_ROOT / "agent-development.json").read_text(encoding="utf-8")
     )
+    package = tmp_path / "generated-package"
+    shutil.copytree(TEMPLATE_ROOT, package)
+    write_authored_package_manifest(package)
 
     assert all(
-        (TEMPLATE_ROOT / artifact).is_file()
-        for artifact in fixture["expected_artifacts"]
+        (package / artifact).is_file() for artifact in fixture["expected_artifacts"]
     )
 
 

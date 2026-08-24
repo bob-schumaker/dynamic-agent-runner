@@ -30,11 +30,14 @@ Generate a package directory containing:
 - `agent-runtime.yaml`
 - `agent-graph.mmd`
 - `workflow-descriptor.yaml`
+- `package-manifest.json`
 
 The descriptor defines the package purpose, local model-profile requirement,
 hybrid input contract, bounded `additional_context`, accepted workspace artifact
 roles, terminal output schema, and every optional capability. Use DAR-supported
-nodes and validate the package with the DAR loader before presenting it.
+nodes and validate the package with the DAR loader before presenting it. Finalize
+the directory with the host's deterministic authoring-manifest writer; do not
+invent manifest digests or return an unfinalized directory as a workflow package.
 
 For a tool-free task, emit no tools and no skills. For optional tooling, name
 only a reviewed host-owned tool capability in the descriptor; the package does

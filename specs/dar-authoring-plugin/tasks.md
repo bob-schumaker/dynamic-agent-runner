@@ -145,8 +145,10 @@ passes.
       prompts and material content have no record fields.
 - [x] RED/GREEN: deterministic external-authoring output validation accepts only
       a DAR-valid, descriptor-valid, symlink-free controlled package directory
-      and returns redacted package/descriptor digests. It rejects embedding any
-      `reference_only` `AuthoringMaterialSet` member before evidence recording.
+      with a host-generated canonical package manifest, and returns redacted
+      package/descriptor digests. It rejects embedding any `reference_only`
+      `AuthoringMaterialSet` member before evidence recording; the manifest is
+      accepted by the existing portable-package staging boundary.
 - [ ] RED/GREEN: authoring skill fixtures turn natural-language requests plus an
       `AuthoringMaterialSet` projection into a validated package directory;
       unselected/private material cannot enter package, trace, evaluation fixture,

@@ -3,7 +3,8 @@
     "agent-design.md",
     "agent-runtime.yaml",
     "agent-graph.mmd",
-    "workflow-descriptor.yaml"
+    "workflow-descriptor.yaml",
+    "package-manifest.json"
   ],
   "expected_capability_or_refusal": "no_tools_required",
   "private_material_exclusions": [
