@@ -75,6 +75,7 @@ class WorkflowDescriptor:
     workspace: WorkspaceContract
     input_contract: InputContract
     task_invocation: TaskInvocation
+    declared_skill_ids: tuple[str, ...]
     declared_tools: tuple[DeclaredTool, ...]
     output_schema_ref: str
     limits: WorkflowLimits
@@ -86,7 +87,7 @@ class WorkflowDescriptor:
         mapping = _mapping(value, "descriptor")
         if mapping.get("format_version") != 1:
             raise WorkflowDescriptorError("format_version must be 1")
-        _require_empty_list(mapping.get("skills"), "skills")
+        declared_skill_ids = _parse_declared_skill_ids(mapping.get("skills"))
         declared_tools = _parse_declared_tools(mapping.get("tools"))
         runtime = _mapping(mapping.get("dar_runtime"), "dar_runtime")
         if runtime.get("distribution") != "dynamic-agent-runner":
@@ -119,6 +120,7 @@ class WorkflowDescriptor:
             workspace=workspace,
             input_contract=input_contract,
             task_invocation=task,
+            declared_skill_ids=declared_skill_ids,
             declared_tools=declared_tools,
             output_schema_ref=output_schema_ref,
             limits=WorkflowLimits(_positive_int(limits.get("max_steps"), "max_steps")),
@@ -145,6 +147,55 @@ def validate_no_tool_runtime_nodes(
             )
 
 
+def validate_package_skill_contract(
+    descriptor: WorkflowDescriptor,
+    *,
+    runtime_skills: Sequence[Any],
+    nodes: Sequence[RuntimeNode],
+    packaging: Mapping[str, Any],
+    skill_source_resolution: Any | None,
+) -> None:
+    """Require descriptor skills to be package-local DAR bundled skills."""
+
+    declared = descriptor.declared_skill_ids
+    runtime_ids = tuple(skill.id for skill in runtime_skills)
+    if runtime_ids != declared:
+        raise WorkflowDescriptorError(
+            "runtime skills must exactly match descriptor skills"
+        )
+    if not declared:
+        return
+    if packaging.get("skill_bundle_dir") != "skill-bundle":
+        raise WorkflowDescriptorError("package skills require skill-bundle packaging")
+    if (
+        skill_source_resolution is None
+        or not skill_source_resolution.enabled
+        or skill_source_resolution.allowed_sources != ("package_bundle",)
+        or skill_source_resolution.load_support_files
+    ):
+        raise WorkflowDescriptorError(
+            "package skills require package_bundle skill source resolution"
+        )
+    for skill in runtime_skills:
+        expected_path = f"skills/{skill.id}/SKILL.md"
+        if skill.raw.get("bundled_path") != expected_path:
+            raise WorkflowDescriptorError(
+                "runtime skill bundled_path must use the package skill-bundle"
+            )
+        if skill.raw.get("instructions") is not None:
+            raise WorkflowDescriptorError("runtime package skills must not be inline")
+    referenced = {
+        skill_id
+        for node in nodes
+        if node.kind == "llm_step"
+        for skill_id in node.skill_refs
+    }
+    if referenced != set(declared):
+        raise WorkflowDescriptorError(
+            "runtime skill_refs must exactly cover descriptor skills"
+        )
+
+
 def _parse_input_contract(value: object) -> InputContract:
     mapping = _mapping(value, "input_contract")
     if mapping.get("mode") != "hybrid":
@@ -164,6 +215,13 @@ def _parse_input_contract(value: object) -> InputContract:
         ),
         field_precedence="original_prompt",
     )
+
+
+def _parse_declared_skill_ids(value: object) -> tuple[str, ...]:
+    skill_ids = _string_list(value, "skills")
+    if len(set(skill_ids)) != len(skill_ids):
+        raise WorkflowDescriptorError("skills must be unique")
+    return skill_ids
 
 
 def _parse_workspace_contract(value: object) -> WorkspaceContract:
@@ -351,11 +409,6 @@ def _positive_int(value: object, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise WorkflowDescriptorError(f"{name} must be a positive integer")
     return value
-
-
-def _require_empty_list(value: object, name: str) -> None:
-    if not isinstance(value, list) or value:
-        raise WorkflowDescriptorError(f"{name} must be an empty list")
 
 
 def _string_list(value: object, name: str) -> tuple[str, ...]:

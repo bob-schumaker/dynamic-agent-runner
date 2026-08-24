@@ -18,6 +18,7 @@ from dynamic_agent_runner.workflow_host.descriptor import (
     WorkflowDescriptor,
     WorkflowLimits,
     WorkspaceContract,
+    validate_package_skill_contract,
     validate_no_tool_runtime_nodes,
 )
 
@@ -45,6 +46,7 @@ class WorkflowPolicy:
     workspace: WorkspaceContract = field(
         default_factory=lambda: WorkspaceContract((), "none")
     )
+    declared_skill_ids: tuple[str, ...] = ()
     declared_tools: tuple[DeclaredTool, ...] = ()
 
 
@@ -65,6 +67,13 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         descriptor = WorkflowDescriptor.from_mapping(yaml.safe_load(descriptor_bytes))
         workflow = load_agent_package_workflow(str(revision.package_root))
         validate_no_tool_runtime_nodes(descriptor, workflow.runtime_manifest.nodes)
+        validate_package_skill_contract(
+            descriptor,
+            runtime_skills=workflow.runtime_manifest.skills,
+            nodes=workflow.runtime_manifest.nodes,
+            packaging=workflow.runtime_manifest.packaging,
+            skill_source_resolution=workflow.runtime_manifest.skill_source_resolution_policy,
+        )
     except Exception as error:  # DAR loader errors vary by invalid package artifact.
         raise PolicyCompilationError("cataloged package policy is invalid") from error
     if descriptor.package_id != revision.package_id:
@@ -114,6 +123,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
                     )
                 },
             },
+            "declared_skill_ids": descriptor.declared_skill_ids,
             "declared_tools": [
                 {
                     "tool_id": tool.tool_id,
@@ -138,6 +148,7 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
         task_invocation=descriptor.task_invocation,
         limits=descriptor.limits,
         required_capabilities=required_capabilities,
+        declared_skill_ids=descriptor.declared_skill_ids,
         declared_tools=descriptor.declared_tools,
     )
 

@@ -88,7 +88,7 @@ passes.
       tools and no skills, and emit the canonical DAR package artifacts plus a
       descriptor digest; separately prove optional declared capabilities become
       package requirements.
-- [ ] RED/GREEN: map generated nonempty skill declarations to DAR's
+- [x] RED/GREEN: map generated nonempty skill declarations to DAR's
       `skill-bundle/`, `bundled_path`, `skill_refs`, and enabled
       `skill_source_resolution` metadata; prove external skill paths fail.
 - [ ] RED/GREEN: package fixtures declare a bounded task-specific tool

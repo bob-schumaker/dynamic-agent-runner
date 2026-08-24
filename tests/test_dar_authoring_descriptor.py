@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,6 +12,7 @@ from dynamic_agent_runner.models import RuntimeNode
 from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
     WorkflowDescriptor,
     WorkflowDescriptorError,
+    validate_package_skill_contract,
     validate_no_tool_runtime_nodes,
 )
 
@@ -61,6 +63,36 @@ def test_valid_no_tool_descriptor_compiles() -> None:
     validate_no_tool_runtime_nodes(
         descriptor, (RuntimeNode(id="answer", kind="llm_step"),)
     )
+
+
+def test_package_skill_contract_rejects_external_bundled_paths() -> None:
+    value = _descriptor()
+    value["skills"] = ["document-guidance"]
+    descriptor = WorkflowDescriptor.from_mapping(value)
+
+    with pytest.raises(WorkflowDescriptorError, match="bundled_path"):
+        validate_package_skill_contract(
+            descriptor,
+            runtime_skills=(
+                SimpleNamespace(
+                    id="document-guidance",
+                    raw={"bundled_path": "/private/external/SKILL.md"},
+                ),
+            ),
+            nodes=(
+                RuntimeNode(
+                    id="answer",
+                    kind="llm_step",
+                    skill_refs=("document-guidance",),
+                ),
+            ),
+            packaging={"skill_bundle_dir": "skill-bundle"},
+            skill_source_resolution=SimpleNamespace(
+                enabled=True,
+                allowed_sources=("package_bundle",),
+                load_support_files=False,
+            ),
+        )
 
 
 @pytest.mark.parametrize(
