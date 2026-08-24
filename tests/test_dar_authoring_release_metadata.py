@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -71,6 +72,38 @@ def test_release_metadata_rejects_tampering_or_an_untrusted_signer() -> None:
             metadata=metadata,
             signature=signature,
             trusted_keys={},
+        )
+
+
+def test_release_metadata_rejects_expired_or_signer_revocation() -> None:
+    private_key = Ed25519PrivateKey.generate()
+    metadata = _metadata()
+    signature = sign_release_metadata(
+        metadata=metadata,
+        key_id="release-root",
+        private_key=private_key.private_bytes_raw(),
+    )
+    trusted_keys = {"release-root": private_key.public_key().public_bytes_raw()}
+
+    with pytest.raises(ReleaseMetadataError, match="expired"):
+        verify_release_metadata(
+            metadata=metadata,
+            signature=signature,
+            trusted_keys=trusted_keys,
+            now=datetime(2026, 8, 25, tzinfo=UTC),
+        )
+    revoked = {**metadata, "revoked_key_ids": ["release-root"]}
+    revoked_signature = sign_release_metadata(
+        metadata=revoked,
+        key_id="release-root",
+        private_key=private_key.private_bytes_raw(),
+    )
+    with pytest.raises(ReleaseMetadataError, match="revoked"):
+        verify_release_metadata(
+            metadata=revoked,
+            signature=revoked_signature,
+            trusted_keys=trusted_keys,
+            now=datetime(2026, 8, 24, tzinfo=UTC),
         )
     with pytest.raises(ReleaseMetadataError, match="signature is invalid"):
         verify_release_metadata(

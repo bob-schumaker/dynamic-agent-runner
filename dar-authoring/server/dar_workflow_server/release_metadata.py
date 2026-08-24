@@ -6,6 +6,7 @@ import base64
 import json
 import re
 from collections.abc import Mapping
+from datetime import UTC, datetime
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -75,6 +76,7 @@ def verify_release_metadata(
     metadata: Mapping[str, object],
     signature: Mapping[str, object],
     trusted_keys: Mapping[str, bytes],
+    now: datetime | None = None,
 ) -> str:
     """Verify exact release metadata bytes against a configured trusted key."""
 
@@ -88,6 +90,7 @@ def verify_release_metadata(
         raise ReleaseMetadataError("release signature is invalid")
     key_id = signature.get("key_id")
     _key_id(key_id)
+    _validate_freshness(metadata, key_id, now)
     key = trusted_keys.get(key_id)
     if not isinstance(key, bytes):
         raise ReleaseMetadataError("release signer is not trusted")
@@ -100,6 +103,24 @@ def verify_release_metadata(
     except (InvalidSignature, TypeError, ValueError, UnicodeEncodeError) as error:
         raise ReleaseMetadataError("release signature is invalid") from error
     return key_id
+
+
+def _validate_freshness(
+    metadata: Mapping[str, object], key_id: str, now: datetime | None
+) -> None:
+    try:
+        expiry = datetime.fromisoformat(str(metadata["expires_at"]))
+    except ValueError as error:
+        raise ReleaseMetadataError("release metadata is invalid") from error
+    if expiry.tzinfo is None:
+        raise ReleaseMetadataError("release metadata is invalid")
+    current = datetime.now(UTC) if now is None else now
+    if not isinstance(current, datetime) or current.tzinfo is None:
+        raise ReleaseMetadataError("release verification time is invalid")
+    if expiry <= current.astimezone(UTC):
+        raise ReleaseMetadataError("release metadata is expired")
+    if key_id in metadata["revoked_key_ids"]:
+        raise ReleaseMetadataError("release signer is revoked")
 
 
 def _key_id(value: object) -> None:
