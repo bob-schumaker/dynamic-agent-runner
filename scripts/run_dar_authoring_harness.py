@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import tempfile
 from typing import Any, Sequence
@@ -40,6 +41,8 @@ def run_fixture(
     evidence_path: Path,
     pass_criteria: Sequence[str],
     timeout: float,
+    host_package_root: Path | None = None,
+    host_package_name: str | None = None,
 ) -> dict[str, object]:
     """Run one generator privately and persist only its redacted evidence."""
 
@@ -57,6 +60,8 @@ def run_fixture(
         expected_artifacts=fixture["expected_artifacts"],
         generator=generator,
         timeout=timeout,
+        host_package_root=host_package_root,
+        host_package_name=host_package_name,
     )
     _validate_review(reviewer_decision, outcome.validator_result)
     evidence = AuthoringEvidence(
@@ -81,6 +86,8 @@ def _run_generator(
     expected_artifacts: tuple[str, ...],
     generator: Sequence[str],
     timeout: float,
+    host_package_root: Path | None,
+    host_package_name: str | None,
 ):
     if not generator or any(
         not isinstance(item, str) or not item for item in generator
@@ -91,8 +98,11 @@ def _run_generator(
     with tempfile.TemporaryDirectory(prefix="dar-authoring-harness-") as directory:
         root = Path(directory)
         request_path = root / "request.json"
-        output_path = root / "output"
-        output_path.mkdir(mode=0o700)
+        output_path = _output_path(
+            temporary_root=root,
+            host_package_root=host_package_root,
+            host_package_name=host_package_name,
+        )
         _write_private_request(request_path, request)
         try:
             result = subprocess.run(
@@ -120,6 +130,49 @@ def _run_generator(
                 return output_path
 
         return ValidatingExternalAuthoringHarness(Generator()).run(request)
+
+
+def _output_path(
+    *,
+    temporary_root: Path,
+    host_package_root: Path | None,
+    host_package_name: str | None,
+) -> Path:
+    if host_package_root is None and host_package_name is None:
+        output_path = temporary_root / "output"
+        output_path.mkdir(mode=0o700)
+        return output_path
+    if host_package_root is None or host_package_name is None:
+        raise HarnessError(
+            "host package root and host package name must be supplied together"
+        )
+    if (
+        not host_package_root.is_absolute()
+        or "." in host_package_root.parts
+        or ".." in host_package_root.parts
+    ):
+        raise HarnessError("host package root is invalid")
+    try:
+        mode = os.lstat(host_package_root).st_mode
+    except OSError as error:
+        raise HarnessError("host package root is unavailable") from error
+    if not stat.S_ISDIR(mode) or os.path.islink(host_package_root):
+        raise HarnessError("host package root is unavailable")
+    if (
+        not host_package_name
+        or len(host_package_name) > 64
+        or host_package_name.startswith(".")
+        or any(
+            character
+            not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+            for character in host_package_name
+        )
+    ):
+        raise HarnessError("host package name is invalid")
+    output_path = host_package_root / host_package_name
+    if output_path.exists() or output_path.is_symlink():
+        raise HarnessError("host package output already exists")
+    return output_path
 
 
 def _write_private_request(
@@ -341,6 +394,15 @@ def main() -> None:
         "--pass-criterion", dest="pass_criteria", action="append", default=[]
     )
     parser.add_argument("--timeout", type=float, default=300.0)
+    parser.add_argument(
+        "--host-package-root",
+        type=Path,
+        help="configured DAR package root for a control-plane authored package",
+    )
+    parser.add_argument(
+        "--host-package-name",
+        help="new configured-root package name for a control-plane authored package",
+    )
     parser.add_argument("--generator", nargs=argparse.REMAINDER, required=True)
     arguments = parser.parse_args()
     try:

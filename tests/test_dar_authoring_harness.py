@@ -128,3 +128,96 @@ def test_harness_records_a_rejected_redacted_failure_for_private_material_leak(
     assert recorded["generated_package_digests"] == []
     assert "private selected example" not in completed.stdout
     assert "private selected example" not in evidence.read_text(encoding="utf-8")
+
+
+def test_harness_accepts_a_package_finalized_by_the_host_control_plane(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.workflow_host.host import configure_local_host
+
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    configure_local_host(
+        root=state_root,
+        package_root=package_root,
+        model_id="local-test-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    generator = tmp_path / "control_plane_generator.py"
+    generator.write_text(
+        "\n".join(
+            [
+                "from __future__ import annotations",
+                "import json",
+                "from pathlib import Path",
+                "import sys",
+                "from dynamic_agent_runner.workflow_host.cli import main",
+                f"state_root = {str(state_root)!r}",
+                f"template_root = Path({str(TEMPLATE)!r})",
+                f"package_root = Path({str(package_root)!r})",
+                "request_path = Path(sys.argv[sys.argv.index('--request') + 1])",
+                "output_path = Path(sys.argv[sys.argv.index('--output') + 1])",
+                "request = json.loads(request_path.read_text(encoding='utf-8'))",
+                "def call(arguments, content=None):",
+                "    output = []",
+                "    status = main(['--state-root', state_root, *arguments],",
+                "                  write=output.append,",
+                "                  read_stdin=(lambda: content) if content is not None else None)",
+                "    assert status == 0",
+                "    return json.loads(output[0])",
+                "issued = call(['issue-authoring-materials', '--materials-json-stdin'],",
+                "              json.dumps([{'role': member['role'], 'content': member['content'],",
+                "                           'disposition': member['disposition']} for member in request['materials']['members']]))",
+                "call(['project-authoring-materials', '--material-set-id', issued['material_set_id']])",
+                "created = call(['create-authored-package', '--package-name', 'document-helper'])",
+                "for source in template_root.iterdir():",
+                "    call(['write-authored-package-file', '--authoring-output-id', created['authoring_output_id'],",
+                "          '--relative-path', source.name, '--content-stdin'],",
+                "         source.read_text(encoding='utf-8'))",
+                "call(['finalize-authored-package', '--authoring-output-id', created['authoring_output_id'],",
+                "      '--material-set-id', issued['material_set_id']])",
+                "assert output_path == package_root / 'document-helper'",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    evidence = tmp_path / "evidence" / "evidence.json"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(HARNESS),
+            "--fixture",
+            str(FIXTURE),
+            "--materials",
+            str(_materials(tmp_path)),
+            "--provider",
+            "test-provider",
+            "--model-id",
+            "test-model",
+            "--reviewer-decision",
+            "approved",
+            "--evidence",
+            str(evidence),
+            "--pass-criterion",
+            "host_control_plane",
+            "--host-package-root",
+            str(package_root),
+            "--host-package-name",
+            "document-helper",
+            "--generator",
+            sys.executable,
+            str(generator),
+        ],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        timeout=10,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert (package_root / "document-helper" / "package-manifest.json").is_file()
+    assert (
+        json.loads(evidence.read_text(encoding="utf-8"))["validator_result"] == "passed"
+    )

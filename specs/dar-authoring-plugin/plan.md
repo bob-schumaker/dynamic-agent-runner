@@ -216,9 +216,13 @@ prompt through the sealed, catalog-only runner interface.
    `scripts/run_dar_authoring_harness.py` runner now passes a selected private
    material projection to a caller-provided generator only through a temporary
    request file, captures generator output, validates the expected artifacts and
-   finalized DAR package, and records only M4.1 redacted evidence. Run the
-   de-identified corpus with the selected authoring model outside unit tests;
-   that live evidence remains required.
+   finalized DAR package, and records only M4.1 redacted evidence. Its default
+   mode uses a temporary direct-output directory; a host-control-plane run
+   supplies both a configured package root and a new package name, so the
+   generator can finalize through DAR's opaque authoring-output commands and the
+   harness validates that exact new package. Run the de-identified corpus with
+   the selected authoring model outside unit tests; that live evidence remains
+   required.
 4. **M4.3: Gate the three target invocations.** Compare generated packages to
    fixture property contracts, require a human intent-fidelity review until a
    judge calibration is approved, and treat fixture property changes as reviewed
