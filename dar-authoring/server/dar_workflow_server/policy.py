@@ -74,8 +74,9 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
     if descriptor.output_schema_ref not in workflow.runtime_manifest.output_contracts:
         raise PolicyCompilationError("registered terminal output contract is missing")
     descriptor_digest = hashlib.sha256(descriptor_bytes).hexdigest()
+    tool_capability = _tool_capability(descriptor.declared_tools)
     required_capabilities = frozenset(
-        {"local_model", *(("mcp_read_only",) if descriptor.declared_tools else ())}
+        {"local_model", *(() if tool_capability is None else (tool_capability,))}
     )
     policy_digest = _digest(
         {
@@ -100,11 +101,25 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
                 "allowed_structured_input_fields": descriptor.task_invocation.allowed_structured_input_fields,
                 "allowed_artifact_roles": descriptor.task_invocation.allowed_artifact_roles,
                 "terminal_output_schema_ref": descriptor.task_invocation.terminal_output_schema_ref,
+                "argument_sources": {
+                    tool_id: {
+                        argument_name: {
+                            "sources": rule.sources,
+                            "authority": rule.authority,
+                        }
+                        for argument_name, rule in sorted(arguments.items())
+                    }
+                    for tool_id, arguments in sorted(
+                        descriptor.task_invocation.argument_sources.items()
+                    )
+                },
             },
             "declared_tools": [
                 {
                     "tool_id": tool.tool_id,
                     "remote_tool_name": tool.remote_tool_name,
+                    "side_effect": tool.side_effect,
+                    "approval_required": tool.approval_required,
                 }
                 for tool in descriptor.declared_tools
             ],
@@ -138,6 +153,14 @@ def resolve_capabilities(
         status="eligible" if not missing else "capability_unavailable",
         missing_capabilities=missing,
     )
+
+
+def _tool_capability(tools: tuple[DeclaredTool, ...]) -> str | None:
+    if not tools:
+        return None
+    if any(tool.side_effect != "read" for tool in tools):
+        return "mcp_side_effects"
+    return "mcp_read_only"
 
 
 def _digest(value: dict[str, Any]) -> str:

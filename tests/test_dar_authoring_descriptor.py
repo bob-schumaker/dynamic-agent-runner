@@ -156,7 +156,7 @@ def test_read_only_mcp_descriptor_allows_only_its_declared_bounded_tool() -> Non
         )
 
 
-def test_descriptor_rejects_declared_mcp_side_effect_before_g5() -> None:
+def test_descriptor_accepts_a_side_effect_with_explicit_authority_sources() -> None:
     value = _descriptor()
     value["tools"] = [
         {
@@ -164,13 +164,80 @@ def test_descriptor_rejects_declared_mcp_side_effect_before_g5() -> None:
             "kind": "mcp",
             "remote_tool_name": "send_email",
             "side_effect": "write",
+            "approval_required": True,
         }
     ]
     value["task_invocation"] = {
         **value["task_invocation"],  # type: ignore[index]
         "allowed_tool_ids": ["mail_send"],
         "max_total_tool_calls": 1,
+        "allowed_structured_input_fields": ["recipient"],
+        "allowed_artifact_roles": ["email_body"],
+        "argument_sources": {
+            "mail_send": {
+                "recipient": {
+                    "sources": ["sealed_structured_field:recipient"],
+                    "authority": True,
+                },
+                "body": {
+                    "sources": ["artifact_role:email_body"],
+                    "authority": False,
+                },
+            }
+        },
     }
 
-    with pytest.raises(WorkflowDescriptorError, match="read-only"):
+    descriptor = WorkflowDescriptor.from_mapping(value)
+
+    assert descriptor.declared_tools[0].side_effect == "write"
+    assert descriptor.declared_tools[0].approval_required is True
+    assert (
+        descriptor.task_invocation.argument_sources["mail_send"]["recipient"].authority
+        is True
+    )
+
+
+@pytest.mark.parametrize(
+    ("tool_update", "argument_sources", "match"),
+    [
+        ({"approval_required": False}, {}, "approval_required"),
+        ({}, {}, "argument_sources"),
+        (
+            {},
+            {
+                "mail_send": {
+                    "recipient": {
+                        "sources": ["model_generated_transform"],
+                        "authority": True,
+                    }
+                }
+            },
+            "authority",
+        ),
+    ],
+)
+def test_descriptor_rejects_side_effects_without_a_safe_source_contract(
+    tool_update: dict[str, object],
+    argument_sources: dict[str, object],
+    match: str,
+) -> None:
+    value = _descriptor()
+    value["tools"] = [
+        {
+            "id": "mail_send",
+            "kind": "mcp",
+            "remote_tool_name": "send_email",
+            "side_effect": "write",
+            "approval_required": True,
+            **tool_update,
+        }
+    ]
+    value["task_invocation"] = {
+        **value["task_invocation"],  # type: ignore[index]
+        "allowed_tool_ids": ["mail_send"],
+        "max_total_tool_calls": 1,
+        "argument_sources": argument_sources,
+    }
+
+    with pytest.raises(WorkflowDescriptorError, match=match):
         WorkflowDescriptor.from_mapping(value)

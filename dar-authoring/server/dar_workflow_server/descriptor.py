@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any, Mapping, Sequence
 
 from dynamic_agent_runner.models import RuntimeNode
@@ -35,6 +36,17 @@ class TaskInvocation:
     allowed_artifact_roles: tuple[str, ...]
     terminal_output_schema_ref: str
     allowed_tool_ids: tuple[str, ...] = ()
+    argument_sources: Mapping[str, Mapping[str, ArgumentSourceRule]] = MappingProxyType(
+        {}
+    )
+
+
+@dataclass(frozen=True)
+class ArgumentSourceRule:
+    """Declared acceptable provenance kinds for one model-facing argument."""
+
+    sources: tuple[str, ...]
+    authority: bool
 
 
 @dataclass(frozen=True)
@@ -44,10 +56,12 @@ class WorkflowLimits:
 
 @dataclass(frozen=True)
 class DeclaredTool:
-    """One task-specific read-only MCP capability declared by the package."""
+    """One task-specific MCP capability declared by the package."""
 
     tool_id: str
     remote_tool_name: str
+    side_effect: str = "read"
+    approval_required: bool = False
 
 
 @dataclass(frozen=True)
@@ -84,6 +98,7 @@ class WorkflowDescriptor:
             raise WorkflowDescriptorError(
                 "task_invocation.allowed_tool_ids must exactly match declared tools"
             )
+        _validate_side_effect_contract(declared_tools, task)
         output = _mapping(mapping.get("output"), "output")
         output_schema_ref = _text(output.get("schema_ref"), "output.schema_ref")
         if output_schema_ref != task.terminal_output_schema_ref:
@@ -201,6 +216,7 @@ def _parse_task_invocation(value: object) -> TaskInvocation:
         terminal_output_schema_ref=_text(
             mapping.get("terminal_output_schema_ref"), "terminal_output_schema_ref"
         ),
+        argument_sources=_parse_argument_sources(mapping.get("argument_sources")),
     )
 
 
@@ -216,18 +232,107 @@ def _parse_declared_tools(value: object) -> tuple[DeclaredTool, ...]:
             raise WorkflowDescriptorError("declared tool ids must be unique")
         if mapping.get("kind") != "mcp":
             raise WorkflowDescriptorError("declared tool kind must be mcp")
-        if mapping.get("side_effect") != "read":
-            raise WorkflowDescriptorError("declared MCP tools must be read-only")
+        side_effect = mapping.get("side_effect")
+        if side_effect not in {"read", "write", "delete"}:
+            raise WorkflowDescriptorError("declared MCP tool side_effect is invalid")
+        approval_required = mapping.get("approval_required", False)
+        if not isinstance(approval_required, bool):
+            raise WorkflowDescriptorError("tool.approval_required must be boolean")
         tools.append(
             DeclaredTool(
                 tool_id=tool_id,
                 remote_tool_name=_text(
                     mapping.get("remote_tool_name"), "tool.remote_tool_name"
                 ),
+                side_effect=side_effect,
+                approval_required=approval_required,
             )
         )
         seen.add(tool_id)
     return tuple(tools)
+
+
+def _parse_argument_sources(
+    value: object,
+) -> Mapping[str, Mapping[str, ArgumentSourceRule]]:
+    if value is None:
+        return MappingProxyType({})
+    mapping = _mapping(value, "argument_sources")
+    result: dict[str, Mapping[str, ArgumentSourceRule]] = {}
+    for tool_id, raw_arguments in mapping.items():
+        if not isinstance(tool_id, str) or not tool_id:
+            raise WorkflowDescriptorError("argument_sources tool id is invalid")
+        arguments = _mapping(raw_arguments, "argument_sources tool")
+        parsed: dict[str, ArgumentSourceRule] = {}
+        for argument_name, raw_rule in arguments.items():
+            if not isinstance(argument_name, str) or not argument_name:
+                raise WorkflowDescriptorError(
+                    "argument_sources argument name is invalid"
+                )
+            rule = _mapping(raw_rule, "argument_sources argument")
+            if set(rule) != {"sources", "authority"}:
+                raise WorkflowDescriptorError("argument_sources argument is invalid")
+            sources = _string_list(rule.get("sources"), "argument_sources sources")
+            if len(set(sources)) != len(sources) or any(
+                not _is_argument_source(source) for source in sources
+            ):
+                raise WorkflowDescriptorError("argument_sources sources are invalid")
+            authority = rule.get("authority")
+            if not isinstance(authority, bool):
+                raise WorkflowDescriptorError("argument_sources authority is invalid")
+            parsed[argument_name] = ArgumentSourceRule(sources, authority)
+        if not parsed:
+            raise WorkflowDescriptorError("argument_sources tool is empty")
+        result[tool_id] = MappingProxyType(parsed)
+    return MappingProxyType(result)
+
+
+def _validate_side_effect_contract(
+    tools: tuple[DeclaredTool, ...], task: TaskInvocation
+) -> None:
+    if not set(task.argument_sources).issubset({tool.tool_id for tool in tools}):
+        raise WorkflowDescriptorError("argument_sources declares an unknown tool")
+    for tool in tools:
+        rules = task.argument_sources.get(tool.tool_id, {})
+        if tool.side_effect == "read":
+            continue
+        if not tool.approval_required:
+            raise WorkflowDescriptorError(
+                "side-effecting tool must set approval_required"
+            )
+        if not rules:
+            raise WorkflowDescriptorError(
+                "side-effecting tool requires argument_sources"
+            )
+        for rule in rules.values():
+            if rule.authority and "model_generated_transform" in rule.sources:
+                raise WorkflowDescriptorError(
+                    "authority argument cannot use model_generated_transform"
+                )
+            for source in rule.sources:
+                _validate_source_reference(source, task)
+
+
+def _validate_source_reference(source: str, task: TaskInvocation) -> None:
+    if (
+        source.startswith("sealed_structured_field:")
+        and source.split(":", 1)[1] not in task.allowed_structured_input_fields
+    ):
+        raise WorkflowDescriptorError("argument_sources sealed field is not allowed")
+    if (
+        source.startswith("artifact_role:")
+        and source.split(":", 1)[1] not in task.allowed_artifact_roles
+    ):
+        raise WorkflowDescriptorError("argument_sources artifact role is not allowed")
+
+
+def _is_argument_source(value: str) -> bool:
+    if value in {"cited_original_prompt_span", "model_generated_transform"}:
+        return True
+    for prefix in ("sealed_structured_field:", "artifact_role:", "package_constant:"):
+        if value.startswith(prefix) and len(value) > len(prefix):
+            return True
+    return False
 
 
 def _mapping(value: object, name: str) -> Mapping[str, Any]:

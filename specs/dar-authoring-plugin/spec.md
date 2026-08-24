@@ -999,13 +999,23 @@ task_invocation:
   allowed_artifact_roles: [email_body]
   argument_sources:
     search_mail:
-      query: [cited_original_prompt_span]
+      query:
+        sources: [cited_original_prompt_span]
+        authority: false
     generate_image:
-      prompt: [sealed_structured_field:image_brief, model_generated_transform]
+      prompt:
+        sources: [sealed_structured_field:image_brief, model_generated_transform]
+        authority: false
     send_email:
-      recipient: [sealed_structured_field:recipient]
-      subject: [sealed_structured_field:subject]
-      body: [artifact_role:email_body]
+      recipient:
+        sources: [sealed_structured_field:recipient]
+        authority: true
+      subject:
+        sources: [sealed_structured_field:subject]
+        authority: true
+      body:
+        sources: [artifact_role:email_body]
+        authority: false
   terminal_output_schema_ref: email-assistant-result-v1
 limits:
   max_steps: 12

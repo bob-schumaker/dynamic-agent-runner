@@ -34,6 +34,7 @@ def _catalog_revision(
     *,
     package_id: str | None = None,
     with_read_only_mcp_tool: bool = False,
+    with_side_effecting_mcp_tool: bool = False,
     terminal_output_schema_ref: str | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
@@ -88,6 +89,63 @@ def _catalog_revision(
         ]
         runtime_value["nodes"][0]["available_tools"] = ["mail_list_unread"]
         runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+    if with_side_effecting_mcp_tool:
+        descriptor = source / "workflow-descriptor.yaml"
+        descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+        descriptor_value["tools"] = [
+            {
+                "id": "mail_send",
+                "kind": "mcp",
+                "remote_tool_name": "send_email",
+                "side_effect": "write",
+                "approval_required": True,
+            }
+        ]
+        descriptor_value["task_invocation"].update(
+            {
+                "allowed_tool_ids": ["mail_send"],
+                "max_total_tool_calls": 1,
+                "allowed_structured_input_fields": ["recipient"],
+                "allowed_artifact_roles": ["email_body"],
+                "argument_sources": {
+                    "mail_send": {
+                        "recipient": {
+                            "sources": ["sealed_structured_field:recipient"],
+                            "authority": True,
+                        },
+                        "body": {
+                            "sources": ["artifact_role:email_body"],
+                            "authority": False,
+                        },
+                    }
+                },
+            }
+        )
+        descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+        runtime = source / "agent-runtime.yaml"
+        runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+        runtime_value["tools"] = [
+            {
+                "id": "mail_send",
+                "label": "Send mail",
+                "tool_type": "external_api",
+                "description_for_llm": "Send one reviewed email.",
+                "adapter": "host.mcp",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"envelope": {"type": "string"}},
+                    "required": ["envelope"],
+                    "additionalProperties": False,
+                },
+                "side_effect": "write",
+                "approval_required": True,
+                "timeout": "runtime_default",
+                "retry_policy": "none",
+                "failure_behavior": "error",
+            }
+        ]
+        runtime_value["nodes"][0]["available_tools"] = ["mail_send"]
+        runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -135,6 +193,23 @@ def test_read_only_mcp_policy_requires_its_nonexecuting_capability(
     )
     assert unavailable.missing_capabilities == ("mcp_read_only",)
     assert eligible.status == "eligible"
+
+
+def test_side_effecting_mcp_policy_requires_a_separate_unavailable_capability(
+    tmp_path: Path,
+) -> None:
+    policy = compile_workflow_policy(
+        _catalog_revision(tmp_path, with_side_effecting_mcp_tool=True)
+    )
+
+    assert policy.declared_tools[0].side_effect == "write"
+    assert policy.required_capabilities == frozenset(
+        {"local_model", "mcp_side_effects"}
+    )
+    unavailable = resolve_capabilities(
+        policy, available_capabilities={"local_model", "mcp_read_only"}
+    )
+    assert unavailable.missing_capabilities == ("mcp_side_effects",)
 
 
 def test_policy_rejects_descriptor_package_identity_mismatch(tmp_path: Path) -> None:
