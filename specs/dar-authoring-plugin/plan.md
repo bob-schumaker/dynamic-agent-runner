@@ -2,10 +2,10 @@
 
 ## Status
 
-Implementation-ready planning artifact. This plan sequences only work whose
-contract is defined by [`spec.md`](spec.md) and [`tasks.md`](tasks.md). It does
-not authorize implementation until a milestone or commit-sized slice is
-scheduled.
+Active implementation plan. Completed milestones record their implementation
+evidence below; unscheduled items still require a scoped slice before work
+begins. [`spec.md`](spec.md) and [`tasks.md`](tasks.md) remain the controlling
+contracts.
 
 ## First Runtime Vertical Slice
 
@@ -33,12 +33,12 @@ only path to an end-to-end authoring-plugin publication claim.
 | --- | --- | --- | --- |
 | M0 | RA0 — authoring baseline | Static adapted-skill assets and fixture contracts are reproducible. | None |
 | M1 | G0 — package/server spike | Minimal install/discovery proof, then release-integrity proof. | None |
-| M2 | G1 runtime core | Human-selected directory staging, policy compilation, and package-only preflight. | M1 |
-| M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. | M2 |
+| M2 | G1 runtime core | Human-selected directory staging, policy compilation, and package-only preflight. Implemented. | M1 |
+| M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. Implemented. | M2 |
 | M4 | RA1 — authoring acceptance | Material projection and external adapted-skill behavior evidence. | M0, M2 |
-| M5 | G2 | Configured HTTPS MCP control plane and non-executing read-only binding. | M2; M3 for M5.5 execution integration |
-| M6 | G4 | Trusted caller-file ingress. | Focused tested sandbox descriptor-relative no-follow-copy primitive at a recorded prerequisite revision; M2 |
-| M7 | G5 | Model-directed external side effects with audit and local `--ask`. | M3; M5 for MCP actions; M6 for file arguments |
+| M5 | G2 | Configured HTTPS MCP control plane and reviewed binding. Implemented through one configured client per host; M5.5 execution evidence is `93159e9`. | M2; M3 for M5.5 execution integration |
+| M6 | G4 | Trusted caller-file ingress. Implemented. | Focused tested sandbox descriptor-relative no-follow-copy primitive at a recorded prerequisite revision; M2 |
+| M7 | G5 | Model-directed external side effects with audit and local `--ask`. Implemented for reviewed generic MCP bindings; multi-client composition requires a follow-up slice. | M3; M5 for MCP actions; M6 for file arguments |
 | M8 | Publication acceptance | Portable package exchange and published plugin evidence. | M0, M1, M3, M4 |
 
 M1 is the G0 runtime gate; M0 and M4 are the separate authoring release-evidence

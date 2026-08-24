@@ -12,25 +12,20 @@
   registration; paths and raw bodies are absent from the current CLI result,
   model request, and runner trace. Future G5 audit and approval surfaces must
   preserve that invariant.
-- `dar-authoring-plugin` G5 is in progress. `f231f70` adds a standalone v1
-  canonical argument-provenance verifier (UTF-8 spans, approved normalizations,
-  opaque references, and prohibited remote/additional-context laundering).
-  `3a86c20` lets the human MCP control plane record a reviewed `write`/`delete`
-  classification without exposing a handler. `6d4d1d5` adds explicit approved
-  side-effect metadata and per-argument authority/source policies to the
-  descriptor; capability resolution reports `mcp_side_effects`, which remains
-  unavailable until the registration-bound action handler, ledger, and local
-  `--ask` broker exist.
-- `dar-authoring-plugin` M5 (G2 generic HTTPS MCP read-only path) is complete
-  through `88b4b41`, with later review-metadata support in `3a86c20`. It
-  provides human-owned API-token and OAuth PKCE-loopback setup, pinned/bounded
-  HTTPS lifecycle and `tools/list`/`tools/call`, reviewed snapshots, opaque
-  current-generation bindings, generic `HostToolBinding` construction, and one
-  fake end-to-end read-only workflow. Readiness reports
-  `authentication_required` without creating a session or exposing a secret;
-  reconnect or schema drift fails before remote dispatch. M0/M1 provenance and
-  release trust anchoring, M4 authoring evidence, M7 side effects, and M8
-  publication remain.
+- `dar-authoring-plugin` M5 (G2) and M7 (G5) have host-level execution
+  evidence through `93159e9`. The generic control plane offers human-only
+  API-token or OAuth PKCE-loopback setup, reviewed MCP surfaces, package
+  bindings, and read/write/delete classifications. A saved workflow executes
+  with its declared generic MCP tool through DAR; no Fastmail-specific behavior
+  exists. A reconnect to the same endpoint requires no human action when the
+  saved connection/authentication identity and reviewed tool schema revalidate
+  unchanged. Identity or schema drift fails closed before remote dispatch.
+- Side effects use descriptor-declared authority/provenance rules, immutable
+  registration-bound handlers, a durable `workflow_auto` action ledger, and
+  local atomic `--ask` approvals. Default `workflow_auto` dispatches a
+  pre-built workflow's reviewed action; `--dry-run` dispatches nothing.
+  G5 still needs a scope audit for multiple independently configured MCP
+  clients per workflow before declaring the general connection model complete.
 - `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
   through `8c01d36`. A host-managed strict-local loopback OpenAI-compatible profile is
   persisted privately, a saved package is registered to its immutable profile,

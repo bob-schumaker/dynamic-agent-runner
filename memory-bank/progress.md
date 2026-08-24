@@ -3,15 +3,15 @@
 
 ## Working
 
-- `dar-authoring-plugin` M5 (G2 configured HTTPS MCP read-only path) is
-  complete through `88b4b41`. Commits `67b7b4e`–`88b4b41` add credential-free
-  connections, keyring-backed API/OAuth secrets, listener-first PKCE, pinned
-  HTTPS lifecycle, reviewed surface snapshots, opaque client-generation
-  bindings, host-only read bindings, end-to-end fake workflow execution,
-  reconnect refusal, and a non-executing `authentication_required` /
-  `surface_review_required` readiness result. Full authoring verification
-  passed with 94 tests. G5 remains the exclusive owner of mutations and
-  approval; M5 does not construct send-like handlers.
+- `dar-authoring-plugin` M5 (G2) and M7 (G5) are implemented through
+  `93159e9`. Commits `d2d20bf`–`93159e9` compose the configured generic HTTPS
+  MCP client into the local host, expose human-only API-token/OAuth setup and
+  reviewed surface/binding CLI paths, construct the model-facing host registry,
+  and prove a saved workflow's fake MCP call end to end. A same-endpoint
+  reconnect automatically revalidates persisted identity and canonical schema;
+  it neither launches OAuth nor asks the human again. Identity/schema drift
+  fails closed before remote dispatch. Full authoring verification passed with
+  168 tests.
 - `dar-authoring-plugin` M6 (G4 trusted file ingress) is complete through
   `7b17158`. Commits `cf98017`–`7b17158` provide descriptor-relative no-follow
   bounded copies, private workspaces, opaque registration-bound artifacts, CLI
@@ -20,13 +20,12 @@
   evidence proves public receipts and prepared inputs omit paths/content and
   runner model requests/traces omit artifact IDs and bodies. Full authoring
   verification passed with 128 tests.
-- `dar-authoring-plugin` G5 is in progress but still non-dispatching.
-  `f231f70` adds v1 provenance-envelope verification; `3a86c20` persists a
-  human-reviewed exact MCP side-effect class as metadata only; and `6d4d1d5`
-  adds descriptor approval/authority/source rules plus the unavailable
-  `mcp_side_effects` capability. The next work is an immutable
-  registration-bound action handler, durable `workflow_auto` ledger, and local
-  atomic `--ask` broker; no write/delete handler exists yet.
+- Side effects are live only through declared, reviewed generic MCP bindings:
+  `ArgumentProvenanceEnvelope` checks, registration-bound handlers, an
+  at-most-once `workflow_auto` action ledger, local `--ask` approval, and
+  prepared-input consumption protect dispatch. Default auto approval is for a
+  pre-built workflow; `--dry-run` is non-dispatching. Broader multi-client MCP
+  composition and live-provider acceptance remain deferred.
 - `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
   through `8c01d36`: strict loopback local-adapter configuration (`a660980`), sealed
   dry-run preflight (`8298711`), private host composition (`b922880`), local
@@ -646,8 +645,10 @@
 - Sandbox runtime is partial: approval-before-side-effect exists, but write
   tools, shell tools, workspace grants, sandbox adapters, and changed-path audits
   remain deferred.
-- MCP runtime is v1 only: live transports, process lifecycle, discovery,
-  reconnect, schema cache, and diagnostics beyond metadata remain deferred.
+- The base DAR MCP registry remains metadata/host-injection only. The separate
+  dar-authoring host owns its configured HTTPS transport, bounded discovery,
+  reviewed schema cache, and safe automatic same-endpoint reconnect. Stdio and
+  unreviewed transports remain deferred.
 - Guardrails are v1 only: output phases, tool phases, reject-content behavior,
   warning-only behavior, retries, timeouts, and external adapters remain
   deferred.
