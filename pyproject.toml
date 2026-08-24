@@ -9,6 +9,7 @@ dynamic = ["dependencies", "requires-python"]
 
 [project.scripts]
 dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
+dar-authoring-mcp = "dar_authoring_plugin.server:console_main"
 graphify-extract = "dynamic_agent_runner.tools.graphify_cli:console_main"
 
 [project.entry-points.pyinstaller40]
@@ -21,7 +22,11 @@ apple-foundation-models = ["apple-fm-sdk>=0.2.0"]
 
 [tool.poetry]
 packages = [
+    { include = "dar_authoring_plugin", from = "src" },
     { include = "dynamic_agent_runner", from = "src" },
+]
+include = [
+    { path = "dar-authoring/**/*", format = ["sdist", "wheel"] },
 ]
 
 [tool.poetry.dependencies]

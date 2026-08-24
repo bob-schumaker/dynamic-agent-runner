@@ -1,0 +1,22 @@
+{
+  "author": {
+    "name": "Bob Schumaker"
+  },
+  "description": "Design and run bounded Dynamic Agent Runner workflows.",
+  "interface": {
+    "capabilities": [
+      "Interactive"
+    ],
+    "category": "Productivity",
+    "defaultPrompt": [
+      "Design a bounded workflow package."
+    ],
+    "developerName": "Bob Schumaker",
+    "displayName": "DAR Authoring",
+    "longDescription": "Creates and prepares bounded Dynamic Agent Runner workflow packages.",
+    "shortDescription": "Design bounded DAR workflow packages."
+  },
+  "mcpServers": "./.mcp.json",
+  "name": "dar-authoring",
+  "version": "0.1.0"
+}
