@@ -8,9 +8,11 @@ import os
 import secrets
 import shutil
 import stat
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from pathlib import PurePosixPath
 
 from dynamic_agent_runner import load_agent_package_workflow
 
@@ -39,7 +41,7 @@ class StagedPackage:
 
 
 class PrivatePackageStager:
-    """Copy a selected source directory through no-follow descriptors only."""
+    """Stage a selected directory or safely extracted ZIP through one copy path."""
 
     def __init__(self, *, store: PrivateStateStore, private_root: Path) -> None:
         self._store = store
@@ -47,15 +49,22 @@ class PrivatePackageStager:
         self._identity = InstallationIdentityProvider()
 
     def stage(self, source_handle: str, *, now: datetime) -> StagedPackage:
-        """Stage, validate, and seal one directory selected by the local control plane."""
+        """Stage, validate, and seal one local-control-plane package source."""
 
-        source_root, source_path = self._source_paths(source_handle, now)
+        source_type, source_root, source_path = self._source_paths(source_handle, now)
         private_root = _private_directory(self._private_root)
         temporary_root = private_root / f".stage-{secrets.token_hex(16)}"
         temporary_root.mkdir(mode=0o700)
+        extraction_root: Path | None = None
         source_fd = -1
         try:
-            source_fd = _open_directory_below(source_root, source_path)
+            if source_type == "directory":
+                source_fd = _open_directory_below(source_root, source_path)
+            else:
+                extraction_root = private_root / f".extract-{secrets.token_hex(16)}"
+                extraction_root.mkdir(mode=0o700)
+                _extract_zip(source_root, source_path, extraction_root)
+                source_fd = _open_absolute_directory(extraction_root)
             entries: list[tuple[str, str, int]] = []
             _copy_directory(
                 source_fd,
@@ -80,10 +89,14 @@ class PrivatePackageStager:
         finally:
             if source_fd >= 0:
                 os.close(source_fd)
+            if extraction_root is not None and extraction_root.exists():
+                shutil.rmtree(extraction_root)
             if temporary_root.exists():
                 shutil.rmtree(temporary_root)
 
-    def _source_paths(self, source_handle: str, now: datetime) -> tuple[Path, Path]:
+    def _source_paths(
+        self, source_handle: str, now: datetime
+    ) -> tuple[str, Path, Path]:
         try:
             record = self._store.load(
                 source_handle,
@@ -94,8 +107,9 @@ class PrivatePackageStager:
         except OpaqueRecordError as error:
             raise PackageStagingError(str(error)) from error
         payload = record.payload
-        if payload.get("source_type") != "directory":
-            raise PackageStagingError("package source is not a directory")
+        source_type = payload.get("source_type")
+        if source_type not in {"directory", "zip"}:
+            raise PackageStagingError("package source type is invalid")
         root = _absolute_path(payload.get("source_root"), "package source root")
         path = _absolute_path(payload.get("source_path"), "package source path")
         try:
@@ -104,7 +118,7 @@ class PrivatePackageStager:
             raise PackageStagingError(
                 "package source path is outside its root"
             ) from error
-        return root, path
+        return source_type, root, path
 
 
 def _private_directory(path: Path) -> Path:
@@ -140,6 +154,42 @@ def _open_directory_below(root: Path, path: Path) -> int:
     except Exception:
         os.close(descriptor)
         raise
+
+
+def _open_file_below(root: Path, path: Path) -> int:
+    try:
+        relative_parts = path.relative_to(root).parts
+    except ValueError as error:  # Defensive: callers already validate this binding.
+        raise PackageStagingError("package source path is outside its root") from error
+    if not relative_parts:
+        raise PackageStagingError("package source archive is unavailable")
+    descriptor = _open_absolute_directory(root)
+    try:
+        for part in relative_parts[:-1]:
+            child = _open_directory_at(descriptor, part)
+            os.close(descriptor)
+            descriptor = child
+        try:
+            archive_fd = os.open(
+                relative_parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=descriptor
+            )
+        except OSError as error:
+            if error.errno == errno.ELOOP or _is_symlink_at(
+                descriptor, relative_parts[-1]
+            ):
+                raise PackageStagingError(
+                    "package source archive contains a symlink"
+                ) from error
+            raise PackageStagingError(
+                "package source archive is unavailable"
+            ) from error
+        archive_stat = os.fstat(archive_fd)
+        if not stat.S_ISREG(archive_stat.st_mode):
+            os.close(archive_fd)
+            raise PackageStagingError("package source archive is not a regular file")
+        return archive_fd
+    finally:
+        os.close(descriptor)
 
 
 def _open_absolute_directory(path: Path) -> int:
@@ -274,3 +324,114 @@ def _seal_tree(root: Path) -> None:
     for path in sorted(root.rglob("*"), reverse=True):
         os.chmod(path, 0o500 if path.is_dir() else 0o400)
     os.chmod(root, 0o500)
+
+
+def _extract_zip(root: Path, archive_path: Path, destination: Path) -> None:
+    archive_fd = _open_file_below(root, archive_path)
+    try:
+        with os.fdopen(archive_fd, "rb") as stream, zipfile.ZipFile(stream) as archive:
+            members = _validated_zip_members(archive)
+            for relative_path, member in members:
+                target = destination.joinpath(*relative_path.parts)
+                if member.is_dir():
+                    target.mkdir(mode=0o700)
+                else:
+                    _extract_zip_file(archive, member, target)
+    except zipfile.BadZipFile as error:
+        raise PackageStagingError(
+            "package source archive is not a valid ZIP"
+        ) from error
+
+
+def _validated_zip_members(
+    archive: zipfile.ZipFile,
+) -> list[tuple[PurePosixPath, zipfile.ZipInfo]]:
+    members: list[tuple[PurePosixPath, zipfile.ZipInfo]] = []
+    seen: set[PurePosixPath] = set()
+    total_bytes = 0
+    for member in archive.infolist():
+        relative_path = _zip_member_path(member)
+        if relative_path in seen:
+            raise PackageStagingError(
+                "package source archive contains duplicate members"
+            )
+        seen.add(relative_path)
+        _validate_zip_member_type(member)
+        total_bytes = _zip_member_total_bytes(member, total_bytes)
+        if len(seen) > MAX_PACKAGE_FILES:
+            raise PackageStagingError("package source exceeds file limit")
+        members.append((relative_path, member))
+    _reject_zip_parent_conflicts(members)
+    return sorted(members, key=lambda item: (len(item[0].parts), str(item[0])))
+
+
+def _zip_member_total_bytes(member: zipfile.ZipInfo, total_bytes: int) -> int:
+    if member.is_dir():
+        return total_bytes
+    if member.file_size > MAX_FILE_BYTES:
+        raise PackageStagingError("package source file exceeds size limit")
+    total_bytes += member.file_size
+    if total_bytes > MAX_PACKAGE_BYTES:
+        raise PackageStagingError("package source exceeds size limit")
+    return total_bytes
+
+
+def _reject_zip_parent_conflicts(
+    members: list[tuple[PurePosixPath, zipfile.ZipInfo]],
+) -> None:
+    file_paths = {path for path, member in members if not member.is_dir()}
+    for relative_path, _ in members:
+        if any(parent in file_paths for parent in relative_path.parents):
+            raise PackageStagingError("package source archive has conflicting members")
+
+
+def _zip_member_path(member: zipfile.ZipInfo) -> PurePosixPath:
+    if "\\" in member.filename:
+        raise PackageStagingError(
+            "package source archive contains unsafe archive member"
+        )
+    relative_path = PurePosixPath(member.filename)
+    if (
+        relative_path.is_absolute()
+        or not relative_path.parts
+        or any(part in {"", ".", ".."} for part in relative_path.parts)
+    ):
+        raise PackageStagingError(
+            "package source archive contains unsafe archive member"
+        )
+    return relative_path
+
+
+def _validate_zip_member_type(member: zipfile.ZipInfo) -> None:
+    mode = member.external_attr >> 16
+    file_type = stat.S_IFMT(mode)
+    if stat.S_ISLNK(mode):
+        raise PackageStagingError("package source archive contains a symlink")
+    if member.is_dir():
+        if file_type not in {0, stat.S_IFDIR}:
+            raise PackageStagingError(
+                "package source archive contains a non-regular entry"
+            )
+    elif file_type not in {0, stat.S_IFREG}:
+        raise PackageStagingError("package source archive contains a non-regular entry")
+
+
+def _extract_zip_file(
+    archive: zipfile.ZipFile, member: zipfile.ZipInfo, destination: Path
+) -> None:
+    byte_count = 0
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    destination_fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with archive.open(member) as source:
+            while chunk := source.read(_READ_SIZE):
+                byte_count += len(chunk)
+                if byte_count > MAX_FILE_BYTES:
+                    raise PackageStagingError("package source file exceeds size limit")
+                _write_all(destination_fd, chunk)
+        if byte_count != member.file_size:
+            raise PackageStagingError(
+                "package source archive changed during extraction"
+            )
+    finally:
+        os.close(destination_fd)

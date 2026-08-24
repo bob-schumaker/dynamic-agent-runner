@@ -202,11 +202,19 @@ part of ordinary test execution.
 
 ### M8 — Publication acceptance
 
-1. **M8.1: Add portable package exchange.** Add bounded ZIP import/export,
-   deterministic manifests, explicit local trust, and trusted-publisher Ed25519
-   package verification. This extends the staged-directory boundary; it does not
-   create a second runner path.
-2. **M8.2: Run the first publication gate.** Require M3's no-tool runner
+1. **M8.1a: Accept bounded ZIP package intake.** Implemented: a human-selected
+   `.zip` from the same allowlisted root as a directory package is opened
+   no-follow, rejects traversal, duplicate, symlink, special, over-file-limit,
+   and declared-size-limit entries, extracts only to a fresh private temporary
+   directory, and then uses the existing descriptor-relative directory stager.
+   It does not create a second runner path.
+2. **M8.1b: Seal the portable package manifest and trust.** Add deterministic
+   manifests, explicit local-trust confirmation, and trusted-publisher Ed25519
+   package verification before a portable archive may become a catalog revision.
+3. **M8.1c: Export portable packages.** Add deterministic ZIP export that
+   preserves the verified manifest and artifact digests without executing
+   package content.
+4. **M8.2: Run the first publication gate.** Require M3's no-tool runner
    evidence and M4's external authoring-skill evidence, then verify the released
    wheel from a clean consumer-install directory. No adapted skill or execution
    capability is published until this gate passes.

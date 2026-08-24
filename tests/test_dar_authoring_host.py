@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -118,6 +119,40 @@ class _ToolResponses:
 
     def create(self, **_: object) -> ModelResponse:
         return next(self._responses)
+
+
+def test_host_selects_and_registers_a_local_zip_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    archive = package_root / "document-helper.zip"
+    with zipfile.ZipFile(archive, "w") as package:
+        for path in sorted(source.iterdir()):
+            package.write(path, path.name)
+    monkeypatch.setattr(
+        "dar_workflow_server.host.create_local_adapter",
+        lambda profile: OpenAIClientAdapter(
+            _Client(), models=[profile.model_id], is_local=True
+        ),
+    )
+    root = tmp_path / "state"
+    configure_local_host(
+        root=root,
+        package_root=package_root,
+        model_id="local-model-v1",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    host = LocalWorkflowHost.open(root)
+    source_handle = host.select_package(archive, now=NOW)
+    registration = host.register(
+        workflow_id="document-helper", package_source_handle=source_handle, now=NOW
+    )
+
+    assert source_handle.startswith("v1.")
+    assert registration.workflow_id == "document-helper"
 
 
 def test_host_reopens_a_secret_free_configured_mcp_client(

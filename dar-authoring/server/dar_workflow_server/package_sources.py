@@ -12,11 +12,11 @@ from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
 
 
 class PackageSourceSelectionError(ValueError):
-    """Raised when a selected package directory is outside the trusted boundary."""
+    """Raised when a selected package source is outside the trusted boundary."""
 
 
 class PackageSourceSelectionPolicy:
-    """Issue a source handle only for a human-selected no-follow directory."""
+    """Issue a source handle only for a human-selected no-follow package source."""
 
     def __init__(self, *, allowed_root: Path | None, store: PrivateStateStore) -> None:
         self._allowed_root = allowed_root
@@ -41,6 +41,33 @@ class PackageSourceSelectionPolicy:
                 owner=self._identity.principal,
                 payload={
                     "source_type": "directory",
+                    "source_root": str(root),
+                    "source_path": str(candidate),
+                },
+                expires_at=now.astimezone(UTC) + timedelta(minutes=5),
+                now=now,
+            )
+        except OpaqueRecordError as error:
+            raise PackageSourceSelectionError(str(error)) from error
+
+    def select_zip(self, path: Path, *, now: datetime) -> str:
+        """Validate a configured ZIP selection and return only an opaque ID."""
+
+        root = self._validated_allowed_root()
+        candidate = _canonical_path(path, "package ZIP")
+        try:
+            candidate.relative_to(root)
+        except ValueError as error:
+            raise PackageSourceSelectionError(
+                "package ZIP is outside the allowed root"
+            ) from error
+        _validate_no_follow_regular_file(candidate, "package ZIP")
+        try:
+            return self._store.issue(
+                kind="package_source",
+                owner=self._identity.principal,
+                payload={
+                    "source_type": "zip",
                     "source_root": str(root),
                     "source_path": str(candidate),
                 },
@@ -76,3 +103,15 @@ def _validate_no_follow_directory(path: Path, name: str) -> None:
             raise PackageSourceSelectionError(f"{name} contains a symlink")
         if not stat.S_ISDIR(mode):
             raise PackageSourceSelectionError(f"{name} is not a directory")
+
+
+def _validate_no_follow_regular_file(path: Path, name: str) -> None:
+    _validate_no_follow_directory(path.parent, name)
+    try:
+        mode = os.lstat(path).st_mode
+    except FileNotFoundError as error:
+        raise PackageSourceSelectionError(f"{name} does not exist") from error
+    if stat.S_ISLNK(mode):
+        raise PackageSourceSelectionError(f"{name} contains a symlink")
+    if not stat.S_ISREG(mode):
+        raise PackageSourceSelectionError(f"{name} is not a regular file")

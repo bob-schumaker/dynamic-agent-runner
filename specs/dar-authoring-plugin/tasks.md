@@ -277,9 +277,14 @@ passes.
 
 ## M8: Publication Hardening
 
-- [ ] RED/GREEN: ZIP import rejects traversal, duplicate, link, special, and
-      over-limit entries; verify manifest file paths, bytes, hashes, schema, and
-      DAR compatibility before it reaches the existing staged-package boundary.
+- [x] RED/GREEN: ZIP intake accepts only a human-selected archive from the
+      configured root, opens it no-follow, rejects traversal, duplicate,
+      symlink, special, over-file-limit, and declared-byte-limit members,
+      extracts it only to a fresh private temporary directory, and passes that
+      directory through the existing staged-package boundary and DAR validation.
+- [ ] RED/GREEN: ZIP import verifies the canonical manifest's file paths,
+      bytes, hashes, schema, and DAR compatibility before it reaches the
+      existing staged-package boundary; enforce a compression-ratio limit.
 - [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
       signer/key-id binding, rejection of an unknown locally trusted publisher
       key, and a recipient-host signed-package import. Explicitly selected

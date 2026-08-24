@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -79,6 +80,33 @@ def test_selection_rejects_symlinked_path_components(tmp_path: Path) -> None:
 
     with pytest.raises(PackageSourceSelectionError, match="symlink"):
         _policy(tmp_path, allowed_root).select_directory(symlink, now=NOW)
+
+
+def test_human_selected_zip_becomes_an_opaque_source_handle(
+    tmp_path: Path,
+) -> None:
+    allowed_root = tmp_path / "packages"
+    allowed_root.mkdir()
+    archive = allowed_root / "document-helper.zip"
+    with zipfile.ZipFile(archive, "w"):
+        pass
+
+    handle = _policy(tmp_path, allowed_root).select_zip(archive, now=NOW)
+
+    assert handle.startswith("v1.")
+    assert str(archive) not in handle
+
+
+def test_zip_selection_rejects_a_symlink(tmp_path: Path) -> None:
+    allowed_root = tmp_path / "packages"
+    allowed_root.mkdir()
+    target = tmp_path / "target.zip"
+    target.write_bytes(b"not a zip")
+    archive = allowed_root / "document-helper.zip"
+    os.symlink(target, archive)
+
+    with pytest.raises(PackageSourceSelectionError, match="symlink"):
+        _policy(tmp_path, allowed_root).select_zip(archive, now=NOW)
 
 
 def test_selection_requires_a_human_configured_root(tmp_path: Path) -> None:

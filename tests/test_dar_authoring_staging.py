@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -40,6 +41,23 @@ def _source_package(tmp_path: Path) -> Path:
     return source
 
 
+def _archive_package(tmp_path: Path) -> Path:
+    source = _source_package(tmp_path)
+    archive = source.parent / "document-helper.zip"
+    with zipfile.ZipFile(archive, "w") as package:
+        for path in sorted(source.iterdir()):
+            package.write(path, path.name)
+    return archive
+
+
+def _archive_selection(tmp_path: Path, archive: Path) -> tuple[str, PrivateStateStore]:
+    store = PrivateStateStore(tmp_path / "state")
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=archive.parent, store=store
+    ).select_zip(archive, now=NOW)
+    return handle, store
+
+
 def test_staging_copies_selected_package_and_validates_dar(tmp_path: Path) -> None:
     source = _source_package(tmp_path)
     handle, store = _selection(tmp_path, source)
@@ -56,6 +74,105 @@ def test_staging_copies_selected_package_and_validates_dar(tmp_path: Path) -> No
     assert (staged.root / "agent-runtime.yaml").read_text(encoding="utf-8") == (
         source / "agent-runtime.yaml"
     ).read_text(encoding="utf-8")
+
+
+def test_staging_imports_a_human_selected_zip_through_the_private_copy(
+    tmp_path: Path,
+) -> None:
+    archive = _archive_package(tmp_path)
+    handle, store = _archive_selection(tmp_path, archive)
+
+    staged = PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+        handle, now=NOW
+    )
+
+    assert staged.root.is_dir()
+    assert staged.file_count == 4
+    assert staged.byte_count > 0
+    assert not list((tmp_path / "private").glob(".extract-*"))
+
+
+@pytest.mark.parametrize(
+    "member_name", ["../agent-runtime.yaml", "/agent-runtime.yaml"]
+)
+def test_staging_rejects_zip_members_that_escape_the_package(
+    tmp_path: Path, member_name: str
+) -> None:
+    allowed_root = tmp_path / "packages"
+    allowed_root.mkdir()
+    archive = allowed_root / "unsafe.zip"
+    with zipfile.ZipFile(archive, "w") as package:
+        package.writestr(member_name, "not a DAR package")
+    handle, store = _archive_selection(tmp_path, archive)
+
+    with pytest.raises(PackageStagingError, match="unsafe archive member"):
+        PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+            handle, now=NOW
+        )
+
+
+def test_staging_rejects_zip_symlink_members(tmp_path: Path) -> None:
+    allowed_root = tmp_path / "packages"
+    allowed_root.mkdir()
+    archive = allowed_root / "unsafe.zip"
+    member = zipfile.ZipInfo("link")
+    member.external_attr = 0o120777 << 16
+    with zipfile.ZipFile(archive, "w") as package:
+        package.writestr(member, "outside")
+    handle, store = _archive_selection(tmp_path, archive)
+
+    with pytest.raises(PackageStagingError, match="symlink"):
+        PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+            handle, now=NOW
+        )
+
+
+def test_staging_rejects_zip_members_above_the_file_size_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    allowed_root = tmp_path / "packages"
+    allowed_root.mkdir()
+    archive = allowed_root / "oversize.zip"
+    with zipfile.ZipFile(archive, "w") as package:
+        package.writestr("agent-design.md", "oversize")
+    monkeypatch.setattr("dar_workflow_server.staging.MAX_FILE_BYTES", 4)
+    handle, store = _archive_selection(tmp_path, archive)
+
+    with pytest.raises(PackageStagingError, match="file exceeds size limit"):
+        PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+            handle, now=NOW
+        )
+
+
+def test_staging_rejects_duplicate_zip_members(tmp_path: Path) -> None:
+    allowed_root = tmp_path / "packages"
+    allowed_root.mkdir()
+    archive = allowed_root / "duplicate.zip"
+    with zipfile.ZipFile(archive, "w") as package:
+        package.writestr("agent-design.md", "first")
+        with pytest.warns(UserWarning, match="Duplicate name"):
+            package.writestr("agent-design.md", "second")
+    handle, store = _archive_selection(tmp_path, archive)
+
+    with pytest.raises(PackageStagingError, match="duplicate"):
+        PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+            handle, now=NOW
+        )
+
+
+def test_staging_creates_missing_parent_directories_for_zip_members(
+    tmp_path: Path,
+) -> None:
+    archive = _archive_package(tmp_path)
+    with zipfile.ZipFile(archive, "a") as package:
+        package.writestr("assets/input.txt", "input")
+    handle, store = _archive_selection(tmp_path, archive)
+
+    staged = PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+        handle, now=NOW
+    )
+
+    assert (staged.root / "assets" / "input.txt").read_text(encoding="utf-8") == "input"
 
 
 def test_staging_does_not_follow_nested_symlinks(tmp_path: Path) -> None:
@@ -99,6 +216,22 @@ def test_staging_rejects_a_parent_path_swapped_for_a_symlink(tmp_path: Path) -> 
     source = _source_package(tmp_path)
     handle, store = _selection(tmp_path, source)
     original_parent = source.parent
+    moved_parent = tmp_path / "moved-packages"
+    original_parent.rename(moved_parent)
+    os.symlink(tmp_path / "outside", original_parent)
+
+    with pytest.raises(PackageStagingError, match="symlink"):
+        PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+            handle, now=NOW
+        )
+
+
+def test_staging_rejects_a_zip_parent_path_swapped_for_a_symlink(
+    tmp_path: Path,
+) -> None:
+    archive = _archive_package(tmp_path)
+    handle, store = _archive_selection(tmp_path, archive)
+    original_parent = archive.parent
     moved_parent = tmp_path / "moved-packages"
     original_parent.rename(moved_parent)
     os.symlink(tmp_path / "outside", original_parent)

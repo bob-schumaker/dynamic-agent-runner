@@ -335,8 +335,10 @@ class LocalWorkflowHost:
         )
 
     def select_package(self, path: Path, *, now: datetime) -> str:
-        """Return an opaque handle for one human-selected package directory."""
+        """Return an opaque handle for one human-selected directory or ZIP package."""
 
+        if path.suffix.lower() == ".zip":
+            return self._sources.select_zip(path, now=now)
         return self._sources.select_directory(path, now=now)
 
     def review_mcp_surface(
