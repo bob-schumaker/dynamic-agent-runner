@@ -26,6 +26,7 @@ class TaskInvocation:
     allowed_structured_input_fields: tuple[str, ...]
     allowed_artifact_roles: tuple[str, ...]
     terminal_output_schema_ref: str
+    allowed_tool_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -34,8 +35,16 @@ class WorkflowLimits:
 
 
 @dataclass(frozen=True)
+class DeclaredTool:
+    """One task-specific read-only MCP capability declared by the package."""
+
+    tool_id: str
+    remote_tool_name: str
+
+
+@dataclass(frozen=True)
 class WorkflowDescriptor:
-    """The minimum immutable authoring-to-runtime handoff for a no-tool task."""
+    """The immutable authoring-to-runtime handoff for a bounded task workflow."""
 
     package_id: str
     purpose: str
@@ -43,6 +52,7 @@ class WorkflowDescriptor:
     model_profile_requirement: str
     input_contract: InputContract
     task_invocation: TaskInvocation
+    declared_tools: tuple[DeclaredTool, ...]
     output_schema_ref: str
     limits: WorkflowLimits
 
@@ -54,12 +64,16 @@ class WorkflowDescriptor:
         if mapping.get("format_version") != 1:
             raise WorkflowDescriptorError("format_version must be 1")
         _require_empty_list(mapping.get("skills"), "skills")
-        _require_empty_list(mapping.get("tools"), "tools")
+        declared_tools = _parse_declared_tools(mapping.get("tools"))
         runtime = _mapping(mapping.get("dar_runtime"), "dar_runtime")
         if runtime.get("distribution") != "dynamic-agent-runner":
             raise WorkflowDescriptorError("dar_runtime.distribution is invalid")
         input_contract = _parse_input_contract(mapping.get("input_contract"))
         task = _parse_task_invocation(mapping.get("task_invocation"))
+        if task.allowed_tool_ids != tuple(tool.tool_id for tool in declared_tools):
+            raise WorkflowDescriptorError(
+                "task_invocation.allowed_tool_ids must exactly match declared tools"
+            )
         output = _mapping(mapping.get("output"), "output")
         output_schema_ref = _text(output.get("schema_ref"), "output.schema_ref")
         if output_schema_ref != task.terminal_output_schema_ref:
@@ -79,6 +93,7 @@ class WorkflowDescriptor:
             ),
             input_contract=input_contract,
             task_invocation=task,
+            declared_tools=declared_tools,
             output_schema_ref=output_schema_ref,
             limits=WorkflowLimits(_positive_int(limits.get("max_steps"), "max_steps")),
         )
@@ -87,14 +102,18 @@ class WorkflowDescriptor:
 def validate_no_tool_runtime_nodes(
     descriptor: WorkflowDescriptor, nodes: Sequence[RuntimeNode]
 ) -> None:
-    """Reject a graph that exposes a tool before the tool-capability gates exist."""
+    """Reject a graph whose tool exposure escapes its task-specific declaration."""
 
-    if descriptor.task_invocation.max_total_tool_calls != 0:
+    declared = {tool.tool_id for tool in descriptor.declared_tools}
+    if not declared and descriptor.task_invocation.max_total_tool_calls != 0:
         raise WorkflowDescriptorError(
             "no-tool descriptor must set max_total_tool_calls to 0"
         )
     for node in nodes:
-        if node.tool_id or node.available_tools:
+        exposed = set(node.available_tools)
+        if node.tool_id:
+            exposed.add(node.tool_id)
+        if not exposed.issubset(declared):
             raise WorkflowDescriptorError(
                 f"runtime node {node.id!r} exposes an undeclared tool"
             )
@@ -123,15 +142,28 @@ def _parse_input_contract(value: object) -> InputContract:
 
 def _parse_task_invocation(value: object) -> TaskInvocation:
     mapping = _mapping(value, "task_invocation")
-    _require_empty_list(mapping.get("allowed_tool_ids"), "allowed_tool_ids")
+    allowed_tool_ids = _string_list(mapping.get("allowed_tool_ids"), "allowed_tool_ids")
+    if len(set(allowed_tool_ids)) != len(allowed_tool_ids):
+        raise WorkflowDescriptorError("allowed_tool_ids must be unique")
     max_total_tool_calls = mapping.get("max_total_tool_calls")
-    if max_total_tool_calls != 0 or isinstance(max_total_tool_calls, bool):
+    if not isinstance(max_total_tool_calls, int) or isinstance(
+        max_total_tool_calls, bool
+    ):
+        raise WorkflowDescriptorError(
+            "max_total_tool_calls must be a non-negative integer"
+        )
+    if not allowed_tool_ids and max_total_tool_calls != 0:
         raise WorkflowDescriptorError(
             "max_total_tool_calls must be 0 for a no-tool descriptor"
         )
+    if allowed_tool_ids and not 0 < max_total_tool_calls <= 16:
+        raise WorkflowDescriptorError(
+            "max_total_tool_calls is outside the bounded limit"
+        )
     return TaskInvocation(
         entrypoint=_text(mapping.get("entrypoint"), "task_invocation.entrypoint"),
-        max_total_tool_calls=0,
+        allowed_tool_ids=allowed_tool_ids,
+        max_total_tool_calls=max_total_tool_calls,
         allowed_structured_input_fields=_string_list(
             mapping.get("allowed_structured_input_fields"),
             "allowed_structured_input_fields",
@@ -143,6 +175,32 @@ def _parse_task_invocation(value: object) -> TaskInvocation:
             mapping.get("terminal_output_schema_ref"), "terminal_output_schema_ref"
         ),
     )
+
+
+def _parse_declared_tools(value: object) -> tuple[DeclaredTool, ...]:
+    if not isinstance(value, list):
+        raise WorkflowDescriptorError("tools must be a list")
+    tools: list[DeclaredTool] = []
+    seen: set[str] = set()
+    for raw_tool in value:
+        mapping = _mapping(raw_tool, "tools entry")
+        tool_id = _text(mapping.get("id"), "tool.id")
+        if tool_id in seen:
+            raise WorkflowDescriptorError("declared tool ids must be unique")
+        if mapping.get("kind") != "mcp":
+            raise WorkflowDescriptorError("declared tool kind must be mcp")
+        if mapping.get("side_effect") != "read":
+            raise WorkflowDescriptorError("declared MCP tools must be read-only")
+        tools.append(
+            DeclaredTool(
+                tool_id=tool_id,
+                remote_tool_name=_text(
+                    mapping.get("remote_tool_name"), "tool.remote_tool_name"
+                ),
+            )
+        )
+        seen.add(tool_id)
+    return tuple(tools)
 
 
 def _mapping(value: object, name: str) -> Mapping[str, Any]:

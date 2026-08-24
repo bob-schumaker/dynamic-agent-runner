@@ -105,3 +105,66 @@ def test_no_tool_descriptor_rejects_runtime_tool_console() -> None:
 
     with pytest.raises(WorkflowDescriptorError, match="undeclared tool"):
         validate_no_tool_runtime_nodes(descriptor, nodes)
+
+
+def test_read_only_mcp_descriptor_allows_only_its_declared_bounded_tool() -> None:
+    value = _descriptor()
+    value["tools"] = [
+        {
+            "id": "mail_list_unread",
+            "kind": "mcp",
+            "remote_tool_name": "list_unread",
+            "side_effect": "read",
+        }
+    ]
+    value["task_invocation"] = {
+        **value["task_invocation"],  # type: ignore[index]
+        "allowed_tool_ids": ["mail_list_unread"],
+        "max_total_tool_calls": 3,
+    }
+
+    descriptor = WorkflowDescriptor.from_mapping(value)
+
+    assert descriptor.task_invocation.max_total_tool_calls == 3
+    assert descriptor.declared_tools[0].remote_tool_name == "list_unread"
+    validate_no_tool_runtime_nodes(
+        descriptor,
+        (
+            RuntimeNode(
+                id="lookup",
+                kind="llm_step",
+                available_tools=("mail_list_unread",),
+            ),
+        ),
+    )
+    with pytest.raises(WorkflowDescriptorError, match="undeclared tool"):
+        validate_no_tool_runtime_nodes(
+            descriptor,
+            (
+                RuntimeNode(
+                    id="console",
+                    kind="llm_step",
+                    available_tools=("mail_list_unread", "send_email"),
+                ),
+            ),
+        )
+
+
+def test_descriptor_rejects_declared_mcp_side_effect_before_g5() -> None:
+    value = _descriptor()
+    value["tools"] = [
+        {
+            "id": "mail_send",
+            "kind": "mcp",
+            "remote_tool_name": "send_email",
+            "side_effect": "write",
+        }
+    ]
+    value["task_invocation"] = {
+        **value["task_invocation"],  # type: ignore[index]
+        "allowed_tool_ids": ["mail_send"],
+        "max_total_tool_calls": 1,
+    }
+
+    with pytest.raises(WorkflowDescriptorError, match="read-only"):
+        WorkflowDescriptor.from_mapping(value)

@@ -47,6 +47,9 @@ passes.
 
 ## G1: Catalog, Profile, and Capability Boundary
 
+- [x] RED/GREEN: accept a task-specific declared read-only MCP tool set with
+      unique IDs, exact `allowed_tool_ids`, and finite total-call limit; reject
+      undeclared runtime tools and every non-read side effect before G5.
 - [ ] RED/GREEN: authoring tests accept a `WorkflowDescriptor` with no MCP
       tools and no skills, and emit the canonical DAR package artifacts plus a
       descriptor digest; separately prove optional declared capabilities become
