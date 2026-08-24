@@ -2,6 +2,19 @@
 # Resolve DAR identically for installed users and local-wheel verification.
 set -eu
 
+if [ -n "${DAR_AUTHORING_STATE_ROOT:-}" ]; then
+    if [ -L "$DAR_AUTHORING_STATE_ROOT" ]; then
+        echo "dar-workflow: state root must not be a symbolic link" >&2
+        exit 2
+    fi
+    (umask 077; mkdir -p "$DAR_AUTHORING_STATE_ROOT")
+    if [ -L "$DAR_AUTHORING_STATE_ROOT" ]; then
+        echo "dar-workflow: state root must not be a symbolic link" >&2
+        exit 2
+    fi
+    chmod 700 "$DAR_AUTHORING_STATE_ROOT"
+fi
+
 if [ -z "${UV_CACHE_DIR:-}" ] && [ -n "${DAR_AUTHORING_STATE_ROOT:-}" ]; then
     export UV_CACHE_DIR="$DAR_AUTHORING_STATE_ROOT/uv-cache"
 fi

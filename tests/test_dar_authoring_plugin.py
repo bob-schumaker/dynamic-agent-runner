@@ -87,6 +87,35 @@ def test_authoring_skill_uses_the_plugin_owned_dar_cli_wrapper() -> None:
     assert "source_selection_required" in skill
 
 
+def test_wrapper_makes_its_state_root_private_before_launching_uvx(
+    tmp_path: Path,
+) -> None:
+    wrapper = PLUGIN_ROOT / "scripts" / "dar-workflow"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_uvx = fake_bin / "uvx"
+    fake_uvx.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_uvx.chmod(0o755)
+    state_root = tmp_path / "state"
+    state_root.mkdir(mode=0o755)
+    state_root.chmod(0o755)
+
+    completed = subprocess.run(
+        [str(wrapper), "--help"],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        env={
+            **os.environ,
+            "DAR_AUTHORING_STATE_ROOT": str(state_root),
+            "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        },
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert state_root.stat().st_mode & 0o777 == 0o700
+
+
 def test_dar_stdio_server_initializes_without_execution_tools_before_configuration(
     tmp_path: Path,
 ) -> None:
