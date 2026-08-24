@@ -315,25 +315,25 @@ passes.
 
 ## G5: Model-Directed External-Tool Workflow Runner
 
-- [ ] RED/GREEN: require an `ArgumentProvenanceEnvelope` for every model-facing
+- [x] RED/GREEN: require an `ArgumentProvenanceEnvelope` for every model-facing
       tool argument. Verify v1 canonical serialization, UTF-8 byte spans,
       normalization identifiers, sealed/artifact/constant references, and typed
       transform inputs; reject raw/unverifiable values and remote-output or
       additional-context references in a model transform.
-- [ ] RED: undeclared, schema-invalid, drifted, or over-cardinality writes fail
+- [x] RED: undeclared, schema-invalid, drifted, or over-cardinality writes fail
       before their external handler runs; a schema-valid model-directed call on
       the approved surface is permitted.
-- [ ] GREEN: use wrapper-private bindings whose handlers verify the immutable
+- [x] GREEN: use wrapper-private bindings whose handlers verify the immutable
       registration context, schema, snapshot, and G4 hash-bound file ingress
       where applicable.
-- [ ] RED/GREEN: registration compilation proves each `AuthorizedToolBinding`
+- [x] RED/GREEN: registration compilation proves each `AuthorizedToolBinding`
       metadata matches the package tool contract before DAR receives it.
-- [ ] RED/GREEN: default `workflow_auto` (the CLI's `auto` mode) records the
+- [x] RED/GREEN: default `workflow_auto` (the CLI's `auto` mode) records the
       canonical external action; `--ask` uses a short-lived, one-use,
       local-principal-bound atomic approval decision.
 - [ ] RED/GREEN: changing the package revision, recipient alias, subject, body
       hash, profile, or snapshot invalidates an outstanding `--ask` decision.
-- [ ] RED/GREEN: local `--ask` blocks only at the wrapper handler boundary;
+- [x] RED/GREEN: local `--ask` blocks only at the wrapper handler boundary;
       approve invokes exactly once, while deny, cancel, and expiry produce a
       terminal non-executing result with no DAR continuation token or replay.
 - [ ] RED/GREEN: action ledger writes durable `intent` before dispatch and
