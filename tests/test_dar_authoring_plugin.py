@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_ROOT = REPO_ROOT / "dar-authoring"
+SERVER_PATH = PLUGIN_ROOT / "server" / "dar_workflow_server" / "server.py"
 
 
 def _read_json_lines(output: str) -> list[dict[str, object]]:
@@ -21,16 +23,24 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
         (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     mcp_config = json.loads((PLUGIN_ROOT / ".mcp.json").read_text(encoding="utf-8"))
+    project = tomllib.loads(
+        (PLUGIN_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    )
 
     assert manifest["name"] == "dar-authoring"
     assert manifest["mcpServers"] == "./.mcp.json"
+    assert project["project"]["name"] == "dar-authoring"
+    assert project["project"]["dependencies"] == ["dynamic-agent-runner==0.1.0"]
+    assert project["project"]["scripts"] == {
+        "dar-authoring-mcp": "dar_workflow_server.server:console_main"
+    }
     server = mcp_config["mcpServers"]["dar-authoring"]
     assert server["command"] == "uvx"
     assert server["args"] == [
         "--default-index",
         "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple",
         "--from",
-        "dynamic-agent-runner==0.1.0",
+        "dar-authoring==0.1.0",
         "dar-authoring-mcp",
         "--stdio",
     ]
@@ -55,7 +65,7 @@ def test_stdio_server_initializes_and_exposes_no_tools(tmp_path: Path) -> None:
     ]
 
     completed = subprocess.run(
-        [sys.executable, "-m", "dar_authoring_plugin.server", "--stdio"],
+        [sys.executable, str(SERVER_PATH), "--stdio"],
         input="".join(f"{json.dumps(request)}\n" for request in requests),
         capture_output=True,
         cwd=tmp_path,

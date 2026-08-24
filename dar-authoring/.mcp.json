@@ -5,7 +5,7 @@
         "--default-index",
         "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple",
         "--from",
-        "dynamic-agent-runner==0.1.0",
+        "dar-authoring==0.1.0",
         "dar-authoring-mcp",
         "--stdio"
       ],
