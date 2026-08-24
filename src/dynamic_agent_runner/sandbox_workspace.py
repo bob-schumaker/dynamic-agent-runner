@@ -214,7 +214,9 @@ def _open_regular_file(root_fd: int, parts: tuple[str, ...], *, label: str) -> i
             parent_fd = child_fd
         _reject_symlink(parent_fd, parts[-1], label=label)
         file_descriptor = os.open(
-            parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent_fd
+            parts[-1],
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+            dir_fd=parent_fd,
         )
         mode = os.fstat(file_descriptor).st_mode
         if not stat.S_ISREG(mode):

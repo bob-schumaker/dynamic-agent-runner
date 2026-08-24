@@ -213,18 +213,19 @@ passes.
 
 ## G4: Trusted File Ingress
 
-- [ ] RED: source files outside the configured caller input root, symlinks,
+- [x] RED: source files outside the configured caller input root, symlinks,
       devices, non-regular files, oversized content, invalid encoding, and
       parent-swap races are rejected.
-- [ ] GREEN: use the sandbox specification's descriptor-relative no-follow
+- [x] GREEN: use the sandbox specification's descriptor-relative no-follow
       primitive to copy the exact opened source into a fresh private workspace;
       return only an opaque input-artifact identifier, protected hash, and byte
       count.
 - [x] RED/GREEN: `WorkspaceIngressService` is the sole sandbox-copy caller;
       profile roots and descriptor roles/types determine its acceptance, and
       preparation receives only its opaque artifact record.
-- [ ] RED/GREEN: prove physical paths and raw body content are absent from model
-      inputs, tool results, traces, audit records, and approval displays.
+- [x] RED/GREEN: prove physical paths and raw body content are absent from model
+      inputs, tool results, and traces. G5 audit records and approval displays
+      do not yet exist; their own acceptance tests must preserve this invariant.
 - [x] RED/GREEN: extend preparation only after ingress with opaque artifact IDs
       and versions; it never reads a physical path or performs its own copy.
 

@@ -174,6 +174,7 @@ def test_cli_ingresses_a_registered_workspace_file_without_returning_its_path(
         "expires_at",
     }
     assert str(document) not in json.dumps(artifact)
+    assert "document body" not in json.dumps(artifact)
 
     status, prepared = _invoke(
         [
@@ -190,3 +191,4 @@ def test_cli_ingresses_a_registered_workspace_file_without_returning_its_path(
 
     assert status == 0
     assert str(document) not in json.dumps(prepared)
+    assert "document body" not in json.dumps(prepared)

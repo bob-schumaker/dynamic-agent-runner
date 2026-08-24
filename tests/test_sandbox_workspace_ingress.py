@@ -140,6 +140,7 @@ def test_copy_regular_file_no_follow_rejects_nonregular_and_oversize_sources(
     source_root = tmp_path / "input"
     source_root.mkdir()
     (source_root / "directory").mkdir()
+    os.mkfifo(source_root / "pipe")
     (source_root / "large.txt").write_bytes(b"0123456789")
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -150,6 +151,14 @@ def test_copy_regular_file_no_follow_rejects_nonregular_and_oversize_sources(
             source_relative_path="directory",
             workspace_root=workspace,
             destination_name="directory.txt",
+            max_bytes=100,
+        )
+    with pytest.raises(SandboxWorkspaceError, match="regular"):
+        copy_regular_file_no_follow(
+            source_root=source_root,
+            source_relative_path="pipe",
+            workspace_root=workspace,
+            destination_name="pipe.txt",
             max_bytes=100,
         )
     with pytest.raises(SandboxWorkspaceError, match="maximum"):
