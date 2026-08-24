@@ -62,6 +62,24 @@ class FakeClient:
         self.responses = FakeResponses(content)
 
 
+class ArtifactVerifier:
+    def load(
+        self,
+        artifact_id: str,
+        *,
+        workflow_id: str,
+        registration_digest: str,
+        now: datetime,
+    ) -> object:
+        if (
+            artifact_id != "v1.workspace-artifact"
+            or workflow_id != "document-helper"
+            or not registration_digest
+        ):
+            raise ValueError("unexpected artifact")
+        return object()
+
+
 class MemorySecretStore:
     def __init__(self) -> None:
         self.values: dict[str, str] = {}
@@ -124,7 +142,11 @@ class QueuedClient:
 
 
 def _runner(
-    tmp_path: Path, *, local: bool = True, terminal_required_field: str = "message"
+    tmp_path: Path,
+    *,
+    local: bool = True,
+    terminal_required_field: str = "message",
+    artifact_verifier: object | None = None,
 ):
     source = tmp_path / "packages" / "document-helper"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -163,7 +185,10 @@ def _runner(
         ),
     )
     preparation = WorkflowInvocationPreparationService(
-        registrations=registrations, catalog=catalog, store=store
+        registrations=registrations,
+        catalog=catalog,
+        store=store,
+        artifact_verifier=artifact_verifier,  # type: ignore[arg-type]
     )
     client = FakeClient("completed locally")
     adapter = OpenAIClientAdapter(
@@ -353,6 +378,39 @@ def test_runner_executes_one_sealed_no_tool_workflow(tmp_path: Path) -> None:
     assert len(client.responses.calls) == 1
     assert runner.traces()[-1].workflow_id == "document-helper"
     assert "Answer me." not in repr(runner.traces()[-1])
+
+
+def test_runner_never_sends_a_sealed_workspace_artifact_to_the_model_or_trace(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, _, _, client = _runner(
+        tmp_path, artifact_verifier=ArtifactVerifier()
+    )
+    prepared = preparation.prepare(
+        workflow_id="document-helper",
+        prompt="Answer me.",
+        workspace_artifact_ids=("v1.workspace-artifact",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": "document-helper",
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.output == {"message": "completed locally"}
+    model_request = repr(client.responses.calls)
+    trace = repr(runner.traces()[-1])
+    assert "v1.workspace-artifact" not in model_request
+    assert "private document body" not in model_request
+    assert "v1.workspace-artifact" not in trace
+    assert "private document body" not in trace
 
 
 def test_runner_rejects_terminal_output_that_misses_registered_contract_field(
