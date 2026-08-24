@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 import tomllib
+import zipfile
 from pathlib import Path
 
 
@@ -55,6 +56,39 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
     ]
     assert all("{" not in value for value in server["args"])
     assert not any(value.startswith(("/", "./", "../")) for value in server["args"])
+
+
+def test_built_plugin_wheel_contains_launch_assets_and_console_scripts() -> None:
+    completed = subprocess.run(
+        ["poetry", "build", "--format", "wheel"],
+        cwd=PLUGIN_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+        timeout=30,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    wheel = PLUGIN_ROOT / "dist" / "dar_authoring-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel) as archive:
+        names = set(archive.namelist())
+        entry_points = archive.read(
+            "dar_authoring-0.1.0.dist-info/entry_points.txt"
+        ).decode("utf-8")
+
+    assert {
+        ".codex-plugin/plugin.json",
+        ".mcp.json",
+        "dar_workflow_server/server.py",
+        "skills/agent-development/SKILL.md",
+        "skills/agent-tool-contract-design/SKILL.md",
+        "skills/agent-evaluation/SKILL.md",
+        "templates/workflow-descriptor.yaml",
+        "read-only-mcp-template/workflow-descriptor.yaml",
+    } <= names
+    assert "dar-authoring-mcp=dar_workflow_server.server:console_main" in entry_points
+    assert "dar-workflow=dar_workflow_server.cli:console_main" in entry_points
+    assert "dar-workflow-run=dar_workflow_server.cli:run_console_main" in entry_points
 
 
 def test_stdio_server_initializes_and_exposes_no_tools(tmp_path: Path) -> None:
