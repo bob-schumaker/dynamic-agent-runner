@@ -11,8 +11,18 @@ from pathlib import Path
 from typing import Sequence
 
 from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
+from dar_workflow_server.action_ledger import WorkflowActionLedger
 from dar_workflow_server.approvals import WorkflowApprovalStore
 from dar_workflow_server.authorized_tools import LocalActionApprovalBroker
+from dar_workflow_server.connections import MCPConnectionControlPlane
+from dar_workflow_server.mcp_binding import MCPWorkflowCapabilityBindingControlPlane
+from dar_workflow_server.mcp_client import (
+    HTTPSJSONRPCMCPTransportFactory,
+    MCPClientConfiguration,
+    MCPConnectionClient,
+    MCPConnectionClientError,
+)
+from dar_workflow_server.mcp_surfaces import MCPSurfaceSnapshotControlPlane
 from dar_workflow_server.package_sources import PackageSourceSelectionPolicy
 from dar_workflow_server.policy import (
     PolicyCompilationError,
@@ -64,6 +74,7 @@ class LocalWorkflowHostConfiguration:
     profile_id: str
     workspace_input_root: Path | None = None
     workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES
+    mcp_client_configuration: MCPClientConfiguration | None = None
 
 
 def configure_local_host(
@@ -74,6 +85,7 @@ def configure_local_host(
     base_url: str,
     workspace_input_root: Path | None = None,
     workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
+    mcp_client_configuration: MCPClientConfiguration | None = None,
 ) -> LocalWorkflowHostConfiguration:
     """Create the human-owned v1 local model profile and host configuration."""
 
@@ -94,6 +106,7 @@ def configure_local_host(
         profile.profile_id,
         workspace_input_root,
         workspace_input_max_bytes,
+        mcp_client_configuration,
     )
     _write_configuration(root, configuration)
     return configuration
@@ -113,6 +126,7 @@ class LocalWorkflowHost:
         preparation: WorkflowInvocationPreparationService,
         runner: WorkflowRunner,
         workspace_ingress: WorkspaceIngressService | None,
+        mcp_client: MCPConnectionClient | None = None,
     ) -> None:
         self._configuration = configuration
         self._sources = sources
@@ -122,6 +136,7 @@ class LocalWorkflowHost:
         self._preparation = preparation
         self._runner = runner
         self._workspace_ingress = workspace_ingress
+        self._mcp_client = mcp_client
 
     @classmethod
     def open(cls, root: Path) -> LocalWorkflowHost:
@@ -132,11 +147,20 @@ class LocalWorkflowHost:
         store = PrivateStateStore(root)
         profiles = LocalModelProfileControlPlane(store=store)
         profile = profiles.load(configuration.profile_id)
+        connections = MCPConnectionControlPlane(store=store, profiles=profiles)
+        surfaces = MCPSurfaceSnapshotControlPlane(store=store, connections=connections)
+        mcp_bindings = MCPWorkflowCapabilityBindingControlPlane(
+            store=store, surfaces=surfaces
+        )
+        mcp_client = _mcp_client(configuration=configuration, connections=connections)
         catalog = PackageCatalog(root / "catalog")
         registrations = WorkflowRegistrationService(
             profiles=profiles,
             configured_profile_id=profile.profile_id,
             root=root / "registrations",
+            mcp_bindings=mcp_bindings if mcp_client is not None else None,
+            mcp_client=mcp_client,
+            mcp_surfaces=surfaces if mcp_client is not None else None,
         )
         workspace_ingress = _workspace_ingress_service(
             root=root, configuration=configuration, store=store
@@ -161,11 +185,23 @@ class LocalWorkflowHost:
                 catalog=catalog,
                 preparation=preparation,
                 model_adapter=create_local_adapter(profile),
+                mcp_bindings=mcp_bindings if mcp_client is not None else None,
+                mcp_client=mcp_client,
+                mcp_surfaces=surfaces if mcp_client is not None else None,
+                action_ledger=(
+                    WorkflowActionLedger(
+                        store=store,
+                        owner=InstallationIdentityProvider().principal,
+                    )
+                    if mcp_client is not None
+                    else None
+                ),
                 approval_store=WorkflowApprovalStore(
                     store=store, owner=InstallationIdentityProvider().principal
                 ),
             ),
             workspace_ingress=workspace_ingress,
+            mcp_client=mcp_client,
         )
 
     def select_package(self, path: Path, *, now: datetime) -> str:
@@ -174,7 +210,12 @@ class LocalWorkflowHost:
         return self._sources.select_directory(path, now=now)
 
     def register(
-        self, *, workflow_id: str, package_source_handle: str, now: datetime
+        self,
+        *,
+        workflow_id: str,
+        package_source_handle: str,
+        now: datetime,
+        mcp_binding_id: str | None = None,
     ) -> WorkflowRegistration:
         """Stage, compile, and bind a human-selected package to a local alias."""
 
@@ -182,12 +223,22 @@ class LocalWorkflowHost:
             self._stager.stage(package_source_handle, now=now)
         )
         policy = compile_workflow_policy(revision)
+        self._ensure_mcp_client(policy_requires_mcp=bool(policy.declared_tools))
         return self._registrations.register(
             workflow_id=workflow_id,
             policy=policy,
             capability_resolution=resolve_capabilities(
-                policy, available_capabilities={"local_model"}
+                policy,
+                available_capabilities={
+                    "local_model",
+                    *(
+                        {"mcp_read_only", "mcp_side_effects"}
+                        if self._mcp_client is not None
+                        else set()
+                    ),
+                },
             ),
+            mcp_binding_id=mcp_binding_id,
         )
 
     def prepare(
@@ -259,6 +310,7 @@ class LocalWorkflowHost:
     ) -> DryRunDarWorkflowResult:
         """Validate a sealed run without invoking a model or consuming input."""
 
+        self._ensure_mcp_client_for_workflow(workflow_id)
         return self._runner.dry_run(_request(workflow_id, prepared_input_id), now=now)
 
     def run(
@@ -271,11 +323,41 @@ class LocalWorkflowHost:
     ) -> RunDarWorkflowResult:
         """Execute a sealed local no-tool workflow through the one runner."""
 
+        self._ensure_mcp_client_for_workflow(workflow_id)
         return self._runner.run(
             _request(workflow_id, prepared_input_id),
             now=now,
             approval_broker=approval_broker,
         )
+
+    def _ensure_mcp_client_for_workflow(self, workflow_id: str) -> None:
+        try:
+            registration = self._registrations.resolve(workflow_id)
+        except WorkflowRegistrationError as error:
+            raise LocalWorkflowHostError(
+                "workflow registration is unavailable"
+            ) from error
+        self._ensure_mcp_client(
+            policy_requires_mcp=registration.mcp_binding_id is not None
+        )
+
+    def _ensure_mcp_client(self, *, policy_requires_mcp: bool) -> None:
+        if not policy_requires_mcp:
+            return
+        if self._mcp_client is None:
+            raise LocalWorkflowHostError("MCP client is not configured")
+        try:
+            generation = self._mcp_client.current_generation
+        except MCPConnectionClientError:
+            try:
+                self._mcp_client.initialize()
+            except MCPConnectionClientError as error:
+                raise LocalWorkflowHostError(
+                    "configured MCP connection is unavailable"
+                ) from error
+        else:
+            if generation <= 0:
+                raise LocalWorkflowHostError("configured MCP connection is unavailable")
 
 
 def _request(workflow_id: str, prepared_input_id: str) -> RunDarWorkflowRequest:
@@ -315,7 +397,11 @@ def _read_configuration(root: Path) -> LocalWorkflowHostConfiguration:
     if not isinstance(profile_id, str) or not profile_id.startswith("v1."):
         raise LocalWorkflowHostError("local host configuration is invalid")
     return LocalWorkflowHostConfiguration(
-        package_root, profile_id, workspace_input_root, input_max_bytes
+        package_root,
+        profile_id,
+        workspace_input_root,
+        input_max_bytes,
+        _mcp_configuration(value.get("mcp_client_configuration")),
     )
 
 
@@ -334,6 +420,9 @@ def _write_configuration(root: Path, value: LocalWorkflowHostConfiguration) -> N
                     else None
                 ),
                 "workspace_input_max_bytes": value.workspace_input_max_bytes,
+                "mcp_client_configuration": _mcp_configuration_mapping(
+                    value.mcp_client_configuration
+                ),
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -342,6 +431,52 @@ def _write_configuration(root: Path, value: LocalWorkflowHostConfiguration) -> N
     )
     os.chmod(temporary, 0o600)
     os.replace(temporary, destination)
+
+
+def _mcp_client(
+    *,
+    configuration: LocalWorkflowHostConfiguration,
+    connections: MCPConnectionControlPlane,
+) -> MCPConnectionClient | None:
+    client_configuration = configuration.mcp_client_configuration
+    if client_configuration is None:
+        return None
+    return MCPConnectionClient(
+        connections=connections,
+        configuration=client_configuration,
+        transport_factory=HTTPSJSONRPCMCPTransportFactory(),
+    )
+
+
+def _mcp_configuration_mapping(
+    value: MCPClientConfiguration | None,
+) -> dict[str, object] | None:
+    if value is None:
+        return None
+    return {
+        "connection_id": value.connection_id,
+        "authentication_id": value.authentication_id,
+        "peer_certificate_sha256": value.peer_certificate_sha256,
+        "timeout_seconds": value.timeout_seconds,
+        "max_response_bytes": value.max_response_bytes,
+    }
+
+
+def _mcp_configuration(value: object) -> MCPClientConfiguration | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != {
+        "connection_id",
+        "authentication_id",
+        "peer_certificate_sha256",
+        "timeout_seconds",
+        "max_response_bytes",
+    }:
+        raise LocalWorkflowHostError("local host configuration is invalid")
+    try:
+        return MCPClientConfiguration(**value)
+    except (TypeError, MCPConnectionClientError) as error:
+        raise LocalWorkflowHostError("local host configuration is invalid") from error
 
 
 def _validate_root(path: Path) -> None:

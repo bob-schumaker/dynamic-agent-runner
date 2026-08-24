@@ -19,6 +19,7 @@ from dar_workflow_server.host import (  # noqa: E402
     LocalWorkflowHost,
     configure_local_host,
 )
+from dar_workflow_server.mcp_client import MCPClientConfiguration  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -37,6 +38,43 @@ class _Responses:
 class _Client:
     def __init__(self) -> None:
         self.responses = _Responses()
+
+
+def test_host_reopens_a_secret_free_configured_mcp_client(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    monkeypatch.setattr(
+        "dar_workflow_server.host.create_local_adapter",
+        lambda profile: OpenAIClientAdapter(
+            _Client(), models=[profile.model_id], is_local=True
+        ),
+    )
+    mcp_configuration = MCPClientConfiguration(
+        connection_id="v1.connection",
+        authentication_id="v1.authentication",
+        peer_certificate_sha256="a" * 64,
+        timeout_seconds=10,
+        max_response_bytes=32_768,
+    )
+
+    configure_local_host(
+        root=tmp_path / "state",
+        package_root=package_root,
+        model_id="local-model-v1",
+        base_url="http://127.0.0.1:11434/v1",
+        mcp_client_configuration=mcp_configuration,
+    )
+
+    host = LocalWorkflowHost.open(tmp_path / "state")
+
+    assert host._mcp_client is not None
+    assert host._mcp_client.configuration == mcp_configuration
+    host_json = (tmp_path / "state" / "host.json").read_text(encoding="utf-8")
+    assert "connection" in host_json
+    assert "authentication" in host_json
+    assert "token" not in host_json
 
 
 def test_host_composes_human_setup_with_sealed_dry_run(
