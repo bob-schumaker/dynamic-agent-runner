@@ -33,6 +33,12 @@ def main(
             configured = configure_local_host(
                 root=root,
                 package_root=Path(args.package_root),
+                workspace_input_root=(
+                    Path(args.workspace_input_root)
+                    if args.workspace_input_root is not None
+                    else None
+                ),
+                workspace_input_max_bytes=args.workspace_input_max_bytes,
                 model_id=args.model_id,
                 base_url=args.base_url,
             )
@@ -65,6 +71,24 @@ def main(
                     "workflow_id": registration.workflow_id,
                     "registration_digest": registration.registration_digest,
                     "profile_id": registration.profile_id,
+                },
+            )
+            return 0
+        if args.command == "ingress-file":
+            artifact = host.ingress_file(
+                workflow_id=args.workflow_id,
+                path=Path(args.path),
+                role=args.role,
+                media_type=args.media_type,
+                now=now,
+            )
+            _write(
+                write,
+                {
+                    "artifact_id": artifact.artifact_id,
+                    "content_hash": artifact.content_hash,
+                    "byte_count": artifact.byte_count,
+                    "expires_at": artifact.expires_at.isoformat(),
                 },
             )
             return 0
@@ -116,6 +140,10 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     configure = commands.add_parser("configure-local-model")
     configure.add_argument("--package-root", required=True)
+    configure.add_argument("--workspace-input-root")
+    configure.add_argument(
+        "--workspace-input-max-bytes", type=int, default=8 * 1024 * 1024
+    )
     configure.add_argument("--model-id", required=True)
     configure.add_argument("--base-url", required=True)
     select = commands.add_parser("select-package")
@@ -123,6 +151,11 @@ def _parser() -> argparse.ArgumentParser:
     register = commands.add_parser("register")
     register.add_argument("--workflow-id", required=True)
     register.add_argument("--package-source-handle", required=True)
+    ingress = commands.add_parser("ingress-file")
+    ingress.add_argument("--workflow-id", required=True)
+    ingress.add_argument("--path", required=True)
+    ingress.add_argument("--role", required=True)
+    ingress.add_argument("--media-type", required=True)
     prepare = commands.add_parser("prepare")
     prepare.add_argument("--workflow-id", required=True)
     prepare.add_argument("--prompt", required=True)
