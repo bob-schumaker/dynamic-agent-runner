@@ -26,6 +26,7 @@ MAX_PACKAGE_BYTES = 64 * 1024 * 1024
 MAX_PACKAGE_FILES = 256
 _READ_SIZE = 64 * 1024
 _PACKAGE_MANIFEST_NAME = "package-manifest.json"
+_HUMAN_SELECTED_LOCAL = "human_selected_local"
 
 
 class PackageStagingError(ValueError):
@@ -40,6 +41,7 @@ class StagedPackage:
     digest: str
     file_count: int
     byte_count: int
+    trust: str
 
 
 class PrivatePackageStager:
@@ -53,7 +55,9 @@ class PrivatePackageStager:
     def stage(self, source_handle: str, *, now: datetime) -> StagedPackage:
         """Stage, validate, and seal one local-control-plane package source."""
 
-        source_type, source_root, source_path = self._source_paths(source_handle, now)
+        source_type, source_root, source_path, trust = self._source_paths(
+            source_handle, now
+        )
         private_root = _private_directory(self._private_root)
         temporary_root = private_root / f".stage-{secrets.token_hex(16)}"
         temporary_root.mkdir(mode=0o700)
@@ -99,7 +103,7 @@ class PrivatePackageStager:
             else:
                 os.replace(temporary_root, final_root)
                 _seal_tree(final_root)
-            return StagedPackage(final_root, digest, file_count, byte_count)
+            return StagedPackage(final_root, digest, file_count, byte_count, trust)
         finally:
             if source_fd >= 0:
                 os.close(source_fd)
@@ -110,7 +114,7 @@ class PrivatePackageStager:
 
     def _source_paths(
         self, source_handle: str, now: datetime
-    ) -> tuple[str, Path, Path]:
+    ) -> tuple[str, Path, Path, str]:
         try:
             record = self._store.load(
                 source_handle,
@@ -124,6 +128,9 @@ class PrivatePackageStager:
         source_type = payload.get("source_type")
         if source_type not in {"directory", "zip"}:
             raise PackageStagingError("package source type is invalid")
+        trust = payload.get("trust")
+        if trust != _HUMAN_SELECTED_LOCAL:
+            raise PackageStagingError("package source trust is invalid")
         root = _absolute_path(payload.get("source_root"), "package source root")
         path = _absolute_path(payload.get("source_path"), "package source path")
         try:
@@ -132,7 +139,7 @@ class PrivatePackageStager:
             raise PackageStagingError(
                 "package source path is outside its root"
             ) from error
-        return source_type, root, path
+        return source_type, root, path, trust
 
 
 def _private_directory(path: Path) -> Path:

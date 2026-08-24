@@ -25,6 +25,7 @@ class CatalogPackageRevision:
     package_id: str
     revision_digest: str
     package_root: Path
+    trust: str
 
 
 class PackageCatalog:
@@ -51,13 +52,20 @@ class PackageCatalog:
             raise PackageCatalogError("staged package has no package_id")
         if not _is_digest(staged.digest):
             raise PackageCatalogError("staged package digest is invalid")
-        revision = CatalogPackageRevision(package_id, staged.digest, package_root)
+        if staged.trust != "human_selected_local":
+            raise PackageCatalogError("staged package trust is invalid")
+        revision = CatalogPackageRevision(
+            package_id, staged.digest, package_root, staged.trust
+        )
         packages = self._read()
         revisions = packages.setdefault(package_id, {})
         existing = revisions.get(staged.digest)
         if existing is not None:
             return _revision_from_mapping(package_id, staged.digest, existing)
-        revisions[staged.digest] = {"package_root": str(package_root)}
+        revisions[staged.digest] = {
+            "package_root": str(package_root),
+            "trust": staged.trust,
+        }
         self._write(packages)
         return revision
 
@@ -107,9 +115,10 @@ def _revision_from_mapping(
     if not _is_digest(digest) or not isinstance(value, Mapping):
         raise PackageCatalogError("package catalog is invalid")
     root = value.get("package_root")
-    if not isinstance(root, str):
+    trust = value.get("trust")
+    if not isinstance(root, str) or trust not in {"human_selected_local"}:
         raise PackageCatalogError("package catalog is invalid")
-    return CatalogPackageRevision(package_id, digest, Path(root))
+    return CatalogPackageRevision(package_id, digest, Path(root), trust)
 
 
 def _is_digest(value: object) -> bool:

@@ -296,6 +296,10 @@ passes.
       manifest bytes, binds a bounded publisher key ID, and rejects unknown
       publishers, altered manifests, malformed signatures, and malformed key
       material. It does not persist keys or authorize import on its own.
+- [x] RED/GREEN: each human-selected local source carries an explicit
+      `human_selected_local` decision through staging and records it against
+      the immutable catalog revision/content-manifest digest; an unrecognized
+      staged trust value fails closed at catalog import.
 - [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
       signer/key-id binding, rejection of an unknown locally trusted publisher
       key, and a recipient-host signed-package import. Explicitly selected

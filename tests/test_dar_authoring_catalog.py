@@ -47,6 +47,7 @@ def test_catalog_reimport_is_idempotent(tmp_path: Path) -> None:
     assert first.package_id == "dar-authoring-no-tool-template"
     assert first.revision_digest == staged.digest
     assert first.package_root == staged.root
+    assert first.trust == "human_selected_local"
 
 
 def test_catalog_retains_prior_revisions_for_same_package_id(tmp_path: Path) -> None:

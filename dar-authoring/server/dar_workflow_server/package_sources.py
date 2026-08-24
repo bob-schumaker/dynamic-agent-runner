@@ -11,6 +11,9 @@ from dar_workflow_server.profiles import InstallationIdentityProvider
 from dar_workflow_server.state import OpaqueRecordError, PrivateStateStore
 
 
+_HUMAN_SELECTED_LOCAL = "human_selected_local"
+
+
 class PackageSourceSelectionError(ValueError):
     """Raised when a selected package source is outside the trusted boundary."""
 
@@ -43,6 +46,7 @@ class PackageSourceSelectionPolicy:
                     "source_type": "directory",
                     "source_root": str(root),
                     "source_path": str(candidate),
+                    "trust": _HUMAN_SELECTED_LOCAL,
                 },
                 expires_at=now.astimezone(UTC) + timedelta(minutes=5),
                 now=now,
@@ -70,6 +74,7 @@ class PackageSourceSelectionPolicy:
                     "source_type": "zip",
                     "source_root": str(root),
                     "source_path": str(candidate),
+                    "trust": _HUMAN_SELECTED_LOCAL,
                 },
                 expires_at=now.astimezone(UTC) + timedelta(minutes=5),
                 now=now,
