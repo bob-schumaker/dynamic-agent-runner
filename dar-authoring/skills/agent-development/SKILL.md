@@ -24,6 +24,11 @@ contract.
 
 ## Output
 
+Before writing a package, require the host's DAR loader and deterministic
+authoring-manifest writer. If either is unavailable, do not emit an unvalidated
+package or invent its manifest; return the deliberate refusal
+`authoring_runtime_unavailable` and name the missing host capability.
+
 Generate a package directory containing:
 
 - `agent-design.md`

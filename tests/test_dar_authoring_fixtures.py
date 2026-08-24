@@ -173,3 +173,6 @@ def test_adapted_skills_are_portable_and_cover_fixture_contracts() -> None:
     assert "host-owned" in tool_contract
     assert "endpoint URL" not in tool_contract
     assert "credential" in tool_contract
+    assert "authoring_runtime_unavailable" in (
+        SKILL_ROOT / "agent-development" / "SKILL.md"
+    ).read_text(encoding="utf-8")
