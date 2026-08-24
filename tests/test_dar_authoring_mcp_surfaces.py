@@ -37,6 +37,19 @@ class MemorySecretStore:
         self.values.pop(reference, None)
 
 
+class ReconnectedClient:
+    def __init__(
+        self, connection_id: str, authentication_id: str, tools: list[MCPDiscoveredTool]
+    ) -> None:
+        self.connection_id = connection_id
+        self.authentication_id = authentication_id
+        self.current_generation = 2
+        self._tools = tuple(tools)
+
+    def list_tools(self) -> tuple[MCPDiscoveredTool, ...]:
+        return self._tools
+
+
 def _control(
     tmp_path: Path,
 ) -> tuple[MCPSurfaceSnapshotControlPlane, str, str]:
@@ -165,6 +178,34 @@ def test_snapshot_detects_tool_or_input_schema_drift(tmp_path: Path) -> None:
 
     with pytest.raises(MCPSurfaceSnapshotError, match="surface_changed"):
         control.verify_current(snapshot.snapshot_id, changed)
+
+
+def test_snapshot_revalidates_same_identity_reconnect_but_rejects_schema_drift(
+    tmp_path: Path,
+) -> None:
+    control, connection_id, authentication_id = _control(tmp_path)
+    snapshot = control.create(
+        connection_id=connection_id,
+        authentication_id=authentication_id,
+        connection_generation=1,
+        tools=_tools(),
+        approved_read_only_tool_names={"list_unread"},
+    )
+
+    verified, tools = control.verify_reconnected_client_tools(
+        snapshot.snapshot_id,
+        ReconnectedClient(connection_id, authentication_id, _tools()),
+    )
+
+    assert verified == snapshot
+    assert tools == tuple(_tools())
+    changed = _tools()
+    changed[0] = MCPDiscoveredTool("list_unread", {"type": "string"})
+    with pytest.raises(MCPSurfaceSnapshotError, match="surface_changed"):
+        control.verify_reconnected_client_tools(
+            snapshot.snapshot_id,
+            ReconnectedClient(connection_id, authentication_id, changed),
+        )
 
 
 def test_snapshot_rejects_unknown_or_duplicate_reviewed_tools(tmp_path: Path) -> None:

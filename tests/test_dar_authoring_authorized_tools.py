@@ -301,7 +301,7 @@ def test_authorized_binding_rejects_a_second_call_over_its_budget(
     ]
 
 
-def test_authorized_binding_rejects_snapshot_drift_before_dispatch(
+def test_authorized_binding_allows_a_revalidated_same_identity_reconnect(
     tmp_path: Path,
 ) -> None:
     registry, client, _ = _registry(tmp_path)
@@ -309,8 +309,10 @@ def test_authorized_binding_rejects_snapshot_drift_before_dispatch(
 
     result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
 
-    assert result.success is False
-    assert client.calls == []
+    assert result.success is True
+    assert client.calls == [
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
 
 
 def test_authorized_binding_dispatches_only_after_local_approval(

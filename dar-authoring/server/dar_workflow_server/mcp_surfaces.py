@@ -218,6 +218,20 @@ class MCPSurfaceSnapshotControlPlane:
         tools = client.list_tools()
         return self.verify_current(snapshot_id, tools), tools
 
+    def verify_reconnected_client_tools(
+        self, snapshot_id: str, client: CurrentMCPSurfaceClient
+    ) -> tuple[MCPSurfaceSnapshot, tuple[MCPDiscoveredTool, ...]]:
+        """Revalidate a reconnect against identity and full reviewed surface."""
+
+        snapshot = self.load(snapshot_id)
+        if (
+            client.connection_id != snapshot.connection_id
+            or client.authentication_id != snapshot.authentication_id
+        ):
+            raise MCPSurfaceSnapshotError("surface_changed")
+        tools = client.list_tools()
+        return self.verify_current(snapshot_id, tools), tools
+
 
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 _SIDE_EFFECT_CLASSES = frozenset({"read", "write", "delete"})

@@ -176,7 +176,7 @@ def test_host_binding_dispatches_only_the_current_reviewed_read_only_tool(
     assert client.calls == [("list_unread", {"folder": "inbox"})]
 
 
-def test_host_binding_rejects_reconnect_before_remote_tool_dispatch(
+def test_host_binding_allows_a_revalidated_same_identity_reconnect(
     tmp_path: Path,
 ) -> None:
     surfaces, binding_control, binding, client = _setup(tmp_path)
@@ -193,9 +193,8 @@ def test_host_binding_rejects_reconnect_before_remote_tool_dispatch(
 
     result = registry.invoke_tool("mail_lookup", {"folder": "inbox"})
 
-    assert result.success is False
-    assert "surface_changed" in (result.error or "")
-    assert client.calls == []
+    assert result.success is True
+    assert client.calls == [("list_unread", {"folder": "inbox"})]
 
 
 def test_host_binding_never_constructs_an_unapproved_send_like_handler(

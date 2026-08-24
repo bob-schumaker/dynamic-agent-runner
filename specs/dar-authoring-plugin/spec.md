@@ -556,12 +556,14 @@ their own adapter fixtures and lifecycle policy pass.
 
 Connection identity is transport-specific: an HTTPS profile pins its validated
 TLS/server identity, while any future stdio profile must pin a configured
-executable identity and process policy. A handler is bound to one connection
-generation, snapshot digest, and identity attestation. It rechecks that binding
-immediately before every dispatch as the exact tuple `{connection_id,
-client_generation, authenticated_peer_identity, snapshot_digest}` against the
-live initialized client. Reconnect, credential rotation, or snapshot drift
-invalidates the generation and returns `surface_changed` or
+executable identity and process policy. A handler is bound to one reviewed
+snapshot digest and identity attestation. It rechecks `{connection_id,
+authenticated_peer_identity, snapshot_digest}` and the full canonical
+`tools/list` identity/schema surface immediately before every dispatch. A
+reconnect to the same configured connection and authentication binding may
+proceed without human intervention only after that revalidation succeeds; the
+action ledger records the new live client generation. Credential rotation, peer
+identity change, or snapshot drift returns `surface_changed` or
 `capability_unavailable`; it never transparently replaces or widens a live
 binding during an authorized side-effect dispatch. Cancellation is
 capability-negotiated. A cancelled non-cancellable external mutation has an

@@ -747,7 +747,7 @@ def test_side_effecting_workflow_dry_run_constructs_no_action(
     assert model_client.responses.calls == []
 
 
-def test_runner_rejects_mcp_generation_drift_before_consuming_input(
+def test_runner_allows_a_revalidated_same_identity_reconnect(
     tmp_path: Path,
 ) -> None:
     runner, preparation, mcp_client, model_client = _tool_runner(tmp_path)
@@ -756,20 +756,20 @@ def test_runner_rejects_mcp_generation_drift_before_consuming_input(
     )
     mcp_client.current_generation = 2
 
-    with pytest.raises(RunDarWorkflowError, match="MCP capability is unavailable"):
-        runner.run(
-            RunDarWorkflowRequest.from_mapping(
-                {
-                    "format_version": 1,
-                    "workflow_id": "mail-reader",
-                    "prepared_input_id": prepared.prepared_input_id,
-                }
-            ),
-            now=NOW,
-        )
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": "mail-reader",
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
 
-    assert mcp_client.calls == []
-    assert model_client.responses.calls == []
+    assert result.status == "completed"
+    assert mcp_client.calls == [("list_unread", {"folder": "inbox"})]
+    assert len(model_client.responses.calls) == 2
 
 
 def test_request_rejects_raw_prompt_and_unknown_fields() -> None:

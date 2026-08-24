@@ -103,7 +103,7 @@ def create_authorized_mcp_tool_bindings(
     try:
         binding = binding_control.load(binding_id)
         _require_binding(policy, binding)
-        _, current_tools = surfaces.verify_current_client_tools(
+        _, current_tools = surfaces.verify_reconnected_client_tools(
             binding.snapshot_id, client
         )
         discovered = _tools_by_name(current_tools)
@@ -164,7 +164,7 @@ def _binding(
             _validate_arguments(remote_schema, normalized)
             current = binding_control.load(binding.binding_id)
             _require_binding(policy, current)
-            surfaces.verify_current_client(current.snapshot_id, client)
+            surfaces.verify_reconnected_client_tools(current.snapshot_id, client)
             surfaces.require_approved_tool(
                 current.snapshot_id, tool.remote_tool_name, tool.side_effect
             )
@@ -174,7 +174,7 @@ def _binding(
                 registration_digest=registration.registration_digest,
                 profile_id=registration.profile_id,
                 snapshot_id=current.snapshot_id,
-                connection_generation=current.connection_generation,
+                connection_generation=client.current_generation,
                 trace_correlation=trace_correlation,
                 tool_id=tool.tool_id,
                 remote_tool_name=tool.remote_tool_name,

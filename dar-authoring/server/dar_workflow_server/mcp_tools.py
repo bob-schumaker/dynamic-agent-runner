@@ -50,7 +50,7 @@ def create_read_only_mcp_tool_bindings(
             dict(binding.tool_id_to_remote_name) != expected
         ):
             raise MCPToolBindingError("MCP capability binding does not match policy")
-        snapshot, current_tools = surfaces.verify_current_client_tools(
+        snapshot, current_tools = surfaces.verify_reconnected_client_tools(
             binding.snapshot_id, client
         )
         discovered = _tools_by_name(current_tools)
@@ -85,7 +85,7 @@ def _host_binding(
     def handler(arguments: Mapping[str, object]) -> Mapping[str, object]:
         try:
             binding = binding_control.load(binding_id)
-            surfaces.verify_current_client(binding.snapshot_id, client)
+            surfaces.verify_reconnected_client_tools(binding.snapshot_id, client)
             if binding.tool_id_to_remote_name.get(tool_id) != remote_name:
                 raise MCPToolBindingError(
                     "MCP capability binding does not match policy"
