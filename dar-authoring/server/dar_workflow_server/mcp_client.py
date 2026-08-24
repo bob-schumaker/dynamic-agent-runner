@@ -9,7 +9,7 @@ import hashlib
 import ssl
 from dataclasses import dataclass, field
 from threading import Event
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Mapping, Protocol
 from urllib.parse import urlsplit
 
 from dar_workflow_server.connections import (
@@ -94,6 +94,16 @@ class HTTPSMCPTransportSession(Protocol):
         self, *, timeout_seconds: int, max_response_bytes: int
     ) -> tuple[MCPDiscoveredTool, ...]:
         """Return the bounded remote `tools/list` identity/schema surface."""
+
+    def call_tool(
+        self,
+        *,
+        name: str,
+        arguments: Mapping[str, object],
+        timeout_seconds: int,
+        max_response_bytes: int,
+    ) -> Mapping[str, object]:
+        """Call one reviewed remote tool with bounded transport I/O."""
 
 
 class HTTPSMCPTransportFactory(Protocol):
@@ -219,6 +229,27 @@ class HTTPSJSONRPCMCPTransportSession:
             max_response_bytes=max_response_bytes,
         )
         return _discovered_tools(body)
+
+    def call_tool(
+        self,
+        *,
+        name: str,
+        arguments: Mapping[str, object],
+        timeout_seconds: int,
+        max_response_bytes: int,
+    ) -> Mapping[str, object]:
+        if not isinstance(name, str) or not name:
+            raise MCPConnectionClientError("MCP tool name is invalid")
+        if not isinstance(arguments, Mapping):
+            raise MCPConnectionClientError("MCP tool arguments are invalid")
+        body = self._json_rpc_request(
+            method="tools/call",
+            request_id=3,
+            params={"name": name, "arguments": dict(arguments)},
+            timeout_seconds=timeout_seconds,
+            max_response_bytes=max_response_bytes,
+        )
+        return _tool_call_result(body)
 
     def close(self) -> None:
         if self._connection is not None:
@@ -382,6 +413,31 @@ class MCPConnectionClient:
             self.close()
             raise MCPConnectionClientError("HTTPS MCP tools/list failed") from error
 
+    def call_tool(
+        self, name: str, arguments: Mapping[str, object]
+    ) -> Mapping[str, object]:
+        """Call one reviewed tool through the current bounded HTTPS session."""
+
+        if self._session is None:
+            raise MCPConnectionClientError("HTTPS MCP connection is not initialized")
+        if not isinstance(name, str) or not name:
+            raise MCPConnectionClientError("MCP tool name is invalid")
+        if not isinstance(arguments, Mapping):
+            raise MCPConnectionClientError("MCP tool arguments are invalid")
+        try:
+            return self._session.call_tool(
+                name=name,
+                arguments=arguments,
+                timeout_seconds=self.configuration.timeout_seconds,
+                max_response_bytes=self.configuration.max_response_bytes,
+            )
+        except MCPConnectionClientError:
+            self.close()
+            raise
+        except Exception as error:
+            self.close()
+            raise MCPConnectionClientError("HTTPS MCP tools/call failed") from error
+
     def close(self) -> None:
         """Release the current session without retaining a usable remote handle."""
 
@@ -488,3 +544,15 @@ def _discovered_tools(body: bytes) -> tuple[MCPDiscoveredTool, ...]:
             raise MCPConnectionClientError("HTTPS MCP tools/list response is invalid")
         tools.append(MCPDiscoveredTool(name=name, input_schema=input_schema))
     return tuple(tools)
+
+
+def _tool_call_result(body: bytes) -> Mapping[str, object]:
+    try:
+        result = json.loads(body.decode("utf-8"))["result"]
+    except (KeyError, TypeError, UnicodeDecodeError, ValueError) as error:
+        raise MCPConnectionClientError(
+            "HTTPS MCP tools/call response is invalid"
+        ) from error
+    if not isinstance(result, dict):
+        raise MCPConnectionClientError("HTTPS MCP tools/call response is invalid")
+    return result

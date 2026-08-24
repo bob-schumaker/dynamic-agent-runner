@@ -50,6 +50,7 @@ class FakeSession:
         self._response = response
         self.initialize_calls: list[tuple[int, int]] = []
         self.list_tools_calls: list[tuple[int, int]] = []
+        self.call_tool_calls: list[tuple[str, dict[str, object], int, int]] = []
         self.closed = False
 
     def initialize(
@@ -71,6 +72,19 @@ class FakeSession:
                 input_schema={"type": "object", "properties": {}},
             ),
         )
+
+    def call_tool(
+        self,
+        *,
+        name: str,
+        arguments: dict[str, object],
+        timeout_seconds: int,
+        max_response_bytes: int,
+    ) -> dict[str, object]:
+        self.call_tool_calls.append(
+            (name, arguments, timeout_seconds, max_response_bytes)
+        )
+        return {"content": [{"type": "text", "text": "result"}]}
 
 
 class FakeFactory:
@@ -203,6 +217,24 @@ def test_client_lists_only_bounded_schema_surface_after_initialization(
         ),
     )
     assert factory.sessions[0].list_tools_calls == [(12, 128)]
+
+
+def test_client_calls_a_tool_only_through_an_initialized_bounded_session(
+    tmp_path: Path,
+) -> None:
+    factory = FakeFactory([_response()])
+    client, _, _ = _client(tmp_path, factory)
+
+    with pytest.raises(MCPConnectionClientError, match="not initialized"):
+        client.call_tool("list_unread", {"folder": "inbox"})
+    client.initialize()
+
+    assert client.call_tool("list_unread", {"folder": "inbox"}) == {
+        "content": [{"type": "text", "text": "result"}]
+    }
+    assert factory.sessions[0].call_tool_calls == [
+        ("list_unread", {"folder": "inbox"}, 12, 128)
+    ]
 
 
 def test_client_fails_closed_when_configured_https_startup_is_unavailable(
@@ -347,3 +379,41 @@ def test_https_json_rpc_transport_retrieves_tools_list_only_after_initialize() -
         ),
     )
     assert b"tools/list" in connection.requests[1][2]
+
+
+def test_https_json_rpc_transport_calls_one_named_tool_after_initialize() -> None:
+    certificate = b"peer-certificate"
+    initialized = (
+        b'{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18",'
+        b'"serverInfo":{"name":"example-mcp"}}}'
+    )
+    result = (
+        b'{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"ok"}]}}'
+    )
+
+    class SequentialConnection(FakeHTTPSConnection):
+        def __init__(self) -> None:
+            super().__init__(initialized, certificate)
+            self._responses = [FakeHTTPResponse(initialized), FakeHTTPResponse(result)]
+
+        def getresponse(self) -> FakeHTTPResponse:
+            return self._responses.pop(0)
+
+    connection = SequentialConnection()
+    session = HTTPSJSONRPCMCPTransportFactory(
+        connection_factory=lambda **_kwargs: connection
+    ).open(
+        endpoint="https://mcp.example.test/v1",
+        bearer_token="token",
+        timeout_seconds=12,
+    )
+    session.initialize(timeout_seconds=12, max_response_bytes=512)
+
+    assert session.call_tool(
+        name="list_unread",
+        arguments={"folder": "inbox"},
+        timeout_seconds=12,
+        max_response_bytes=512,
+    ) == {"content": [{"type": "text", "text": "ok"}]}
+    assert b"tools/call" in connection.requests[1][2]
+    assert b'"name":"list_unread"' in connection.requests[1][2]

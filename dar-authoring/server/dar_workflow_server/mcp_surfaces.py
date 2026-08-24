@@ -173,6 +173,14 @@ class MCPSurfaceSnapshotControlPlane:
     ) -> MCPSurfaceSnapshot:
         """Verify that a live client is the reviewed authenticated generation."""
 
+        snapshot, _ = self.verify_current_client_tools(snapshot_id, client)
+        return snapshot
+
+    def verify_current_client_tools(
+        self, snapshot_id: str, client: CurrentMCPSurfaceClient
+    ) -> tuple[MCPSurfaceSnapshot, tuple[MCPDiscoveredTool, ...]]:
+        """Return one current reviewed client surface without a second lookup."""
+
         snapshot = self.load(snapshot_id)
         if (
             client.connection_id != snapshot.connection_id
@@ -180,7 +188,8 @@ class MCPSurfaceSnapshotControlPlane:
             or client.current_generation != snapshot.connection_generation
         ):
             raise MCPSurfaceSnapshotError("surface_changed")
-        return self.verify_current(snapshot_id, client.list_tools())
+        tools = client.list_tools()
+        return self.verify_current(snapshot_id, tools), tools
 
 
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")

@@ -164,9 +164,10 @@ passes.
 - [ ] RED/GREEN: disconnect/reconnect or peer failover between preflight and
       handler dispatch returns `surface_changed` or `capability_unavailable` and
       never invokes a replacement client under the prior authorization.
-- [ ] RED/GREEN: construct host-authored, caller-supplied `MCPToolBinding`
-      handlers only from an approved snapshot; before G5, reject every non-read-
-      only side-effect class and prove a fake send-like handler is not invoked.
+- [x] RED/GREEN: construct host-authored `HostToolBinding` handlers only from
+      an approved current snapshot and opaque capability binding; before G5,
+      reject every non-read-only side-effect class and prove a fake send-like
+      handler is not invoked.
 - [ ] RED/GREEN: a read-only MCP registration is unavailable until both G2 and
       G3 pass and G1's bounded task-invocation / declared-MCP-tool policy can
       compile the tool-bearing package; then execute it through the shared

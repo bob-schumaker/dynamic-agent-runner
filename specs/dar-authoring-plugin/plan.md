@@ -236,7 +236,11 @@ part of ordinary test execution.
    read-only policy only to its exact authenticated client generation and a
    current human-reviewed surface. This opaque record has no remote handler;
    reconnect or drift invalidates the attempted binding.
-8. **M5.5: Integrate a read-only binding with M3.** Begin only after the pending
+8. **M5.5a: Construct a read-only host handler.** Reload the opaque binding,
+   derive `HostToolBinding` schema and identity only from the reviewed current
+   surface, and revalidate it immediately before bounded `tools/call` dispatch.
+   A send-like tool is neither constructed nor dispatched.
+9. **M5.5b: Integrate a read-only binding with M3.** Begin only after the pending
    G1 bounded task-invocation and declared-MCP-tool policy slices can compile a
    tool-bearing package without opening a general-purpose console. Construct
    bindings only from a current snapshot and reject every non-read-only tool
