@@ -227,7 +227,12 @@ issue-authoring-materials --materials-json-stdin
   -> opaque receipt: material_set_id, member role/disposition/digest, expiry
 project-authoring-materials --material-set-id <opaque-id>
   -> exactly the selected bounded content projection
-finalize-authored-package --path <configured-package-root child>
+create-authored-package --package-name <user-requested-name>
+  -> opaque authoring_output_id and configured-root package name
+write-authored-package-file --authoring-output-id <opaque-id>
+  --relative-path <package-relative-path> --content-stdin
+  -> atomic contained write receipt: relative path, hash, byte count
+finalize-authored-package --authoring-output-id <opaque-id>
   --material-set-id <opaque-id>
   -> deterministic manifest plus redacted package/descriptor validation result
 ```
@@ -235,11 +240,15 @@ finalize-authored-package --path <configured-package-root child>
 The authoring skill calls these commands itself after the user asks it to build
 a package. It asks the user only for missing task decisions or human-only setup
 (for example, local-model profile selection, OAuth consent, or MCP surface
-review). Finalization accepts only a symlink-free directory beneath the
-configured package root, excludes every `reference_only` member before writing
-the manifest, and returns no selected material content. The resulting directory
-is the saved package that a later `dar-workflow invoke` request can run with a
-new prompt and permitted workspace artifacts.
+review). The host creates the output directory under the configured package root
+and addresses it only with an expiry-bound opaque handle. It accepts only
+relative non-hidden file paths, uses no-follow directory traversal and atomic
+replacements, and returns file path/hash/byte-count receipts rather than raw
+content. Finalization accepts only that symlink-free host-created directory,
+excludes every `reference_only` member before writing the manifest, and returns
+no selected material content. The resulting configured-root directory is the
+saved package that a later `dar-workflow invoke` request can run with a new
+prompt and permitted workspace artifacts.
 
 ```yaml
 format_version: 1
@@ -357,9 +366,9 @@ evaluation plan requested by the generated descriptor.
 
 V1 authoring uses the local command surface above rather than a second
 model-facing MCP runner tool. It intentionally grants only selected-material
-projection and finalization of a DAR-valid package under the configured output
-root; it does not grant profile, credential, MCP-server, signing-key, or generic
-host-administration authority.
+projection plus opaque create/write/finalization of a DAR-valid package under the
+configured output root; it does not grant profile, credential, MCP-server,
+signing-key, or generic host-administration authority.
 
 The package's graph and tool contracts define a specifically bounded task, not a
 general-purpose interactive tool console. For every declared MCP or host tool,

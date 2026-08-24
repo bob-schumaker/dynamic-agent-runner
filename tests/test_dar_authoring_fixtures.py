@@ -183,4 +183,6 @@ def test_agent_development_skill_calls_the_host_authoring_control_plane() -> Non
 
     assert "issue-authoring-materials" in text
     assert "project-authoring-materials" in text
+    assert "create-authored-package" in text
+    assert "write-authored-package-file" in text
     assert "finalize-authored-package" in text

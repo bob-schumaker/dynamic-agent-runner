@@ -393,6 +393,86 @@ def test_cli_finalizes_a_host_selected_authored_package(
     assert (package / "package-manifest.json").is_file()
 
 
+def test_cli_builds_and_finalizes_a_host_owned_authored_package(
+    tmp_path: Path,
+) -> None:
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    state_args = ["--state-root", str(state_root)]
+    status, _ = _invoke(
+        [
+            *state_args,
+            "configure-local-model",
+            "--package-root",
+            str(package_root),
+            "--model-id",
+            "local-model-v1",
+            "--base-url",
+            "http://127.0.0.1:11434/v1",
+        ]
+    )
+    assert status == 0
+
+    issued_output: list[str] = []
+    assert (
+        main(
+            [*state_args, "issue-authoring-materials", "--materials-json-stdin"],
+            write=issued_output.append,
+            read_stdin=lambda: json.dumps(
+                [
+                    {
+                        "role": "example",
+                        "content": "private design example",
+                        "disposition": "reference_only",
+                    }
+                ]
+            ),
+        )
+        == 0
+    )
+    material_set_id = json.loads(issued_output[0])["material_set_id"]
+    status, output = _invoke(
+        [*state_args, "create-authored-package", "--package-name", "document-helper"]
+    )
+    assert status == 0
+
+    for source in sorted(TEMPLATE_ROOT.iterdir()):
+        written: list[str] = []
+        assert (
+            main(
+                [
+                    *state_args,
+                    "write-authored-package-file",
+                    "--authoring-output-id",
+                    output["authoring_output_id"],
+                    "--relative-path",
+                    source.name,
+                    "--content-stdin",
+                ],
+                write=written.append,
+                read_stdin=lambda source=source: source.read_text(encoding="utf-8"),
+            )
+            == 0
+        )
+        assert json.loads(written[0])["byte_count"] == source.stat().st_size
+
+    status, finalized = _invoke(
+        [
+            *state_args,
+            "finalize-authored-package",
+            "--authoring-output-id",
+            output["authoring_output_id"],
+            "--material-set-id",
+            material_set_id,
+        ]
+    )
+
+    assert status == 0
+    assert finalized["status"] == "finalized"
+    assert (package_root / "document-helper" / "package-manifest.json").is_file()
+
+
 def _signed_archive(
     source: Path, *, key_id: str, private_key: Ed25519PrivateKey
 ) -> Path:

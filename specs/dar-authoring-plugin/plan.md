@@ -198,12 +198,15 @@ prompt through the sealed, catalog-only runner interface.
 
 ### M4 — Authoring-skill external acceptance (release-evidence track)
 
-1. **M4.0: Add authoring-material projection.** Implemented in the private
-   `AuthoringMaterialService`: it issues principal/expiry-bound
-   `AuthoringMaterialSet` projections with reference-only/distributable status.
-   Public receipts exclude content and paths; only the exact selected set can
-   project bounded content. Package/trace/fixture/export exclusion is enforced
-   by the later authoring and publication paths.
+1. **M4.0: Add authoring-material projection and controlled output.** Implemented
+   in the private `AuthoringMaterialService` and `AuthoringOutputService`: the
+   host issues principal/expiry-bound `AuthoringMaterialSet` projections with
+   reference-only/distributable status, then exposes skill-callable create/write/
+   finalize commands through opaque output IDs. Public receipts exclude material
+   content and source paths; output writes are relative, atomic, no-follow, and
+   receipt-traced. Only the exact selected set can project bounded content.
+   Package/trace/fixture/export exclusion is enforced by the authoring and
+   publication paths.
 2. **M4.1: Define the external authoring evidence contract.** Implemented as
    `AuthoringEvidence`: its atomic private record contains corpus/prompt and
    package digests, opaque material-set id, model/provider identity,

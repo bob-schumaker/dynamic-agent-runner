@@ -137,8 +137,16 @@ def _parser() -> argparse.ArgumentParser:
     issue_materials.add_argument("--materials-json-stdin", action="store_true")
     project_materials = commands.add_parser("project-authoring-materials")
     project_materials.add_argument("--material-set-id", required=True)
+    create_package = commands.add_parser("create-authored-package")
+    create_package.add_argument("--package-name", required=True)
+    write_package_file = commands.add_parser("write-authored-package-file")
+    write_package_file.add_argument("--authoring-output-id", required=True)
+    write_package_file.add_argument("--relative-path", required=True)
+    write_package_file.add_argument("--content-stdin", action="store_true")
     finalize = commands.add_parser("finalize-authored-package")
-    finalize.add_argument("--path", required=True)
+    finalize_target = finalize.add_mutually_exclusive_group(required=True)
+    finalize_target.add_argument("--path")
+    finalize_target.add_argument("--authoring-output-id")
     finalize.add_argument("--material-set-id", required=True)
     connection = commands.add_parser("create-mcp-connection")
     connection.add_argument("--endpoint", required=True)
@@ -310,12 +318,42 @@ def _authoring_control_result(
                 for member in projection.members
             ],
         }
-    if args.command == "finalize-authored-package":
-        finalized = host.finalize_authored_package(
-            package_root=Path(args.path),
-            material_set_id=args.material_set_id,
+    if args.command == "create-authored-package":
+        output = host.create_authored_package(package_name=args.package_name, now=now)
+        return {
+            "authoring_output_id": output.output_id,
+            "expires_at": output.expires_at.isoformat(),
+            "package_name": output.package_name,
+        }
+    if args.command == "write-authored-package-file":
+        if not args.content_stdin:
+            raise LocalWorkflowHostError(
+                "authored package file content must be supplied on stdin"
+            )
+        written = host.write_authored_package_file(
+            output_id=args.authoring_output_id,
+            relative_path=args.relative_path,
+            content=(read_stdin or sys.stdin.read)(),
             now=now,
         )
+        return {
+            "byte_count": written.byte_count,
+            "content_hash": written.content_hash,
+            "relative_path": written.relative_path,
+        }
+    if args.command == "finalize-authored-package":
+        if args.authoring_output_id is not None:
+            finalized = host.finalize_authored_output(
+                output_id=args.authoring_output_id,
+                material_set_id=args.material_set_id,
+                now=now,
+            )
+        else:
+            finalized = host.finalize_authored_package(
+                package_root=Path(args.path),
+                material_set_id=args.material_set_id,
+                now=now,
+            )
         return {
             "descriptor_digest": finalized.descriptor_digest,
             "file_count": finalized.file_count,

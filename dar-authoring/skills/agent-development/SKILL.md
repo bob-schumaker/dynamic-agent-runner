@@ -20,6 +20,11 @@ call `project-authoring-materials` with the returned opaque `material_set_id`.
 Members are bounded and principal/expiry bound. Do not request or emit source
 paths, credentials, connection secrets, or unselected material.
 
+Call `create-authored-package` with the requested package name. Keep its opaque
+`authoring_output_id` and use `write-authored-package-file --content-stdin` for
+each generated artifact. Do not write package files through a physical path or
+reuse a prior output directory.
+
 Decide whether a fixed workflow, one LLM step, or a bounded tool loop is the
 smallest honest design. A workflow is task-specific, not a general interactive
 assistant. Every loop has a finite step or iteration limit and a terminal output
@@ -28,10 +33,9 @@ contract.
 ## Output
 
 Before writing a package, require the host's DAR loader and authoring control
-plane. Write only beneath the caller-selected configured package root. If the
-control plane is unavailable, do not emit an unvalidated package or invent its
-manifest; return the deliberate refusal `authoring_runtime_unavailable` and
-name the missing host capability.
+plane. If the control plane is unavailable, do not emit an unvalidated package
+or invent its manifest; return the deliberate refusal
+`authoring_runtime_unavailable` and name the missing host capability.
 
 Generate a package directory containing:
 
@@ -45,7 +49,7 @@ The descriptor defines the package purpose, local model-profile requirement,
 hybrid input contract, bounded `additional_context`, accepted workspace artifact
 roles, terminal output schema, and every optional capability. Use DAR-supported
 nodes and validate the package with the DAR loader before presenting it. Call
-`finalize-authored-package` with the package directory and `material_set_id` to
+`finalize-authored-package` with `authoring_output_id` and `material_set_id` to
 write the deterministic manifest and verify private-material exclusion. Do not
 invent manifest digests or return an unfinalized directory as a workflow package.
 
@@ -57,6 +61,6 @@ workflow can run.
 
 ## Handoff
 
-Return the package location or archive selected by the caller, its manifest and
-descriptor digests, the required host capabilities, and any deliberate refusal.
-Do not invoke `run_dar_workflow` while authoring.
+Return the configured-root package name or archive selected by the caller, its
+manifest and descriptor digests, the required host capabilities, and any
+deliberate refusal. Do not invoke `run_dar_workflow` while authoring.

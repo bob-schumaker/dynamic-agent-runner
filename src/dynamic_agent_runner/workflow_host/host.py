@@ -27,6 +27,11 @@ from dynamic_agent_runner.workflow_host.authoring_output import (
     AuthoringOutputError,
     finalize_authored_package,
 )
+from dynamic_agent_runner.workflow_host.authoring_outputs import (
+    AuthoredFileReceipt,
+    AuthoringOutputReceipt,
+    AuthoringOutputService,
+)
 from dynamic_agent_runner.workflow_host.authorized_tools import (
     LocalActionApprovalBroker,
 )
@@ -114,6 +119,8 @@ _DEFAULT_WORKSPACE_INPUT_MAX_BYTES = 8 * 1024 * 1024
 _AUTHORING_MATERIAL_MAX_BYTES = 256 * 1024
 _AUTHORING_MATERIAL_MAX_MEMBERS = 16
 _AUTHORING_MATERIAL_TTL = timedelta(hours=1)
+_AUTHORING_OUTPUT_MAX_FILE_BYTES = 1024 * 1024
+_AUTHORING_OUTPUT_TTL = timedelta(hours=1)
 
 
 class LocalWorkflowHostError(ValueError):
@@ -323,6 +330,7 @@ class LocalWorkflowHost:
         runner: WorkflowRunner,
         workspace_ingress: WorkspaceIngressService | None,
         authoring_materials: AuthoringMaterialService,
+        authoring_outputs: AuthoringOutputService,
         mcp_client: MCPConnectionClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
@@ -336,6 +344,7 @@ class LocalWorkflowHost:
         self._runner = runner
         self._workspace_ingress = workspace_ingress
         self._authoring_materials = authoring_materials
+        self._authoring_outputs = authoring_outputs
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
         self._mcp_bindings = mcp_bindings
@@ -414,6 +423,13 @@ class LocalWorkflowHost:
                 max_materials=_AUTHORING_MATERIAL_MAX_MEMBERS,
                 material_ttl=_AUTHORING_MATERIAL_TTL,
             ),
+            authoring_outputs=AuthoringOutputService(
+                store=store,
+                owner=InstallationIdentityProvider().principal,
+                output_root=configuration.package_root,
+                max_file_bytes=_AUTHORING_OUTPUT_MAX_FILE_BYTES,
+                output_ttl=_AUTHORING_OUTPUT_TTL,
+            ),
             mcp_client=mcp_client,
             mcp_surfaces=surfaces if mcp_client is not None else None,
             mcp_bindings=mcp_bindings if mcp_client is not None else None,
@@ -460,6 +476,45 @@ class LocalWorkflowHost:
             )
         except AuthoringOutputError as error:
             raise LocalWorkflowHostError("authored package is invalid") from error
+
+    def create_authored_package(
+        self, *, package_name: str, now: datetime
+    ) -> AuthoringOutputReceipt:
+        """Create an opaque host-owned package directory for one authoring run."""
+
+        return self._authoring_outputs.create(package_name=package_name, now=now)
+
+    def write_authored_package_file(
+        self,
+        *,
+        output_id: str,
+        relative_path: str,
+        content: str,
+        now: datetime,
+    ) -> AuthoredFileReceipt:
+        """Atomically write one file in an opaque authored-package directory."""
+
+        return self._authoring_outputs.write_file(
+            output_id=output_id,
+            relative_path=relative_path,
+            content=content,
+            now=now,
+        )
+
+    def finalize_authored_output(
+        self,
+        *,
+        output_id: str,
+        material_set_id: str,
+        now: datetime,
+    ) -> AuthoredPackageValidation:
+        """Finalize a host-owned authoring output without exposing its path."""
+
+        return self.finalize_authored_package(
+            package_root=self._authoring_outputs.package_path(output_id, now=now),
+            material_set_id=material_set_id,
+            now=now,
+        )
 
     def select_publisher_package(self, path: Path, *, now: datetime) -> str:
         """Return an opaque handle for one human-selected publisher ZIP package."""
