@@ -67,7 +67,7 @@ passes.
       policy. Destination, authorization, capability-selection, and external
       identity fields reject `additional_context`, tool-result, and remote
       instruction flow; adversarial prompt-injection fixtures prove rejection.
-- [ ] RED/GREEN: directory import makes the same private no-follow staging copy
+- [x] RED/GREEN: directory import makes the same private no-follow staging copy
       before validation; package identity is `package_id` plus immutable
       `revision_digest`, with idempotent reimport, explicit collision handling,
       and retained prior revisions. G3 creates installation-local workflow aliases
@@ -79,10 +79,10 @@ passes.
 - [ ] RED/GREEN: `WorkflowPolicy` compilation is the sole logical policy
       derivation path. Descriptor/task policy produces one policy digest; any
       mismatched duplicated field is rejected.
-- [ ] RED/GREEN: capability resolution returns a non-executing unavailable result
+- [x] RED/GREEN: capability resolution returns a non-executing unavailable result
       for a required G2/deferred collaborator. Only the eligible gate binds a
       `WorkflowPolicy` to profile/snapshot data as `WorkflowRegistration`.
-- [ ] RED/GREEN: package-only preflight returns the package/policy identifiers
+- [x] RED/GREEN: package-only preflight returns the package/policy identifiers
       and a deterministic unavailable-capability result where required; it cannot
       accept invocation input or return a workflow alias, registration, or
       prepared input before G3 and the applicable capability gate pass.
@@ -108,7 +108,7 @@ passes.
 - [ ] RED/GREEN: human-only `ProfileCapabilityRecord` creation/update establishes
       immutable local profile capability records before resolution; callers,
       skills, and MCP requests cannot supply or alter them.
-- [ ] RED/GREEN: produce one deterministic `CapabilityResolution` from the
+- [x] RED/GREEN: produce one deterministic `CapabilityResolution` from the
       `WorkflowPolicy`, declared profile capabilities, active gates, and DAR
       inspection; reject metadata-only or missing requirements before binding.
 
