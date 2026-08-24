@@ -14,9 +14,11 @@ acceptance or regression evidence is requested.
 
 Accept a natural-language goal and any supplied examples, documentation, or
 files through the host-owned authoring control plane. Call
-`../../scripts/dar-workflow issue-authoring-materials --materials-json-stdin`
-with only the material the user supplied for this design; its receipt is an
-`AuthoringMaterialSet`. Then call the same wrapper's
+the `dar-workflow` wrapper at `../../scripts/dar-workflow`, resolved relative to
+this loaded `SKILL.md` file (never relative to the project cwd). Call it with
+`issue-authoring-materials --materials-json-stdin` with only the material the
+user supplied for this design; its receipt is an `AuthoringMaterialSet`. Then
+call the same wrapper's
 `project-authoring-materials` with the returned opaque `material_set_id`.
 Members are bounded and principal/expiry bound. Do not request or emit source
 paths, credentials, connection secrets, or unselected material.
