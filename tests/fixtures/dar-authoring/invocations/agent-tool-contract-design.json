@@ -1,4 +1,32 @@
 {
+  "artifact_contracts": [
+    {
+      "artifact": "tool-index.yaml",
+      "forbidden_text": [
+        "http://",
+        "https://",
+        "oauth_token",
+        "client_secret"
+      ],
+      "format": "yaml",
+      "required": {
+        "format_version": 1
+      }
+    },
+    {
+      "artifact": "workflow-descriptor.yaml",
+      "forbidden_text": [
+        "http://",
+        "https://",
+        "oauth_token",
+        "client_secret"
+      ],
+      "format": "yaml",
+      "required": {
+        "format_version": 1
+      }
+    }
+  ],
   "expected_artifacts": [
     "tool-index.yaml",
     "workflow-descriptor.yaml"

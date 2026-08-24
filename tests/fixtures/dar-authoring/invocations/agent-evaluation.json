@@ -1,4 +1,27 @@
 {
+  "artifact_contracts": [
+    {
+      "artifact": "evaluation-fixtures.json",
+      "format": "json",
+      "required": {
+        "format_version": 1
+      }
+    },
+    {
+      "artifact": "regression-gate.yaml",
+      "forbidden_text": [
+        "http://",
+        "https://",
+        "oauth_token",
+        "client_secret"
+      ],
+      "format": "yaml",
+      "required": {
+        "decision_owner": "human_reviewer",
+        "format_version": 1
+      }
+    }
+  ],
   "expected_artifacts": [
     "eval-plan.md",
     "evaluation-fixtures.json",

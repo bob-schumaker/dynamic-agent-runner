@@ -44,12 +44,20 @@ def _materials(tmp_path: Path) -> Path:
     return path
 
 
-def _generator(leak: bool) -> str:
+def _generator(leak: bool, violates_no_tool_contract: bool = False) -> str:
     leak_statement = (
         "(output / 'agent-design.md').write_text("
         "(output / 'agent-design.md').read_text() + 'private selected example', "
         "encoding='utf-8');"
         if leak
+        else ""
+    )
+    no_tool_violation = (
+        "(output / 'workflow-descriptor.yaml').write_text("
+        "(output / 'workflow-descriptor.yaml').read_text().replace("
+        "'max_total_tool_calls: 0', 'max_total_tool_calls: 1'), "
+        "encoding='utf-8');"
+        if violates_no_tool_contract
         else ""
     )
     return (
@@ -61,12 +69,17 @@ def _generator(leak: bool) -> str:
         "output = Path(sys.argv[sys.argv.index('--output') + 1]); "
         "shutil.copytree(template, output, dirs_exist_ok=True); "
         f"{leak_statement}"
+        f"{no_tool_violation}"
         "write_authored_package_manifest(output)"
     )
 
 
 def _run(
-    tmp_path: Path, *, leak: bool, decision: str
+    tmp_path: Path,
+    *,
+    leak: bool,
+    decision: str,
+    violates_no_tool_contract: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     evidence = tmp_path / "evidence" / "evidence.json"
     return subprocess.run(
@@ -90,7 +103,7 @@ def _run(
             "--generator",
             sys.executable,
             "-c",
-            _generator(leak),
+            _generator(leak, violates_no_tool_contract),
         ],
         capture_output=True,
         check=False,
@@ -128,6 +141,23 @@ def test_harness_records_a_rejected_redacted_failure_for_private_material_leak(
     assert recorded["generated_package_digests"] == []
     assert "private selected example" not in completed.stdout
     assert "private selected example" not in evidence.read_text(encoding="utf-8")
+
+
+def test_harness_rejects_a_package_that_violates_the_no_tool_contract(
+    tmp_path: Path,
+) -> None:
+    completed = _run(
+        tmp_path,
+        leak=False,
+        decision="rejected",
+        violates_no_tool_contract=True,
+    )
+    evidence = tmp_path / "evidence" / "evidence.json"
+
+    assert completed.returncode == 0, completed.stderr
+    recorded = json.loads(evidence.read_text(encoding="utf-8"))
+    assert recorded["validator_result"] == "failed"
+    assert recorded["generated_package_digests"] == []
 
 
 def test_harness_accepts_a_package_finalized_by_the_host_control_plane(

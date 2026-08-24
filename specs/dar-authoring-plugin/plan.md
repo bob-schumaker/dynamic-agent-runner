@@ -223,10 +223,11 @@ prompt through the sealed, catalog-only runner interface.
    harness validates that exact new package. Run the de-identified corpus with
    the selected authoring model outside unit tests; that live evidence remains
    required.
-4. **M4.3: Gate the three target invocations.** Compare generated packages to
-   fixture property contracts, require a human intent-fidelity review until a
-   judge calibration is approved, and treat fixture property changes as reviewed
-   acceptance-contract changes.
+4. **M4.3: Gate the three target invocations.** The harness enforces checked-in
+   per-artifact YAML/JSON requirements and forbidden text for each fixture;
+   compare live generated packages to those contracts, require a human
+   intent-fidelity review until a judge calibration is approved, and treat
+   fixture property changes as reviewed acceptance-contract changes.
 
 M4 exit: the adapted skills have behavioral evidence without making model calls
 part of ordinary test execution.

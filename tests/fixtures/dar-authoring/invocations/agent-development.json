@@ -1,4 +1,25 @@
 {
+  "artifact_contracts": [
+    {
+      "artifact": "agent-runtime.yaml",
+      "format": "yaml",
+      "required": {
+        "skills": [],
+        "tools": []
+      }
+    },
+    {
+      "artifact": "workflow-descriptor.yaml",
+      "format": "yaml",
+      "required": {
+        "skills": [],
+        "task_invocation": {
+          "max_total_tool_calls": 0
+        },
+        "tools": []
+      }
+    }
+  ],
   "expected_artifacts": [
     "agent-design.md",
     "agent-runtime.yaml",

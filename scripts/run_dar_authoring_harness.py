@@ -14,6 +14,8 @@ import subprocess
 import tempfile
 from typing import Any, Sequence
 
+import yaml
+
 from dynamic_agent_runner.workflow_host.authoring_evidence import (
     AuthoringEvidence,
     ExternalAuthoringHarnessRequest,
@@ -58,6 +60,7 @@ def run_fixture(
     outcome = _run_generator(
         request=request,
         expected_artifacts=fixture["expected_artifacts"],
+        artifact_contracts=fixture["artifact_contracts"],
         generator=generator,
         timeout=timeout,
         host_package_root=host_package_root,
@@ -84,6 +87,7 @@ def _run_generator(
     *,
     request: ExternalAuthoringHarnessRequest,
     expected_artifacts: tuple[str, ...],
+    artifact_contracts: tuple[dict[str, object], ...],
     generator: Sequence[str],
     timeout: float,
     host_package_root: Path | None,
@@ -123,6 +127,8 @@ def _run_generator(
         if result.returncode:
             return _failed_outcome()
         if not _expected_artifacts_exist(output_path, expected_artifacts):
+            return _failed_outcome()
+        if not _artifact_contracts_hold(output_path, artifact_contracts):
             return _failed_outcome()
 
         class Generator:
@@ -211,8 +217,51 @@ def _expected_artifacts_exist(root: Path, expected: tuple[str, ...]) -> bool:
     )
 
 
+def _artifact_contracts_hold(
+    root: Path, contracts: Sequence[dict[str, object]]
+) -> bool:
+    for contract in contracts:
+        artifact = contract["artifact"]
+        assert isinstance(artifact, str)
+        try:
+            content = (root / artifact).read_text(encoding="utf-8")
+        except OSError:
+            return False
+        forbidden_text = contract["forbidden_text"]
+        assert isinstance(forbidden_text, tuple)
+        if any(text in content for text in forbidden_text):
+            return False
+        try:
+            value = (
+                json.loads(content)
+                if contract["format"] == "json"
+                else yaml.safe_load(content)
+            )
+        except (json.JSONDecodeError, yaml.YAMLError):
+            return False
+        required = contract["required"]
+        assert isinstance(required, dict)
+        if not _contains_mapping(value, required):
+            return False
+    return True
+
+
+def _contains_mapping(value: object, required: dict[str, object]) -> bool:
+    if not isinstance(value, dict):
+        return False
+    for key, expected in required.items():
+        actual = value.get(key)
+        if isinstance(expected, dict):
+            if not _contains_mapping(actual, expected):
+                return False
+        elif actual != expected:
+            return False
+    return True
+
+
 def _fixture(value: object) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != {
+        "artifact_contracts",
         "expected_artifacts",
         "expected_capability_or_refusal",
         "private_material_exclusions",
@@ -231,16 +280,78 @@ def _fixture(value: object) -> dict[str, Any]:
         raise HarnessError("fixture artifacts are invalid")
     if any(not _safe_relative_path(item) for item in artifacts):
         raise HarnessError("fixture artifacts are invalid")
+    contracts = _artifact_contracts(value["artifact_contracts"], artifacts)
     materials = value["selected_materials"]
     if not isinstance(materials, list) or not materials:
         raise HarnessError("fixture materials are invalid")
     _fixture_materials(materials)
     return {
+        "artifact_contracts": contracts,
         "expected_artifacts": tuple(artifacts),
         "request": value["request"],
         "selected_materials": materials,
         "skill": value["skill"],
     }
+
+
+def _artifact_contracts(
+    value: object, artifacts: Sequence[str]
+) -> tuple[dict[str, object], ...]:
+    if not isinstance(value, list) or not value:
+        raise HarnessError("fixture artifact contracts are invalid")
+    contracts: list[dict[str, object]] = []
+    for contract in value:
+        if (
+            not isinstance(contract, dict)
+            or not {
+                "artifact",
+                "format",
+                "required",
+            }
+            <= set(contract)
+            or set(contract)
+            - {
+                "artifact",
+                "format",
+                "required",
+                "forbidden_text",
+            }
+        ):
+            raise HarnessError("fixture artifact contracts are invalid")
+        artifact = contract["artifact"]
+        if not isinstance(artifact, str) or artifact not in artifacts:
+            raise HarnessError("fixture artifact contracts are invalid")
+        format_name = contract["format"]
+        if format_name not in {"json", "yaml"}:
+            raise HarnessError("fixture artifact contracts are invalid")
+        required = contract["required"]
+        if not isinstance(required, dict) or not _contract_value(required):
+            raise HarnessError("fixture artifact contracts are invalid")
+        forbidden_text = contract.get("forbidden_text", [])
+        if not isinstance(forbidden_text, list) or any(
+            not isinstance(text, str) or not text for text in forbidden_text
+        ):
+            raise HarnessError("fixture artifact contracts are invalid")
+        contracts.append(
+            {
+                "artifact": artifact,
+                "format": format_name,
+                "forbidden_text": tuple(forbidden_text),
+                "required": required,
+            }
+        )
+    return tuple(contracts)
+
+
+def _contract_value(value: object) -> bool:
+    if isinstance(value, dict):
+        return bool(value) and all(
+            isinstance(key, str) and key and _contract_value(member)
+            for key, member in value.items()
+        )
+    if isinstance(value, list):
+        return all(_contract_value(member) for member in value)
+    return value is None or isinstance(value, str | int | float | bool)
 
 
 def _materials(

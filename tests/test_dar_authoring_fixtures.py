@@ -47,6 +47,7 @@ def test_target_invocation_fixtures_have_complete_deidentified_contracts() -> No
         assert fixture["request"].strip()
         assert fixture["selected_materials"]
         assert fixture["expected_artifacts"]
+        assert fixture["artifact_contracts"]
         assert fixture["expected_capability_or_refusal"]
         assert fixture["private_material_exclusions"]
         for material in fixture["selected_materials"]:
