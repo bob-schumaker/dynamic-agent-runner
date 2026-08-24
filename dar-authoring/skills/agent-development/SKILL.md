@@ -41,9 +41,14 @@ contract.
 For a tool-free workflow, start from the four files in `../../templates`, also
 resolved relative to this `SKILL.md` file. Adapt the package id, purpose,
 model-profile requirement, prompt, graph labels, input contract, and output
-contract to the request; retain the finite no-tool invocation pattern. Do not
-copy `package-manifest.json`: finalization creates it after the four authored
-files are written through the control plane.
+contract to the request; retain the finite no-tool invocation pattern. A
+task-specific package-local skill is optional: declare its identifier in the
+descriptor, add the same identifier to the runtime manifest and eligible node
+`skill_refs`, enable DAR package-bundle skill source resolution, and write its
+UTF-8 body through the control plane at
+`skill-bundle/skills/<id>/SKILL.md`. Do not use an inline or external skill
+path. Do not copy `package-manifest.json`: finalization creates it after the
+required artifacts are written through the control plane.
 
 ## Required authoring sequence
 
@@ -55,7 +60,9 @@ reporting a package:
 2. Create the authored package and retain its `authoring_output_id`.
 3. Write `agent-design.md`, `agent-runtime.yaml`, `agent-graph.mmd`, and
    `workflow-descriptor.yaml` through `write-authored-package-file`, using that
-   same output id for every write.
+   same output id for every write. When the descriptor declares a package-local
+   skill, also write each `skill-bundle/skills/<id>/SKILL.md` body through that
+   output id.
 4. Call `finalize-authored-package` with that output id and the material-set
    id. Treat its validated package receipt as the only successful completion.
 
@@ -86,11 +93,12 @@ the wrapper's `finalize-authored-package` with `authoring_output_id` and
 private-material exclusion. Do not invent manifest digests or return an
 unfinalized directory as a workflow package.
 
-For a tool-free task, emit no tools and no skills. For optional tooling, name
-only a reviewed host-owned tool capability in the descriptor; the package does
-not start servers, obtain credentials, or configure an MCP connection. Explain
-that a human later configures, reviews, and binds the connection before a saved
-workflow can run.
+For a tool-free task, emit no tools. Add a package-local skill only when the
+specific task needs durable package guidance; use the exact bundled mapping
+above. For optional tooling, name only a reviewed host-owned tool capability in
+the descriptor; the package does not start servers, obtain credentials, or
+configure an MCP connection. Explain that a human later configures, reviews,
+and binds the connection before a saved workflow can run.
 
 ## Saved-package invocation
 
