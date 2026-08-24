@@ -30,7 +30,10 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
     assert manifest["name"] == "dar-authoring"
     assert manifest["mcpServers"] == "./.mcp.json"
     assert project["project"]["name"] == "dar-authoring"
-    assert project["project"]["dependencies"] == ["dynamic-agent-runner==0.1.15"]
+    assert project["project"]["dependencies"] == [
+        "dynamic-agent-runner==0.1.15",
+        "PyYAML>=6.0.3",
+    ]
     assert project["project"]["scripts"] == {
         "dar-authoring-mcp": "dar_workflow_server.server:console_main"
     }
