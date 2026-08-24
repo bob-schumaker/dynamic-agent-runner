@@ -6,11 +6,15 @@ import json
 import shutil
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
 sys.path.insert(0, str(PLUGIN_SERVER_ROOT))
 
+from dar_workflow_server import cli  # noqa: E402
 from dar_workflow_server.cli import main, run_main  # noqa: E402
 
 
@@ -95,6 +99,7 @@ def test_cli_configures_selects_registers_prepares_and_dry_runs(tmp_path: Path) 
                 "--prepared-input-id",
                 prepared["prepared_input_id"],
                 "--dry-run",
+                "--ask",
             ],
             write=output.append,
         )
@@ -192,3 +197,41 @@ def test_cli_ingresses_a_registered_workspace_file_without_returning_its_path(
     assert status == 0
     assert str(document) not in json.dumps(prepared)
     assert "document body" not in json.dumps(prepared)
+
+
+def test_run_cli_passes_ask_as_a_host_only_broker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class Host:
+        def run(self, **kwargs: object) -> SimpleNamespace:
+            calls.append(kwargs)
+            return SimpleNamespace(
+                status="completed", run_id="run-1", output={"message": "done"}
+            )
+
+    monkeypatch.setattr(cli.LocalWorkflowHost, "open", lambda root: Host())
+    output: list[str] = []
+
+    assert (
+        run_main(
+            [
+                "--state-root",
+                "/tmp/dar-authoring-test",
+                "--workflow-id",
+                "mail-reader",
+                "--prepared-input-id",
+                "v1.input.signature",
+                "--ask",
+            ],
+            write=output.append,
+        )
+        == 0
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["workflow_id"] == "mail-reader"
+    assert calls[0]["prepared_input_id"] == "v1.input.signature"
+    assert calls[0]["approval_broker"] is not None
+    assert output == ['{"message":"done","run_id":"run-1","status":"completed"}']

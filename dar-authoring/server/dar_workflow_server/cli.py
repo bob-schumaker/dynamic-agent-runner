@@ -11,6 +11,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from dar_workflow_server.action_ledger import ExternalAction
+from dar_workflow_server.approvals import WorkflowApproval
+from dar_workflow_server.authorized_tools import LocalApprovalDecision
 from dar_workflow_server.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
@@ -176,6 +179,7 @@ def _run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--workflow-id", required=True)
     parser.add_argument("--prepared-input-id", required=True)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--ask", action="store_true")
 
 
 def _run(
@@ -197,6 +201,7 @@ def _run(
         workflow_id=args.workflow_id,
         prepared_input_id=args.prepared_input_id,
         now=now,
+        approval_broker=_TerminalApprovalBroker() if args.ask else None,
     )
     _write(write, {"status": result.status, "run_id": result.run_id, **result.output})
     return 0
@@ -215,6 +220,34 @@ def _default_state_root() -> Path:
 
 def _write(write: Callable[[str], None], value: dict[str, object]) -> None:
     write(json.dumps(value, sort_keys=True, separators=(",", ":")))
+
+
+class _TerminalApprovalBroker:
+    """Prompt the local terminal user for one normalized external action."""
+
+    def decide(
+        self, *, action: ExternalAction, approval: WorkflowApproval
+    ) -> LocalApprovalDecision:
+        del approval
+        prompt = json.dumps(
+            {
+                "arguments": action.normalized_arguments,
+                "side_effect": action.side_effect,
+                "tool": action.remote_tool_name,
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        try:
+            answer = input(f"Approve external action {prompt}? [y/N] ")
+        except (EOFError, KeyboardInterrupt):
+            return LocalApprovalDecision.CANCELLED
+        return (
+            LocalApprovalDecision.APPROVED
+            if answer.strip().lower() in {"y", "yes"}
+            else LocalApprovalDecision.DENIED
+        )
 
 
 def console_main() -> None:

@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Sequence
 
 from dar_workflow_server.catalog import PackageCatalog, PackageCatalogError
+from dar_workflow_server.approvals import WorkflowApprovalStore
+from dar_workflow_server.authorized_tools import LocalActionApprovalBroker
 from dar_workflow_server.package_sources import PackageSourceSelectionPolicy
 from dar_workflow_server.policy import (
     PolicyCompilationError,
@@ -159,6 +161,9 @@ class LocalWorkflowHost:
                 catalog=catalog,
                 preparation=preparation,
                 model_adapter=create_local_adapter(profile),
+                approval_store=WorkflowApprovalStore(
+                    store=store, owner=InstallationIdentityProvider().principal
+                ),
             ),
             workspace_ingress=workspace_ingress,
         )
@@ -257,11 +262,20 @@ class LocalWorkflowHost:
         return self._runner.dry_run(_request(workflow_id, prepared_input_id), now=now)
 
     def run(
-        self, *, workflow_id: str, prepared_input_id: str, now: datetime
+        self,
+        *,
+        workflow_id: str,
+        prepared_input_id: str,
+        now: datetime,
+        approval_broker: LocalActionApprovalBroker | None = None,
     ) -> RunDarWorkflowResult:
         """Execute a sealed local no-tool workflow through the one runner."""
 
-        return self._runner.run(_request(workflow_id, prepared_input_id), now=now)
+        return self._runner.run(
+            _request(workflow_id, prepared_input_id),
+            now=now,
+            approval_broker=approval_broker,
+        )
 
 
 def _request(workflow_id: str, prepared_input_id: str) -> RunDarWorkflowRequest:

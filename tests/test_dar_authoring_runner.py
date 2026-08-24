@@ -22,6 +22,11 @@ from dynamic_agent_runner.openai_client import (  # noqa: E402
 
 from dar_workflow_server.catalog import PackageCatalog  # noqa: E402
 from dar_workflow_server.action_ledger import WorkflowActionLedger  # noqa: E402
+from dar_workflow_server.approvals import WorkflowApprovalStore  # noqa: E402
+from dar_workflow_server.authorized_tools import (  # noqa: E402
+    LocalActionApprovalBroker,
+    LocalApprovalDecision,
+)
 from dar_workflow_server.connections import MCPConnectionControlPlane  # noqa: E402
 from dar_workflow_server.mcp_binding import (  # noqa: E402
     MCPWorkflowCapabilityBindingControlPlane,
@@ -142,6 +147,16 @@ class QueuedClient:
         self.responses = QueuedResponses(responses)
 
 
+class FakeApprovalBroker:
+    def __init__(self, decision: LocalApprovalDecision) -> None:
+        self.decision = decision
+        self.actions: list[object] = []
+
+    def decide(self, *, action: object, approval: object) -> LocalApprovalDecision:
+        self.actions.append(action)
+        return self.decision
+
+
 def _runner(
     tmp_path: Path,
     *,
@@ -211,7 +226,12 @@ def _runner(
     )
 
 
-def _tool_runner(tmp_path: Path, *, side_effect: bool = False):
+def _tool_runner(
+    tmp_path: Path,
+    *,
+    side_effect: bool = False,
+    approval_broker: LocalActionApprovalBroker | None = None,
+):
     source = tmp_path / "packages" / "mail-reader"
     shutil.copytree(TEMPLATE_ROOT, source)
     descriptor_path = source / "workflow-descriptor.yaml"
@@ -417,6 +437,11 @@ def _tool_runner(tmp_path: Path, *, side_effect: bool = False):
                 if side_effect
                 else None
             ),
+            approval_store=(
+                WorkflowApprovalStore(store=store, owner="local-os-user-v1:501:ada")
+                if side_effect
+                else None
+            ),
         ),
         preparation,
         mcp_client,
@@ -556,6 +581,36 @@ def test_runner_executes_one_registered_reviewed_side_effecting_mcp_workflow(
         ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
     ]
     assert len(model_client.responses.calls) == 2
+
+
+def test_runner_uses_a_local_broker_only_when_ask_is_selected(
+    tmp_path: Path,
+) -> None:
+    broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
+    runner, preparation, mcp_client, _ = _tool_runner(
+        tmp_path, side_effect=True, approval_broker=broker
+    )
+    prepared = preparation.prepare(
+        workflow_id="mail-reader", prompt="ada@example.test\nWelcome!", now=NOW
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": "mail-reader",
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+        approval_broker=broker,
+    )
+
+    assert result.status == "completed"
+    assert len(broker.actions) == 1
+    assert mcp_client.calls == [
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
 
 
 def test_side_effecting_workflow_dry_run_constructs_no_action(
