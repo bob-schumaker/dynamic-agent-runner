@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 
@@ -107,6 +109,38 @@ def test_expired_revoked_and_consumed_handles_fail_closed(tmp_path: Path) -> Non
                 owner="local-user",
                 now=moment,
             )
+
+
+def test_concurrent_consumers_have_exactly_one_winner(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    handle = store.issue(
+        kind="prepared_input",
+        owner="local-user",
+        payload={"value": "one"},
+        expires_at=NOW + timedelta(minutes=1),
+        now=NOW,
+    )
+    other_store = _store(tmp_path)
+    barrier = Barrier(2)
+
+    def consume_once(candidate: PrivateStateStore) -> bool:
+        barrier.wait()
+        try:
+            candidate.consume(
+                handle,
+                expected_kind="prepared_input",
+                owner="local-user",
+                now=NOW,
+            )
+        except OpaqueRecordError:
+            return False
+        return True
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(consume_once, (store, other_store)))
+
+    assert results.count(True) == 1
+    assert results.count(False) == 1
 
 
 def test_forged_or_tampered_records_are_rejected(tmp_path: Path) -> None:

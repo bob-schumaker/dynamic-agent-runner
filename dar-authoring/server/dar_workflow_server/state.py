@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import base64
+import fcntl
 import hashlib
 import hmac
 import json
 import os
 import secrets
 import sys
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterator, Mapping
 
 
 class OpaqueRecordError(ValueError):
@@ -43,6 +45,7 @@ class PrivateStateStore:
     def __init__(self, root: Path) -> None:
         self._root = root
         self._records_path = root / "records.json"
+        self._lock_path = root / "records.lock"
         self._key_path = root / "record-key"
         self._root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self._key = self._load_or_create_key()
@@ -89,9 +92,10 @@ class PrivateStateStore:
             "state": "active",
         }
         raw_record["mac"] = self._record_mac(raw_record)
-        records = self._read_records()
-        records[handle] = raw_record
-        self._write_records(records)
+        with self._mutation_lock():
+            records = self._read_records()
+            records[handle] = raw_record
+            self._write_records(records)
         return handle
 
     def load(
@@ -114,9 +118,12 @@ class PrivateStateStore:
     def revoke(self, handle: str, *, owner: str, now: datetime) -> None:
         """Irreversibly revoke an active record owned by the caller."""
 
-        record = self._validated_record(handle, owner=owner)
-        self._require_active(record, now)
-        self._change_state(handle, "revoked")
+        with self._mutation_lock():
+            records = self._read_records()
+            self._active_record(
+                handle, expected_kind=None, owner=owner, now=now, records=records
+            )
+            self._change_state_in_records(records, handle, "revoked")
 
     def consume(
         self,
@@ -128,14 +135,33 @@ class PrivateStateStore:
     ) -> OpaqueRecord:
         """Consume an active record after validating its complete binding."""
 
-        record = self.load(handle, expected_kind=expected_kind, owner=owner, now=now)
-        self._change_state(handle, "consumed")
-        return record
+        with self._mutation_lock():
+            records = self._read_records()
+            record = self._active_record(
+                handle,
+                expected_kind=expected_kind,
+                owner=owner,
+                now=now,
+                records=records,
+            )
+            self._change_state_in_records(records, handle, "consumed")
+            return record
 
     def _validated_record(self, handle: str, *, owner: str) -> OpaqueRecord:
+        return self._validated_record_from_records(
+            handle, owner=owner, records=self._read_records()
+        )
+
+    def _validated_record_from_records(
+        self,
+        handle: str,
+        *,
+        owner: str,
+        records: Mapping[str, Mapping[str, Any]],
+    ) -> OpaqueRecord:
         _require_nonempty(owner, "owner")
         self._validate_handle(handle)
-        raw_record = self._read_records().get(handle)
+        raw_record = records.get(handle)
         if raw_record is None:
             raise OpaqueRecordError("unknown or forged opaque record")
         if not isinstance(raw_record, dict) or not hmac.compare_digest(
@@ -147,14 +173,44 @@ class PrivateStateStore:
             raise OpaqueRecordError("opaque record owner does not match")
         return record
 
-    def _change_state(self, handle: str, state: str) -> None:
-        records = self._read_records()
+    def _active_record(
+        self,
+        handle: str,
+        *,
+        expected_kind: str | None,
+        owner: str,
+        now: datetime,
+        records: Mapping[str, Mapping[str, Any]],
+    ) -> OpaqueRecord:
+        record = self._validated_record_from_records(
+            handle, owner=owner, records=records
+        )
+        if expected_kind is not None and record.kind != expected_kind:
+            raise OpaqueRecordError("opaque record kind does not match")
+        self._require_active(record, now)
+        return record
+
+    def _change_state_in_records(
+        self, records: dict[str, dict[str, Any]], handle: str, state: str
+    ) -> None:
         raw_record = records.get(handle)
         if raw_record is None:
             raise OpaqueRecordError("unknown or forged opaque record")
         raw_record["state"] = state
         raw_record["mac"] = self._record_mac(raw_record)
         self._write_records(records)
+
+    @contextmanager
+    def _mutation_lock(self) -> Iterator[None]:
+        """Hold an advisory cross-process lock while replacing record state."""
+
+        descriptor = os.open(self._lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
 
     def _require_active(self, record: OpaqueRecord, now: datetime) -> None:
         if record.expires_at <= _as_utc(now, "now"):
