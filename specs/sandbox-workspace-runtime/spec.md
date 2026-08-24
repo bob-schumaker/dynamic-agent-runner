@@ -5,9 +5,10 @@
 - Feature slug: `sandbox-workspace-runtime`
 - Mode: `light`
 - Artifact type: future feature specification
-- Status: DAR approval-policy boundary implemented through approval-interruption
-  v1; all writable runtime surfaces in this specification remain deferred,
-  including the planned host-wrapper temporary-workspace profile
+- Status: DAR approval-policy boundary and a host-only descriptor-relative
+  no-follow file-copy primitive are implemented; all writable model-facing
+  runtime surfaces remain deferred, including the planned host-wrapper
+  temporary-workspace profile and DAR-authoring file-ingress integration
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `runtime.execution_policy.sandbox_runtime`
@@ -35,9 +36,14 @@ boundaries.
 ## Existing Baseline
 
 The current runtime preserves sandbox/workspace metadata and provides an opt-in
-read-only local workspace pack. It intentionally does not provide write tools,
-shell tools, apply-patch tools, package installation, workspace persistence, or
-sandbox enforcement.
+read-only local workspace pack. Its host-only
+`copy_regular_file_no_follow(...)` primitive copies one selected regular file
+from a trusted absolute input root into a fresh private workspace through
+descriptor-relative `O_NOFOLLOW` handles, enforces a byte limit, commits the
+copy atomically, and returns only destination-relative path, SHA-256, and byte
+count. It intentionally does not provide write tools, shell tools, apply-patch
+tools, package installation, workspace persistence, or model-facing sandbox
+enforcement. The primitive is not yet wired into a DAR-authoring input artifact.
 
 ## Scope
 
