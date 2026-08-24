@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import re
 from collections.abc import Mapping
@@ -121,6 +122,51 @@ def _validate_freshness(
         raise ReleaseMetadataError("release metadata is expired")
     if key_id in metadata["revoked_key_ids"]:
         raise ReleaseMetadataError("release signer is revoked")
+
+
+def verify_release_artifacts(
+    *,
+    metadata: Mapping[str, object],
+    index_url: str,
+    required_versions: Mapping[str, str],
+    wheel_bytes: Mapping[str, bytes],
+) -> tuple[tuple[str, str], ...]:
+    """Verify that selected wheel bytes exactly match signed release entries."""
+
+    unsigned_release_metadata_bytes(metadata)
+    if metadata["index_url"] != index_url:
+        raise ReleaseMetadataError("release index is invalid")
+    entries: dict[str, Mapping[str, object]] = {}
+    for entry in metadata["artifacts"]:
+        if not isinstance(entry, Mapping) or set(entry) != {
+            "name",
+            "version",
+            "sha256",
+        }:
+            raise ReleaseMetadataError("release artifacts are invalid")
+        name = entry.get("name")
+        version = entry.get("version")
+        digest = entry.get("sha256")
+        if (
+            not isinstance(name, str)
+            or not isinstance(version, str)
+            or not isinstance(digest, str)
+            or len(digest) != 64
+        ):
+            raise ReleaseMetadataError("release artifacts are invalid")
+        if name in entries:
+            raise ReleaseMetadataError("release artifacts are invalid")
+        entries[name] = entry
+    resolved: list[tuple[str, str]] = []
+    for name, version in sorted(required_versions.items()):
+        entry = entries.get(name)
+        data = wheel_bytes.get(name)
+        if entry is None or entry["version"] != version or not isinstance(data, bytes):
+            raise ReleaseMetadataError("release artifact is unavailable")
+        if hashlib.sha256(data).hexdigest() != entry["sha256"]:
+            raise ReleaseMetadataError("release artifact hash is invalid")
+        resolved.append((name, version))
+    return tuple(resolved)
 
 
 def _key_id(value: object) -> None:

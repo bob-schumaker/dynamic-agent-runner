@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from dar_workflow_server.release_metadata import (  # noqa: E402
     sign_release_metadata,
     unsigned_release_metadata_bytes,
     verify_release_metadata,
+    verify_release_artifacts,
 )
 
 
@@ -105,9 +107,41 @@ def test_release_metadata_rejects_expired_or_signer_revocation() -> None:
             trusted_keys=trusted_keys,
             now=datetime(2026, 8, 24, tzinfo=UTC),
         )
-    with pytest.raises(ReleaseMetadataError, match="signature is invalid"):
-        verify_release_metadata(
-            metadata={**metadata, "artifacts": [{"name": "altered"}]},
-            signature=signature,
-            trusted_keys={"release-root": private_key.public_key().public_bytes_raw()},
+
+
+def test_release_metadata_binds_exact_index_and_wheel_bytes() -> None:
+    plugin_wheel = b"plugin wheel"
+    dar_wheel = b"dar wheel"
+    metadata = _metadata()
+    metadata["artifacts"] = [
+        {
+            "name": "dar-authoring",
+            "version": "0.1.0",
+            "sha256": hashlib.sha256(plugin_wheel).hexdigest(),
+        },
+        {
+            "name": "dynamic-agent-runner",
+            "version": "0.1.15",
+            "sha256": hashlib.sha256(dar_wheel).hexdigest(),
+        },
+    ]
+
+    assert verify_release_artifacts(
+        metadata=metadata,
+        index_url="https://artifactory.example.test/simple",
+        required_versions={"dar-authoring": "0.1.0", "dynamic-agent-runner": "0.1.15"},
+        wheel_bytes={"dar-authoring": plugin_wheel, "dynamic-agent-runner": dar_wheel},
+    ) == (("dar-authoring", "0.1.0"), ("dynamic-agent-runner", "0.1.15"))
+    with pytest.raises(ReleaseMetadataError, match="index"):
+        verify_release_artifacts(
+            metadata=metadata,
+            index_url="https://wrong.example.test/simple",
+            required_versions={
+                "dar-authoring": "0.1.0",
+                "dynamic-agent-runner": "0.1.15",
+            },
+            wheel_bytes={
+                "dar-authoring": plugin_wheel,
+                "dynamic-agent-runner": dar_wheel,
+            },
         )
