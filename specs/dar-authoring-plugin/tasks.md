@@ -2,11 +2,12 @@
 
 ## Status
 
-This task breakdown implements the release gates in `spec.md`. Complete each
-task test-first. G3 depends on G0/G1; G2 and G4 are additive G0/G1 extensions;
-G5 depends on G0/G1/G3 plus G2 for MCP actions or G4 for file-backed arguments.
-A capability cannot be implemented or advertised as live before its applicable
-gate passes.
+This task breakdown implements the release gates in `spec.md`; `plan.md` groups
+the known work into milestones and commit-sized slices. Complete each task
+test-first. G3 depends on G0/G1; G2 and G4 are additive G0/G1 extensions; G5
+depends on G0/G1/G3 plus G2 for MCP actions or G4 for file-backed arguments. A
+capability cannot be implemented or advertised as live before its applicable gate
+passes.
 
 ## G0: Package and Server Spike
 
@@ -39,8 +40,10 @@ gate passes.
       hashes and receives a valid MCP `initialize` response without source-tree
       paths or undeclared package indexes.
 - [ ] RED/GREEN: launcher verifies the selected plugin/DAR wheel bytes against
-      signed release metadata, rejects unexpected indexes or a replaced artifact,
-      and records the resolved dependency identities at startup.
+      signed release metadata rooted in configured trusted keys; rejects
+      unexpected indexes, a replaced artifact, expired metadata, revoked keys or
+      versions, and a version below the configured security floor; and records
+      the resolved dependency identities at startup.
 
 ## G1: Catalog, Profile, and Capability Boundary
 
@@ -61,46 +64,12 @@ gate passes.
       policy. Destination, authorization, capability-selection, and external
       identity fields reject `additional_context`, tool-result, and remote
       instruction flow; adversarial prompt-injection fixtures prove rejection.
-- [ ] RED/GREEN: require an `ArgumentProvenanceEnvelope` for every model-facing
-      tool argument. Verify v1 canonical serialization, UTF-8 byte spans,
-      normalization identifiers, sealed/artifact/constant references, and typed
-      transform inputs; reject raw/unverifiable values and remote-output or
-      additional-context references in a model transform.
-- [ ] RED/GREEN: authoring skill fixtures turn natural-language requests plus
-      an `AuthoringMaterialSet` projection into a validated package directory;
-      deterministic ZIP export/import preserves the manifest and artifact
-      digests without executing package content.
-- [ ] RED/GREEN: human-only authoring-material selection creates a principal- and
-      expiry-bound `AuthoringMaterialSet` of bounded versioned artifact refs with
-      reference-only/distributable status. Skills receive only approved
-      projections; unselected/private material cannot enter package, trace,
-      evaluation fixture, or export.
-- [ ] RED/GREEN: run a de-identified checked-in authoring corpus through an
-      external release harness. Record authoring model/prompt/package revision,
-      require deterministic package and policy checks to pass, and route every
-      release-corpus package to human intent-fidelity review until a judge is
-      calibrated.
-- [ ] RED/GREEN: execute the three target skill invocation fixtures through the
-      external authoring harness. Require the resulting artifacts to satisfy the
-      same checked-in property contracts and behavioral routing/refusal
-      expectations; record authoring model/prompt/reviewer evidence and review
-      fixture-schema or expected-property changes as acceptance-contract changes.
-- [ ] RED/GREEN: ZIP import rejects traversal, duplicate, link, special, and
-      over-limit entries; verify manifest file paths, bytes, hashes, schema, and
-      DAR compatibility before immutable policy compilation. Require recorded local
-      trust for locally authored packages and a configured trusted-publisher-key
-      signature for received packages.
 - [ ] RED/GREEN: directory import makes the same private no-follow staging copy
       before validation; package identity is `package_id` plus immutable
       `revision_digest`, with idempotent reimport, explicit collision handling,
       and retained prior revisions. G3 creates installation-local workflow aliases
       only for executable registrations.
-- [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
-      signer/key-id binding, rejection of an unknown locally trusted publisher
-      key, and a recipient-host signed-package import. Explicitly selected
-      distributable authoring material is included; private source material is
-      absent.
-- [ ] RED/GREEN: `WorkflowPreparationService` imports a directory or ZIP only
+- [ ] RED/GREEN: `PackagePreflightService` imports a directory or ZIP only
       through a pre-issued source handle and compiles an immutable
       `WorkflowPolicy`. G1 validates requirements but creates neither a live
       profile binding nor an executable workflow alias.
@@ -110,27 +79,51 @@ gate passes.
 - [ ] RED/GREEN: capability resolution returns a non-executing unavailable result
       for a required G2/deferred collaborator. Only the eligible gate binds a
       `WorkflowPolicy` to profile/snapshot data as `WorkflowRegistration`.
-- [ ] RED/GREEN: package-only preparation returns the package/policy identifiers
-      and a deterministic unavailable-capability result where required; it never
-      returns a workflow alias, registration, or prepared input before G3 and the
-      applicable capability gate pass.
-- [ ] RED/GREEN: preparation accepts only local-principal/expiry-bound opaque
+- [ ] RED/GREEN: package-only preflight returns the package/policy identifiers
+      and a deterministic unavailable-capability result where required; it cannot
+      accept invocation input or return a workflow alias, registration, or
+      prepared input before G3 and the applicable capability gate pass.
+- [ ] RED/GREEN: preflight accepts only local-principal/expiry-bound opaque
       package-source handles. A human-selected local CLI path resolves to a
       handle before preparation; LLM skills and MCP callers cannot select an
       arbitrary host path or redirect an existing handle.
+- [ ] RED/GREEN: `PackageSourceSelectionPolicy` records human-managed allowed
+      roots and rejects absent root configuration, noncanonical paths, and
+      no-follow validation failures before it issues a package-source handle.
 - [ ] RED/GREEN: when a skill names a local package without a source handle,
       return only `source_selection_required`; a human-only picker or
       `dar-workflow select-package` issues the handle without exposing its path
       to the skill.
-- [ ] RED/GREEN: preparation derives only schema-valid structured fields without
-      workflow-tool access, preserves unmapped information within the declared
-      `additional_context` bound, and rejects over-limit or malformed inputs.
 - [ ] RED/GREEN: `InstallationIdentityProvider` supplies a stable local principal
-      to CLI, MCP server, preparation, and runner. Cross-client and restart tests
-      prove requests cannot provide or override it.
+      from the local OS-user trust boundary to CLI, MCP server, preparation, and
+      runner. Restart and forged-principal tests prove requests cannot provide or
+      override it; same-user processes are one v1 authority boundary.
+- [ ] RED/GREEN: one private per-user state store and authenticated opaque-record
+      format define handle kind, owner, payload digest, issuance/expiry,
+      active/revoked/consumed state, restart persistence, cleanup, and revocation
+      before any source, catalog, registration, or prepared-input handle is issued.
+- [ ] RED/GREEN: human-only `ProfileCapabilityRecord` creation/update establishes
+      immutable local profile capability records before resolution; callers,
+      skills, and MCP requests cannot supply or alter them.
 - [ ] RED/GREEN: produce one deterministic `CapabilityResolution` from the
       `WorkflowPolicy`, declared profile capabilities, active gates, and DAR
       inspection; reject metadata-only or missing requirements before binding.
+
+## RA1: Authoring Release Evidence
+
+- [ ] RED/GREEN: authoring skill fixtures turn natural-language requests plus an
+      `AuthoringMaterialSet` projection into a validated package directory;
+      unselected/private material cannot enter package, trace, evaluation fixture,
+      or export.
+- [ ] RED/GREEN: run a de-identified checked-in authoring corpus through an
+      external release harness. Record corpus/prompt/package digests, authoring
+      model/provider, deterministic validator result, redacted evidence, named
+      reviewer decision, and explicit pass/fail criteria.
+- [ ] RED/GREEN: execute the three target skill invocation fixtures through the
+      external authoring harness. Require the resulting artifacts to satisfy the
+      same checked-in property contracts and behavioral routing/refusal
+      expectations; review fixture-schema or expected-property changes as
+      acceptance-contract changes.
 
 ## G2: Optional MCP Connection Control Plane and Surface Binding
 
@@ -160,7 +153,8 @@ gate passes.
       handler dispatch returns `surface_changed` or `capability_unavailable` and
       never invokes a replacement client under the prior authorization.
 - [ ] RED/GREEN: construct host-authored, caller-supplied `MCPToolBinding`
-      handlers only from an approved snapshot; fake MCP tests only.
+      handlers only from an approved snapshot; before G5, reject every non-read-
+      only side-effect class and prove a fake send-like handler is not invoked.
 - [ ] RED/GREEN: a read-only MCP registration is unavailable until both G2 and
       G3 pass; then execute it through the shared capability resolution path.
 
@@ -179,11 +173,14 @@ gate passes.
 - [ ] RED: versioned `run_dar_workflow` request/response schema tests for
       closed-set workflow identifiers plus an opaque sealed prepared-input ID;
       raw hybrid-input fields are rejected.
-- [ ] RED/GREEN: preparation seals the original prompt, structured projection,
-      additional context, local principal, registration digest, and expiry into
-      `PreparedWorkflowInput`; reject raw or cross-principal, cross-registration,
-      changed, or expired input at the runner. Reusable read-only inputs require
-      an explicit bounded profile policy.
+- [ ] RED/GREEN: `WorkflowInvocationPreparationService` alone derives
+      schema-valid structured fields without workflow-tool access, preserves
+      unmapped information within the declared `additional_context` bound, and
+      seals the original prompt, projection, local principal, registration digest,
+      and expiry into `PreparedWorkflowInput`. Reject raw or cross-principal,
+      cross-registration, changed, or expired input at the runner. Inputs are
+      single-use by default; reuse requires an explicit bounded read-only profile
+      policy.
 - [ ] RED/GREEN: execute a no-tools workflow through its registration, capability
       resolution, bounded result shaping, and deep-redacted tracing.
 - [ ] RED/GREEN: `dar-workflow-run` resolves handles, invokes preparation, then
@@ -214,6 +211,11 @@ gate passes.
 
 ## G5: Model-Directed External-Tool Workflow Runner
 
+- [ ] RED/GREEN: require an `ArgumentProvenanceEnvelope` for every model-facing
+      tool argument. Verify v1 canonical serialization, UTF-8 byte spans,
+      normalization identifiers, sealed/artifact/constant references, and typed
+      transform inputs; reject raw/unverifiable values and remote-output or
+      additional-context references in a model transform.
 - [ ] RED: undeclared, schema-invalid, drifted, or over-cardinality writes fail
       before their external handler runs; a schema-valid model-directed call on
       the approved surface is permitted.
@@ -238,6 +240,20 @@ gate passes.
 - [ ] RED/GREEN: atomically consume a side-effect-capable prepared input at run
       creation. Concurrent/replayed consumption fails; prompt-only actions pass
       without G4, while file-backed actions require G4.
+
+## M8: Publication Hardening
+
+- [ ] RED/GREEN: ZIP import rejects traversal, duplicate, link, special, and
+      over-limit entries; verify manifest file paths, bytes, hashes, schema, and
+      DAR compatibility before it reaches the existing staged-package boundary.
+- [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
+      signer/key-id binding, rejection of an unknown locally trusted publisher
+      key, and a recipient-host signed-package import. Explicitly selected
+      distributable authoring material is included; private source material is
+      absent.
+- [ ] RED/GREEN: deterministic ZIP export/import preserves manifest and artifact
+      digests without executing package content; a clean consumer installation
+      verifies the published plugin wheel and its bundled assets.
 
 ## Deferred After the First Release
 

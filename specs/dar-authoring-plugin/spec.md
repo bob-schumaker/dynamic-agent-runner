@@ -13,6 +13,7 @@
     the wrapper owns v1 `workflow_auto` and `--ask` decisions because durable
     continuation remains deferred
 - Task breakdown: `specs/dar-authoring-plugin/tasks.md`
+- Implementation plan: `specs/dar-authoring-plugin/plan.md`
 
 ## Objective
 
@@ -43,9 +44,12 @@ host responsibilities coherent without expanding DAR's runtime boundary.
 The Artifactory-published `dar-authoring` plugin shall include the adapted
 skills, DAR support tools, and a pinned compatible `dynamic-agent-runner`
 runtime dependency. Its MCP launcher uses an isolated `uvx` environment and a
-verified exact plugin version. A workflow package is instead a local directory
-or ZIP data artifact consumed by that plugin; it is not independently installed
-or executed by `uvx`.
+verified exact plugin version. Release metadata is verified from a configured
+trusted signing-key root, has an expiry and minimum accepted version, and can
+revoke a signing key or artifact version; an expired, revoked, or below-floor
+otherwise-valid release is rejected. A workflow package is instead a local
+directory or ZIP data artifact consumed by that plugin; it is not independently
+installed or executed by `uvx`.
 
 The plugin shall provide:
 
@@ -400,7 +404,7 @@ Acceptance criteria:
   judge-based checks and records the judge or human-review policy.
 - Tests use fake model adapters, fake tool registries, or an external harness;
   they do not call Fastmail, Hugging Face, or a live model.
-- G1 release acceptance includes a de-identified, checked-in authoring corpus
+- Authoring publication acceptance includes a de-identified, checked-in corpus
   covering basic, MCP, ambiguous, supplied-material, and adversarial tool-policy
   requests. Deterministic package, schema, task-policy, and provenance checks
   must all pass. An external harness records the authoring model, prompt, and
@@ -432,27 +436,28 @@ Fastmail, Hugging Face, or model call.
 
 ## MCP Execution Tool
 
-### Package preparation is separate from execution
+### Package preflight and invocation preparation are separate from execution
 
-Before a package can run, `WorkflowPreparationService` validates/imports it from
-an already-issued package-source handle and compiles its `WorkflowPolicy`.
+Before a package can run, `PackagePreflightService` validates/imports it from an
+already-issued package-source handle and compiles its `WorkflowPolicy`.
 `CapabilityResolution` then determines whether the currently passed gates can
 bind that policy to a compatible profile as an executable
 `WorkflowRegistration` with a local `workflow_id` alias. A package with an MCP,
 embedding, or other unavailable requirement returns a non-executing capability
-result; G1 never fabricates a live binding. Preparation is a trusted local
+result; G1 never fabricates a live binding. Preflight is a trusted local
 control-plane action, not a second model-facing MCP execution tool. An authoring
 or preparation skill may request the service and interpret its result, but it
 never receives a package path or ZIP, performs the import, or selects a profile.
-The service may ask a human to complete connection authentication or select an
-already configured compatible profile. It must not invent credentials, enable
-undeclared capabilities, or silently modify package artifacts.
+The later applicable capability control plane may ask a human to complete
+connection authentication or select an already configured compatible profile.
+Neither path may invent credentials, enable undeclared capabilities, or silently
+modify package artifacts.
 
-The trusted control plane exposes this preparation contract to skills and the
+The trusted control plane exposes this preflight contract to skills and the
 local CLI, not as a second model-facing MCP tool:
 
 ```text
-dar-workflow prepare --package-source <opaque-source-handle> --prompt <text> \
+dar-workflow preflight --package-source <opaque-source-handle> \
   --json
 ```
 
@@ -467,45 +472,49 @@ path are never exposed to the skill.
 dar-workflow select-package --path <human-selected-path> --json
 ```
 
-Its authenticated request binds the local principal, optional registered alias,
-package-source handle, and prompt. G4 extends this contract with already-ingressed
-workspace-input handles for a registration that declares file inputs. A trusted
-local CLI/control plane creates a package-source handle only after a human
+Its authenticated request binds the local principal and package-source handle.
+A trusted local CLI/control plane creates a package-source handle only after a human
 selects a directory or ZIP from an allowlisted root and it has performed the
 bounded no-follow source check. The handle is principal/expiry-bound and cannot
 be redirected to another path. Direct local `--package` and
 `--workspace-file` conveniences resolve to these handles before preparation
 after G4 passes; they are not available to an LLM skill or model-facing MCP
-caller. Package-only preparation returns `package_id`, `revision_digest`,
-`workflow_policy_digest`, and a discriminated capability result. Only after G3
-and all required capability gates bind the policy to a profile does it return
-`workflow_id`, `registration_digest`, `prepared_input_id`, and expiry. The
-authoring/preparation LLM may request this operation and interpret its result,
-but cannot perform its security-sensitive validation, select an arbitrary host
-path, or manufacture its identifiers.
+caller. Package preflight returns only `package_id`, `revision_digest`,
+`workflow_policy_digest`, and a discriminated capability result. It cannot
+accept invocation input, create a registration or alias, issue a prepared input,
+or call the runner. The authoring/preparation LLM may request this operation and
+interpret its result, but cannot perform its security-sensitive validation,
+select an arbitrary host path, or manufacture its identifiers.
 
 For example, a request to use `custom-email.zip` to send an email causes the
-skill to request preparation with a previously issued package-source handle.
-The service imports and compiles the package policy. If the required MCP
+skill to request preflight with a previously issued package-source handle. The
+service imports and compiles the package policy. If the required MCP
 capability is not live, it returns `capability_unavailable`; it neither provisions
-nor registers the package. Once the relevant gates are live, preparation derives
-the package's validated structured input and bounded additional context without
-invoking a workflow tool, binds the policy, and calls the generic runner with its
-registered `workflow_id`. After G4, it may also bind explicitly ingressed local
-inputs. A later request can reuse that registered workflow with the same hybrid
-input preparation.
+nor registers the package. Once the relevant gates are live, invocation
+preparation derives the package's validated structured input and bounded
+additional context without invoking a workflow tool, binds the policy, and calls
+the generic runner with its registered `workflow_id`. After G4, it may also bind
+explicitly ingressed local inputs. A later request can reuse that registered
+workflow with a new invocation preparation.
 
-After executable registration, an authenticated non-model
-`WorkflowPreparationService` creates a local-principal-, registration-digest-,
-and expiry-bound `PreparedWorkflowInput`. It contains the original prompt, only
-schema-valid structured fields, bounded `additional_context`, opaque artifact
-identifiers and versions when G4 is live, issuer/key ID, canonical schema version,
-and a canonical digest. It is sealed with a service key unavailable to skills. The
-structured fields are an explicitly labeled projection of the original prompt,
-not a more authoritative instruction source; the package's `field_precedence`
-rule applies before prompt construction. It may only project explicit user
-prompt/artifact data through declared mappings: it must not invent or transform
-external-action values, call a workflow tool, or read credentials.
+After executable registration, authenticated non-model
+`WorkflowInvocationPreparationService` is the sole issuer of a local-principal-,
+registration-digest-, and expiry-bound `PreparedWorkflowInput`:
+
+```text
+dar-workflow prepare --workflow <registered-workflow-id> --prompt <text> --json
+```
+
+It contains the original prompt, only schema-valid structured fields, bounded
+`additional_context`, opaque artifact identifiers and versions when G4 is live,
+issuer/key ID, canonical schema version, and a canonical digest. It is sealed
+with a service key unavailable to skills. The structured fields are an explicitly
+labeled projection of the original prompt, not a more authoritative instruction
+source; the package's `field_precedence` rule applies before prompt construction.
+It may only project explicit user prompt/artifact data through declared mappings:
+it must not invent or transform external-action values, call a workflow tool, or
+read credentials. Prepared input is single-use by default; reusable read-only
+input requires an immutable bounded profile policy.
 
 ### FR-4: Expose one narrow execution tool
 
@@ -622,7 +631,9 @@ only from an already approved snapshot and cannot update it.
 
 The wrapper shall return `authentication_required` when OAuth has not been
 completed. It shall return `surface_changed` when a required remote tool is
-missing or its material input/output schema has changed. It must not choose a
+missing or its material input schema has changed. The normalized output contract
+is wrapper-owned and is separately validated and bounded after invocation; it is
+not inferred from remote `tools/list` data. The wrapper must not choose a
 replacement tool automatically. A profile's surface can be refreshed only by an
 explicit human-authorized provisioning request.
 
@@ -654,6 +665,11 @@ normalized output contracts itself, then validates and bounds handler outputs
 against those contracts, rejecting unexpected sensitive fields and untrusted
 instructions.
 
+Before G5 passes, capability resolution and binding shall reject every MCP tool
+whose declared side-effect class is not `read_only`, even when its connection,
+scope, and surface snapshot are approved. G2 may create its reviewed metadata,
+but it must not construct a dispatchable send/write/delete handler.
+
 Acceptance criteria:
 
 - The wrapper creates DAR bindings only after all required remote capabilities
@@ -664,6 +680,8 @@ Acceptance criteria:
   refreshed by the human control plane.
 - A workflow requiring an MCP tool is unavailable until its required connection
   and snapshot pass preflight. A Fastmail email workflow is one example.
+- A send-like fake tool remains unavailable and its handler is not invoked under
+  G2 + G3 before G5 passes.
 
 ### FR-6: Enforce write approval in the wrapper and DAR boundary
 
@@ -688,8 +706,9 @@ dar-workflow-run --workflow <id> --prompt <text> \
 
 `dar-workflow-run` is a convenience façade, not a second execution path. For a
 real run it resolves permitted local paths into handles (and uses G4 ingress for
-`--workspace-file`), calls `WorkflowPreparationService`, then invokes only
-`run_dar_workflow` with the returned `workflow_id` and `prepared_input_id`. It
+`--workspace-file`), calls `WorkflowInvocationPreparationService`, then invokes
+only `run_dar_workflow` with the returned `workflow_id` and
+`prepared_input_id`. It
 must never pass its raw prompt or file path directly to DAR. Before G4, it
 rejects `--workspace-file` rather than attempting a local copy.
 
@@ -789,14 +808,24 @@ execution limits.
 Profiles may also reference a local OpenAI-compatible, llama.cpp, or MLX
 adapter, but the plugin shall not start or discover any of those model services.
 
+Before it issues any package-source, catalog, registration, or prepared-input
+handle, the wrapper shall provide one private per-user state store and an
+authenticated opaque-record format. Each record has a kind, local-OS-user owner,
+payload digest, issuance and expiry, active/revoked/consumed state,
+persistence/restart behavior, cleanup, and revocation semantics. A handle is
+rejected when its kind, owner, digest, state, or expiry does not match the
+operation. V1 does not claim isolation between processes that act as the same OS
+user; a storage interface is deferred until a second backend is required.
+
 `InstallationIdentityProvider` establishes the installation's authenticated local
 principal before catalog resolution and supplies it to the control plane and
-runner; no CLI or MCP request can provide or override it. V1 binds this identity
-to the local installation and rejects remote serving until an explicit remote
-identity extension is specified. Profiles, connections, snapshots, package
-revisions, approval records, group aliases, workspace roots, and trace records
-are local-principal scoped. Multi-tenant roles and isolation are a later
-deployment slice.
+runner; no CLI or MCP request can provide or override it. V1's trust boundary is
+the same local OS user: protected plugin state is per-user, and any process able
+to act as that OS user is inside that boundary. The plugin rejects remote serving
+until an explicit remote identity extension is specified. Profiles, connections,
+snapshots, package revisions, approval records, group aliases, workspace roots,
+and trace records are local-principal scoped. Multi-tenant roles and isolation
+are a later deployment slice.
 
 Trusted local CLI file inputs are accepted only from a local-principal allowlisted
 input root and must pass G4 file ingress before they become workspace input
@@ -821,6 +850,8 @@ Acceptance criteria:
 - Missing profile bindings fail before workflow execution.
 - A caller cannot read, select, approve, or execute another local principal's
   profile, connection, package, group alias, or trace.
+- A caller cannot supply, forge, or replace the OS-derived installation principal
+  across CLI, MCP, preparation, or runner requests.
 
 ### FR-8: Capability resolution contract
 
@@ -976,7 +1007,8 @@ limits:
   max_external_tool_calls: 4
 ```
 
-After the package has been designed and registered, `WorkflowPreparationService`
+After the package has been designed and registered,
+`WorkflowInvocationPreparationService`
 retains the prompt and derives only the schema fields it can validate; the
 workflow design directs its allowed tool calls. The optional `generate_image`
 declaration is needed only if the author wants image generation; an email MCP
