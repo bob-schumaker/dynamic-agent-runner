@@ -45,6 +45,23 @@ contract to the request; retain the finite no-tool invocation pattern. Do not
 copy `package-manifest.json`: finalization creates it after the four authored
 files are written through the control plane.
 
+## Required authoring sequence
+
+Do not stop after a partial output. Complete these operations in order before
+reporting a package:
+
+1. Issue the user-supplied materials and project the returned
+   `material_set_id`.
+2. Create the authored package and retain its `authoring_output_id`.
+3. Write `agent-design.md`, `agent-runtime.yaml`, `agent-graph.mmd`, and
+   `workflow-descriptor.yaml` through `write-authored-package-file`, using that
+   same output id for every write.
+4. Call `finalize-authored-package` with that output id and the material-set
+   id. Treat its validated package receipt as the only successful completion.
+
+If any command fails, report its redacted failure and stop; never substitute a
+directory written outside the authoring control plane.
+
 ## Output
 
 Before writing a package, require the host's DAR loader and authoring control

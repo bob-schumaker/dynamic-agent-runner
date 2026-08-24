@@ -181,11 +181,17 @@ def test_adapted_skills_are_portable_and_cover_fixture_contracts() -> None:
 def test_agent_development_skill_calls_the_host_authoring_control_plane() -> None:
     text = (SKILL_ROOT / "agent-development" / "SKILL.md").read_text(encoding="utf-8")
 
-    assert "issue-authoring-materials" in text
-    assert "project-authoring-materials" in text
-    assert "create-authored-package" in text
-    assert "write-authored-package-file" in text
-    assert "finalize-authored-package" in text
+    commands = (
+        "issue-authoring-materials",
+        "project-authoring-materials",
+        "create-authored-package",
+        "write-authored-package-file",
+        "finalize-authored-package",
+    )
+    positions = [text.index(command) for command in commands]
+
+    assert positions == sorted(positions)
+    assert "Do not stop after a partial output" in text
 
 
 def test_companion_skills_use_the_entry_skill_output_handle() -> None:
