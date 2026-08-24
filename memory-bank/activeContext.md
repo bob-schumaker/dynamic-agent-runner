@@ -39,17 +39,17 @@
   G5 still needs a scope audit for multiple independently configured MCP
   clients per workflow before declaring the general connection model complete.
 - `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
-  through `14dfbf5`. Its no-tool base path has a host-managed strict-local
+  through `88ff0a4`. Its base path has a host-managed strict-local
   loopback OpenAI-compatible profile, private immutable registration, sealed
   preparation, and DAR preflight. The one model-facing MCP tool now accepts
   only `{format_version, workflow_id, prompt}`, seals the prompt internally,
   and never returns a prepared-input ID. A real local-wheel Codex smoke with a
   temporary configured host discovered exactly that tool; the temporary
   marketplace and host state were removed. Human-only `dar-workflow invoke`
-  composes source selection, no-tool registration, preparation, and execution
-  for a local directory or ZIP. Tool-bearing workflows still require their
-  reviewed binding; `--dry-run` and `--ask` remain on the existing sealed-run
-  control path. Full validation passed with 960 tests and 4 skips.
+  composes source selection, registration, preparation, and execution for a
+  local directory or ZIP; it accepts an optional already-reviewed opaque MCP
+  binding and preserves `--dry-run` plus local `--ask`. Full validation passed
+  with 962 tests and 4 skips.
 - `dar-authoring-plugin` M2 (G1 runtime core) is implemented through
   `8a08669`. A human-selected directory receives a principal/expiry-bound
   opaque source handle, is copied through descriptor-relative no-follow file
