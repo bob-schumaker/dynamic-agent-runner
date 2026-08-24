@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 PLUGIN_SERVER_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "server"
@@ -226,6 +227,109 @@ def test_host_reviews_only_the_human_approved_generic_mcp_surface(
         "list_unread": "read",
         "send_email": "write",
     }
+
+
+def test_host_binds_a_staged_mcp_package_only_to_a_reviewed_surface(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "mail-reader"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    _add_read_only_mcp_tool(source)
+    root = _configured_reviewable_mcp_host(
+        root=tmp_path / "state", package_root=package_root, monkeypatch=monkeypatch
+    )
+    host = LocalWorkflowHost.open(root)
+    snapshot = host.review_mcp_surface(approved_read_only_tool_names={"list_unread"})
+    source_handle = host.select_package(source, now=NOW)
+
+    binding = host.bind_mcp_package(
+        package_source_handle=source_handle,
+        snapshot_id=snapshot.snapshot_id,
+        now=NOW,
+    )
+
+    assert binding.snapshot_id == snapshot.snapshot_id
+    assert dict(binding.tool_id_to_remote_name) == {"mail_list_unread": "list_unread"}
+
+
+def _configured_reviewable_mcp_host(
+    *, root: Path, package_root: Path, monkeypatch
+) -> Path:
+    monkeypatch.setattr(
+        "dar_workflow_server.host.create_local_adapter",
+        lambda profile: OpenAIClientAdapter(
+            _Client(), models=[profile.model_id], is_local=True
+        ),
+    )
+    monkeypatch.setattr(
+        "dar_workflow_server.connections.KeyringSecretStore", _MemorySecretStore
+    )
+    monkeypatch.setattr(
+        "dar_workflow_server.host.MCPConnectionClient", _ReviewedMCPClient
+    )
+    configure_local_host(
+        root=root,
+        package_root=package_root,
+        model_id="local-model-v1",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    connection = create_mcp_connection(
+        root=root,
+        endpoint="https://mcp.example.test/v1",
+        scopes={"mail.read"},
+        authentication_method="api_token",
+    )
+    authentication = configure_mcp_api_token(
+        root=root, connection_id=connection.connection_id, token="secret-token"
+    )
+    attach_mcp_client(
+        root=root,
+        connection_id=connection.connection_id,
+        authentication_id=authentication.authentication_id,
+        peer_certificate_sha256="a" * 64,
+        timeout_seconds=10,
+        max_response_bytes=32_768,
+    )
+    return root
+
+
+def _add_read_only_mcp_tool(source: Path) -> None:
+    descriptor = source / "workflow-descriptor.yaml"
+    descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+    descriptor_value["package_id"] = "mail-reader"
+    descriptor_value["tools"] = [
+        {
+            "id": "mail_list_unread",
+            "kind": "mcp",
+            "remote_tool_name": "list_unread",
+            "side_effect": "read",
+        }
+    ]
+    descriptor_value["task_invocation"].update(
+        {"allowed_tool_ids": ["mail_list_unread"], "max_total_tool_calls": 3}
+    )
+    descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+    runtime = source / "agent-runtime.yaml"
+    runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+    runtime_value["package_id"] = "mail-reader"
+    runtime_value["tools"] = [
+        {
+            "id": "mail_list_unread",
+            "label": "List unread mail",
+            "tool_type": "external_api",
+            "description_for_llm": "List unread mail.",
+            "adapter": "host.mcp",
+            "input_schema": {"type": "object", "properties": {}},
+            "side_effect": "read",
+            "approval_required": False,
+            "timeout": "runtime_default",
+            "retry_policy": "none",
+            "failure_behavior": "error",
+        }
+    ]
+    runtime_value["nodes"][0]["available_tools"] = ["mail_list_unread"]
+    runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
 
 
 def test_host_composes_human_setup_with_sealed_dry_run(

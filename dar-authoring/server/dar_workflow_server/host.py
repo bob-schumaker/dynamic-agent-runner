@@ -20,7 +20,11 @@ from dar_workflow_server.connections import (
     MCPConnectionControlPlane,
     MCPConnectionError,
 )
-from dar_workflow_server.mcp_binding import MCPWorkflowCapabilityBindingControlPlane
+from dar_workflow_server.mcp_binding import (
+    MCPWorkflowCapabilityBinding,
+    MCPWorkflowCapabilityBindingControlPlane,
+    MCPWorkflowCapabilityBindingError,
+)
 from dar_workflow_server.mcp_client import (
     HTTPSJSONRPCMCPTransportFactory,
     MCPClientConfiguration,
@@ -340,6 +344,31 @@ class LocalWorkflowHost:
         except MCPConnectionClientError as error:
             raise LocalWorkflowHostError(
                 "MCP surface discovery is unavailable"
+            ) from error
+
+    def bind_mcp_package(
+        self,
+        *,
+        package_source_handle: str,
+        snapshot_id: str,
+        now: datetime,
+    ) -> MCPWorkflowCapabilityBinding:
+        """Bind one staged declared-tool policy to a current reviewed MCP surface."""
+
+        revision = self._catalog.import_staged(
+            self._stager.stage(package_source_handle, now=now)
+        )
+        policy = compile_workflow_policy(revision)
+        self._ensure_mcp_client(policy_requires_mcp=True)
+        if self._mcp_client is None or self._mcp_bindings is None:
+            raise LocalWorkflowHostError("MCP client is not configured")
+        try:
+            return self._mcp_bindings.bind(
+                policy=policy, snapshot_id=snapshot_id, client=self._mcp_client
+            )
+        except (MCPWorkflowCapabilityBindingError, MCPSurfaceSnapshotError) as error:
+            raise LocalWorkflowHostError(
+                "MCP package binding is unavailable"
             ) from error
 
     def register(
