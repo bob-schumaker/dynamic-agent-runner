@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ import pytest
 from dynamic_agent_runner.sandbox_workspace import (
     SandboxWorkspaceError,
     copy_regular_file_no_follow,
+    create_private_workspace,
 )
 
 
@@ -133,3 +135,19 @@ def test_copy_regular_file_no_follow_does_not_replace_a_workspace_entry(
         )
 
     assert (workspace / "input.txt").read_text(encoding="utf-8") == "existing"
+
+
+def test_create_private_workspace_creates_an_owner_only_fresh_directory(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "workspaces"
+    parent.mkdir()
+
+    first = create_private_workspace(parent)
+    second = create_private_workspace(parent)
+
+    assert first.relative_path != second.relative_path
+    assert first.root.parent == parent
+    assert second.root.parent == parent
+    assert stat.S_IMODE(first.root.stat().st_mode) == 0o700
+    assert stat.S_IMODE(second.root.stat().st_mode) == 0o700

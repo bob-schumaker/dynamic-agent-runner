@@ -29,6 +29,14 @@ class NoFollowCopyResult:
     byte_count: int
 
 
+@dataclass(frozen=True)
+class PrivateWorkspace:
+    """One wrapper-owned private workspace directory."""
+
+    root: Path
+    relative_path: str
+
+
 def copy_regular_file_no_follow(
     *,
     source_root: str | Path,
@@ -100,6 +108,39 @@ def copy_regular_file_no_follow(
             os.close(source_fd)
         os.close(workspace_root_fd)
         os.close(source_root_fd)
+
+
+def create_private_workspace(parent_root: str | Path) -> PrivateWorkspace:
+    """Create one fresh owner-only directory below a trusted private parent."""
+
+    _require_posix_no_follow_support()
+    parent_fd = _open_absolute_directory(parent_root, label="workspace parent")
+    try:
+        for _ in range(16):
+            name = f"workspace-{secrets.token_urlsafe(18)}"
+            try:
+                os.mkdir(name, mode=0o700, dir_fd=parent_fd)
+            except FileExistsError:
+                continue
+            workspace_fd = os.open(
+                name,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=parent_fd,
+            )
+            try:
+                _require_directory(workspace_fd, label="private workspace")
+                if stat.S_IMODE(os.fstat(workspace_fd).st_mode) != 0o700:
+                    raise SandboxWorkspaceError("private workspace mode is invalid")
+                os.fsync(workspace_fd)
+                os.fsync(parent_fd)
+            finally:
+                os.close(workspace_fd)
+            return PrivateWorkspace(Path(parent_root) / name, name)
+    except OSError as exc:
+        raise SandboxWorkspaceError("private workspace creation failed") from exc
+    finally:
+        os.close(parent_fd)
+    raise SandboxWorkspaceError("private workspace name allocation failed")
 
 
 def _require_posix_no_follow_support() -> None:
