@@ -771,14 +771,17 @@ For a no-tool v1 package, the human control-plane CLI also provides one local
 composition command:
 
 ```text
-dar-workflow invoke --path <directory-or-zip> --workflow-id <id> --prompt <text>
+dar-workflow invoke --path <directory-or-zip> --workflow-id <id> \
+  --prompt <text> [--mcp-binding-id <opaque-id>] [--dry-run] [--ask]
 ```
 
 It performs the same human-selected source-handle issuance, staged registration,
-sealed preparation, and execution in that order. This command is not exposed to
-the model-facing MCP server and accepts neither an MCP binding, model endpoint,
-approval mode, nor arbitrary tool configuration. Tool-bearing packages continue
-through their reviewed binding and dedicated preparation/run steps.
+sealed preparation, and execution in that order. An optional binding must be an
+already reviewed opaque host capability; the command cannot configure or widen
+it. `--dry-run` validates without model or handler dispatch, while `--ask`
+uses the local broker for a side-effecting registered workflow. This command is
+not exposed to the model-facing MCP server and accepts neither a model endpoint
+nor arbitrary tool configuration.
 
 - Default mode is `auto` (`workflow_auto`): execute schema-valid tool calls
   chosen by the workflow model within its declared, profile-allowed surface and

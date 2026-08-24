@@ -44,8 +44,11 @@ def test_cli_invokes_a_human_selected_no_tool_package(
             workflow_id: str,
             package_source_handle: str,
             now: object,
+            mcp_binding_id: str | None = None,
         ) -> SimpleNamespace:
-            self.calls.append(("register", workflow_id, package_source_handle, now))
+            self.calls.append(
+                ("register", workflow_id, package_source_handle, mcp_binding_id, now)
+            )
             return SimpleNamespace(workflow_id=workflow_id)
 
         def prepare(
@@ -55,8 +58,14 @@ def test_cli_invokes_a_human_selected_no_tool_package(
             return SimpleNamespace(prepared_input_id="prepared-input")
 
         def run(
-            self, *, workflow_id: str, prepared_input_id: str, now: object
+            self,
+            *,
+            workflow_id: str,
+            prepared_input_id: str,
+            now: object,
+            approval_broker: object | None = None,
         ) -> SimpleNamespace:
+            assert approval_broker is None
             self.calls.append(("run", workflow_id, prepared_input_id, now))
             return SimpleNamespace(
                 status="completed", run_id="run-1", output={"message": "done"}
@@ -95,6 +104,83 @@ def test_cli_invokes_a_human_selected_no_tool_package(
         "run_id": "run-1",
         "status": "completed",
         "workflow_id": "document-helper",
+    }
+
+
+def test_cli_dry_runs_a_human_selected_package_with_a_reviewed_mcp_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Host:
+        def __init__(self) -> None:
+            self.calls: list[tuple[object, ...]] = []
+
+        def select_package(self, path: Path, *, now: object) -> str:
+            self.calls.append(("select", path, now))
+            return "source-handle"
+
+        def register(
+            self,
+            *,
+            workflow_id: str,
+            package_source_handle: str,
+            now: object,
+            mcp_binding_id: str | None = None,
+        ) -> SimpleNamespace:
+            self.calls.append(
+                ("register", workflow_id, package_source_handle, mcp_binding_id, now)
+            )
+            return SimpleNamespace(workflow_id=workflow_id)
+
+        def prepare(
+            self, *, workflow_id: str, prompt: str, now: object
+        ) -> SimpleNamespace:
+            self.calls.append(("prepare", workflow_id, prompt, now))
+            return SimpleNamespace(prepared_input_id="prepared-input")
+
+        def dry_run(
+            self, *, workflow_id: str, prepared_input_id: str, now: object
+        ) -> SimpleNamespace:
+            self.calls.append(("dry_run", workflow_id, prepared_input_id, now))
+            return SimpleNamespace(status="ready", workflow_id=workflow_id)
+
+        def run(self, **_kwargs: object) -> None:
+            raise AssertionError("dry run must not execute a workflow")
+
+    host = Host()
+    monkeypatch.setattr(cli.LocalWorkflowHost, "open", lambda _root: host)
+    output: list[str] = []
+
+    assert (
+        main(
+            [
+                "--state-root",
+                "/private/state",
+                "invoke",
+                "--path",
+                "/private/packages/mail-reader",
+                "--workflow-id",
+                "mail-reader",
+                "--prompt",
+                "List unread mail.",
+                "--mcp-binding-id",
+                "binding-opaque-id",
+                "--dry-run",
+            ],
+            write=output.append,
+        )
+        == 0
+    )
+
+    assert [call[0] for call in host.calls] == [
+        "select",
+        "register",
+        "prepare",
+        "dry_run",
+    ]
+    assert host.calls[1][3] == "binding-opaque-id"
+    assert json.loads(output[0]) == {
+        "status": "ready",
+        "workflow_id": "mail-reader",
     }
 
 

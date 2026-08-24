@@ -178,6 +178,9 @@ def _parser() -> argparse.ArgumentParser:
     invoke.add_argument("--path", required=True)
     invoke.add_argument("--workflow-id", required=True)
     invoke.add_argument("--prompt", required=True)
+    invoke.add_argument("--mcp-binding-id")
+    invoke.add_argument("--dry-run", action="store_true")
+    invoke.add_argument("--ask", action="store_true")
     ingress = commands.add_parser("ingress-file")
     ingress.add_argument("--workflow-id", required=True)
     ingress.add_argument("--path", required=True)
@@ -411,16 +414,25 @@ def _invoke_package_result(
         workflow_id=args.workflow_id,
         package_source_handle=package_source_handle,
         now=now,
+        mcp_binding_id=args.mcp_binding_id,
     )
     prepared = host.prepare(
         workflow_id=args.workflow_id,
         prompt=args.prompt,
         now=now,
     )
+    if args.dry_run:
+        result = host.dry_run(
+            workflow_id=args.workflow_id,
+            prepared_input_id=prepared.prepared_input_id,
+            now=now,
+        )
+        return {"status": result.status, "workflow_id": result.workflow_id}
     result = host.run(
         workflow_id=args.workflow_id,
         prepared_input_id=prepared.prepared_input_id,
         now=now,
+        approval_broker=_TerminalApprovalBroker() if args.ask else None,
     )
     return {
         "status": result.status,
