@@ -25,6 +25,7 @@ MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_PACKAGE_BYTES = 64 * 1024 * 1024
 MAX_PACKAGE_FILES = 256
 _READ_SIZE = 64 * 1024
+_PACKAGE_MANIFEST_NAME = "package-manifest.json"
 
 
 class PackageStagingError(ValueError):
@@ -242,6 +243,8 @@ def _copy_directory(
     entries: list[tuple[str, str, int]],
 ) -> None:
     for name in sorted(os.listdir(source_fd)):
+        if not relative_path and name == _PACKAGE_MANIFEST_NAME:
+            raise PackageStagingError("package source has a source-supplied manifest")
         try:
             source_stat = os.lstat(name, dir_fd=source_fd)
         except FileNotFoundError as error:
@@ -346,7 +349,7 @@ def _write_content_manifest(
         "package_id": package_id,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    destination = root / "package-manifest.json"
+    destination = root / _PACKAGE_MANIFEST_NAME
     temporary = root / f".manifest-{secrets.token_hex(16)}.tmp"
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:

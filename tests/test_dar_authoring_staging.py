@@ -109,6 +109,19 @@ def test_staging_writes_a_canonical_content_manifest(tmp_path: Path) -> None:
     ]
 
 
+def test_staging_rejects_a_source_supplied_manifest_until_it_can_verify_it(
+    tmp_path: Path,
+) -> None:
+    source = _source_package(tmp_path)
+    (source / "package-manifest.json").write_text("{}", encoding="utf-8")
+    handle, store = _selection(tmp_path, source)
+
+    with pytest.raises(PackageStagingError, match="source-supplied manifest"):
+        PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+            handle, now=NOW
+        )
+
+
 def test_staging_imports_a_human_selected_zip_through_the_private_copy(
     tmp_path: Path,
 ) -> None:
