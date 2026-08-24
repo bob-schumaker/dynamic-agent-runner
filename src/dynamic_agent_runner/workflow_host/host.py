@@ -959,6 +959,10 @@ def _validate_root(path: Path) -> None:
 def _validate_package_root(path: Path) -> None:
     if not path.is_absolute() or "." in path.parts or ".." in path.parts:
         raise LocalWorkflowHostError("package root must be an absolute canonical path")
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    mode = os.lstat(path).st_mode
+    if os.path.islink(path) or not stat.S_ISDIR(mode):
+        raise LocalWorkflowHostError("package root is unavailable")
 
 
 def _validate_workspace_input_root(path: Path) -> None:

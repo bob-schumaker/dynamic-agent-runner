@@ -294,6 +294,7 @@ def test_cli_projects_selected_authoring_material_only_after_host_issuance(
         ]
     )
     assert status == 0
+    assert package_root.is_dir()
 
     issued_output: list[str] = []
     assert (
