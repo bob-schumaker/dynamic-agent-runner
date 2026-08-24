@@ -3,6 +3,13 @@
 
 ## Working
 
+- `dar-authoring-plugin` M0 (RA0) is complete through `8fb3435`. Commits
+  `3ee1068` and `8fb3435` add the three portable DAR-adapted skills, immutable
+  source/provenance and user-authorized redistribution record, offline fixture
+  checks, and shipped canonical no-tool/read-only-MCP templates. The selected
+  source revision is `967c9f621b017f042c55c6ae73019588ee426e30`; no top-level
+  license or notice existed in that checkout, which the record states plainly.
+  Full DAR-authoring verification passed with 171 tests.
 - `dar-authoring-plugin` M5 (G2) and M7 (G5) are implemented through
   `93159e9`. Commits `d2d20bf`–`93159e9` compose the configured generic HTTPS
   MCP client into the local host, expose human-only API-token/OAuth setup and
@@ -43,14 +50,14 @@
   (`355debb`), immutable package catalog (`1518086`), policy compilation
   (`ab75e37`), and package-only preflight (`8a08669`). The standalone plugin
   pins the Artifactory-published DAR `0.1.15` (`33b82ab`) and declares its
-  direct PyYAML dependency. M4 authoring evidence, M7 side effects, and M8
-  portable publication remain.
-- The first vertical slice expressly omits MCP, external side effects, trusted
-  caller-file ingress, ZIP/signature exchange, tool-argument provenance, and
-  adapted-skill behavior. M0/M4 provide reproducible skill assets and external
-  authoring evidence; M6 and M7 add file ingress and side effects after the
-  core; M8 gates portable exchange and publication. `PackagePreflightService`
-  is package-only, while the later
+  direct PyYAML dependency. M4 authoring evidence and M8 portable publication
+  remain.
+- The original first vertical slice expressly omitted MCP, external side
+  effects, trusted caller-file ingress, ZIP/signature exchange, tool-argument
+  provenance, and adapted-skill behavior. M0, M5, M6, and M7 now cover the
+  static authoring, MCP, ingress, and side-effect additions; M4 supplies
+  external authoring evidence and M8 gates portable exchange/publication.
+  `PackagePreflightService` is package-only, while the later
   `WorkflowInvocationPreparationService` is the sole issuer of sealed,
   normally single-use `PreparedWorkflowInput`.
 - `live-guardrail-execution` V2 is implemented in `78f9d9c`. It adopts the

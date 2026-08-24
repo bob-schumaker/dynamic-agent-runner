@@ -3,6 +3,14 @@
 
 ## Current Focus
 
+- `dar-authoring-plugin` M0 (RA0 reproducible authoring baseline) is complete
+  through `8fb3435`. The plugin ships portable adapted `agent-development`,
+  `agent-tool-contract-design`, and `agent-evaluation` assets with source
+  revision `967c9f621b017f042c55c6ae73019588ee426e30`, an explicit
+  user-authorized adaptation record, fixture-contract tests, and canonical
+  no-tool and bounded read-only-MCP package templates. The offline suite passed
+  with 171 tests. The source checkout had no top-level license/notice; the
+  provenance file records that fact rather than asserting a license.
 - `dar-authoring-plugin` M6 (G4 trusted file ingress) is complete through
   `7b17158`. Caller files are copied through descriptor-relative, no-follow,
   non-blocking descriptors into owner-only workspaces; outside-root paths,
@@ -27,7 +35,8 @@
   G5 still needs a scope audit for multiple independently configured MCP
   clients per workflow before declaring the general connection model complete.
 - `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
-  through `8c01d36`. A host-managed strict-local loopback OpenAI-compatible profile is
+  through `8c01d36`. Its no-tool base path has a host-managed strict-local
+  loopback OpenAI-compatible profile,
   persisted privately, a saved package is registered to its immutable profile,
   CLI preparation seals one prompt into a single-use opaque input, and the
   runner preflights the private staged package before executing through DAR.
@@ -35,9 +44,9 @@
   preparation, and run; `dar-workflow-run` and MCP `run_dar_workflow` accept
   only workflow and sealed-input identifiers. Dry runs neither consume input
   nor invoke a model. The terminal schema reference must name a runtime output
-  contract; malformed terminal output fails without raw-output disclosure. G4
-  file ingress, G5 side effects/`--ask`, structured invocation input, and
-  portable archive exchange remain deferred.
+  contract; malformed terminal output fails without raw-output disclosure. M5,
+  M6, and M7 later add reviewed MCP, file ingress, and side-effect paths;
+  portable archive exchange remains deferred.
 - `dar-authoring-plugin` M2 (G1 runtime core) is implemented through
   `8a08669`. A human-selected directory receives a principal/expiry-bound
   opaque source handle, is copied through descriptor-relative no-follow file
@@ -47,13 +56,10 @@
   The new runtime modules live in `dar-authoring/server/dar_workflow_server/`;
   focused M2 coverage is offline and uses fixture packages, local state files,
   and fake/local collaborators only.
-- The first runner supports saved, task-specific no-tool workflows only. It
-  excludes adapted-skill behavior, ZIP import/export, package signatures,
-  caller-file ingress, MCP, tool-argument provenance, and side effects. M0/M4
-  own reproducible adapted-skill assets and external acceptance evidence; M8
-  owns portable ZIP exchange and publication. The plugin `uvx` topology is
-  first proved as M1.1 before supply-chain hardening; no implementation is
-  authorized until an individual milestone or slice is scheduled.
+- M0 now owns static adapted-skill assets and package templates; M4 still owns
+  external authoring behavior evidence. M8 owns portable ZIP exchange and
+  publication. The plugin `uvx` topology remains to be verified through M1.1,
+  followed by release-integrity hardening.
 - Runtime core authority remains deliberately split: M2 preflight accepts only
   an opaque package-source handle and returns package/policy/capability data;
   it cannot accept invocation input, create a registration or alias, issue a
