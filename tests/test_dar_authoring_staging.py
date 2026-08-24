@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 import sys
@@ -74,6 +76,37 @@ def test_staging_copies_selected_package_and_validates_dar(tmp_path: Path) -> No
     assert (staged.root / "agent-runtime.yaml").read_text(encoding="utf-8") == (
         source / "agent-runtime.yaml"
     ).read_text(encoding="utf-8")
+
+
+def test_staging_writes_a_canonical_content_manifest(tmp_path: Path) -> None:
+    source = _source_package(tmp_path)
+    handle, store = _selection(tmp_path, source)
+
+    staged = PrivatePackageStager(store=store, private_root=tmp_path / "private").stage(
+        handle, now=NOW
+    )
+
+    manifest = json.loads(
+        (staged.root / "package-manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["format_version"] == 1
+    assert manifest["package_id"] == "dar-authoring-no-tool-template"
+    assert manifest["content_digest"] == staged.digest
+    assert manifest["files"] == [
+        {
+            "byte_count": len((source / path).read_bytes()),
+            "path": path,
+            "sha256": hashlib.sha256((source / path).read_bytes()).hexdigest(),
+        }
+        for path in sorted(
+            [
+                "agent-design.md",
+                "agent-graph.mmd",
+                "agent-runtime.yaml",
+                "workflow-descriptor.yaml",
+            ]
+        )
+    ]
 
 
 def test_staging_imports_a_human_selected_zip_through_the_private_copy(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import hashlib
+import json
 import os
 import secrets
 import shutil
@@ -74,11 +75,17 @@ class PrivatePackageStager:
             )
             digest, file_count, byte_count = _package_digest(entries)
             try:
-                load_agent_package_workflow(str(temporary_root))
+                workflow = load_agent_package_workflow(str(temporary_root))
             except Exception as error:
                 raise PackageStagingError(
                     "DAR validation failed for staged package"
                 ) from error
+            _write_content_manifest(
+                temporary_root,
+                package_id=workflow.runtime_manifest.package_id,
+                content_digest=digest,
+                entries=entries,
+            )
             final_root = private_root / f"package-{digest}"
             if final_root.exists():
                 shutil.rmtree(temporary_root)
@@ -318,6 +325,35 @@ def _package_digest(entries: list[tuple[str, str, int]]) -> tuple[str, int, int]
         digest.update(f"{path}\0{file_digest}\0{size}\n".encode("utf-8"))
         byte_count += size
     return digest.hexdigest(), len(entries), byte_count
+
+
+def _write_content_manifest(
+    root: Path,
+    *,
+    package_id: str | None,
+    content_digest: str,
+    entries: list[tuple[str, str, int]],
+) -> None:
+    if not package_id:
+        raise PackageStagingError("staged package has no package_id")
+    payload = {
+        "content_digest": content_digest,
+        "files": [
+            {"byte_count": size, "path": path, "sha256": file_digest}
+            for path, file_digest, size in sorted(entries)
+        ],
+        "format_version": 1,
+        "package_id": package_id,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    destination = root / "package-manifest.json"
+    temporary = root / f".manifest-{secrets.token_hex(16)}.tmp"
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        _write_all(descriptor, encoded)
+    finally:
+        os.close(descriptor)
+    os.replace(temporary, destination)
 
 
 def _seal_tree(root: Path) -> None:

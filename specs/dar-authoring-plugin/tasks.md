@@ -282,9 +282,13 @@ passes.
       symlink, special, over-file-limit, and declared-byte-limit members,
       extracts it only to a fresh private temporary directory, and passes that
       directory through the existing staged-package boundary and DAR validation.
-- [ ] RED/GREEN: ZIP import verifies the canonical manifest's file paths,
-      bytes, hashes, schema, and DAR compatibility before it reaches the
-      existing staged-package boundary; enforce a compression-ratio limit.
+- [x] RED/GREEN: the private staged copy gains a deterministic owner-only
+      content manifest that records the package ID, staged content digest, and
+      every source payload path, byte count, and SHA-256. It is generated only
+      after DAR validates the private copy and is not counted as source payload.
+- [ ] RED/GREEN: ZIP import verifies a source-supplied canonical manifest's
+      file paths, bytes, hashes, schema, and DAR compatibility before it reaches
+      the existing staged-package boundary; enforce a compression-ratio limit.
 - [ ] RED/GREEN: canonical-manifest-v1 Ed25519 export/import fixtures prove
       signer/key-id binding, rejection of an unknown locally trusted publisher
       key, and a recipient-host signed-package import. Explicitly selected

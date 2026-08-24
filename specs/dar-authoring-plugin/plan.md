@@ -208,13 +208,18 @@ part of ordinary test execution.
    and declared-size-limit entries, extracts only to a fresh private temporary
    directory, and then uses the existing descriptor-relative directory stager.
    It does not create a second runner path.
-2. **M8.1b: Seal the portable package manifest and trust.** Add deterministic
-   manifests, explicit local-trust confirmation, and trusted-publisher Ed25519
+2. **M8.1b: Generate the staged content manifest.** Implemented: after DAR
+   validates the private copy, write a deterministic owner-only
+   `package-manifest.json` that binds the package ID, content digest, and every
+   source payload path, byte count, and SHA-256. The generated manifest is not
+   yet a source-supplied or publisher-signed trust assertion.
+3. **M8.1c: Verify portable package trust.** Require source-supplied manifest
+   validation, explicit local-trust confirmation, and trusted-publisher Ed25519
    package verification before a portable archive may become a catalog revision.
-3. **M8.1c: Export portable packages.** Add deterministic ZIP export that
+4. **M8.1d: Export portable packages.** Add deterministic ZIP export that
    preserves the verified manifest and artifact digests without executing
    package content.
-4. **M8.2: Run the first publication gate.** Require M3's no-tool runner
+5. **M8.2: Run the first publication gate.** Require M3's no-tool runner
    evidence and M4's external authoring-skill evidence, then verify the released
    wheel from a clean consumer-install directory. No adapted skill or execution
    capability is published until this gate passes.
