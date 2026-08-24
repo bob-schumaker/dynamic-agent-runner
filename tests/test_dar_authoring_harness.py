@@ -109,6 +109,13 @@ def _tool_contract_materials(tmp_path: Path) -> Path:
 
 
 def _generator(leak: bool, violates_no_tool_contract: bool = False) -> str:
+    purpose_adaptation = (
+        "(output / 'workflow-descriptor.yaml').write_text("
+        "(output / 'workflow-descriptor.yaml').read_text().replace("
+        "'purpose: Answer one bounded user request with a local model and no tools.', "
+        "'purpose: Answer one bounded question using only supplied text with a local model and no tools.'), "
+        "encoding='utf-8');"
+    )
     leak_statement = (
         "(output / 'agent-design.md').write_text("
         "(output / 'agent-design.md').read_text() + 'private selected example', "
@@ -132,6 +139,7 @@ def _generator(leak: bool, violates_no_tool_contract: bool = False) -> str:
         f"template = Path({str(TEMPLATE)!r}); "
         "output = Path(sys.argv[sys.argv.index('--output') + 1]); "
         "shutil.copytree(template, output, dirs_exist_ok=True); "
+        f"{purpose_adaptation}"
         f"{leak_statement}"
         f"{no_tool_violation}"
         "write_authored_package_manifest(output)"
@@ -266,9 +274,12 @@ def test_harness_accepts_a_package_finalized_by_the_host_control_plane(
                 "call(['project-authoring-materials', '--material-set-id', issued['material_set_id']])",
                 "created = call(['create-authored-package', '--package-name', 'document-helper'])",
                 "for source in template_root.iterdir():",
+                "    content = source.read_text(encoding='utf-8').replace(",
+                "        'purpose: Answer one bounded user request with a local model and no tools.',",
+                "        'purpose: Answer one bounded question using only supplied text with a local model and no tools.')",
                 "    call(['write-authored-package-file', '--authoring-output-id', created['authoring_output_id'],",
                 "          '--relative-path', source.name, '--content-stdin'],",
-                "         source.read_text(encoding='utf-8'))",
+                "         content)",
                 "call(['finalize-authored-package', '--authoring-output-id', created['authoring_output_id'],",
                 "      '--material-set-id', issued['material_set_id']])",
                 "assert output_path == package_root / 'document-helper'",
@@ -361,9 +372,12 @@ def test_harness_validates_companion_artifacts_in_the_entry_skill_package(
                 "created = call(['create-authored-package', '--package-name', 'document-helper'])",
                 "for source_root in (template_root, evaluation_root):",
                 "    for source in source_root.iterdir():",
+                "        content = source.read_text(encoding='utf-8').replace(",
+                "            'purpose: Answer one bounded user request with a local model and no tools.',",
+                "            'purpose: Answer one bounded question using only supplied text with a local model and no tools.')",
                 "        call(['write-authored-package-file', '--authoring-output-id', created['authoring_output_id'],",
                 "              '--relative-path', source.name, '--content-stdin'],",
-                "             source.read_text(encoding='utf-8'))",
+                "             content)",
                 "call(['finalize-authored-package', '--authoring-output-id', created['authoring_output_id'],",
                 "      '--material-set-id', issued['material_set_id']])",
                 "assert output_path.name == 'document-helper'",

@@ -12,6 +12,7 @@
       "artifact": "workflow-descriptor.yaml",
       "format": "yaml",
       "required": {
+        "purpose": "Answer one bounded question using only supplied text with a local model and no tools.",
         "skills": [],
         "task_invocation": {
           "max_total_tool_calls": 0

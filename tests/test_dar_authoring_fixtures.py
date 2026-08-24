@@ -56,6 +56,18 @@ def test_target_invocation_fixtures_have_complete_deidentified_contracts() -> No
             assert material["artifact_id"].startswith("authoring-material-")
             assert len(material["digest"]) == 64
 
+    development = next(
+        fixture for fixture in fixtures if fixture["skill"] == "agent-development"
+    )
+    descriptor_contract = next(
+        contract
+        for contract in development["artifact_contracts"]
+        if contract["artifact"] == "workflow-descriptor.yaml"
+    )
+    assert descriptor_contract["required"]["purpose"] == (
+        "Answer one bounded question using only supplied text with a local model and no tools."
+    )
+
 
 def test_no_tool_template_is_a_valid_dar_package() -> None:
     workflow = load_agent_package_workflow(str(TEMPLATE_ROOT))
