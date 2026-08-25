@@ -91,6 +91,17 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    configured host state, a second no-side-effect Codex discovery must expose
    exactly `run_dar_workflow` and its closed input schema. Stop here if the launch
    topology is unsupported.
+
+   **Implemented local-wheel launch evidence (2026-08-24).** Codex CLI 0.149.1's
+   installed `codex-app-tools` plugin establishes the supported form: a plugin
+   `.mcp.json` can use a bundled relative command with `"cwd": "."`. DAR's
+   `.mcp.json` now invokes `./scripts/dar-mcp` in that form. `poetry build`
+   produced `dynamic_agent_runner-0.1.16-py3-none-any.whl`; from a fresh
+   temporary directory, the launcher with `DAR_AUTHORING_DAR_WHEEL` set to that
+   absolute wheel returned a successful MCP `initialize` response with no tools.
+   This proves the local-wheel discovery path only. It does not prove a
+   marketplace reinstall of this revision, a configured-host discovery, or the
+   signed-release boundary required by M1.2.
 2. **M1.2: Lock the launcher supply chain.** After M1.1 succeeds, implement the
    checked-in `uvx` launch contract for DAR's `dynamic-agent-runner-mcp` entry
    point and verification of the selected DAR artifacts against signed release

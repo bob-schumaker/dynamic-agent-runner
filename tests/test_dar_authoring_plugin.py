@@ -18,7 +18,7 @@ def _read_json_lines(output: str) -> list[dict[str, object]]:
     return [json.loads(line) for line in output.splitlines() if line]
 
 
-def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
+def test_plugin_declares_a_bundled_stdio_launcher_contract() -> None:
     manifest = json.loads(
         (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
@@ -27,17 +27,11 @@ def test_plugin_declares_a_fixed_uvx_stdio_launch_contract() -> None:
     assert manifest["name"] == "dar-authoring"
     assert manifest["mcpServers"] == "./.mcp.json"
     server = mcp_config["mcpServers"]["dar-authoring"]
-    assert server["command"] == "uvx"
-    assert server["args"] == [
-        "--default-index",
-        "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple",
-        "--from",
-        "dynamic-agent-runner==0.1.16",
-        "dynamic-agent-runner-mcp",
-        "--stdio",
-    ]
-    assert all("{" not in value for value in server["args"])
-    assert not any(value.startswith(("/", "./", "../")) for value in server["args"])
+    assert server == {
+        "args": [],
+        "command": "./scripts/dar-mcp",
+        "cwd": ".",
+    }
 
 
 def test_plugin_bundle_contains_only_local_authoring_assets() -> None:
@@ -47,6 +41,7 @@ def test_plugin_bundle_contains_only_local_authoring_assets() -> None:
         "skills/agent-development/SKILL.md",
         "skills/agent-tool-contract-design/SKILL.md",
         "skills/agent-evaluation/SKILL.md",
+        "scripts/dar-mcp",
         "scripts/dar-workflow",
         "templates/workflow-descriptor.yaml",
         "read-only-mcp-template/workflow-descriptor.yaml",
@@ -114,6 +109,77 @@ def test_wrapper_makes_its_state_root_private_before_launching_uvx(
 
     assert completed.returncode == 0, completed.stderr
     assert state_root.stat().st_mode & 0o777 == 0o700
+
+
+def test_mcp_launcher_uses_a_local_wheel_when_configured(tmp_path: Path) -> None:
+    launcher = PLUGIN_ROOT / "scripts" / "dar-mcp"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_uvx = fake_bin / "uvx"
+    arguments = tmp_path / "arguments"
+    fake_uvx.write_text(
+        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DAR_TEST_ARGUMENTS"\n',
+        encoding="utf-8",
+    )
+    fake_uvx.chmod(0o755)
+    wheel = tmp_path / "dynamic_agent_runner.whl"
+    wheel.touch()
+
+    completed = subprocess.run(
+        [str(launcher)],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        env={
+            **os.environ,
+            "DAR_AUTHORING_DAR_WHEEL": str(wheel),
+            "DAR_TEST_ARGUMENTS": str(arguments),
+            "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        },
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert arguments.read_text(encoding="utf-8").splitlines() == [
+        "--from",
+        str(wheel),
+        "dynamic-agent-runner-mcp",
+        "--stdio",
+    ]
+
+
+def test_mcp_launcher_retains_its_fixed_artifactory_fallback(tmp_path: Path) -> None:
+    launcher = PLUGIN_ROOT / "scripts" / "dar-mcp"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_uvx = fake_bin / "uvx"
+    arguments = tmp_path / "arguments"
+    fake_uvx.write_text(
+        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DAR_TEST_ARGUMENTS"\n',
+        encoding="utf-8",
+    )
+    fake_uvx.chmod(0o755)
+
+    completed = subprocess.run(
+        [str(launcher)],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        env={
+            **os.environ,
+            "DAR_TEST_ARGUMENTS": str(arguments),
+            "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        },
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert arguments.read_text(encoding="utf-8").splitlines() == [
+        "--default-index",
+        "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple",
+        "--from",
+        "dynamic-agent-runner==0.1.16",
+        "dynamic-agent-runner-mcp",
+        "--stdio",
+    ]
 
 
 def test_dar_stdio_server_initializes_without_execution_tools_before_configuration(
