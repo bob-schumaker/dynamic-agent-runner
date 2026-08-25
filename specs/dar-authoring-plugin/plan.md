@@ -28,7 +28,7 @@ human-selected fixture directory package
   -> immutable WorkflowPolicy
   -> eligible local-model WorkflowRegistration
   -> sealed PreparedWorkflowInput
-  -> dar-package run
+  -> dar-package invoke
 ```
 
 It deliberately excludes adapted-skill behavior, ZIP import/export, package
@@ -45,7 +45,7 @@ only path to an end-to-end authoring-plugin publication claim.
 | M1 | G0 — package/CLI spike | Minimal skills-to-CLI proof, then release-integrity proof. | None |
 | M2 | G1 runtime core | Human-selected directory staging, policy compilation, and package-only preflight. Implemented. | M1 |
 | M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. Implemented. | M2 |
-| M4 | RA1 — authoring acceptance | M4.0 material projection and M4.1 redacted evidence contract are implemented; external adapted-skill behavior and clean-Codex author-then-run evidence remain. | M0, M2, M3; M5/M6/M7 for M4.4 extension cases |
+| M4 | RA1 — authoring acceptance | M4.0 material projection and M4.1 redacted evidence contract are implemented; external adapted-skill behavior and two clean-Codex author-then-run cases remain. | M0, M2, M3 |
 | M5 | G2 | Configured HTTPS MCP control plane and reviewed binding. Implemented through one configured client per host; M5.5 execution evidence is `93159e9`. | M2; M3 for M5.5 execution integration |
 | M6 | G4 | Trusted caller-file ingress. Implemented. | Focused tested sandbox descriptor-relative no-follow-copy primitive at a recorded prerequisite revision; M2 |
 | M7 | G5 | Model-directed external side effects with audit and local `--ask`. Implemented for reviewed generic MCP bindings; multi-client composition requires a follow-up slice. | M3; M5 for MCP actions; M6 for file arguments |
@@ -57,9 +57,9 @@ and the end-to-end plugin release may not be declared complete until M4 and M3
 both pass. M5, M6, and M7 are independent additions after the base path; they
 must not delay or widen M3.
 
-M4's no-tool core may run after M3. M4.4's read-only MCP, artifact, and
-side-effect cases respectively require M5, M6, and M7; M4.4 cannot be marked
-complete until every mandatory extension case has run with its declared gate.
+M4.4's two no-tool cases may run after M3. Its MCP, artifact, side-effect, and
+portability scenario references belong to M5, M6, M7, and M8 respectively; they
+do not block M4.4's CLI-first author-then-invoke result.
 
 ## Commit-Sized Slices
 
@@ -105,46 +105,18 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    dar-package --help` command from an installed wheel. Record the installation
    path, command template, resolved wheel identity, and clean-directory JSON
    receipt evidence. Stop if the CLI topology is unsupported.
-
-   **Superseded local-wheel launch evidence (2026-08-24).** Codex CLI 0.149.1's
-   installed `codex-app-tools` plugin establishes the supported form: a plugin
-   `.mcp.json` can use a bundled relative command with `"cwd": "."`. DAR's
-   `.mcp.json` now invokes `./scripts/dar-mcp` in that form. `poetry build`
-   produced `dynamic_agent_runner-0.1.16-py3-none-any.whl`; from a fresh
-   temporary directory, the launcher with `DAR_AUTHORING_DAR_WHEEL` set to that
-   absolute wheel returned a successful MCP `initialize` response with no tools.
-   This proves the local-wheel discovery path only. It does not prove a
-   marketplace reinstall of this revision, a configured-host discovery, or the
-   signed-release boundary required by M1.2.
-
-   **Superseded published-release dependency (2026-08-24).** The configured
-   public simple
-   index currently stops at `dynamic-agent-runner==0.1.15`. Its wheel exposes
-   `dynamic-agent-runner` and `graphify-extract`, but not
-   `dynamic-agent-runner-mcp`; `0.1.16` is therefore intentionally retained as
-   the required launcher version and the normal Artifactory fallback cannot
-   start until the build system publishes that release. Downgrading the plugin
-   would make its declared MCP server impossible to launch. This dependency is
-   obsolete under the skills-only CLI design and must not be used to justify
-   retaining that server.
-3. **M1.2: Lock the CLI supply chain.** After M1.1 succeeds, implement the
-   checked-in `uv run` contract for DAR's `dar-package` entry
-   point and verification of the selected DAR artifacts against signed release
-   metadata from a configured trusted-key root, with configured expiry and
-   minimum-version floor. Tests reject an unexpected index, non-exact version,
-   altered DAR wheel bytes, an unpinned transitive dependency, expired metadata,
-   untrusted or revoked signing keys, revoked artifact versions, and a version
-   below the floor; startup records all resolved dependency identities without
-   requiring an Artifactory network call. The local plugin itself is not an
-   Artifactory artifact.
+3. **M1.2: Lock the CLI invocation.** After M1.1 succeeds, add the exact pinned
+   Artifactory command to the bundled skills and test rejection of a different
+   index or DAR version. The local plugin itself is not an Artifactory artifact.
 4. **M1.3: Prove runtime-wheel isolation.** Resolve the DAR wheel from a clean
    directory and test it there: its `dar-package` entry point and runtime assets
    are present, startup records resolved dependencies, and no source-tree path is
    exposed. Until the build system publishes a candidate, the developer check
-   builds a local wheel and runs `uv run --from <absolute-wheel>`
-   in an isolated temporary directory after verifying every archive payload
-   against its wheel `RECORD`; this proves local-wheel behavior only and does
-   not substitute for the Artifactory release-trust gate.
+   builds a local wheel and runs
+   `uv run --no-project --with <absolute-wheel-path> dar-package <command>` in
+   an isolated temporary directory after verifying every archive payload against
+   its wheel `RECORD`; this proves local-wheel behavior only and does not prove
+   Artifactory resolution.
 
 M1 exit: the local plugin exposes skills that can invoke DAR's release-candidate
 CLI from a clean directory, but cannot execute an unprepared workflow or be
@@ -159,7 +131,7 @@ published.
    forged, expired, wrong-kind, altered, revoked, and wrong-registration IDs.
 2. **M2.1: Establish installation identity and one local model profile.** Derive
    the v1 installation principal from the local OS-user trust boundary and add
-   one human-created immutable profile record. Callers, skills, and MCP requests
+   one human-created immutable profile record. Callers and skills
    cannot supply or override either value.
 3. **M2.2: Define no-tool descriptor and task-policy validation.** Add the
    smallest `WorkflowDescriptor`/`task_invocation` contract needed for a no-tool
@@ -216,22 +188,21 @@ provisioning.
    never reaches the skill. A catalog-valid but DAR-preflight-invalid
    revision fails before model or handler entry.
 4. **M3.4: Add the local CLI façade and dry run.** Implement
-   `dar-package select-package`, `dar-package prepare`, and `dar-package run`
-   as handle/preparation façades over the same runner. Test
+   private handle/preparation services beneath `dar-package invoke`. Test
    that `--dry-run` calls neither a model nor a handler. The CLI may accept raw
    prompt text only at invocation preparation and passes only a
-   `PreparedWorkflowInput` to DAR.
-5. **M3.5: Compose local invocation.** Add the human-only
-   `dar-package invoke --path --workflow-id --prompt` convenience command. It
-   issues a source handle, registers the package only against the configured
-   profile and an optional already-reviewed opaque MCP binding, seals the
-   prompt, and runs the resulting registration. It is not an MCP tool and does
-   not accept model settings or tool provisioning; it preserves `--dry-run` and
+   `PreparedWorkflowInput` to DAR; skills receive neither its identifier nor a
+   separate run command.
+5. **M3.5: Compose local invocation.** Add the skill-facing
+   `dar-package invoke --package-name --prompt-stdin` composition command. It
+   resolves only a saved package against its configured profile and reviewed
+   capability bindings, seals the prompt, and runs the registration. It does not
+   accept model settings or tool provisioning; it preserves `--dry-run` and
    local `--ask` behavior. A supplied workspace file is admitted only through a
    one-role/one-media-type registered contract; dry run rejects it before ingress.
 
-M3 exit: a human can repeatedly prepare and run a saved no-tool package with a
-prompt through the sealed, catalog-only runner interface.
+M3 exit: a skill can repeatedly invoke a saved no-tool package with a prompt
+through the sealed, catalog-only runner interface.
 
 ### M4 — Authoring-skill external acceptance (release-evidence track)
 
@@ -295,31 +266,30 @@ prompt through the sealed, catalog-only runner interface.
    authoring request plus the explicitly supplied de-identified material,
    current adapted skills, and current DAR wheel. A second independent clean
    Codex invocation receives a text-only request for the saved package and must
-   use `uv run ... dar-package` to prepare and run it. An artifact case may use
+   use `uv run ... dar-package invoke` to run it. An artifact case may use
    declared fixture files and the same CLI after trusted ingress. The authoring
    turn
    must use a host-issued `material_set_id` and `authoring_output_id`, then
-   finalize through `AuthoringOutputService`; the finalization receipt's package
-   digest is the only permitted handoff for a positive case. Before its run turn,
+   finalize through `AuthoringOutputService`; the finalization receipt's
+   `package_name` and package digest are the only permitted handoff for a
+   positive case. Before its run turn,
    the fixture controller—not Codex—uses that receipt to stage/import the exact
-   revision, create its catalog registration, and prepare any host-mediated
-   artifact invocation. The run turn receives only the resulting closed-set
-   `workflow_id`; it cannot select a package, register a revision, or recreate
-   it. The harness proves the chain from finalization manifest digest to staged
-   catalog revision, registration digest, and prepared-input registration digest.
+   revision and create its catalog registration. The run turn receives only the
+   finalized closed-set `package_name`; it cannot select a package, register a
+   revision, or recreate it. The harness proves the chain from finalization
+   manifest digest to staged catalog revision, registration digest, and invoke
+   receipt.
 
    Before either turn, a per-scenario hermetic host-fixture manifest creates the
    profile, package root, selected-material/output handles, and applicable MCP
    connection/snapshot, fake credential, approval broker, and ingress artifacts.
    The controller retains the state, credential, package, and control-plane
-   roots. Each Codex child receives only a capability-reduced CLI grant: the
-   author
-   receives material projection and output create/write/finalize operations; the
-   runner receives only the defined `dar-package` subcommands. Neither may
-   configure a
-   profile/MCP connection/trust store, inspect credentials, select paths, or
-   mutate host state outside those operations. Required negative tests prove
-   those requests fail with zero state mutation.
+   roots. The adapted skills instruct the author to use only material/output
+   commands and the runner to use only defined `dar-package` subcommands.
+   Required negative tests prove DAR rejects attempts to configure a
+   profile/MCP connection/trust store or to manufacture source handles with zero
+   DAR-control-plane mutation. This is an instruction and DAR-contract test, not
+   a process capability grant.
 
    Run each child in a fresh temporary working directory and a scrubbed
    environment. The harness explicitly supplies only the adapted skills, plugin,
@@ -343,7 +313,8 @@ prompt through the sealed, catalog-only runner interface.
 
    A clean Codex run proves only the declared CLI contract. Prompt-only scenarios
    invoke it end to end; artifact scenarios separately prove the existing
-   host-mediated ingress/prepare/`dar-package run` path with the same generated
+   host-mediated ingress/internal-preparation/`dar-package invoke` path with
+   the same generated
    revision. A future direct artifact-reference UX needs its own closed contract
    before it can be claimed.
 
@@ -380,18 +351,19 @@ prompt through the sealed, catalog-only runner interface.
    absent. It records no fixture body, physical path, credential, OAuth
    code/token, raw prompt, or external tool content. Until a named reviewer
    records intent fidelity, its outcome is `pending_human_review`, never `pass`.
-   A deterministic checker decides package shape, tool schema, call limit,
-   ingress, final output schema, approval/action-ledger, isolation, and refusal
-   claims. The scenario corpus must contain at least the following stratified
-   cases:
+   A deterministic checker decides package shape and refusal claims. M4.4's
+   release gate has exactly two mandatory clean-Codex cases: `Simple document
+   summary` and `Council/multi-agent request`. The remaining cases are retained
+   as coverage references for their owning G2, G4, G5, or M8 gate; they do not
+   block the CLI-first author-then-invoke claim.
 
    | Case | First text-only request | Run request or host invocation | Required result / exercised boundary |
    | --- | --- | --- | --- |
-   | Simple document summary | “Design a workflow that summarizes supplied text.” | “Run `document-summary` and summarize this text in five bullet points: …” | Prompt-only MCP positive no-tool package (G3). |
-   | Structured single-model review | “Design a workflow from the supplied review guidance that accepts text and returns the review schema.” | “Run `single-model-review` for this proposal text: …” | Prompt-only MCP positive structured review (G3); it does not claim a council. |
+   | Simple document summary | “Design a workflow that summarizes supplied text.” | “Run `document-summary` and summarize this text in five bullet points: …” | Positive no-tool package through skill-invoked CLI (G3). |
+   | Structured single-model review | “Design a workflow from the supplied review guidance that accepts text and returns the review schema.” | “Run `single-model-review` for this proposal text: …” | G3 follow-up coverage; it does not claim a council. |
    | Council/multi-agent request | “Turn the council skill into a workflow that uses multiple agents to review a document.” | No run turn. | Expected capability-unavailable at capability preflight; no subagent binding, registration, prepared input, or fabricated council. |
    | Generic email send | “Design this specific email task with the supplied local-model profile, stable configured connection requirement, and reviewed semantic send-tool schema.” | “Run `custom-email` to send a birthday note to `john@example.com` with this inline body text: …” | Prompt-only fake generic MCP proves declared schema, provenance, action ledger, and default `workflow_auto` (G2/G5). The host/CLI separately proves `--dry-run` and `--ask` against the identical registration; neither is reported as an MCP run. |
-   | Read-only mailbox triage | “Use the supplied MCP read tools to return reply drafts for unread messages.” | “Run `inbox-triage`.” | Prompt-only MCP positive: reviewed read surface, bounded calls, tool-result handling, and no send handler (G2). |
+   | Read-only mailbox triage | “Use the supplied MCP read tools to return reply drafts for unread messages.” | “Run `inbox-triage`.” | G2 coverage: reviewed read surface, bounded calls, tool-result handling, and no send handler. |
    | OAuth reconnect | “Design a workflow that uses the fixture's stable human-configured OAuth connection requirement and reviewed semantic read-tool schema to list account tasks.” | “Run `task-list`.” | Fixture control plane proves listener-first authorization; the clean turns observe only the preconfigured connection and refresh/reconnect result without a browser. Live-provider OAuth is separately authorized manual evidence (G2). |
    | Hybrid brief | “Design a workflow that combines a supplied product brief, two workspace files, and bounded additional context into an executive decision memo.” | “Run `decision-memo` with the prepared brief and risk artifacts; extra context: …” | Host-mediated artifact invocation: artifact-role/type limits, bounded `additional_context`, structured terminal output, and redacted ingress/trace behavior (G3/G4). |
    | Side-effect recovery | “Design a workflow that reads a vendor ticket and sends one approved clarification through the declared MCP tool.” | “Run `vendor-clarification` with the prepared ticket artifact.” | Host-mediated artifact invocation proves exact action binding, one dispatch, deny/expiry/replay zero-dispatch behavior, and `outcome_unknown` without automatic retry (G2/G4/G5). |
@@ -458,7 +430,7 @@ part of ordinary test execution.
 On explicit user request, add a separate acceptance-isolation feature for
 containerized clean actors with virtual read-only inputs, a dedicated writable
 workspace, and a default-deny network policy. It must define a portable
-controller/broker transport, test the actual runtime boundary, and remain
+controller transport, test the actual runtime boundary, and remain
 optional: Docker or another container runtime is not a DAR, plugin, or M4.4
 requirement.
 
@@ -563,8 +535,8 @@ provider acceptance tests. Their absence does not block M0–M3.
 
 - Every slice runs its focused pytest tests, `ruff check`, and scoped
   `pre-commit` before commit.
-- M1 additionally proves packaged-wheel installation and MCP `initialize` in a
-  clean directory.
+- M1 additionally proves packaged-wheel installation, `dar-package --help`, and
+  one non-mutating JSON receipt in a clean directory.
 - M2 and M3 run the DAR package-loader and no-tool execution fixtures with fake
   collaborators.
 - M4 is an external release-harness gate; its model invocation is never a unit

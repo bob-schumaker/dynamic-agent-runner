@@ -16,11 +16,18 @@ tool, and broker path are superseded. Generated workflows may still declare and
 use a human-configured MCP capability through DAR's host runtime; that does not
 make the Codex plugin an MCP server.
 
-- [ ] RED/GREEN: define and test the `dar-package` CLI subcommand schemas used
-      by the three skills: material issue/project, authored-package
-      create/write/finalize, package selection/preflight/registration, input
-      preparation, and invocation. Every response is one versioned, redacted JSON
-      receipt or error and uses opaque IDs for host resources.
+- [ ] RED/GREEN: define and test role-scoped `dar-package` CLI schemas:
+      `agent-development` uses material issue/project and authored-package
+      create/write/finalize; a later invocation skill uses only `invoke`; the
+      companion skills produce package artifacts only. Human-only selection and
+      DAR-internal registration/preparation are not skill commands. Every
+      non-projection response is one versioned, redacted JSON receipt or error
+      and uses opaque IDs for host resources.
+- [ ] RED/GREEN: define `project-authoring-materials` as the sole transient
+      content-returning exception: it returns only the selected bounded
+      projection to stdout, is never trace-recorded, and has explicit member and
+      byte limits. Add a human-only material-ingress schema that rejects raw
+      paths from a skill and proves unselected/reference-only content is absent.
 - [ ] RED/GREEN: update each adapted skill and target-invocation fixture to use
       the exact checked-in `uv run ... dar-package <command>` template. The entry
       skill collaborates with the user to close missing workflow semantics,
@@ -62,9 +69,8 @@ make the Codex plugin an MCP server.
 - [x] RED/GREEN: plugin starter assets cover the tool-index and evaluation
       artifact contracts promised by the three adapted skills; their empty v1
       structures are deterministic and make no live-provider claim.
-- [ ] RED: plugin skill-discovery, approved-Artifactory immutable DAR-runtime
-      resolution, hash-pinned dependency-lock verification, and isolated `uv run`
-      CLI invocation tests.
+- [ ] RED: plugin skill-discovery, exact approved-Artifactory DAR-version
+      resolution, and isolated `uv run` CLI invocation tests.
 - [ ] GREEN: create the `dar-authoring` skills-only plugin bundle and checked-in
       CLI command template without undocumented path interpolation; DAR provides
       `dar-package` and includes all required runtime assets in its released
@@ -76,22 +82,9 @@ make the Codex plugin an MCP server.
 - [ ] RED/GREEN: clean Codex plugin smoke test proves the temporary marketplace
       plugin installs its skills, does not register an MCP server, and lets a
       skill issue the checked-in CLI discovery command without a configured host.
-- [x] RED/GREEN: signed-release verification renders only its exact, validated
-      distribution/version/SHA-256 identities as a hash-enforced `uv`
-      requirements lock. Rendering rejects malformed or duplicate identities;
-      using that lock from the portable plugin remains part of the unresolved
-      Codex launch-topology gate.
 - [ ] RED/GREEN: clean-directory DAR-wheel test verifies its archive asset
       hashes and receives a valid `dar-package --help` response without
       source-tree paths or undeclared package indexes.
-- [ ] RED/GREEN: launcher verifies the selected DAR wheel bytes against
-      signed release metadata rooted in configured trusted keys; rejects
-      unexpected indexes, a replaced artifact, expired metadata, revoked keys or
-      versions, and a version below the configured security floor; and records
-      the resolved dependency identities at startup.
-      Release metadata v1 uses canonical JSON, a detached Ed25519 key-id
-      envelope, exact artifact hashes, explicit transitive-wheel pins, an expiry,
-      minimum distribution versions, and explicit signer/artifact revocations.
 
 ## G1: Catalog, Profile, and Capability Boundary
 
@@ -154,8 +147,8 @@ make the Codex plugin an MCP server.
       active/revoked/consumed state, restart persistence, cleanup, and revocation
       before any source, catalog, registration, or prepared-input handle is issued.
 - [x] RED/GREEN: human-only `ProfileCapabilityRecord` creation/update establishes
-      immutable local profile capability records before resolution; callers,
-      skills, and MCP requests cannot supply or alter them.
+      immutable local profile capability records before resolution; callers and
+      skills cannot supply or alter them.
 - [x] RED/GREEN: produce one deterministic `CapabilityResolution` from the
       `WorkflowPolicy`, declared profile capabilities, active gates, and DAR
       inspection; reject metadata-only or missing requirements before binding.
@@ -211,8 +204,11 @@ make the Codex plugin an MCP server.
       not treat companion output as a standalone finalized package.
 - [ ] RED/GREEN: build the M4.4 clean-Codex author-then-run acceptance harness.
       Implement it per plan.md M4.4 and
-      `m4-4-workflow-capability-matrix.md`, including its checked-in scenario
-      manifests, hermetic fixtures, redacted evidence, and deterministic fakes.
+      `m4-4-workflow-capability-matrix.md`. The mandatory v1 cases are one
+      no-tool document-summary author→finalize→saved-package-invoke success and
+      one subagent/council capability-unavailable refusal; use hermetic fixtures,
+      redacted evidence, and deterministic fakes. G2/G4/G5/M8 own the remaining
+      feature cases.
 
 ## G2: Optional MCP Connection Control Plane and Surface Binding
 
@@ -244,7 +240,7 @@ make the Codex plugin an MCP server.
       never retries a possibly dispatched remote tool call.
 - [x] RED/GREEN: approved MCP surface snapshot creation/review plus passive
       `tools/list` identity/input-schema drift detection on the run path.
-- [x] RED/GREEN: plugin-owned `MCPConnectionClient` fixtures cover configured
+- [x] RED/GREEN: DAR-host-owned `MCPConnectionClient` fixtures cover configured
       transport initialization, strict/unavailable startup, timeout,
       cancellation, reconnect, bounded output, and cleanup; no untested
       transport is advertised.
@@ -279,12 +275,12 @@ make the Codex plugin an MCP server.
       `WorkflowRegistration` and map its workflow alias only to that registration
       digest. Reject arbitrary package paths, endpoints, commands, profile
       selections, and model-provided provisioning/approval fields.
-- [x] RED/GREEN: `dar-package prepare` authenticates the caller and,
-      after binding, returns registered workflow/package/revision/registration
-      identifiers plus a sealed prepared-input identifier and expiry. It never
-      returns the resulting identifier to the skill.
+- [x] RED/GREEN: DAR's internal preparation service authenticates the caller and
+      binds workflow/package/revision/registration identifiers plus a sealed
+      prepared-input identifier and expiry. It never returns that identifier to
+      the skill.
 - [ ] RED/GREEN: versioned `dar-package invoke` request/response schema accepts
-      only a closed-set workflow identifier, prompt, and descriptor-declared
+      only a closed-set saved package name, prompt, and descriptor-declared
       inputs; it internally seals input and rejects caller-supplied prepared IDs
       or undeclared hybrid-input fields before preparation or execution.
 - [ ] RED/GREEN: human/skill invocation composes local package-source
@@ -302,9 +298,9 @@ make the Codex plugin an MCP server.
       a later descriptor-specific slice.
 - [x] RED/GREEN: execute a no-tools workflow through its registration, capability
       resolution, bounded result shaping, and deep-redacted tracing.
-- [x] RED/GREEN: `dar-package run` accepts exactly the sealed workflow and
-      prepared-input identifiers produced by local preparation; prove no run CLI
-      path passes a raw prompt or file path to DAR.
+- [x] RED/GREEN: DAR's internal runner accepts exactly the sealed workflow and
+      prepared-input identifiers produced by local preparation; prove no public
+      CLI path passes a raw prompt or file path directly to DAR.
 - [x] RED/GREEN: validate terminal workflow output against the registered output
       contract and return bounded redacted failure for malformed or excess output.
 - [x] RED/GREEN: `--dry-run` validates catalog, DAR private-package preflight,
@@ -416,6 +412,9 @@ make the Codex plugin an MCP server.
 
 ## Deferred After the First Release
 
+- [ ] Evaluate signed release metadata, transitive dependency locks, and custom
+      key revocation as publication hardening after a concrete threat model;
+      ordinary v1 relies on the approved Artifactory release and exact DAR pin.
 - [ ] Retrieval/embedding profiles and host vector/index services.
 - [ ] Durable conversational sessions and durable DAR interruption continuation.
 - [ ] Guardrail phases beyond DAR's live input and tool-input handlers, and
