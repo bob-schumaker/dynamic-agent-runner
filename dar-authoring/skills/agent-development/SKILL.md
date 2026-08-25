@@ -12,6 +12,20 @@ acceptance or regression evidence is requested.
 
 ## Input boundary
 
+### Session-broker mode
+
+When the current MCP tool list exposes `project_authoring_materials`,
+`create_authored_package`, `write_authored_package_file`, and
+`finalize_authored_package`, use that session broker instead of any shell or
+CLI command. The host has already selected one material set and one package
+name. Project the material, create that one package, write every generated file
+through `write_authored_package_file`, then finalize through
+`finalize_authored_package`. Do not use paths, configure a host, select or
+register a package, invoke a workflow, or call `run_dar_workflow` while
+authoring.
+
+### Host CLI mode
+
 Accept a natural-language goal and any supplied examples, documentation, or
 files through the host-owned authoring control plane. Call
 the `dar-workflow` wrapper at `../../scripts/dar-workflow`, resolved relative to

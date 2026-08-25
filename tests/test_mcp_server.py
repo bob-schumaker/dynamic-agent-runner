@@ -183,7 +183,9 @@ def test_authoring_stdio_server_exposes_only_one_session_broker_surface() -> Non
     from dynamic_agent_runner.workflow_host.server import _AuthoringSession
 
     session = _AuthoringSession(
-        material_set_id="v1.material-set.signature", host_opener=lambda _root: object()
+        material_set_id="v1.material-set.signature",
+        package_name="document-summary",
+        host_opener=lambda _root: object(),
     )
     session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
     session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')
@@ -254,7 +256,9 @@ def test_authoring_stdio_server_binds_one_material_set_and_output() -> None:
             return AuthoredPackageValidation("document-summary", "c" * 64, "d" * 64, 4)
 
     session = _AuthoringSession(
-        material_set_id="v1.material-set.signature", host_opener=lambda _root: Host()
+        material_set_id="v1.material-set.signature",
+        package_name="document-summary",
+        host_opener=lambda _root: Host(),
     )
     session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
     session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')
@@ -263,7 +267,7 @@ def test_authoring_stdio_server_binds_one_material_set_and_output() -> None:
         '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"project_authoring_materials","arguments":{"format_version":1}}}'
     )
     created = session.handle(
-        '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_authored_package","arguments":{"format_version":1,"package_name":"document-summary"}}}'
+        '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_authored_package","arguments":{"format_version":1}}}'
     )
     written = session.handle(
         '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"write_authored_package_file","arguments":{"format_version":1,"authoring_output_id":"v1.output.signature","relative_path":"agent-design.md","content":"design"}}}'

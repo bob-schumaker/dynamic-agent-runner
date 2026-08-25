@@ -34,15 +34,17 @@ def main(
     if values == ["--stdio"]:
         session: _Session = _Session()
     elif (
-        len(values) == 3
+        len(values) == 5
         and values[:2] == ["--authoring-stdio", "--material-set-id"]
         and values[2]
+        and values[3] == "--package-name"
+        and values[4]
     ):
-        session = _AuthoringSession(material_set_id=values[2])
+        session = _AuthoringSession(material_set_id=values[2], package_name=values[4])
     else:
         print(
             "Usage: dynamic-agent-runner-mcp --stdio | "
-            "--authoring-stdio --material-set-id ID",
+            "--authoring-stdio --material-set-id ID --package-name NAME",
             file=stderr,
         )
         return 2
@@ -165,12 +167,19 @@ class _AuthoringSession(_Session):
     """One capability-reduced authoring session for a pre-issued material set."""
 
     def __init__(
-        self, *, material_set_id: str, host_opener=LocalWorkflowHost.open
+        self,
+        *,
+        material_set_id: str,
+        package_name: str,
+        host_opener=LocalWorkflowHost.open,
     ) -> None:
         super().__init__(host_opener=host_opener)
         if not isinstance(material_set_id, str) or not material_set_id:
             raise ValueError("authoring material set is invalid")
+        if not isinstance(package_name, str) or not package_name:
+            raise ValueError("authoring package name is invalid")
         self._material_set_id = material_set_id
+        self._package_name = package_name
         self._authoring_output_id: str | None = None
         self._finalized = False
 
@@ -227,14 +236,11 @@ class _AuthoringSession(_Session):
     def _create_package(
         self, host: Any, arguments: Mapping[str, object]
     ) -> dict[str, object]:
-        _require_arguments(arguments, {"format_version", "package_name"})
+        _require_arguments(arguments, {"format_version"})
         if self._authoring_output_id is not None:
             raise ValueError("authoring output already exists")
-        package_name = arguments.get("package_name")
-        if not isinstance(package_name, str):
-            raise ValueError("authoring package name is invalid")
         receipt = host.create_authored_package(
-            package_name=package_name, now=datetime.now(UTC)
+            package_name=self._package_name, now=datetime.now(UTC)
         )
         self._authoring_output_id = receipt.output_id
         return {
@@ -320,15 +326,7 @@ _AUTHORING_TOOLS = (
     {
         "name": "create_authored_package",
         "description": "Create this session's one host-owned workflow package.",
-        "inputSchema": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["format_version", "package_name"],
-            "properties": {
-                "format_version": {"const": 1},
-                "package_name": {"type": "string", "minLength": 1},
-            },
-        },
+        "inputSchema": _FORMAT_VERSION_SCHEMA,
     },
     {
         "name": "write_authored_package_file",
