@@ -71,27 +71,27 @@ make the Codex plugin an MCP server.
       structures are deterministic and make no live-provider claim.
 - [ ] RED: plugin skill-discovery, exact approved-Artifactory DAR-version
       resolution, and isolated `uv run` CLI invocation tests.
-- [ ] RED/GREEN: add the `dar-package` console entry point before any plugin
+- [x] RED/GREEN: add the `dar-package` console entry point before any plugin
       smoke test. `dar-package version --json` returns exactly one receipt with
       `format_version`, `status`, `distribution`, and `version`; error output is
       one redacted JSON object with `format_version`, `status`, and `error_code`
       on stderr with nonzero exit. Cover unknown subcommand, missing/invalid
       `--json`, and internal failure; focused tests prove no source path, state
       root, credential, or host configuration appears.
-- [ ] GREEN: create the `dar-authoring` skills-only plugin bundle and checked-in
+- [x] GREEN: create the `dar-authoring` skills-only plugin bundle and checked-in
       CLI command template without undocumented path interpolation; DAR provides
       `dar-package` and includes all required runtime assets in its released
       wheel.
-- [ ] RED/GREEN: developer local-wheel verifier executes
+- [x] RED/GREEN: developer local-wheel verifier executes
       `dar-package version --json` from a freshly built DAR wheel through
       `uv run --no-project --python 3.14` in an isolated temporary directory.
       Prove it neither opens state
       nor emits source/state paths. This proves entrypoint/assets only, not
       Artifactory resolution or publication integrity.
-- [ ] RED/GREEN: built-wheel asset check proves `dist-info/entry_points.txt`
+- [x] RED/GREEN: built-wheel asset check proves `dist-info/entry_points.txt`
       maps `dar-package` and that this asset appears in `RECORD`. This is only
       packaging-presence evidence; release-integrity auditing remains deferred.
-- [ ] RED/GREEN: clean Codex plugin smoke test proves the temporary marketplace
+- [x] RED/GREEN: clean Codex plugin smoke test proves the temporary marketplace
       plugin installs its skills, does not register an MCP server, and lets a
       skill issue the checked-in CLI discovery command without a configured host.
 - [ ] RED/GREEN: independently resolve the pinned DAR version from the approved
