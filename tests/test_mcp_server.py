@@ -177,3 +177,112 @@ def test_stdio_server_rejects_unsealed_hybrid_fields() -> None:
         "code": -32000,
         "message": "Workflow run failed",
     }
+
+
+def test_authoring_stdio_server_exposes_only_one_session_broker_surface() -> None:
+    from dynamic_agent_runner.workflow_host.server import _AuthoringSession
+
+    session = _AuthoringSession(
+        material_set_id="v1.material-set.signature", host_opener=lambda _root: object()
+    )
+    session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
+    session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')
+
+    response = session.handle('{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
+
+    assert response is not None
+    assert [tool["name"] for tool in response["result"]["tools"]] == [
+        "project_authoring_materials",
+        "create_authored_package",
+        "write_authored_package_file",
+        "finalize_authored_package",
+    ]
+
+
+def test_authoring_stdio_server_binds_one_material_set_and_output() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from dynamic_agent_runner.workflow_host.authoring_materials import (
+        AuthoringMaterialProjectionMember,
+        AuthoringMaterialSetProjection,
+    )
+    from dynamic_agent_runner.workflow_host.authoring_output import (
+        AuthoredPackageValidation,
+    )
+    from dynamic_agent_runner.workflow_host.authoring_outputs import (
+        AuthoredFileReceipt,
+        AuthoringOutputReceipt,
+    )
+    from dynamic_agent_runner.workflow_host.server import _AuthoringSession
+
+    class Host:
+        def project_authoring_materials(self, material_set_id: str, *, now: object):
+            assert material_set_id == "v1.material-set.signature"
+            assert isinstance(now, datetime)
+            return AuthoringMaterialSetProjection(
+                material_set_id=material_set_id,
+                members=(
+                    AuthoringMaterialProjectionMember(
+                        artifact_id="v1.material.example",
+                        digest="a" * 64,
+                        role="example",
+                        disposition="include",
+                        content="approved example",
+                    ),
+                ),
+                expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            )
+
+        def create_authored_package(self, *, package_name: str, now: object):
+            assert package_name == "document-summary"
+            assert isinstance(now, datetime)
+            return AuthoringOutputReceipt(
+                output_id="v1.output.signature",
+                package_name=package_name,
+                expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            )
+
+        def write_authored_package_file(self, **kwargs: object):
+            assert kwargs["output_id"] == "v1.output.signature"
+            assert kwargs["relative_path"] == "agent-design.md"
+            assert kwargs["content"] == "design"
+            return AuthoredFileReceipt("agent-design.md", "b" * 64, 6)
+
+        def finalize_authored_output(self, **kwargs: object):
+            assert kwargs["output_id"] == "v1.output.signature"
+            assert kwargs["material_set_id"] == "v1.material-set.signature"
+            return AuthoredPackageValidation("document-summary", "c" * 64, "d" * 64, 4)
+
+    session = _AuthoringSession(
+        material_set_id="v1.material-set.signature", host_opener=lambda _root: Host()
+    )
+    session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
+    session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')
+
+    projected = session.handle(
+        '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"project_authoring_materials","arguments":{"format_version":1}}}'
+    )
+    created = session.handle(
+        '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_authored_package","arguments":{"format_version":1,"package_name":"document-summary"}}}'
+    )
+    written = session.handle(
+        '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"write_authored_package_file","arguments":{"format_version":1,"authoring_output_id":"v1.output.signature","relative_path":"agent-design.md","content":"design"}}}'
+    )
+    finalized = session.handle(
+        '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"finalize_authored_package","arguments":{"format_version":1,"authoring_output_id":"v1.output.signature"}}}'
+    )
+    replayed = session.handle(
+        '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"finalize_authored_package","arguments":{"format_version":1,"authoring_output_id":"v1.output.signature"}}}'
+    )
+
+    assert (
+        projected["result"]["structuredContent"]["members"][0]["content"]
+        == "approved example"
+    )
+    assert (
+        created["result"]["structuredContent"]["authoring_output_id"]
+        == "v1.output.signature"
+    )
+    assert written["result"]["structuredContent"]["content_hash"] == "b" * 64
+    assert finalized["result"]["structuredContent"]["package_digest"] == "c" * 64
+    assert replayed["error"]["message"] == "Authoring request failed"

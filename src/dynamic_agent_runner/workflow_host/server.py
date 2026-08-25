@@ -31,11 +31,21 @@ def main(
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
-    if values != ["--stdio"]:
-        print("Usage: dynamic-agent-runner-mcp --stdio", file=stderr)
+    if values == ["--stdio"]:
+        session: _Session = _Session()
+    elif (
+        len(values) == 3
+        and values[:2] == ["--authoring-stdio", "--material-set-id"]
+        and values[2]
+    ):
+        session = _AuthoringSession(material_set_id=values[2])
+    else:
+        print(
+            "Usage: dynamic-agent-runner-mcp --stdio | "
+            "--authoring-stdio --material-set-id ID",
+            file=stderr,
+        )
         return 2
-
-    session = _Session()
     for line in stdin:
         if not line.strip():
             continue
@@ -151,6 +161,134 @@ class _Session:
         )
 
 
+class _AuthoringSession(_Session):
+    """One capability-reduced authoring session for a pre-issued material set."""
+
+    def __init__(
+        self, *, material_set_id: str, host_opener=LocalWorkflowHost.open
+    ) -> None:
+        super().__init__(host_opener=host_opener)
+        if not isinstance(material_set_id, str) or not material_set_id:
+            raise ValueError("authoring material set is invalid")
+        self._material_set_id = material_set_id
+        self._authoring_output_id: str | None = None
+        self._finalized = False
+
+    def _available_tools(self) -> list[dict[str, object]]:
+        try:
+            self._host_opener(_default_state_root())
+        except (ValueError, OSError):
+            return []
+        return list(_AUTHORING_TOOLS)
+
+    def _call_tool(self, request_id: str | int, params: object) -> dict[str, Any]:
+        if not isinstance(params, Mapping) or not isinstance(
+            params.get("arguments"), Mapping
+        ):
+            return _error(request_id, -32602, "Invalid tool request")
+        try:
+            name = params.get("name")
+            arguments = params["arguments"]
+            handler = {
+                "project_authoring_materials": self._project_materials,
+                "create_authored_package": self._create_package,
+                "write_authored_package_file": self._write_package_file,
+                "finalize_authored_package": self._finalize_package,
+            }.get(name)
+            if handler is None:
+                return _error(request_id, -32602, "Invalid tool request")
+            return _authoring_result(
+                request_id, handler(self._host_opener(_default_state_root()), arguments)
+            )
+        except (ValueError, OSError):
+            return _error(request_id, -32000, "Authoring request failed")
+
+    def _project_materials(
+        self, host: Any, arguments: Mapping[str, object]
+    ) -> dict[str, object]:
+        _require_arguments(arguments, {"format_version"})
+        projection = host.project_authoring_materials(
+            self._material_set_id, now=datetime.now(UTC)
+        )
+        return {
+            "material_set_id": projection.material_set_id,
+            "members": [
+                {
+                    "artifact_id": member.artifact_id,
+                    "content": member.content,
+                    "digest": member.digest,
+                    "disposition": member.disposition,
+                    "role": member.role,
+                }
+                for member in projection.members
+            ],
+        }
+
+    def _create_package(
+        self, host: Any, arguments: Mapping[str, object]
+    ) -> dict[str, object]:
+        _require_arguments(arguments, {"format_version", "package_name"})
+        if self._authoring_output_id is not None:
+            raise ValueError("authoring output already exists")
+        package_name = arguments.get("package_name")
+        if not isinstance(package_name, str):
+            raise ValueError("authoring package name is invalid")
+        receipt = host.create_authored_package(
+            package_name=package_name, now=datetime.now(UTC)
+        )
+        self._authoring_output_id = receipt.output_id
+        return {
+            "authoring_output_id": receipt.output_id,
+            "package_name": receipt.package_name,
+        }
+
+    def _write_package_file(
+        self, host: Any, arguments: Mapping[str, object]
+    ) -> dict[str, object]:
+        _require_arguments(
+            arguments,
+            {"format_version", "authoring_output_id", "relative_path", "content"},
+        )
+        output_id = _authoring_output_id(arguments, self._authoring_output_id)
+        if self._finalized:
+            raise ValueError("authoring output is finalized")
+        relative_path = arguments.get("relative_path")
+        content = arguments.get("content")
+        if not isinstance(relative_path, str) or not isinstance(content, str):
+            raise ValueError("authoring file is invalid")
+        receipt = host.write_authored_package_file(
+            output_id=output_id,
+            relative_path=relative_path,
+            content=content,
+            now=datetime.now(UTC),
+        )
+        return {
+            "relative_path": receipt.relative_path,
+            "content_hash": receipt.content_hash,
+            "byte_count": receipt.byte_count,
+        }
+
+    def _finalize_package(
+        self, host: Any, arguments: Mapping[str, object]
+    ) -> dict[str, object]:
+        _require_arguments(arguments, {"format_version", "authoring_output_id"})
+        output_id = _authoring_output_id(arguments, self._authoring_output_id)
+        if self._finalized:
+            raise ValueError("authoring output is finalized")
+        validation = host.finalize_authored_output(
+            output_id=output_id,
+            material_set_id=self._material_set_id,
+            now=datetime.now(UTC),
+        )
+        self._finalized = True
+        return {
+            "package_id": validation.package_id,
+            "package_digest": validation.package_digest,
+            "descriptor_digest": validation.descriptor_digest,
+            "file_count": validation.file_count,
+        }
+
+
 _RUN_TOOL = {
     "name": "run_dar_workflow",
     "description": "Run one registered local DAR workflow.",
@@ -165,6 +303,103 @@ _RUN_TOOL = {
         },
     },
 }
+
+_FORMAT_VERSION_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["format_version"],
+    "properties": {"format_version": {"const": 1}},
+}
+
+_AUTHORING_TOOLS = (
+    {
+        "name": "project_authoring_materials",
+        "description": "Read the host-approved material projection for this session.",
+        "inputSchema": _FORMAT_VERSION_SCHEMA,
+    },
+    {
+        "name": "create_authored_package",
+        "description": "Create this session's one host-owned workflow package.",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["format_version", "package_name"],
+            "properties": {
+                "format_version": {"const": 1},
+                "package_name": {"type": "string", "minLength": 1},
+            },
+        },
+    },
+    {
+        "name": "write_authored_package_file",
+        "description": "Atomically write one declared file in this session's package.",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "format_version",
+                "authoring_output_id",
+                "relative_path",
+                "content",
+            ],
+            "properties": {
+                "format_version": {"const": 1},
+                "authoring_output_id": {"type": "string", "minLength": 1},
+                "relative_path": {"type": "string", "minLength": 1},
+                "content": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "finalize_authored_package",
+        "description": "Validate and finalize this session's one workflow package.",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["format_version", "authoring_output_id"],
+            "properties": {
+                "format_version": {"const": 1},
+                "authoring_output_id": {"type": "string", "minLength": 1},
+            },
+        },
+    },
+)
+
+
+def _require_arguments(arguments: Mapping[str, object], expected: set[str]) -> None:
+    if set(arguments) != expected or arguments.get("format_version") != 1:
+        raise ValueError("authoring tool arguments are invalid")
+
+
+def _authoring_output_id(
+    arguments: Mapping[str, object], expected_output_id: str | None
+) -> str:
+    value = arguments.get("authoring_output_id")
+    if (
+        expected_output_id is None
+        or not isinstance(value, str)
+        or value != expected_output_id
+    ):
+        raise ValueError("authoring output is invalid")
+    return value
+
+
+def _authoring_result(
+    request_id: str | int, payload: Mapping[str, object]
+) -> dict[str, Any]:
+    value = dict(payload)
+    return _result(
+        request_id,
+        {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(value, sort_keys=True, separators=(",", ":")),
+                }
+            ],
+            "structuredContent": value,
+        },
+    )
 
 
 def _prepare_request(
