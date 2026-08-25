@@ -22,9 +22,9 @@ uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp
 <!-- rumdl-enable MD013 -->
 
 For local development, use an absolute wheel path as the `--with` value. Do not
-use a wrapper, state directory, or plugin-owned MCP connection. M1 exposes only
-`version --json`; if a required package-authoring command is unavailable, return
-`authoring_runtime_unavailable` and do not create an unvalidated package.
+use a wrapper, state directory, or plugin-owned MCP connection. If a required
+package-authoring command is unavailable, return `authoring_runtime_unavailable`
+and do not create an unvalidated package.
 
 ## Contract
 

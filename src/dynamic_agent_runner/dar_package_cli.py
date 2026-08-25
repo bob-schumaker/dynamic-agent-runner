@@ -36,11 +36,22 @@ def main(
     stderr = stderr or sys.stderr
     if arguments == ["version", "--json"]:
         return _version(stdout=stdout, stderr=stderr)
-    if not arguments or arguments[0] != "invoke":
+    if not arguments:
         _write(stderr, _error("usage"))
         return 2
+    if arguments[0] in _AUTHORING_COMMANDS:
+        return _authoring(arguments, stdin=stdin, stdout=stdout, stderr=stderr)
+    if arguments[0] != "invoke":
+        _write(stderr, _error("usage"))
+        return 2
+    return _invoke(arguments[1:], stdin=stdin, stdout=stdout, stderr=stderr)
+
+
+def _invoke(
+    arguments: Sequence[str], *, stdin: TextIO, stdout: TextIO, stderr: TextIO
+) -> int:
     try:
-        invocation = _parse_invoke(arguments[1:])
+        invocation = _parse_invoke(arguments)
         prompt = stdin.read()
         if not prompt.strip():
             raise ValueError("prompt is required")
@@ -95,6 +106,113 @@ def main(
         },
     )
     return 0
+
+
+_AUTHORING_COMMANDS = frozenset(
+    {
+        "project-authoring-materials",
+        "create-authored-package",
+        "write-authored-package-file",
+        "finalize-authored-package",
+    }
+)
+
+
+def _authoring(
+    arguments: Sequence[str], *, stdin: TextIO, stdout: TextIO, stderr: TextIO
+) -> int:
+    try:
+        args = _parse_authoring(arguments)
+        host = LocalWorkflowHost.open(_default_state_root())
+        result = _authoring_result(host, args, stdin=stdin)
+    except (LocalWorkflowHostError, ValueError):
+        _write(stderr, _error("usage"))
+        return 2
+    except Exception:  # noqa: BLE001 - receipt intentionally hides host details.
+        _write(stderr, _error("internal"))
+        return 1
+    _write(stdout, result)
+    return 0
+
+
+def _parse_authoring(arguments: Sequence[str]) -> argparse.Namespace:
+    parser = _ArgumentParser(add_help=False)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    project = subparsers.add_parser("project-authoring-materials", add_help=False)
+    project.add_argument("--material-set-id", required=True)
+    create = subparsers.add_parser("create-authored-package", add_help=False)
+    create.add_argument("--package-name", required=True)
+    write = subparsers.add_parser("write-authored-package-file", add_help=False)
+    write.add_argument("--authoring-output-id", required=True)
+    write.add_argument("--relative-path", required=True)
+    write.add_argument("--content-stdin", action="store_true")
+    finalize = subparsers.add_parser("finalize-authored-package", add_help=False)
+    finalize.add_argument("--authoring-output-id", required=True)
+    finalize.add_argument("--material-set-id", required=True)
+    args = parser.parse_args(arguments)
+    if args.command == "write-authored-package-file" and not args.content_stdin:
+        raise ValueError("authored package file content must be supplied on stdin")
+    return args
+
+
+def _authoring_result(
+    host: LocalWorkflowHost, args: argparse.Namespace, *, stdin: TextIO
+) -> dict[str, object]:
+    now = datetime.now(UTC)
+    if args.command == "project-authoring-materials":
+        projection = host.project_authoring_materials(args.material_set_id, now=now)
+        return {
+            "expires_at": projection.expires_at.isoformat(),
+            "format_version": 1,
+            "material_set_id": projection.material_set_id,
+            "members": [
+                {
+                    "artifact_id": member.artifact_id,
+                    "content": member.content,
+                    "digest": member.digest,
+                    "disposition": member.disposition,
+                    "role": member.role,
+                }
+                for member in projection.members
+            ],
+            "status": "projected",
+        }
+    if args.command == "create-authored-package":
+        output = host.create_authored_package(package_name=args.package_name, now=now)
+        return {
+            "authoring_output_id": output.output_id,
+            "expires_at": output.expires_at.isoformat(),
+            "format_version": 1,
+            "package_name": output.package_name,
+            "status": "created",
+        }
+    if args.command == "write-authored-package-file":
+        written = host.write_authored_package_file(
+            output_id=args.authoring_output_id,
+            relative_path=args.relative_path,
+            content=stdin.read(),
+            now=now,
+        )
+        return {
+            "byte_count": written.byte_count,
+            "content_hash": written.content_hash,
+            "format_version": 1,
+            "relative_path": written.relative_path,
+            "status": "written",
+        }
+    finalized = host.finalize_authored_output(
+        output_id=args.authoring_output_id,
+        material_set_id=args.material_set_id,
+        now=now,
+    )
+    return {
+        "descriptor_digest": finalized.descriptor_digest,
+        "file_count": finalized.file_count,
+        "format_version": 1,
+        "package_digest": finalized.package_digest,
+        "package_id": finalized.package_id,
+        "status": "finalized",
+    }
 
 
 def _version(*, stdout: TextIO, stderr: TextIO) -> int:

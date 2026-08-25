@@ -14,9 +14,6 @@ from typing import Any
 
 from dynamic_agent_runner.workflow_host.action_ledger import ExternalAction
 from dynamic_agent_runner.workflow_host.approvals import WorkflowApproval
-from dynamic_agent_runner.workflow_host.authoring_materials import (
-    AuthoringMaterialInput,
-)
 from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDecision
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
@@ -134,7 +131,7 @@ def _parser() -> argparse.ArgumentParser:
     configure.add_argument("--model-id", required=True)
     configure.add_argument("--base-url", required=True)
     issue_materials = commands.add_parser("issue-authoring-materials")
-    issue_materials.add_argument("--materials-json-stdin", action="store_true")
+    issue_materials.add_argument("--materials-manifest", required=True, type=Path)
     project_materials = commands.add_parser("project-authoring-materials")
     project_materials.add_argument("--material-set-id", required=True)
     create_package = commands.add_parser("create-authored-package")
@@ -285,12 +282,9 @@ def _authoring_control_result(
     read_stdin: Callable[[], str] | None,
 ) -> dict[str, object] | None:
     if args.command == "issue-authoring-materials":
-        if not args.materials_json_stdin:
-            raise LocalWorkflowHostError(
-                "authoring materials must be supplied on stdin"
-            )
-        materials = _authoring_materials_from_stdin((read_stdin or sys.stdin.read)())
-        receipt = host.issue_authoring_materials(materials=materials, now=now)
+        receipt = host.issue_human_authoring_material_manifest(
+            manifest_path=args.materials_manifest, now=now
+        )
         return {
             "expires_at": receipt.expires_at.isoformat(),
             "material_set_id": receipt.material_set_id,
@@ -364,28 +358,6 @@ def _authoring_control_result(
             "status": "finalized",
         }
     return None
-
-
-def _authoring_materials_from_stdin(value: str) -> tuple[AuthoringMaterialInput, ...]:
-    try:
-        parsed = json.loads(value)
-        if not isinstance(parsed, list):
-            raise ValueError
-        materials = tuple(
-            AuthoringMaterialInput(
-                role=member["role"],
-                content=member["content"],
-                disposition=member["disposition"],
-            )
-            for member in parsed
-            if isinstance(member, dict)
-            and set(member) == {"role", "content", "disposition"}
-        )
-        if len(materials) != len(parsed):
-            raise ValueError
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-        raise LocalWorkflowHostError("authoring material input is invalid") from error
-    return materials
 
 
 def _publisher_control_result(args: Any, *, root: Path) -> dict[str, object] | None:

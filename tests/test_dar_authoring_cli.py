@@ -27,6 +27,30 @@ def _invoke(args: list[str]) -> tuple[int, dict[str, object]]:
     return result, json.loads(output[0])
 
 
+def _human_material_manifest(
+    tmp_path: Path, content: str = "private design example"
+) -> Path:
+    source = tmp_path / "selected-material.txt"
+    source.write_text(content, encoding="utf-8")
+    manifest = tmp_path / "materials.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "format_version": 1,
+                "members": [
+                    {
+                        "disposition": "reference_only",
+                        "path": str(source),
+                        "role": "example",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manifest
+
+
 def test_cli_invokes_a_human_selected_no_tool_package(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -296,20 +320,17 @@ def test_cli_projects_selected_authoring_material_only_after_host_issuance(
     assert status == 0
     assert package_root.is_dir()
 
+    manifest = _human_material_manifest(tmp_path)
     issued_output: list[str] = []
     assert (
         main(
-            [*state_args, "issue-authoring-materials", "--materials-json-stdin"],
+            [
+                *state_args,
+                "issue-authoring-materials",
+                "--materials-manifest",
+                str(manifest),
+            ],
             write=issued_output.append,
-            read_stdin=lambda: json.dumps(
-                [
-                    {
-                        "role": "example",
-                        "content": "private design example",
-                        "disposition": "reference_only",
-                    }
-                ]
-            ),
         )
         == 0
     )
@@ -337,6 +358,122 @@ def test_cli_projects_selected_authoring_material_only_after_host_issuance(
     ]
 
 
+def test_cli_issues_authoring_materials_from_a_human_manifest_only(
+    tmp_path: Path,
+) -> None:
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    selected = tmp_path / "selected-example.txt"
+    unselected = tmp_path / "unselected-example.txt"
+    selected.write_text("private selected example", encoding="utf-8")
+    unselected.write_text("unselected source text", encoding="utf-8")
+    manifest = tmp_path / "materials.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "format_version": 1,
+                "members": [
+                    {
+                        "disposition": "reference_only",
+                        "path": str(selected),
+                        "role": "example",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    state_args = ["--state-root", str(state_root)]
+    assert (
+        _invoke(
+            [
+                *state_args,
+                "configure-local-model",
+                "--package-root",
+                str(package_root),
+                "--model-id",
+                "local-model-v1",
+                "--base-url",
+                "http://127.0.0.1:11434/v1",
+            ]
+        )[0]
+        == 0
+    )
+    issued_output: list[str] = []
+
+    assert (
+        main(
+            [
+                *state_args,
+                "issue-authoring-materials",
+                "--materials-manifest",
+                str(manifest),
+            ],
+            write=issued_output.append,
+        )
+        == 0
+    )
+    receipt = json.loads(issued_output[0])
+    assert "private selected example" not in issued_output[0]
+    assert "unselected source text" not in issued_output[0]
+
+    status, projection = _invoke(
+        [
+            *state_args,
+            "project-authoring-materials",
+            "--material-set-id",
+            receipt["material_set_id"],
+        ]
+    )
+    assert status == 0
+    assert projection["members"][0]["content"] == "private selected example"
+    assert "unselected source text" not in json.dumps(projection)
+
+
+@pytest.mark.parametrize(
+    "manifest_value",
+    [
+        {
+            "format_version": 1,
+            "members": [
+                {"content": "raw", "role": "example", "disposition": "reference_only"}
+            ],
+        },
+        {
+            "format_version": 1,
+            "members": [
+                {
+                    "path": "relative.txt",
+                    "role": "example",
+                    "disposition": "reference_only",
+                }
+            ],
+        },
+    ],
+)
+def test_cli_rejects_raw_or_relative_material_manifest_members(
+    tmp_path: Path, manifest_value: dict[str, object]
+) -> None:
+    manifest = tmp_path / "materials.json"
+    manifest.write_text(json.dumps(manifest_value), encoding="utf-8")
+    output: list[str] = []
+
+    assert (
+        main(
+            [
+                "--state-root",
+                str(tmp_path / "state"),
+                "issue-authoring-materials",
+                "--materials-manifest",
+                str(manifest),
+            ],
+            write=output.append,
+        )
+        == 2
+    )
+    assert output == []
+
+
 def test_cli_finalizes_a_host_selected_authored_package(
     tmp_path: Path,
 ) -> None:
@@ -358,20 +495,17 @@ def test_cli_finalizes_a_host_selected_authored_package(
         ]
     )
     assert status == 0
+    manifest = _human_material_manifest(tmp_path)
     issued_output: list[str] = []
     assert (
         main(
-            [*state_args, "issue-authoring-materials", "--materials-json-stdin"],
+            [
+                *state_args,
+                "issue-authoring-materials",
+                "--materials-manifest",
+                str(manifest),
+            ],
             write=issued_output.append,
-            read_stdin=lambda: json.dumps(
-                [
-                    {
-                        "role": "example",
-                        "content": "private design example",
-                        "disposition": "reference_only",
-                    }
-                ]
-            ),
         )
         == 0
     )
@@ -415,20 +549,17 @@ def test_cli_builds_and_finalizes_a_host_owned_authored_package(
     )
     assert status == 0
 
+    manifest = _human_material_manifest(tmp_path)
     issued_output: list[str] = []
     assert (
         main(
-            [*state_args, "issue-authoring-materials", "--materials-json-stdin"],
+            [
+                *state_args,
+                "issue-authoring-materials",
+                "--materials-manifest",
+                str(manifest),
+            ],
             write=issued_output.append,
-            read_stdin=lambda: json.dumps(
-                [
-                    {
-                        "role": "example",
-                        "content": "private design example",
-                        "disposition": "reference_only",
-                    }
-                ]
-            ),
         )
         == 0
     )

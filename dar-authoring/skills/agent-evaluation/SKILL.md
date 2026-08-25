@@ -21,10 +21,10 @@ uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp
 
 <!-- rumdl-enable MD013 -->
 
-For local development, use an absolute wheel path as the `--with` value. M1
-exposes only `version --json`; if a future package-writing command is absent,
-return `authoring_runtime_unavailable` rather than emitting an unvalidated
-package or using a legacy wrapper.
+For local development, use an absolute wheel path as the `--with` value. If a
+required package-writing command is unavailable, return
+`authoring_runtime_unavailable` rather than emitting an unvalidated package or
+using a legacy wrapper.
 
 ## Output
 

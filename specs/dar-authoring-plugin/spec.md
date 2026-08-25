@@ -251,14 +251,25 @@ reasoning workflow
 therefore needs only its purpose and model requirement; a workflow with no MCP
 tools and no skills is valid.
 
-The host exposes the following local authoring control-plane commands through
-the DAR `dar-package` CLI. The skill invokes each as `uv run ... dar-package
-<command>`. They do not expose prepared-input identifiers, profile configuration,
-credentials, or connection provisioning:
+The human host alone issues material sets through the legacy local control
+plane. It accepts a selected-file manifest and returns only an opaque receipt:
 
 ```text
-dar-package issue-authoring-materials --materials-json-stdin
+dar-workflow issue-authoring-materials --materials-manifest <human-selected-path>
   -> opaque receipt: material_set_id, member role/disposition/digest, expiry
+```
+
+The manifest is a UTF-8 JSON object with `format_version: 1` and a non-empty
+`members` array. Each member has exactly `role`, absolute `path`, and
+reference-only/distributable `disposition`; DAR opens only regular, no-follow,
+size-bounded UTF-8 files. This command is never in the skill-facing contract.
+
+The host exposes the following remaining local authoring control-plane commands
+through the DAR `dar-package` CLI. The skill invokes each as `uv run ...
+dar-package <command>`. They do not expose prepared-input identifiers, profile
+configuration, credentials, connection provisioning, or material-source paths:
+
+```text
 dar-package project-authoring-materials --material-set-id <opaque-id>
   -> exactly the selected bounded content projection (the sole non-receipt
      response; transient stdout only, never trace-recorded)
@@ -277,13 +288,15 @@ index and pinned DAR version. A local absolute-wheel override is permitted only
 for pre-publication verification. The override is not a release trust mechanism
 and must not appear in published skill instructions.
 
-`issue-authoring-materials` accepts only a host-issued material-ingress manifest:
-opaque selected member references, role, media type, byte count, digest, and
-reference-only/distributable disposition. A skill cannot submit a raw local path.
+`issue-authoring-materials` is human-only and accepts only the selected-file
+manifest above. It does not accept raw content or a skill-provided local path.
 `project-authoring-materials` may emit selected content because authoring needs
 it, but has explicit member and total-byte limits and emits no receipt containing
 that content. Every other command emits exactly one redacted JSON receipt or
-error.
+error. Every successful response has `format_version: 1`; the receipt commands
+use `created`, `written`, or `finalized` status, while the transient projection
+uses `projected`. The human issue receipt remains a content-free legacy-control
+response.
 
 The authoring skill calls these commands itself after the user asks it to build
 a package. It asks the user only for missing task decisions or human-only setup

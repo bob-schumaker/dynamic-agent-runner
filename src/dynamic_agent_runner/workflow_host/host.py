@@ -472,6 +472,15 @@ class LocalWorkflowHost:
 
         return self._authoring_materials.issue(materials=materials, now=now)
 
+    def issue_human_authoring_material_manifest(
+        self, *, manifest_path: Path, now: datetime
+    ) -> AuthoringMaterialSetReceipt:
+        """Issue an authoring material set from a human-selected file manifest."""
+
+        return self._authoring_materials.issue_human_manifest(
+            manifest_path=manifest_path, now=now
+        )
+
     def project_authoring_materials(
         self, material_set_id: str, *, now: datetime
     ) -> AuthoringMaterialSetProjection:

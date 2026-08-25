@@ -35,6 +35,12 @@
     "credentials"
   ],
   "request": "Design a bounded DAR workflow that answers questions about supplied text using this local model and these examples.",
+  "required_dar_package_commands": [
+    "project-authoring-materials --material-set-id <opaque-id>",
+    "create-authored-package --package-name <user-requested-name>",
+    "write-authored-package-file --authoring-output-id <opaque-id> --relative-path <package-relative-path> --content-stdin",
+    "finalize-authored-package --authoring-output-id <opaque-id> --material-set-id <opaque-id>"
+  ],
   "schema_version": 1,
   "selected_materials": [
     {

@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import secrets
+import stat
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from dynamic_agent_runner.workflow_host.state import (
     OpaqueRecordError,
@@ -142,6 +146,20 @@ class AuthoringMaterialService:
             expires_at,
         )
 
+    def issue_human_manifest(
+        self, *, manifest_path: Path, now: datetime
+    ) -> AuthoringMaterialSetReceipt:
+        """Issue one material set from a human-selected manifest of text files."""
+
+        return self.issue(
+            materials=_manifest_materials(
+                manifest_path,
+                max_material_bytes=self._max_material_bytes,
+                max_materials=self._max_materials,
+            ),
+            now=now,
+        )
+
     def project(
         self, material_set_id: str, *, now: datetime
     ) -> AuthoringMaterialSetProjection:
@@ -201,6 +219,83 @@ def _members(
             )
         )
     return tuple(members)
+
+
+def _manifest_materials(
+    manifest_path: Path,
+    *,
+    max_material_bytes: int,
+    max_materials: int,
+) -> tuple[AuthoringMaterialInput, ...]:
+    try:
+        parsed = json.loads(
+            _read_regular_utf8(manifest_path, max_bytes=max_materials * 8192)
+        )
+        if (
+            not isinstance(parsed, dict)
+            or set(parsed) != {"format_version", "members"}
+            or parsed["format_version"] != 1
+            or not isinstance(parsed["members"], list)
+            or not parsed["members"]
+            or len(parsed["members"]) > max_materials
+        ):
+            raise ValueError
+        materials = tuple(
+            AuthoringMaterialInput(
+                role=member["role"],
+                content=_read_regular_utf8(
+                    _absolute_path(member["path"]), max_bytes=max_material_bytes
+                ),
+                disposition=member["disposition"],
+            )
+            for member in parsed["members"]
+            if isinstance(member, dict)
+            and set(member) == {"disposition", "path", "role"}
+        )
+        if len(materials) != len(parsed["members"]):
+            raise ValueError
+        return materials
+    except (
+        KeyError,
+        OSError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+    ) as error:
+        raise AuthoringMaterialError(
+            "authoring material manifest is invalid"
+        ) from error
+
+
+def _absolute_path(value: object) -> Path:
+    if not isinstance(value, str) or not value:
+        raise ValueError
+    path = Path(value)
+    if not path.is_absolute():
+        raise ValueError
+    return path
+
+
+def _read_regular_utf8(path: Path, *, max_bytes: int) -> str:
+    if not isinstance(path, Path) or max_bytes <= 0:
+        raise ValueError
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ValueError
+    flags = os.O_RDONLY | nofollow
+    descriptor = os.open(path, flags)
+    try:
+        details = os.fstat(descriptor)
+        if not stat.S_ISREG(details.st_mode) or details.st_size > max_bytes:
+            raise ValueError
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            content = source.read(max_bytes + 1)
+    finally:
+        os.close(descriptor)
+    if len(content) > max_bytes:
+        raise ValueError
+    return content.decode("utf-8")
 
 
 def _stored_members(

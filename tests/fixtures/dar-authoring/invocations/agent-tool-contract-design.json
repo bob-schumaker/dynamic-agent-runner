@@ -39,6 +39,9 @@
     "unreviewed_tool_schema"
   ],
   "request": "Add this approved connection requirement and reviewed MCP tool surface to the workflow; define its normalized schema, limits, approval class, and permitted argument sources.",
+  "required_dar_package_commands": [
+    "version --json"
+  ],
   "schema_version": 1,
   "selected_materials": [
     {

@@ -16,19 +16,22 @@ tool, and broker path are superseded. Generated workflows may still declare and
 use a human-configured MCP capability through DAR's host runtime; that does not
 make the Codex plugin an MCP server.
 
-- [ ] RED/GREEN: define and test role-scoped `dar-package` CLI schemas:
+- [x] RED/GREEN: define and test role-scoped `dar-package` CLI schemas:
       `agent-development` uses material issue/project and authored-package
       create/write/finalize; a later invocation skill uses only `invoke`; the
       companion skills produce package artifacts only. Human-only selection and
       DAR-internal registration/preparation are not skill commands. Every
       non-projection response is one versioned, redacted JSON receipt or error
       and uses opaque IDs for host resources.
-- [ ] RED/GREEN: define `project-authoring-materials` as the sole transient
+- [x] RED/GREEN: define `project-authoring-materials` as the sole transient
       content-returning exception: it returns only the selected bounded
       projection to stdout, is never trace-recorded, and has explicit member and
-      byte limits. Add a human-only material-ingress schema that rejects raw
-      paths from a skill and proves unselected/reference-only content is absent.
-- [ ] RED/GREEN: update each adapted skill and target-invocation fixture to use
+      byte limits.
+- [x] RED/GREEN: add a human-only material-ingress schema that replaces the
+      current user-authorized stdin content with host-selected references,
+      rejects raw paths from a skill, and proves unselected/reference-only
+      content is absent.
+- [x] RED/GREEN: update each adapted skill and target-invocation fixture to use
       the exact checked-in `uv run ... dar-package <command>` template. The entry
       skill collaborates with the user to close missing workflow semantics,
       finalizes a task-specific package, and hands its saved package name/receipt

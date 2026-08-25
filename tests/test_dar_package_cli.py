@@ -17,6 +17,7 @@ from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
     configure_local_host,
 )
+from dynamic_agent_runner.workflow_host.cli import main as workflow_host_main
 
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "dar-authoring" / "templates"
@@ -127,6 +128,177 @@ def test_version_json_redacts_an_internal_failure(
         "status": "error",
     }
     assert "/private/state" not in stderr.getvalue()
+
+
+def test_authoring_commands_use_only_opaque_host_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Host:
+        def project_authoring_materials(
+            self, material_set_id: str, *, now: object
+        ) -> object:
+            assert material_set_id == "materials-1"
+            return type(
+                "Projection",
+                (),
+                {
+                    "expires_at": datetime(2026, 1, 1, tzinfo=UTC),
+                    "material_set_id": material_set_id,
+                    "members": (
+                        type(
+                            "Member",
+                            (),
+                            {
+                                "artifact_id": "artifact-1",
+                                "content": "approved input",
+                                "digest": "d" * 64,
+                                "disposition": "distributable",
+                                "role": "example",
+                            },
+                        )(),
+                    ),
+                },
+            )()
+
+        def create_authored_package(self, *, package_name: str, now: object) -> object:
+            assert package_name == "document-summary"
+            return type(
+                "Output",
+                (),
+                {
+                    "output_id": "output-1",
+                    "expires_at": datetime(2026, 1, 1, tzinfo=UTC),
+                    "package_name": package_name,
+                },
+            )()
+
+        def write_authored_package_file(self, **kwargs: object) -> object:
+            assert kwargs["output_id"] == "output-1"
+            assert kwargs["relative_path"] == "agent-design.md"
+            assert kwargs["content"] == "# Design\n"
+            return type(
+                "Written",
+                (),
+                {
+                    "byte_count": 9,
+                    "content_hash": "a" * 64,
+                    "relative_path": "agent-design.md",
+                },
+            )()
+
+        def finalize_authored_output(self, **kwargs: object) -> object:
+            assert kwargs["output_id"] == "output-1"
+            assert kwargs["material_set_id"] == "materials-1"
+            return type(
+                "Finalized",
+                (),
+                {
+                    "descriptor_digest": "b" * 64,
+                    "file_count": 4,
+                    "package_digest": "c" * 64,
+                    "package_id": "package-1",
+                },
+            )()
+
+    monkeypatch.setattr(dar_package_cli.LocalWorkflowHost, "open", lambda _root: Host())
+
+    def run(argv: list[str], content: str = "") -> dict[str, object]:
+        stdout = StringIO()
+        stderr = StringIO()
+        assert (
+            dar_package_cli.main(
+                argv, stdin=StringIO(content), stdout=stdout, stderr=stderr
+            )
+            == 0
+        )
+        assert stderr.getvalue() == ""
+        return json.loads(stdout.getvalue())
+
+    assert run(["project-authoring-materials", "--material-set-id", "materials-1"])[
+        "members"
+    ] == [
+        {
+            "artifact_id": "artifact-1",
+            "content": "approved input",
+            "digest": "d" * 64,
+            "disposition": "distributable",
+            "role": "example",
+        }
+    ]
+    assert (
+        run(["create-authored-package", "--package-name", "document-summary"])[
+            "authoring_output_id"
+        ]
+        == "output-1"
+    )
+    assert (
+        run(
+            [
+                "write-authored-package-file",
+                "--authoring-output-id",
+                "output-1",
+                "--relative-path",
+                "agent-design.md",
+                "--content-stdin",
+            ],
+            "# Design\n",
+        )["content_hash"]
+        == "a" * 64
+    )
+    assert run(
+        [
+            "finalize-authored-package",
+            "--authoring-output-id",
+            "output-1",
+            "--material-set-id",
+            "materials-1",
+        ]
+    ) == {
+        "descriptor_digest": "b" * 64,
+        "file_count": 4,
+        "format_version": 1,
+        "package_digest": "c" * 64,
+        "package_id": "package-1",
+        "status": "finalized",
+    }
+
+
+@pytest.mark.parametrize(
+    ("argv", "content"),
+    [
+        (["issue-authoring-materials", "--materials-json-stdin"], "[]"),
+        (
+            [
+                "issue-authoring-materials",
+                "--materials-manifest",
+                "/private/materials.json",
+            ],
+            "",
+        ),
+        (["project-authoring-materials"], ""),
+        (["create-authored-package"], ""),
+        (["write-authored-package-file", "--authoring-output-id", "output-1"], ""),
+        (["finalize-authored-package", "--path", "/private/package"], ""),
+    ],
+)
+def test_authoring_commands_reject_incomplete_or_human_only_arguments(
+    argv: list[str], content: str
+) -> None:
+    stdout = StringIO()
+    stderr = StringIO()
+
+    assert (
+        dar_package_cli.main(
+            argv, stdin=StringIO(content), stdout=stdout, stderr=stderr
+        )
+        == 2
+    )
+    assert stdout.getvalue() == ""
+    assert json.loads(stderr.getvalue()) == {
+        "error_code": "usage",
+        "format_version": 1,
+        "status": "error",
+    }
 
 
 def test_invoke_uses_a_saved_package_and_prompt_stdin_only(
@@ -257,6 +429,112 @@ def test_invoke_runs_an_already_registered_saved_package(
     }
     assert isinstance(receipt["run_id"], str) and receipt["run_id"]
     assert stderr.getvalue() == ""
+
+
+def test_authoring_cli_finalizes_a_package_that_a_human_can_register_and_invoke(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    monkeypatch.setenv("DAR_AUTHORING_STATE_ROOT", str(state_root))
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
+        lambda profile: OpenAIClientAdapter(
+            _Client(), models=[profile.model_id], is_local=True
+        ),
+    )
+    configure_local_host(
+        root=state_root,
+        package_root=package_root,
+        model_id="local-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    def command(argv: list[str], content: str = "") -> dict[str, object]:
+        stdout = StringIO()
+        stderr = StringIO()
+        assert (
+            dar_package_cli.main(
+                argv,
+                stdin=StringIO(content),
+                stdout=stdout,
+                stderr=stderr,
+            )
+            == 0
+        ), stderr.getvalue()
+        return json.loads(stdout.getvalue())
+
+    material = tmp_path / "example.txt"
+    material.write_text("approved input", encoding="utf-8")
+    manifest = tmp_path / "materials.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "format_version": 1,
+                "members": [
+                    {
+                        "disposition": "reference_only",
+                        "path": str(material),
+                        "role": "example",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    issued_output: list[str] = []
+    assert (
+        workflow_host_main(
+            [
+                "--state-root",
+                str(state_root),
+                "issue-authoring-materials",
+                "--materials-manifest",
+                str(manifest),
+            ],
+            write=issued_output.append,
+        )
+        == 0
+    )
+    materials = json.loads(issued_output[0])
+    output = command(["create-authored-package", "--package-name", "document-summary"])
+    for source in TEMPLATE_ROOT.iterdir():
+        command(
+            [
+                "write-authored-package-file",
+                "--authoring-output-id",
+                str(output["authoring_output_id"]),
+                "--relative-path",
+                source.name,
+                "--content-stdin",
+            ],
+            source.read_text(encoding="utf-8"),
+        )
+    finalized = command(
+        [
+            "finalize-authored-package",
+            "--authoring-output-id",
+            str(output["authoring_output_id"]),
+            "--material-set-id",
+            str(materials["material_set_id"]),
+        ]
+    )
+    assert finalized["status"] == "finalized"
+
+    host = LocalWorkflowHost.open(state_root)
+    now = datetime.now(UTC)
+    source_handle = host.select_authored_package("document-summary", now=now)
+    host.register(
+        workflow_id="document-summary",
+        package_source_handle=source_handle,
+        now=now,
+    )
+    invoked = command(
+        ["invoke", "--package-name", "document-summary", "--prompt-stdin"],
+        "Summarize this document.",
+    )
+    assert invoked["status"] == "completed"
+    assert invoked["output"] == {"message": "completed locally"}
 
 
 @pytest.mark.parametrize(

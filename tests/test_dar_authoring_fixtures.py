@@ -49,6 +49,7 @@ def test_target_invocation_fixtures_have_complete_deidentified_contracts() -> No
         assert fixture["expected_artifacts"]
         assert fixture["artifact_contracts"]
         assert fixture["expected_capability_or_refusal"]
+        assert fixture["required_dar_package_commands"]
         assert fixture["private_material_exclusions"]
         for material in fixture["selected_materials"]:
             assert set(material) == {"artifact_id", "digest", "disposition", "role"}
@@ -141,6 +142,19 @@ def test_agent_development_fixture_declares_finalized_package_artifacts(
     assert all(
         (package / artifact).is_file() for artifact in fixture["expected_artifacts"]
     )
+
+
+def test_agent_development_fixture_declares_the_authoring_command_sequence() -> None:
+    fixture = json.loads(
+        (FIXTURE_ROOT / "agent-development.json").read_text(encoding="utf-8")
+    )
+
+    assert fixture["required_dar_package_commands"] == [
+        "project-authoring-materials --material-set-id <opaque-id>",
+        "create-authored-package --package-name <user-requested-name>",
+        "write-authored-package-file --authoring-output-id <opaque-id> --relative-path <package-relative-path> --content-stdin",
+        "finalize-authored-package --authoring-output-id <opaque-id> --material-set-id <opaque-id>",
+    ]
 
 
 def test_adapted_skills_have_complete_immutable_provenance() -> None:

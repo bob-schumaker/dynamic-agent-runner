@@ -296,6 +296,7 @@ def _fixture(value: object) -> dict[str, Any]:
         "expected_capability_or_refusal",
         "private_material_exclusions",
         "request",
+        "required_dar_package_commands",
         "schema_version",
         "selected_materials",
         "skill",
@@ -305,6 +306,11 @@ def _fixture(value: object) -> dict[str, Any]:
         raise HarnessError("fixture schema version is invalid")
     _text(value["skill"], "fixture skill")
     _text(value["request"], "fixture request")
+    commands = value["required_dar_package_commands"]
+    if not isinstance(commands, list) or not commands:
+        raise HarnessError("fixture DAR package commands are invalid")
+    for command in commands:
+        _text(command, "fixture DAR package command")
     artifacts = value["expected_artifacts"]
     if not isinstance(artifacts, list) or not artifacts:
         raise HarnessError("fixture artifacts are invalid")

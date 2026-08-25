@@ -34,6 +34,9 @@
     "unselected_material"
   ],
   "request": "Create acceptance cases and a regression gate for this package, including tool failure and prompt-injection behavior.",
+  "required_dar_package_commands": [
+    "version --json"
+  ],
   "schema_version": 1,
   "selected_materials": [
     {
