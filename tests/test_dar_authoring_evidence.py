@@ -11,11 +11,13 @@ import pytest
 
 
 from dynamic_agent_runner.workflow_host.authoring_evidence import (  # noqa: E402
+    AuthorThenRunEvidence,
     AuthoringEvidence,
     AuthoringEvidenceError,
     ExternalAuthoringHarnessRequest,
     ValidatingExternalAuthoringHarness,
     write_authoring_evidence,
+    write_author_then_run_evidence,
 )
 from dynamic_agent_runner.workflow_host.authoring_materials import (  # noqa: E402
     AuthoringMaterialProjectionMember,
@@ -100,6 +102,61 @@ def test_evidence_rejects_invalid_release_decision_fields(
 def test_evidence_requires_a_valid_package_digest_for_a_passed_generation() -> None:
     with pytest.raises(AuthoringEvidenceError, match="generated package digests"):
         _evidence(generated_package_digests=())
+
+
+def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
+    tmp_path: Path,
+) -> None:
+    destination = tmp_path / "author-then-run.json"
+    evidence = AuthorThenRunEvidence(
+        scenario_id="document-summary-v1",
+        scenario_contract_version="m4.4-v1",
+        checker_version="m4.4-checker-v1",
+        expected_status="pass",
+        observed_status="pending_human_review",
+        terminal_phase="invocation",
+        plugin_identity="dar-authoring@local-test",
+        skill_identity="agent-development@local-test",
+        wheel_digest="a" * 64,
+        final_package_digest="b" * 64,
+        catalog_revision_digest="c" * 64,
+        registration_digest="d" * 64,
+        prepared_input_registration_digest="d" * 64,
+        action_trace_digest="e" * 64,
+        reviewer_id=None,
+        reviewer_decision="pending",
+    )
+
+    write_author_then_run_evidence(destination, evidence)
+
+    recorded = json.loads(destination.read_text(encoding="utf-8"))
+    assert recorded["format_version"] == 1
+    assert recorded["final_package_digest"] == "b" * 64
+    assert "prompt" not in recorded
+    assert "material_content" not in recorded
+    assert destination.stat().st_mode & 0o777 == 0o600
+
+
+def test_author_then_run_evidence_requires_no_later_handles_for_early_refusal() -> None:
+    with pytest.raises(AuthoringEvidenceError):
+        AuthorThenRunEvidence(
+            scenario_id="authoring-boundary-attack-v1",
+            scenario_contract_version="m4.4-v1",
+            checker_version="m4.4-checker-v1",
+            expected_status="expected_refusal",
+            observed_status="expected_refusal",
+            terminal_phase="authoring_validation",
+            plugin_identity="dar-authoring@local-test",
+            skill_identity="agent-development@local-test",
+            wheel_digest="a" * 64,
+            final_package_digest=None,
+            catalog_revision_digest="c" * 64,
+            registration_digest=None,
+            prepared_input_registration_digest=None,
+            action_trace_digest=None,
+            reviewer_id=None,
+            reviewer_decision="pending",
+        )
 
 
 def test_validating_external_harness_projects_only_selected_material_and_redacts_output(

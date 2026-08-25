@@ -132,6 +132,58 @@ class AuthoringEvidence:
         }
 
 
+@dataclass(frozen=True)
+class AuthorThenRunEvidence:
+    """Redacted evidence for one M4.4 author-then-run scenario."""
+
+    scenario_id: str
+    scenario_contract_version: str
+    checker_version: str
+    expected_status: str
+    observed_status: str
+    terminal_phase: str
+    plugin_identity: str
+    skill_identity: str
+    wheel_digest: str
+    final_package_digest: str | None
+    catalog_revision_digest: str | None
+    registration_digest: str | None
+    prepared_input_registration_digest: str | None
+    action_trace_digest: str | None
+    reviewer_id: str | None
+    reviewer_decision: str
+
+    def __post_init__(self) -> None:
+        _validate_author_then_run_text(self)
+        _digest(self.wheel_digest, "wheel_digest")
+        _validate_author_then_run_status(self)
+        _validate_optional_digests(self)
+        _validate_author_then_run_terminal_phase(self)
+
+    def to_mapping(self) -> dict[str, object]:
+        """Return a redaction-safe stable evidence projection."""
+
+        return {
+            "format_version": 1,
+            "scenario_id": self.scenario_id,
+            "scenario_contract_version": self.scenario_contract_version,
+            "checker_version": self.checker_version,
+            "expected_status": self.expected_status,
+            "observed_status": self.observed_status,
+            "terminal_phase": self.terminal_phase,
+            "plugin_identity": self.plugin_identity,
+            "skill_identity": self.skill_identity,
+            "wheel_digest": self.wheel_digest,
+            "final_package_digest": self.final_package_digest,
+            "catalog_revision_digest": self.catalog_revision_digest,
+            "registration_digest": self.registration_digest,
+            "prepared_input_registration_digest": self.prepared_input_registration_digest,
+            "action_trace_digest": self.action_trace_digest,
+            "reviewer_id": self.reviewer_id,
+            "reviewer_decision": self.reviewer_decision,
+        }
+
+
 def write_authoring_evidence(destination: Path, evidence: AuthoringEvidence) -> None:
     """Atomically write one redacted evidence record with private permissions."""
 
@@ -145,6 +197,108 @@ def write_authoring_evidence(destination: Path, evidence: AuthoringEvidence) -> 
     )
     os.chmod(temporary, 0o600)
     os.replace(temporary, destination)
+
+
+def write_author_then_run_evidence(
+    destination: Path, evidence: AuthorThenRunEvidence
+) -> None:
+    """Atomically write one private redacted M4.4 evidence record."""
+
+    if not isinstance(destination, Path) or destination.name != "author-then-run.json":
+        raise AuthoringEvidenceError("evidence destination is invalid")
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary = destination.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps(evidence.to_mapping(), sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, destination)
+
+
+def _validate_author_then_run_text(evidence: AuthorThenRunEvidence) -> None:
+    for value, label in (
+        (evidence.scenario_id, "scenario_id"),
+        (evidence.scenario_contract_version, "scenario_contract_version"),
+        (evidence.checker_version, "checker_version"),
+        (evidence.plugin_identity, "plugin_identity"),
+        (evidence.skill_identity, "skill_identity"),
+    ):
+        _text(value, label)
+
+
+def _validate_author_then_run_status(evidence: AuthorThenRunEvidence) -> None:
+    if evidence.expected_status not in {
+        "pass",
+        "expected_capability_unavailable",
+        "expected_refusal",
+    }:
+        raise AuthoringEvidenceError("expected_status is invalid")
+    if evidence.observed_status not in {
+        "pass",
+        "expected_capability_unavailable",
+        "expected_refusal",
+        "pending_human_review",
+        "harness_failure",
+    }:
+        raise AuthoringEvidenceError("observed_status is invalid")
+    if evidence.reviewer_decision not in {"pending", "approved", "rejected"}:
+        raise AuthoringEvidenceError("reviewer_decision is invalid")
+    if evidence.reviewer_decision == "pending":
+        if evidence.reviewer_id is not None:
+            raise AuthoringEvidenceError("pending review must not name a reviewer")
+    else:
+        _text(evidence.reviewer_id, "reviewer_id")
+
+
+def _validate_optional_digests(evidence: AuthorThenRunEvidence) -> None:
+    for value, label in (
+        (evidence.final_package_digest, "final_package_digest"),
+        (evidence.catalog_revision_digest, "catalog_revision_digest"),
+        (evidence.registration_digest, "registration_digest"),
+        (
+            evidence.prepared_input_registration_digest,
+            "prepared_input_registration_digest",
+        ),
+        (evidence.action_trace_digest, "action_trace_digest"),
+    ):
+        if value is not None:
+            _digest(value, label)
+
+
+def _validate_author_then_run_terminal_phase(evidence: AuthorThenRunEvidence) -> None:
+    if evidence.terminal_phase not in {
+        "authoring_validation",
+        "source_selection",
+        "capability_preflight",
+        "registration",
+        "invocation",
+    }:
+        raise AuthoringEvidenceError("terminal_phase is invalid")
+    if evidence.expected_status == "pass":
+        required = (
+            evidence.final_package_digest,
+            evidence.catalog_revision_digest,
+            evidence.registration_digest,
+            evidence.prepared_input_registration_digest,
+        )
+        if any(value is None for value in required):
+            raise AuthoringEvidenceError("positive evidence requires handoff digests")
+        if evidence.registration_digest != evidence.prepared_input_registration_digest:
+            raise AuthoringEvidenceError("prepared input registration does not match")
+    elif evidence.terminal_phase == "authoring_validation" and any(
+        value is not None
+        for value in (
+            evidence.final_package_digest,
+            evidence.catalog_revision_digest,
+            evidence.registration_digest,
+            evidence.prepared_input_registration_digest,
+            evidence.action_trace_digest,
+        )
+    ):
+        raise AuthoringEvidenceError(
+            "authoring refusal must not contain later evidence"
+        )
 
 
 def _digest(value: object, label: str) -> None:
