@@ -142,6 +142,7 @@ class AuthorThenRunEvidence:
     expected_status: str
     observed_status: str
     terminal_phase: str
+    invocation_mode: str
     plugin_identity: str
     skill_identity: str
     wheel_digest: str
@@ -150,6 +151,7 @@ class AuthorThenRunEvidence:
     registration_digest: str | None
     prepared_input_registration_digest: str | None
     action_trace_digest: str | None
+    dispatch_count: int
     reviewer_id: str | None
     reviewer_decision: str
 
@@ -171,6 +173,7 @@ class AuthorThenRunEvidence:
             "expected_status": self.expected_status,
             "observed_status": self.observed_status,
             "terminal_phase": self.terminal_phase,
+            "invocation_mode": self.invocation_mode,
             "plugin_identity": self.plugin_identity,
             "skill_identity": self.skill_identity,
             "wheel_digest": self.wheel_digest,
@@ -179,6 +182,7 @@ class AuthorThenRunEvidence:
             "registration_digest": self.registration_digest,
             "prepared_input_registration_digest": self.prepared_input_registration_digest,
             "action_trace_digest": self.action_trace_digest,
+            "dispatch_count": self.dispatch_count,
             "reviewer_id": self.reviewer_id,
             "reviewer_decision": self.reviewer_decision,
         }
@@ -242,6 +246,8 @@ def _validate_author_then_run_status(evidence: AuthorThenRunEvidence) -> None:
         "harness_failure",
     }:
         raise AuthoringEvidenceError("observed_status is invalid")
+    if evidence.invocation_mode not in {"mcp_prompt_only", "host_prepared_cli"}:
+        raise AuthoringEvidenceError("invocation_mode is invalid")
     if evidence.reviewer_decision not in {"pending", "approved", "rejected"}:
         raise AuthoringEvidenceError("reviewer_decision is invalid")
     if evidence.reviewer_decision == "pending":
@@ -275,6 +281,12 @@ def _validate_author_then_run_terminal_phase(evidence: AuthorThenRunEvidence) ->
         "invocation",
     }:
         raise AuthoringEvidenceError("terminal_phase is invalid")
+    if (
+        not isinstance(evidence.dispatch_count, int)
+        or isinstance(evidence.dispatch_count, bool)
+        or evidence.dispatch_count < 0
+    ):
+        raise AuthoringEvidenceError("dispatch_count is invalid")
     if evidence.expected_status == "pass":
         required = (
             evidence.final_package_digest,
@@ -286,19 +298,41 @@ def _validate_author_then_run_terminal_phase(evidence: AuthorThenRunEvidence) ->
             raise AuthoringEvidenceError("positive evidence requires handoff digests")
         if evidence.registration_digest != evidence.prepared_input_registration_digest:
             raise AuthoringEvidenceError("prepared input registration does not match")
-    elif evidence.terminal_phase == "authoring_validation" and any(
-        value is not None
-        for value in (
+        if evidence.action_trace_digest is None:
+            raise AuthoringEvidenceError("positive evidence requires an action trace")
+        return
+    if evidence.dispatch_count != 0:
+        raise AuthoringEvidenceError("non-pass evidence requires zero dispatch")
+    prohibited = _later_evidence_for_terminal_phase(evidence)
+    if any(value is not None for value in prohibited):
+        raise AuthoringEvidenceError("non-pass evidence contains later evidence")
+
+
+def _later_evidence_for_terminal_phase(
+    evidence: AuthorThenRunEvidence,
+) -> tuple[str | None, ...]:
+    if evidence.terminal_phase == "authoring_validation":
+        return (
             evidence.final_package_digest,
             evidence.catalog_revision_digest,
             evidence.registration_digest,
             evidence.prepared_input_registration_digest,
             evidence.action_trace_digest,
         )
-    ):
-        raise AuthoringEvidenceError(
-            "authoring refusal must not contain later evidence"
+    if evidence.terminal_phase == "source_selection":
+        return (
+            evidence.catalog_revision_digest,
+            evidence.registration_digest,
+            evidence.prepared_input_registration_digest,
+            evidence.action_trace_digest,
         )
+    if evidence.terminal_phase in {"capability_preflight", "registration"}:
+        return (
+            evidence.registration_digest,
+            evidence.prepared_input_registration_digest,
+            evidence.action_trace_digest,
+        )
+    return ()
 
 
 def _digest(value: object, label: str) -> None:

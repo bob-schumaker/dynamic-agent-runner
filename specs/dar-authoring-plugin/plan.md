@@ -358,7 +358,8 @@ prompt through the sealed, catalog-only runner interface.
    Persist one atomically written, versioned `AuthorThenRunEvidence` record per
    scenario. It binds the scenario/contract-checker version, allowed
    plugin/skill/wheel identities, terminal phase, capability/policy outcome,
-   invocation mode, redacted trace/action evidence, expected/observed status,
+   invocation mode, redacted trace/action evidence and dispatch count,
+   expected/observed status,
    and reviewer decision. A positive record also binds authoring material/output
    and final package digests plus catalog/registration/preparation linkage to the
    exact revision; a non-pass record proves later handles and dispatch are

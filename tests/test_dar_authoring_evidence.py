@@ -115,6 +115,7 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
         expected_status="pass",
         observed_status="pending_human_review",
         terminal_phase="invocation",
+        invocation_mode="mcp_prompt_only",
         plugin_identity="dar-authoring@local-test",
         skill_identity="agent-development@local-test",
         wheel_digest="a" * 64,
@@ -123,6 +124,7 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
         registration_digest="d" * 64,
         prepared_input_registration_digest="d" * 64,
         action_trace_digest="e" * 64,
+        dispatch_count=0,
         reviewer_id=None,
         reviewer_decision="pending",
     )
@@ -146,6 +148,7 @@ def test_author_then_run_evidence_requires_no_later_handles_for_early_refusal() 
             expected_status="expected_refusal",
             observed_status="expected_refusal",
             terminal_phase="authoring_validation",
+            invocation_mode="mcp_prompt_only",
             plugin_identity="dar-authoring@local-test",
             skill_identity="agent-development@local-test",
             wheel_digest="a" * 64,
@@ -154,6 +157,31 @@ def test_author_then_run_evidence_requires_no_later_handles_for_early_refusal() 
             registration_digest=None,
             prepared_input_registration_digest=None,
             action_trace_digest=None,
+            dispatch_count=0,
+            reviewer_id=None,
+            reviewer_decision="pending",
+        )
+
+
+def test_author_then_run_evidence_requires_zero_dispatch_for_a_non_pass() -> None:
+    with pytest.raises(AuthoringEvidenceError, match="zero dispatch"):
+        AuthorThenRunEvidence(
+            scenario_id="capability-unavailable-v1",
+            scenario_contract_version="m4.4-v1",
+            checker_version="m4.4-checker-v1",
+            expected_status="expected_capability_unavailable",
+            observed_status="expected_capability_unavailable",
+            terminal_phase="capability_preflight",
+            invocation_mode="mcp_prompt_only",
+            plugin_identity="dar-authoring@local-test",
+            skill_identity="agent-development@local-test",
+            wheel_digest="a" * 64,
+            final_package_digest="b" * 64,
+            catalog_revision_digest="c" * 64,
+            registration_digest=None,
+            prepared_input_registration_digest=None,
+            action_trace_digest=None,
+            dispatch_count=1,
             reviewer_id=None,
             reviewer_decision="pending",
         )
