@@ -160,6 +160,12 @@ class AuthorThenRunEvidence:
     dispatch_count: int
     reviewer_id: str | None
     reviewer_decision: str
+    controller_fixture_digest: str | None = None
+    mcp_snapshot_id: str | None = None
+    mcp_binding_id: str | None = None
+    mcp_read_tool_names: tuple[str, ...] = ()
+    mcp_read_call_count: int = 0
+    forbidden_send_dispatch_count: int = 0
 
     def __post_init__(self) -> None:
         _validate_author_then_run_text(self)
@@ -168,6 +174,7 @@ class AuthorThenRunEvidence:
         _validate_author_then_run_status(self)
         _validate_optional_digests(self)
         _validate_author_then_run_terminal_phase(self)
+        _validate_mcp_summary(self)
 
     def to_mapping(self) -> dict[str, object]:
         """Return a redaction-safe stable evidence projection."""
@@ -198,6 +205,12 @@ class AuthorThenRunEvidence:
             "dispatch_count": self.dispatch_count,
             "reviewer_id": self.reviewer_id,
             "reviewer_decision": self.reviewer_decision,
+            "controller_fixture_digest": self.controller_fixture_digest,
+            "mcp_snapshot_id": self.mcp_snapshot_id,
+            "mcp_binding_id": self.mcp_binding_id,
+            "mcp_read_tool_names": list(self.mcp_read_tool_names),
+            "mcp_read_call_count": self.mcp_read_call_count,
+            "forbidden_send_dispatch_count": self.forbidden_send_dispatch_count,
         }
 
 
@@ -372,6 +385,32 @@ def _later_evidence_for_terminal_phase(
             evidence.action_trace_digest,
         )
     return ()
+
+
+def _validate_mcp_summary(evidence: AuthorThenRunEvidence) -> None:
+    if evidence.controller_fixture_digest is not None:
+        _digest(evidence.controller_fixture_digest, "controller_fixture_digest")
+    for value, label in (
+        (evidence.mcp_snapshot_id, "mcp_snapshot_id"),
+        (evidence.mcp_binding_id, "mcp_binding_id"),
+    ):
+        if value is not None:
+            _text(value, label)
+    if (
+        not isinstance(evidence.mcp_read_tool_names, tuple)
+        or any(
+            not isinstance(name, str) or not name
+            for name in evidence.mcp_read_tool_names
+        )
+        or len(set(evidence.mcp_read_tool_names)) != len(evidence.mcp_read_tool_names)
+    ):
+        raise AuthoringEvidenceError("MCP read-tool summary is invalid")
+    for value, label in (
+        (evidence.mcp_read_call_count, "mcp_read_call_count"),
+        (evidence.forbidden_send_dispatch_count, "forbidden_send_dispatch_count"),
+    ):
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise AuthoringEvidenceError(f"{label} is invalid")
 
 
 def _digest(value: object, label: str) -> None:

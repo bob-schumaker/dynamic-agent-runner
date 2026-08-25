@@ -9,6 +9,7 @@ The supplied Codex home must be a separately authenticated test profile.
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from datetime import UTC, datetime
 import hashlib
 import json
@@ -28,8 +29,13 @@ from dynamic_agent_runner.workflow_host.authoring_evidence import (
 )
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
+    attach_mcp_client,
+    configure_mcp_api_token,
     configure_local_host,
+    create_mcp_connection,
 )
+from dynamic_agent_runner.workflow_host.mcp_client import MCPClientConfiguration
+from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool
 from dynamic_agent_runner.workflow_host.m4_4_clean_codex import (
     M44CleanCodexError,
     build_clean_codex_environment,
@@ -49,6 +55,200 @@ from dynamic_agent_runner.workflow_host.server import (
 
 class HarnessError(ValueError):
     """Raised when an external M4.4 run cannot produce valid evidence."""
+
+
+class _HarnessSecretStore:
+    values: dict[str, str] = {}
+
+    def __init__(self, **_: object) -> None:
+        return None
+
+    def store(self, secret: str) -> str:
+        reference = f"secret-{len(self.values) + 1}"
+        self.values[reference] = secret
+        return reference
+
+    def load(self, reference: str) -> str:
+        return self.values[reference]
+
+    def delete(self, reference: str) -> None:
+        self.values.pop(reference, None)
+
+
+class _HarnessReadOnlyMCPClient:
+    """Hermetic controller-owned G2 surface; never visible to a Codex child."""
+
+    def __init__(self, *, configuration: MCPClientConfiguration, **_: object) -> None:
+        self.connection_id = configuration.connection_id
+        self.authentication_id = configuration.authentication_id
+        self.current_generation = 1
+        self.calls: list[tuple[str, dict[str, object]]] = []
+
+    def initialize(self) -> None:
+        return None
+
+    def list_tools(self) -> tuple[MCPDiscoveredTool, ...]:
+        return (
+            MCPDiscoveredTool(
+                name="list_unread", input_schema={"type": "object", "properties": {}}
+            ),
+            MCPDiscoveredTool(
+                name="send_email", input_schema={"type": "object", "properties": {}}
+            ),
+        )
+
+    def call_tool(self, name: str, arguments: dict[str, object]) -> dict[str, object]:
+        self.calls.append((name, arguments))
+        return {"content": [{"type": "text", "text": "three unread messages"}]}
+
+
+@dataclass
+class _ControllerFixture:
+    fixture_id: str
+    gates: tuple[str, ...]
+    host_fixtures: tuple[str, ...]
+    mcp_client: _HarnessReadOnlyMCPClient | None = None
+    snapshot_id: str | None = None
+    binding_id: str | None = None
+
+    def configure(
+        self, *, root: Path, package_root: Path, model_id: str, base_url: str
+    ) -> LocalWorkflowHost:
+        if self.fixture_id == "g3-local-model":
+            configure_local_host(
+                root=root,
+                package_root=package_root,
+                model_id=model_id,
+                base_url=base_url,
+            )
+            return LocalWorkflowHost.open(root)
+        return self._configure_read_only_mcp(
+            root=root,
+            package_root=package_root,
+            model_id=model_id,
+            base_url=base_url,
+        )
+
+    def _configure_read_only_mcp(
+        self, *, root: Path, package_root: Path, model_id: str, base_url: str
+    ) -> LocalWorkflowHost:
+        import dynamic_agent_runner.workflow_host.connections as connections_module
+        import dynamic_agent_runner.workflow_host.host as host_module
+
+        original_store = connections_module.KeyringSecretStore
+        original_client = host_module.MCPConnectionClient
+        _HarnessSecretStore.values.clear()
+        connections_module.KeyringSecretStore = _HarnessSecretStore
+        host_module.MCPConnectionClient = _HarnessReadOnlyMCPClient
+        try:
+            configure_local_host(
+                root=root,
+                package_root=package_root,
+                model_id=model_id,
+                base_url=base_url,
+            )
+            connection = create_mcp_connection(
+                root=root,
+                endpoint="https://mcp.example.test/v1",
+                scopes={"mail.read"},
+                authentication_method="api_token",
+            )
+            authentication = configure_mcp_api_token(
+                root=root, connection_id=connection.connection_id, token="test-token"
+            )
+            attach_mcp_client(
+                root=root,
+                connection_id=connection.connection_id,
+                authentication_id=authentication.authentication_id,
+                peer_certificate_sha256="a" * 64,
+                timeout_seconds=10,
+                max_response_bytes=32_768,
+            )
+            host = LocalWorkflowHost.open(root)
+            if not isinstance(host._mcp_client, _HarnessReadOnlyMCPClient):
+                raise HarnessError("read-only MCP fixture is unavailable")
+            self.mcp_client = host._mcp_client
+            return host
+        finally:
+            connections_module.KeyringSecretStore = original_store
+            host_module.MCPConnectionClient = original_client
+
+    def register(
+        self,
+        *,
+        host: LocalWorkflowHost,
+        workflow_id: str,
+        source_handle: str,
+        now: datetime,
+    ) -> object:
+        if self.fixture_id == "g3-local-model":
+            registration = host.register(
+                workflow_id=workflow_id, package_source_handle=source_handle, now=now
+            )
+            self.validate_registration(registration)
+            return registration
+        snapshot = host.review_mcp_surface(
+            approved_read_only_tool_names={"list_unread"}
+        )
+        binding = host.bind_mcp_package(
+            package_source_handle=source_handle,
+            snapshot_id=snapshot.snapshot_id,
+            now=now,
+        )
+        self.snapshot_id = snapshot.snapshot_id
+        self.binding_id = binding.binding_id
+        registration = host.register(
+            workflow_id=workflow_id,
+            package_source_handle=source_handle,
+            mcp_binding_id=binding.binding_id,
+            now=now,
+        )
+        self.validate_registration(registration)
+        return registration
+
+    def validate_registration(self, registration: object) -> None:
+        from dynamic_agent_runner.workflow_host.registration import WorkflowRegistration
+
+        if not isinstance(registration, WorkflowRegistration):
+            raise HarnessError("workflow registration is invalid")
+        expected_binding_id = (
+            None if self.fixture_id == "g3-local-model" else self.binding_id
+        )
+        if registration.mcp_binding_id != expected_binding_id:
+            raise HarnessError(
+                "workflow registration does not match controller fixture"
+            )
+
+    def digest(self) -> str:
+        return _digest_json(
+            {
+                "fixture_id": self.fixture_id,
+                "gates": self.gates,
+                "host_fixtures": self.host_fixtures,
+                "read_only_tools": ["list_unread"] if self.mcp_client else [],
+            }
+        )
+
+    def read_call_summary(self) -> tuple[tuple[str, ...], int, int]:
+        calls = () if self.mcp_client is None else tuple(self.mcp_client.calls)
+        names = tuple(sorted({name for name, _ in calls}))
+        return names, len(calls), sum(name == "send_email" for name, _ in calls)
+
+
+def _controller_fixture(scenario: object) -> _ControllerFixture:
+    from dynamic_agent_runner.workflow_host.m4_4_scenarios import M44Scenario
+
+    if not isinstance(scenario, M44Scenario):
+        raise HarnessError("scenario is invalid")
+    if set(scenario.required_gates) == {"G3"}:
+        return _ControllerFixture("g3-local-model", ("G3",), ("local-model-profile",))
+    if set(scenario.required_gates) == {"G2"}:
+        return _ControllerFixture(
+            "g2-read-only-mcp",
+            ("G2",),
+            ("local-model-profile", "reviewed-mcp-connection"),
+        )
+    raise HarnessError("scenario controller fixture is unavailable")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -100,10 +300,15 @@ def run_no_tool_scenario(
     codex_executable: str,
     timeout: int,
 ) -> AuthorThenRunEvidence:
-    """Create, author, register, and run one G3 prompt-only package."""
+    """Create, author, register, and run one controller-fixtured prompt-only package."""
 
     scenario = load_m44_scenario(scenario_path)
-    _validate_no_tool_scenario(scenario=scenario, reviewer_decision=reviewer_decision)
+    fixture = _controller_fixture(scenario)
+    _validate_prompt_only_scenario(
+        scenario=scenario,
+        reviewer_decision=reviewer_decision,
+        fixture=fixture,
+    )
     _validate_paths(
         codex_home=codex_home,
         plugin_root=plugin_root,
@@ -123,13 +328,12 @@ def run_no_tool_scenario(
         state_root = root / "state"
         workspace.mkdir(mode=0o700)
         package_root.mkdir(mode=0o700)
-        configure_local_host(
+        host = fixture.configure(
             root=state_root,
             package_root=package_root,
             model_id=model_id,
             base_url=base_url,
         )
-        host = LocalWorkflowHost.open(state_root)
         now = datetime.now(UTC)
         material_receipt = host.issue_authoring_materials(materials=materials, now=now)
         output_receipt = host.create_authored_package(
@@ -217,6 +421,7 @@ def run_no_tool_scenario(
                     output_id=output_receipt.output_id,
                     final_validation=authoring_receipts[0][0],
                     source_handle=authoring_receipts[0][1],
+                    fixture=fixture,
                 )
         finally:
             _stop_broker(stop_event=broker_stop, broker=broker)
@@ -249,6 +454,7 @@ def _finish_positive_scenario(
     output_id: str,
     final_validation: object,
     source_handle: str,
+    fixture: _ControllerFixture,
 ) -> AuthorThenRunEvidence:
     if author_result.returncode != 0:
         return _failure_evidence(
@@ -266,8 +472,8 @@ def _finish_positive_scenario(
 
         if not isinstance(final_validation, AuthoredPackageValidation):
             raise ValueError("authoring finalization is invalid")
-        registration = host.register(
-            workflow_id=workflow_id, package_source_handle=source_handle, now=now
+        registration = fixture.register(
+            host=host, workflow_id=workflow_id, source_handle=source_handle, now=now
         )
         if final_validation.package_digest != registration.revision_digest:
             raise ValueError("staged revision does not match authoring receipt")
@@ -355,10 +561,57 @@ def _finish_positive_scenario(
             material_set_id=material_set_id,
             output_id=output_id,
         )
+    return _completed_evidence(
+        scenario=scenario,
+        fixture=fixture,
+        reviewer_id=reviewer_id,
+        reviewer_decision=reviewer_decision,
+        wheel=wheel,
+        codex_executable=codex_executable,
+        material_set_id=material_set_id,
+        output_id=output_id,
+        final_validation=final_validation,
+        registration=registration,
+        prepared_input_registration_digest=prepared_input_registration_digest,
+        trace=trace,
+    )
+
+
+def _completed_evidence(
+    *,
+    scenario: object,
+    fixture: _ControllerFixture,
+    reviewer_id: str | None,
+    reviewer_decision: str,
+    wheel: Path,
+    codex_executable: str,
+    material_set_id: str,
+    output_id: str,
+    final_validation: object,
+    registration: object,
+    prepared_input_registration_digest: object,
+    trace: object,
+) -> AuthorThenRunEvidence:
+    from dynamic_agent_runner.workflow_host.authoring_output import (
+        AuthoredPackageValidation,
+    )
     from dynamic_agent_runner.workflow_host.m4_4_scenarios import M44Scenario
 
-    if not isinstance(scenario, M44Scenario):
-        raise HarnessError("scenario is invalid")
+    if (
+        not isinstance(scenario, M44Scenario)
+        or not isinstance(final_validation, AuthoredPackageValidation)
+        or not isinstance(prepared_input_registration_digest, str)
+        or not hasattr(registration, "revision_digest")
+        or not hasattr(registration, "registration_digest")
+        or not hasattr(trace, "output_byte_count")
+        or not hasattr(trace, "run_id")
+        or not hasattr(trace, "status")
+        or not hasattr(trace, "workflow_id")
+    ):
+        raise HarnessError("completed scenario evidence is invalid")
+    read_tool_names, read_call_count, forbidden_send_dispatch_count = (
+        fixture.read_call_summary()
+    )
     evidence = AuthorThenRunEvidence(
         scenario_id=scenario.scenario_id,
         scenario_contract_version="m4.4-v1",
@@ -399,12 +652,18 @@ def _finish_positive_scenario(
         dispatch_count=0,
         reviewer_id=reviewer_id,
         reviewer_decision=reviewer_decision,
+        controller_fixture_digest=fixture.digest(),
+        mcp_snapshot_id=fixture.snapshot_id,
+        mcp_binding_id=fixture.binding_id,
+        mcp_read_tool_names=read_tool_names,
+        mcp_read_call_count=read_call_count,
+        forbidden_send_dispatch_count=forbidden_send_dispatch_count,
     )
     validate_m44_evidence(
         scenario,
         evidence,
-        available_gates=("G3",),
-        available_host_fixtures=("local-model-profile",),
+        available_gates=fixture.gates,
+        available_host_fixtures=fixture.host_fixtures,
     )
     return evidence
 
@@ -472,7 +731,12 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _validate_no_tool_scenario(*, scenario: object, reviewer_decision: str) -> None:
+def _validate_prompt_only_scenario(
+    *,
+    scenario: object,
+    reviewer_decision: str,
+    fixture: _ControllerFixture,
+) -> None:
     from dynamic_agent_runner.workflow_host.m4_4_scenarios import M44Scenario
 
     if not isinstance(scenario, M44Scenario):
@@ -481,10 +745,10 @@ def _validate_no_tool_scenario(*, scenario: object, reviewer_decision: str) -> N
         scenario.expected_status != "pass"
         or scenario.invocation_mode != "mcp_prompt_only"
         or scenario.required_artifact_roles
-        or set(scenario.required_gates) != {"G3"}
-        or set(scenario.required_host_fixtures) != {"local-model-profile"}
+        or set(scenario.required_gates) != set(fixture.gates)
+        or set(scenario.required_host_fixtures) != set(fixture.host_fixtures)
     ):
-        raise HarnessError("scenario is not a no-tool M4.4 positive case")
+        raise HarnessError("scenario does not match its controller fixture")
     if reviewer_decision not in {"pending", "approved"}:
         raise HarnessError("reviewer decision is invalid")
 
