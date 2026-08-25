@@ -8,7 +8,7 @@ import socket
 import stat
 import sys
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
@@ -83,12 +83,14 @@ class _Session:
         *,
         host: Any | None = None,
         allowed_workflow_id: str | None = None,
+        prepared_input_sink: Callable[[object], None] | None = None,
         host_opener=LocalWorkflowHost.open,
     ) -> None:
         self._initialized = False
         self._ready = False
         self._host = host
         self._allowed_workflow_id = allowed_workflow_id
+        self._prepared_input_sink = prepared_input_sink
         self._host_opener = host_opener
 
     def handle(self, line: str) -> dict[str, Any] | None:
@@ -166,9 +168,11 @@ class _Session:
         try:
             host = self._open_host()
             prepared = _prepare_request(host, arguments)
+            if self._prepared_input_sink is not None:
+                self._prepared_input_sink(prepared[1])
             result = host.run(
                 workflow_id=prepared[0],
-                prepared_input_id=prepared[1],
+                prepared_input_id=prepared[1].prepared_input_id,
                 now=datetime.now(UTC),
             )
         except (ValueError, OSError):
@@ -208,6 +212,7 @@ class _AuthoringSession(_Session):
         package_name: str,
         authoring_output_id: str,
         host: Any | None = None,
+        finalized_sink: Callable[[object, str], None] | None = None,
         host_opener=LocalWorkflowHost.open,
     ) -> None:
         super().__init__(host=host, host_opener=host_opener)
@@ -220,6 +225,7 @@ class _AuthoringSession(_Session):
         self._material_set_id = material_set_id
         self._package_name = package_name
         self._authoring_output_id = authoring_output_id
+        self._finalized_sink = finalized_sink
         self._created = False
 
     def _available_tools(self) -> list[dict[str, object]]:
@@ -316,11 +322,13 @@ class _AuthoringSession(_Session):
         if not self._created:
             raise ValueError("authoring output was not created")
         output_id = _authoring_output_id(arguments, self._authoring_output_id)
-        validation = host.finalize_authored_output(
+        validation, source_handle = host.finalize_and_select_authored_output(
             output_id=output_id,
             material_set_id=self._material_set_id,
             now=datetime.now(UTC),
         )
+        if self._finalized_sink is not None:
+            self._finalized_sink(validation, source_handle)
         return {
             "package_id": validation.package_id,
             "package_digest": validation.package_digest,
@@ -336,6 +344,7 @@ def serve_authoring_broker(
     material_set_id: str,
     package_name: str,
     authoring_output_id: str,
+    finalized_sink: Callable[[object, str], None] | None = None,
     stop_event: threading.Event | None = None,
 ) -> None:
     """Serve one controller-owned authoring session without ambient host state."""
@@ -349,6 +358,7 @@ def serve_authoring_broker(
             package_name=package_name,
             authoring_output_id=authoring_output_id,
             host=host,
+            finalized_sink=finalized_sink,
         ),
         stop_event=stop_event,
     )
@@ -359,6 +369,7 @@ def serve_workflow_broker(
     socket_path: Path,
     host: LocalWorkflowHost,
     workflow_id: str,
+    prepared_input_sink: Callable[[object], None] | None = None,
     stop_event: threading.Event | None = None,
 ) -> None:
     """Serve one controller-owned generic workflow session without host paths."""
@@ -369,7 +380,11 @@ def serve_workflow_broker(
         raise ValueError("broker workflow is invalid")
     serve_session_unix(
         socket_path=socket_path,
-        session=_Session(host=host, allowed_workflow_id=workflow_id),
+        session=_Session(
+            host=host,
+            allowed_workflow_id=workflow_id,
+            prepared_input_sink=prepared_input_sink,
+        ),
         stop_event=stop_event,
     )
 
@@ -594,7 +609,7 @@ def _authoring_result(
 
 def _prepare_request(
     host: LocalWorkflowHost, arguments: Mapping[str, object]
-) -> tuple[str, str]:
+) -> tuple[str, Any]:
     if set(arguments) != {"format_version", "workflow_id", "prompt"}:
         raise ValueError("workflow run request is invalid")
     if arguments.get("format_version") != 1:
@@ -613,7 +628,7 @@ def _prepare_request(
         prompt=prompt,
         now=datetime.now(UTC),
     )
-    return workflow_id, prepared.prepared_input_id
+    return workflow_id, prepared
 
 
 def _default_state_root() -> Path:

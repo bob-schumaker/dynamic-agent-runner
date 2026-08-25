@@ -572,13 +572,16 @@ def test_authoring_stdio_server_binds_one_material_set_and_output() -> None:
             assert kwargs["content"] == "design"
             return AuthoredFileReceipt("agent-design.md", "b" * 64, 6)
 
-        def finalize_authored_output(self, **kwargs: object):
+        def finalize_and_select_authored_output(self, **kwargs: object):
             if self.finalized:
                 raise ValueError("authoring output is unavailable")
             self.finalized = True
             assert kwargs["output_id"] == "v1.output.signature"
             assert kwargs["material_set_id"] == "v1.material-set.signature"
-            return AuthoredPackageValidation("document-summary", "c" * 64, "d" * 64, 4)
+            return (
+                AuthoredPackageValidation("document-summary", "c" * 64, "d" * 64, 4),
+                "v1.source.signature",
+            )
 
     host = Host()
     session = _AuthoringSession(

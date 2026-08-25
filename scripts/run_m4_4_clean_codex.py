@@ -139,6 +139,7 @@ def run_no_tool_scenario(
         socket_directory.mkdir(mode=0o700)
         broker_socket = socket_directory / "authoring.sock"
         broker_stop = threading.Event()
+        authoring_receipts: list[tuple[object, str]] = []
         broker = threading.Thread(
             target=serve_authoring_broker,
             kwargs={
@@ -148,6 +149,9 @@ def run_no_tool_scenario(
                 "package_name": package_name,
                 "authoring_output_id": output_receipt.output_id,
                 "stop_event": broker_stop,
+                "finalized_sink": lambda validation, source_handle: (
+                    authoring_receipts.append((validation, source_handle))
+                ),
             },
             daemon=True,
         )
@@ -186,24 +190,34 @@ def run_no_tool_scenario(
             broker.join(timeout=5)
             if broker.is_alive():
                 raise HarnessError("authoring broker did not stop")
-            evidence = _finish_positive_scenario(
-                host=host,
-                package_name=package_name,
-                workflow_id=workflow_id,
-                run_prompt=run_prompt,
-                scenario=scenario,
-                author_result=author_result,
-                codex_home=codex_home,
-                workspace=workspace,
-                wheel=wheel,
-                socket_directory=socket_directory,
-                reviewer_id=reviewer_id,
-                reviewer_decision=reviewer_decision,
-                codex_executable=codex_executable,
-                timeout=timeout,
-                material_set_id=material_receipt.material_set_id,
-                output_id=output_receipt.output_id,
-            )
+            if len(authoring_receipts) != 1:
+                evidence = _failure_evidence(
+                    scenario=scenario,
+                    terminal_phase="authoring_validation",
+                    wheel=wheel,
+                    material_set_id=material_receipt.material_set_id,
+                    output_id=output_receipt.output_id,
+                )
+            else:
+                evidence = _finish_positive_scenario(
+                    host=host,
+                    workflow_id=workflow_id,
+                    run_prompt=run_prompt,
+                    scenario=scenario,
+                    author_result=author_result,
+                    codex_home=codex_home,
+                    workspace=workspace,
+                    wheel=wheel,
+                    socket_directory=socket_directory,
+                    reviewer_id=reviewer_id,
+                    reviewer_decision=reviewer_decision,
+                    codex_executable=codex_executable,
+                    timeout=timeout,
+                    material_set_id=material_receipt.material_set_id,
+                    output_id=output_receipt.output_id,
+                    final_validation=authoring_receipts[0][0],
+                    source_handle=authoring_receipts[0][1],
+                )
         finally:
             _stop_broker(stop_event=broker_stop, broker=broker)
             if installed:
@@ -219,7 +233,6 @@ def run_no_tool_scenario(
 def _finish_positive_scenario(
     *,
     host: LocalWorkflowHost,
-    package_name: str,
     workflow_id: str,
     run_prompt: str,
     scenario: object,
@@ -234,6 +247,8 @@ def _finish_positive_scenario(
     timeout: int,
     material_set_id: str,
     output_id: str,
+    final_validation: object,
+    source_handle: str,
 ) -> AuthorThenRunEvidence:
     if author_result.returncode != 0:
         return _failure_evidence(
@@ -245,12 +260,17 @@ def _finish_positive_scenario(
         )
     now = datetime.now(UTC)
     try:
-        final_validation, source_handle = host.finalize_and_select_authored_output(
-            output_id=output_id, material_set_id=material_set_id, now=now
+        from dynamic_agent_runner.workflow_host.authoring_output import (
+            AuthoredPackageValidation,
         )
+
+        if not isinstance(final_validation, AuthoredPackageValidation):
+            raise ValueError("authoring finalization is invalid")
         registration = host.register(
             workflow_id=workflow_id, package_source_handle=source_handle, now=now
         )
+        if final_validation.package_digest != registration.revision_digest:
+            raise ValueError("staged revision does not match authoring receipt")
     except ValueError:
         return _failure_evidence(
             scenario=scenario,
@@ -261,6 +281,7 @@ def _finish_positive_scenario(
         )
     broker_socket = socket_directory / "workflow.sock"
     broker_stop = threading.Event()
+    prepared_inputs: list[object] = []
     broker = threading.Thread(
         target=serve_workflow_broker,
         kwargs={
@@ -268,6 +289,7 @@ def _finish_positive_scenario(
             "host": host,
             "workflow_id": workflow_id,
             "stop_event": broker_stop,
+            "prepared_input_sink": prepared_inputs.append,
         },
         daemon=True,
     )
@@ -313,6 +335,26 @@ def _finish_positive_scenario(
             output_id=output_id,
         )
     trace = traces[0]
+    if len(prepared_inputs) != 1:
+        return _failure_evidence(
+            scenario=scenario,
+            terminal_phase="invocation",
+            wheel=wheel,
+            material_set_id=material_set_id,
+            output_id=output_id,
+        )
+    prepared_input = prepared_inputs[0]
+    prepared_input_registration_digest = getattr(
+        prepared_input, "registration_digest", None
+    )
+    if prepared_input_registration_digest != registration.registration_digest:
+        return _failure_evidence(
+            scenario=scenario,
+            terminal_phase="invocation",
+            wheel=wheel,
+            material_set_id=material_set_id,
+            output_id=output_id,
+        )
     from dynamic_agent_runner.workflow_host.m4_4_scenarios import M44Scenario
 
     if not isinstance(scenario, M44Scenario):
@@ -345,7 +387,7 @@ def _finish_positive_scenario(
         final_package_digest=final_validation.package_digest,
         catalog_revision_digest=registration.revision_digest,
         registration_digest=registration.registration_digest,
-        prepared_input_registration_digest=registration.registration_digest,
+        prepared_input_registration_digest=prepared_input_registration_digest,
         action_trace_digest=_digest_json(
             {
                 "output_byte_count": trace.output_byte_count,

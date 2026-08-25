@@ -477,6 +477,17 @@ class LocalWorkflowHost:
         """Finalize one allowed-root package after deterministic material checks."""
 
         self._sources.select_directory(package_root, now=now)
+        return self._validate_authored_package(
+            package_root=package_root, material_set_id=material_set_id, now=now
+        )
+
+    def _validate_authored_package(
+        self,
+        *,
+        package_root: Path,
+        material_set_id: str,
+        now: datetime,
+    ) -> AuthoredPackageValidation:
         try:
             return finalize_authored_package(
                 package_root=package_root,
@@ -536,7 +547,7 @@ class LocalWorkflowHost:
         """Consume one finalized authoring output into an opaque source handle."""
 
         package_root = self._authoring_outputs.consume_package_path(output_id, now=now)
-        validation = self.finalize_authored_package(
+        validation = self._validate_authored_package(
             package_root=package_root, material_set_id=material_set_id, now=now
         )
         return validation, self.select_package(package_root, now=now)
