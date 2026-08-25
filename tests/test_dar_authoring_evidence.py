@@ -119,6 +119,9 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
         plugin_identity="dar-authoring@local-test",
         skill_identity="agent-development@local-test",
         wheel_digest="a" * 64,
+        isolation_policy_digest="f" * 64,
+        executable_identity="codex@0.149.1",
+        module_identity="dynamic-agent-runner@0.1.16",
         final_package_digest="b" * 64,
         catalog_revision_digest="c" * 64,
         registration_digest="d" * 64,
@@ -134,6 +137,8 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
     recorded = json.loads(destination.read_text(encoding="utf-8"))
     assert recorded["format_version"] == 1
     assert recorded["final_package_digest"] == "b" * 64
+    assert recorded["isolation_policy_digest"] == "f" * 64
+    assert recorded["executable_identity"] == "codex@0.149.1"
     assert "prompt" not in recorded
     assert "material_content" not in recorded
     assert destination.stat().st_mode & 0o777 == 0o600
@@ -152,6 +157,9 @@ def test_author_then_run_evidence_requires_no_later_handles_for_early_refusal() 
             plugin_identity="dar-authoring@local-test",
             skill_identity="agent-development@local-test",
             wheel_digest="a" * 64,
+            isolation_policy_digest="f" * 64,
+            executable_identity="codex@0.149.1",
+            module_identity="dynamic-agent-runner@0.1.16",
             final_package_digest=None,
             catalog_revision_digest="c" * 64,
             registration_digest=None,
@@ -176,6 +184,9 @@ def test_author_then_run_evidence_requires_zero_dispatch_for_a_non_pass() -> Non
             plugin_identity="dar-authoring@local-test",
             skill_identity="agent-development@local-test",
             wheel_digest="a" * 64,
+            isolation_policy_digest="f" * 64,
+            executable_identity="codex@0.149.1",
+            module_identity="dynamic-agent-runner@0.1.16",
             final_package_digest="b" * 64,
             catalog_revision_digest="c" * 64,
             registration_digest=None,
