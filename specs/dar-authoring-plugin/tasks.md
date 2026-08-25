@@ -69,8 +69,14 @@ make the Codex plugin an MCP server.
 - [x] RED/GREEN: plugin starter assets cover the tool-index and evaluation
       artifact contracts promised by the three adapted skills; their empty v1
       structures are deterministic and make no live-provider claim.
-- [ ] RED: plugin skill-discovery, exact approved-Artifactory DAR-version
-      resolution, and isolated `uv run` CLI invocation tests.
+- [x] RED/GREEN: plugin skill-discovery and isolated `uv run` CLI invocation
+      tests prove the checked-in skills-only plugin and OCI build-result wheel.
+      The exact approved-Artifactory DAR-version resolution is a post-release
+      verification, not a pre-release M1 gate.
+      The current `ocibuild -c` artifact is
+      `dynamic_agent_runner-0.2a1-py3-none-any.whl`; its receipt is `0.2a1`,
+      which is pre-release evidence only and not evidence for the pinned
+      `0.1.16` release.
 - [x] RED/GREEN: add the `dar-package` console entry point before any plugin
       smoke test. `dar-package version --json` returns exactly one receipt with
       `format_version`, `status`, `distribution`, and `version`; error output is
@@ -94,9 +100,9 @@ make the Codex plugin an MCP server.
 - [x] RED/GREEN: clean Codex plugin smoke test proves the temporary marketplace
       plugin installs its skills, does not register an MCP server, and lets a
       skill issue the checked-in CLI discovery command without a configured host.
-- [ ] RED/GREEN: independently resolve the pinned DAR version from the approved
-      Artifactory index and record resolved wheel name, version, and digest.
-      Do not use a local-wheel result as index-resolution evidence.
+- [ ] Post-release: independently resolve the pinned DAR version from the
+      approved Artifactory index and record resolved wheel name, version, and
+      digest. Do not use a local OCI-build wheel as index-resolution evidence.
 
 ## G1: Catalog, Profile, and Capability Boundary
 

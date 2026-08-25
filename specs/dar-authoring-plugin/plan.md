@@ -120,13 +120,15 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    `dist-info/entry_points.txt` and `RECORD` membership to prove the
    `dar-package` mapping is packaged. This is asset-presence evidence, not a
    distribution-integrity audit.
-6. **M1.5: Prove published-index resolution.** In a fresh environment, execute
+6. **M1.5: Post-release published-index verification.** After the release build
+   publishes the pinned wheel, in a fresh environment execute
    the exact published `uv run --no-project --python 3.14 --index-url
    <approved-index> --with
    dynamic-agent-runner==0.1.16 dar-package version --json` command and record
    the resolved wheel name, version, and digest from the resolver report. This
-   is the only M1 evidence for index resolution; the local-wheel proof is
-   entrypoint/assets evidence only.
+   is the only evidence for published-index resolution; the local OCI-build
+   wheel proof is pre-release entrypoint/assets evidence only. M1 does not wait
+   for this external publication step.
 
 M1 exit: the local plugin exposes skills that can invoke DAR's release-candidate
 CLI from a clean directory, but cannot execute an unprepared workflow or be
