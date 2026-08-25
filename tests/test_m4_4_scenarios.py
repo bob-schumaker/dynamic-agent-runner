@@ -11,6 +11,10 @@ from dynamic_agent_runner.workflow_host.m4_4_scenarios import (  # noqa: E402
     M44Scenario,
     M44ScenarioError,
     load_m44_scenario,
+    validate_m44_evidence,
+)
+from dynamic_agent_runner.workflow_host.authoring_evidence import (  # noqa: E402
+    AuthorThenRunEvidence,
 )
 
 
@@ -62,6 +66,45 @@ def test_checked_in_document_summary_scenario_is_a_prompt_only_positive_case() -
     assert scenario.scenario_id == "document-summary-v1"
     assert scenario.invocation_mode == "mcp_prompt_only"
     assert scenario.expected_status == "pass"
+
+
+def test_scenario_checker_requires_its_declared_gate_and_fixture() -> None:
+    scenario = M44Scenario.from_mapping(_scenario())
+    evidence = AuthorThenRunEvidence(
+        scenario_id="document-summary-v1",
+        scenario_contract_version="m4.4-v1",
+        checker_version="m4.4-checker-v1",
+        expected_status="pass",
+        observed_status="pending_human_review",
+        terminal_phase="invocation",
+        invocation_mode="mcp_prompt_only",
+        plugin_identity="dar-authoring@local-test",
+        skill_identity="agent-development@local-test",
+        wheel_digest="a" * 64,
+        final_package_digest="b" * 64,
+        catalog_revision_digest="c" * 64,
+        registration_digest="d" * 64,
+        prepared_input_registration_digest="d" * 64,
+        action_trace_digest="e" * 64,
+        dispatch_count=0,
+        reviewer_id=None,
+        reviewer_decision="pending",
+    )
+
+    validate_m44_evidence(
+        scenario,
+        evidence,
+        available_gates=("G3",),
+        available_host_fixtures=("local-model-profile",),
+    )
+
+    with pytest.raises(M44ScenarioError, match="required gates"):
+        validate_m44_evidence(
+            scenario,
+            evidence,
+            available_gates=(),
+            available_host_fixtures=("local-model-profile",),
+        )
 
 
 @pytest.mark.parametrize(
