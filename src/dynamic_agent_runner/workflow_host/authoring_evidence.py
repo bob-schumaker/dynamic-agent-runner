@@ -146,7 +146,7 @@ class AuthorThenRunEvidence:
     plugin_identity: str
     skill_identity: str
     wheel_digest: str
-    isolation_policy_digest: str
+    harness_policy_digest: str
     executable_identity: str
     module_identity: str
     authoring_material_set_id: str | None
@@ -164,7 +164,7 @@ class AuthorThenRunEvidence:
     def __post_init__(self) -> None:
         _validate_author_then_run_text(self)
         _digest(self.wheel_digest, "wheel_digest")
-        _digest(self.isolation_policy_digest, "isolation_policy_digest")
+        _digest(self.harness_policy_digest, "harness_policy_digest")
         _validate_author_then_run_status(self)
         _validate_optional_digests(self)
         _validate_author_then_run_terminal_phase(self)
@@ -184,7 +184,7 @@ class AuthorThenRunEvidence:
             "plugin_identity": self.plugin_identity,
             "skill_identity": self.skill_identity,
             "wheel_digest": self.wheel_digest,
-            "isolation_policy_digest": self.isolation_policy_digest,
+            "harness_policy_digest": self.harness_policy_digest,
             "executable_identity": self.executable_identity,
             "module_identity": self.module_identity,
             "authoring_material_set_id": self.authoring_material_set_id,

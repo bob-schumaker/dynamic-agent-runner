@@ -119,7 +119,7 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
         plugin_identity="dar-authoring@local-test",
         skill_identity="agent-development@local-test",
         wheel_digest="a" * 64,
-        isolation_policy_digest="f" * 64,
+        harness_policy_digest="f" * 64,
         executable_identity="codex@0.149.1",
         module_identity="dynamic-agent-runner@0.1.16",
         authoring_material_set_id="v1.material-set.signature",
@@ -140,7 +140,7 @@ def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(
     recorded = json.loads(destination.read_text(encoding="utf-8"))
     assert recorded["format_version"] == 1
     assert recorded["final_package_digest"] == "b" * 64
-    assert recorded["isolation_policy_digest"] == "f" * 64
+    assert recorded["harness_policy_digest"] == "f" * 64
     assert recorded["executable_identity"] == "codex@0.149.1"
     assert recorded["authoring_receipt_digest"] == "0" * 64
     assert "prompt" not in recorded
@@ -161,7 +161,7 @@ def test_author_then_run_evidence_requires_no_later_handles_for_early_refusal() 
             plugin_identity="dar-authoring@local-test",
             skill_identity="agent-development@local-test",
             wheel_digest="a" * 64,
-            isolation_policy_digest="f" * 64,
+            harness_policy_digest="f" * 64,
             executable_identity="codex@0.149.1",
             module_identity="dynamic-agent-runner@0.1.16",
             authoring_material_set_id=None,
@@ -191,7 +191,7 @@ def test_author_then_run_evidence_requires_zero_dispatch_for_a_non_pass() -> Non
             plugin_identity="dar-authoring@local-test",
             skill_identity="agent-development@local-test",
             wheel_digest="a" * 64,
-            isolation_policy_digest="f" * 64,
+            harness_policy_digest="f" * 64,
             executable_identity="codex@0.149.1",
             module_identity="dynamic-agent-runner@0.1.16",
             authoring_material_set_id=None,
@@ -221,7 +221,7 @@ def test_author_then_run_evidence_rejects_an_unreviewed_observed_pass() -> None:
             plugin_identity="dar-authoring@local-test",
             skill_identity="agent-development@local-test",
             wheel_digest="a" * 64,
-            isolation_policy_digest="f" * 64,
+            harness_policy_digest="f" * 64,
             executable_identity="codex@0.149.1",
             module_identity="dynamic-agent-runner@0.1.16",
             authoring_material_set_id="v1.material-set.signature",
