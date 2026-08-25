@@ -746,3 +746,36 @@ does the scratchpad need to persist past sessions? if so, then a more general in
 could subagents/llm-as-a-tool use the scratchpad interface to keep large JSON blobs out of the context window
 
 is the scratchpad surface well enough defined that we can provide a DAR tool layer for access? are there features that need to/would be better served by delegation to the caller? if so, is there a base level of access we can provide by default with a specific delegation pattern to the caller for more complex interactions?
+
+---
+
+help me design a plugin around DAR
+
+it should take ownership of these three skills from ../ai-environment-roschuma:
+
+  - agent-development — the primary agent-design workflow: runtime, autonomy, patterns, memory, safety, and implementation handoff.
+  - agent-tool-contract-design — defines safe tools, MCP contracts, and CLIs an agent uses.
+  - agent-evaluation — creates evaluation plans, rubrics, judges, and regression gates.
+
+the upstream analysis from ai-environment-roschuma is:
+
+    They fit a DAR package-authoring plugin, not the runner’s execution runtime.
+
+    agent-development is the direct fit: DAR explicitly consumes its agent-design.md, agent-runtime.yaml, and agent-graph.mmd artifacts. agent-tool-contract-design is also strongly aligned: DAR has model-facing tool schemas, a host-owned
+    registry, MCP bindings, side-effect metadata, and approval requirements—precisely the contract surface that skill designs. See /Users/roschuma/Repos/roschuma/dynamic-agent-runner/docs/files/tool-registry.rst:4.
+
+    agent-evaluation fits as an optional companion, not a runtime capability. DAR preserves evaluation metadata but deliberately does not own evaluation infrastructure; the skill should create eval plans, cases, and acceptance gates for
+    generated packages, with execution via tests or an external harness. /Users/roschuma/Repos/roschuma/dynamic-agent-runner/docs/files/artifact-package.rst:286 makes that boundary explicit.
+
+    So I’d package all three, with agent-development as the entry point and the other two routed only when a package needs tools or formal evaluation. That creates a coherent “design, contract, validate” authoring plugin without making
+    DAR responsible for authoring policy or evaluation execution.
+
+it should also include a tool that takes an appropriate input and executes a specific DAR-compatbile workflow.
+
+Examples:
+
+- create an agent workflow that uses the Fastmail MCP server and a local model to interact with my email
+- run this saved email workflow and list all of my unread email
+- run this saved email workflow and send an email with subject "Subject" and body ./body.html to the email group "email-group"
+- design a workflow that take a document reference and returns and embedding, use the hugging-face model "model/embedding-model"
+- run my workflow with document foo.text

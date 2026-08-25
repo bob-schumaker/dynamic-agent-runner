@@ -3,6 +3,17 @@
 
 ## Current Focus
 
+- `dar-authoring` is now a skills-only Codex plugin: it ships the adapted
+  authoring skills and DAR support assets, but no plugin MCP server, session
+  broker, or `run_dar_workflow` tool. Skills invoke DAR only through the
+  checked-in `uv run ... dar-package <command>` control plane. M1's local
+  package/CLI gate is complete through `417bc1e`: the `dar-package version
+  --json` receipt is packaged, verifies from the `ocibuild -c` result wheel in
+  an isolated temporary directory, and passed final Council and Ponytail review.
+  The OCI wheel reports pre-release version `0.2a1`; Artifactory resolution of
+  the pinned `dynamic-agent-runner==0.1.16` is deliberately a post-release
+  check. The next DAR-authoring implementation slice is the closed
+  `dar-package invoke` runner interface for saved no-tool packages.
 - `dar-authoring-plugin` M0 (RA0 reproducible authoring baseline) is complete
   through `8fb3435`. The plugin ships portable adapted `agent-development`,
   `agent-tool-contract-design`, and `agent-evaluation` assets with source
@@ -70,9 +81,10 @@
   gate is an external authoring-model harness over the checked-in corpus. The
   packaged entry skill supports authoring, companion artifact routing, and later
   generic saved-package invocation by configured-root name. M8 owns portable
-  ZIP exchange and publication. M1 local-wheel/Codex discovery is proven, but
-  production launch remains blocked on a signed Artifactory
-  `dynamic-agent-runner==0.1.16` release and trusted launcher integration.
+  ZIP exchange and publication. M1 local-wheel/Codex discovery is proven;
+  published-index resolution for pinned
+  `dynamic-agent-runner==0.1.16` is a post-release verification rather than a
+  pre-release launch blocker.
 - Runtime core authority remains deliberately split: M2 preflight accepts only
   an opaque package-source handle and returns package/policy/capability data;
   it cannot accept invocation input, create a registration or alias, issue a

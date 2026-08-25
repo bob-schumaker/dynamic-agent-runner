@@ -3,6 +3,15 @@
 
 ## Working
 
+- `dar-authoring` is a skills-only Codex plugin, not a plugin MCP server.
+  Commit `417bc1e` completes the pre-release M1 CLI/package gate: a locally
+  produced `ocibuild -c` DAR wheel is checked for `RECORD` and the
+  `dar-package` entry point, then run through isolated `uv run --no-project`
+  discovery. The verified build receipt is `0.2a1`; it is explicitly not
+  evidence for the pinned Artifactory `0.1.16` release. Council and Ponytail
+  found no P0/P1 findings. The exact Artifactory resolution/digest capture is
+  an unchecked post-release task. Next implementation work is M3's
+  role-scoped `dar-package invoke` CLI for saved no-tool packages.
 - `dar-authoring-plugin` M0 (RA0) is complete through `8fb3435`. Commits
   `3ee1068` and `8fb3435` add the three portable DAR-adapted skills, immutable
   source/provenance and user-authorized redistribution record, offline fixture
@@ -601,6 +610,16 @@
 
 ## Remaining
 
+- DAR-authoring's immediate implementation slice is a closed, role-scoped
+  `dar-package invoke` command: it must accept only a saved package name,
+  prompt, and descriptor-declared inputs; prepare inputs internally; and
+  preserve `--dry-run` and local `--ask`. Package selection, prepared IDs,
+  profiles, and tool provisioning remain human/DAR-owned controls. Follow with
+  declared workspace-file ingress, adapted-skill CLI routing, and M4.4's clean
+  Codex author-then-run acceptance harness.
+- After publication of `dynamic-agent-runner==0.1.16`, independently resolve it
+  from the approved Artifactory index and record the resolved wheel identity
+  and digest. Do not substitute a local OCI wheel for this release check.
 - Historical note: LiteLLM provider work was once spec-only while upstream
   Python 3.14 metadata was unavailable. Slice L1 now uses the bundled DAR
   transport; only upstream publication and Responses-specific follow-ups remain.
