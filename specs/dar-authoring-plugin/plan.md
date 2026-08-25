@@ -7,6 +7,16 @@ evidence below; unscheduled items still require a scoped slice before work
 begins. [`spec.md`](spec.md) and [`tasks.md`](tasks.md) remain the controlling
 contracts.
 
+## Control-Plane Direction Change
+
+This plan supersedes the former local-stdio-MCP launch path. `dar-authoring` is
+a skills-only Codex plugin: it has no `.mcp.json`, `mcpServers` entry,
+`run_dar_workflow` tool, `dar-mcp` launcher, or session broker. The skills
+collaborate with the user, then execute the checked-in `uv run ... dar-package
+<command>` control-plane contract. DAR remains free to bind a generated workflow
+to a human-configured MCP capability at runtime; that workflow capability is not
+a plugin-provided MCP server.
+
 ## First Runtime Vertical Slice
 
 The first implementation slice proves a fixture-authored, human-selected local
@@ -18,7 +28,7 @@ human-selected fixture directory package
   -> immutable WorkflowPolicy
   -> eligible local-model WorkflowRegistration
   -> sealed PreparedWorkflowInput
-  -> run_dar_workflow / dar-workflow-run
+  -> dar-package run
 ```
 
 It deliberately excludes adapted-skill behavior, ZIP import/export, package
@@ -32,7 +42,7 @@ only path to an end-to-end authoring-plugin publication claim.
 | Milestone | Gate | Outcome | Depends on |
 | --- | --- | --- | --- |
 | M0 | RA0 — authoring baseline | Static adapted-skill provenance, fixture contracts, and canonical basic/tool package templates are implemented. | None |
-| M1 | G0 — package/server spike | Minimal install/discovery proof, then release-integrity proof. | None |
+| M1 | G0 — package/CLI spike | Minimal skills-to-CLI proof, then release-integrity proof. | None |
 | M2 | G1 runtime core | Human-selected directory staging, policy compilation, and package-only preflight. Implemented. | M1 |
 | M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. Implemented. | M2 |
 | M4 | RA1 — authoring acceptance | M4.0 material projection and M4.1 redacted evidence contract are implemented; external adapted-skill behavior and clean-Codex author-then-run evidence remain. | M0, M2, M3; M5/M6/M7 for M4.4 extension cases |
@@ -82,21 +92,21 @@ record exists; current checkout state is not an immutable source revision.
 M0 exit: all three skill assets have reproducible provenance and deterministic
 fixture-contract validation; publication remains blocked on M4 and M8.
 
-### M1 — G0 packaging spike
+### M1 — G0 packaging and CLI spike
 
-1. **M1.1: Prove the minimal plugin launch.** Against the target Codex build,
-   prove a checked-in manifest can start a local stdio server from an installed
-   artifact without source-path interpolation. Record the supported manifest
-   fields, installation path, environment contract, and clean-directory MCP
-   `initialize` evidence. Also install a temporary local-wheel marketplace copy
-   and confirm Codex registers its stdio command, then remove it. The server
-   advertises no execution tool before the local host is configured; this
-   evidence must not be reported as workflow invocation. With a temporary
-   configured host state, a second no-side-effect Codex discovery must expose
-   exactly `run_dar_workflow` and its closed input schema. Stop here if the launch
-   topology is unsupported.
+1. **M1.0: Retire the obsolete MCP launch topology.** Replace the old
+   `.mcp.json`/`dar-mcp` discovery evidence with a clean plugin proof that only
+   skills are installed. Delete the server/broker path after focused CLI tests
+   replace it. Previous MCP `initialize` and `codex mcp list` observations are
+   historical evidence for a rejected design and are not M1 completion evidence.
+2. **M1.1: Prove the minimal skills-to-CLI launch.** Against the target Codex
+   build, prove an installed plugin exposes its adapted skills without source-path
+   interpolation and that a skill can execute the checked-in `uv run ...
+   dar-package --help` command from an installed wheel. Record the installation
+   path, command template, resolved wheel identity, and clean-directory JSON
+   receipt evidence. Stop if the CLI topology is unsupported.
 
-   **Implemented local-wheel launch evidence (2026-08-24).** Codex CLI 0.149.1's
+   **Superseded local-wheel launch evidence (2026-08-24).** Codex CLI 0.149.1's
    installed `codex-app-tools` plugin establishes the supported form: a plugin
    `.mcp.json` can use a bundled relative command with `"cwd": "."`. DAR's
    `.mcp.json` now invokes `./scripts/dar-mcp` in that form. `poetry build`
@@ -107,15 +117,18 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    marketplace reinstall of this revision, a configured-host discovery, or the
    signed-release boundary required by M1.2.
 
-   **Published-release dependency (2026-08-24).** The configured public simple
+   **Superseded published-release dependency (2026-08-24).** The configured
+   public simple
    index currently stops at `dynamic-agent-runner==0.1.15`. Its wheel exposes
    `dynamic-agent-runner` and `graphify-extract`, but not
    `dynamic-agent-runner-mcp`; `0.1.16` is therefore intentionally retained as
    the required launcher version and the normal Artifactory fallback cannot
    start until the build system publishes that release. Downgrading the plugin
-   would make its declared MCP server impossible to launch.
-2. **M1.2: Lock the launcher supply chain.** After M1.1 succeeds, implement the
-   checked-in `uvx` launch contract for DAR's `dynamic-agent-runner-mcp` entry
+   would make its declared MCP server impossible to launch. This dependency is
+   obsolete under the skills-only CLI design and must not be used to justify
+   retaining that server.
+3. **M1.2: Lock the CLI supply chain.** After M1.1 succeeds, implement the
+   checked-in `uv run` contract for DAR's `dar-package` entry
    point and verification of the selected DAR artifacts against signed release
    metadata from a configured trusted-key root, with configured expiry and
    minimum-version floor. Tests reject an unexpected index, non-exact version,
@@ -124,17 +137,18 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    below the floor; startup records all resolved dependency identities without
    requiring an Artifactory network call. The local plugin itself is not an
    Artifactory artifact.
-3. **M1.3: Prove runtime-wheel isolation.** Resolve the DAR wheel from a clean
-   directory and test it there: its MCP entry point and runtime assets are
-   present, startup records resolved dependencies, and no source-tree path or
-   execution tool is exposed. Until the build system publishes a candidate, the
-   developer check builds a local wheel and runs `uvx --from <absolute-wheel>`
+4. **M1.3: Prove runtime-wheel isolation.** Resolve the DAR wheel from a clean
+   directory and test it there: its `dar-package` entry point and runtime assets
+   are present, startup records resolved dependencies, and no source-tree path is
+   exposed. Until the build system publishes a candidate, the developer check
+   builds a local wheel and runs `uv run --from <absolute-wheel>`
    in an isolated temporary directory after verifying every archive payload
    against its wheel `RECORD`; this proves local-wheel behavior only and does
    not substitute for the Artifactory release-trust gate.
 
-M1 exit: the local plugin starts DAR's release-candidate stdio MCP server and
-is safe to discover, but cannot execute an unprepared workflow or be published.
+M1 exit: the local plugin exposes skills that can invoke DAR's release-candidate
+CLI from a clean directory, but cannot execute an unprepared workflow or be
+published.
 
 ### M2 — G1 runtime core
 
@@ -192,23 +206,23 @@ provisioning.
    cross-registration, changed, and expired input rejection. Prepared inputs are
    single-use by default; reuse requires an immutable read-only profile policy
    with explicit maximum uses and expiry.
-3. **M3.3: Expose the one runner interface.** Add the versioned
-   `run_dar_workflow` request/response schema and server path. It accepts only a
-   catalog workflow ID and prompt, seals the prompt internally, runs DAR
+3. **M3.3: Expose the one runner interface.** Add the versioned `dar-package
+   invoke` request/response schema and CLI path. It accepts only a catalog
+   workflow ID, prompt, and descriptor-declared inputs, seals them internally,
+   runs DAR
    package-loader preflight only against the immutable private staged package
    root, invokes DAR through its library API with a fake strict local adapter,
    validates terminal output, and emits bounded redacted tracing. The sealed ID
-   never reaches the MCP caller. A catalog-valid but DAR-preflight-invalid
+   never reaches the skill. A catalog-valid but DAR-preflight-invalid
    revision fails before model or handler entry.
 4. **M3.4: Add the local CLI façade and dry run.** Implement
-   `dar-workflow select-package`, `dar-workflow prepare`, and
-   `dar-workflow-run` as handle/preparation façades over the same runner. Test
+   `dar-package select-package`, `dar-package prepare`, and `dar-package run`
+   as handle/preparation façades over the same runner. Test
    that `--dry-run` calls neither a model nor a handler. The CLI may accept raw
    prompt text only at invocation preparation and passes only a
-   `PreparedWorkflowInput` to DAR; the MCP server follows the same internal
-   preparation path and exposes only workflow ID plus prompt.
+   `PreparedWorkflowInput` to DAR.
 5. **M3.5: Compose local invocation.** Add the human-only
-   `dar-workflow invoke --path --workflow-id --prompt` convenience command. It
+   `dar-package invoke --path --workflow-id --prompt` convenience command. It
    issues a source handle, registers the package only against the configured
    profile and an optional already-reviewed opaque MCP binding, seals the
    prompt, and runs the resulting registration. It is not an MCP tool and does
@@ -279,11 +293,11 @@ prompt through the sealed, catalog-only runner interface.
    external acceptance harness around a temporary Herdr workspace. Every case
    creates one clean Codex authoring invocation, which receives only a text
    authoring request plus the explicitly supplied de-identified material,
-   current adapted skills, and current DAR wheel. A `mcp_prompt_only` case also
-   creates a second independent clean Codex invocation with a text-only run
-   request for the saved package. A `host_prepared_cli` artifact case instead
-   uses the harness-controlled CLI after trusted ingress; it must not claim a
-   second text-only Codex run. The authoring turn
+   current adapted skills, and current DAR wheel. A second independent clean
+   Codex invocation receives a text-only request for the saved package and must
+   use `uv run ... dar-package` to prepare and run it. An artifact case may use
+   declared fixture files and the same CLI after trusted ingress. The authoring
+   turn
    must use a host-issued `material_set_id` and `authoring_output_id`, then
    finalize through `AuthoringOutputService`; the finalization receipt's package
    digest is the only permitted handoff for a positive case. Before its run turn,
@@ -298,16 +312,18 @@ prompt through the sealed, catalog-only runner interface.
    profile, package root, selected-material/output handles, and applicable MCP
    connection/snapshot, fake credential, approval broker, and ingress artifacts.
    The controller retains the state, credential, package, and control-plane
-   roots. Each Codex child receives only a capability-reduced broker: the author
+   roots. Each Codex child receives only a capability-reduced CLI grant: the
+   author
    receives material projection and output create/write/finalize operations; the
-   runner receives only stdio `run_dar_workflow`. Neither may configure a
+   runner receives only the defined `dar-package` subcommands. Neither may
+   configure a
    profile/MCP connection/trust store, inspect credentials, select paths, or
    mutate host state outside those operations. Required negative tests prove
    those requests fail with zero state mutation.
 
    Run each child in a fresh temporary working directory and a scrubbed
    environment. The harness explicitly supplies only the adapted skills, plugin,
-   DAR wheel, per-scenario broker socket, and test-scoped Codex authentication
+   DAR wheel, checked-in CLI template, and test-scoped Codex authentication
    needed for the case; it removes inherited `PYTHONPATH`, virtualenv, and
    tool-home variables, rejects source-root or undeclared executable/module
    resolution, and records resolved executable, module, and wheel identities in
@@ -320,18 +336,16 @@ prompt through the sealed, catalog-only runner interface.
 
    This is a clean-process behavioral acceptance harness, not an OS-enforced
    containment claim: a child process retains ordinary host-process access.
-   The capability-reduced broker, closed MCP tools, explicit fixture inputs,
-   hermetic fake collaborators, and negative state-mutation tests remain the
+   The closed CLI schemas, explicit fixture inputs, hermetic fake collaborators,
+   and negative state-mutation tests remain the
    release boundary. Do not claim filesystem or network isolation from this
    harness.
 
-   A clean Codex run through model-facing `run_dar_workflow` proves only its
-   closed prompt interface and MCP-mediated prompt preparation. It cannot attach
-   a file or opaque artifact. Therefore prompt-only scenarios use that interface
-   end to end; artifact scenarios separately prove the existing host-mediated
-   ingress/prepare/`dar-workflow-run` path with the same generated revision.
-   The latter must not be reported as a text-only MCP run. A future model-facing
-   artifact-reference UX needs its own closed contract before it can be claimed.
+   A clean Codex run proves only the declared CLI contract. Prompt-only scenarios
+   invoke it end to end; artifact scenarios separately prove the existing
+   host-mediated ingress/prepare/`dar-package run` path with the same generated
+   revision. A future direct artifact-reference UX needs its own closed contract
+   before it can be claimed.
 
    Use [`m4-4-workflow-capability-matrix.md`](m4-4-workflow-capability-matrix.md)
    as the scenario-authoring reference. It defines the common authoring input

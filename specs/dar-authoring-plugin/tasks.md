@@ -9,7 +9,35 @@ depends on G0/G1/G3 plus G2 for MCP actions or G4 for file-backed arguments. A
 capability cannot be implemented or advertised as live before its applicable gate
 passes.
 
-## G0: Package and Server Spike
+## Direction Change: Skills-Only CLI Control Plane
+
+The former plugin-provided stdio MCP server, `run_dar_workflow` model-facing
+tool, and broker path are superseded. Generated workflows may still declare and
+use a human-configured MCP capability through DAR's host runtime; that does not
+make the Codex plugin an MCP server.
+
+- [ ] RED/GREEN: define and test the `dar-package` CLI subcommand schemas used
+      by the three skills: material issue/project, authored-package
+      create/write/finalize, package selection/preflight/registration, input
+      preparation, and invocation. Every response is one versioned, redacted JSON
+      receipt or error and uses opaque IDs for host resources.
+- [ ] RED/GREEN: update each adapted skill and target-invocation fixture to use
+      the exact checked-in `uv run ... dar-package <command>` template. The entry
+      skill collaborates with the user to close missing workflow semantics,
+      finalizes a task-specific package, and hands its saved package name/receipt
+      to a later invocation request.
+- [ ] RED/GREEN: remove the plugin `.mcp.json`, plugin-manifest `mcpServers`
+      entry, `scripts/dar-mcp`, MCP session-broker implementation, and their
+      tests only after CLI acceptance coverage replaces them. This does not remove
+      the local `--ask` approval broker. Verify a clean plugin install exposes
+      skills and no plugin-provided MCP server.
+- [ ] RED/GREEN: replace the M4.4 run actor with a clean Codex skill invocation
+      that issues the defined `uv run ... dar-package` commands. It must prove
+      finalization and later saved-package invocation from text-only prompts;
+      the harness controller may provide only declared fixture inputs and fake
+      host collaborators.
+
+## G0: Package and CLI Spike
 
 - [x] RED: add checked-in target invocation fixtures for all three adapted skills
       before copying or rewriting them. Each fixture defines a user request,
@@ -34,42 +62,28 @@ passes.
 - [x] RED/GREEN: plugin starter assets cover the tool-index and evaluation
       artifact contracts promised by the three adapted skills; their empty v1
       structures are deterministic and make no live-provider claim.
-- [ ] RED: plugin-manifest discovery, approved-Artifactory immutable DAR-runtime
-      resolution, hash-pinned dependency-lock verification, and isolated-`uvx`
-      installation tests.
-- [ ] GREEN: create the `dar-authoring` plugin bundle and local stdio MCP server
-      launch contract without undocumented path interpolation; DAR provides the
-      `dynamic-agent-runner-mcp` entrypoint and includes all required runtime
-      assets in its released wheel.
-- [x] RED/GREEN: start/stop lifecycle test that proves the server exposes no
-      execution tool before G1–G3 are configured.
-- [x] RED/GREEN: developer local-wheel verifier launches
-      `dynamic-agent-runner-mcp` from a freshly built DAR wheel through
-      `uvx --from <absolute-wheel-path>` in
-      an isolated temporary directory; it confirms the wheel's version and MCP
-      `initialize` identity without resolving DAR from a package index. This is
+- [ ] RED: plugin skill-discovery, approved-Artifactory immutable DAR-runtime
+      resolution, hash-pinned dependency-lock verification, and isolated `uv run`
+      CLI invocation tests.
+- [ ] GREEN: create the `dar-authoring` skills-only plugin bundle and checked-in
+      CLI command template without undocumented path interpolation; DAR provides
+      `dar-package` and includes all required runtime assets in its released
+      wheel.
+- [ ] RED/GREEN: developer local-wheel verifier executes `dar-package --help`
+      and one non-mutating receipt-producing command from a freshly built DAR
+      wheel through `uv run` in an isolated temporary directory. This is
       pre-build-system evidence, not release-trust evidence.
-- [x] Local Codex smoke evidence: a temporary marketplace copy whose `.mcp.json`
-      references the freshly built absolute DAR wheel installs through `codex
-      plugin add` and appears enabled in `codex mcp list`; the temporary plugin
-      and marketplace are then removed. A no-side-effect Codex discovery turn
-      correctly finds no callable DAR tool without a configured local host. This
-      proves plugin registration and command resolution only, not host setup or
-      workflow invocation.
-- [x] Configured Codex smoke evidence: a temporary local host state supplied to
-      the same local-wheel marketplace copy lets a no-side-effect Codex turn
-      discover exactly `mcp__dar_authoring.run_dar_workflow` with
-      `format_version`, `workflow_id`, and `prompt`; it performs no workflow
-      invocation and all temporary plugin, marketplace, and host-state files are
-      removed afterward.
+- [ ] RED/GREEN: clean Codex plugin smoke test proves the temporary marketplace
+      plugin installs its skills, does not register an MCP server, and lets a
+      skill issue the checked-in CLI discovery command without a configured host.
 - [x] RED/GREEN: signed-release verification renders only its exact, validated
       distribution/version/SHA-256 identities as a hash-enforced `uv`
       requirements lock. Rendering rejects malformed or duplicate identities;
       using that lock from the portable plugin remains part of the unresolved
       Codex launch-topology gate.
-- [x] RED/GREEN: clean-directory DAR-wheel test verifies its archive asset
-      hashes and receives a valid MCP `initialize` response without source-tree
-      paths or undeclared package indexes.
+- [ ] RED/GREEN: clean-directory DAR-wheel test verifies its archive asset
+      hashes and receives a valid `dar-package --help` response without
+      source-tree paths or undeclared package indexes.
 - [ ] RED/GREEN: launcher verifies the selected DAR wheel bytes against
       signed release metadata rooted in configured trusted keys; rejects
       unexpected indexes, a replaced artifact, expired metadata, revoked keys or
@@ -122,17 +136,17 @@ passes.
       prepared input before G3 and the applicable capability gate pass.
 - [x] RED/GREEN: preflight accepts only local-principal/expiry-bound opaque
       package-source handles. A human-selected local CLI path resolves to a
-      handle before preparation; LLM skills and MCP callers cannot select an
-      arbitrary host path or redirect an existing handle.
+      handle before preparation; LLM skills cannot select an arbitrary host path
+      or redirect an existing handle.
 - [x] RED/GREEN: `PackageSourceSelectionPolicy` records human-managed allowed
       roots and rejects absent root configuration, noncanonical paths, and
       no-follow validation failures before it issues a package-source handle.
 - [ ] RED/GREEN: when a skill names a local package without a source handle,
       return only `source_selection_required`; a human-only picker or
-      `dar-workflow select-package` issues the handle without exposing its path
+      `dar-package select-package` issues the handle without exposing its path
       to the skill.
 - [x] RED/GREEN: `InstallationIdentityProvider` supplies a stable local principal
-      from the local OS-user trust boundary to CLI, MCP server, preparation, and
+      from the local OS-user trust boundary to CLI, preparation, and
       runner. Restart and forged-principal tests prove requests cannot provide or
       override it; same-user processes are one v1 authority boundary.
 - [x] RED/GREEN: one private per-user state store and authenticated opaque-record
@@ -265,23 +279,19 @@ passes.
       `WorkflowRegistration` and map its workflow alias only to that registration
       digest. Reject arbitrary package paths, endpoints, commands, profile
       selections, and model-provided provisioning/approval fields.
-- [x] RED/GREEN: `dar-workflow prepare` authenticates the caller and,
+- [x] RED/GREEN: `dar-package prepare` authenticates the caller and,
       after binding, returns registered workflow/package/revision/registration
-      identifiers plus a sealed prepared-input identifier and expiry. The
-      model-facing server alone may request this service for a registered
-      workflow; it never returns the resulting identifier to the MCP caller.
-- [x] RED/GREEN: versioned `run_dar_workflow` request/response schema accepts
-      only a closed-set workflow identifier and prompt, internally seals that
-      prompt, and rejects caller-supplied prepared IDs or raw hybrid-input
-      fields before preparation or execution.
-- [x] RED/GREEN: real temporary local-host configuration causes DAR's stdio MCP
-      server to expose exactly that one registered-workflow tool; an unconfigured
-      host still exposes no execution tool.
-- [x] RED/GREEN: human-only `dar-workflow invoke` composes local package-source
+      identifiers plus a sealed prepared-input identifier and expiry. It never
+      returns the resulting identifier to the skill.
+- [ ] RED/GREEN: versioned `dar-package invoke` request/response schema accepts
+      only a closed-set workflow identifier, prompt, and descriptor-declared
+      inputs; it internally seals input and rejects caller-supplied prepared IDs
+      or undeclared hybrid-input fields before preparation or execution.
+- [ ] RED/GREEN: human/skill invocation composes local package-source
       selection, immutable registration, sealed preparation, and one run. It
       accepts only an already reviewed opaque MCP binding, preserves `--dry-run`
-      and local `--ask`, and exposes no corresponding model-facing MCP operation.
-- [x] RED/GREEN: `dar-workflow invoke --workspace-file` ingresses only under an
+      and local `--ask`.
+- [ ] RED/GREEN: `dar-package invoke --workspace-file` ingresses only under an
       unambiguous registered one-role/one-media-type contract; ambiguous packages
       require explicit ingress and dry runs reject files before any copy.
 - [x] RED/GREEN: `WorkflowInvocationPreparationService` alone seals no-tool
@@ -292,7 +302,7 @@ passes.
       a later descriptor-specific slice.
 - [x] RED/GREEN: execute a no-tools workflow through its registration, capability
       resolution, bounded result shaping, and deep-redacted tracing.
-- [x] RED/GREEN: `dar-workflow-run` accepts exactly the sealed workflow and
+- [x] RED/GREEN: `dar-package run` accepts exactly the sealed workflow and
       prepared-input identifiers produced by local preparation; prove no run CLI
       path passes a raw prompt or file path to DAR.
 - [x] RED/GREEN: validate terminal workflow output against the registered output

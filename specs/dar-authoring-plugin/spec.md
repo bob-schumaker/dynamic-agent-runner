@@ -21,8 +21,8 @@
 Provide a Codex plugin named `dar-authoring` for designing, validating, and
 executing selected Dynamic Agent Runner (DAR) workflow packages. The plugin
 owns authoring policy, skills, templates, and launch configuration. DAR owns
-the generic workflow-host runtime and stdio MCP entry point; it does not own
-authoring policy.
+the generic workflow-host runtime and the `dar-package` CLI control plane; it
+does not own authoring policy.
 
 ## References
 
@@ -44,15 +44,16 @@ host responsibilities coherent without expanding DAR's runtime boundary.
 ## Scope
 
 The locally installed `dar-authoring` plugin shall include the adapted skills,
-templates, and support configuration. Its MCP launcher uses an isolated `uvx`
-environment to install the pinned compatible `dynamic-agent-runner` runtime
-from the approved Artifactory Python index, then invokes DAR's generic stdio
-MCP entry point. The plugin itself is never resolved from that index. Release
-metadata is verified from a configured trusted signing-key root, has an expiry
-and minimum accepted version, and can revoke a signing key or artifact version;
-an expired, revoked, or below-floor otherwise-valid runtime release is rejected.
-A workflow package is instead a local directory or ZIP data artifact consumed
-by that plugin; it is not independently installed or executed by `uvx`.
+templates, and support assets. It shall not expose an MCP server. Its skills use
+an isolated `uv run ... dar-package <command>` invocation to install or select
+the pinned compatible `dynamic-agent-runner` runtime from the approved
+Artifactory Python index and to operate DAR's local control plane. The plugin
+itself is never resolved from that index. Release metadata is verified from a
+configured trusted signing-key root, has an expiry and minimum accepted version,
+and can revoke a signing key or artifact version; an expired, revoked, or
+below-floor otherwise-valid runtime release is rejected. A workflow package is
+instead a local directory or ZIP data artifact consumed by that control plane;
+it is not independently installed or executed by `uv`.
 
 ### Release metadata v1
 
@@ -75,7 +76,7 @@ The plugin shall provide:
 
 1. three DAR-scoped Codex skills;
 2. templates for canonical DAR package artifacts;
-3. one profile-backed MCP tool that invokes one prepared saved workflow; and
+3. skill instructions that invoke the DAR CLI control plane; and
 4. staged host services for the DAR workflow features a selected profile
    declares; and
 5. safety controls for package selection, credentials, local file references,
@@ -104,13 +105,14 @@ to the DAR library or CLI.
 - Making live Fastmail or Hugging Face calls part of unit-test coverage.
 - Treating an interrupted DAR workflow as resumable before DAR exposes a public
   graph-preserving continuation API.
+- Providing `.mcp.json`, an `mcpServers` manifest entry, `dar-mcp`, a session
+  broker, or any other plugin-provided model-facing MCP execution surface.
 
 ## Plugin Structure
 
 ```text
 dar-authoring/
   .codex-plugin/plugin.json
-  .mcp.json
   skills/
     adapted-skill-provenance.yaml
     agent-development/SKILL.md
@@ -129,15 +131,14 @@ dar-authoring/
     regression-gate.yaml
 ```
 
-The exact MCP packaging and installation mechanism is an implementation spike.
-It must run DAR's local stdio MCP server through a checked-in `uvx` launch
-contract, resolve the exact DAR wheel only from the approved Artifactory index,
-and must not depend on undocumented plugin-path interpolation. The DAR
-distribution shall provide the `dynamic-agent-runner-mcp` entry point; it is a
-generic execution host and must not embed plugin authoring policy. Release
-verification must prove the resolved DAR wheel provides that entry point and all
-required runtime assets for a clean-directory MCP `initialize` response; a
-source checkout is not proof.
+The exact CLI packaging and installation mechanism is an implementation spike.
+It must execute the checked-in `uv run ... dar-package` contract, resolve the
+exact DAR wheel only from the approved Artifactory index, and must not depend on
+undocumented plugin-path interpolation. The DAR distribution shall provide the
+`dar-package` entry point; it is a generic execution host and must not embed
+plugin authoring policy. Release verification must prove the resolved DAR wheel
+provides that entry point and all required runtime assets from a clean directory;
+a source checkout is not proof.
 
 ## Implementation Prerequisites and Release Gates
 
@@ -148,7 +149,7 @@ best-effort warning.
 
 | Gate | Required task | Unlocks | Must remain unavailable before the gate passes |
 | --- | --- | --- | --- |
-| G0 | Packaging spike: Artifactory exact-version DAR wheel, isolated `uvx` installation/discovery, packaged-runtime asset verification, and DAR stdio MCP server lifecycle. | Plugin discovery only. | `run_dar_workflow` and wrapper CLI execution. |
+| G0 | Packaging spike: Artifactory exact-version DAR wheel, isolated `uv run` invocation, packaged-runtime asset verification, and `dar-package` CLI lifecycle. | Skill discovery and non-mutating CLI discovery. | Package authoring, registration, and invocation. |
 | G1 | Immutable package catalog, installation identity, profile capability records, `WorkflowPolicy` compilation, and bounded preparation schemas. | Package-only preparation and catalog preflight. | Arbitrary package paths, caller-selected runtime profiles, executable aliases, and workflows with missing wrapper collaborators. |
 | G2 | Human-only connection control plane: credential storage, least-scope binding, approved MCP-surface snapshot creation/review, plugin-owned client lifecycle, and passive run-time drift detection. | Optional MCP profile preparation. | MCP-backed workflows, snapshot refresh from the model-facing tool, and credential/provisioning arguments. |
 | G3 | Generic execution runner: strict model selection, DAR preflight plus wrapper checks, deep-redacted trace/audit store, and `--dry-run`. | Workflows with no external tools. An MCP-backed read-only workflow also requires G2. | Workflows whose model or capability checks fail. |
@@ -212,37 +213,35 @@ is principal- and expiry-bound. It shall use those materials to generate a
 canonical, immutable DAR workflow package
 revision. The user is not required to write a descriptor. The generated versioned
 `WorkflowDescriptor` is the package's authoring-to-runtime handoff and records
-the design decisions the skill made; `run_dar_workflow` is not an authoring or
-provisioning API. Every capability below is optional. A basic reasoning workflow
+the design decisions the skill made. Every capability below is optional. A basic
+reasoning workflow
 therefore needs only its purpose and model requirement; a workflow with no MCP
 tools and no skills is valid.
 
-The host exposes the following local authoring control-plane commands to the
-entry skill. They are not model-facing MCP operations and do not expose runner
-prepared-input identifiers, profile configuration, credentials, or connection
-provisioning:
+The host exposes the following local authoring control-plane commands through
+the DAR `dar-package` CLI. The skill invokes each as `uv run ... dar-package
+<command>`. They do not expose prepared-input identifiers, profile configuration,
+credentials, or connection provisioning:
 
 ```text
-issue-authoring-materials --materials-json-stdin
+dar-package issue-authoring-materials --materials-json-stdin
   -> opaque receipt: material_set_id, member role/disposition/digest, expiry
-project-authoring-materials --material-set-id <opaque-id>
+dar-package project-authoring-materials --material-set-id <opaque-id>
   -> exactly the selected bounded content projection
-create-authored-package --package-name <user-requested-name>
+dar-package create-authored-package --package-name <user-requested-name>
   -> opaque authoring_output_id and configured-root package name
-write-authored-package-file --authoring-output-id <opaque-id>
+dar-package write-authored-package-file --authoring-output-id <opaque-id>
   --relative-path <package-relative-path> --content-stdin
   -> atomic contained write receipt: relative path, hash, byte count
-finalize-authored-package --authoring-output-id <opaque-id>
+dar-package finalize-authored-package --authoring-output-id <opaque-id>
   --material-set-id <opaque-id>
   -> deterministic manifest plus redacted package/descriptor validation result
 ```
 
-The skill invokes those commands through its plugin-local
-`../../scripts/dar-workflow` wrapper. That wrapper resolves the same exact,
-Artifactory-pinned DAR release as `.mcp.json`; a `DAR_AUTHORING_DAR_WHEEL`
-absolute-wheel override is permitted only for local pre-publication verification.
-The override is not a release trust mechanism and must not appear in a published
-plugin configuration.
+The plugin ships the exact command template, including the approved Artifactory
+index and pinned DAR version. A local absolute-wheel override is permitted only
+for pre-publication verification. The override is not a release trust mechanism
+and must not appear in published skill instructions.
 
 The authoring skill calls these commands itself after the user asks it to build
 a package. It asks the user only for missing task decisions or human-only setup
@@ -254,7 +253,7 @@ replacements, and returns file path/hash/byte-count receipts rather than raw
 content. Finalization accepts only that symlink-free host-created directory,
 excludes every `reference_only` member before writing the manifest, and returns
 no selected material content. The resulting configured-root directory is the
-saved package that a later `dar-workflow invoke --package-name <name>` request
+saved package that a later `dar-package invoke --package-name <name>` request
 can run with a new prompt and permitted workspace artifacts without exposing the
 configured output-root path.
 
@@ -372,8 +371,8 @@ replace its model, skills, tools, or connection in a run request. The authoring
 result shall include the package artifacts, a capability report, and any
 evaluation plan requested by the generated descriptor.
 
-V1 authoring uses the local command surface above rather than a second
-model-facing MCP runner tool. It intentionally grants only selected-material
+V1 authoring uses the local command surface above. It intentionally grants only
+selected-material
 projection plus opaque create/write/finalization of a DAR-valid package under the
 configured output root; it does not grant profile, credential, MCP-server,
 signing-key, or generic host-administration authority.
@@ -520,7 +519,7 @@ bind that policy to a compatible profile as an executable
 `WorkflowRegistration` with a local `workflow_id` alias. A package with an MCP,
 embedding, or other unavailable requirement returns a non-executing capability
 result; G1 never fabricates a live binding. Preflight is a trusted local
-control-plane action, not a second model-facing MCP execution tool. An authoring
+control-plane action. An authoring
 or preparation skill may request the service and interpret its result, but it
 never receives a package path or ZIP, performs the import, or selects a profile.
 The later applicable capability control plane may ask a human to complete
@@ -528,11 +527,11 @@ connection authentication or select an already configured compatible profile.
 Neither path may invent credentials, enable undeclared capabilities, or silently
 modify package artifacts.
 
-The trusted control plane exposes this preflight contract to skills and the
-local CLI, not as a second model-facing MCP tool:
+The trusted control plane exposes this preflight contract to skills through the
+local CLI:
 
 ```text
-dar-workflow preflight --package-source <opaque-source-handle> \
+dar-package preflight --package-source <opaque-source-handle> \
   --json
 ```
 
@@ -544,7 +543,7 @@ CLI command below; only a confirmed selection creates a handle. The picker and
 path are never exposed to the skill.
 
 ```text
-dar-workflow select-package --path <human-selected-path> --json
+dar-package select-package --path <human-selected-path> --json
 ```
 
 Its authenticated request binds the local principal and package-source handle.
@@ -553,8 +552,8 @@ selects a directory or ZIP from an allowlisted root and it has performed the
 bounded no-follow source check. The handle is principal/expiry-bound and cannot
 be redirected to another path. Direct local `--package` and
 `--workspace-file` conveniences resolve to these handles before preparation
-after G4 passes; they are not available to an LLM skill or model-facing MCP
-caller. Package preflight returns only `package_id`, `revision_digest`,
+after G4 passes; they are not available to an LLM skill. Package preflight
+returns only `package_id`, `revision_digest`,
 `workflow_policy_digest`, and a discriminated capability result. It cannot
 accept invocation input, create a registration or alias, issue a prepared input,
 or call the runner. The authoring/preparation LLM may request this operation and
@@ -577,7 +576,7 @@ After executable registration, authenticated non-model
 registration-digest-, and expiry-bound `PreparedWorkflowInput`:
 
 ```text
-dar-workflow prepare --workflow <registered-workflow-id> --prompt <text> --json
+dar-package prepare --workflow <registered-workflow-id> --prompt <text> --json
 ```
 
 It contains the original prompt, only schema-valid structured fields, bounded
@@ -591,18 +590,19 @@ it must not invent or transform external-action values, call a workflow tool, or
 read credentials. Prepared input is single-use by default; reusable read-only
 input requires an immutable bounded profile policy.
 
-### FR-4: Expose one narrow execution tool
+### FR-4: Expose one narrow CLI invocation contract
 
-The plugin shall expose exactly one model-facing MCP tool named
-`run_dar_workflow`. It executes one selected saved workflow revision using the
-runtime registration bound to that workflow. It is not a shell-command proxy for
-the `dynamic-agent-runner` CLI.
+The plugin shall expose no model-facing execution tool. Its skills invoke the
+closed `dar-package` CLI contract to execute one selected saved workflow revision
+using the runtime registration bound to that workflow. The CLI is not a general
+shell-command proxy: it accepts only defined subcommands and schema-validated
+arguments.
 
-The MCP server shall use DAR's library API because execution may require a
-caller-provided tool registry, explicit MCP bindings, and a strict local model
-adapter. The DAR CLI alone cannot supply those collaborators.
+The DAR CLI control plane shall construct the required runtime collaborators;
+the skill must never provide arbitrary tool registries, endpoints, credentials,
+or approval decisions.
 
-For a resolved registration, the server shall perform the required execution
+For a resolved registration, the CLI shall perform the required execution
 setup before calling DAR: validate the registration and its bound profile,
 construct the required model adapter, and, for each declared MCP connection,
 validate its authenticated connection and approved surface snapshot, initialize
@@ -651,7 +651,7 @@ binding during an authorized side-effect dispatch. Cancellation is
 capability-negotiated. A cancelled non-cancellable external mutation has an
 indeterminate outcome and cannot be retried automatically.
 
-The versioned model-facing request contract shall have this shape:
+The versioned CLI request contract shall have this shape:
 
 ```json
 {
@@ -662,21 +662,21 @@ The versioned model-facing request contract shall have this shape:
 ```
 
 `workflow_id` is a closed-set identifier from a host-managed workflow catalog.
-The MCP server sends `prompt` only to `WorkflowInvocationPreparationService`,
+The CLI sends `prompt` only to `WorkflowInvocationPreparationService`,
 which issues an unexpired sealed input for that local principal and exact
-registration digest. The opaque prepared-input ID never reaches the MCP caller;
+registration digest. The opaque prepared-input ID never reaches the skill;
 the runner verifies the service issuer/key ID and canonical digest before use.
 A side-effect-capable workflow atomically consumes its prepared input at run
 creation, so it cannot be replayed or concurrently reused; a read-only profile
-may declare a bounded reusable-input policy. The model-facing tool accepts only
-the workflow's prompt; it rejects structured fields, additional context,
-artifact identifiers, and caller-supplied prepared-input IDs. Its prompt is
-workflow input, not a request to alter a package or profile. The tool must reject
+may declare a bounded reusable-input policy. The invocation command accepts only
+the workflow's prompt and declared input fields; it rejects caller-supplied
+prepared-input IDs. Its prompt is workflow input, not a request to alter a
+package or profile. The command must reject
 arbitrary package paths, executable commands, model endpoints, MCP endpoint
 values, skill sources, profile identifiers, and unsealed hybrid-input fields in
 invocation arguments. It shall not accept
 authentication, provisioning, surface-refresh, model endpoint, or
-approval-token flags from the model-facing request.
+approval-token flags.
 
 The wrapper-owned workflow catalog maps each `workflow_id` only to an immutable
 `WorkflowRegistration` digest. Trusted catalog storage pins and verifies the
@@ -802,11 +802,11 @@ fails closed rather than silently widening that boundary.
 The local wrapper CLI shall support these execution modes:
 
 ```text
-dar-workflow-run --workflow <id> --prompt <text> \
+dar-package run --workflow <id> --prompt <text> \
   [--workspace-file <path>]... [--dry-run] [--ask]
 ```
 
-`dar-workflow-run` is a convenience façade, not a second execution path. For a
+`dar-package run` is a convenience façade, not a second execution path. For a
 real run it resolves permitted local paths into handles (and uses G4 ingress for
 `--workspace-file`), calls `WorkflowInvocationPreparationService`, then invokes
 the sealed internal runner with the returned `workflow_id` and
@@ -819,7 +819,7 @@ For a registered v1 package, the human control-plane CLI also provides one local
 composition command:
 
 ```text
-dar-workflow invoke --path <directory-or-zip> --workflow-id <id> \
+dar-package invoke --path <directory-or-zip> --workflow-id <id> \
   --prompt <text> [--mcp-binding-id <opaque-id>] \
   [--workspace-file <path>]... [--dry-run] [--ask]
 ```
@@ -828,9 +828,9 @@ It performs the same human-selected source-handle issuance, staged registration,
 sealed preparation, and execution in that order. An optional binding must be an
 already reviewed opaque host capability; the command cannot configure or widen
 it. `--dry-run` validates without model or handler dispatch, while `--ask`
-uses the local broker for a side-effecting registered workflow. This command is
-not exposed to the model-facing MCP server and accepts neither a model endpoint
-nor arbitrary tool configuration. `--workspace-file` is accepted only when the
+uses the local broker for a side-effecting registered workflow. It accepts
+neither a model endpoint nor arbitrary tool configuration. `--workspace-file`
+is accepted only when the
 registered descriptor has exactly one artifact role and one accepted media type;
 otherwise the caller must use explicit `ingress-file`. Dry runs reject workspace
 files before source selection or ingress.
@@ -849,15 +849,11 @@ files before source selection or ingress.
   broker before its handler runs. The broker displays the normalized action and
   returns an allow/deny decision; it is not a model-provided approval token.
 
-The model-facing `run_dar_workflow` tool uses the selected server policy and may
-not request `auto`, `--ask`, or `--dry-run` through invocation arguments.
-
 `--ask` is a local CLI/control-plane-only synchronous mode: the wrapper holds
 the current handler boundary while the broker decides, then dispatches exactly
 once or denies it. Broker cancellation, expiry, or timeout terminates the run
 with a non-executing `failed`/`approval_timeout` result and records the terminal
-audit state. It never returns a resumable DAR approval to the model-facing MCP
-caller. A server profile that requires interactive approval but lacks a local
+audit state. A profile that requires interactive approval but lacks a local
 broker fails preflight with `approval_required`; it creates no continuation
 token, pending executable action, or later replay path.
 
@@ -1062,8 +1058,8 @@ Delivery shall be staged:
    not be advertised as live until its positive fixture passes.
 
 The packaging spike is the first implementation deliverable. It shall select the
-Codex manifest/config format, prove isolated installation and discovery, start
-and stop the local stdio server, and prove that no undocumented plugin-path
+Codex skills-only manifest/config format, prove isolated skill installation and
+`uv run ... dar-package` discovery, and prove that no undocumented plugin-path
 interpolation is required.
 
 ## Example workflow descriptors and invocation
@@ -1159,7 +1155,7 @@ The local CLI ingresses a body file before it runs the workflow; the model sees
 only the opaque workspace artifact named by the wrapper, never `./body.html`.
 
 ```text
-dar-workflow-run --workflow email-assistant \
+dar-package run --workflow email-assistant \
   --prompt 'Send the attached HTML body to email-group with subject
   "Subject".' \
   --workspace-file ./body.html
@@ -1186,7 +1182,7 @@ use the workflow in custom-email/ to send email to sally@example.com about
 The preparation path ingresses `foo.txt`; the runner receives an opaque input
 artifact, structured fields where derivable, bounded additional context, and the
 original prompt—not the physical path. It seals these as one
-`PreparedWorkflowInput`; only its opaque identifier reaches `run_dar_workflow`.
+`PreparedWorkflowInput`; only its opaque identifier reaches `dar-package run`.
 
 ### Embedding workflow
 
