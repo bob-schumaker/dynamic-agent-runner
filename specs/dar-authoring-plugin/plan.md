@@ -305,38 +305,25 @@ prompt through the sealed, catalog-only runner interface.
    mutate host state outside those operations. Required negative tests prove
    those requests fail with zero state mutation.
 
-   Run each child and its tool subprocesses in an OS-enforced sandbox/container
-   with only declared skills/plugin/wheel inputs mounted read-only and a
-   dedicated writable output; mount no operator home, source checkout, state,
-   credential, or package root. Network is deny-by-default, with explicit
-   allowlists only for the test-scoped Codex-auth channel and local fake-provider
-   endpoints. Required negative tests reject reads outside declared mounts and
-   outbound connections outside that allowlist. The child has a temporary working
-   directory and an allowlisted environment: scrub inherited `PATH`,
-   `PYTHONPATH`, virtualenv, and tool-home variables; reject source-root or
-   undeclared executable/module resolution; and record resolved executable,
-   module, and wheel paths in redacted evidence. A harness-only Codex-auth
-   provisioner supplies a test-scoped authentication source or pre-authenticated
-   isolated profile outside model-visible inputs; it must not inherit operator
-   Codex/OpenAI authentication and is redacted and removed with the fixture.
-   Sentinel ambient plugin, state, package-root, credential, and auth files
-   provide supplementary proof none was read. The harness removes every resource
-   it created on completion, failure, or interruption. This is **no ambient
-   operator configuration**, not no host configuration or test-scoped Codex
-   authentication.
+   Run each child in a fresh temporary working directory and a scrubbed
+   environment. The harness explicitly supplies only the adapted skills, plugin,
+   DAR wheel, per-scenario broker socket, and test-scoped Codex authentication
+   needed for the case; it removes inherited `PYTHONPATH`, virtualenv, and
+   tool-home variables, rejects source-root or undeclared executable/module
+   resolution, and records resolved executable, module, and wheel identities in
+   redacted evidence. A harness-only Codex-auth provisioner supplies a
+   test-scoped authentication source or pre-authenticated profile outside
+   model-visible inputs; it is redacted and removed with the fixture. Sentinel
+   ambient plugin, state, package-root, credential, and auth files provide
+   supplementary evidence that the harness did not select them. The harness
+   removes every resource it created on completion, failure, or interruption.
 
-   A containerized clean actor must never mount a host controller socket, FIFO,
-   state root, credential root, or package root. It joins a per-scenario
-   internal-only Docker network with no default route. A separate trusted
-   controller container holds those private mounts, hosts the capability-reduced
-   broker, and joins that internal network. Its broker requires a fresh,
-   controller-issued capability token and exposes no general filesystem or
-   control-plane operation. If a test-scoped Codex-auth or fake-provider channel
-   is required, provide it through a separate allowlisted relay; the actor may
-   reach only that relay, and the relay must enforce its exact upstream
-   allowlist. Do not substitute direct UNIX-socket/FIFO bind mounts or a
-   macOS-host listener: Docker/OrbStack transport behavior is not portable and
-   does not prove the required boundary.
+   This is a clean-process behavioral acceptance harness, not an OS-enforced
+   containment claim: a child process retains ordinary host-process access.
+   The capability-reduced broker, closed MCP tools, explicit fixture inputs,
+   hermetic fake collaborators, and negative state-mutation tests remain the
+   release boundary. Do not claim filesystem or network isolation from this
+   harness.
 
    A clean Codex run through model-facing `run_dar_workflow` proves only its
    closed prompt interface and MCP-mediated prompt preparation. It cannot attach
@@ -451,6 +438,15 @@ part of ordinary test execution.
    capability is published until this gate passes.
 
 ## Later Milestones
+
+### Future feature — optional containerized acceptance isolation
+
+On explicit user request, add a separate acceptance-isolation feature for
+containerized clean actors with virtual read-only inputs, a dedicated writable
+workspace, and a default-deny network policy. It must define a portable
+controller/broker transport, test the actual runtime boundary, and remain
+optional: Docker or another container runtime is not a DAR, plugin, or M4.4
+requirement.
 
 ### M5 — G2 configured HTTPS MCP read-only path
 

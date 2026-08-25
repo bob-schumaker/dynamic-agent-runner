@@ -411,6 +411,9 @@ passes.
 - [ ] Guardrail phases beyond DAR's live input and tool-input handlers, and
       broader context-management profiles.
 - [ ] Subagent and `ask_llm` integration.
+- [ ] Optional containerized acceptance isolation with virtual input paths and
+      default-deny network. This is deferred until explicitly requested; M4.4
+      is a clean-process behavioral harness and does not require Docker.
 
 ## Focused Validation
 
