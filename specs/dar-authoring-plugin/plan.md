@@ -105,7 +105,7 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    The existing `dar-workflow` entry points remain human-only migration
    compatibility commands and are not aliases for the skill-facing contract.
 3. **M1.2: Prove the local-wheel entry point.** From a fresh temporary working
-   directory, execute `uv run --no-project --with <absolute-wheel-path>
+   directory, execute `uv run --no-project --python 3.14 --with <absolute-wheel-path>
    dar-package version --json`. Record the resolved wheel identity and receipt;
    prove the command neither opens state nor emits a source or state path.
 4. **M1.3: Migrate the plugin surface.** After M1.1–M1.2 pass, rewrite every
@@ -118,7 +118,8 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    `dar-package` mapping is packaged. This is asset-presence evidence, not a
    distribution-integrity audit.
 6. **M1.5: Prove published-index resolution.** In a fresh environment, execute
-   the exact published `uv run --no-project --index-url <approved-index> --with
+   the exact published `uv run --no-project --python 3.14 --index-url
+   <approved-index> --with
    dynamic-agent-runner==0.1.16 dar-package version --json` command and record
    the resolved wheel name, version, and digest from the resolver report. This
    is the only M1 evidence for index resolution; the local-wheel proof is

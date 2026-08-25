@@ -84,7 +84,8 @@ make the Codex plugin an MCP server.
       wheel.
 - [ ] RED/GREEN: developer local-wheel verifier executes
       `dar-package version --json` from a freshly built DAR wheel through
-      `uv run` in an isolated temporary directory. Prove it neither opens state
+      `uv run --no-project --python 3.14` in an isolated temporary directory.
+      Prove it neither opens state
       nor emits source/state paths. This proves entrypoint/assets only, not
       Artifactory resolution or publication integrity.
 - [ ] RED/GREEN: built-wheel asset check proves `dist-info/entry_points.txt`

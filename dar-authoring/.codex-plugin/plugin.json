@@ -16,7 +16,6 @@
     "longDescription": "Creates and prepares bounded Dynamic Agent Runner workflow packages.",
     "shortDescription": "Design bounded DAR workflow packages."
   },
-  "mcpServers": "./.mcp.json",
   "name": "dar-authoring",
   "version": "0.1.0"
 }

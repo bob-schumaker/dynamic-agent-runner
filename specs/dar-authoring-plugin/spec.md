@@ -122,6 +122,7 @@ The published v1 instruction is exactly:
 
 ```text
 uv run --no-project \
+  --python 3.14 \
   --index-url \
   https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple \
   --with dynamic-agent-runner==0.1.16 dar-package <command>
@@ -130,7 +131,8 @@ uv run --no-project \
 M1 must replace `0.1.16` in all plugin assets as one reviewed release update;
 the command must resolve only that exact DAR wheel and must not depend on
 plugin-path interpolation. A developer-only pre-publication check may instead
-use `uv run --no-project --with <absolute-wheel-path> dar-package <command>`.
+use `uv run --no-project --python 3.14 --with <absolute-wheel-path>
+dar-package <command>`.
 The DAR distribution shall provide `dar-package`; until that entry point ships,
 these are future contracts, not live commands. M1 proves installed-wheel command
 resolution plus a JSON receipt. Bespoke release metadata and signatures are

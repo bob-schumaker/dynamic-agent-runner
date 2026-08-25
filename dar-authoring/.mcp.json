@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "dar-authoring": {
-      "args": [],
-      "command": "./scripts/dar-mcp",
-      "cwd": "."
-    }
-  }
-}

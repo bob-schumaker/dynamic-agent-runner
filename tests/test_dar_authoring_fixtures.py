@@ -162,22 +162,20 @@ def test_adapted_skills_have_complete_immutable_provenance() -> None:
 
 
 def test_adapted_skills_are_portable_and_cover_fixture_contracts() -> None:
-    expected_artifacts_by_skill = {
-        fixture["skill"]: set(fixture["expected_artifacts"])
-        for fixture in (
-            json.loads(path.read_text(encoding="utf-8"))
-            for path in sorted(FIXTURE_ROOT.glob("*.json"))
-        )
-    }
+    discovery_command = (
+        "uv run --no-project --python 3.14 --index-url "
+        "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple "
+        "--with dynamic-agent-runner==0.1.16 dar-package version --json"
+    )
 
-    for skill_name, expected_artifacts in expected_artifacts_by_skill.items():
+    for skill_name in EXPECTED_SKILLS:
         text = (SKILL_ROOT / skill_name / "SKILL.md").read_text(encoding="utf-8")
 
-        assert "AuthoringMaterialSet" in text
+        assert discovery_command in text
         assert "corpus/" not in text
         assert "../ai-environment-roschuma" not in text
-        assert all(artifact in text for artifact in expected_artifacts)
-        assert "unselected" in text
+        assert "dar-workflow" not in text
+        assert "dar-mcp" not in text
         assert "credential" in text
 
     tool_contract = (SKILL_ROOT / "agent-tool-contract-design" / "SKILL.md").read_text(
@@ -191,32 +189,21 @@ def test_adapted_skills_are_portable_and_cover_fixture_contracts() -> None:
     ).read_text(encoding="utf-8")
 
 
-def test_agent_development_skill_calls_the_host_authoring_control_plane() -> None:
+def test_agent_development_skill_uses_the_cli_first_authoring_boundary() -> None:
     text = (SKILL_ROOT / "agent-development" / "SKILL.md").read_text(encoding="utf-8")
 
-    commands = (
-        "issue-authoring-materials",
-        "project-authoring-materials",
-        "create-authored-package",
-        "write-authored-package-file",
-        "finalize-authored-package",
-    )
-    positions = [text.index(command) for command in commands]
-
-    assert positions == sorted(positions)
-    assert "Do not stop after a partial output" in text
-    assert "skill-bundle/skills/<id>/SKILL.md" in text
-    assert "read-only-mcp-template" in text
-    assert "entry skill retains ownership of agent-runtime.yaml" in text
+    assert "authoring_runtime_unavailable" in text
+    assert "agent-design.md" in text
+    assert "agent-runtime.yaml" in text
+    assert "agent-graph.mmd" in text
+    assert "workflow-descriptor.yaml" in text
+    assert "does not start MCP servers" in text
 
 
-def test_companion_skills_use_the_entry_skill_output_handle() -> None:
+def test_companion_skills_keep_tools_and_evaluation_host_owned() -> None:
     for skill_name in ("agent-tool-contract-design", "agent-evaluation"):
         text = (SKILL_ROOT / skill_name / "SKILL.md").read_text(encoding="utf-8")
 
-        assert "material_set_id" in text
-        assert "authoring_output_id" in text
-        assert "../../scripts/dar-workflow" in text
-        assert "write-authored-package-file" in text
-        assert "physical package path" in text
-        assert "do not finalize" in " ".join(text.lower().split())
+        assert "authoring_runtime_unavailable" in text
+        assert "MCP server or launcher" in text
+        assert "credential" in text
