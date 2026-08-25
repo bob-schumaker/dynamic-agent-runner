@@ -31,10 +31,10 @@ limits:
 The generated package contains `agent-design.md`, `agent-runtime.yaml`,
 `agent-graph.mmd`, `WorkflowDescriptor`, and, where applicable, package-local
 skills, a tool index, evaluation artifacts, and a content manifest. The
-runtime invocation itself remains deliberately narrow: a selected registered
-`workflow_id`, prompt, permitted opaque artifacts, and bounded
-`additional_context`; it cannot replace the package's model, tool, skill, or
-connection requirements.
+model-facing MCP invocation remains deliberately narrow: a selected registered
+`workflow_id` and prompt only. A host-prepared CLI/run path may bind opaque
+artifacts and bounded `additional_context` after trusted preparation. Neither
+path can replace the package's model, tool, skill, or connection requirements.
 
 ## Capability Matrix
 
