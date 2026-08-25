@@ -149,6 +149,9 @@ class AuthorThenRunEvidence:
     isolation_policy_digest: str
     executable_identity: str
     module_identity: str
+    authoring_material_set_id: str | None
+    authoring_output_id: str | None
+    authoring_receipt_digest: str | None
     final_package_digest: str | None
     catalog_revision_digest: str | None
     registration_digest: str | None
@@ -184,6 +187,9 @@ class AuthorThenRunEvidence:
             "isolation_policy_digest": self.isolation_policy_digest,
             "executable_identity": self.executable_identity,
             "module_identity": self.module_identity,
+            "authoring_material_set_id": self.authoring_material_set_id,
+            "authoring_output_id": self.authoring_output_id,
+            "authoring_receipt_digest": self.authoring_receipt_digest,
             "final_package_digest": self.final_package_digest,
             "catalog_revision_digest": self.catalog_revision_digest,
             "registration_digest": self.registration_digest,
@@ -262,8 +268,16 @@ def _validate_author_then_run_status(evidence: AuthorThenRunEvidence) -> None:
     if evidence.reviewer_decision == "pending":
         if evidence.reviewer_id is not None:
             raise AuthoringEvidenceError("pending review must not name a reviewer")
+        if evidence.observed_status == "pass":
+            raise AuthoringEvidenceError("unreviewed evidence cannot pass")
     else:
         _text(evidence.reviewer_id, "reviewer_id")
+    if evidence.observed_status == "pass":
+        if (
+            evidence.expected_status != "pass"
+            or evidence.reviewer_decision != "approved"
+        ):
+            raise AuthoringEvidenceError("observed pass is not approved")
 
 
 def _validate_optional_digests(evidence: AuthorThenRunEvidence) -> None:
@@ -276,9 +290,16 @@ def _validate_optional_digests(evidence: AuthorThenRunEvidence) -> None:
             "prepared_input_registration_digest",
         ),
         (evidence.action_trace_digest, "action_trace_digest"),
+        (evidence.authoring_receipt_digest, "authoring_receipt_digest"),
     ):
         if value is not None:
             _digest(value, label)
+    for value, label in (
+        (evidence.authoring_material_set_id, "authoring_material_set_id"),
+        (evidence.authoring_output_id, "authoring_output_id"),
+    ):
+        if value is not None:
+            _text(value, label)
 
 
 def _validate_author_then_run_terminal_phase(evidence: AuthorThenRunEvidence) -> None:
@@ -296,8 +317,11 @@ def _validate_author_then_run_terminal_phase(evidence: AuthorThenRunEvidence) ->
         or evidence.dispatch_count < 0
     ):
         raise AuthoringEvidenceError("dispatch_count is invalid")
-    if evidence.expected_status == "pass":
+    if evidence.observed_status in {"pass", "pending_human_review"}:
         required = (
+            evidence.authoring_material_set_id,
+            evidence.authoring_output_id,
+            evidence.authoring_receipt_digest,
             evidence.final_package_digest,
             evidence.catalog_revision_digest,
             evidence.registration_digest,
@@ -309,6 +333,12 @@ def _validate_author_then_run_terminal_phase(evidence: AuthorThenRunEvidence) ->
             raise AuthoringEvidenceError("prepared input registration does not match")
         if evidence.action_trace_digest is None:
             raise AuthoringEvidenceError("positive evidence requires an action trace")
+        return
+    if evidence.observed_status not in {
+        "expected_capability_unavailable",
+        "expected_refusal",
+        "harness_failure",
+    }:
         return
     if evidence.dispatch_count != 0:
         raise AuthoringEvidenceError("non-pass evidence requires zero dispatch")

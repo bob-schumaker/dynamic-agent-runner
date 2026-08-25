@@ -321,8 +321,8 @@ def test_stdio_proxy_is_reachable_through_the_public_server_entrypoint(
         )
 
 
-def test_public_authoring_broker_mode_serves_a_controller_issued_session(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_public_authoring_broker_serves_a_controller_issued_session(
+    tmp_path: Path,
 ) -> None:
     """The controller can start the private broker without exposing state to Codex."""
     from datetime import UTC, datetime
@@ -338,7 +338,7 @@ def test_public_authoring_broker_mode_serves_a_controller_issued_session(
         LocalWorkflowHost,
         configure_local_host,
     )
-    from dynamic_agent_runner.workflow_host.server import main
+    from dynamic_agent_runner.workflow_host.server import main, serve_authoring_broker
 
     state_root = tmp_path / "state"
     package_root = tmp_path / "packages"
@@ -363,27 +363,16 @@ def test_public_authoring_broker_mode_serves_a_controller_issued_session(
     output = host.create_authored_package(
         package_name="document-summary", now=datetime.now(UTC)
     )
-    monkeypatch.setenv("DAR_AUTHORING_STATE_ROOT", str(state_root))
-
     with tempfile.TemporaryDirectory(dir="/private/tmp", prefix="m44-broker-") as root:
         socket_path = Path(root) / "broker.sock"
         broker = threading.Thread(
-            target=main,
+            target=serve_authoring_broker,
             kwargs={
-                "argv": [
-                    "--authoring-unix-broker",
-                    "--socket",
-                    str(socket_path),
-                    "--material-set-id",
-                    material.material_set_id,
-                    "--package-name",
-                    output.package_name,
-                    "--authoring-output-id",
-                    output.output_id,
-                ],
-                "stdin": StringIO(),
-                "stdout": StringIO(),
-                "stderr": StringIO(),
+                "socket_path": socket_path,
+                "host": host,
+                "material_set_id": material.material_set_id,
+                "package_name": output.package_name,
+                "authoring_output_id": output.output_id,
             },
             daemon=True,
         )

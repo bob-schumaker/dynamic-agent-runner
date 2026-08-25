@@ -42,30 +42,6 @@ def main(
         except ValueError:
             print("Broker proxy is unavailable", file=stderr)
             return 2
-    if (
-        len(values) == 9
-        and values[0:2] == ["--authoring-unix-broker", "--socket"]
-        and values[2]
-        and values[3] == "--material-set-id"
-        and values[4]
-        and values[5] == "--package-name"
-        and values[6]
-        and values[7] == "--authoring-output-id"
-        and values[8]
-    ):
-        try:
-            serve_session_unix(
-                socket_path=Path(values[2]),
-                session=_AuthoringSession(
-                    material_set_id=values[4],
-                    package_name=values[6],
-                    authoring_output_id=values[8],
-                ),
-            )
-        except ValueError:
-            print("Authoring broker is unavailable", file=stderr)
-            return 2
-        return 0
     if values == ["--stdio"]:
         session: _Session = _Session()
     elif (
@@ -86,8 +62,6 @@ def main(
         print(
             "Usage: dynamic-agent-runner-mcp --stdio | "
             "--stdio-proxy --socket PATH | "
-            "--authoring-unix-broker --socket PATH --material-set-id ID "
-            "--package-name NAME --authoring-output-id ID | "
             "--authoring-stdio --material-set-id ID --package-name NAME "
             "--authoring-output-id ID",
             file=stderr,
@@ -217,6 +191,7 @@ class _AuthoringSession(_Session):
         material_set_id: str,
         package_name: str,
         authoring_output_id: str,
+        host: Any | None = None,
         host_opener=LocalWorkflowHost.open,
     ) -> None:
         super().__init__(host_opener=host_opener)
@@ -229,11 +204,12 @@ class _AuthoringSession(_Session):
         self._material_set_id = material_set_id
         self._package_name = package_name
         self._authoring_output_id = authoring_output_id
+        self._host = host
         self._created = False
 
     def _available_tools(self) -> list[dict[str, object]]:
         try:
-            self._host_opener(_default_state_root())
+            self._open_host()
         except (ValueError, OSError):
             return []
         return list(_AUTHORING_TOOLS)
@@ -254,11 +230,12 @@ class _AuthoringSession(_Session):
             }.get(name)
             if handler is None:
                 return _error(request_id, -32602, "Invalid tool request")
-            return _authoring_result(
-                request_id, handler(self._host_opener(_default_state_root()), arguments)
-            )
+            return _authoring_result(request_id, handler(self._open_host(), arguments))
         except (ValueError, OSError):
             return _error(request_id, -32000, "Authoring request failed")
+
+    def _open_host(self) -> Any:
+        return self._host or self._host_opener(_default_state_root())
 
     def _project_materials(
         self, host: Any, arguments: Mapping[str, object]
@@ -338,6 +315,29 @@ class _AuthoringSession(_Session):
             "descriptor_digest": validation.descriptor_digest,
             "file_count": validation.file_count,
         }
+
+
+def serve_authoring_broker(
+    *,
+    socket_path: Path,
+    host: LocalWorkflowHost,
+    material_set_id: str,
+    package_name: str,
+    authoring_output_id: str,
+) -> None:
+    """Serve one controller-owned authoring session without ambient host state."""
+
+    if not isinstance(host, LocalWorkflowHost):
+        raise ValueError("broker host is invalid")
+    serve_session_unix(
+        socket_path=socket_path,
+        session=_AuthoringSession(
+            material_set_id=material_set_id,
+            package_name=package_name,
+            authoring_output_id=authoring_output_id,
+            host=host,
+        ),
+    )
 
 
 def serve_session_unix(*, socket_path: Path, session: _Session) -> None:
