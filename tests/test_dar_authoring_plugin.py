@@ -152,6 +152,73 @@ def test_mcp_launcher_uses_a_local_wheel_when_configured(tmp_path: Path) -> None
     ]
 
 
+def test_mcp_launcher_starts_the_controller_bound_authoring_broker(
+    tmp_path: Path,
+) -> None:
+    launcher = PLUGIN_ROOT / "scripts" / "dar-mcp"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_uvx = fake_bin / "uvx"
+    arguments = tmp_path / "arguments"
+    fake_uvx.write_text(
+        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DAR_TEST_ARGUMENTS"\n',
+        encoding="utf-8",
+    )
+    fake_uvx.chmod(0o755)
+    wheel = tmp_path / "dynamic_agent_runner.whl"
+    wheel.touch()
+
+    completed = subprocess.run(
+        [str(launcher)],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        env={
+            **os.environ,
+            "DAR_AUTHORING_DAR_WHEEL": str(wheel),
+            "DAR_AUTHORING_MCP_MODE": "authoring",
+            "DAR_AUTHORING_MATERIAL_SET_ID": "v1.material-set.signature",
+            "DAR_AUTHORING_PACKAGE_NAME": "document-summary",
+            "DAR_TEST_ARGUMENTS": str(arguments),
+            "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        },
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert arguments.read_text(encoding="utf-8").splitlines() == [
+        "--from",
+        str(wheel),
+        "dynamic-agent-runner-mcp",
+        "--authoring-stdio",
+        "--material-set-id",
+        "v1.material-set.signature",
+        "--package-name",
+        "document-summary",
+    ]
+
+
+def test_mcp_launcher_rejects_an_invalid_controller_package_name(
+    tmp_path: Path,
+) -> None:
+    launcher = PLUGIN_ROOT / "scripts" / "dar-mcp"
+
+    completed = subprocess.run(
+        [str(launcher)],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        env={
+            **os.environ,
+            "DAR_AUTHORING_MCP_MODE": "authoring",
+            "DAR_AUTHORING_MATERIAL_SET_ID": "v1.material-set.signature",
+            "DAR_AUTHORING_PACKAGE_NAME": "../escape",
+        },
+    )
+
+    assert completed.returncode == 2
+    assert completed.stderr == "dar-mcp: authoring package name is invalid\n"
+
+
 def test_mcp_launcher_retains_its_fixed_artifactory_fallback(tmp_path: Path) -> None:
     launcher = PLUGIN_ROOT / "scripts" / "dar-mcp"
     fake_bin = tmp_path / "bin"

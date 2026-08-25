@@ -518,7 +518,9 @@ class LocalWorkflowHost:
         """Finalize a host-owned authoring output without exposing its path."""
 
         return self.finalize_authored_package(
-            package_root=self._authoring_outputs.package_path(output_id, now=now),
+            package_root=self._authoring_outputs.consume_package_path(
+                output_id, now=now
+            ),
             material_set_id=material_set_id,
             now=now,
         )

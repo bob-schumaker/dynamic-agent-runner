@@ -136,6 +136,25 @@ class AuthoringOutputService:
         os.close(descriptor)
         return self._output_root / package_name
 
+    def consume_package_path(self, output_id: str, *, now: datetime) -> Path:
+        """Spend one output handle before its host-only finalization begins."""
+
+        try:
+            record = self._store.consume(
+                output_id,
+                expected_kind="authoring_output",
+                owner=self._owner,
+                now=_as_utc(now),
+            )
+            package_name = record.payload.get("package_name")
+            _validate_package_name(package_name)
+        except (OpaqueRecordError, AuthoringOutputError) as error:
+            raise AuthoringOutputError("authoring output is unavailable") from error
+        assert isinstance(package_name, str)
+        descriptor = _open_output_directory(self._output_root, package_name)
+        os.close(descriptor)
+        return self._output_root / package_name
+
     def package_path_for_name(self, package_name: str) -> Path:
         """Return a validated configured-root package path for later invocation."""
 

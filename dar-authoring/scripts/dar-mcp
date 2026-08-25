@@ -24,12 +24,42 @@ if [ -z "${UV_TOOL_DIR:-}" ] && [ -n "${DAR_AUTHORING_STATE_ROOT:-}" ]; then
     export UV_TOOL_DIR="$DAR_AUTHORING_STATE_ROOT/uv-tools"
 fi
 
+case "${DAR_AUTHORING_MCP_MODE:-run}" in
+    run)
+        set -- --stdio
+        ;;
+    authoring)
+        if [ -z "${DAR_AUTHORING_MATERIAL_SET_ID:-}" ] || [ -z "${DAR_AUTHORING_PACKAGE_NAME:-}" ]; then
+            echo "dar-mcp: authoring mode requires material set and package name" >&2
+            exit 2
+        fi
+        case "$DAR_AUTHORING_PACKAGE_NAME" in
+            .*|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-]*)
+                echo "dar-mcp: authoring package name is invalid" >&2
+                exit 2
+                ;;
+        esac
+        if [ "${#DAR_AUTHORING_PACKAGE_NAME}" -gt 64 ]; then
+            echo "dar-mcp: authoring package name is invalid" >&2
+            exit 2
+        fi
+        set -- \
+            --authoring-stdio \
+            --material-set-id "$DAR_AUTHORING_MATERIAL_SET_ID" \
+            --package-name "$DAR_AUTHORING_PACKAGE_NAME"
+        ;;
+    *)
+        echo "dar-mcp: MCP mode must be run or authoring" >&2
+        exit 2
+        ;;
+esac
+
 if [ -n "${DAR_AUTHORING_DAR_WHEEL:-}" ]; then
-    exec uvx --from "$DAR_AUTHORING_DAR_WHEEL" dynamic-agent-runner-mcp --stdio
+    exec uvx --from "$DAR_AUTHORING_DAR_WHEEL" dynamic-agent-runner-mcp "$@"
 fi
 
 exec uvx \
     --default-index https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple \
     --from dynamic-agent-runner==0.1.16 \
     dynamic-agent-runner-mcp \
-    --stdio
+    "$@"

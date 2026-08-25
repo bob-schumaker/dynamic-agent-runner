@@ -87,3 +87,28 @@ def test_rejects_symlinked_output_directories(tmp_path: Path) -> None:
             content="escape",
             now=NOW,
         )
+
+
+def test_consumed_output_cannot_be_written_through_a_fresh_service(
+    tmp_path: Path,
+) -> None:
+    service, output_root = _service(tmp_path)
+    output = service.create(package_name="document-helper", now=NOW)
+
+    package_path = service.consume_package_path(output.output_id, now=NOW)
+    fresh_service = AuthoringOutputService(
+        store=PrivateStateStore(tmp_path / "state"),
+        owner="local-user",
+        output_root=output_root,
+        max_file_bytes=1024,
+        output_ttl=timedelta(hours=1),
+    )
+
+    assert package_path == output_root / "document-helper"
+    with pytest.raises(AuthoringOutputError, match="authoring output is unavailable"):
+        fresh_service.write_file(
+            output_id=output.output_id,
+            relative_path="agent-design.md",
+            content="must not write after finalization",
+            now=NOW,
+        )
