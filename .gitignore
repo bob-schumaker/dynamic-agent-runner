@@ -69,3 +69,8 @@ graphify-out
 
 # temporary 
 /litellm/
+
+# OCI build output
+/buildDetails.txt
+/input_ocibuild/
+/output_ocibuild_packagewheel/
