@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hmac
 import os
 import socket
 import stat
@@ -34,6 +35,26 @@ def main(
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
+    if (
+        len(values) == 7
+        and values[:2] == ["--stdio-tcp-proxy", "--host"]
+        and values[2]
+        and values[3] == "--port"
+        and values[4].isdigit()
+        and values[5] == "--token"
+        and values[6]
+    ):
+        try:
+            return proxy_stdio_tcp(
+                host=values[2],
+                port=int(values[4]),
+                token=values[6],
+                stdin=stdin,
+                stdout=stdout,
+            )
+        except ValueError:
+            print("Broker TCP proxy is unavailable", file=stderr)
+            return 2
     if len(values) == 3 and values[:2] == ["--stdio-proxy", "--socket"] and values[2]:
         try:
             return proxy_stdio_unix(
@@ -61,6 +82,7 @@ def main(
     else:
         print(
             "Usage: dynamic-agent-runner-mcp --stdio | "
+            "--stdio-tcp-proxy --host HOST --port PORT --token TOKEN | "
             "--stdio-proxy --socket PATH | "
             "--authoring-stdio --material-set-id ID --package-name NAME "
             "--authoring-output-id ID",
@@ -392,18 +414,93 @@ def proxy_stdio_unix(*, socket_path: Path, stdin: TextIO, stdout: TextIO) -> int
     return 0
 
 
+def serve_session_tcp(*, host: str, port: int, token: str, session: _Session) -> None:
+    """Serve one controller-owned session on an internal container network."""
+
+    _validate_broker_tcp(host=host, port=port, token=token)
+    if not isinstance(session, _Session):
+        raise ValueError("broker session is invalid")
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind((host, port))
+        listener.listen(1)
+        connection, _ = listener.accept()
+        with connection:
+            reader = connection.makefile("r", encoding="utf-8")
+            writer = connection.makefile("w", encoding="utf-8")
+            try:
+                if not _authenticate_broker(reader, writer, token):
+                    return
+                _serve_reader_writer(reader, writer, session)
+            finally:
+                reader.close()
+                writer.close()
+
+
+def proxy_stdio_tcp(
+    *, host: str, port: int, token: str, stdin: TextIO, stdout: TextIO
+) -> int:
+    """Bridge clean-actor stdio to a token-bound controller TCP broker."""
+
+    _validate_broker_tcp(host=host, port=port, token=token)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as connection:
+        try:
+            connection.connect((host, port))
+        except OSError as error:
+            raise ValueError("broker is unavailable") from error
+        reader = connection.makefile("r", encoding="utf-8")
+        writer = connection.makefile("w", encoding="utf-8")
+        try:
+            writer.write(json.dumps({"token": token}, separators=(",", ":")) + "\n")
+            writer.flush()
+            if reader.readline() != '{"ok":true}\n':
+                raise ValueError("broker authentication failed")
+            relay = threading.Thread(
+                target=_relay_responses,
+                args=(reader, stdout),
+                daemon=True,
+            )
+            relay.start()
+            for line in stdin:
+                writer.write(line)
+                writer.flush()
+            writer.close()
+            connection.shutdown(socket.SHUT_WR)
+            relay.join()
+        finally:
+            reader.close()
+    return 0
+
+
 def _serve_connection(connection: socket.socket, session: _Session) -> None:
     reader = connection.makefile("r", encoding="utf-8")
     writer = connection.makefile("w", encoding="utf-8")
     try:
-        for line in reader:
-            response = session.handle(line)
-            if response is not None:
-                writer.write(json.dumps(response, separators=(",", ":")) + "\n")
-                writer.flush()
+        _serve_reader_writer(reader, writer, session)
     finally:
         reader.close()
         writer.close()
+
+
+def _authenticate_broker(reader: TextIO, writer: TextIO, token: str) -> bool:
+    try:
+        value = json.loads(reader.readline())
+    except json.JSONDecodeError:
+        return False
+    candidate = value.get("token") if isinstance(value, Mapping) else None
+    if not isinstance(candidate, str) or not hmac.compare_digest(candidate, token):
+        return False
+    writer.write('{"ok":true}\n')
+    writer.flush()
+    return True
+
+
+def _serve_reader_writer(reader: TextIO, writer: TextIO, session: _Session) -> None:
+    for line in reader:
+        response = session.handle(line)
+        if response is not None:
+            writer.write(json.dumps(response, separators=(",", ":")) + "\n")
+            writer.flush()
 
 
 def _relay_responses(reader: TextIO, stdout: TextIO) -> None:
@@ -439,6 +536,15 @@ def _validate_broker_socket(socket_path: object, *, must_exist: bool = False) ->
         raise ValueError("broker socket is unavailable") from error
     if not stat.S_ISSOCK(mode) or socket_path.is_symlink():
         raise ValueError("broker socket is unavailable")
+
+
+def _validate_broker_tcp(*, host: object, port: object, token: object) -> None:
+    if not isinstance(host, str) or not host:
+        raise ValueError("broker host is invalid")
+    if not isinstance(port, int) or isinstance(port, bool) or not 1024 <= port <= 65535:
+        raise ValueError("broker port is invalid")
+    if not isinstance(token, str) or len(token) < 32:
+        raise ValueError("broker token is invalid")
 
 
 _RUN_TOOL = {

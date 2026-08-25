@@ -267,6 +267,56 @@ def test_authoring_broker_can_be_hosted_outside_the_clean_actor(
         assert not socket_path.exists()
 
 
+def test_authoring_broker_tcp_proxy_requires_its_controller_token() -> None:
+    from io import StringIO
+    import threading
+    import time
+
+    from dynamic_agent_runner.workflow_host.server import (
+        _AuthoringSession,
+        proxy_stdio_tcp,
+        serve_session_tcp,
+    )
+
+    session = _AuthoringSession(
+        material_set_id="v1.material-set.signature",
+        package_name="document-summary",
+        authoring_output_id="v1.output.signature",
+        host_opener=lambda _root: object(),
+    )
+    broker = threading.Thread(
+        target=serve_session_tcp,
+        kwargs={
+            "host": "127.0.0.1",
+            "port": 39124,
+            "token": "t" * 32,
+            "session": session,
+        },
+        daemon=True,
+    )
+    broker.start()
+    time.sleep(0.05)
+    stdout = StringIO()
+
+    assert (
+        proxy_stdio_tcp(
+            host="127.0.0.1",
+            port=39124,
+            token="t" * 32,
+            stdin=StringIO(
+                '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n'
+            ),
+            stdout=stdout,
+        )
+        == 0
+    )
+    broker.join(timeout=1)
+
+    assert json.loads(stdout.getvalue())["result"]["serverInfo"]["name"] == (
+        "Dynamic Agent Runner"
+    )
+
+
 def test_stdio_proxy_is_reachable_through_the_public_server_entrypoint(
     tmp_path: Path,
 ) -> None:

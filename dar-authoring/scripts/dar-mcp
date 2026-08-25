@@ -29,7 +29,9 @@ case "${DAR_AUTHORING_MCP_MODE:-run}" in
         set -- --stdio
         ;;
     authoring)
-        if [ -n "${DAR_AUTHORING_BROKER_SOCKET:-}" ]; then
+        if [ -n "${DAR_AUTHORING_BROKER_HOST:-}" ] && [ -n "${DAR_AUTHORING_BROKER_PORT:-}" ] && [ -n "${DAR_AUTHORING_BROKER_TOKEN:-}" ]; then
+            set -- --stdio-tcp-proxy --host "$DAR_AUTHORING_BROKER_HOST" --port "$DAR_AUTHORING_BROKER_PORT" --token "$DAR_AUTHORING_BROKER_TOKEN"
+        elif [ -n "${DAR_AUTHORING_BROKER_SOCKET:-}" ]; then
             set -- --stdio-proxy --socket "$DAR_AUTHORING_BROKER_SOCKET"
         else
         if [ -z "${DAR_AUTHORING_MATERIAL_SET_ID:-}" ] || [ -z "${DAR_AUTHORING_PACKAGE_NAME:-}" ] || [ -z "${DAR_AUTHORING_OUTPUT_ID:-}" ]; then
