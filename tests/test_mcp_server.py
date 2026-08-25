@@ -8,6 +8,8 @@ from importlib.metadata import version
 from pathlib import Path
 import tomllib
 
+import pytest
+
 from dynamic_agent_runner.mcp_server import main
 
 
@@ -185,6 +187,7 @@ def test_authoring_stdio_server_exposes_only_one_session_broker_surface() -> Non
     session = _AuthoringSession(
         material_set_id="v1.material-set.signature",
         package_name="document-summary",
+        authoring_output_id="v1.output.signature",
         host_opener=lambda _root: object(),
     )
     session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
@@ -194,6 +197,84 @@ def test_authoring_stdio_server_exposes_only_one_session_broker_surface() -> Non
 
     assert response is not None
     assert [tool["name"] for tool in response["result"]["tools"]] == [
+        "project_authoring_materials",
+        "create_authored_package",
+        "write_authored_package_file",
+        "finalize_authored_package",
+    ]
+
+
+def test_authoring_stdio_server_exposes_only_the_controller_issued_broker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import UTC, datetime
+    from io import StringIO
+
+    from dynamic_agent_runner.workflow_host.authoring_materials import (
+        AuthoringMaterialInput,
+    )
+    from dynamic_agent_runner.workflow_host.host import (
+        LocalWorkflowHost,
+        configure_local_host,
+    )
+
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    configure_local_host(
+        root=state_root,
+        package_root=package_root,
+        model_id="local-test-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    host = LocalWorkflowHost.open(state_root)
+    material = host.issue_authoring_materials(
+        materials=(
+            AuthoringMaterialInput(
+                role="task",
+                content="Design a document summary workflow.",
+                disposition="reference_only",
+            ),
+        ),
+        now=datetime.now(UTC),
+    )
+    output = host.create_authored_package(
+        package_name="document-summary", now=datetime.now(UTC)
+    )
+    monkeypatch.setenv("DAR_AUTHORING_STATE_ROOT", str(state_root))
+    stdin = StringIO(
+        "\n".join(
+            (
+                '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}',
+                '{"jsonrpc":"2.0","method":"notifications/initialized"}',
+                '{"jsonrpc":"2.0","id":2,"method":"tools/list"}',
+            )
+        )
+        + "\n"
+    )
+    stdout = StringIO()
+
+    assert (
+        main(
+            [
+                "--authoring-stdio",
+                "--material-set-id",
+                material.material_set_id,
+                "--package-name",
+                output.package_name,
+                "--authoring-output-id",
+                output.output_id,
+            ],
+            stdin=stdin,
+            stdout=stdout,
+            stderr=StringIO(),
+        )
+        == 0
+    )
+
+    responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    tools = responses[1]["result"]["tools"]
+    assert [tool["name"] for tool in tools] == [
         "project_authoring_materials",
         "create_authored_package",
         "write_authored_package_file",
@@ -211,13 +292,13 @@ def test_authoring_stdio_server_binds_one_material_set_and_output() -> None:
     from dynamic_agent_runner.workflow_host.authoring_output import (
         AuthoredPackageValidation,
     )
-    from dynamic_agent_runner.workflow_host.authoring_outputs import (
-        AuthoredFileReceipt,
-        AuthoringOutputReceipt,
-    )
+    from dynamic_agent_runner.workflow_host.authoring_outputs import AuthoredFileReceipt
     from dynamic_agent_runner.workflow_host.server import _AuthoringSession
 
     class Host:
+        def __init__(self) -> None:
+            self.finalized = False
+
         def project_authoring_materials(self, material_set_id: str, *, now: object):
             assert material_set_id == "v1.material-set.signature"
             assert isinstance(now, datetime)
@@ -235,15 +316,6 @@ def test_authoring_stdio_server_binds_one_material_set_and_output() -> None:
                 expires_at=datetime.now(UTC) + timedelta(minutes=5),
             )
 
-        def create_authored_package(self, *, package_name: str, now: object):
-            assert package_name == "document-summary"
-            assert isinstance(now, datetime)
-            return AuthoringOutputReceipt(
-                output_id="v1.output.signature",
-                package_name=package_name,
-                expires_at=datetime.now(UTC) + timedelta(minutes=5),
-            )
-
         def write_authored_package_file(self, **kwargs: object):
             assert kwargs["output_id"] == "v1.output.signature"
             assert kwargs["relative_path"] == "agent-design.md"
@@ -251,14 +323,19 @@ def test_authoring_stdio_server_binds_one_material_set_and_output() -> None:
             return AuthoredFileReceipt("agent-design.md", "b" * 64, 6)
 
         def finalize_authored_output(self, **kwargs: object):
+            if self.finalized:
+                raise ValueError("authoring output is unavailable")
+            self.finalized = True
             assert kwargs["output_id"] == "v1.output.signature"
             assert kwargs["material_set_id"] == "v1.material-set.signature"
             return AuthoredPackageValidation("document-summary", "c" * 64, "d" * 64, 4)
 
+    host = Host()
     session = _AuthoringSession(
         material_set_id="v1.material-set.signature",
         package_name="document-summary",
-        host_opener=lambda _root: Host(),
+        authoring_output_id="v1.output.signature",
+        host_opener=lambda _root: host,
     )
     session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
     session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')

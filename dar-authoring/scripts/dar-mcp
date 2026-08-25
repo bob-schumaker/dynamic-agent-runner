@@ -29,8 +29,8 @@ case "${DAR_AUTHORING_MCP_MODE:-run}" in
         set -- --stdio
         ;;
     authoring)
-        if [ -z "${DAR_AUTHORING_MATERIAL_SET_ID:-}" ] || [ -z "${DAR_AUTHORING_PACKAGE_NAME:-}" ]; then
-            echo "dar-mcp: authoring mode requires material set and package name" >&2
+        if [ -z "${DAR_AUTHORING_MATERIAL_SET_ID:-}" ] || [ -z "${DAR_AUTHORING_PACKAGE_NAME:-}" ] || [ -z "${DAR_AUTHORING_OUTPUT_ID:-}" ]; then
+            echo "dar-mcp: authoring mode requires material set, package name, and output id" >&2
             exit 2
         fi
         case "$DAR_AUTHORING_PACKAGE_NAME" in
@@ -46,7 +46,8 @@ case "${DAR_AUTHORING_MCP_MODE:-run}" in
         set -- \
             --authoring-stdio \
             --material-set-id "$DAR_AUTHORING_MATERIAL_SET_ID" \
-            --package-name "$DAR_AUTHORING_PACKAGE_NAME"
+            --package-name "$DAR_AUTHORING_PACKAGE_NAME" \
+            --authoring-output-id "$DAR_AUTHORING_OUTPUT_ID"
         ;;
     *)
         echo "dar-mcp: MCP mode must be run or authoring" >&2

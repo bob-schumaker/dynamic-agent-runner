@@ -128,14 +128,6 @@ class AuthoringOutputService:
             byte_count=len(body),
         )
 
-    def package_path(self, output_id: str, *, now: datetime) -> Path:
-        """Return the validated output path for host finalization only."""
-
-        package_name = self._package_name(output_id, now=now)
-        descriptor = _open_output_directory(self._output_root, package_name)
-        os.close(descriptor)
-        return self._output_root / package_name
-
     def consume_package_path(self, output_id: str, *, now: datetime) -> Path:
         """Spend one output handle before its host-only finalization begins."""
 

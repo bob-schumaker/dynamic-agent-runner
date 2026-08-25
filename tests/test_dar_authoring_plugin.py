@@ -179,6 +179,7 @@ def test_mcp_launcher_starts_the_controller_bound_authoring_broker(
             "DAR_AUTHORING_MCP_MODE": "authoring",
             "DAR_AUTHORING_MATERIAL_SET_ID": "v1.material-set.signature",
             "DAR_AUTHORING_PACKAGE_NAME": "document-summary",
+            "DAR_AUTHORING_OUTPUT_ID": "v1.output.signature",
             "DAR_TEST_ARGUMENTS": str(arguments),
             "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
         },
@@ -194,6 +195,8 @@ def test_mcp_launcher_starts_the_controller_bound_authoring_broker(
         "v1.material-set.signature",
         "--package-name",
         "document-summary",
+        "--authoring-output-id",
+        "v1.output.signature",
     ]
 
 
@@ -212,6 +215,7 @@ def test_mcp_launcher_rejects_an_invalid_controller_package_name(
             "DAR_AUTHORING_MCP_MODE": "authoring",
             "DAR_AUTHORING_MATERIAL_SET_ID": "v1.material-set.signature",
             "DAR_AUTHORING_PACKAGE_NAME": "../escape",
+            "DAR_AUTHORING_OUTPUT_ID": "v1.output.signature",
         },
     )
 

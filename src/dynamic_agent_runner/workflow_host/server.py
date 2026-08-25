@@ -34,17 +34,24 @@ def main(
     if values == ["--stdio"]:
         session: _Session = _Session()
     elif (
-        len(values) == 5
+        len(values) == 7
         and values[:2] == ["--authoring-stdio", "--material-set-id"]
         and values[2]
         and values[3] == "--package-name"
         and values[4]
+        and values[5] == "--authoring-output-id"
+        and values[6]
     ):
-        session = _AuthoringSession(material_set_id=values[2], package_name=values[4])
+        session = _AuthoringSession(
+            material_set_id=values[2],
+            package_name=values[4],
+            authoring_output_id=values[6],
+        )
     else:
         print(
             "Usage: dynamic-agent-runner-mcp --stdio | "
-            "--authoring-stdio --material-set-id ID --package-name NAME",
+            "--authoring-stdio --material-set-id ID --package-name NAME "
+            "--authoring-output-id ID",
             file=stderr,
         )
         return 2
@@ -171,6 +178,7 @@ class _AuthoringSession(_Session):
         *,
         material_set_id: str,
         package_name: str,
+        authoring_output_id: str,
         host_opener=LocalWorkflowHost.open,
     ) -> None:
         super().__init__(host_opener=host_opener)
@@ -178,10 +186,12 @@ class _AuthoringSession(_Session):
             raise ValueError("authoring material set is invalid")
         if not isinstance(package_name, str) or not package_name:
             raise ValueError("authoring package name is invalid")
+        if not isinstance(authoring_output_id, str) or not authoring_output_id:
+            raise ValueError("authoring output is invalid")
         self._material_set_id = material_set_id
         self._package_name = package_name
-        self._authoring_output_id: str | None = None
-        self._finalized = False
+        self._authoring_output_id = authoring_output_id
+        self._created = False
 
     def _available_tools(self) -> list[dict[str, object]]:
         try:
@@ -236,16 +246,14 @@ class _AuthoringSession(_Session):
     def _create_package(
         self, host: Any, arguments: Mapping[str, object]
     ) -> dict[str, object]:
+        del host
         _require_arguments(arguments, {"format_version"})
-        if self._authoring_output_id is not None:
+        if self._created:
             raise ValueError("authoring output already exists")
-        receipt = host.create_authored_package(
-            package_name=self._package_name, now=datetime.now(UTC)
-        )
-        self._authoring_output_id = receipt.output_id
+        self._created = True
         return {
-            "authoring_output_id": receipt.output_id,
-            "package_name": receipt.package_name,
+            "authoring_output_id": self._authoring_output_id,
+            "package_name": self._package_name,
         }
 
     def _write_package_file(
@@ -255,9 +263,9 @@ class _AuthoringSession(_Session):
             arguments,
             {"format_version", "authoring_output_id", "relative_path", "content"},
         )
+        if not self._created:
+            raise ValueError("authoring output was not created")
         output_id = _authoring_output_id(arguments, self._authoring_output_id)
-        if self._finalized:
-            raise ValueError("authoring output is finalized")
         relative_path = arguments.get("relative_path")
         content = arguments.get("content")
         if not isinstance(relative_path, str) or not isinstance(content, str):
@@ -278,15 +286,14 @@ class _AuthoringSession(_Session):
         self, host: Any, arguments: Mapping[str, object]
     ) -> dict[str, object]:
         _require_arguments(arguments, {"format_version", "authoring_output_id"})
+        if not self._created:
+            raise ValueError("authoring output was not created")
         output_id = _authoring_output_id(arguments, self._authoring_output_id)
-        if self._finalized:
-            raise ValueError("authoring output is finalized")
         validation = host.finalize_authored_output(
             output_id=output_id,
             material_set_id=self._material_set_id,
             now=datetime.now(UTC),
         )
-        self._finalized = True
         return {
             "package_id": validation.package_id,
             "package_digest": validation.package_digest,
