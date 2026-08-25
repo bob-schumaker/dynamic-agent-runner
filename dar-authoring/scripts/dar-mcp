@@ -29,6 +29,9 @@ case "${DAR_AUTHORING_MCP_MODE:-run}" in
         set -- --stdio
         ;;
     authoring)
+        if [ -n "${DAR_AUTHORING_BROKER_SOCKET:-}" ]; then
+            set -- --stdio-proxy --socket "$DAR_AUTHORING_BROKER_SOCKET"
+        else
         if [ -z "${DAR_AUTHORING_MATERIAL_SET_ID:-}" ] || [ -z "${DAR_AUTHORING_PACKAGE_NAME:-}" ] || [ -z "${DAR_AUTHORING_OUTPUT_ID:-}" ]; then
             echo "dar-mcp: authoring mode requires material set, package name, and output id" >&2
             exit 2
@@ -48,6 +51,7 @@ case "${DAR_AUTHORING_MCP_MODE:-run}" in
             --material-set-id "$DAR_AUTHORING_MATERIAL_SET_ID" \
             --package-name "$DAR_AUTHORING_PACKAGE_NAME" \
             --authoring-output-id "$DAR_AUTHORING_OUTPUT_ID"
+        fi
         ;;
     *)
         echo "dar-mcp: MCP mode must be run or authoring" >&2

@@ -204,6 +204,123 @@ def test_authoring_stdio_server_exposes_only_one_session_broker_surface() -> Non
     ]
 
 
+def test_authoring_broker_can_be_hosted_outside_the_clean_actor(
+    tmp_path: Path,
+) -> None:
+    """A state-free child proxy sees only an already-bound broker session."""
+    from io import StringIO
+    import tempfile
+    import threading
+    import time
+
+    from dynamic_agent_runner.workflow_host.server import (
+        _AuthoringSession,
+        proxy_stdio_unix,
+        serve_session_unix,
+    )
+
+    with tempfile.TemporaryDirectory(dir="/private/tmp", prefix="m44-broker-") as root:
+        socket_path = Path(root) / "broker.sock"
+        session = _AuthoringSession(
+            material_set_id="v1.material-set.signature",
+            package_name="document-summary",
+            authoring_output_id="v1.output.signature",
+            host_opener=lambda _root: object(),
+        )
+        broker = threading.Thread(
+            target=serve_session_unix,
+            kwargs={"socket_path": socket_path, "session": session},
+            daemon=True,
+        )
+        broker.start()
+        for _ in range(100):
+            if socket_path.exists():
+                break
+            time.sleep(0.01)
+        else:
+            pytest.fail("broker did not bind its socket")
+
+        stdin = StringIO(
+            "\n".join(
+                (
+                    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}',
+                    '{"jsonrpc":"2.0","method":"notifications/initialized"}',
+                    '{"jsonrpc":"2.0","id":2,"method":"tools/list"}',
+                )
+            )
+            + "\n"
+        )
+        stdout = StringIO()
+
+        assert (
+            proxy_stdio_unix(socket_path=socket_path, stdin=stdin, stdout=stdout) == 0
+        )
+        broker.join(timeout=1)
+
+        responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
+        assert [tool["name"] for tool in responses[1]["result"]["tools"]] == [
+            "project_authoring_materials",
+            "create_authored_package",
+            "write_authored_package_file",
+            "finalize_authored_package",
+        ]
+        assert not socket_path.exists()
+
+
+def test_stdio_proxy_is_reachable_through_the_public_server_entrypoint(
+    tmp_path: Path,
+) -> None:
+    """The clean actor's executable mode does not need a host-state root."""
+    from io import StringIO
+    import tempfile
+    import threading
+    import time
+
+    from dynamic_agent_runner.workflow_host.server import (
+        _AuthoringSession,
+        main,
+        serve_session_unix,
+    )
+
+    with tempfile.TemporaryDirectory(dir="/private/tmp", prefix="m44-broker-") as root:
+        socket_path = Path(root) / "broker.sock"
+        session = _AuthoringSession(
+            material_set_id="v1.material-set.signature",
+            package_name="document-summary",
+            authoring_output_id="v1.output.signature",
+            host_opener=lambda _root: object(),
+        )
+        broker = threading.Thread(
+            target=serve_session_unix,
+            kwargs={"socket_path": socket_path, "session": session},
+            daemon=True,
+        )
+        broker.start()
+        for _ in range(100):
+            if socket_path.exists():
+                break
+            time.sleep(0.01)
+        else:
+            pytest.fail("broker did not bind its socket")
+
+        stdin = StringIO('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n')
+        stdout = StringIO()
+
+        assert (
+            main(
+                ["--stdio-proxy", "--socket", str(socket_path)],
+                stdin=stdin,
+                stdout=stdout,
+                stderr=StringIO(),
+            )
+            == 0
+        )
+        broker.join(timeout=1)
+        assert json.loads(stdout.getvalue())["result"]["serverInfo"]["name"] == (
+            "Dynamic Agent Runner"
+        )
+
+
 def test_authoring_stdio_server_exposes_only_the_controller_issued_broker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+import stat
 import sys
+import threading
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from importlib.metadata import version
@@ -31,6 +34,14 @@ def main(
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
+    if len(values) == 3 and values[:2] == ["--stdio-proxy", "--socket"] and values[2]:
+        try:
+            return proxy_stdio_unix(
+                socket_path=Path(values[2]), stdin=stdin, stdout=stdout
+            )
+        except ValueError:
+            print("Broker proxy is unavailable", file=stderr)
+            return 2
     if values == ["--stdio"]:
         session: _Session = _Session()
     elif (
@@ -50,6 +61,7 @@ def main(
     else:
         print(
             "Usage: dynamic-agent-runner-mcp --stdio | "
+            "--stdio-proxy --socket PATH | "
             "--authoring-stdio --material-set-id ID --package-name NAME "
             "--authoring-output-id ID",
             file=stderr,
@@ -300,6 +312,107 @@ class _AuthoringSession(_Session):
             "descriptor_digest": validation.descriptor_digest,
             "file_count": validation.file_count,
         }
+
+
+def serve_session_unix(*, socket_path: Path, session: _Session) -> None:
+    """Serve one already-bound host session over a controller-owned UNIX socket."""
+
+    _validate_broker_socket(socket_path)
+    if not isinstance(session, _Session):
+        raise ValueError("broker session is invalid")
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+            previous_umask = os.umask(0o177)
+            try:
+                listener.bind(str(socket_path))
+            finally:
+                os.umask(previous_umask)
+            listener.listen(1)
+            connection, _ = listener.accept()
+            with connection:
+                _serve_connection(connection, session)
+    finally:
+        try:
+            socket_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def proxy_stdio_unix(*, socket_path: Path, stdin: TextIO, stdout: TextIO) -> int:
+    """Bridge a clean actor's stdio to a controller-owned broker socket."""
+
+    _validate_broker_socket(socket_path, must_exist=True)
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+        try:
+            connection.connect(str(socket_path))
+        except OSError as error:
+            raise ValueError("broker socket is unavailable") from error
+        reader = connection.makefile("r", encoding="utf-8")
+        writer = connection.makefile("w", encoding="utf-8")
+        relay = threading.Thread(
+            target=_relay_responses,
+            args=(reader, stdout),
+            daemon=True,
+        )
+        relay.start()
+        try:
+            for line in stdin:
+                writer.write(line)
+                writer.flush()
+        finally:
+            writer.close()
+            connection.shutdown(socket.SHUT_WR)
+        relay.join()
+    return 0
+
+
+def _serve_connection(connection: socket.socket, session: _Session) -> None:
+    reader = connection.makefile("r", encoding="utf-8")
+    writer = connection.makefile("w", encoding="utf-8")
+    try:
+        for line in reader:
+            response = session.handle(line)
+            if response is not None:
+                writer.write(json.dumps(response, separators=(",", ":")) + "\n")
+                writer.flush()
+    finally:
+        reader.close()
+        writer.close()
+
+
+def _relay_responses(reader: TextIO, stdout: TextIO) -> None:
+    try:
+        for line in reader:
+            stdout.write(line)
+            stdout.flush()
+    finally:
+        reader.close()
+
+
+def _validate_broker_socket(socket_path: object, *, must_exist: bool = False) -> None:
+    if not isinstance(socket_path, Path) or not socket_path.is_absolute():
+        raise ValueError("broker socket is invalid")
+    if len(os.fsencode(socket_path)) >= 104:
+        raise ValueError("broker socket is invalid")
+    parent = socket_path.parent
+    if parent.is_symlink():
+        raise ValueError("broker socket is invalid")
+    try:
+        mode = os.lstat(parent).st_mode
+    except OSError as error:
+        raise ValueError("broker socket is unavailable") from error
+    if not stat.S_ISDIR(mode) or mode & 0o077:
+        raise ValueError("broker socket is unavailable")
+    if not must_exist:
+        if socket_path.exists() or socket_path.is_symlink():
+            raise ValueError("broker socket already exists")
+        return
+    try:
+        mode = os.lstat(socket_path).st_mode
+    except OSError as error:
+        raise ValueError("broker socket is unavailable") from error
+    if not stat.S_ISSOCK(mode) or socket_path.is_symlink():
+        raise ValueError("broker socket is unavailable")
 
 
 _RUN_TOOL = {
