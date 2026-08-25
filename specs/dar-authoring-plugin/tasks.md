@@ -196,26 +196,9 @@ passes.
       `agent-development` session with host-issued material/output handles; do
       not treat companion output as a standalone finalized package.
 - [ ] RED/GREEN: build the M4.4 clean-Codex author-then-run acceptance harness.
-      For every checked-in de-identified scenario, create one temporary Herdr
-      workspace and two separate clean Codex invocations: author a package from
-      a text-only request, then run that saved package from a second text-only
-      request. Supply only a temporary test marketplace/configuration, current
-      adapted skills, an identified local DAR wheel, and declared fixture
-      material; do not inherit operator plugins, configuration, credentials,
-      host state, package roots, or source-tree execution paths. Assert that the
-      second invocation selects and invokes the first package rather than
-      authoring a replacement. Record only redacted identities, digests,
-      validator/policy/capability outcomes, action/trace evidence, final result,
-      named human intent-fidelity review, and the case status. Exercise the
-      M4.4 scenario matrix in `plan.md`, including positive no-tool/read-only/
-      side-effect/ingress/portable-package cases and expected capability-gated
-      or safety-refusal cases. Use deterministic fake model, MCP, and OAuth
-      collaborators by default; a live provider run is optional separately
-      authorized evidence. Clean up all harness-owned temporary resources on
-      success, failure, and interruption. Derive every scenario's authoring
-      inputs and expected host outcome from
-      `m4-4-workflow-capability-matrix.md`; update that reference before adding
-      a previously unrepresented DAR capability.
+      Implement it per plan.md M4.4 and
+      `m4-4-workflow-capability-matrix.md`, including its checked-in scenario
+      manifests, hermetic fixtures, redacted evidence, and deterministic fakes.
 
 ## G2: Optional MCP Connection Control Plane and Surface Binding
 

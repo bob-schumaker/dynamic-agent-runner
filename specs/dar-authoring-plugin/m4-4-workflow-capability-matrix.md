@@ -9,9 +9,9 @@ provide a credential, or change approval policy.
 
 ## Common Authoring Input
 
-Every authoring case supplies a bounded task purpose, expected output schema,
-one human-configured local-model profile requirement, finite limits, and either
-inline examples or a selected `AuthoringMaterialSet`. It may additionally
+Every positive authoring case supplies a bounded task purpose, expected output
+schema, one human-configured local-model profile requirement, finite limits, and
+either inline examples or a selected `AuthoringMaterialSet`. It may additionally
 declare a hybrid invocation contract:
 
 ```yaml
@@ -41,7 +41,8 @@ connection requirements.
 | Capability | Additional authoring input | Expected status / host prerequisite |
 | --- | --- | --- |
 | Basic reasoning or document summary | Task instructions, examples, declared document artifact role, output shape | Positive with a compatible local model profile; no tools required. |
-| Finite multi-step graph | Named `llm_step`, `decision_step`, and `tool_use_step` behavior; routes, intermediate outputs, finite step bound | Package graph validation and compatible model profile. |
+| No-tool multi-step graph | Named `llm_step` and `decision_step` behavior; routes, intermediate outputs, finite step bound | Package graph validation and compatible model profile. |
+| Tool-using graph | A declared tool-use node plus its bounded routes and output rules | The tool's corresponding host binding and gate, in addition to graph validation. |
 | Structured terminal output | JSON schema or representative result | Output contract must match `task_invocation` terminal schema. |
 | Package-local skill | Skill purpose, instructions, distributable supporting files, nodes using its `skill_refs` | Bundle only under `skill-bundle/`; no external skill path. |
 | Read-only MCP tool | Stable connection requirement, reviewed semantic tool identifier, input/output schemas, call cap, result-use rules | G2 human-configured/authenticated connection and reviewed surface snapshot. |
@@ -51,7 +52,7 @@ connection requirements.
 | Tool argument provenance | For each argument: sealed field, original-prompt span, artifact role, package constant, or permitted content transform | G5 verifies `ArgumentProvenanceEnvelope`; raw or unverifiable values fail before dispatch. |
 | ReAct/tool loop | Declared tools, stopping condition, bounded total calls, final-output rule | Every tool must be declared, host-bound, and within the task call limit. |
 | OAuth-backed MCP connection | OAuth requirement and least scope by stable connection requirement | Human-only control-plane setup and G2. The authoring request contains no endpoint, redirect listener, code, token, or secret. |
-| Package portability | Package name, export request, and explicitly distributable material | M8 human trust/signing control plane; ZIP is delivery data, not an executable bundle. |
+| Package portability | Package name, export request, and explicitly distributable material | M4 records pre-publication unavailability. M8 proves recipient-host manifest verification and any required publisher-signature check; ZIP is delivery data, not an executable bundle. |
 | Evaluation | Acceptance cases, deterministic assertions, rubric, judge or human-review policy, regression threshold | Evaluation runs through tests/external harness, not DAR execution. |
 | Guardrails | Guardrail identifier, phase, tripwire behavior, failure message | Unsupported guardrail phases are capability-unavailable; broader profiles are deferred. |
 | Context pruning/pipeline | Context sources, ordering, byte/token budget, pruning policy | Conceptually package metadata; broader wrapper context profiles are deferred. |
@@ -64,18 +65,6 @@ connection requirements.
 
 ## Harness Interpretation
 
-Each M4.4 case must classify every requested capability before execution:
-
-- `pass`: all required gates and host prerequisites exist, and deterministic
-  package/state/safety assertions pass.
-- `expected_capability_unavailable`: the package correctly records a deferred
-  capability and preflight/run rejects it without fallback or provisioning.
-- `expected_refusal`: the request attempts an unsafe or prohibited surface,
-  such as arbitrary endpoint/path/secret provisioning, an undeclared tool, or
-  unbounded context.
-- `harness_failure`: isolation, package handoff, deterministic validation, or
-  expected-gate behavior is not proven.
-
-The corpus uses fake local model, MCP, and OAuth collaborators for deterministic
-positive cases. Live providers are optional separately authorized evidence and
-never substitute for the deterministic M4.4 gate.
+M4.4 in [`plan.md`](plan.md) is the sole contract for scenario manifests,
+fixture isolation, status classification, evidence, review, and fake-provider
+policy. This matrix defines only feature inputs and gates.
