@@ -212,7 +212,10 @@ passes.
       or safety-refusal cases. Use deterministic fake model, MCP, and OAuth
       collaborators by default; a live provider run is optional separately
       authorized evidence. Clean up all harness-owned temporary resources on
-      success, failure, and interruption.
+      success, failure, and interruption. Derive every scenario's authoring
+      inputs and expected host outcome from
+      `m4-4-workflow-capability-matrix.md`; update that reference before adding
+      a previously unrepresented DAR capability.
 
 ## G2: Optional MCP Connection Control Plane and Surface Binding
 

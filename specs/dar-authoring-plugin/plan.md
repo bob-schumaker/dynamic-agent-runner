@@ -284,6 +284,13 @@ prompt through the sealed, catalog-only runner interface.
    workspace, marketplace, host-state, credential fixture, and package copy it
    created on completion or failure.
 
+   Use [`m4-4-workflow-capability-matrix.md`](m4-4-workflow-capability-matrix.md)
+   as the scenario-authoring reference. It defines the common authoring input
+   envelope, feature-specific required inputs, applicable host gate, and the
+   correct positive, capability-unavailable, or refusal outcome. Update that
+   reference before adding a scenario for a DAR feature not yet represented in
+   the matrix.
+
    The harness records the allowed plugin/skill/wheel identities, prompt and
    package digests, deterministic package validation, selected capability and
    policy outcome, redacted trace/action evidence, final result, and the
