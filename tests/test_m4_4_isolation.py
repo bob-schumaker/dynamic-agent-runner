@@ -7,6 +7,9 @@ from pathlib import Path
 import pytest
 
 from dynamic_agent_runner.workflow_host.m4_4_isolation import (  # noqa: E402
+    DockerContainerIsolation,
+    M44ContainerIsolationRequest,
+    M44ContainerMount,
     M44IsolationError,
     M44IsolationRequest,
     MacOSSeatbeltIsolation,
@@ -89,3 +92,43 @@ def test_seatbelt_run_fails_closed_when_the_runtime_probe_is_unavailable(
 
     with pytest.raises(M44IsolationError, match="unavailable"):
         isolation.run(_request(tmp_path))
+
+
+def test_container_isolation_uses_virtual_paths_and_no_network(tmp_path: Path) -> None:
+    plugin = tmp_path / "plugin"
+    wheel = tmp_path / "runner.whl"
+    writable = tmp_path / "writable"
+    plugin.mkdir()
+    wheel.write_bytes(b"wheel")
+    writable.mkdir()
+    request = M44ContainerIsolationRequest(
+        image="m44-codex:test",
+        command=("codex", "exec", "--help"),
+        read_only_mounts=(
+            M44ContainerMount(plugin, "/inputs/plugin"),
+            M44ContainerMount(wheel, "/inputs/dynamic-agent-runner.whl"),
+        ),
+        writable_root=writable,
+        environment={"PATH": "/usr/local/bin:/usr/bin:/bin"},
+    )
+
+    command = DockerContainerIsolation().command(request)
+
+    assert command[:5] == ("docker", "run", "--rm", "--network", "none")
+    assert "--read-only" in command
+    assert "src=/inputs/plugin" not in " ".join(command)
+    assert any("dst=/inputs/plugin,readonly" in item for item in command)
+    assert any("dst=/workspace" in item for item in command)
+    assert str(plugin) in " ".join(command)
+
+
+def test_container_isolation_rejects_host_paths_as_virtual_targets(
+    tmp_path: Path,
+) -> None:
+    plugin = tmp_path / "plugin"
+    writable = tmp_path / "writable"
+    plugin.mkdir()
+    writable.mkdir()
+
+    with pytest.raises(M44IsolationError, match="virtual mount"):
+        M44ContainerMount(plugin, str(plugin))

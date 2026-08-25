@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import platform
+from pathlib import PurePosixPath
 import shutil
 import stat
 import subprocess
@@ -19,6 +20,8 @@ class M44IsolationError(ValueError):
 _ALLOWED_ENVIRONMENT_KEYS = frozenset(
     {
         "DAR_AUTHORING_MCP_MODE",
+        "DAR_AUTHORING_BROKER_SOCKET",
+        "DAR_AUTHORING_DAR_WHEEL",
         "DAR_AUTHORING_MATERIAL_SET_ID",
         "DAR_AUTHORING_OUTPUT_ID",
         "DAR_AUTHORING_PACKAGE_NAME",
@@ -130,9 +133,129 @@ class MacOSSeatbeltIsolation:
             raise M44IsolationError("isolated child could not be run") from error
 
 
+@dataclass(frozen=True)
+class M44ContainerMount:
+    """One host input made visible at a non-host virtual container path."""
+
+    host_path: Path
+    virtual_path: str
+
+    def __post_init__(self) -> None:
+        _validate_mount_source(self.host_path)
+        _validate_virtual_mount_path(self.virtual_path)
+
+
+@dataclass(frozen=True)
+class M44ContainerIsolationRequest:
+    """One clean actor launched with virtual read-only inputs and no network."""
+
+    image: str
+    command: tuple[str, ...]
+    read_only_mounts: tuple[M44ContainerMount, ...]
+    writable_root: Path
+    environment: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.image, str) or not self.image:
+            raise M44IsolationError("container image is invalid")
+        _validate_container_command(self.command)
+        _validate_directory(self.writable_root, "writable root")
+        if not self.read_only_mounts:
+            raise M44IsolationError("read-only mounts are invalid")
+        targets = tuple(mount.virtual_path for mount in self.read_only_mounts)
+        if len(set(targets)) != len(targets):
+            raise M44IsolationError("read-only mounts are invalid")
+        for mount in self.read_only_mounts:
+            if _overlaps(mount.host_path, self.writable_root):
+                raise M44IsolationError("read-only and writable roots overlap")
+        _validate_environment(self.environment)
+
+
+class DockerContainerIsolation:
+    """Container executor with virtual mounts and default-deny network access."""
+
+    def available(self) -> bool:
+        """Return whether a responding Docker daemon is available."""
+
+        executable = shutil.which("docker")
+        if executable is None:
+            return False
+        try:
+            result = subprocess.run(
+                [executable, "version", "--format", "{{.Server.Version}}"],
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=5,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return result.returncode == 0 and bool(result.stdout.strip())
+
+    def command(self, request: M44ContainerIsolationRequest) -> tuple[str, ...]:
+        """Return the exact Docker command without exposing it as acceptance evidence."""
+
+        _validate_container_request(request)
+        command: list[str] = [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--read-only",
+            "--tmpfs",
+            "/tmp:rw,noexec,nosuid,size=64m",
+        ]
+        for mount in request.read_only_mounts:
+            command.extend(
+                (
+                    "--mount",
+                    f"type=bind,src={mount.host_path},dst={mount.virtual_path},readonly",
+                )
+            )
+        command.extend(
+            (
+                "--mount",
+                f"type=bind,src={request.writable_root},dst=/workspace",
+                "-w",
+                "/workspace",
+            )
+        )
+        for key, value in sorted(request.environment.items()):
+            command.extend(("--env", f"{key}={value}"))
+        command.extend((request.image, *request.command))
+        return tuple(command)
+
+    def run(
+        self, request: M44ContainerIsolationRequest, *, timeout: float = 300
+    ) -> subprocess.CompletedProcess[str]:
+        """Run an isolated actor only with an available Docker daemon."""
+
+        _validate_container_request(request)
+        if timeout <= 0:
+            raise M44IsolationError("timeout is invalid")
+        if not self.available():
+            raise M44IsolationError("container isolation is unavailable")
+        try:
+            return subprocess.run(
+                self.command(request),
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=timeout,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise M44IsolationError("isolated child could not be run") from error
+
+
 def _validate_request(request: object) -> None:
     if not isinstance(request, M44IsolationRequest):
         raise M44IsolationError("isolation request is invalid")
+
+
+def _validate_container_request(request: object) -> None:
+    if not isinstance(request, M44ContainerIsolationRequest):
+        raise M44IsolationError("container isolation request is invalid")
 
 
 def _validate_command(command: object) -> None:
@@ -151,6 +274,43 @@ def _validate_command(command: object) -> None:
         raise M44IsolationError("command is unavailable") from error
     if not stat.S_ISREG(mode) or not os.access(executable, os.X_OK):
         raise M44IsolationError("command is unavailable")
+
+
+def _validate_container_command(command: object) -> None:
+    if (
+        not isinstance(command, tuple)
+        or not command
+        or any(not isinstance(item, str) or not item for item in command)
+    ):
+        raise M44IsolationError("container command is invalid")
+
+
+def _validate_mount_source(path: object) -> None:
+    if not isinstance(path, Path) or not path.is_absolute() or path.is_symlink():
+        raise M44IsolationError("mount source is invalid")
+    try:
+        mode = os.lstat(path).st_mode
+    except OSError as error:
+        raise M44IsolationError("mount source is unavailable") from error
+    if not stat.S_ISDIR(mode) and not stat.S_ISREG(mode):
+        raise M44IsolationError("mount source is unavailable")
+
+
+def _validate_virtual_mount_path(value: object) -> None:
+    if not isinstance(value, str) or not value:
+        raise M44IsolationError("virtual mount is invalid")
+    path = PurePosixPath(value)
+    if (
+        not path.is_absolute()
+        or ".." in path.parts
+        or path == PurePosixPath("/")
+        or not (
+            path.is_relative_to(PurePosixPath("/inputs"))
+            or path.is_relative_to(PurePosixPath("/broker"))
+        )
+        or path.is_relative_to(PurePosixPath("/workspace"))
+    ):
+        raise M44IsolationError("virtual mount is invalid")
 
 
 def _validate_directory(path: object, label: str) -> None:
