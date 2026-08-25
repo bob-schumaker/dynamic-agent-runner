@@ -325,6 +325,19 @@ prompt through the sealed, catalog-only runner interface.
    operator configuration**, not no host configuration or test-scoped Codex
    authentication.
 
+   A containerized clean actor must never mount a host controller socket, FIFO,
+   state root, credential root, or package root. It joins a per-scenario
+   internal-only Docker network with no default route. A separate trusted
+   controller container holds those private mounts, hosts the capability-reduced
+   broker, and joins that internal network. Its broker requires a fresh,
+   controller-issued capability token and exposes no general filesystem or
+   control-plane operation. If a test-scoped Codex-auth or fake-provider channel
+   is required, provide it through a separate allowlisted relay; the actor may
+   reach only that relay, and the relay must enforce its exact upstream
+   allowlist. Do not substitute direct UNIX-socket/FIFO bind mounts or a
+   macOS-host listener: Docker/OrbStack transport behavior is not portable and
+   does not prove the required boundary.
+
    A clean Codex run through model-facing `run_dar_workflow` proves only its
    closed prompt interface and MCP-mediated prompt preparation. It cannot attach
    a file or opaque artifact. Therefore prompt-only scenarios use that interface
