@@ -242,6 +242,46 @@ def test_mcp_launcher_uses_a_state_free_proxy_for_a_controller_broker(
     ]
 
 
+def test_mcp_launcher_uses_a_controller_broker_for_run_mode(tmp_path: Path) -> None:
+    launcher = PLUGIN_ROOT / "scripts" / "dar-mcp"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_uvx = fake_bin / "uvx"
+    arguments = tmp_path / "arguments"
+    fake_uvx.write_text(
+        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DAR_TEST_ARGUMENTS"\n',
+        encoding="utf-8",
+    )
+    fake_uvx.chmod(0o755)
+    wheel = tmp_path / "dynamic_agent_runner.whl"
+    wheel.touch()
+
+    completed = subprocess.run(
+        [str(launcher)],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        env={
+            **os.environ,
+            "DAR_AUTHORING_DAR_WHEEL": str(wheel),
+            "DAR_AUTHORING_MCP_MODE": "run",
+            "DAR_AUTHORING_BROKER_SOCKET": "/private/tmp/m44/broker.sock",
+            "DAR_TEST_ARGUMENTS": str(arguments),
+            "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        },
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert arguments.read_text(encoding="utf-8").splitlines() == [
+        "--from",
+        str(wheel),
+        "dynamic-agent-runner-mcp",
+        "--stdio-proxy",
+        "--socket",
+        "/private/tmp/m44/broker.sock",
+    ]
+
+
 def test_mcp_launcher_rejects_an_invalid_controller_package_name(
     tmp_path: Path,
 ) -> None:

@@ -98,6 +98,7 @@ from dynamic_agent_runner.workflow_host.registration import (
 )
 from dynamic_agent_runner.workflow_host.runner import (
     DryRunDarWorkflowResult,
+    RedactedRunTrace,
     RunDarWorkflowRequest,
     RunDarWorkflowResult,
     WorkflowRunner,
@@ -525,6 +526,21 @@ class LocalWorkflowHost:
             now=now,
         )
 
+    def finalize_and_select_authored_output(
+        self,
+        *,
+        output_id: str,
+        material_set_id: str,
+        now: datetime,
+    ) -> tuple[AuthoredPackageValidation, str]:
+        """Consume one finalized authoring output into an opaque source handle."""
+
+        package_root = self._authoring_outputs.consume_package_path(output_id, now=now)
+        validation = self.finalize_authored_package(
+            package_root=package_root, material_set_id=material_set_id, now=now
+        )
+        return validation, self.select_package(package_root, now=now)
+
     def select_publisher_package(self, path: Path, *, now: datetime) -> str:
         """Return an opaque handle for one human-selected publisher ZIP package."""
 
@@ -786,6 +802,11 @@ class LocalWorkflowHost:
             now=now,
             approval_broker=approval_broker,
         )
+
+    def run_traces(self) -> tuple[RedactedRunTrace, ...]:
+        """Return redaction-safe traces for completed or failed local runs."""
+
+        return self._runner.traces()
 
     def _ensure_mcp_client_for_workflow(self, workflow_id: str) -> None:
         try:

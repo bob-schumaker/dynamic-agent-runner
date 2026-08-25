@@ -78,9 +78,17 @@ def main(
 
 
 class _Session:
-    def __init__(self, *, host_opener=LocalWorkflowHost.open) -> None:
+    def __init__(
+        self,
+        *,
+        host: Any | None = None,
+        allowed_workflow_id: str | None = None,
+        host_opener=LocalWorkflowHost.open,
+    ) -> None:
         self._initialized = False
         self._ready = False
+        self._host = host
+        self._allowed_workflow_id = allowed_workflow_id
         self._host_opener = host_opener
 
     def handle(self, line: str) -> dict[str, Any] | None:
@@ -119,7 +127,7 @@ class _Session:
 
     def _available_tools(self) -> list[dict[str, object]]:
         try:
-            self._host_opener(_default_state_root())
+            self._open_host()
         except (ValueError, OSError):
             return []
         return [_RUN_TOOL]
@@ -150,8 +158,13 @@ class _Session:
             return _error(request_id, -32602, "Invalid tool request")
         if params.get("name") != "run_dar_workflow":
             return _error(request_id, -32602, "Invalid tool request")
+        if (
+            self._allowed_workflow_id is not None
+            and arguments.get("workflow_id") != self._allowed_workflow_id
+        ):
+            return _error(request_id, -32000, "Workflow run failed")
         try:
-            host = self._host_opener(_default_state_root())
+            host = self._open_host()
             prepared = _prepare_request(host, arguments)
             result = host.run(
                 workflow_id=prepared[0],
@@ -181,6 +194,9 @@ class _Session:
             },
         )
 
+    def _open_host(self) -> Any:
+        return self._host or self._host_opener(_default_state_root())
+
 
 class _AuthoringSession(_Session):
     """One capability-reduced authoring session for a pre-issued material set."""
@@ -194,7 +210,7 @@ class _AuthoringSession(_Session):
         host: Any | None = None,
         host_opener=LocalWorkflowHost.open,
     ) -> None:
-        super().__init__(host_opener=host_opener)
+        super().__init__(host=host, host_opener=host_opener)
         if not isinstance(material_set_id, str) or not material_set_id:
             raise ValueError("authoring material set is invalid")
         if not isinstance(package_name, str) or not package_name:
@@ -204,7 +220,6 @@ class _AuthoringSession(_Session):
         self._material_set_id = material_set_id
         self._package_name = package_name
         self._authoring_output_id = authoring_output_id
-        self._host = host
         self._created = False
 
     def _available_tools(self) -> list[dict[str, object]]:
@@ -233,9 +248,6 @@ class _AuthoringSession(_Session):
             return _authoring_result(request_id, handler(self._open_host(), arguments))
         except (ValueError, OSError):
             return _error(request_id, -32000, "Authoring request failed")
-
-    def _open_host(self) -> Any:
-        return self._host or self._host_opener(_default_state_root())
 
     def _project_materials(
         self, host: Any, arguments: Mapping[str, object]
@@ -324,6 +336,7 @@ def serve_authoring_broker(
     material_set_id: str,
     package_name: str,
     authoring_output_id: str,
+    stop_event: threading.Event | None = None,
 ) -> None:
     """Serve one controller-owned authoring session without ambient host state."""
 
@@ -337,10 +350,33 @@ def serve_authoring_broker(
             authoring_output_id=authoring_output_id,
             host=host,
         ),
+        stop_event=stop_event,
     )
 
 
-def serve_session_unix(*, socket_path: Path, session: _Session) -> None:
+def serve_workflow_broker(
+    *,
+    socket_path: Path,
+    host: LocalWorkflowHost,
+    workflow_id: str,
+    stop_event: threading.Event | None = None,
+) -> None:
+    """Serve one controller-owned generic workflow session without host paths."""
+
+    if not isinstance(host, LocalWorkflowHost):
+        raise ValueError("broker host is invalid")
+    if not isinstance(workflow_id, str) or not workflow_id:
+        raise ValueError("broker workflow is invalid")
+    serve_session_unix(
+        socket_path=socket_path,
+        session=_Session(host=host, allowed_workflow_id=workflow_id),
+        stop_event=stop_event,
+    )
+
+
+def serve_session_unix(
+    *, socket_path: Path, session: _Session, stop_event: threading.Event | None = None
+) -> None:
     """Serve one already-bound host session over a controller-owned UNIX socket."""
 
     _validate_broker_socket(socket_path)
@@ -354,9 +390,15 @@ def serve_session_unix(*, socket_path: Path, session: _Session) -> None:
             finally:
                 os.umask(previous_umask)
             listener.listen(1)
-            connection, _ = listener.accept()
-            with connection:
-                _serve_connection(connection, session)
+            listener.settimeout(0.1)
+            while stop_event is None or not stop_event.is_set():
+                try:
+                    connection, _ = listener.accept()
+                except TimeoutError:
+                    continue
+                with connection:
+                    _serve_connection(connection, session)
+                return
     finally:
         try:
             socket_path.unlink()

@@ -26,7 +26,11 @@ fi
 
 case "${DAR_AUTHORING_MCP_MODE:-run}" in
     run)
-        set -- --stdio
+        if [ -n "${DAR_AUTHORING_BROKER_SOCKET:-}" ]; then
+            set -- --stdio-proxy --socket "$DAR_AUTHORING_BROKER_SOCKET"
+        else
+            set -- --stdio
+        fi
         ;;
     authoring)
         if [ -n "${DAR_AUTHORING_BROKER_SOCKET:-}" ]; then

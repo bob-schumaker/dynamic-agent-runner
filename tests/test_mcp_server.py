@@ -120,6 +120,56 @@ def test_stdio_server_seals_input_before_running_a_registered_workflow() -> None
     }
 
 
+def test_stdio_server_uses_a_controller_bound_host() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from dynamic_agent_runner.workflow_host.preparation import PreparedWorkflowInput
+    from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowResult
+    from dynamic_agent_runner.workflow_host.server import _Session
+
+    class Host:
+        def prepare(self, *, workflow_id: str, prompt: str, now: object):
+            return PreparedWorkflowInput(
+                prepared_input_id="v1.bound.signature",
+                workflow_id=workflow_id,
+                registration_digest="registration-digest",
+                expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            )
+
+        def run(self, *, workflow_id: str, prepared_input_id: str, now: object):
+            return RunDarWorkflowResult(
+                status="completed", run_id="bound-run", output={"message": "done"}
+            )
+
+    session = _Session(
+        host=Host(), host_opener=lambda _root: (_ for _ in ()).throw(AssertionError())
+    )
+    session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
+    session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')
+
+    response = session.handle(
+        """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run_dar_workflow","arguments":{"format_version":1,"workflow_id":"document-helper","prompt":"Answer this document question."}}}"""
+    )
+
+    assert response is not None
+    assert response["result"]["structuredContent"]["run_id"] == "bound-run"
+
+
+def test_stdio_server_rejects_a_workflow_outside_a_bound_session() -> None:
+    from dynamic_agent_runner.workflow_host.server import _Session
+
+    session = _Session(host=object(), allowed_workflow_id="document-helper")
+    session.handle('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
+    session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')
+
+    response = session.handle(
+        """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run_dar_workflow","arguments":{"format_version":1,"workflow_id":"other-workflow","prompt":"Do not run."}}}"""
+    )
+
+    assert response is not None
+    assert response["error"] == {"code": -32000, "message": "Workflow run failed"}
+
+
 def test_stdio_server_rejects_a_caller_supplied_prepared_input() -> None:
     from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowResult
     from dynamic_agent_runner.workflow_host.server import _Session
