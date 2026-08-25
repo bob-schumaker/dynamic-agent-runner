@@ -102,6 +102,14 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    This proves the local-wheel discovery path only. It does not prove a
    marketplace reinstall of this revision, a configured-host discovery, or the
    signed-release boundary required by M1.2.
+
+   **Published-release dependency (2026-08-24).** The configured public simple
+   index currently stops at `dynamic-agent-runner==0.1.15`. Its wheel exposes
+   `dynamic-agent-runner` and `graphify-extract`, but not
+   `dynamic-agent-runner-mcp`; `0.1.16` is therefore intentionally retained as
+   the required launcher version and the normal Artifactory fallback cannot
+   start until the build system publishes that release. Downgrading the plugin
+   would make its declared MCP server impossible to launch.
 2. **M1.2: Lock the launcher supply chain.** After M1.1 succeeds, implement the
    checked-in `uvx` launch contract for DAR's `dynamic-agent-runner-mcp` entry
    point and verification of the selected DAR artifacts against signed release
