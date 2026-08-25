@@ -515,13 +515,12 @@ def test_host_composes_human_setup_with_sealed_dry_run(
     registration = host.register(
         workflow_id="document-helper", package_source_handle=source_handle, now=NOW
     )
-    prepared = host.prepare(
-        workflow_id=registration.workflow_id, prompt="Answer me.", now=NOW
-    )
-
-    result = host.dry_run(
-        workflow_id=registration.workflow_id,
-        prepared_input_id=prepared.prepared_input_id,
+    result = host.invoke_saved(
+        package_name=registration.workflow_id,
+        prompt="Answer me.",
+        workspace_files=(),
+        dry_run=True,
+        approval_broker=None,
         now=NOW,
     )
 

@@ -129,6 +129,18 @@ class LocalWorkflowHostError(ValueError):
 
 
 @dataclass(frozen=True)
+class SavedWorkflowDryRunResult:
+    """Redaction-safe resolution receipt for one saved workflow dry run."""
+
+    status: str
+    workflow_id: str
+    registration_digest: str
+    package_id: str
+    revision_digest: str
+    profile_id: str
+
+
+@dataclass(frozen=True)
 class LocalWorkflowHostConfiguration:
     """Private setup record for one OS-user local workflow host."""
 
@@ -701,6 +713,57 @@ class LocalWorkflowHost:
             prompt=prompt,
             workspace_artifact_ids=workspace_artifact_ids,
             now=now,
+        )
+
+    def invoke_saved(
+        self,
+        *,
+        package_name: str,
+        prompt: str,
+        workspace_files: Sequence[Path],
+        dry_run: bool,
+        approval_broker: LocalActionApprovalBroker | None,
+        now: datetime,
+    ) -> SavedWorkflowDryRunResult | RunDarWorkflowResult:
+        """Run one registered saved package without accepting source authority."""
+
+        if dry_run and workspace_files:
+            raise LocalWorkflowHostError("dry run cannot accept workspace files")
+        try:
+            registration = self._registrations.resolve(package_name)
+        except WorkflowRegistrationError as error:
+            raise LocalWorkflowHostError("saved package is unavailable") from error
+        artifact_ids = tuple(
+            self.ingress_default_file(
+                workflow_id=registration.workflow_id, path=path, now=now
+            ).artifact_id
+            for path in workspace_files
+        )
+        prepared = self.prepare(
+            workflow_id=registration.workflow_id,
+            prompt=prompt,
+            workspace_artifact_ids=artifact_ids,
+            now=now,
+        )
+        if dry_run:
+            self.dry_run(
+                workflow_id=registration.workflow_id,
+                prepared_input_id=prepared.prepared_input_id,
+                now=now,
+            )
+            return SavedWorkflowDryRunResult(
+                status="ready",
+                workflow_id=registration.workflow_id,
+                registration_digest=registration.registration_digest,
+                package_id=registration.package_id,
+                revision_digest=registration.revision_digest,
+                profile_id=registration.profile_id,
+            )
+        return self.run(
+            workflow_id=registration.workflow_id,
+            prepared_input_id=prepared.prepared_input_id,
+            now=now,
+            approval_broker=approval_broker,
         )
 
     def ingress_file(

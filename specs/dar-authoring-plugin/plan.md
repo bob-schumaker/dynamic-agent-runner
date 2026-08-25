@@ -191,20 +191,27 @@ provisioning.
    single-use by default; reuse requires an immutable read-only profile policy
    with explicit maximum uses and expiry.
 3. **M3.3: Expose the one runner interface.** Add the versioned `dar-package
-   invoke` request/response schema and CLI path. It accepts only a catalog
-   workflow ID, prompt, and descriptor-declared inputs, seals them internally,
+   invoke` request/response schema and CLI path. It accepts only a saved package
+   name, stdin prompt, and descriptor-declared inputs, resolves the immutable
+   registration internally, and seals inputs internally,
    runs DAR
    package-loader preflight only against the immutable private staged package
    root, invokes DAR through its library API with a fake strict local adapter,
    validates terminal output, and emits bounded redacted tracing. The sealed ID
    never reaches the skill. A catalog-valid but DAR-preflight-invalid
    revision fails before model or handler entry.
+   Implemented by the skill-facing façade and saved-registration composition:
+   it accepts no path, workflow ID, prepared-input ID, profile, endpoint, or
+   MCP-binding argument.
 4. **M3.4: Add the local CLI façade and dry run.** Implement
    private handle/preparation services beneath `dar-package invoke`. Test
    that `--dry-run` calls neither a model nor a handler. The CLI may accept raw
    prompt text only at invocation preparation and passes only a
    `PreparedWorkflowInput` to DAR; skills receive neither its identifier nor a
    separate run command.
+   Implemented: `dar-package invoke` parses only its closed flags, emits
+   versioned redacted JSON, and stops a dry-run workspace request before opening
+   the host or copying a file.
 5. **M3.5: Compose local invocation.** Add the skill-facing
    `dar-package invoke --package-name --prompt-stdin` composition command. It
    resolves only a saved package against its configured profile and reviewed
@@ -212,6 +219,8 @@ provisioning.
    accept model settings or tool provisioning; it preserves `--dry-run` and
    local `--ask` behavior. A supplied workspace file is admitted only through a
    one-role/one-media-type registered contract; dry run rejects it before ingress.
+   Implemented for an already registered saved package. Human package selection
+   and registration remain separate setup operations and are not invoke flags.
 
 M3 exit: a skill can repeatedly invoke a saved no-tool package with a prompt
 through the sealed, catalog-only runner interface.

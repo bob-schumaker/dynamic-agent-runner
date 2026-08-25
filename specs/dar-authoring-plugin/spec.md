@@ -680,7 +680,7 @@ binding during an authorized side-effect dispatch. Cancellation is
 capability-negotiated. A cancelled non-cancellable external mutation has an
 indeterminate outcome and cannot be retried automatically.
 
-The versioned `dar-package invoke` request contract shall have this shape:
+Internally, the versioned `dar-package invoke` request object has this shape:
 
 ```json
 {
@@ -690,6 +690,8 @@ The versioned `dar-package invoke` request contract shall have this shape:
 }
 ```
 
+This is not an alternate JSON or `--prompt` CLI input surface. The sole public
+skill-facing syntax is the `--prompt-stdin` command defined in FR-6 below.
 `package_name` is a closed-set saved-package identifier. DAR resolves its
 registered `workflow_id` internally. The CLI sends `prompt` only to `WorkflowInvocationPreparationService`,
 which issues an unexpired sealed input for that local principal and exact
@@ -718,6 +720,14 @@ Responses shall use discriminated, versioned schemas with a non-secret run or
 correlation ID and bounded payloads. Required response kinds are `completed`,
 `authentication_required`, `surface_changed`, `approval_required`,
 `capability_unavailable`, and `failed`.
+
+The initial no-tool `dar-package invoke` slice can reach only `completed`,
+`capability_unavailable`, and `failed`: it has no configured external
+connection or approval boundary. Its dry-run `completed` receipt contains only
+the resolved workflow ID, registration digest, package ID/revision digest, and
+profile ID; it contains no source path, endpoint, credential, or raw input.
+The authentication, surface-change, and approval-required kinds become required
+when the role-scoped MCP/side-effect invocation façade is added.
 
 `completed` contains only output validated against the package terminal-output
 schema and bounded by its response policy. Schema failure or excess output is a

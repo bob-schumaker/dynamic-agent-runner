@@ -587,7 +587,7 @@ def _invoke_package_result(
         workflow_id=args.workflow_id,
         prepared_input_id=prepared.prepared_input_id,
         now=now,
-        approval_broker=_TerminalApprovalBroker() if args.ask else None,
+        approval_broker=TerminalApprovalBroker() if args.ask else None,
     )
     return {
         "status": result.status,
@@ -640,7 +640,7 @@ def _run(
         workflow_id=args.workflow_id,
         prepared_input_id=args.prepared_input_id,
         now=now,
-        approval_broker=_TerminalApprovalBroker() if args.ask else None,
+        approval_broker=TerminalApprovalBroker() if args.ask else None,
     )
     _write(write, {"status": result.status, "run_id": result.run_id, **result.output})
     return 0
@@ -661,7 +661,7 @@ def _write(write: Callable[[str], None], value: dict[str, object]) -> None:
     write(json.dumps(value, sort_keys=True, separators=(",", ":")))
 
 
-class _TerminalApprovalBroker:
+class TerminalApprovalBroker:
     """Prompt the local terminal user for one normalized external action."""
 
     def decide(

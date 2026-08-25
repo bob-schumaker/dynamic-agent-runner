@@ -297,15 +297,16 @@ make the Codex plugin an MCP server.
       binds workflow/package/revision/registration identifiers plus a sealed
       prepared-input identifier and expiry. It never returns that identifier to
       the skill.
-- [ ] RED/GREEN: versioned `dar-package invoke` request/response schema accepts
+- [x] RED/GREEN: versioned `dar-package invoke` request/response schema accepts
       only a closed-set saved package name, prompt, and descriptor-declared
       inputs; it internally seals input and rejects caller-supplied prepared IDs
       or undeclared hybrid-input fields before preparation or execution.
-- [ ] RED/GREEN: human/skill invocation composes local package-source
-      selection, immutable registration, sealed preparation, and one run. It
-      accepts only an already reviewed opaque MCP binding, preserves `--dry-run`
-      and local `--ask`.
-- [ ] RED/GREEN: `dar-package invoke --workspace-file` ingresses only under an
+- [x] RED/GREEN: human/skill invocation resolves an already-saved immutable
+      registration, seals preparation, and executes one run. Source selection
+      and registration remain human-only setup operations; invocation accepts no
+      path, profile, model, endpoint, or MCP-binding argument, and preserves
+      `--dry-run` and local `--ask`.
+- [x] RED/GREEN: `dar-package invoke --workspace-file` ingresses only under an
       unambiguous registered one-role/one-media-type contract; ambiguous packages
       require explicit ingress and dry runs reject files before any copy.
 - [x] RED/GREEN: `WorkflowInvocationPreparationService` alone seals no-tool
