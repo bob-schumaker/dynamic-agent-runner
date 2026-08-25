@@ -111,8 +111,11 @@ fixture-contract validation; publication remains blocked on M4 and M8.
 4. **M1.3: Migrate the plugin surface.** After M1.1–M1.2 pass, rewrite every
    bundled skill/template to the exact pinned command and statically verify its
    index/version/`version --json` text. Then delete `.mcp.json`, `mcpServers`,
-   `dar-mcp`, the MCP session broker, and their tests in the same migration slice.
-   The clean plugin smoke test must find skills and no plugin-provided MCP server.
+   `dar-mcp`, the plugin-owned session-broker launch path, and their tests in the
+   same migration slice. This does not remove DAR's generic MCP entry point;
+   replacing its authoring-broker compatibility surface requires the later
+   role-scoped CLI acceptance coverage. The clean plugin smoke test must find
+   skills and no plugin-provided MCP server.
 5. **M1.4: Verify wheel entry-point assets.** Inspect the built wheel's
    `dist-info/entry_points.txt` and `RECORD` membership to prove the
    `dar-package` mapping is packaged. This is asset-presence evidence, not a
