@@ -54,6 +54,7 @@ def test_release_metadata_uses_canonical_unsigned_bytes_and_ed25519_envelope() -
             metadata=metadata,
             signature=signature,
             trusted_keys={"release-root": public_key},
+            now=datetime(2026, 8, 24, tzinfo=UTC),
         )
         == "release-root"
     )
@@ -73,6 +74,7 @@ def test_release_metadata_rejects_tampering_or_an_untrusted_signer() -> None:
             metadata=metadata,
             signature=signature,
             trusted_keys={},
+            now=datetime(2026, 8, 24, tzinfo=UTC),
         )
 
 
