@@ -42,6 +42,30 @@ def main(
         except ValueError:
             print("Broker proxy is unavailable", file=stderr)
             return 2
+    if (
+        len(values) == 9
+        and values[0:2] == ["--authoring-unix-broker", "--socket"]
+        and values[2]
+        and values[3] == "--material-set-id"
+        and values[4]
+        and values[5] == "--package-name"
+        and values[6]
+        and values[7] == "--authoring-output-id"
+        and values[8]
+    ):
+        try:
+            serve_session_unix(
+                socket_path=Path(values[2]),
+                session=_AuthoringSession(
+                    material_set_id=values[4],
+                    package_name=values[6],
+                    authoring_output_id=values[8],
+                ),
+            )
+        except ValueError:
+            print("Authoring broker is unavailable", file=stderr)
+            return 2
+        return 0
     if values == ["--stdio"]:
         session: _Session = _Session()
     elif (
@@ -62,6 +86,8 @@ def main(
         print(
             "Usage: dynamic-agent-runner-mcp --stdio | "
             "--stdio-proxy --socket PATH | "
+            "--authoring-unix-broker --socket PATH --material-set-id ID "
+            "--package-name NAME --authoring-output-id ID | "
             "--authoring-stdio --material-set-id ID --package-name NAME "
             "--authoring-output-id ID",
             file=stderr,

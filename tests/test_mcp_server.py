@@ -321,6 +321,100 @@ def test_stdio_proxy_is_reachable_through_the_public_server_entrypoint(
         )
 
 
+def test_public_authoring_broker_mode_serves_a_controller_issued_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The controller can start the private broker without exposing state to Codex."""
+    from datetime import UTC, datetime
+    from io import StringIO
+    import tempfile
+    import threading
+    import time
+
+    from dynamic_agent_runner.workflow_host.authoring_materials import (
+        AuthoringMaterialInput,
+    )
+    from dynamic_agent_runner.workflow_host.host import (
+        LocalWorkflowHost,
+        configure_local_host,
+    )
+    from dynamic_agent_runner.workflow_host.server import main
+
+    state_root = tmp_path / "state"
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    configure_local_host(
+        root=state_root,
+        package_root=package_root,
+        model_id="local-test-model",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    host = LocalWorkflowHost.open(state_root)
+    material = host.issue_authoring_materials(
+        materials=(
+            AuthoringMaterialInput(
+                role="task",
+                content="Design a summary workflow.",
+                disposition="reference_only",
+            ),
+        ),
+        now=datetime.now(UTC),
+    )
+    output = host.create_authored_package(
+        package_name="document-summary", now=datetime.now(UTC)
+    )
+    monkeypatch.setenv("DAR_AUTHORING_STATE_ROOT", str(state_root))
+
+    with tempfile.TemporaryDirectory(dir="/private/tmp", prefix="m44-broker-") as root:
+        socket_path = Path(root) / "broker.sock"
+        broker = threading.Thread(
+            target=main,
+            kwargs={
+                "argv": [
+                    "--authoring-unix-broker",
+                    "--socket",
+                    str(socket_path),
+                    "--material-set-id",
+                    material.material_set_id,
+                    "--package-name",
+                    output.package_name,
+                    "--authoring-output-id",
+                    output.output_id,
+                ],
+                "stdin": StringIO(),
+                "stdout": StringIO(),
+                "stderr": StringIO(),
+            },
+            daemon=True,
+        )
+        broker.start()
+        for _ in range(100):
+            if socket_path.exists():
+                break
+            time.sleep(0.01)
+        else:
+            pytest.fail("broker did not bind its socket")
+
+        client_input = StringIO(
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n'
+        )
+        client_output = StringIO()
+        assert (
+            main(
+                ["--stdio-proxy", "--socket", str(socket_path)],
+                stdin=client_input,
+                stdout=client_output,
+                stderr=StringIO(),
+            )
+            == 0
+        )
+        broker.join(timeout=1)
+
+    assert json.loads(client_output.getvalue())["result"]["serverInfo"]["name"] == (
+        "Dynamic Agent Runner"
+    )
+
+
 def test_authoring_stdio_server_exposes_only_the_controller_issued_broker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
