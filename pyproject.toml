@@ -10,6 +10,7 @@ dynamic = ["dependencies", "requires-python"]
 [project.scripts]
 dynamic-agent-runner = "dynamic_agent_runner.cli:console_main"
 dynamic-agent-runner-mcp = "dynamic_agent_runner.mcp_server:console_main"
+dar-package = "dynamic_agent_runner.dar_package_cli:console_main"
 dar-workflow = "dynamic_agent_runner.workflow_host.cli:console_main"
 dar-workflow-run = "dynamic_agent_runner.workflow_host.cli:run_console_main"
 graphify-extract = "dynamic_agent_runner.tools.graphify_cli:console_main"
