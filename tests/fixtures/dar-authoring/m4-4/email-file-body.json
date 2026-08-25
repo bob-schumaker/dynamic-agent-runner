@@ -1,0 +1,24 @@
+{
+  "expected_status": "pass",
+  "expected_terminal_phase": "invocation",
+  "format_version": "m4.4-v1",
+  "invocation_mode": "host_prepared_cli",
+  "required_artifact_roles": [
+    "email_body"
+  ],
+  "required_gates": [
+    "G2",
+    "G4",
+    "G5"
+  ],
+  "required_host_fixtures": [
+    "local-model-profile",
+    "reviewed-mcp-connection",
+    "trusted-workspace-ingress",
+    "approval-broker"
+  ],
+  "scenario_id": "email-file-body-v1",
+  "zero_dispatch_assertions": [
+    "no-dispatch-without-artifact-provenance"
+  ]
+}

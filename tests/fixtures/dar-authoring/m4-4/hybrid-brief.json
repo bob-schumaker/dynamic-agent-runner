@@ -1,0 +1,22 @@
+{
+  "expected_status": "pass",
+  "expected_terminal_phase": "invocation",
+  "format_version": "m4.4-v1",
+  "invocation_mode": "host_prepared_cli",
+  "required_artifact_roles": [
+    "brief",
+    "risk-artifact"
+  ],
+  "required_gates": [
+    "G3",
+    "G4"
+  ],
+  "required_host_fixtures": [
+    "local-model-profile",
+    "trusted-workspace-ingress"
+  ],
+  "scenario_id": "hybrid-brief-v1",
+  "zero_dispatch_assertions": [
+    "no-undeclared-tool-dispatch"
+  ]
+}

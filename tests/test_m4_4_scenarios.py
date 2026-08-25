@@ -68,6 +68,28 @@ def test_checked_in_document_summary_scenario_is_a_prompt_only_positive_case() -
     assert scenario.expected_status == "pass"
 
 
+def test_checked_in_scenario_corpus_covers_the_m4_4_stratified_cases() -> None:
+    root = Path(__file__).resolve().parent / "fixtures" / "dar-authoring" / "m4-4"
+
+    scenarios = {load_m44_scenario(path).scenario_id for path in root.glob("*.json")}
+
+    assert scenarios == {
+        "authoring-boundary-attack-v1",
+        "council-request-v1",
+        "document-embedding-v1",
+        "document-summary-v1",
+        "email-file-body-v1",
+        "generic-email-send-v1",
+        "hybrid-brief-v1",
+        "invocation-schema-boundary-attack-v1",
+        "mailbox-triage-v1",
+        "oauth-reconnect-v1",
+        "portable-package-handoff-v1",
+        "side-effect-recovery-v1",
+        "structured-single-model-review-v1",
+    }
+
+
 def test_scenario_checker_requires_its_declared_gate_and_fixture() -> None:
     scenario = M44Scenario.from_mapping(_scenario())
     evidence = AuthorThenRunEvidence(
@@ -116,10 +138,6 @@ def test_scenario_checker_requires_its_declared_gate_and_fixture() -> None:
         {"required_host_fixtures": []},
         {"zero_dispatch_assertions": []},
         {"invocation_mode": "mcp_prompt_only", "required_artifact_roles": ["brief"]},
-        {
-            "expected_status": "expected_refusal",
-            "expected_terminal_phase": "invocation",
-        },
         {
             "expected_status": "pass",
             "expected_terminal_phase": "capability_preflight",

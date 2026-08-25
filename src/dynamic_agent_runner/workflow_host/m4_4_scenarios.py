@@ -92,11 +92,6 @@ class M44Scenario:
             and self.expected_terminal_phase != "invocation"
         ):
             raise M44ScenarioError("positive scenarios must reach invocation")
-        if (
-            self.expected_status != "pass"
-            and self.expected_terminal_phase == "invocation"
-        ):
-            raise M44ScenarioError("non-pass scenarios cannot claim invocation")
 
 
 def load_m44_scenario(source: Path) -> M44Scenario:

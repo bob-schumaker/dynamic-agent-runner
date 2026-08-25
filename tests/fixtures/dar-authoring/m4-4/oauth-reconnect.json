@@ -1,0 +1,19 @@
+{
+  "expected_status": "pass",
+  "expected_terminal_phase": "invocation",
+  "format_version": "m4.4-v1",
+  "invocation_mode": "mcp_prompt_only",
+  "required_artifact_roles": [],
+  "required_gates": [
+    "G2"
+  ],
+  "required_host_fixtures": [
+    "local-model-profile",
+    "oauth-connection",
+    "fake-oauth-provider"
+  ],
+  "scenario_id": "oauth-reconnect-v1",
+  "zero_dispatch_assertions": [
+    "no-browser-dispatch-from-clean-turn"
+  ]
+}
