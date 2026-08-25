@@ -42,7 +42,7 @@ only path to an end-to-end authoring-plugin publication claim.
 | Milestone | Gate | Outcome | Depends on |
 | --- | --- | --- | --- |
 | M0 | RA0 — authoring baseline | Static adapted-skill provenance, fixture contracts, and canonical basic/tool package templates are implemented. | None |
-| M1 | G0 — package/CLI spike | Minimal skills-to-CLI proof, then release-integrity proof. | None |
+| M1 | G0 — package/CLI spike | Minimal skills-to-CLI proof from an installed wheel. | None |
 | M2 | G1 runtime core | Human-selected directory staging, policy compilation, and package-only preflight. Implemented. | M1 |
 | M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. Implemented. | M2 |
 | M4 | RA1 — authoring acceptance | M4.0 material projection and M4.1 redacted evidence contract are implemented; external adapted-skill behavior and two clean-Codex author-then-run cases remain. | M0, M2, M3 |
@@ -94,29 +94,35 @@ fixture-contract validation; publication remains blocked on M4 and M8.
 
 ### M1 — G0 packaging and CLI spike
 
-1. **M1.0: Retire the obsolete MCP launch topology.** Replace the old
-   `.mcp.json`/`dar-mcp` discovery evidence with a clean plugin proof that only
-   skills are installed. Delete the server/broker path after focused CLI tests
-   replace it. Previous MCP `initialize` and `codex mcp list` observations are
-   historical evidence for a rejected design and are not M1 completion evidence.
-2. **M1.1: Prove the minimal skills-to-CLI launch.** Against the target Codex
-   build, prove an installed plugin exposes its adapted skills without source-path
-   interpolation and that a skill can execute the checked-in `uv run ...
-   dar-package --help` command from an installed wheel. Record the installation
-   path, command template, resolved wheel identity, and clean-directory JSON
-   receipt evidence. Stop if the CLI topology is unsupported.
-3. **M1.2: Lock the CLI invocation.** After M1.1 succeeds, add the exact pinned
-   Artifactory command to the bundled skills and test rejection of a different
-   index or DAR version. The local plugin itself is not an Artifactory artifact.
-4. **M1.3: Prove runtime-wheel isolation.** Resolve the DAR wheel from a clean
-   directory and test it there: its `dar-package` entry point and runtime assets
-   are present, startup records resolved dependencies, and no source-tree path is
-   exposed. Until the build system publishes a candidate, the developer check
-   builds a local wheel and runs
-   `uv run --no-project --with <absolute-wheel-path> dar-package <command>` in
-   an isolated temporary directory after verifying every archive payload against
-   its wheel `RECORD`; this proves local-wheel behavior only and does not prove
-   Artifactory resolution.
+1. **M1.0: Audit the obsolete MCP launch topology.** Inventory the old
+   `.mcp.json`/`dar-mcp` discovery evidence and tests. It is historical evidence
+   for a rejected design and is not M1 completion evidence; do not delete it
+   until M1.3's replacement coverage passes.
+2. **M1.1: Add the CLI entry point and discovery receipt.** Start RED with
+   entry-point tests for `dar-package version --json`: exact stdout receipt,
+   redacted JSON stderr failure, nonzero failure exit, and no source/state path
+   exposure. Then add the `dar-package` console entry point to the DAR wheel.
+   The existing `dar-workflow` entry points remain human-only migration
+   compatibility commands and are not aliases for the skill-facing contract.
+3. **M1.2: Prove the local-wheel entry point.** From a fresh temporary working
+   directory, execute `uv run --no-project --with <absolute-wheel-path>
+   dar-package version --json`. Record the resolved wheel identity and receipt;
+   prove the command neither opens state nor emits a source or state path.
+4. **M1.3: Migrate the plugin surface.** After M1.1–M1.2 pass, rewrite every
+   bundled skill/template to the exact pinned command and statically verify its
+   index/version/`version --json` text. Then delete `.mcp.json`, `mcpServers`,
+   `dar-mcp`, the MCP session broker, and their tests in the same migration slice.
+   The clean plugin smoke test must find skills and no plugin-provided MCP server.
+5. **M1.4: Verify wheel entry-point assets.** Inspect the built wheel's
+   `dist-info/entry_points.txt` and `RECORD` membership to prove the
+   `dar-package` mapping is packaged. This is asset-presence evidence, not a
+   distribution-integrity audit.
+6. **M1.5: Prove published-index resolution.** In a fresh environment, execute
+   the exact published `uv run --no-project --index-url <approved-index> --with
+   dynamic-agent-runner==0.1.16 dar-package version --json` command and record
+   the resolved wheel name, version, and digest from the resolver report. This
+   is the only M1 evidence for index resolution; the local-wheel proof is
+   entrypoint/assets evidence only.
 
 M1 exit: the local plugin exposes skills that can invoke DAR's release-candidate
 CLI from a clean directory, but cannot execute an unprepared workflow or be

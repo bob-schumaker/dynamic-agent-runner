@@ -136,6 +136,35 @@ these are future contracts, not live commands. M1 proves installed-wheel command
 resolution plus a JSON receipt. Bespoke release metadata and signatures are
 publication hardening, not a v1 CLI prerequisite.
 
+M1's first implemented subcommand is `dar-package version --json`. On success
+it writes exactly one JSON object to stdout:
+
+```json
+{
+  "format_version": 1,
+  "status": "ok",
+  "distribution": "dynamic-agent-runner",
+  "version": "0.1.16"
+}
+```
+
+It writes no source path, state root, credential, or host configuration. A
+failure writes exactly one object to stderr and exits nonzero:
+
+```json
+{
+  "format_version": 1,
+  "status": "error",
+  "error_code": "usage"
+}
+```
+
+`error_code` is `usage` for an unknown subcommand or missing/invalid `--json`,
+and `internal` for an unexpected failure. These cases write no stdout.
+The legacy `dar-workflow` commands remain human-only migration compatibility
+commands; `dar-package` rejects raw paths, arbitrary endpoints, and all
+undeclared subcommands from its skill-facing contract.
+
 ## Implementation Prerequisites and Release Gates
 
 The plugin is not a DAR-only feature: it becomes executable only after the
@@ -145,7 +174,7 @@ best-effort warning.
 
 | Gate | Required task | Unlocks | Must remain unavailable before the gate passes |
 | --- | --- | --- | --- |
-| G0 | Packaging spike: Artifactory exact-version DAR wheel, isolated `uv run` invocation, packaged-runtime asset verification, and `dar-package` CLI lifecycle. | Skill discovery and non-mutating CLI discovery. | Package authoring, registration, and invocation. |
+| G0 | Packaging spike: Artifactory exact-version DAR wheel and isolated `uv run` invocation of `dar-package version --json`. | Skill discovery and non-mutating CLI discovery. | Package authoring, registration, and invocation. |
 | G1 | Immutable package catalog, installation identity, profile capability records, `WorkflowPolicy` compilation, and bounded preparation schemas. | Package-only preparation and catalog preflight. | Arbitrary package paths, caller-selected runtime profiles, executable aliases, and workflows with missing wrapper collaborators. |
 | G2 | Human-only DAR connection control plane: credential storage, least-scope binding, approved MCP-surface snapshot creation/review, DAR-host client lifecycle, and passive run-time drift detection. | Optional MCP profile preparation. | MCP-backed workflows, snapshot refresh from a skill, and credential/provisioning arguments. |
 | G3 | Generic execution runner: strict model selection, DAR preflight plus wrapper checks, deep-redacted trace/audit store, and `--dry-run`. | Workflows with no external tools. An MCP-backed read-only workflow also requires G2. | Workflows whose model or capability checks fail. |
