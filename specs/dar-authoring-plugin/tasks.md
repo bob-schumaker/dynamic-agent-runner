@@ -77,9 +77,9 @@ make the Codex plugin an MCP server.
       The exact approved-Artifactory DAR-version resolution is a post-release
       verification, not a pre-release M1 gate.
       The current `ocibuild -c` artifact is
-      `dynamic_agent_runner-0.2a1-py3-none-any.whl`; its receipt is `0.2a1`,
+      `dynamic_agent_runner-0.2a3-py3-none-any.whl`; its receipt is `0.2a3`,
       which is pre-release evidence only and not evidence for the pinned
-      `0.1.16` release.
+      `0.2.1` release.
 - [x] RED/GREEN: add the `dar-package` console entry point before any plugin
       smoke test. `dar-package version --json` returns exactly one receipt with
       `format_version`, `status`, `distribution`, and `version`; error output is
@@ -461,7 +461,8 @@ make the Codex plugin an MCP server.
 
 - [x] All unit tests use fake model adapters, MCP handlers, approval stores,
       and filesystem primitives; no live Fastmail, Hugging Face, or model call.
-- [ ] A positive fixture is required before a gate's capability is reported live.
+- [x] A positive fixture is required before a gate's capability is reported live.
+      `validation.md` records the G0–G5 fixture map; M8 remains publication-gated.
 - [ ] G5 may run after G0, G1, and G3; it additionally requires G2 for MCP
       actions and G4 for file-backed arguments. It must not replay a DAR approval
       interruption or claim graph-preserving continuation.
