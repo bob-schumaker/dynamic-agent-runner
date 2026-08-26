@@ -39,12 +39,42 @@ def main(
     if not arguments:
         _write(stderr, _error("usage"))
         return 2
+    if arguments[0] == "select-package":
+        return _select_package(arguments[1:], stdout=stdout, stderr=stderr)
     if arguments[0] in _AUTHORING_COMMANDS:
         return _authoring(arguments, stdin=stdin, stdout=stdout, stderr=stderr)
     if arguments[0] != "invoke":
         _write(stderr, _error("usage"))
         return 2
     return _invoke(arguments[1:], stdin=stdin, stdout=stdout, stderr=stderr)
+
+
+def _select_package(arguments: Sequence[str], *, stdout: TextIO, stderr: TextIO) -> int:
+    try:
+        parser = _ArgumentParser(add_help=False)
+        parser.add_argument("--path", required=True, type=Path)
+        parser.add_argument("--json", action="store_true")
+        args = parser.parse_args(arguments)
+        if not args.json:
+            raise ValueError("select-package requires --json")
+        package_source_handle = LocalWorkflowHost.open(
+            _default_state_root()
+        ).select_package(args.path, now=datetime.now(UTC))
+    except (LocalWorkflowHostError, ValueError):
+        _write(stderr, _error("usage"))
+        return 2
+    except Exception:  # noqa: BLE001 - receipt intentionally hides host details.
+        _write(stderr, _error("internal"))
+        return 1
+    _write(
+        stdout,
+        {
+            "format_version": 1,
+            "package_source_handle": package_source_handle,
+            "status": "selected",
+        },
+    )
+    return 0
 
 
 def _invoke(

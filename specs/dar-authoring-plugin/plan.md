@@ -219,8 +219,11 @@ provisioning.
    accept model settings or tool provisioning; it preserves `--dry-run` and
    local `--ask` behavior. A supplied workspace file is admitted only through a
    one-role/one-media-type registered contract; dry run rejects it before ingress.
-   Implemented for an already registered saved package. Human package selection
-   and registration remain separate setup operations and are not invoke flags.
+   Implemented for an already registered saved package. A local
+   `dar-package select-package --path --json` command creates an opaque handle
+   only for human-controlled setup. A skill with only a directory/ZIP display
+   name returns the closed `source_selection_required` result instead; neither
+   selection nor registration is an invoke flag.
 
 M3 exit: a skill can repeatedly invoke a saved no-tool package with a prompt
 through the sealed, catalog-only runner interface.

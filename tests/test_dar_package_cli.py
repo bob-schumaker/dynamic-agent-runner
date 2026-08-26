@@ -130,6 +130,92 @@ def test_version_json_redacts_an_internal_failure(
     assert "/private/state" not in stderr.getvalue()
 
 
+def test_select_package_returns_only_an_opaque_handle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selected_path = Path("/private/packages/custom-email.zip")
+
+    class Host:
+        def select_package(self, path: Path, *, now: object) -> str:
+            assert path == selected_path
+            return "v1.package-source.selection"
+
+    monkeypatch.setattr(dar_package_cli.LocalWorkflowHost, "open", lambda _root: Host())
+    stdout = StringIO()
+    stderr = StringIO()
+
+    assert (
+        dar_package_cli.main(
+            ["select-package", "--path", str(selected_path), "--json"],
+            stdout=stdout,
+            stderr=stderr,
+        )
+        == 0
+    )
+
+    assert json.loads(stdout.getvalue()) == {
+        "format_version": 1,
+        "package_source_handle": "v1.package-source.selection",
+        "status": "selected",
+    }
+    assert str(selected_path) not in stdout.getvalue()
+    assert stderr.getvalue() == ""
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["select-package", "--json"],
+        ["select-package", "--path", "/private/packages/custom-email.zip"],
+    ],
+)
+def test_select_package_requires_a_human_path_and_json_receipt(
+    argv: list[str],
+) -> None:
+    stdout = StringIO()
+    stderr = StringIO()
+
+    assert dar_package_cli.main(argv, stdout=stdout, stderr=stderr) == 2
+    assert stdout.getvalue() == ""
+    assert json.loads(stderr.getvalue()) == {
+        "error_code": "usage",
+        "format_version": 1,
+        "status": "error",
+    }
+
+
+def test_select_package_redacts_a_selection_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable(_root: Path) -> object:
+        raise dar_package_cli.LocalWorkflowHostError("/private/state is unavailable")
+
+    monkeypatch.setattr(dar_package_cli.LocalWorkflowHost, "open", unavailable)
+    stdout = StringIO()
+    stderr = StringIO()
+
+    assert (
+        dar_package_cli.main(
+            [
+                "select-package",
+                "--path",
+                "/private/packages/custom-email.zip",
+                "--json",
+            ],
+            stdout=stdout,
+            stderr=stderr,
+        )
+        == 2
+    )
+    assert stdout.getvalue() == ""
+    assert json.loads(stderr.getvalue()) == {
+        "error_code": "usage",
+        "format_version": 1,
+        "status": "error",
+    }
+    assert "/private/state" not in stderr.getvalue()
+
+
 def test_authoring_commands_use_only_opaque_host_resources(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

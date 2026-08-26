@@ -610,7 +610,12 @@ dar-package preflight --package-source <opaque-source-handle> \
 
 When an authoring skill receives a natural-language package reference such as
 `custom-email.zip` but has no source handle, it returns a non-executing
-`source_selection_required` result containing only the requested display name.
+`source_selection_required` result containing only the requested display name:
+
+```json
+{"format_version":1,"status":"source_selection_required","display_name":"custom-email.zip"}
+```
+
 The local plugin client then presents a human file/directory picker or the local
 CLI command below; only a confirmed selection creates a handle. The picker and
 path are never exposed to the skill.

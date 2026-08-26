@@ -103,6 +103,24 @@ package into a general-purpose interactive tool.
 
 ## Invoke a saved package
 
+### Unselected package reference
+
+If the user names a local directory or ZIP, such as `custom-email.zip`, instead
+of an already-selected and registered saved package name, do not run a DAR
+command. Return only this result, substituting the reference's final visible
+name for `<requested-display-name>`:
+
+<!-- rumdl-disable MD013 -->
+
+```json
+{"format_version":1,"status":"source_selection_required","display_name":"<requested-display-name>"}
+```
+
+<!-- rumdl-enable MD013 -->
+
+Do not include a path, source handle, or selection command. The human host must
+select and register the package outside this skill before a later invocation.
+
 For a later request against a package that the human host has already selected
 and registered, use only the saved package name and the request text. With a
 local development wheel, execute this command by piping the request text to

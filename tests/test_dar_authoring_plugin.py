@@ -55,3 +55,15 @@ def test_agent_development_uses_only_the_role_scoped_authoring_commands() -> Non
     assert "M1 exposes only" not in text
     assert "select-package" not in text
     assert "register --" not in text
+
+
+def test_agent_development_refuses_an_unselected_package_reference() -> None:
+    text = (PLUGIN_ROOT / "skills" / "agent-development" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        '{"format_version":1,"status":"source_selection_required",'
+        '"display_name":"<requested-display-name>"}'
+    ) in text
+    assert "Do not include a path, source handle, or selection command." in text

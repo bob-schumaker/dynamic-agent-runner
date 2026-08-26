@@ -155,7 +155,7 @@ make the Codex plugin an MCP server.
 - [x] RED/GREEN: `PackageSourceSelectionPolicy` records human-managed allowed
       roots and rejects absent root configuration, noncanonical paths, and
       no-follow validation failures before it issues a package-source handle.
-- [ ] RED/GREEN: when a skill names a local package without a source handle,
+- [x] RED/GREEN: when a skill names a local package without a source handle,
       return only `source_selection_required`; a human-only picker or
       `dar-package select-package` issues the handle without exposing its path
       to the skill.
