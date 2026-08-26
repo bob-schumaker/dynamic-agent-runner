@@ -45,7 +45,7 @@ only path to an end-to-end authoring-plugin publication claim.
 | M1 | G0 — package/CLI spike | Minimal skills-to-CLI proof from an installed wheel. | None |
 | M2 | G1 runtime core | Human-selected directory staging, policy compilation, and package-only preflight. Implemented. | M1 |
 | M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. Implemented. | M2 |
-| M4 | RA1 — authoring acceptance | M4.0 material projection and M4.1 redacted evidence contract are implemented; external adapted-skill behavior and two clean-Codex author-then-run cases remain. | M0, M2, M3 |
+| M4 | RA1 — authoring acceptance | M4.0 material projection, M4.1 redacted evidence contract, and M4.4's two clean-Codex author-then-run cases are implemented; M4.3 still requires updated human intent-fidelity review for the three target authoring invocations. | M0, M2, M3 |
 | M5 | G2 | Configured HTTPS MCP control plane and reviewed binding. Implemented through one configured client per host; M5.5 execution evidence is `93159e9`. | M2; M3 for M5.5 execution integration |
 | M6 | G4 | Trusted caller-file ingress. Implemented. | Focused tested sandbox descriptor-relative no-follow-copy primitive at a recorded prerequisite revision; M2 |
 | M7 | G5 | Model-directed external side effects with audit and local `--ask`. Implemented for reviewed generic MCP bindings; multi-client composition requires a follow-up slice. | M3; M5 for MCP actions; M6 for file arguments |
@@ -281,7 +281,7 @@ through the sealed, catalog-only runner interface.
    remains open until a human records that identity and an intent-fidelity
    decision under the updated evidence contract.
 
-5. **M4.4: Run clean-Codex author-then-run acceptance.** Build a checked-in,
+5. **M4.4: Run clean-Codex author-then-run acceptance.** Implemented as a checked-in,
    external acceptance harness around a temporary Herdr workspace. Every case
    creates one clean Codex authoring invocation, which receives only a text
    authoring request plus the explicitly supplied de-identified material,
@@ -290,7 +290,8 @@ through the sealed, catalog-only runner interface.
    use `uv run ... dar-package invoke` to run it. An artifact case may use
    declared fixture files and the same CLI after trusted ingress. The authoring
    turn
-   must use a host-issued `material_set_id` and `authoring_output_id`, then
+   must use a host-issued `material_set_id`, create its opaque
+   `authoring_output_id` through the defined `dar-package` command, then
    finalize through `AuthoringOutputService`; the finalization receipt's
    `package_name` and package digest are the only permitted handoff for a
    positive case. Before its run turn,
@@ -405,6 +406,15 @@ through the sealed, catalog-only runner interface.
    corresponding release claim. A violated safety invariant, a mismatch with a
    scenario's fixed expected outcome, or a positive case that fails after all
    its gates pass blocks that claim.
+
+   The mandatory cases have passed in a pre-authenticated clean Codex profile:
+   the deterministic fake-model `document-summary` positive case was approved
+   by `roschuma`, and the `council-request` case terminated at capability
+   preflight with zero dispatch. An approved live variation also passed with
+   `gpt-5.6-terra` through a local OpenAI-compatible proxy that delegates only
+   through DAR's native Codex/ChatGPT authentication path. Each result was
+   recorded as an atomically written redacted `AuthorThenRunEvidence` record;
+   no prompt, material body, credential, or filesystem path was retained.
 
 M4 exit: the adapted skills have behavioral evidence without making model calls
 part of ordinary test execution.

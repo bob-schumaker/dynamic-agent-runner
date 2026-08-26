@@ -50,6 +50,23 @@ artifacts, and bounded `additional_context`; model-created text and additional
 context are not authority for destinations, external identities, or capability
 selection. The generated package must validate with DAR before handoff.
 
+## Canonical no-tool starter
+
+For a bounded no-tool workflow, start from the plugin's `templates/` files.
+Keep the runtime shape, graph entrypoint, output contract, descriptor limits,
+and `dar_runtime` block intact; change only the package identity, human-facing
+purpose, and the local-model system prompt needed for the defined task. The
+runtime must retain `format_version: 1`, `package_type:
+dynamic_agent_design`, `entrypoint: answer_request`, a single `llm_step` node
+named `answer_request`, no tools, and the `final_answer` output contract. The
+descriptor must retain `required_version: 0.1.16`, `allowed_tool_ids: []`, and
+`max_total_tool_calls: 0`.
+
+Do not invent an alternative runtime or descriptor schema for a simple
+no-tool workflow. If the template cannot be used, return
+`authoring_runtime_unavailable` rather than emitting a plausible but
+unvalidated package.
+
 ## Author a package
 
 A human must first select the material files and issue the host-owned manifest.
@@ -83,3 +100,22 @@ input/output contract, required model profile, and any host-owned capability
 setup. Explain that the human host must select and register the finalized
 package before a later request can invoke its saved name. Do not turn the
 package into a general-purpose interactive tool.
+
+## Invoke a saved package
+
+For a later request against a package that the human host has already selected
+and registered, use only the saved package name and the request text. With a
+local development wheel, execute this command by piping the request text to
+stdin:
+
+<!-- rumdl-disable MD013 -->
+
+```sh
+printf '%s' '<request text>' | uv run --no-project --python 3.14 --with <absolute-wheel-path> dar-package invoke --package-name <saved-package-name> --prompt-stdin
+```
+
+<!-- rumdl-enable MD013 -->
+
+Do not select a source, register a package, inspect state, change the package,
+or substitute a package path. Return the redacted invocation receipt. Add
+`--dry-run` or `--ask` only when the user explicitly asks for that mode.

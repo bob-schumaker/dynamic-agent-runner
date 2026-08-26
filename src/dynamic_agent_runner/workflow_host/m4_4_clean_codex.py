@@ -17,56 +17,27 @@ def build_clean_codex_environment(
     codex_home: Path,
     working_directory: Path,
     wheel: Path,
-    broker_socket: Path,
+    state_root: Path,
+    template_root: Path,
     inherited: Mapping[str, str],
 ) -> dict[str, str]:
-    """Return the allowlisted environment for one authoring Codex process."""
+    """Return the allowlisted environment for one clean Codex process."""
 
     for path, label in (
         (codex_home, "codex home"),
         (working_directory, "working directory"),
         (wheel, "wheel"),
-        (broker_socket, "broker socket"),
+        (state_root, "state root"),
+        (template_root, "template root"),
     ):
         _absolute_not_symlink(path, label)
     return _base_environment(
         codex_home=codex_home,
         working_directory=working_directory,
         wheel=wheel,
+        template_root=template_root,
         inherited=inherited,
-        extra={
-            "DAR_AUTHORING_BROKER_SOCKET": str(broker_socket),
-            "DAR_AUTHORING_MCP_MODE": "authoring",
-        },
-    )
-
-
-def build_clean_codex_run_environment(
-    *,
-    codex_home: Path,
-    working_directory: Path,
-    wheel: Path,
-    broker_socket: Path,
-    inherited: Mapping[str, str],
-) -> dict[str, str]:
-    """Return the allowlisted environment for one saved-workflow Codex process."""
-
-    for path, label in (
-        (codex_home, "codex home"),
-        (working_directory, "working directory"),
-        (wheel, "wheel"),
-        (broker_socket, "broker socket"),
-    ):
-        _absolute_not_symlink(path, label)
-    return _base_environment(
-        codex_home=codex_home,
-        working_directory=working_directory,
-        wheel=wheel,
-        inherited=inherited,
-        extra={
-            "DAR_AUTHORING_BROKER_SOCKET": str(broker_socket),
-            "DAR_AUTHORING_MCP_MODE": "run",
-        },
+        extra={"DAR_AUTHORING_STATE_ROOT": str(state_root)},
     )
 
 
@@ -75,6 +46,7 @@ def _base_environment(
     codex_home: Path,
     working_directory: Path,
     wheel: Path,
+    template_root: Path,
     inherited: Mapping[str, str],
     extra: Mapping[str, str],
 ) -> dict[str, str]:
@@ -84,6 +56,8 @@ def _base_environment(
     return {
         "CODEX_HOME": str(codex_home),
         "DAR_AUTHORING_DAR_WHEEL": str(wheel),
+        "UV_CACHE_DIR": str(working_directory / ".uv-cache"),
+        "DAR_AUTHORING_TEMPLATE_ROOT": str(template_root),
         "HOME": str(working_directory),
         "LANG": "C.UTF-8",
         "PATH": path,
