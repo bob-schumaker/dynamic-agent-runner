@@ -4,14 +4,14 @@
 ## Working
 
 - `dar-authoring` is a skills-only Codex plugin, not a plugin MCP server.
-  Commit `417bc1e` completes the pre-release M1 CLI/package gate: a locally
-  produced `ocibuild -c` DAR wheel is checked for `RECORD` and the
-  `dar-package` entry point, then run through isolated `uv run --no-project`
-  discovery. The verified build receipt is `0.2a1`; it is explicitly not
-  evidence for the pinned Artifactory `0.1.16` release. Council and Ponytail
-  found no P0/P1 findings. The exact Artifactory resolution/digest capture is
-  an unchecked post-release task. Next implementation work is M3's
-  role-scoped `dar-package invoke` CLI for saved no-tool packages.
+  The `0.2.1` release-pin contract is committed in `8e79f34`; an `ocibuild -c`
+  build produced and isolated-wheel verification passed for
+  `dynamic_agent_runner-0.2a3-py3-none-any.whl`. This local prerelease receipt
+  is not evidence for the future published `0.2.1` Artifactory artifact.
+  Commit `bef2d5d` records and tests the positive fake-fixture map for every
+  currently live G0–G5 capability. The full suite passed with 1072 tests and
+  4 explicit live skips. Remaining release work is published-index resolution
+  with wheel digest and M8's clean consumer-installation exchange proof.
 - `dar-authoring-plugin` M0 (RA0) is complete through `8fb3435`. Commits
   `3ee1068` and `8fb3435` add the three portable DAR-adapted skills, immutable
   source/provenance and user-authorized redistribution record, offline fixture
@@ -57,14 +57,14 @@
   `--workspace-file` only for an unambiguous one-role/one-media-type workspace
   contract; dry run rejects files before package selection or ingress. The full
   suite passed with 964 tests and 4 skips. Production plugin launch still awaits
-  the signed Artifactory DAR 0.1.16 release and trusted launcher integration.
+  the signed Artifactory DAR 0.2.1 release and trusted launcher integration.
 - `dar-authoring-plugin` M2 (G1 runtime core) is complete through
   `8a08669`: private authenticated state (`61088c1`), OS-user identity and
   immutable local profiles (`35da5e6`), no-tool descriptor validation
   (`ced9982`), source handles (`e22bc18`), no-follow private package staging
   (`355debb`), immutable package catalog (`1518086`), policy compilation
   (`ab75e37`), and package-only preflight (`8a08669`). The standalone plugin
-  pins DAR `0.1.16` for its production Artifactory launch contract and permits
+  pins DAR `0.2.1` for its production Artifactory launch contract and permits
   an absolute local-wheel override only for pre-publication verification. M4
   authoring evidence and M8 portable publication remain.
 - The original first vertical slice expressly omitted MCP, external side
@@ -617,7 +617,7 @@
   profiles, and tool provisioning remain human/DAR-owned controls. Follow with
   declared workspace-file ingress, adapted-skill CLI routing, and M4.4's clean
   Codex author-then-run acceptance harness.
-- After publication of `dynamic-agent-runner==0.1.16`, independently resolve it
+- After publication of `dynamic-agent-runner==0.2.1`, independently resolve it
   from the approved Artifactory index and record the resolved wheel identity
   and digest. Do not substitute a local OCI wheel for this release check.
 - Historical note: LiteLLM provider work was once spec-only while upstream

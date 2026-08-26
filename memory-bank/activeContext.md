@@ -10,10 +10,18 @@
   package/CLI gate is complete through `417bc1e`: the `dar-package version
   --json` receipt is packaged, verifies from the `ocibuild -c` result wheel in
   an isolated temporary directory, and passed final Council and Ponytail review.
-  The OCI wheel reports pre-release version `0.2a1`; Artifactory resolution of
-  the pinned `dynamic-agent-runner==0.1.16` is deliberately a post-release
-  check. The next DAR-authoring implementation slice is the closed
-  `dar-package invoke` runner interface for saved no-tool packages.
+  The OCI wheel reports pre-release version `0.2a3`; Artifactory resolution of
+  the pinned `dynamic-agent-runner==0.2.1` is deliberately a post-release
+  check. The `0.2.1` release-pin contract is committed in `8e79f34`; the
+  local-wheel verifier and skills-only plugin smoke checks passed against the
+  `0.2a3` artifact. M0–M7 are implemented; M8's clean consumer installation
+  and published-index digest record remain post-publication work.
+- Commit `f219dc0` makes the ordinary suite default-deny for outbound IP
+  sockets while preserving Unix-domain broker IPC; all provider/MCP unit paths
+  use fakes. Commit `bef2d5d` records G0–G5's positive fixture map in
+  `specs/dar-authoring-plugin/validation.md` and tests that each named fixture
+  remains present. The full suite passed with 1072 tests and 4 explicit live
+  skips; the mapped positive fixtures passed with 13 tests.
 - `dar-authoring-plugin` M0 (RA0 reproducible authoring baseline) is complete
   through `8fb3435`. The plugin ships portable adapted `agent-development`,
   `agent-tool-contract-design`, and `agent-evaluation` assets with source
@@ -83,7 +91,7 @@
   generic saved-package invocation by configured-root name. M8 owns portable
   ZIP exchange and publication. M1 local-wheel/Codex discovery is proven;
   published-index resolution for pinned
-  `dynamic-agent-runner==0.1.16` is a post-release verification rather than a
+  `dynamic-agent-runner==0.2.1` is a post-release verification rather than a
   pre-release launch blocker.
 - Runtime core authority remains deliberately split: M2 preflight accepts only
   an opaque package-source handle and returns package/policy/capability data;

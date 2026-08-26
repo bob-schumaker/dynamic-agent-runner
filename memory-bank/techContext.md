@@ -187,9 +187,11 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
   - `indcon-release-pypi-local`
   - `indcon-dev-pypi-local`
 - Pre-release DAR-authoring M1 verification uses an `ocibuild -c` result wheel
-  and `scripts/verify_dar_package_wheel.py`. The current receipt is `0.2a1`;
-  resolving the future pinned `0.1.16` wheel from Artifactory is a separate
-  post-release check.
+  and `scripts/verify_dar_package_wheel.py`. The current receipt is `0.2a3`;
+  resolving the future pinned `0.2.1` wheel from Artifactory is a separate
+  post-release check. The isolated verifier invokes the wheel through
+  `uv run --no-project --python 3.14 --with <absolute-wheel-path> dar-package
+  version --json`.
 
 ## Notes
 
