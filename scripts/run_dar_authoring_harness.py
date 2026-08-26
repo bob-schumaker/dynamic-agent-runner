@@ -71,6 +71,7 @@ def run_fixture(
     )
     outcome = _run_generator(
         request=request,
+        behavioral_cases=fixture["behavioral_cases"],
         companion_fixtures=companion_fixtures,
         expected_artifacts=expected_artifacts,
         artifact_contracts=artifact_contracts,
@@ -96,7 +97,7 @@ def run_fixture(
         reviewer_id=_text(reviewer_id, "reviewer id"),
         reviewer_decision=reviewer_decision,
         pass_criteria=_criteria(pass_criteria),
-        retention_policy="redacted-evidence-v1",
+        retention_policy="redacted-evidence-v2",
     )
     write_authoring_evidence(evidence_path, evidence)
     return evidence.to_mapping()
@@ -105,6 +106,7 @@ def run_fixture(
 def _run_generator(
     *,
     request: ExternalAuthoringHarnessRequest,
+    behavioral_cases: Sequence[dict[str, object]],
     companion_fixtures: Sequence[dict[str, object]],
     expected_artifacts: tuple[str, ...],
     artifact_contracts: tuple[dict[str, object], ...],
@@ -127,7 +129,9 @@ def _run_generator(
             host_package_root=host_package_root,
             host_package_name=host_package_name,
         )
-        _write_private_request(request_path, request, companion_fixtures)
+        _write_private_request(
+            request_path, request, behavioral_cases, companion_fixtures
+        )
         try:
             result = subprocess.run(
                 [
@@ -204,12 +208,14 @@ def _output_path(
 def _write_private_request(
     destination: Path,
     request: ExternalAuthoringHarnessRequest,
+    behavioral_cases: Sequence[dict[str, object]],
     companion_fixtures: Sequence[dict[str, object]],
 ) -> None:
     value = {
         "format_version": 1,
         "skill": request.skill_name,
         "request": request.request,
+        "behavioral_cases": list(behavioral_cases),
         "materials": {
             "material_set_id": request.materials.material_set_id,
             "members": [
@@ -225,6 +231,7 @@ def _write_private_request(
         },
         "companions": [
             {
+                "behavioral_cases": list(companion["behavioral_cases"]),
                 "expected_artifacts": list(companion["expected_artifacts"]),
                 "request": companion["request"],
                 "skill": companion["skill"],
@@ -292,6 +299,7 @@ def _contains_mapping(value: object, required: dict[str, object]) -> bool:
 def _fixture(value: object) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != {
         "artifact_contracts",
+        "behavioral_cases",
         "expected_artifacts",
         "expected_capability_or_refusal",
         "private_material_exclusions",
@@ -317,17 +325,45 @@ def _fixture(value: object) -> dict[str, Any]:
     if any(not _safe_relative_path(item) for item in artifacts):
         raise HarnessError("fixture artifacts are invalid")
     contracts = _artifact_contracts(value["artifact_contracts"], artifacts)
+    behavioral_cases = _behavioral_cases(value["behavioral_cases"])
     materials = value["selected_materials"]
     if not isinstance(materials, list) or not materials:
         raise HarnessError("fixture materials are invalid")
     _fixture_materials(materials)
     return {
         "artifact_contracts": contracts,
+        "behavioral_cases": behavioral_cases,
         "expected_artifacts": tuple(artifacts),
         "request": value["request"],
         "selected_materials": materials,
         "skill": value["skill"],
     }
+
+
+def _behavioral_cases(value: object) -> tuple[dict[str, object], ...]:
+    if not isinstance(value, list) or not value:
+        raise HarnessError("fixture behavioral cases are invalid")
+    cases: list[dict[str, object]] = []
+    for case in value:
+        if not isinstance(case, dict) or set(case) != {
+            "expected_output_contains",
+            "expected_tool_dispatch_count",
+            "id",
+            "prompt",
+        }:
+            raise HarnessError("fixture behavioral cases are invalid")
+        _text(case["id"], "fixture behavioral case id")
+        _text(case["prompt"], "fixture behavioral case prompt")
+        _text(case["expected_output_contains"], "fixture behavioral case output")
+        dispatch_count = case["expected_tool_dispatch_count"]
+        if (
+            not isinstance(dispatch_count, int)
+            or isinstance(dispatch_count, bool)
+            or dispatch_count < 0
+        ):
+            raise HarnessError("fixture behavioral case dispatch count is invalid")
+        cases.append(case)
+    return tuple(cases)
 
 
 def _artifact_contracts(

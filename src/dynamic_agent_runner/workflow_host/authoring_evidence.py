@@ -76,6 +76,41 @@ class ValidatingExternalAuthoringHarness:
 
 
 @dataclass(frozen=True)
+class AuthoringBehaviorEvidence:
+    """Redacted execution facts for one manually reviewed package run."""
+
+    case_digest: str
+    transcript_digest: str
+    execution_model_id: str
+    terminal_outcome: str
+    tool_dispatch_count: int
+
+    def __post_init__(self) -> None:
+        _digest(self.case_digest, "case_digest")
+        _digest(self.transcript_digest, "transcript_digest")
+        _text(self.execution_model_id, "execution_model_id")
+        if self.terminal_outcome not in {"completed", "failed"}:
+            raise AuthoringEvidenceError("behavioral terminal outcome is invalid")
+        if (
+            not isinstance(self.tool_dispatch_count, int)
+            or isinstance(self.tool_dispatch_count, bool)
+            or self.tool_dispatch_count < 0
+        ):
+            raise AuthoringEvidenceError("behavioral tool dispatch count is invalid")
+
+    def to_mapping(self) -> dict[str, object]:
+        """Return a transcript-free stable behavioral evidence projection."""
+
+        return {
+            "case_digest": self.case_digest,
+            "transcript_digest": self.transcript_digest,
+            "execution_model_id": self.execution_model_id,
+            "terminal_outcome": self.terminal_outcome,
+            "tool_dispatch_count": self.tool_dispatch_count,
+        }
+
+
+@dataclass(frozen=True)
 class AuthoringEvidence:
     """One redacted outcome from an external authoring-harness invocation."""
 
@@ -90,6 +125,8 @@ class AuthoringEvidence:
     reviewer_decision: str
     pass_criteria: tuple[str, ...]
     retention_policy: str
+    behavioral_runs: tuple[AuthoringBehaviorEvidence, ...] = ()
+    package_revision_provenance: str = "external_authoring"
 
     def __post_init__(self) -> None:
         _digest(self.corpus_digest, "corpus_digest")
@@ -112,12 +149,22 @@ class AuthoringEvidence:
         ):
             raise AuthoringEvidenceError("pass criteria are invalid")
         _text(self.retention_policy, "retention_policy")
+        if self.package_revision_provenance not in {
+            "external_authoring",
+            "external_authoring_with_human_model_retarget",
+        }:
+            raise AuthoringEvidenceError("package revision provenance is invalid")
+        if any(
+            not isinstance(run, AuthoringBehaviorEvidence)
+            for run in self.behavioral_runs
+        ):
+            raise AuthoringEvidenceError("behavioral runs are invalid")
 
     def to_mapping(self) -> dict[str, object]:
         """Return the stable evidence projection without raw authoring input."""
 
         return {
-            "format_version": 1,
+            "format_version": 2,
             "corpus_digest": self.corpus_digest,
             "prompt_digest": self.prompt_digest,
             "material_set_id": self.material_set_id,
@@ -129,6 +176,8 @@ class AuthoringEvidence:
             "reviewer_decision": self.reviewer_decision,
             "pass_criteria": list(self.pass_criteria),
             "retention_policy": self.retention_policy,
+            "behavioral_runs": [run.to_mapping() for run in self.behavioral_runs],
+            "package_revision_provenance": self.package_revision_provenance,
         }
 
 

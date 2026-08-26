@@ -537,8 +537,14 @@ Acceptance criteria:
   covering basic, MCP, ambiguous, supplied-material, and adversarial tool-policy
   requests. Deterministic package, schema, task-policy, and provenance checks
   must all pass. An external harness records the authoring model, prompt, and
-  package revision; until an automated judge is calibrated against human review,
-  a human reviews every release-corpus package for intent fidelity and task scope.
+  package revision, then executes the unchanged finalized package through DAR's
+  package execution interface with the exact model identifier declared by that
+  package. M4.4 separately proves the saved-registration `dar-package invoke`
+  control-plane path. Until an automated judge is calibrated against human review,
+  human review of the fixture/request specification, generated package
+  specification, and de-identified behavioral transcript is the valid
+  intent-fidelity gate. A copied package, a changed model identifier, or a
+  structural-only validation is not release evidence for the finalized package.
 
 ### Target skill invocation patterns
 
@@ -550,18 +556,30 @@ live model in unit tests.
 
 | Skill | Target invocation | Required result |
 | --- | --- | --- |
-| `agent-development` | “Design a bounded DAR workflow that answers questions about supplied text using this local model and these examples.” | Canonical DAR artifacts, `WorkflowDescriptor`, finite `task_invocation`, capability report, and no undeclared tools. |
+| `agent-development` | “Design a bounded DAR workflow that answers questions about supplied text using `gpt-5.6-terra` and these examples.” | Canonical DAR artifacts, `WorkflowDescriptor`, finite `task_invocation`, capability report, and no undeclared tools. |
 | `agent-tool-contract-design` | “Add this approved connection requirement and reviewed MCP tool surface to the workflow; define its normalized schema, limits, approval class, and permitted argument sources.” | `tool-index.yaml`/descriptor changes with a host-managed connection requirement, reviewed semantic tool identifiers and schemas, side-effect metadata, and `ArgumentProvenanceEnvelope` policy. It refuses endpoint, OAuth, credential, or live-discovery design input. |
 | `agent-evaluation` | “Create acceptance cases and a regression gate for this package, including tool failure and prompt-injection behavior.” | Evaluation plan, deterministic fixtures, rubric/judge policy, and a regression gate that does not execute live external services. |
 
 The fixture corpus shall use a versioned schema and contain the request, selected
 non-secret `AuthoringMaterialSet` projections, expected artifact properties,
-expected refusal/capability result, and private-material exclusion rules.
+expected refusal/capability result, behavioral acceptance cases, and
+private-material exclusion rules. A behavioral case supplies de-identified
+invocation input, expected terminal outcome, semantic acceptance/refusal
+criteria, and expected tool-dispatch bounds. The descriptor must declare the
+exact execution model identifier necessary to execute those cases; the release
+harness must use that identifier rather than substitute a different model.
 Deterministic tests validate fixture property contracts and package loading. A
 separate external release harness executes the adapted skills with the chosen
 authoring model and compares their artifacts with those properties; it supplies
-no unselected material. No test requires byte-identical prose or a live
-Fastmail, Hugging Face, or model call.
+no unselected material. It then invokes the exact finalized package through
+DAR's package execution interface. The harness presents the resulting
+de-identified request/response transcript together with the fixture/request and
+generated-package specifications to the reviewer. That human comparison is the
+acceptance gate; its private evidence record retains only transcript and case
+digests, the exact package and registration linkage, profile identity, terminal
+outcome, and dispatch counts.
+No unit test requires byte-identical prose or a live Fastmail, Hugging Face, or
+model call; this external release gate does require a real compatible model run.
 
 ## CLI Workflow Execution
 

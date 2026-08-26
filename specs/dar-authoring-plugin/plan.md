@@ -45,7 +45,7 @@ only path to an end-to-end authoring-plugin publication claim.
 | M1 | G0 — package/CLI spike | Minimal skills-to-CLI proof from an installed wheel. | None |
 | M2 | G1 runtime core | Human-selected directory staging, policy compilation, and package-only preflight. Implemented. | M1 |
 | M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. Implemented. | M2 |
-| M4 | RA1 — authoring acceptance | M4.0 material projection, M4.1 redacted evidence contract, and M4.4's two clean-Codex author-then-run cases are implemented; M4.3 still requires updated human intent-fidelity review for the three target authoring invocations. | M0, M2, M3 |
+| M4 | RA1 — authoring acceptance | M4.0 material projection, M4.1 redacted behavioral evidence, M4.3's three reviewed package runs, and M4.4's two clean-Codex author-then-run cases are implemented. | M0, M2, M3 |
 | M5 | G2 | Configured HTTPS MCP control plane and reviewed binding. Implemented through one configured client per host; M5.5 execution evidence is `93159e9`. | M2; M3 for M5.5 execution integration |
 | M6 | G4 | Trusted caller-file ingress. Implemented. | Focused tested sandbox descriptor-relative no-follow-copy primitive at a recorded prerequisite revision; M2 |
 | M7 | G5 | Model-directed external side effects with audit and local `--ask`. Implemented for reviewed generic MCP bindings; multi-client composition requires a follow-up slice. | M3; M5 for MCP actions; M6 for file arguments |
@@ -255,12 +255,21 @@ through the sealed, catalog-only runner interface.
    required.
 4. **M4.3: Gate the three target invocations.** The harness enforces checked-in
    per-artifact YAML/JSON requirements and forbidden text for each fixture;
-   compare live generated packages to those contracts, require a human
-   intent-fidelity review until a judge calibration is approved, and treat
-   fixture property changes as reviewed acceptance-contract changes. Run each
-   companion-skill fixture inside an `agent-development` authoring session with
-   the host-issued `material_set_id` and `authoring_output_id`; companion skills
-   do not create or finalize a standalone package.
+   compare live generated packages to those contracts, then execute the exact
+   finalized package through DAR's package execution interface with the exact
+   model identifier declared by the package. M4.4 separately gates the
+   saved-registration `dar-package invoke` control-plane path. Each behavioral
+   case binds the finalized package digest and declared model identifier; a
+   copied package, changed model identifier, or structural-only check is
+   non-qualifying. Until a judge calibration is approved, the valid gate is a
+   human comparison of the fixture/request, generated package specification, and
+   de-identified invocation transcript; the harness records only its digest,
+   terminal outcome, and bounded dispatch evidence. Treat fixture property or
+   behavioral-criterion changes as reviewed acceptance-contract changes. Run
+   each companion-skill fixture inside an
+   `agent-development` authoring session with the host-issued `material_set_id`
+   and `authoring_output_id`; companion skills do not create or finalize a
+   standalone package.
 
    External de-identified Codex runs on 2026-08-24 passed the deterministic
    harness after the entry-purpose contract was strengthened:
@@ -275,11 +284,16 @@ through the sealed, catalog-only runner interface.
      - Corpus: `3d772a4a6c1c8dacf637c4852cb86536123d2759d9d5fd91742ef05dd6eb9ac9`
      - Package: `ecd3137019defe1d506dc222e9aa1cb480ed5d2ef2178a86abbe64220abd147b`
 
-   Each record identifies provider `codex`, model `gpt-5.6-sol`, and a passed
-   validator result with redacted retention. These records predate the
-   reviewer-identity field and therefore cannot prove a human sign-off. M4
-   remains open until a human records that identity and an intent-fidelity
-   decision under the updated evidence contract.
+   The earlier records identify provider `codex`, model `gpt-5.6-sol`, and a
+   passed validator result with redacted retention. On 2026-08-25, the human
+   selected `gpt-5.6-terra` as the execution model and approved the resulting
+   human-retargeted final revisions after reviewing each package specification
+   and live transcript. The three owner-only v2 evidence records bind that
+   approval to the final package digests, transcript/case digests, terminal
+   outcome, and dispatch counts, while recording
+   `external_authoring_with_human_model_retarget` provenance. The no-tool base
+   and evaluation packages completed with zero dispatches; the reviewed fake
+   read-only tool surface completed with one dispatch. This completes M4.3.
 
 5. **M4.4: Run clean-Codex author-then-run acceptance.** Implemented as a checked-in,
    external acceptance harness around a temporary Herdr workspace. Every case

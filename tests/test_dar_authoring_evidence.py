@@ -12,6 +12,7 @@ import pytest
 
 from dynamic_agent_runner.workflow_host.authoring_evidence import (  # noqa: E402
     AuthorThenRunEvidence,
+    AuthoringBehaviorEvidence,
     AuthoringEvidence,
     AuthoringEvidenceError,
     ExternalAuthoringHarnessRequest,
@@ -33,6 +34,7 @@ def _evidence(**overrides: object) -> AuthoringEvidence:
         "corpus_digest": "a" * 64,
         "prompt_digest": "b" * 64,
         "material_set_id": "v1.material-set.signature",
+        "package_revision_provenance": "external_authoring",
         "authoring_provider": "local-test-provider",
         "authoring_model_id": "local-test-model",
         "generated_package_digests": ("c" * 64,),
@@ -55,10 +57,12 @@ def test_evidence_is_redacted_and_written_atomically(tmp_path: Path) -> None:
     assert value == {
         "authoring_model_id": "local-test-model",
         "authoring_provider": "local-test-provider",
+        "behavioral_runs": [],
         "corpus_digest": "a" * 64,
-        "format_version": 1,
+        "format_version": 2,
         "generated_package_digests": ["c" * 64],
         "material_set_id": "v1.material-set.signature",
+        "package_revision_provenance": "external_authoring",
         "pass_criteria": ["package_loader", "fixture_contract"],
         "prompt_digest": "b" * 64,
         "retention_policy": "redacted-evidence-v1",
@@ -102,6 +106,46 @@ def test_evidence_rejects_invalid_release_decision_fields(
 def test_evidence_requires_a_valid_package_digest_for_a_passed_generation() -> None:
     with pytest.raises(AuthoringEvidenceError, match="generated package digests"):
         _evidence(generated_package_digests=())
+
+
+def test_evidence_binds_redacted_behavioral_run_facts(tmp_path: Path) -> None:
+    destination = tmp_path / "evidence.json"
+    evidence = _evidence(
+        behavioral_runs=(
+            AuthoringBehaviorEvidence(
+                case_digest="d" * 64,
+                transcript_digest="e" * 64,
+                execution_model_id="gpt-5.6-terra",
+                terminal_outcome="completed",
+                tool_dispatch_count=1,
+            ),
+        )
+    )
+
+    write_authoring_evidence(destination, evidence)
+
+    recorded = json.loads(destination.read_text(encoding="utf-8"))
+    assert recorded["behavioral_runs"] == [
+        {
+            "case_digest": "d" * 64,
+            "execution_model_id": "gpt-5.6-terra",
+            "terminal_outcome": "completed",
+            "tool_dispatch_count": 1,
+            "transcript_digest": "e" * 64,
+        }
+    ]
+    assert "transcript" not in recorded
+
+
+def test_evidence_records_a_human_model_retarget_without_renaming_the_author() -> None:
+    evidence = _evidence(
+        package_revision_provenance="external_authoring_with_human_model_retarget"
+    )
+
+    assert (
+        evidence.to_mapping()["package_revision_provenance"]
+        == "external_authoring_with_human_model_retarget"
+    )
 
 
 def test_author_then_run_evidence_binds_a_positive_handoff_without_raw_content(

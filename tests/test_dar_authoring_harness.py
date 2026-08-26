@@ -113,7 +113,7 @@ def _generator(leak: bool, violates_no_tool_contract: bool = False) -> str:
         "(output / 'workflow-descriptor.yaml').write_text("
         "(output / 'workflow-descriptor.yaml').read_text().replace("
         "'purpose: Answer one bounded user request with a local model and no tools.', "
-        "'purpose: Answer one bounded question using only supplied text with a local model and no tools.'), "
+        "'purpose: Answer one bounded question using only supplied text with gpt-5.6-terra and no tools.'), "
         "encoding='utf-8');"
     )
     leak_statement = (
@@ -139,6 +139,7 @@ def _generator(leak: bool, violates_no_tool_contract: bool = False) -> str:
         f"template = Path({str(TEMPLATE)!r}); "
         "output = Path(sys.argv[sys.argv.index('--output') + 1]); "
         "shutil.copytree(template, output, dirs_exist_ok=True); "
+        "[path.write_text(path.read_text().replace('profile_requirement: local-general-model', 'profile_requirement: gpt-5.6-terra').replace('model: local-model', 'model: gpt-5.6-terra')) for path in output.iterdir()]; "
         f"{purpose_adaptation}"
         f"{leak_statement}"
         f"{no_tool_violation}"
@@ -285,7 +286,9 @@ def test_harness_accepts_a_package_finalized_by_the_host_control_plane(
                 "for source in template_root.iterdir():",
                 "    content = source.read_text(encoding='utf-8').replace(",
                 "        'purpose: Answer one bounded user request with a local model and no tools.',",
-                "        'purpose: Answer one bounded question using only supplied text with a local model and no tools.')",
+                "        'purpose: Answer one bounded question using only supplied text with gpt-5.6-terra and no tools.').replace(",
+                "        'profile_requirement: local-general-model', 'profile_requirement: gpt-5.6-terra').replace(",
+                "        'model: local-model', 'model: gpt-5.6-terra')",
                 "    call(['write-authored-package-file', '--authoring-output-id', created['authoring_output_id'],",
                 "          '--relative-path', source.name, '--content-stdin'],",
                 "         content)",
@@ -392,7 +395,9 @@ def test_harness_validates_companion_artifacts_in_the_entry_skill_package(
                 "    for source in source_root.iterdir():",
                 "        content = source.read_text(encoding='utf-8').replace(",
                 "            'purpose: Answer one bounded user request with a local model and no tools.',",
-                "            'purpose: Answer one bounded question using only supplied text with a local model and no tools.')",
+                "            'purpose: Answer one bounded question using only supplied text with gpt-5.6-terra and no tools.').replace(",
+                "            'profile_requirement: local-general-model', 'profile_requirement: gpt-5.6-terra').replace(",
+                "            'model: local-model', 'model: gpt-5.6-terra')",
                 "        call(['write-authored-package-file', '--authoring-output-id', created['authoring_output_id'],",
                 "              '--relative-path', source.name, '--content-stdin'],",
                 "             content)",
@@ -502,7 +507,9 @@ def test_harness_allows_a_tool_companion_to_replace_the_entry_descriptor(
                 "call(['project-authoring-materials', '--material-set-id', issued['material_set_id']])",
                 "created = call(['create-authored-package', '--package-name', 'tool-helper'])",
                 "for source in template_root.iterdir():",
-                "    content = source.read_text(encoding='utf-8').replace('dar-authoring-read-only-mcp-template', 'tool-helper')",
+                "    content = source.read_text(encoding='utf-8').replace('dar-authoring-read-only-mcp-template', 'tool-helper').replace(",
+                "        'profile_requirement: local-general-model', 'profile_requirement: gpt-5.6-terra').replace(",
+                "        'model: local-model', 'model: gpt-5.6-terra')",
                 "    call(['write-authored-package-file', '--authoring-output-id', created['authoring_output_id'],",
                 "          '--relative-path', source.name, '--content-stdin'], content)",
                 "tool_index = 'format_version: 1\\nindex_type: agent_runtime_tool_index\\nindex_id: tool-helper-index\\ntools:\\n  - id: lookup_records\\n    adapter: host.mcp\\n'",

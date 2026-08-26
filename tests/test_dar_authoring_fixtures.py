@@ -48,6 +48,7 @@ def test_target_invocation_fixtures_have_complete_deidentified_contracts() -> No
         assert fixture["selected_materials"]
         assert fixture["expected_artifacts"]
         assert fixture["artifact_contracts"]
+        assert fixture["behavioral_cases"]
         assert fixture["expected_capability_or_refusal"]
         assert fixture["required_dar_package_commands"]
         assert fixture["private_material_exclusions"]
@@ -56,6 +57,17 @@ def test_target_invocation_fixtures_have_complete_deidentified_contracts() -> No
             assert material["disposition"] in {"reference_only", "distributable"}
             assert material["artifact_id"].startswith("authoring-material-")
             assert len(material["digest"]) == 64
+        for case in fixture["behavioral_cases"]:
+            assert set(case) == {
+                "expected_output_contains",
+                "expected_tool_dispatch_count",
+                "id",
+                "prompt",
+            }
+            assert case["id"].strip()
+            assert case["prompt"].strip()
+            assert case["expected_output_contains"].strip()
+            assert case["expected_tool_dispatch_count"] >= 0
 
     development = next(
         fixture for fixture in fixtures if fixture["skill"] == "agent-development"
@@ -66,7 +78,7 @@ def test_target_invocation_fixtures_have_complete_deidentified_contracts() -> No
         if contract["artifact"] == "workflow-descriptor.yaml"
     )
     assert descriptor_contract["required"]["purpose"] == (
-        "Answer one bounded question using only supplied text with a local model and no tools."
+        "Answer one bounded question using only supplied text with gpt-5.6-terra and no tools."
     )
 
 

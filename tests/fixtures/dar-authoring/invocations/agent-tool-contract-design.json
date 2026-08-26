@@ -23,8 +23,19 @@
       ],
       "format": "yaml",
       "required": {
-        "format_version": 1
+        "format_version": 1,
+        "model": {
+          "profile_requirement": "gpt-5.6-terra"
+        }
       }
+    }
+  ],
+  "behavioral_cases": [
+    {
+      "expected_output_contains": "approved",
+      "expected_tool_dispatch_count": 1,
+      "id": "reviewed-read-tool",
+      "prompt": "Use lookup_records to find the reviewed record status, then answer with it."
     }
   ],
   "expected_artifacts": [

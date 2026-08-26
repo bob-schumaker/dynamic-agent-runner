@@ -208,21 +208,32 @@ make the Codex plugin an MCP server.
       generator only its `ExternalAuthoringHarnessRequest`, validates its
       directory output against the selected material projection, and returns
       only a passed package digest or a redacted failed outcome.
-- [ ] RED/GREEN: authoring skill fixtures turn natural-language requests plus an
+- [x] RED/GREEN: authoring skill fixtures turn natural-language requests plus an
       `AuthoringMaterialSet` projection into a validated package directory;
       unselected/private material cannot enter package, trace, evaluation fixture,
       or export.
-- [ ] RED/GREEN: run a de-identified checked-in authoring corpus through an
+- [x] RED/GREEN: run a de-identified checked-in authoring corpus through an
       external release harness. Record corpus/prompt/package digests, authoring
       model/provider, deterministic validator result, redacted evidence, named
       reviewer decision, and explicit pass/fail criteria.
-- [ ] RED/GREEN: execute the three target skill invocation fixtures through the
+- [x] RED/GREEN: execute the three target skill invocation fixtures through the
       external authoring harness. Require the resulting artifacts to satisfy the
-      same checked-in property contracts and behavioral routing/refusal
-      expectations; review fixture-schema or expected-property changes as
-      acceptance-contract changes. Execute companion fixtures inside an
-      `agent-development` session with host-issued material/output handles; do
-      not treat companion output as a standalone finalized package.
+      same checked-in property contracts, then execute each exact finalized
+      package through DAR's package execution interface with the model identifier
+      declared in that package. M4.4 separately gates saved-registration
+      `dar-package invoke`. Add de-identified behavioral cases,
+      transcript review, and bounded dispatch assertions. Until judge calibration,
+      the human comparison of fixture/request, generated package specification,
+      and transcript is the semantic/refusal acceptance gate. Bind reviewer
+      evidence to the transcript digest, final package digest, registration,
+      profile identity, terminal outcome, and dispatch counts; retain no raw
+      transcript in the evidence record. A copied package, model substitution, or
+      structural-only result is non-qualifying. Review fixture-schema,
+      expected-property, or behavioral criterion changes as acceptance-contract
+      changes. Execute companion
+      fixtures inside an `agent-development` session with host-issued
+      material/output handles; do not treat companion output as a standalone
+      finalized package.
 - [ ] RED/GREEN: build the M4.4 clean-Codex author-then-run acceptance harness.
       Implement it per plan.md M4.4 and
       `m4-4-workflow-capability-matrix.md`. The mandatory v1 cases are one
