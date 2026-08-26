@@ -50,7 +50,7 @@ def _write_portable_manifest(source: Path) -> None:
                 "content_digest": digest.hexdigest(),
                 "dar_runtime": {
                     "distribution": "dynamic-agent-runner",
-                    "required_version": "0.1.16",
+                    "required_version": "0.2.1",
                 },
                 "descriptor_format_version": 1,
                 "files": files,

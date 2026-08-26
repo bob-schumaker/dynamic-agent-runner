@@ -146,13 +146,13 @@ def test_release_metadata_renders_a_hash_enforced_uv_requirements_lock() -> None
     rendered = render_uv_requirements_lock(
         (
             ("helper", "2.0.0", "b" * 64),
-            ("dynamic-agent-runner", "0.1.16", "a" * 64),
+            ("dynamic-agent-runner", "0.2.1", "a" * 64),
         )
     )
 
     assert rendered == (
         "--require-hashes\n"
-        "dynamic-agent-runner==0.1.16 \\\n"
+        "dynamic-agent-runner==0.2.1 \\\n"
         "    --hash=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
         "helper==2.0.0 \\\n"
         "    --hash=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
@@ -256,7 +256,7 @@ def test_release_trust_root_decodes_keys_and_enforces_version_floors() -> None:
                     private_key.public_key().public_bytes_raw()
                 ).decode("ascii"),
             },
-            "minimum_versions": {"dynamic-agent-runner": "0.1.16rc1"},
+            "minimum_versions": {"dynamic-agent-runner": "0.2.1rc1"},
         }
     )
     assert isinstance(root, ReleaseTrustRoot)
@@ -269,26 +269,26 @@ def test_release_trust_root_decodes_keys_and_enforces_version_floors() -> None:
     metadata["artifacts"] = [
         {
             "name": "dynamic-agent-runner",
-            "version": "0.1.16",
+            "version": "0.2.1",
             "sha256": hashlib.sha256(dar_wheel).hexdigest(),
         },
     ]
     assert verify_release_artifacts(
         metadata=metadata,
         index_url="https://artifactory.example.test/simple",
-        required_versions={"dynamic-agent-runner": "0.1.16"},
+        required_versions={"dynamic-agent-runner": "0.2.1"},
         wheel_bytes={"dynamic-agent-runner": dar_wheel},
         minimum_versions=root.minimum_versions,
     )
 
-    metadata["artifacts"][0]["version"] = "0.1.16rc1"
+    metadata["artifacts"][0]["version"] = "0.2.1rc1"
     with pytest.raises(ReleaseMetadataError, match="below the security floor"):
         verify_release_artifacts(
             metadata=metadata,
             index_url="https://artifactory.example.test/simple",
-            required_versions={"dynamic-agent-runner": "0.1.16rc1"},
+            required_versions={"dynamic-agent-runner": "0.2.1rc1"},
             wheel_bytes={"dynamic-agent-runner": dar_wheel},
-            minimum_versions={"dynamic-agent-runner": "0.1.16"},
+            minimum_versions={"dynamic-agent-runner": "0.2.1"},
         )
 
 

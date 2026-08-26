@@ -126,10 +126,10 @@ uv run --no-project \
   --python 3.14 \
   --index-url \
   https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple \
-  --with dynamic-agent-runner==0.1.16 dar-package <command>
+  --with dynamic-agent-runner==0.2.1 dar-package <command>
 ```
 
-M1 must replace `0.1.16` in all plugin assets as one reviewed release update;
+M1 must replace `0.2.1` in all plugin assets as one reviewed release update;
 the command must resolve only that exact DAR wheel and must not depend on
 plugin-path interpolation. A developer-only pre-publication check may instead
 use `uv run --no-project --python 3.14 --with <absolute-wheel-path>
@@ -139,7 +139,7 @@ resolution plus a JSON receipt. Bespoke release metadata and signatures are
 publication hardening, not a v1 CLI prerequisite.
 
 The exact pinned Artifactory command is a post-release verification: it runs
-only after the OCI release build publishes `dynamic-agent-runner==0.1.16`.
+only after the OCI release build publishes `dynamic-agent-runner==0.2.1`.
 Before publication, M1 verifies the wheel produced by `ocibuild -c` through the
 developer-only absolute-wheel command and records that build's actual version.
 An unpublished pinned version is not a pre-release M1 failure.
@@ -152,7 +152,7 @@ it writes exactly one JSON object to stdout:
   "format_version": 1,
   "status": "ok",
   "distribution": "dynamic-agent-runner",
-  "version": "0.1.16"
+  "version": "0.2.1"
 }
 ```
 

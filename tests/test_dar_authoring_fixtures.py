@@ -191,7 +191,7 @@ def test_adapted_skills_are_portable_and_cover_fixture_contracts() -> None:
     discovery_command = (
         "uv run --no-project --python 3.14 --index-url "
         "https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple "
-        "--with dynamic-agent-runner==0.1.16 dar-package version --json"
+        "--with dynamic-agent-runner==0.2.1 dar-package version --json"
     )
 
     for skill_name in EXPECTED_SKILLS:

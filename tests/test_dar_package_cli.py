@@ -53,7 +53,7 @@ def test_console_entry_point_emits_the_discovery_receipt(
         dar_package_cli.sys, "argv", ["dar-package", "version", "--json"]
     )
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(dar_package_cli, "_distribution_version", lambda: "0.1.16")
+    monkeypatch.setattr(dar_package_cli, "_distribution_version", lambda: "0.2.1")
 
     with pytest.raises(SystemExit) as raised:
         dar_package_cli.console_main()
@@ -64,7 +64,7 @@ def test_console_entry_point_emits_the_discovery_receipt(
         "distribution": "dynamic-agent-runner",
         "format_version": 1,
         "status": "ok",
-        "version": "0.1.16",
+        "version": "0.2.1",
     }
     assert captured.err == ""
     assert str(tmp_path) not in captured.out
@@ -76,7 +76,7 @@ def test_version_json_emits_the_exact_discovery_receipt(
 ) -> None:
     stdout = StringIO()
     stderr = StringIO()
-    monkeypatch.setattr(dar_package_cli, "_distribution_version", lambda: "0.1.16")
+    monkeypatch.setattr(dar_package_cli, "_distribution_version", lambda: "0.2.1")
 
     assert (
         dar_package_cli.main(["version", "--json"], stdout=stdout, stderr=stderr) == 0
@@ -85,7 +85,7 @@ def test_version_json_emits_the_exact_discovery_receipt(
         "distribution": "dynamic-agent-runner",
         "format_version": 1,
         "status": "ok",
-        "version": "0.1.16",
+        "version": "0.2.1",
     }
     assert stderr.getvalue() == ""
 

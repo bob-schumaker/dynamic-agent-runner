@@ -117,7 +117,7 @@ def test_staging_writes_a_canonical_content_manifest(tmp_path: Path) -> None:
     assert manifest["descriptor_format_version"] == 1
     assert manifest["dar_runtime"] == {
         "distribution": "dynamic-agent-runner",
-        "required_version": "0.1.16",
+        "required_version": "0.2.1",
     }
     assert manifest["content_digest"] == staged.digest
     assert manifest["files"] == [

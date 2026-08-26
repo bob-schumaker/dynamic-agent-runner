@@ -124,7 +124,7 @@ fixture-contract validation; publication remains blocked on M4 and M8.
    publishes the pinned wheel, in a fresh environment execute
    the exact published `uv run --no-project --python 3.14 --index-url
    <approved-index> --with
-   dynamic-agent-runner==0.1.16 dar-package version --json` command and record
+   dynamic-agent-runner==0.2.1 dar-package version --json` command and record
    the resolved wheel name, version, and digest from the resolver report. This
    is the only evidence for published-index resolution; the local OCI-build
    wheel proof is pre-release entrypoint/assets evidence only. M1 does not wait

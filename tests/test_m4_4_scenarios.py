@@ -105,7 +105,7 @@ def test_scenario_checker_requires_its_declared_gate_and_fixture() -> None:
         wheel_digest="a" * 64,
         harness_policy_digest="f" * 64,
         executable_identity="codex@0.149.1",
-        module_identity="dynamic-agent-runner@0.1.16",
+        module_identity="dynamic-agent-runner@0.2.1",
         authoring_material_set_id="v1.material-set.signature",
         authoring_output_id="v1.output.signature",
         authoring_receipt_digest="0" * 64,

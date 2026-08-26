@@ -19,7 +19,7 @@ CLI directly through this pinned command:
 <!-- rumdl-disable MD013 -->
 
 ```sh
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.1.16 dar-package version --json
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package version --json
 ```
 
 <!-- rumdl-enable MD013 -->
@@ -59,7 +59,7 @@ purpose, and the local-model system prompt needed for the defined task. The
 runtime must retain `format_version: 1`, `package_type:
 dynamic_agent_design`, `entrypoint: answer_request`, a single `llm_step` node
 named `answer_request`, no tools, and the `final_answer` output contract. The
-descriptor must retain `required_version: 0.1.16`, `allowed_tool_ids: []`, and
+descriptor must retain `required_version: 0.2.1`, `allowed_tool_ids: []`, and
 `max_total_tool_calls: 0`.
 
 Do not invent an alternative runtime or descriptor schema for a simple
@@ -78,10 +78,10 @@ and do not repeat it in the handoff.
 <!-- rumdl-disable MD013 -->
 
 ```sh
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.1.16 dar-package project-authoring-materials --material-set-id <opaque-id>
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.1.16 dar-package create-authored-package --package-name <user-requested-name>
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.1.16 dar-package write-authored-package-file --authoring-output-id <opaque-id> --relative-path <package-relative-path> --content-stdin
-uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.1.16 dar-package finalize-authored-package --authoring-output-id <opaque-id> --material-set-id <opaque-id>
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package project-authoring-materials --material-set-id <opaque-id>
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package create-authored-package --package-name <user-requested-name>
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package write-authored-package-file --authoring-output-id <opaque-id> --relative-path <package-relative-path> --content-stdin
+uv run --no-project --python 3.14 --index-url https://artifactory.oci.oraclecorp.com/api/pypi/global-release-pypi/simple --with dynamic-agent-runner==0.2.1 dar-package finalize-authored-package --authoring-output-id <opaque-id> --material-set-id <opaque-id>
 ```
 
 <!-- rumdl-enable MD013 -->
