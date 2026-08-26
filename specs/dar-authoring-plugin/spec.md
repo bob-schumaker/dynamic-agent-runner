@@ -2,7 +2,8 @@
 
 ## Metadata
 
-- Status: proposed; not implementation authorization
+- Status: implemented through M7 and M4.4; publication and post-release
+  acceptance remain pending
 - Owner: dynamic-agent-runner
 - Target: a Codex plugin that authors and runs selected DAR-compatible workflow
   packages. The plugin is installed through the Codex plugin mechanism; it is
@@ -133,8 +134,7 @@ the command must resolve only that exact DAR wheel and must not depend on
 plugin-path interpolation. A developer-only pre-publication check may instead
 use `uv run --no-project --python 3.14 --with <absolute-wheel-path>
 dar-package <command>`.
-The DAR distribution shall provide `dar-package`; until that entry point ships,
-these are future contracts, not live commands. M1 proves installed-wheel command
+The DAR distribution provides `dar-package`. M1 proves installed-wheel command
 resolution plus a JSON receipt. Bespoke release metadata and signatures are
 publication hardening, not a v1 CLI prerequisite.
 

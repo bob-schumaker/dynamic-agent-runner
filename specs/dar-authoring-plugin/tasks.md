@@ -36,12 +36,12 @@ make the Codex plugin an MCP server.
       skill collaborates with the user to close missing workflow semantics,
       finalizes a task-specific package, and hands its saved package name/receipt
       to a later invocation request.
-- [ ] RED/GREEN: remove the plugin `.mcp.json`, plugin-manifest `mcpServers`
+- [x] RED/GREEN: remove the plugin `.mcp.json`, plugin-manifest `mcpServers`
       entry, `scripts/dar-mcp`, MCP session-broker implementation, and their
       tests only after CLI acceptance coverage replaces them. This does not remove
       the local `--ask` approval broker. Verify a clean plugin install exposes
       skills and no plugin-provided MCP server.
-- [ ] RED/GREEN: replace the M4.4 run actor with a clean Codex skill invocation
+- [x] RED/GREEN: replace the M4.4 run actor with a clean Codex skill invocation
       that issues the defined `uv run ... dar-package` commands. It must prove
       finalization and later saved-package invocation from text-only prompts;
       the harness controller may provide only declared fixture inputs and fake
@@ -234,7 +234,7 @@ make the Codex plugin an MCP server.
       fixtures inside an `agent-development` session with host-issued
       material/output handles; do not treat companion output as a standalone
       finalized package.
-- [ ] RED/GREEN: build the M4.4 clean-Codex author-then-run acceptance harness.
+- [x] RED/GREEN: build the M4.4 clean-Codex author-then-run acceptance harness.
       Implement it per plan.md M4.4 and
       `m4-4-workflow-capability-matrix.md`. The mandatory v1 cases are one
       no-tool document-summary author→finalize→saved-package-invoke success and

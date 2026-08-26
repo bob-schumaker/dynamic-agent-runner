@@ -430,8 +430,9 @@ through the sealed, catalog-only runner interface.
    recorded as an atomically written redacted `AuthorThenRunEvidence` record;
    no prompt, material body, credential, or filesystem path was retained.
 
-M4 exit: the adapted skills have behavioral evidence without making model calls
-part of ordinary test execution.
+M4 exit: the adapted skills have behavioral evidence and the mandatory
+CLI-first clean-Codex author-then-run cases have passed, without making model
+calls part of ordinary test execution.
 
 ### M8 — Publication acceptance
 
