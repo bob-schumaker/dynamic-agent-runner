@@ -459,7 +459,7 @@ make the Codex plugin an MCP server.
 
 ## Focused Validation
 
-- [ ] All unit tests use fake model adapters, MCP handlers, approval stores,
+- [x] All unit tests use fake model adapters, MCP handlers, approval stores,
       and filesystem primitives; no live Fastmail, Hugging Face, or model call.
 - [ ] A positive fixture is required before a gate's capability is reported live.
 - [ ] G5 may run after G0, G1, and G3; it additionally requires G2 for MCP
