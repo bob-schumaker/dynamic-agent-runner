@@ -319,6 +319,33 @@ the restored-environment B0 result is investigated.
   failure in
   `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
 
+## A2 B3.2 callback coordination — 2026-08-26
+
+- Each Apple wrapper now constructs a request for the shared coordinator. The
+  coordinator retains validation, active-tool exposure, executor-bound input
+  guardrails, approval decisions, lifecycle hooks, trace/state updates, and
+  model-facing result selection. The wrapper never dispatches a handler.
+- Callback work runs inline only on the executor loop. A callback on a different
+  Apple SDK loop is marshalled via `run_coroutine_threadsafe`; fake evidence
+  proves coordinator execution occurs on the bound executor loop.
+- Unresolved approval becomes `ProviderToolInterruption` and then a
+  `WorkflowInterruptedResult`. Denied, cancelled, expired, validation/guardrail
+  failures, failed results, and unserializable model-facing output use the typed
+  terminal callback path, which the executor converts to a non-retry
+  `WorkflowExecutionError`.
+- RED: focused guardrail and failed-result tests initially failed because the
+  active context did not carry a provider guardrail runner and the callback
+  serialized failed results. The cross-loop and terminal-retry tests were added
+  before their bridge behavior.
+- GREEN: `poetry run pytest -q tests/test_apple_foundation_models.py
+  tests/test_tool_invocation.py tests/test_executor.py` — `217 passed`.
+  Council and ponytail re-review found no remaining P0/P1/P2 issues.
+- Delivery checks: `poetry run ruff check src tests`, `poetry check`,
+  `poetry build`, focused `pre-commit run --files`, and `git diff --check`
+  passed. Full `poetry run pytest -q` reached `1180 passed, 1 skipped, 4
+  deselected` plus the known unrelated configured-host expectation failure in
+  `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
+
 ## Required evidence by slice
 
 ### Slice 1

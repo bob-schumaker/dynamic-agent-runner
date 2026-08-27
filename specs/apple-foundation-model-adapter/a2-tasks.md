@@ -96,9 +96,13 @@ fixed decisions in `a2-plan.md`.
     tests require two distinct wrapper-to-tool paths, coordinator ingress,
     unique callback identities/result keys, model-origin lifecycle traces, and
     validation before approval or dispatch. B3.2 turns them green.
-- [ ] B3.2 [implementation] Route Apple callbacks through the coordinator and
+- [x] B3.2 [implementation] Route Apple callbacks through the coordinator and
       convert unresolved approval to the provider-aware DAR interruption;
       denied, cancelled, and expired decisions remain non-dispatch outcomes.
+  - Evidence: `validation.md` (2026-08-26); callbacks marshal coordinator work
+    to the executor loop, preserve guardrails/state/traces/hooks, and terminate
+    non-retryably for denied, cancelled, expired, guardrail, and failed-result
+    outcomes.
 - [ ] B3.3 [tests] Prove the atomic provider-callback budget derives from the
       active DAR tool-call limit, translates zero and one correctly, caps N+1
       racing callbacks, emits the provider-origin exhaustion trace, and returns
