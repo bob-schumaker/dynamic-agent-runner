@@ -76,8 +76,9 @@ their failure, implement the smallest change, then rerun them green.
 - [ ] C4.2 On an eligible Mac, run a direct Apple-backed saved no-tool workflow
       and a fake-MCP Apple-backed saved workflow. Record only redacted live
       receipts; pytest-native Apple behavior remains diagnostic.
-- [ ] C4.3 [tests] Before OAuth/live invocation, preflight the current reviewed
-      Fastmail `search_email` descriptor and retain only a redacted surface
+- [ ] C4.3 [tests] Before any Fastmail tool dispatch, after authenticated current
+      `tools/list`, preflight the current reviewed Fastmail `search_email`
+      descriptor and retain only a redacted surface
       digest plus `direct`, `gateway`, or `blocked` mode. `direct` requires the
       Apple schema translator; `gateway` requires the approved A4 exact-schema
       gateway contract; `blocked` prevents O7. Do not weaken the upstream
