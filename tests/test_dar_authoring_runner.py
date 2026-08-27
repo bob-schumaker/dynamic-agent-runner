@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -116,6 +117,7 @@ class FakeMCPClient:
         self.authentication_id = authentication_id
         self.current_generation = 1
         self.calls: list[tuple[str, dict[str, object]]] = []
+        self.echo_arguments = False
         self._tools = (
             MCPDiscoveredTool(
                 name="list_unread",
@@ -137,6 +139,8 @@ class FakeMCPClient:
 
     def call_tool(self, name: str, arguments: dict[str, object]) -> dict[str, object]:
         self.calls.append((name, arguments))
+        if self.echo_arguments:
+            return {"content": [{"type": "text", "text": str(arguments["body"])}]}
         return {"content": [{"type": "text", "text": "three unread messages"}]}
 
 
@@ -272,6 +276,7 @@ def _tool_runner(
     side_effect: bool = False,
     approval_broker: LocalActionApprovalBroker | None = None,
     body_from_artifact: bool = False,
+    body_composed_from_artifact: bool = False,
     artifact_verifier: object | None = None,
 ):
     source = tmp_path / "packages" / "mail-reader"
@@ -306,6 +311,8 @@ def _tool_runner(
                                 "sources": (
                                     ["artifact_role:body"]
                                     if body_from_artifact
+                                    else ["model_generated_transform"]
+                                    if body_composed_from_artifact
                                     else ["cited_original_prompt_span"]
                                 ),
                                 "authority": False,
@@ -318,7 +325,7 @@ def _tool_runner(
             ),
         }
     )
-    if body_from_artifact:
+    if body_from_artifact or body_composed_from_artifact:
         descriptor["task_invocation"]["allowed_artifact_roles"] = ["body"]
     descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
     runtime_path = source / "agent-runtime.yaml"
@@ -458,6 +465,36 @@ def _tool_runner(
         if side_effect
         else '{"folder":"inbox"}'
     )
+    if body_composed_from_artifact:
+        tool_arguments = json.dumps(
+            {
+                "provenance_envelope": json.dumps(
+                    {
+                        "arguments": {
+                            "body": "Body from artifact",
+                            "recipient": "ada@example.test",
+                        },
+                        "format_version": 1,
+                        "sources": {
+                            "body": {
+                                "kind": "compose_content_v1",
+                                "inputs": [{"kind": "artifact", "ref": "body"}],
+                            },
+                            "recipient": {
+                                "end_byte": 16,
+                                "kind": "prompt_span",
+                                "normalization": "identity",
+                                "start_byte": 0,
+                            },
+                        },
+                    },
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
     model_client = QueuedClient(
         [
             ModelResponse(
@@ -675,6 +712,7 @@ def test_runner_materializes_a_hash_bound_artifact_only_for_the_handler(
         body_from_artifact=True,
         artifact_verifier=BodyArtifactVerifier(),
     )
+    mcp_client.echo_arguments = True
     prepared = preparation.prepare(
         workflow_id="mail-reader",
         prompt="ada@example.test\nUntrusted body",
@@ -701,6 +739,51 @@ def test_runner_materializes_a_hash_bound_artifact_only_for_the_handler(
         )
     ]
     assert "Body from artifact" not in repr(model_client.responses.calls)
+    assert (
+        model_client.responses.calls[1]["input"][-1]["content"]
+        == '{"status": "artifact_result_redacted"}'
+    )
+
+
+def test_runner_redacts_composed_artifact_provenance_from_the_model(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, mcp_client, model_client = _tool_runner(
+        tmp_path,
+        side_effect=True,
+        body_composed_from_artifact=True,
+        artifact_verifier=BodyArtifactVerifier(),
+    )
+    mcp_client.echo_arguments = True
+    prepared = preparation.prepare(
+        workflow_id="mail-reader",
+        prompt="ada@example.test\nUntrusted body",
+        workspace_artifact_ids=("v1.body",),
+        now=NOW,
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": "mail-reader",
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.status == "completed"
+    assert mcp_client.calls == [
+        (
+            "send_email",
+            {"recipient": "ada@example.test", "body": "Body from artifact"},
+        )
+    ]
+    assert "Body from artifact" not in repr(model_client.responses.calls)
+    follow_up_input = model_client.responses.calls[1]["input"]
+    assert follow_up_input[-2]["tool_calls"][0]["function"]["arguments"] == "{}"
+    assert follow_up_input[-1]["content"] == '{"status": "artifact_result_redacted"}'
 
 
 def test_side_effecting_prepared_input_cannot_be_replayed(tmp_path: Path) -> None:

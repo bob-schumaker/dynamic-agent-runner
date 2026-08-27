@@ -1791,16 +1791,27 @@ def _model_tool_call_id(tool_call: ModelToolCall, iteration: int) -> str:
 def _model_tool_result_messages(
     tool_call: ModelToolCall, tool_call_id: str, result: ToolResult
 ) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
-    model_output = json.dumps(result.model_facing_output)
-    arguments = (
-        tool_call.arguments
-        if isinstance(tool_call.arguments, str)
-        else json.dumps(tool_call.arguments)
+    uses_artifact = _model_tool_call_uses_artifact(tool_call)
+    model_output = json.dumps(
+        {"status": "artifact_result_redacted"}
+        if uses_artifact
+        else result.model_facing_output
     )
+    arguments = _model_tool_transcript_arguments(tool_call)
     return (
         {
             "role": "assistant",
-            "content": f"Tool call {tool_call_id}: {tool_call.name}",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": tool_call_id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.name,
+                        "arguments": arguments,
+                    },
+                }
+            ],
             "_dar_transcript_type": "model_tool_call",
             "call_id": tool_call_id,
             "name": tool_call.name,
@@ -1815,6 +1826,58 @@ def _model_tool_result_messages(
             "call_id": tool_call_id,
             "output": model_output,
         },
+    )
+
+
+def _model_tool_transcript_arguments(tool_call: ModelToolCall) -> str:
+    """Keep artifact-backed provenance values out of the next model turn."""
+
+    arguments = (
+        tool_call.arguments
+        if isinstance(tool_call.arguments, str)
+        else json.dumps(tool_call.arguments)
+    )
+    if _model_tool_call_uses_artifact(tool_call):
+        return "{}"
+    return arguments
+
+
+def _model_tool_call_uses_artifact(tool_call: ModelToolCall) -> bool:
+    """Return whether an authorized tool call claims any artifact source."""
+
+    arguments = tool_call.arguments
+    try:
+        parsed_arguments = (
+            json.loads(arguments) if isinstance(arguments, str) else arguments
+        )
+        envelope = (
+            parsed_arguments.get("provenance_envelope")
+            if isinstance(parsed_arguments, Mapping)
+            else None
+        )
+        parsed_envelope = json.loads(envelope) if isinstance(envelope, str) else None
+        sources = (
+            parsed_envelope.get("sources")
+            if isinstance(parsed_envelope, Mapping)
+            else None
+        )
+    except (TypeError, json.JSONDecodeError):
+        return False
+    return isinstance(sources, Mapping) and any(
+        _provenance_source_contains_artifact(source) for source in sources.values()
+    )
+
+
+def _provenance_source_contains_artifact(source: object) -> bool:
+    """Return whether one provenance source can disclose ingressed content."""
+
+    if not isinstance(source, Mapping):
+        return False
+    if source.get("kind") == "artifact":
+        return True
+    inputs = source.get("inputs")
+    return isinstance(inputs, list) and any(
+        _provenance_source_contains_artifact(item) for item in inputs
     )
 
 

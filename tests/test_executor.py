@@ -2642,17 +2642,14 @@ def test_prepare_model_input_injected_semantic_selector_selects_low_overlap_turn
     )
 
     assert seen_query == ["How should we recover the tenant audit ledger?"]
-    assert seen_candidates == [
-        (
-            ContextSelectionCandidate(
-                turn_id="turn_1",
-                text="The WAL shard is corrupt\nRestore from replica delta",
-                roles=("user", "assistant"),
-                exact_match_count=0,
-                token_estimate=20,
-            ),
-        ),
-    ]
+    assert len(seen_candidates) == 1
+    assert len(seen_candidates[0]) == 1
+    candidate = seen_candidates[0][0]
+    assert candidate.turn_id == "turn_1"
+    assert candidate.text == "The WAL shard is corrupt\nRestore from replica delta"
+    assert candidate.roles == ("user", "assistant")
+    assert candidate.exact_match_count == 0
+    assert candidate.token_estimate > 0
     assert seen_metadata[0]["profile"] == "semantic"
     assert prepared_input.named_parts["selected_turn_1"].content.startswith(
         "Selected older turn turn_1:"
@@ -4145,7 +4142,17 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     assert len(adapter.client.responses.calls) == 2
     second_input = adapter.client.responses.calls[1]["input"]
     assert second_input[-2]["role"] == "assistant"
-    assert second_input[-2]["content"] == "Tool call call_1: search_repo"
+    assert second_input[-2]["content"] == ""
+    assert second_input[-2]["tool_calls"] == [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {
+                "name": "search_repo",
+                "arguments": '{"query":"agents"}',
+            },
+        }
+    ]
     assert second_input[-1] == {
         "role": "tool",
         "tool_call_id": "call_1",
