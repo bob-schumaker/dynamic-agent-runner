@@ -726,7 +726,7 @@ pass:
       fallback for missing coverage.
 - [ ] Structured capability selection works through existing model metadata.
 - [ ] Unit tests make no live Apple model calls.
-- [ ] Standalone live text, structured-output, and full DAR workflow checks pass on the designated eligible Mac; pytest-native status-255 behavior is recorded as an SDK harness limitation.
+- [ ] Standalone live text, structured-output, and full DAR workflow checks pass on the designated eligible Mac; the separate pytest-native SDK result is recorded.
 - [ ] Live tests skip cleanly with an actionable reason when Apple prerequisites
       are unavailable.
 - [ ] Focused tests, full tests, lint, package build, and import checks pass.

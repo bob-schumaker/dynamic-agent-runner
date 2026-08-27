@@ -7,7 +7,8 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 
 - Feature: `specs/apple-foundation-model-adapter/spec.md`
 - Plan: `specs/apple-foundation-model-adapter/plan.md`
-- Tasks: `specs/apple-foundation-model-adapter/tasks.md`
+- A1 task record: `specs/apple-foundation-model-adapter/tasks.md`
+- Canonical A2 task list: `specs/apple-foundation-model-adapter/a2-tasks.md`
 - A1 only: local final text and explicit JSON Schema output.
 - A2 Apple tool callbacks are governed by `a2-plan.md` and `a2-tasks.md`; no
   A2 implementation evidence exists yet.
@@ -120,5 +121,9 @@ the absence of an eligible Mac does not weaken deterministic unit coverage.
 
 - Optional SDK installation and import succeeded on macOS arm64.
 - Clean standalone Python processes successfully exercised DAR text, structured JSON Schema, and strict-coverage workflow paths.
-- The pytest-native live command fails inside Apple native generation with GenerationError status 255 even when availability reports (True, None). Plugin disabling, capture changes, and child-process isolation did not remove the failure.
-- This is an Apple SDK/runtime test-environment limitation, not successful pytest-native verification.
+- Historical pytest-native execution failed inside Apple native generation with
+  `GenerationError` status 255 despite successful availability. In the restored
+  declared environment, the marked pytest suite passed 12 live executions with
+  no status-255 recurrence, but emitted an SDK-native destructor error at
+  process teardown. Standalone execution remains the authoritative live gate
+  while that teardown defect is monitored.

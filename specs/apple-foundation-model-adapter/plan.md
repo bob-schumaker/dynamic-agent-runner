@@ -77,4 +77,4 @@ selection, or expose Apple SDK sessions/transcripts as DAR state.
 
 ## Post-implementation decision
 
-Standalone runtime verification is accepted for A1 text, structured output, and strict workflow behavior. The pytest-native Apple SDK path remains blocked by repeatable native GenerationError status 255 behavior despite successful availability preflight; future work must isolate or replace that harness before using it as a release gate. No provider retry or pytest-specific runtime behavior is added from this evidence.
+Standalone runtime verification is accepted for A1 text, structured output, and strict workflow behavior. Historical pytest-native execution produced native `GenerationError` status 255 despite successful availability preflight; the restored declared environment later passed 12 live pytest executions but emitted an SDK-native teardown error. Future work must monitor or replace that harness before using it as a release gate. No provider retry or pytest-specific runtime behavior is added from this evidence.
