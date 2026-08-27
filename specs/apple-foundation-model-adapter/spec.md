@@ -6,7 +6,7 @@
 - Feature slug: `apple-foundation-model-adapter`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 plan approved
+- Status: A1 and A2 implementation complete; standalone direct release gate established; pytest-native SDK checks remain diagnostic
 - Version: `0.4`
 - Date: 2026-07-01
 - Owner: dynamic-agent-runner model-provider boundary
@@ -678,7 +678,7 @@ and exposed tool set.
 
 ## Non-Goals
 
-The first release does not include:
+The A1 release does not include:
 
 - any dependency on or runtime invocation of `fmx`
 - an Apple-specific executor branch or workflow node kind
@@ -686,7 +686,7 @@ The first release does not include:
 - an HTTP `/v1/responses`, `/v1/chat/completions`, or `/v1/models` server
 - use of the official OpenAI SDK for Apple model calls
 - sync Apple SDK client emulation as a separate public provider surface
-- Apple SDK tool registration or DAR tool calling
+- Apple SDK tool registration or DAR tool calling (added by A2)
 - provider-native token or snapshot streaming
 - image, audio, or other multimodal prompts
 - persistent Apple sessions, transcript save/load, or durable memory
@@ -706,49 +706,49 @@ or silent fallback around approval and schema constraints.
 The first-release implementation is not complete until all applicable checks
 pass:
 
-- [ ] Package import succeeds without `apple-fm-sdk`.
-- [ ] Adapter configuration and construction succeed on non-macOS platforms
+- [x] Package import succeeds without `apple-fm-sdk`.
+- [x] Adapter configuration and construction succeed on non-macOS platforms
       without importing `apple-fm-sdk`.
-- [ ] First generation on an unsupported platform fails before SDK import.
-- [ ] Missing SDK, unavailable model, and SDK generation errors translate to
+- [x] First generation on an unsupported platform fails before SDK import.
+- [x] Missing SDK, unavailable model, and SDK generation errors translate to
       package-owned errors with preserved causes.
-- [ ] Fake-backed text generation returns a normalized `ModelResponse`.
-- [ ] Instructions and ordered text history translate without silent loss.
-- [ ] Unsupported content, tools, streaming, and unrecognized request fields
+- [x] Fake-backed text generation returns a normalized `ModelResponse`.
+- [x] Instructions and ordered text history translate without silent loss.
+- [x] Unsupported content, streaming, and unrecognized request fields
       fail closed.
-- [ ] Explicit JSON Schema generation returns valid JSON text.
-- [ ] Schema-less `json_object` mode fails clearly.
-- [ ] Temperature, `max_tokens`, and `max_output_tokens` map correctly, and
+- [x] Explicit JSON Schema generation returns valid JSON text.
+- [x] Schema-less `json_object` mode fails clearly.
+- [x] Temperature, `max_tokens`, and `max_output_tokens` map correctly, and
       conflicting token-limit aliases fail before generation.
-- [ ] A fresh SDK session is created per request.
-- [ ] Concurrent requests do not share mutable sessions.
-- [ ] Strict coverage selects the Apple alias and prevents default OpenAI
+- [x] A fresh SDK session is created per request.
+- [x] Concurrent requests do not share mutable sessions.
+- [x] Strict coverage selects the Apple alias and prevents default OpenAI
       fallback for missing coverage.
-- [ ] Structured capability selection works through existing model metadata.
-- [ ] Unit tests make no live Apple model calls.
-- [ ] Standalone live text, structured-output, and full DAR workflow checks pass on the designated eligible Mac; the separate pytest-native SDK result is recorded.
-- [ ] Live tests skip cleanly with an actionable reason when Apple prerequisites
+- [x] Structured capability selection works through existing model metadata.
+- [x] Unit tests make no live Apple model calls.
+- [x] Standalone live text, structured-output, and full DAR workflow checks pass on the designated eligible Mac; the separate pytest-native SDK result is recorded.
+- [x] Live tests skip cleanly with an actionable reason when Apple prerequisites
       are unavailable.
-- [ ] Focused tests, full tests, lint, package build, and import checks pass.
-- [ ] Documentation covers installation, prerequisites, strict local usage,
+- [x] Focused tests, full tests, lint, package build, and import checks pass.
+- [x] Documentation covers installation, prerequisites, strict local usage,
       capabilities, limitations, and diagnostics.
 
 ### A2 validation checklist
 
-- [ ] Apple sessions receive only wrappers for tools exposed to the active node.
-- [ ] Callback arguments enter the DAR-owned tool invocation coordinator.
-- [ ] No callback can invoke a handler or registry directly.
-- [ ] DAR argument validation runs before the test handler.
-- [ ] Approval-required tools cannot run before approval resolution.
-- [ ] Approved calls run once with the approved arguments.
-- [ ] Rejected, cancelled, expired, and unresolved approvals never invoke the
+- [x] Apple sessions receive only wrappers for tools exposed to the active node.
+- [x] Callback arguments enter the DAR-owned tool invocation coordinator.
+- [x] No callback can invoke a handler or registry directly.
+- [x] DAR argument validation runs before the test handler.
+- [x] Approval-required tools cannot run before approval resolution.
+- [x] Approved calls run once with the approved arguments.
+- [x] Rejected, cancelled, expired, and unresolved approvals never invoke the
       handler.
-- [ ] DAR lifecycle hooks, trace events, state storage, sensitive-field
+- [x] DAR lifecycle hooks, trace events, state storage, sensitive-field
       redaction, and model-facing output behavior are preserved.
-- [ ] Tool iteration and completion limits are enforced before further handler
+- [x] Tool iteration and completion limits are enforced before further handler
       invocation.
-- [ ] Unsupported Apple argument-schema translations fail before generation.
-- [ ] Fake-backed unit tests and live Apple callback tests cover the complete
+- [x] Unsupported Apple argument-schema translations fail before generation.
+- [x] Fake-backed unit tests and live Apple callback tests cover the complete
       coordinator path.
 
 ## Resolved Decisions

@@ -37,7 +37,7 @@ ROI is judged by:
 
 | Rank | Spec Work | ROI | Rationale |
 | --- | --- | --- | --- |
-| 1 | `apple-foundation-model-adapter` A1 | Very high, implementation complete with validation follow-up | Concrete on-machine caller need, successful local SDK and model probes, strong fit with the existing async provider facade and strict coverage, and a bounded first release for text plus explicit JSON Schema output. Slices 1-6 are implemented; standalone live text, structured, and strict-workflow paths succeeded; pytest-native Apple SDK verification remains a follow-up, and A2 tool callbacks remain separately gated. |
+| 1 | `apple-foundation-model-adapter` A1/A2 | Very high, implementation complete | Concrete on-machine caller need, successful local SDK and model probes, strong fit with the existing async provider facade and strict coverage, and bounded text, JSON Schema, and coordinator-routed tool callback support. A standalone direct release gate and fake/eligible-Mac callback evidence passed; pytest-native SDK checks remain diagnostic. |
 | 2 | `memory-aware-context-pipeline` first slice | Medium-high, gated | Useful if it proves memory-specific identity, ownership, provenance, and no-implicit-save policy beyond RAG. First slice should be validation, capability/status, fake retrieval output, retrieved-context handoff, and trace metadata only. |
 | 3 | `provider-backed-context-compaction` | Medium | Valuable for long sessions, but depends on provider capability clarity and likely benefits from the completed LiteLLM provider work first. |
 
