@@ -77,11 +77,14 @@ their failure, implement the smallest change, then rerun them green.
       and a fake-MCP Apple-backed saved workflow. Record only redacted live
       receipts; pytest-native Apple behavior remains diagnostic.
 - [ ] C4.3 [tests] Before OAuth/live invocation, preflight the current reviewed
-      Fastmail `search_email` descriptor through the Apple schema translator.
-      Retain only a redacted surface digest and admissible/blocked result. An
-      inadmissible schema blocks O7; do not weaken it.
+      Fastmail `search_email` descriptor and retain only a redacted surface
+      digest plus `direct`, `gateway`, or `blocked` mode. `direct` requires the
+      Apple schema translator; `gateway` requires the approved A4 exact-schema
+      gateway contract; `blocked` prevents O7. Do not weaken the upstream
+      schema.
 - [ ] C4.4 Re-run the approved Fastmail O7 acceptance with the Apple profile
-      only after C4.3 is admissible: confirm OAuth reconnect, certificate pin,
+      only after C4.3 reports `direct` or `gateway`: confirm OAuth reconnect,
+      certificate pin,
       current `tools/list`, and a `search_email`-only reviewed snapshot; invoke
       the saved last-five-subjects workflow once and retain only
       package/transcript digests, terminal status, and dispatch count for human

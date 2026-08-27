@@ -636,6 +636,33 @@ Acceptance criteria:
   evidence. An inadmissible schema blocks the acceptance rather than weakening
   the schema or starting the live run.
 
+### FR-18: Schema-preserving Apple gateway fallback
+
+Apple's generated-tool schema is a provider constraint, not an upstream MCP
+contract. DAR must retain direct per-tool wrappers for losslessly representable
+schemas, but select one Apple-admissible gateway wrapper for an active tool with
+ordinary JSON Schema that Apple cannot represent directly. The gateway accepts
+only `{tool_token: string, arguments_json: string}`, with both fields required
+and `additionalProperties: false`. Tokens are per-response opaque capabilities
+bound only to fallback tools in the exact active snapshot; they are never DAR
+ids, remote names, schemas, or reusable across responses. DAR rejects payloads
+over its fixed byte/depth/key limits, duplicate keys, non-object JSON, unknown,
+inactive, stale, or reused tokens. It must run full JSON Schema validation
+(`check_schema` plus validation) against the exact original active schema before
+the existing coordinator runs; registry preparation remains a later DAR
+mechanic, not the schema validator. DAR must not invent required fields, drop
+validation-relevant constraints, or broaden accepted input. Currentness,
+approval, hooks, tracing, state, budgets, and dispatch remain coordinator-owned.
+Raw schemas and gateway arguments remain private; redacted evidence contains
+only digests, status, and dispatch counts.
+
+FR-18 supersedes FR-16's direct-wrapper rejection only when this gateway
+contract is fully available; otherwise an unrepresentable schema still rejects
+before session generation. C4.3 must be regenerated as a digest-bound
+`direct`, `gateway`, or `blocked` classification. A gateway classification does
+not complete C4/O7: it requires A4 parity tests, eligible-Mac evidence, and
+human review before the one permitted Fastmail dispatch.
+
 ## Non-Functional Requirements
 
 ### NFR-1: Portability
