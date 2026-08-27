@@ -266,11 +266,10 @@ def test_provider_callback_budget_claims_a_bounded_number_of_callbacks() -> None
     assert budget.claimed == 3
 
 
-def test_active_context_carries_provider_decision_and_callback_budget() -> None:
+def test_active_context_carries_provider_decision_collaborator() -> None:
     tool = _tool("search")
     registry = InMemoryToolRegistry([tool])
     tool = registry.get_tool("search")
-    budget = ProviderCallbackBudget(limit=2)
 
     class Collaborator:
         def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
@@ -290,11 +289,9 @@ def test_active_context_carries_provider_decision_and_callback_budget() -> None:
         lifecycle_hooks=None,
         retry_policy=RetryPolicy(),
         decision_collaborator=Collaborator(),
-        callback_budget=budget,
     )
 
     assert context.decision_collaborator is not None
-    assert context.callback_budget is budget
 
 
 @pytest.mark.parametrize(

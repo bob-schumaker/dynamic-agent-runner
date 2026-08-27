@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import inspect
 import json
 from pathlib import Path
-from threading import get_ident
+from threading import Barrier, get_ident
 from types import SimpleNamespace
 from typing import Annotated, get_args, get_origin, get_type_hints
 
@@ -300,6 +300,50 @@ class FakeAppleCrossLoopCallbackSDK(FakeAppleCallbackSDK):
         return session
 
 
+class FakeAppleRacingCallbackSession(FakeAppleCallbackSession):
+    async def respond(self, _prompt: str, **_kwargs: object) -> str:
+        barrier = Barrier(len(self.callback_arguments))
+
+        def invoke_callback(tool_index: int, arguments: str) -> object:
+            barrier.wait()
+            return asyncio.run(
+                self.tools[tool_index].call(FakeAppleGeneratedContent(arguments))
+            )
+
+        tasks = [
+            asyncio.to_thread(
+                invoke_callback,
+                tool_index,
+                arguments,
+            )
+            for tool_index, arguments in self.callback_arguments
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        self.callback_results.extend(results)
+        terminal = next(
+            (result for result in results if isinstance(result, BaseException)), None
+        )
+        if terminal is not None:
+            raise terminal
+        return "answer"
+
+
+class FakeAppleRacingCallbackSDK(FakeAppleCallbackSDK):
+    def LanguageModelSession(
+        self,
+        *,
+        instructions: str | None,
+        tools: list[object] | tuple[object, ...] = (),
+    ) -> FakeAppleRacingCallbackSession:
+        session = FakeAppleRacingCallbackSession(
+            instructions,
+            tools=tools,
+            callback_arguments=self.callback_arguments,
+        )
+        self.sessions.append(session)
+        return session
+
+
 @dataclass(frozen=True)
 class FakeAppleGenerationSchema:
     generated_type: type[object]
@@ -363,13 +407,15 @@ def _active_tool_context(
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
     provider_guardrail_runner: object | None = None,
     executor_loop: object | None = None,
+    max_steps: int | None = None,
 ):
     state = SimpleNamespace(run_id="run-1", tool_results={}, trace_events=[])
     return tool_context(
         plan=SimpleNamespace(
             workflow=SimpleNamespace(
                 runtime_manifest=SimpleNamespace(package_id="workflow-1")
-            )
+            ),
+            max_steps=max_steps,
         ),
         node=SimpleNamespace(id="node-1"),
         tools=tools,
@@ -1084,6 +1130,123 @@ def test_apple_callback_marshals_cross_loop_coordination_to_executor_loop(
     assert response.content == "answer"
     assert coordinator_loop_ids == executor_loop_ids
     assert callback_thread_ids[0] != get_ident()
+
+
+@pytest.mark.parametrize(
+    ("max_steps", "callback_count", "expected_limit"),
+    [
+        (0, 9, 8),
+        (1, 2, 1),
+    ],
+)
+def test_apple_callback_budget_uses_active_tool_limit_and_stops_on_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+    max_steps: int,
+    callback_count: int,
+    expected_limit: int,
+) -> None:
+    invocations: list[dict[str, object]] = []
+    tool = _tool(
+        "send",
+        _APPLE_CALLBACK_SCHEMA,
+        handler=lambda arguments: invocations.append(dict(arguments)),
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(
+        registry,
+        (registry.get_tool("send"),),
+        max_steps=max_steps,
+    )
+    sdk = FakeAppleCallbackSDK(
+        tuple(
+            (0, json.dumps({"message": str(index)})) for index in range(callback_count)
+        )
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    with pytest.raises(ProviderToolTerminalError, match="callback budget is exhausted"):
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("send",),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert invocations == [{"message": str(index)} for index in range(expected_limit)]
+    exhausted = [
+        event
+        for event in context.state.trace_events
+        if event.event_type == "provider_callback_budget_exhausted"
+    ]
+    assert len(exhausted) == 1
+    assert exhausted[0].payload["limit"] == expected_limit
+    assert exhausted[0].payload["claimed"] == expected_limit
+    assert exhausted[0].payload["tool_id"] == "send"
+    assert isinstance(exhausted[0].payload["tool_call_id"], str)
+    assert context.state.tool_results.keys() == {
+        f"node-1.{event.payload['tool_call_id']}"
+        for event in context.state.trace_events
+        if event.event_type == "tool_result"
+    }
+
+
+def test_apple_callback_budget_caps_racing_callbacks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[dict[str, object]] = []
+    tool = _tool(
+        "send",
+        _APPLE_CALLBACK_SCHEMA,
+        handler=lambda arguments: invocations.append(dict(arguments)),
+    )
+    registry = InMemoryToolRegistry([tool])
+    sdk = FakeAppleRacingCallbackSDK(
+        (
+            (0, '{"message": "one"}'),
+            (0, '{"message": "two"}'),
+            (0, '{"message": "three"}'),
+        )
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    async def invoke() -> object:
+        context = _active_tool_context(
+            registry,
+            (registry.get_tool("send"),),
+            executor_loop=asyncio.get_running_loop(),
+            max_steps=2,
+        )
+        with pytest.raises(
+            ProviderToolTerminalError, match="callback budget is exhausted"
+        ):
+            await create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("send",),
+                    adapter_context=context,
+                )
+            )
+        return context
+
+    context = asyncio.run(invoke())
+
+    assert len(invocations) == 2
+    assert len(context.state.tool_results) == 2
+    exhausted = [
+        event
+        for event in context.state.trace_events
+        if event.event_type == "provider_callback_budget_exhausted"
+    ]
+    assert len(exhausted) == 1
+    assert exhausted[0].payload["limit"] == 2
+    assert exhausted[0].payload["claimed"] == 2
 
 
 def test_apple_callback_unresolved_approval_preserves_dar_interruption(

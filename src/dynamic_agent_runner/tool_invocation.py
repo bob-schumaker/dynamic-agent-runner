@@ -265,7 +265,6 @@ class ActiveAdapterToolContext:
     lifecycle_hooks: WorkflowLifecycleHooks | None
     retry_policy: RetryPolicy
     decision_collaborator: ProviderDecisionCollaborator | None = None
-    callback_budget: ProviderCallbackBudget | None = None
     provider_guardrail_runner: Callable[[PreparedToolInvocation, str], None] | None = (
         None
     )
@@ -376,7 +375,6 @@ def tool_context(
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     retry_policy: RetryPolicy,
     decision_collaborator: ProviderDecisionCollaborator | None = None,
-    callback_budget: ProviderCallbackBudget | None = None,
     provider_guardrail_runner: (
         Callable[[PreparedToolInvocation, str], None] | None
     ) = None,
@@ -395,7 +393,6 @@ def tool_context(
         lifecycle_hooks=lifecycle_hooks,
         retry_policy=retry_policy,
         decision_collaborator=decision_collaborator,
-        callback_budget=callback_budget,
         provider_guardrail_runner=provider_guardrail_runner,
         executor_loop=executor_loop,
     )

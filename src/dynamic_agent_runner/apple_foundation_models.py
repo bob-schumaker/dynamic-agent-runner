@@ -30,6 +30,7 @@ from dynamic_agent_runner.tool_invocation import (
     ProviderToolDecisionTerminalOutcome,
     ProviderToolInterruption,
     ProviderToolTerminalError,
+    ProviderCallbackBudget,
     ToolInvocationRequest,
     coordinate_tool_invocation_async,
 )
@@ -183,6 +184,7 @@ def _apple_tool_wrappers(
     tool_ids = [tool.id for tool in context.tools]
     if len(set(tool_ids)) != len(tool_ids):
         raise ModelExecutionError("Apple tool bridge has duplicate active tool ids")
+    callback_budget = _apple_callback_budget(context)
     wrappers: list[object] = []
     for index, tool in enumerate(context.tools):
         try:
@@ -200,6 +202,7 @@ def _apple_tool_wrappers(
             _apple_tool_wrapper(
                 sdk,
                 context=context,
+                callback_budget=callback_budget,
                 tool_id=tool.id,
                 name=f"dar_tool_{index}",
                 description=_apple_tool_description(tool.definition.raw, tool.id),
@@ -246,6 +249,7 @@ def _apple_tool_wrapper(
     sdk: Any,
     *,
     context: ActiveAdapterToolContext,
+    callback_budget: ProviderCallbackBudget,
     tool_id: str,
     name: str,
     description: str,
@@ -255,8 +259,18 @@ def _apple_tool_wrapper(
 
     async def call(_self: object, arguments: object) -> str:
         try:
-            callback_arguments = _apple_callback_arguments(arguments)
             action_id = f"apple-{uuid4().hex}"
+            if not callback_budget.claim():
+                await _emit_apple_callback_budget_exhausted(
+                    context,
+                    tool_id=tool_id,
+                    action_id=action_id,
+                    callback_budget=callback_budget,
+                )
+                raise ProviderToolTerminalError(
+                    "Apple provider callback budget is exhausted"
+                )
+            callback_arguments = _apple_callback_arguments(arguments)
             guardrail_runner = _apple_guardrail_runner(context, action_id)
             request = context.request(
                 tool_id=tool_id,
@@ -305,6 +319,48 @@ def _apple_tool_wrapper(
         },
     )
     return wrapper_type()
+
+
+def _apple_callback_budget(context: ActiveAdapterToolContext) -> ProviderCallbackBudget:
+    """Create one callback budget for one Apple provider session."""
+
+    limit = getattr(context.plan, "max_steps", None) or 8
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 0:
+        raise ModelExecutionError("Apple callback tool-call limit is invalid")
+    return ProviderCallbackBudget(limit=limit)
+
+
+async def _emit_apple_callback_budget_exhausted(
+    context: ActiveAdapterToolContext,
+    *,
+    tool_id: str,
+    action_id: str,
+    callback_budget: ProviderCallbackBudget,
+) -> None:
+    """Record callback exhaustion on DAR's executor loop without arguments."""
+
+    async def emit() -> None:
+        context.tracer.emit(
+            "provider_callback_budget_exhausted",
+            node_id=str(context.node.id),
+            payload={
+                "tool_id": tool_id,
+                "tool_call_id": action_id,
+                "limit": callback_budget.limit,
+                "claimed": callback_budget.claimed,
+            },
+        )
+
+    executor_loop = context.executor_loop
+    if executor_loop is None or executor_loop is asyncio.get_running_loop():
+        await emit()
+        return
+    if not executor_loop.is_running():
+        raise ProviderToolTerminalError(
+            "executor loop is unavailable for Apple callback"
+        )
+    future = asyncio.run_coroutine_threadsafe(emit(), executor_loop)
+    await asyncio.wrap_future(future)
 
 
 async def _coordinate_apple_callback_async(
