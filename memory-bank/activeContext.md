@@ -168,15 +168,17 @@
   catalog parity bug-fix slice (`6d5d7a1`). TDD work remains: preserve catalog
   priority and visibility, choose the first visible model as default, forward
   `ChatGPT-Account-ID`, and retain generic-provider fallback behavior.
-- `specs/apple-foundation-model-adapter/` is complete through C3 in `fcf89dc`.
-  Apple receives only wrappers for the sealed host's active tool snapshot: a
-  reviewed read-only MCP callback dispatches once through DAR, while a
-  side-effecting host binding enters DAR's existing unresolved approval path
-  before its handler. The Apple-private metadata projection preserves source
-  registry currentness and exposes neither raw handlers nor the registry.
-  Full validation passed with 1210 tests, one skipped, and six deselected.
-  C4 remains: package/release checks, redacted eligible-Mac receipts, Apple
-  schema preflight for Fastmail `search_email`, then a human-reviewed O7 run.
+- `specs/apple-foundation-model-adapter/` is implemented through A4 in
+  `f37168c`. Apple receives only wrappers for the sealed host's active tool
+  snapshot. Eligible read-only reviewed MCP tools whose upstream schemas are
+  not directly Apple-admissible use one opaque-token gateway envelope; DAR
+  validates the original upstream schema before its existing coordinator
+  dispatch. The gateway is response-local, single-use, bounded, and exposes no
+  tool identity or handler. Ineligible schemas fail closed. Full validation
+  passed with 1228 tests, one skipped, and six deselected, plus Ruff, Poetry
+  package checks, and a package build. C4's live Fastmail/O7 acceptance remains
+  human-gated: obtain a current eligible-Mac receipt from
+  `preflight-apple-mcp-tool`, review it, then authorize any live dispatch.
 - `specs/llm-step-interpreter-middleware/spec.md` now records the recommended
   multi-interpreter contract in commit `c9f505f`: one DAR-owned
   `run_interpreter` model gateway, bounded package-local or caller-supplied
@@ -496,8 +498,11 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
-- Apple Foundation Models C4 is the active gated follow-up: run C4.1 package
-  and validation checks before any eligible-Mac receipt or Fastmail work.
+- Apple Foundation Models C4 is the active gated follow-up: implementation and
+  package validation are complete. Before any Fastmail/OAuth invocation, obtain
+  and review a current eligible-Mac `preflight-apple-mcp-tool` receipt; its
+  `direct`, `gateway`, or `blocked` mode is informational and does not itself
+  authorize live dispatch.
   `memory-aware-context-pipeline` first-slice validation remains separately
   scheduled. LiteLLM Slice L1 is complete with a bundled fallback and
   temporary OCI wheelhouse artifact; OpenAI Responses R1 and semantic context
@@ -641,9 +646,10 @@
 
 ## Next Steps
 
-- Run Apple Foundation Models C4.1 package/release validation. Do not begin
-  Fastmail/OAuth invocation until C4.3 proves the current reviewed
-  `search_email` schema admissible for Apple translation.
+- On an eligible Mac, have a human run and review the current Fastmail
+  `preflight-apple-mcp-tool` receipt. Only then decide whether to authorize the
+  separately gated O7 last-five-subjects workflow; do not treat a `gateway`
+  receipt as dispatch authorization.
 - Before planning interpreter implementation, resolve the five remaining
   clarification items and run backend prototypes/benchmarks. Keep executable
   adapters caller-provided and descriptor frontmatter non-executable.

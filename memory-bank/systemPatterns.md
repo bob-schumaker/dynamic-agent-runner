@@ -279,14 +279,20 @@
 
 ## Guidance for Future Work
 
-- Apple Foundation Models is complete through C3. The adapter turns only the
-  active sealed-host tool snapshot into Apple wrappers; wrappers enter DAR's
-  coordinator rather than exposing handlers or a registry. For host-owned
-  `authorized-mcp:` side effects, an Apple-private projected registry requires
-  DAR approval while checking the original registry object is still current.
-  With no decision collaborator, the callback is an unresolved typed provider
-  interruption before host handler entry. Preserve this narrow projection and
-  do not add an Apple-specific decision path.
+- Apple Foundation Models is implemented through A4. The adapter turns only
+  the active sealed-host tool snapshot into Apple wrappers; wrappers enter
+  DAR's coordinator rather than exposing handlers or a registry. Directly
+  Apple-admissible schemas use generated wrappers. An eligible read-only
+  `authorized-mcp:` tool with a non-admissible upstream schema may instead use
+  one closed Apple envelope containing an opaque response-local token and JSON
+  arguments. Resolve the token exactly once, parse bounded JSON defensively,
+  validate the original upstream schema, then use the ordinary coordinator.
+  Never expose tool identity through the gateway, and never use it for
+  side-effecting or non-MCP tools. Host-owned `authorized-mcp:` side effects
+  still require DAR approval and source-registry currentness; with no decision
+  collaborator, they remain an unresolved typed provider interruption before
+  handler entry. Preserve this narrow projection and do not add an
+  Apple-specific decision path.
 - Interpreter middleware has a resolved gateway and custom-adapter direction but
   is not implementation-ready. Prototype candidate backends and resolve safety,
   redaction, descriptor-budget, and nested approval/resume questions first.
@@ -295,8 +301,8 @@
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
 - The current roadmap has capability status, approval/sandbox v1, MCP v1,
   guardrail v1, iterative loops, skill source resolution, host integration,
-  local-model availability, Apple C3, and LiteLLM L1 plus opt-in Codex L2
-  slices complete. Apple C4 validation/Fastmail gates, memory
+  local-model availability, Apple A4, and LiteLLM L1 plus opt-in Codex L2
+  slices complete. Apple C4 live Fastmail/O7 gates, memory
   retrieval/persistence, and provider-backed compaction remain follow-up work;
   upstream LiteLLM publication and global default Codex replacement remain
   deferred.

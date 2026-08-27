@@ -162,13 +162,14 @@
   The full suite passes with 626 tests and one skip. Spec commit `54ac838`
   prepares T8, a pure advisory selector that compares fixed8 and token-aware
   estimates without changing the runtime default.
-- Apple Foundation Models is complete through C3 in `fcf89dc`: the sealed host
-  passes only active wrappers to Apple, read-only reviewed MCP calls dispatch
-  once through DAR, and side-effecting host callbacks become DAR approval
-  interruptions before handler entry. The private projection retains source
-  registry currentness. Council and ponytail review passed after direct tests
-  covered stale source replacement and zero handler/MCP dispatch. The full
-  suite passed 1210 tests with one skipped and six deselected.
+- Apple Foundation Models A4 is implemented and documented through `f37168c`.
+  The sealed host passes active wrappers only; eligible read-only MCP schemas
+  that cannot be emitted directly use a closed, opaque-token Apple envelope,
+  then receive exact upstream schema validation before DAR coordinator
+  dispatch. The callback map is response-local, atomic, single-use, bounded,
+  and cleared on session close. Non-MCP or side-effecting tools do not gain this
+  fallback. The full suite passed 1228 tests with one skipped and six
+  deselected; Ruff, Poetry package checks, and package build also passed.
 - Interpreter middleware now has a resolved model-facing design direction:
   one `run_interpreter` gateway tool, multiple node-allowed ids, bounded
   non-executable usage descriptors, caller-provided async-first adapters, and
@@ -678,9 +679,11 @@
   multi-interpreter, custom-adapter, and descriptor contracts are now specified,
   but implementation planning still requires backend evidence, safety/redaction
   decisions, descriptor budgets, and nested approval/resume semantics.
-- Apple Foundation Models C3 is complete. C4.1 package/release validation is
-  next; C4.2 eligible-Mac receipts and C4.3 Fastmail schema preflight remain
-  gates before any live Fastmail/OAuth acceptance.
+- Apple Foundation Models implementation and C4 package validation are
+  complete. The remaining C4/O7 acceptance is human-gated: on an eligible Mac,
+  run and review a current Fastmail `preflight-apple-mcp-tool` receipt before
+  any separately authorized live Fastmail/OAuth workflow dispatch. Receipt
+  modes are `direct`, `gateway`, or `blocked`; none grants dispatch authority.
 
 ## Risks or Follow-ups
 
