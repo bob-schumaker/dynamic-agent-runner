@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A2 Task List
 
-Status: approved; implementation not started
+Status: implementation in progress through B3.4; B3.5 and B4 remain
 
 This is the canonical task list for A2. `tasks.md` remains the completed A1
 record and must not duplicate A2 implementation work. This list implements the
@@ -110,9 +110,14 @@ fixed decisions in `a2-plan.md`.
   - Evidence: `validation.md` (2026-08-26); each Apple session shares one
     executor-traced atomic budget derived from `max_steps` with DAR's default
     fallback, and exhaustion is a non-retry terminal outcome.
-- [ ] B3.4 [tests] Prove cancellation before and during a callback prevents
+- [x] B3.4 [tests] Prove cancellation before and during a callback prevents
       later dispatch, result writes, post-session state mutation, or re-entrant
       event-loop use; prove callbacks after session completion fail closed.
+  - Evidence: `validation.md` (2026-08-26); callbacks recheck session liveness
+    immediately before dispatch and atomically guard DAR result-state/trace
+    finalization. Deterministic fake coverage proves pre-dispatch closure,
+    cancellation, and late callbacks never reach a handler; a post-handler,
+    pre-commit closure permits no result, trace, or after-hook effect.
 - [ ] B3.5 [tests] Prove unresolved interruption, callback-budget exhaustion,
       and cancellation abort and clean up the Apple session exactly once, with
       no later callback dispatch or state mutation.

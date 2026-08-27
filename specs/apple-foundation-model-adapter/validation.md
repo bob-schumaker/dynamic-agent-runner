@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 plan approved
+Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 implementation in progress through B3.4, with B3.5 and B4 remaining
 
 ## Scope
 
@@ -10,8 +10,9 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - A1 task record: `specs/apple-foundation-model-adapter/tasks.md`
 - Canonical A2 task list: `specs/apple-foundation-model-adapter/a2-tasks.md`
 - A1 only: local final text and explicit JSON Schema output.
-- A2 Apple tool callbacks are governed by `a2-plan.md` and `a2-tasks.md`; no
-  A2 implementation evidence exists yet.
+- A2 Apple tool callbacks are governed by `a2-plan.md` and `a2-tasks.md`.
+  B0 through B3.4 implementation evidence is recorded below; B3.5 and B4
+  remain.
 
 ## Preparation checks
 
@@ -370,6 +371,35 @@ the restored-environment B0 result is investigated.
   passed. Full `poetry run pytest -q` reached `1183 passed, 1 skipped, 4
   deselected` plus the known unrelated configured-host expectation failure in
   `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
+
+## A2 B3.4 callback cancellation and completion — 2026-08-26
+
+- Each Apple response owns a thread-safe callback-session liveness guard. A
+  callback checks it at entry, after the coordinator's pre-invocation lifecycle
+  hook, and after its handler returns. The pre-dispatch check prevents a
+  callback that was admitted before cancellation from reaching the handler.
+- DAR's synchronous finalization of `tool_results`, `tool_result`, and
+  `tool_finished` executes under a short session-backed commit guard, so a
+  completed or cancelled response cannot race a later result or trace write.
+  The guard deliberately does not own Apple-session abort/cleanup, which is
+  B3.5 work.
+- RED: `poetry run pytest -q tests/test_tool_invocation.py -k
+  'continuation_guard_rejects_cancellation_before_handler_dispatch or
+  result_commit_guard_rejects_closure_before_state_and_trace_writes'` — `2
+  failed`: closure after `before_tool` still dispatched the handler and the
+  coordinator had no result-commit guard.
+- GREEN: the same command — `2 passed`; `poetry run pytest -q
+  tests/test_apple_foundation_models.py tests/test_tool_invocation.py
+  tests/test_executor.py` — `226 passed`.
+- Existing Apple fake coverage proves callbacks after normal completion and
+  cancellation fail closed. The new coordinator tests deterministically prove
+  closure between coordinator entry and handler dispatch, and between handler
+  return and result-state/trace finalization; neither path invokes an after hook
+  or writes a result after closure.
+- Council initially found a finalization TOCTOU; ponytail found an admission
+  gap before handler dispatch. The pre-dispatch liveness recheck and lock-backed
+  commit guard resolved both. Final council and ponytail reviews reported no
+  P0/P1/P2 findings.
 
 ## Required evidence by slice
 
