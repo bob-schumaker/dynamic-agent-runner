@@ -3,22 +3,34 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import inspect
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Annotated, get_args, get_origin, get_type_hints
 
 import pytest
 
-from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner.errors import ModelExecutionError, ToolRegistryError
 from dynamic_agent_runner.models import ToolDefinition
 from dynamic_agent_runner.openai_client import build_openai_request
 from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
     create_apple_foundation_model_async_adapter,
 )
-from dynamic_agent_runner.registry import InMemoryToolRegistry, RegisteredTool
+from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
+from dynamic_agent_runner.registry import (
+    InMemoryToolRegistry,
+    RegisteredTool,
+    ToolResult,
+)
 from dynamic_agent_runner.retry import RetryPolicy
-from dynamic_agent_runner.tool_invocation import tool_context
+from dynamic_agent_runner.tool_invocation import (
+    ProviderDecisionRequest,
+    ProviderDecisionState,
+    ProviderToolDecision,
+    coordinate_tool_invocation_async,
+    tool_context,
+)
 from dynamic_agent_runner.tracing import WorkflowTracer
 
 
@@ -166,6 +178,34 @@ class FakeAppleToolSession:
         return "answer"
 
 
+@dataclass(frozen=True)
+class FakeAppleGeneratedContent:
+    payload: str
+
+    def to_json(self) -> str:
+        return self.payload
+
+
+class FakeAppleCallbackSession(FakeAppleToolSession):
+    def __init__(
+        self,
+        instructions: str | None,
+        *,
+        tools: list[object] | tuple[object, ...] = (),
+        callback_arguments: tuple[tuple[int, str], ...],
+    ) -> None:
+        super().__init__(instructions, tools=tools)
+        self.callback_arguments = callback_arguments
+        self.callback_results: list[object] = []
+
+    async def respond(self, _prompt: str, **_kwargs: object) -> str:
+        for tool_index, arguments in self.callback_arguments:
+            self.callback_results.append(
+                await self.tools[tool_index].call(FakeAppleGeneratedContent(arguments))
+            )
+        return "answer"
+
+
 class FakeAppleToolSDK:
     class Tool:
         pass
@@ -201,6 +241,26 @@ class FakeAppleToolSDK:
         return FakeAppleGuide(values)
 
 
+class FakeAppleCallbackSDK(FakeAppleToolSDK):
+    def __init__(self, callback_arguments: tuple[tuple[int, str], ...]) -> None:
+        super().__init__()
+        self.callback_arguments = callback_arguments
+
+    def LanguageModelSession(
+        self,
+        *,
+        instructions: str | None,
+        tools: list[object] | tuple[object, ...] = (),
+    ) -> FakeAppleCallbackSession:
+        session = FakeAppleCallbackSession(
+            instructions,
+            tools=tools,
+            callback_arguments=self.callback_arguments,
+        )
+        self.sessions.append(session)
+        return session
+
+
 @dataclass(frozen=True)
 class FakeAppleGenerationSchema:
     generated_type: type[object]
@@ -227,16 +287,37 @@ def _annotation_guides(annotation: object) -> dict[str, object]:
     return values
 
 
-def _tool(tool_id: str, input_schema: dict[str, object]) -> RegisteredTool:
+def _has_cause(error: BaseException, error_type: type[BaseException]) -> bool:
+    current: BaseException | None = error
+    while current is not None:
+        if isinstance(current, error_type):
+            return True
+        current = current.__cause__
+    return False
+
+
+def _tool(
+    tool_id: str,
+    input_schema: dict[str, object],
+    *,
+    approval_required: bool = False,
+    handler: object | None = None,
+) -> RegisteredTool:
+    definition: dict[str, object] = {"id": tool_id, "input_schema": input_schema}
+    if approval_required:
+        definition["approval_required"] = "yes"
     return RegisteredTool(
-        ToolDefinition.from_mapping({"id": tool_id, "input_schema": input_schema}),
-        lambda _arguments: {"ok": True},
+        ToolDefinition.from_mapping(definition),
+        handler if handler is not None else lambda _arguments: {"ok": True},  # type: ignore[arg-type]
     )
 
 
 def _active_tool_context(
     registry: InMemoryToolRegistry,
     tools: tuple[RegisteredTool, ...],
+    *,
+    decision_collaborator: object | None = None,
+    lifecycle_hooks: WorkflowLifecycleHooks | None = None,
 ):
     state = SimpleNamespace(run_id="run-1", tool_results={}, trace_events=[])
     return tool_context(
@@ -250,8 +331,9 @@ def _active_tool_context(
         registry=registry,
         state=state,
         tracer=WorkflowTracer(events=state.trace_events),
-        lifecycle_hooks=None,
+        lifecycle_hooks=lifecycle_hooks,
         retry_policy=RetryPolicy(),
+        decision_collaborator=decision_collaborator,  # type: ignore[arg-type]
     )
 
 
@@ -596,6 +678,217 @@ def test_apple_tool_bridge_uses_active_context_without_wire_descriptors(
 
     assert response.content == "answer"
     assert [wrapper.name for wrapper in sdk.sessions[0].tools] == ["dar_tool_0"]
+
+
+_APPLE_CALLBACK_SCHEMA = {
+    "type": "object",
+    "properties": {"message": {"type": "string"}},
+    "required": ["message"],
+    "additionalProperties": False,
+}
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="B3.2 must route Apple callbacks through DAR's coordinator",
+)
+def test_apple_callbacks_approved_dispatch_preserve_dar_state_and_model_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[tuple[str, dict[str, object]]] = []
+    hook_events: list[str] = []
+    decisions: list[ProviderDecisionRequest] = []
+    coordinated_requests: list[object] = []
+
+    async def coordinate(request: object) -> object:
+        coordinated_requests.append(request)
+        return await coordinate_tool_invocation_async(request)  # type: ignore[arg-type]
+
+    def send_handler(arguments: dict[str, object]) -> ToolResult:
+        invocations.append(("send", dict(arguments)))
+        return ToolResult(
+            tool_id="send",
+            success=True,
+            output={"secret": "not-for-the-model"},
+            model_output={"visible": "sent"},
+            raw_output={"secret": "not-for-the-model"},
+        )
+
+    def archive_handler(arguments: dict[str, object]) -> ToolResult:
+        invocations.append(("archive", dict(arguments)))
+        return ToolResult(
+            tool_id="archive",
+            success=True,
+            output={"secret": "not-for-the-model"},
+            model_output={"visible": "archived"},
+            raw_output={"secret": "not-for-the-model"},
+        )
+
+    class Approver:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            decisions.append(request)
+            return ProviderToolDecision(
+                state=ProviderDecisionState.APPROVED,
+                invocation_id=request.invocation_id,
+                fingerprint=request.fingerprint,
+            )
+
+    send = _tool(
+        "send",
+        _APPLE_CALLBACK_SCHEMA,
+        approval_required=True,
+        handler=send_handler,
+    )
+    archive = _tool(
+        "archive",
+        _APPLE_CALLBACK_SCHEMA,
+        approval_required=True,
+        handler=archive_handler,
+    )
+    registry = InMemoryToolRegistry([send, archive])
+    context = _active_tool_context(
+        registry,
+        (registry.get_tool("send"), registry.get_tool("archive")),
+        decision_collaborator=Approver(),
+        lifecycle_hooks=WorkflowLifecycleHooks(
+            before_tool=lambda _context: hook_events.append("before"),
+            after_tool=lambda _context: hook_events.append("after"),
+        ),
+    )
+    sdk = FakeAppleCallbackSDK(
+        ((0, '{"message": "hello"}'), (1, '{"message": "again"}'))
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models.coordinate_tool_invocation_async",
+        coordinate,
+        raising=False,
+    )
+
+    response = asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=("send", "archive"),
+                adapter_context=context,
+            )
+        )
+    )
+
+    assert response.content == "answer"
+    assert len(coordinated_requests) == 2
+    assert [request.tool_id for request in coordinated_requests] == [  # type: ignore[union-attr]
+        "send",
+        "archive",
+    ]
+    assert [request.arguments for request in coordinated_requests] == [  # type: ignore[union-attr]
+        {"message": "hello"},
+        {"message": "again"},
+    ]
+    action_ids = [request.action_id for request in coordinated_requests]  # type: ignore[union-attr]
+    result_keys = [request.result_key for request in coordinated_requests]  # type: ignore[union-attr]
+    assert all(isinstance(action_id, str) and action_id for action_id in action_ids)
+    assert len(set(action_ids)) == 2
+    assert len(set(result_keys)) == 2
+    assert invocations == [
+        ("send", {"message": "hello"}),
+        ("archive", {"message": "again"}),
+    ]
+    assert len(decisions) == 2
+    assert hook_events == ["before", "after", "before", "after"]
+    assert set(context.state.tool_results) == set(result_keys)
+    assert {
+        result.tool_id: result.model_facing_output
+        for result in context.state.tool_results.values()
+    } == {
+        "send": {"visible": "sent"},
+        "archive": {"visible": "archived"},
+    }
+    assert [json.loads(result) for result in sdk.sessions[0].callback_results] == [
+        {"visible": "sent"},
+        {"visible": "archived"},
+    ]
+    assert [event.event_type for event in context.state.trace_events] == [
+        "tool_started",
+        "tool_result",
+        "tool_finished",
+        "tool_started",
+        "tool_result",
+        "tool_finished",
+    ]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="B3.2 must run callback arguments through DAR validation first",
+)
+def test_apple_callback_rejects_invalid_arguments_before_decision_or_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[dict[str, object]] = []
+    hook_events: list[str] = []
+    decisions: list[ProviderDecisionRequest] = []
+    coordinated_requests: list[object] = []
+
+    async def coordinate(request: object) -> object:
+        coordinated_requests.append(request)
+        return await coordinate_tool_invocation_async(request)  # type: ignore[arg-type]
+
+    def handler(arguments: dict[str, object]) -> ToolResult:
+        invocations.append(dict(arguments))
+        return ToolResult(tool_id="send", success=True, output={"ok": True})
+
+    class Approver:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            decisions.append(request)
+            raise AssertionError("invalid arguments must not reach approval")
+
+    tool = _tool(
+        "send",
+        _APPLE_CALLBACK_SCHEMA,
+        approval_required=True,
+        handler=handler,
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(
+        registry,
+        (registry.get_tool("send"),),
+        decision_collaborator=Approver(),
+        lifecycle_hooks=WorkflowLifecycleHooks(
+            before_tool=lambda _context: hook_events.append("before"),
+            after_tool=lambda _context: hook_events.append("after"),
+        ),
+    )
+    sdk = FakeAppleCallbackSDK(((0, '{"message": 3}'),))
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models.coordinate_tool_invocation_async",
+        coordinate,
+        raising=False,
+    )
+
+    with pytest.raises(ModelExecutionError) as raised:
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("send",),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert _has_cause(raised.value, ToolRegistryError)
+    assert len(coordinated_requests) == 1
+    assert decisions == []
+    assert invocations == []
+    assert hook_events == []
+    assert context.state.tool_results == {}
+    assert context.state.trace_events == []
 
 
 def test_apple_tool_bridge_rejects_non_identifier_property_names(

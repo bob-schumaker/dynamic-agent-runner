@@ -287,6 +287,38 @@ the restored-environment B0 result is investigated.
   deselected` plus the known unrelated configured-host expectation failure in
   `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
 
+## A2 B3.1 callback RED contract — 2026-08-26
+
+- Added a fake Apple callback session that invokes native wrapper instances with
+  `GeneratedContent.to_json()`-style arguments. The approved contract exercises
+  two active wrappers with distinct DAR tool ids and handlers, preventing a
+  bridge from routing every wrapper to the first tool.
+- The approved path spies on the exact coordinator ingress and requires two
+  distinct nonempty action ids and result keys, one handler call per callback,
+  decision binding, coordinator lifecycle traces (`tool_started`, `tool_result`,
+  `tool_finished`), state results keyed by callback, and callback serialization
+  of only `ToolResult.model_facing_output`.
+- The invalid-arguments path requires coordinator entry and validation before an
+  approval decision, handler, lifecycle hook, state result, or trace event. It
+  retains the established Apple nested-error normalization by requiring a
+  `ToolRegistryError` somewhere in the causal chain rather than as the outer
+  error.
+- Stored contract gate: `poetry run pytest -q -rxX
+  tests/test_apple_foundation_models.py` — `42 passed, 2 xfailed`.
+  Coupled coordinator gate: `poetry run pytest -q -rxX
+  tests/test_apple_foundation_models.py tests/test_tool_invocation.py
+  tests/test_executor.py` — `204 passed, 2 xfailed`. Both xfails are strict and
+  are B3.2's implementation gate.
+- Council and ponytail review found and resolved trace-origin, Apple error-chain,
+  callback identity, and multi-wrapper routing gaps. Final reviews reported no
+  remaining P0/P1 findings.
+- Delivery checks: `poetry run ruff check src tests`, `poetry check`,
+  `poetry build`, `pre-commit run --files <B3.1 files>`, and `git diff --check`
+  passed. Full `poetry run pytest -q` reached `1167 passed, 1 skipped, 4
+  deselected, 2 xfailed` plus the known unrelated configured-host expectation
+  failure in
+  `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
+
 ## Required evidence by slice
 
 ### Slice 1
