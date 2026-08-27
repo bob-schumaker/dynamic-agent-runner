@@ -196,6 +196,20 @@ def make_adapter(responses: list[object]) -> OpenAIClientAdapter:
     return OpenAIClientAdapter(FakeClient(responses))
 
 
+def _contains_identity(value: object, *candidates: object) -> bool:
+    if any(value is candidate for candidate in candidates):
+        return True
+    if isinstance(value, Mapping):
+        return any(
+            _contains_identity(item, *candidates)
+            for pair in value.items()
+            for item in pair
+        )
+    if isinstance(value, list | tuple):
+        return any(_contains_identity(item, *candidates) for item in value)
+    return False
+
+
 def make_async_adapter(responses: list[object]) -> AsyncOpenAIClientAdapter:
     return AsyncOpenAIClientAdapter(AsyncFakeClient(responses))
 
@@ -3992,6 +4006,14 @@ def test_execute_workflow_applies_descriptor_budget_to_model_tools() -> None:
     assert isinstance(context, ActiveAdapterToolContext)
     assert context.allowed_tool_ids == frozenset({"read_file"})
     assert [tool.id for tool in context.tools] == ["read_file"]
+    assert model_request.payload["request"] == adapter.client.responses.calls[0]
+    assert "adapter_context" not in model_request.payload["request"]
+    assert not _contains_identity(
+        model_request.payload,
+        context,
+        registry,
+        result.state,
+    )
 
 
 def test_execute_workflow_fails_before_dispatch_when_required_tool_excluded() -> None:
@@ -4172,6 +4194,18 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     assert result.state.tool_results["analyze.call_1"].model_facing_output == {
         "summary": "agents found"
     }
+    model_requests = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "model_request"
+    ]
+    assert len(model_requests) == 2
+    for trace_event, provider_call in zip(
+        model_requests, adapter.client.responses.calls, strict=True
+    ):
+        assert trace_event.payload["request"] == provider_call
+        assert "adapter_context" not in trace_event.payload["request"]
+        assert not _contains_identity(trace_event.payload, registry, result.state)
 
 
 def test_execute_workflow_keeps_provider_tool_call_correlations_separate() -> None:

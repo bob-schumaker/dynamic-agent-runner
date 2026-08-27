@@ -1594,3 +1594,7 @@ def test_build_openai_request_keeps_adapter_context_out_of_extra() -> None:
 
     assert request.adapter_context is context
     assert "adapter_context" not in request.extra
+    assert request.to_kwargs() == {
+        "model": "gpt-test",
+        "input": [{"role": "user", "content": "Hello"}],
+    }

@@ -65,6 +65,19 @@ class ActiveAdapterToolContext:
     lifecycle_hooks: WorkflowLifecycleHooks | None
     retry_policy: RetryPolicy
 
+    def __post_init__(self) -> None:
+        """Reject descriptors and stale registry entries at the trust boundary."""
+
+        if not all(isinstance(tool, RegisteredTool) for tool in self.tools):
+            raise ToolRegistryError(
+                "active tool context requires RegisteredTool snapshots, not descriptors"
+            )
+        for tool in self.tools:
+            if self.registry.get_tool(tool.id) is not tool:
+                raise ToolRegistryError(
+                    f"tool {tool.id!r} does not match the active registry snapshot"
+                )
+
     @property
     def allowed_tool_ids(self) -> frozenset[str]:
         """Return the immutable model-facing tool identifier snapshot."""
@@ -142,10 +155,11 @@ def tool_context(
 ) -> ActiveAdapterToolContext:
     """Build the trusted non-wire context for one active model or tool node."""
 
+    selected_tools = tuple(tools)
     return ActiveAdapterToolContext(
         plan=plan,
         node=node,
-        tools=tuple(tools),
+        tools=selected_tools,
         registry=registry,
         state=state,
         tracer=tracer,

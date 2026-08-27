@@ -156,6 +156,27 @@ the restored-environment B0 result is investigated.
   <B1.2 files>`, and `git diff --check` passed. B1.3 remains the owner of
   explicit wire-kwargs/trace exclusion and stale/raw-context tests.
 
+## A2 B1.3 non-wire and stale-context contract — 2026-08-26
+
+- `OpenAIModelRequest.to_kwargs()` excludes `adapter_context`; executor model
+  request traces are asserted identical to the non-Apple provider kwargs for
+  both the initial request and iterative tool-loop follow-up.
+- Those wire/trace payloads contain neither the adapter context nor identities
+  for the active registry or mutable execution state.
+- `ActiveAdapterToolContext` validates its own snapshot, not only the helper:
+  raw OpenAI descriptors are rejected at both construction paths. Replacing a
+  registered tool after context creation fails before the invocation closure
+  runs.
+- RED: `poetry run pytest tests/test_tool_invocation.py -q` — raw descriptor
+  acceptance failed the new factory test, then the direct-construction test.
+- GREEN: `poetry run pytest tests/test_tool_invocation.py
+  tests/test_openai_client.py tests/test_executor.py -q` — `210 passed`.
+- Council and ponytail review found no remaining P0/P1 findings after the
+  constructor-level invariant was added.
+- Delivery validation: `poetry run pytest -q` — `1130 passed, 1 skipped, 4
+  deselected`; `poetry run ruff check src tests`, `pre-commit run --files
+  <B1.3 files>`, and `git diff --check` passed.
+
 ## Required evidence by slice
 
 ### Slice 1
