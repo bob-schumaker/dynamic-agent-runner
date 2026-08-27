@@ -32,6 +32,7 @@ from dynamic_agent_runner.errors import (
 from dynamic_agent_runner.executor import (
     ApprovalInterruption,
     ApprovalInterruptionState,
+    _invoke_model_tool_call_async,
     execute_workflow,
     execute_workflow_async,
     WorkflowInterruptedResult,
@@ -63,17 +64,25 @@ from dynamic_agent_runner.models import (
 )
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
+    ModelToolCall,
     ModelResponse,
     OpenAIClientAdapter,
     OpenAIMessage,
     OpenAIProviderConfig,
 )
-from dynamic_agent_runner.tool_invocation import ActiveAdapterToolContext
+from dynamic_agent_runner.tool_invocation import (
+    ActiveAdapterToolContext,
+    ProviderDecisionRequest,
+    ProviderDecisionState,
+    ProviderToolDecision,
+    tool_context,
+)
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
     ToolResult,
 )
+from dynamic_agent_runner.retry import RetryPolicy
 from dynamic_agent_runner.tracing import InMemoryTraceSink, WorkflowTracer
 
 
@@ -4875,6 +4884,93 @@ def test_execute_workflow_pauses_approval_required_model_tool_before_invocation(
     assert result.interruption.action_id == "call_1"
     assert result.interruption.arguments == {"query": "notes"}
     assert result.state.tool_results == {}
+
+
+@pytest.mark.parametrize(
+    ("decision_state", "interrupted"),
+    [
+        (ProviderDecisionState.UNRESOLVED, True),
+        (ProviderDecisionState.DENIED, False),
+    ],
+)
+def test_provider_model_tool_decision_has_the_declared_executor_outcome(
+    decision_state: ProviderDecisionState,
+    interrupted: bool,
+) -> None:
+    calls: list[object] = []
+    workflow = loop_tool_workflow(
+        tools=[{"id": "workspace_write", "approval_required": "yes"}],
+        available_tools=["workspace_write"],
+    )
+    plan = prepare_execution_plan(workflow)
+    node = plan.nodes_by_id["analyze"]
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "workspace_write",
+                "approval_required": "yes",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            }
+        ),
+        lambda arguments: calls.append(arguments) or {"ok": True},
+    )
+    registry = InMemoryToolRegistry([tool])
+    tool = registry.get_tool("workspace_write")
+    state = WorkflowExecutionState(prompt="How?", run_id="run-1")
+    tracer = WorkflowTracer(events=state.trace_events, run_id=state.run_id)
+
+    class Collaborator:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            return ProviderToolDecision(
+                state=decision_state,
+                invocation_id=request.invocation_id,
+                fingerprint=request.fingerprint,
+            )
+
+    adapter_context = tool_context(
+        plan=plan,
+        node=node,
+        tools=(tool,),
+        registry=registry,
+        state=state,
+        tracer=tracer,
+        lifecycle_hooks=None,
+        retry_policy=RetryPolicy(),
+        decision_collaborator=Collaborator(),
+    )
+
+    invocation = _invoke_model_tool_call_async(
+        node,
+        plan,
+        ModelToolCall(
+            id="call_1",
+            name="workspace_write",
+            arguments={"query": "notes"},
+        ),
+        "call_1",
+        1,
+        None,
+        adapter_context,
+        state,
+        tracer,
+        None,
+    )
+
+    if interrupted:
+        result = asyncio.run(invocation)
+        assert isinstance(result, WorkflowInterruptedResult)
+        assert result.interruption.state is ApprovalInterruptionState.PENDING
+    else:
+        with pytest.raises(WorkflowExecutionError, match="provider tool decision"):
+            asyncio.run(invocation)
+    assert calls == []
+    assert state.tool_results == {}
+    assert state.errors == []
+    assert state.retry_records == []
 
 
 def loop_tool_workflow(

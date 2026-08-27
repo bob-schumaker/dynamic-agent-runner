@@ -9,8 +9,13 @@ from types import SimpleNamespace
 import pytest
 
 from dynamic_agent_runner.errors import ToolRegistryError
+from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
 from dynamic_agent_runner.models import ToolDefinition
-from dynamic_agent_runner.registry import InMemoryToolRegistry, RegisteredTool
+from dynamic_agent_runner.registry import (
+    InMemoryToolRegistry,
+    RegisteredTool,
+    ToolResult,
+)
 from dynamic_agent_runner.retry import RetryPolicy
 from dynamic_agent_runner.tool_invocation import (
     ActiveAdapterToolContext,
@@ -20,6 +25,7 @@ from dynamic_agent_runner.tool_invocation import (
     ProviderDecisionRequest,
     ProviderDecisionState,
     ProviderToolDecision,
+    ProviderToolDecisionTerminalOutcome,
     ProviderToolInterruption,
     coordinate_tool_invocation_async,
     provider_invocation_fingerprint,
@@ -30,8 +36,18 @@ from dynamic_agent_runner.tool_invocation import (
 from dynamic_agent_runner.tracing import WorkflowTracer
 
 
-def _tool(tool_id: str) -> RegisteredTool:
-    return RegisteredTool(ToolDefinition.from_mapping({"id": tool_id}), lambda _: {})
+def _tool(
+    tool_id: str,
+    *,
+    approval_required: bool = False,
+    input_schema: dict[str, object] | None = None,
+) -> RegisteredTool:
+    definition: dict[str, object] = {"id": tool_id}
+    if approval_required:
+        definition["approval_required"] = "yes"
+    if input_schema is not None:
+        definition["input_schema"] = input_schema
+    return RegisteredTool(ToolDefinition.from_mapping(definition), lambda _: {})
 
 
 def _context(registry: InMemoryToolRegistry, tool: RegisteredTool):
@@ -44,6 +60,31 @@ def _context(registry: InMemoryToolRegistry, tool: RegisteredTool):
         tracer=WorkflowTracer(events=[]),
         lifecycle_hooks=None,
         retry_policy=RetryPolicy(),
+    )
+
+
+def _approval_context(
+    registry: InMemoryToolRegistry,
+    tool: RegisteredTool,
+    collaborator: object,
+    *,
+    hooks: WorkflowLifecycleHooks | None = None,
+):
+    state = SimpleNamespace(run_id="run", tool_results={}, trace_events=[])
+    return tool_context(
+        plan=SimpleNamespace(
+            workflow=SimpleNamespace(
+                runtime_manifest=SimpleNamespace(package_id="workflow")
+            )
+        ),
+        node=SimpleNamespace(id="node"),
+        tools=(tool,),
+        registry=registry,
+        state=state,
+        tracer=WorkflowTracer(events=state.trace_events),
+        lifecycle_hooks=hooks,
+        retry_policy=RetryPolicy(),
+        decision_collaborator=collaborator,  # type: ignore[arg-type]
     )
 
 
@@ -254,3 +295,300 @@ def test_active_context_carries_provider_decision_and_callback_budget() -> None:
 
     assert context.decision_collaborator is not None
     assert context.callback_budget is budget
+
+
+@pytest.mark.parametrize(
+    "decision_state",
+    [
+        ProviderDecisionState.DENIED,
+        ProviderDecisionState.CANCELLED,
+        ProviderDecisionState.EXPIRED,
+        ProviderDecisionState.UNRESOLVED,
+    ],
+)
+def test_non_approved_provider_decisions_stop_before_hooks_or_dispatch(
+    decision_state: ProviderDecisionState,
+) -> None:
+    tool = _tool("write", approval_required=True)
+    registry = InMemoryToolRegistry([tool])
+    tool = registry.get_tool("write")
+    order: list[str] = []
+    invoked: list[object] = []
+    hooks: list[str] = []
+
+    class Collaborator:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            order.append("decision")
+            return ProviderToolDecision(
+                state=decision_state,
+                invocation_id=request.invocation_id,
+                fingerprint=request.fingerprint,
+            )
+
+    context = _approval_context(
+        registry,
+        tool,
+        Collaborator(),
+        hooks=WorkflowLifecycleHooks(
+            before_tool=lambda _context: hooks.append("before"),
+            after_tool=lambda _context: hooks.append("after"),
+        ),
+    )
+
+    result = asyncio.run(
+        coordinate_tool_invocation_async(
+            context.request(
+                tool_id="write",
+                arguments={"path": "notes.txt"},
+                result_key="node.call-1",
+                action_id="call-1",
+                approval_reason="test",
+                guardrail_runner=lambda _prepared: order.append("guardrail"),
+                invoke=lambda _prepared: _record_result(invoked),
+            )
+        )
+    )
+
+    assert order == ["guardrail", "decision"]
+    assert hooks == []
+    assert invoked == []
+    assert context.state.tool_results == {}
+    if decision_state is ProviderDecisionState.UNRESOLVED:
+        assert isinstance(result, ApprovalInterruption)
+        assert result.state is ApprovalInterruptionState.PENDING
+        assert [event.event_type for event in context.state.trace_events] == [
+            "approval_requested",
+            "approval_paused",
+        ]
+    else:
+        assert isinstance(result, ProviderToolDecisionTerminalOutcome)
+        assert result.state is decision_state
+        assert context.state.trace_events == []
+
+
+def test_approved_provider_decision_dispatches_prepared_arguments_once() -> None:
+    tool = _tool(
+        "write",
+        approval_required=True,
+        input_schema={
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+        },
+    )
+    registry = InMemoryToolRegistry([tool])
+    tool = registry.get_tool("write")
+    decisions: list[ProviderDecisionRequest] = []
+    invoked: list[object] = []
+    hooks: list[str] = []
+
+    class Collaborator:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            decisions.append(request)
+            return ProviderToolDecision(
+                state=ProviderDecisionState.APPROVED,
+                invocation_id=request.invocation_id,
+                fingerprint=request.fingerprint,
+            )
+
+    context = _approval_context(
+        registry,
+        tool,
+        Collaborator(),
+        hooks=WorkflowLifecycleHooks(
+            before_tool=lambda _context: hooks.append("before"),
+            after_tool=lambda _context: hooks.append("after"),
+        ),
+    )
+    result = asyncio.run(
+        coordinate_tool_invocation_async(
+            context.request(
+                tool_id="write",
+                arguments={"path": "notes.txt"},
+                result_key="node.call-1",
+                action_id="call-1",
+                approval_reason="test",
+                invoke=lambda prepared: _record_prepared_result(invoked, prepared),
+            )
+        )
+    )
+
+    assert result.success
+    assert len(decisions) == 1
+    assert decisions[0].invocation_id == "call-1"
+    assert decisions[0].fingerprint == provider_invocation_fingerprint(
+        run_id="run",
+        workflow_id="workflow",
+        node_id="node",
+        action_id="call-1",
+        prepared=registry.prepare_tool_invocation("write", {"path": "notes.txt"}),
+    )
+    assert invoked == [{"path": "notes.txt"}]
+    assert hooks == ["before", "after"]
+    assert context.state.tool_results == {"node.call-1": result}
+
+
+def test_provider_decision_requires_valid_arguments_before_collaborator() -> None:
+    tool = _tool(
+        "write",
+        approval_required=True,
+        input_schema={
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+        },
+    )
+    registry = InMemoryToolRegistry([tool])
+    tool = registry.get_tool("write")
+    decisions: list[ProviderDecisionRequest] = []
+
+    class Collaborator:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            decisions.append(request)
+            raise AssertionError("invalid arguments must not reach collaborator")
+
+    context = _approval_context(registry, tool, Collaborator())
+
+    with pytest.raises(ToolRegistryError, match="missing required"):
+        asyncio.run(
+            coordinate_tool_invocation_async(
+                context.request(
+                    tool_id="write",
+                    arguments={},
+                    result_key="node.call-1",
+                    action_id="call-1",
+                    approval_reason="test",
+                    invoke=lambda _prepared: _record_result([]),
+                )
+            )
+        )
+
+    assert decisions == []
+
+
+def test_provider_decision_replay_and_mismatch_fail_closed() -> None:
+    tool = _tool("write", approval_required=True)
+    registry = InMemoryToolRegistry([tool])
+    tool = registry.get_tool("write")
+    decisions: list[ProviderDecisionRequest] = []
+    invoked: list[object] = []
+
+    class Collaborator:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            decisions.append(request)
+            return ProviderToolDecision(
+                state=ProviderDecisionState.APPROVED,
+                invocation_id=request.invocation_id,
+                fingerprint=request.fingerprint,
+            )
+
+    context = _approval_context(registry, tool, Collaborator())
+    request = context.request(
+        tool_id="write",
+        arguments={"path": "notes.txt"},
+        result_key="node.call-1",
+        action_id="call-1",
+        approval_reason="test",
+        invoke=lambda _prepared: _record_result(invoked),
+    )
+
+    asyncio.run(coordinate_tool_invocation_async(request))
+
+    with pytest.raises(ToolRegistryError, match="already used"):
+        asyncio.run(coordinate_tool_invocation_async(request))
+
+    assert len(decisions) == 1
+    assert invoked == [True]
+
+
+@pytest.mark.parametrize("invalid_response", [False, True])
+def test_mismatched_or_unknown_provider_decision_fails_before_dispatch(
+    invalid_response: bool,
+) -> None:
+    tool = _tool("write", approval_required=True)
+    registry = InMemoryToolRegistry([tool])
+    tool = registry.get_tool("write")
+    invoked: list[object] = []
+    hooks: list[str] = []
+
+    class Collaborator:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            if invalid_response:
+                return object()  # type: ignore[return-value]
+            return ProviderToolDecision(
+                state=ProviderDecisionState.APPROVED,
+                invocation_id="other-call",
+                fingerprint=request.fingerprint,
+            )
+
+    context = _approval_context(
+        registry,
+        tool,
+        Collaborator(),
+        hooks=WorkflowLifecycleHooks(
+            before_tool=lambda _context: hooks.append("before"),
+            after_tool=lambda _context: hooks.append("after"),
+        ),
+    )
+
+    with pytest.raises(ToolRegistryError, match="invalid value|does not match"):
+        asyncio.run(
+            coordinate_tool_invocation_async(
+                context.request(
+                    tool_id="write",
+                    arguments={"path": "notes.txt"},
+                    result_key="node.call-1",
+                    action_id="call-1",
+                    approval_reason="test",
+                    invoke=lambda _prepared: _record_result(invoked),
+                )
+            )
+        )
+
+    assert hooks == []
+    assert invoked == []
+    assert context.state.tool_results == {}
+
+
+def test_unexposed_provider_tool_fails_before_decision_resolution() -> None:
+    read = _tool("read")
+    write = _tool("write", approval_required=True)
+    registry = InMemoryToolRegistry([read, write])
+    read = registry.get_tool("read")
+    decisions: list[ProviderDecisionRequest] = []
+
+    class Collaborator:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            decisions.append(request)
+            raise AssertionError("unexposed tool must not reach collaborator")
+
+    context = _approval_context(registry, read, Collaborator())
+
+    with pytest.raises(ToolRegistryError, match="not active"):
+        asyncio.run(
+            coordinate_tool_invocation_async(
+                context.request(
+                    tool_id="write",
+                    arguments={"path": "notes.txt"},
+                    result_key="node.call-1",
+                    action_id="call-1",
+                    approval_reason="test",
+                    invoke=lambda _prepared: _record_result([]),
+                )
+            )
+        )
+
+    assert decisions == []
+
+
+async def _record_result(invoked: list[object]) -> ToolResult:
+    invoked.append(True)
+    return ToolResult(tool_id="write", success=True, output={"ok": True})
+
+
+async def _record_prepared_result(
+    invoked: list[object], prepared: object
+) -> ToolResult:
+    assert prepared is not None
+    invoked.append(dict(prepared.arguments))  # type: ignore[union-attr]
+    return ToolResult(tool_id="write", success=True, output={"ok": True})

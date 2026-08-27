@@ -200,6 +200,35 @@ the restored-environment B0 result is investigated.
   `poetry build`, `pre-commit run --files <B1.4 files>`, and `git diff --check`
   passed.
 
+## A2 B1.5 provider decision dispatch — 2026-08-26
+
+- Approval-required provider dispatch prepares and validates arguments, runs the
+  input guardrail, then binds the synchronous decision request to the exact
+  normalized invocation fingerprint before any lifecycle hook or handler.
+- An approved decision invokes the prepared request exactly once. A per-context,
+  lock-protected callback identity claim rejects replay before a collaborator or
+  invocation runs. Mismatched and unknown collaborator responses fail closed.
+- Denied, cancelled, and expired decisions return a typed terminal non-dispatch
+  outcome: no tool handler, lifecycle hook, retry, registry dispatch, result
+  write, or approval-pause trace occurs. The executor converts it to a
+  non-retry `WorkflowExecutionError` before result/state handling.
+- Only unresolved returns the existing DAR `ApprovalInterruption`; only that
+  path emits approval pause trace records and becomes an executor-visible
+  `WorkflowInterruptedResult`.
+- RED: `poetry run pytest -q tests/test_tool_invocation.py` — 6 decision-outcome
+  failures before coordinator wiring.
+- GREEN: `poetry run pytest -q tests/test_tool_invocation.py tests/test_executor.py`
+  — `162 passed`.
+- Council initially found that terminal decisions were incorrectly represented
+  as resumable pauses. The typed terminal outcome and executor handling resolved
+  it; final council and ponytail reviews reported no P0/P1/P2 findings.
+- Delivery validation: `poetry run pytest tests/test_tool_invocation.py
+  tests/test_executor.py -q` — `162 passed`; `poetry run ruff check src tests`,
+  `poetry check`, `poetry build`, focused pre-commit, and `git diff --check`
+  passed. `poetry run pytest -q` reached `1145 passed, 1 skipped, 4 deselected`
+  plus the pre-existing unrelated configured-host expectation failure in
+  `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
+
 ## Required evidence by slice
 
 ### Slice 1

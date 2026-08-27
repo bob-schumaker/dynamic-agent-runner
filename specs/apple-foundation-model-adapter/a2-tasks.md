@@ -57,13 +57,16 @@ fixed decisions in `a2-plan.md`.
       exact-fingerprint decision collaborator, and atomic callback budget.
   - Evidence: `validation.md` (2026-08-26); no decision dispatch, outcome
     rendering, or callback/session lifecycle behavior is introduced before B1.5/B3.
-- [ ] B1.5 [tests] Prove approved dispatches once; denied/cancelled/expired and
+- [x] B1.5 [tests] Prove approved dispatches once; denied/cancelled/expired and
       unresolved approvals prevent handler/hook/retry/registry/state effects;
       exposure and argument validation precede decision resolution and
       pre-invocation hooks for every outcome; exact approved normalized
       arguments dispatch once; mismatched, replayed, and unknown decisions fail
       closed; unresolved produces an executor-visible
       `WorkflowInterruptedResult`, not a model failure or retry.
+  - Evidence: `validation.md` (2026-08-26); approved dispatches use the exact
+    prepared invocation once, terminal decisions have no dispatch or approval
+    pause, and only unresolved becomes `WorkflowInterruptedResult`.
 
 ## B2 — Schema-safe Apple wrappers
 

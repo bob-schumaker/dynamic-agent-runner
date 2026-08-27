@@ -136,6 +136,21 @@ class ProviderToolDecision:
         _fingerprint(self.fingerprint)
 
 
+@dataclass(frozen=True)
+class ProviderToolDecisionTerminalOutcome:
+    """One non-resumable provider decision that did not dispatch a tool."""
+
+    state: ProviderDecisionState
+
+    def __post_init__(self) -> None:
+        if self.state not in {
+            ProviderDecisionState.DENIED,
+            ProviderDecisionState.CANCELLED,
+            ProviderDecisionState.EXPIRED,
+        }:
+            raise ToolRegistryError("provider decision is not terminal")
+
+
 class ProviderDecisionCollaborator(Protocol):
     """Trusted synchronous resolver for one exact provider callback decision."""
 
@@ -246,6 +261,12 @@ class ActiveAdapterToolContext:
     retry_policy: RetryPolicy
     decision_collaborator: ProviderDecisionCollaborator | None = None
     callback_budget: ProviderCallbackBudget | None = None
+    _used_provider_invocation_ids: set[str] = field(
+        default_factory=set, init=False, repr=False, compare=False
+    )
+    _provider_invocation_lock: Lock = field(
+        default_factory=Lock, init=False, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         """Reject descriptors and stale registry entries at the trust boundary."""
@@ -281,6 +302,17 @@ class ActiveAdapterToolContext:
             raise ToolRegistryError(
                 f"tool {tool.id!r} no longer matches the active invocation context"
             )
+
+    def claim_provider_invocation_id(self, invocation_id: str) -> None:
+        """Claim one provider callback identity exactly once for this context."""
+
+        _non_empty_string(invocation_id, "invocation_id")
+        with self._provider_invocation_lock:
+            if invocation_id in self._used_provider_invocation_ids:
+                raise ToolRegistryError(
+                    "provider decision invocation id is already used"
+                )
+            self._used_provider_invocation_ids.add(invocation_id)
 
     def request(
         self,
@@ -356,7 +388,7 @@ def tool_context(
 
 async def coordinate_tool_invocation_async(
     request: ToolInvocationRequest,
-) -> ToolResult | ApprovalInterruption:
+) -> ToolResult | ApprovalInterruption | ProviderToolDecisionTerminalOutcome:
     """Apply DAR approval, lifecycle, state, and tracing to one trusted request."""
 
     context = request.context
@@ -366,10 +398,6 @@ async def coordinate_tool_invocation_async(
     if request.guardrail_runner is not None:
         prepared = context.registry.prepare_tool_invocation(tool.id, request.arguments)
         request.guardrail_runner(prepared)
-    active_arguments = prepared.arguments if prepared is not None else request.arguments
-    event_payload = {"tool_id": tool.id, "arguments": active_arguments}
-    if request.action_id is not None:
-        event_payload["tool_call_id"] = request.action_id
     if _approval_required(tool):
         prepared = prepared or context.registry.prepare_tool_invocation(
             tool.id, request.arguments
@@ -385,32 +413,38 @@ async def coordinate_tool_invocation_async(
             policy=_tool_policy_payload(tool),
             reason=request.approval_reason,
         )
-        approval_payload = {
-            "interruption_id": interruption.interruption_id,
-            "tool_id": tool.id,
-            "arguments": prepared.arguments,
-            "policy": interruption.policy,
-            "reason": interruption.reason,
-        }
-        if request.action_id is not None:
-            approval_payload["tool_call_id"] = request.action_id
-        context.tracer.emit(
-            "approval_requested",
-            node_id=str(context.node.id),
-            payload=approval_payload,
-            sensitive_fields=("arguments",),
-        )
-        paused_payload = {
-            "interruption_id": interruption.interruption_id,
-            "tool_id": tool.id,
-            "state": interruption.state.value,
-        }
-        if request.action_id is not None:
-            paused_payload["tool_call_id"] = request.action_id
-        context.tracer.emit(
-            "approval_paused", node_id=str(context.node.id), payload=paused_payload
-        )
-        return interruption
+        if context.decision_collaborator is not None:
+            invocation_id = request.action_id
+            _non_empty_string(invocation_id, "invocation_id")
+            context.claim_provider_invocation_id(invocation_id)
+            decision = request_provider_tool_decision(
+                context.decision_collaborator,
+                ProviderDecisionRequest(
+                    invocation_id=invocation_id,
+                    fingerprint=provider_invocation_fingerprint(
+                        run_id=interruption.run_id,
+                        workflow_id=interruption.workflow_id,
+                        node_id=interruption.node_id,
+                        action_id=request.action_id,
+                        prepared=prepared,
+                    ),
+                ),
+            )
+            if decision.state is ProviderDecisionState.APPROVED:
+                pass
+            elif decision.state is ProviderDecisionState.UNRESOLVED:
+                _emit_approval_interruption(context, request, tool, interruption)
+                return interruption
+            else:
+                return ProviderToolDecisionTerminalOutcome(state=decision.state)
+        else:
+            _emit_approval_interruption(context, request, tool, interruption)
+            return interruption
+    active_arguments = prepared.arguments if prepared is not None else request.arguments
+    event_payload = {"tool_id": tool.id, "arguments": active_arguments}
+    if request.action_id is not None:
+        event_payload["tool_call_id"] = request.action_id
+
     context.tracer.emit(
         "tool_started",
         node_id=str(context.node.id),
@@ -475,6 +509,41 @@ async def coordinate_tool_invocation_async(
         ),
     )
     return result
+
+
+def _emit_approval_interruption(
+    context: ActiveAdapterToolContext,
+    request: ToolInvocationRequest,
+    tool: RegisteredTool,
+    interruption: ApprovalInterruption,
+) -> None:
+    """Emit the existing DAR approval audit records for one interrupted action."""
+
+    approval_payload = {
+        "interruption_id": interruption.interruption_id,
+        "tool_id": tool.id,
+        "arguments": interruption.arguments,
+        "policy": interruption.policy,
+        "reason": interruption.reason,
+    }
+    if request.action_id is not None:
+        approval_payload["tool_call_id"] = request.action_id
+    context.tracer.emit(
+        "approval_requested",
+        node_id=str(context.node.id),
+        payload=approval_payload,
+        sensitive_fields=("arguments",),
+    )
+    paused_payload = {
+        "interruption_id": interruption.interruption_id,
+        "tool_id": tool.id,
+        "state": interruption.state.value,
+    }
+    if request.action_id is not None:
+        paused_payload["tool_call_id"] = request.action_id
+    context.tracer.emit(
+        "approval_paused", node_id=str(context.node.id), payload=paused_payload
+    )
 
 
 def _approval_required(tool: RegisteredTool) -> bool:

@@ -98,6 +98,7 @@ from dynamic_agent_runner.tool_invocation import (
     ActiveAdapterToolContext,
     ApprovalInterruption,
     ApprovalInterruptionState,  # noqa: F401 - public executor compatibility export
+    ProviderToolDecisionTerminalOutcome,
     coordinate_tool_invocation_async,
     tool_context,
 )
@@ -1600,6 +1601,10 @@ async def _invoke_model_tool_call_async(
         return WorkflowInterruptedResult(
             final_result=None, state=state, interruption=coordinated
         )
+    if isinstance(coordinated, ProviderToolDecisionTerminalOutcome):
+        raise WorkflowExecutionError(
+            f"provider tool decision is {coordinated.state.value}"
+        )
     result = coordinated
     if not result.success:
         raise WorkflowExecutionError(result.error or f"tool {tool.id!r} failed")
@@ -1860,6 +1865,10 @@ async def _execute_tool_step_async(
     if isinstance(coordinated, ApprovalInterruption):
         return WorkflowInterruptedResult(
             final_result=None, state=state, interruption=coordinated
+        )
+    if isinstance(coordinated, ProviderToolDecisionTerminalOutcome):
+        raise WorkflowExecutionError(
+            f"provider tool decision is {coordinated.state.value}"
         )
     result = coordinated
     if not result.success and _failure_behavior(node) == "error":
