@@ -331,6 +331,80 @@ model through an OpenAI-compatible local server, use
 public APIs, conversion, and server lifecycle helpers are separate feature
 surfaces.
 
+.. header2:: Apple Foundation Models
+
+Use ``AppleFoundationModelConfig`` with
+``create_apple_foundation_model_async_adapter(...)`` to run a workflow on
+Apple's system-managed on-device language model. The optional
+``apple-foundation-models`` extra, macOS on eligible Apple silicon, Apple
+Intelligence, and an available ``SystemLanguageModel`` are required for
+generation:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       AppleFoundationModelConfig,
+       create_apple_foundation_model_async_adapter,
+       run_agent_workflow_async,
+   )
+
+   apple_adapter = create_apple_foundation_model_async_adapter(
+       AppleFoundationModelConfig()
+   )
+
+   result = await run_agent_workflow_async(
+       prompt="Run this workflow on Apple's system model.",
+       package_directory="path/to/agent-package",
+       tool_registry=my_tool_registry,
+       model_adapter=[apple_adapter],
+       model_adapter_coverage="strict",
+   )
+
+The default model alias is ``apple-system-language-model``. The adapter is
+local and supports final text, structured JSON output, and tool calling; it
+does not support streaming, multimodal input, embeddings, persistent sessions,
+Private Cloud Compute, or external HTTP clients.
+
+For tool calling, DAR creates one opaque Apple wrapper per tool exposed to the
+active node. A callback becomes a DAR invocation request and enters the shared
+tool coordinator rather than a handler or registry directly. Consequently,
+DAR still owns exposure checks, normalized-argument validation, guardrails,
+approval decisions, hooks, traces, result state, and the model-facing tool
+result. The callback budget is derived from the active DAR tool-call limit.
+
+An exact approved decision invokes the prepared tool once. Denied, cancelled,
+or expired decisions do not run the handler, hooks, registry invocation, or
+state writes. An unresolved decision becomes a DAR workflow interruption before
+the handler runs; the Apple adapter does not implement durable approval resume.
+Callbacks after cancellation or response completion fail closed.
+
+Apple tool argument schemas are deliberately a strict subset of JSON Schema.
+The root must be a finite object whose properties are all required with
+``additionalProperties: false``; property names must be Python identifiers and
+not Python keywords. Nested objects and arrays are allowed, as are ``string``,
+``integer``, ``number``, and ``boolean`` values, string enums, numeric
+``minimum``/``maximum``, and array ``minItems``/``maxItems``. DAR rejects a
+schema before creating the Apple session when it contains caller-supplied
+``$ref``, composition, map objects, optional properties, null types,
+non-string enums, ``const``, patterns/formats, string-length constraints, or
+unknown keywords. SDK-generated references for nested classes do not make
+caller-supplied references admissible.
+
+Apple live tests are opt-in:
+
+.. code-block:: bash
+
+   poetry run pytest -m apple_live -q
+
+They skip when macOS, the optional SDK, or model availability is missing. A
+historical native ``GenerationError`` with status 255 occurred inside the Codex
+execution sandbox despite successful availability; the restored environment
+has not reproduced it. In this Codex/macOS environment, run the native callback
+sentinel from an elevated host terminal outside that sandbox. This is a local
+harness constraint, not an Apple Foundation Models requirement on all hosts.
+The current SDK also emits a known deprecation warning and ignored teardown
+``TypeError`` after otherwise successful native tests.
+
 .. header2:: Local model availability preflight
 
 Use ``check_local_model_availability(...)`` to inspect one known local model

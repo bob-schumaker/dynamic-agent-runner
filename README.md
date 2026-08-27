@@ -396,13 +396,31 @@ result = run_agent_workflow(
 ```
 
 The adapter uses Apple's in-process `apple-fm-sdk`; it does not need an API
-key, model path, Hugging Face reference, or local HTTP server. A1 supports
-final text and explicit JSON Schema output only. Tools, provider-native
-streaming, images/audio, persistent Apple sessions, Private Cloud Compute, and
-external HTTP clients are not supported. If Apple Intelligence is disabled,
-the Mac is ineligible, the model is still preparing, or generation fails after
-preflight, the adapter reports a package-owned diagnostic with the SDK failure
-preserved as its cause.
+key, model path, Hugging Face reference, or local HTTP server. It supports
+final text, explicit JSON Schema output, and tools exposed to the active DAR
+node. For each exposed tool, DAR creates an opaque Apple wrapper and routes its
+callback through DAR's normal tool coordinator. That preserves exposure,
+argument validation, guardrails, approvals, lifecycle hooks, tracing, state,
+and model-facing result shaping; the Apple callback never invokes a handler or
+registry directly.
+
+An approved callback dispatches exactly once. Denied, cancelled, or expired
+decisions do not invoke the handler; an unresolved decision ends the provider
+turn as a DAR workflow interruption before any handler runs. Apple tool input
+schemas must be finite objects with every property required and
+`additionalProperties: false`. The admitted subset includes nested objects and
+arrays, `string`, `integer`, `number`, and `boolean` values, string enums,
+numeric minimum/maximum, and array minimum/maximum item counts. DAR rejects
+untranslatable schemas before creating an Apple session, including optional
+properties, map objects, `$ref`, composition, null types, non-string enums,
+`const`, patterns/formats, string-length limits, unknown keywords, and property
+names that are not Python identifiers or are Python keywords.
+
+Provider-native streaming, images/audio, persistent Apple sessions, Private
+Cloud Compute, embeddings, and external HTTP clients are not supported. If
+Apple Intelligence is disabled, the Mac is ineligible, the model is still
+preparing, or generation fails after preflight, the adapter reports a
+package-owned diagnostic with the SDK failure preserved as its cause.
 
 Default pytest runs exclude Apple live tests. Select them on an eligible Mac
 with:
@@ -412,9 +430,14 @@ poetry run pytest -m apple_live -q
 ```
 
 The tests themselves require macOS, the optional `apple-fm-sdk`, and an
-available `SystemLanguageModel`; they skip when a prerequisite is absent. In
-the current Codex/macOS environment, run the native callback sentinel from an
-elevated host terminal outside the execution sandbox.
+available `SystemLanguageModel`; they skip when a prerequisite is absent. An
+historical native `GenerationError` with status 255 occurred inside the Codex
+execution sandbox despite successful availability. It did not recur in the
+restored environment, but the native callback sentinel should still run from an
+elevated host terminal outside that sandbox here. This is a local harness
+constraint, not a requirement for all Apple Foundation Models hosts. The SDK
+also emits a known deprecation warning and ignored teardown ``TypeError`` after
+successful native tests.
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls.

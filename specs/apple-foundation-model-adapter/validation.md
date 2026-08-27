@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 implementation in progress through B4.1, with B4.2 and B4.3 remaining
+Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 implementation and documentation complete through B4.2, with B4.3 validation remaining
 
 ## Scope
 
@@ -11,8 +11,8 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - Canonical A2 task list: `specs/apple-foundation-model-adapter/a2-tasks.md`
 - A1 only: local final text and explicit JSON Schema output.
 - A2 Apple tool callbacks are governed by `a2-plan.md` and `a2-tasks.md`.
-  B0 through B4.1 implementation evidence is recorded below; B4.2 and B4.3
-  remain.
+  B0 through B4.2 implementation and documentation evidence is recorded below;
+  B4.3 remains.
 
 ## Preparation checks
 
@@ -453,6 +453,21 @@ the restored-environment B0 result is investigated.
 - Council and ponytail reviews reported no P0/P1/P2 findings. Exactly-once and
   cross-loop behavior remain deterministic fake-backed proof, as specified by
   B0/B3 rather than this nondeterministic provider smoke.
+
+## A2 B4.2 public documentation — 2026-08-26
+
+- Updated the public README and authored Python API documentation to replace
+  the former A1-only statement that Apple tools were unsupported.
+- The published contract now documents active-node wrapper selection,
+  coordinator-owned validation/guardrails/approval/hooks/traces/state, exact
+  approved dispatch, terminal non-dispatch decisions, unresolved interruption,
+  callback-session closure, callback budget, and the admitted tool-schema
+  subset.
+- The same documentation records the historical sandbox-only status-255 result,
+  its non-reproduction in the restored environment, the elevated local harness
+  command boundary, and the current SDK deprecation warning plus ignored
+  teardown ``TypeError``. It explicitly states that the harness condition is
+  not a universal Apple-host requirement.
 
 ## Required evidence by slice
 

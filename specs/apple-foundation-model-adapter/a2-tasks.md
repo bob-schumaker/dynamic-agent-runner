@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A2 Task List
 
-Status: implementation in progress through B4.1; B4.2 and B4.3 remain
+Status: implementation and documentation complete through B4.2; B4.3 remains
 
 This is the canonical task list for A2. `tasks.md` remains the completed A1
 record and must not duplicate A2 implementation work. This list implements the
@@ -139,8 +139,11 @@ fixed decisions in `a2-plan.md`.
     callback sentinels passed independently. The approved path proves
     `before_tool` precedes the handler; the denied path reaches DAR once without
     handler, result-state, or normal lifecycle effects.
-- [ ] B4.2 [docs] Document A2 capabilities, interruption behavior, schema
+- [x] B4.2 [docs] Document A2 capabilities, interruption behavior, schema
       limits, and the status-255 harness result.
+  - Evidence: `README.md` and `docs/files/python-api.rst` (2026-08-26);
+    published source describes the active-tool bridge, decision outcomes,
+    admitted schema subset, and environment-specific native test constraint.
 - [ ] B4.3 [validation] Record RED/GREEN focused A2 test module results, then
       run and record `poetry run pytest -q`, `poetry run ruff check src tests`,
       `poetry check`, `poetry build`, and the opt-in eligible-Mac callback gate
