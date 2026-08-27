@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Tasks
 
-Status: A1 and A2 implementation complete; standalone direct release gate established; pytest-native SDK checks remain diagnostic
+Status: A1 and A2 implementation complete; standalone direct release gate established; full test suite green
 
 ## Prerequisites
 
@@ -77,11 +77,12 @@ Status: A1 and A2 implementation complete; standalone direct release gate establ
   - Evidence: `scripts/run_apple_live_release_gate.py` and
     `validation.md` (2026-08-27); the elevated eligible-Mac runner passed text,
     structured-output, and strict-workflow checks with a redacted receipt.
-- [ ] T6.7 Decide the configured-host MCP ``tools/list`` contract and restore a
-      green full-suite gate: either hide execution tools without an explicit
-      host or update the stale empty-list expectation to the intended
-      ``run_dar_workflow`` behavior. Record the decision, add focused coverage,
-      and rerun the full suite.
+- [x] T6.7 Preserve the configured-host MCP ``tools/list`` contract: hide
+      ``run_dar_workflow`` when the local host cannot open and expose it only
+      when a host is configured. Replace the environment-dependent fixture with
+      explicit unavailable-host coverage and rerun the full suite.
+  - Evidence: `tests/test_mcp_server.py` and `validation.md` (2026-08-27);
+    focused MCP coverage passed and the full suite is green.
 
 ## A2 handoff
 

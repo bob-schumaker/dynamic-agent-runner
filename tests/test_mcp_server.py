@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from io import StringIO
 from importlib.metadata import version
 from pathlib import Path
 import tomllib
@@ -26,26 +25,26 @@ def test_project_declares_the_generic_stdio_mcp_entry_point() -> None:
 
 
 def test_stdio_server_hides_execution_tools_without_a_configured_host() -> None:
-    stdin = StringIO(
-        "\n".join(
-            (
-                '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}',
-                '{"jsonrpc":"2.0","method":"notifications/initialized"}',
-                '{"jsonrpc":"2.0","id":2,"method":"tools/list"}',
-            )
-        )
-        + "\n"
+    from dynamic_agent_runner.workflow_host.server import _Session
+
+    def unavailable_host(_root: object) -> object:
+        raise OSError("local host is not configured")
+
+    session = _Session(host_opener=unavailable_host)
+    initialized = session.handle(
+        '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
     )
-    stdout = StringIO()
+    session.handle('{"jsonrpc":"2.0","method":"notifications/initialized"}')
 
-    assert main(["--stdio"], stdin=stdin, stdout=stdout, stderr=StringIO()) == 0
+    response = session.handle('{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
 
-    responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
-    assert responses[0]["result"]["serverInfo"] == {
+    assert initialized is not None
+    assert initialized["result"]["serverInfo"] == {
         "name": "Dynamic Agent Runner",
         "version": version("dynamic-agent-runner"),
     }
-    assert responses[1]["result"]["tools"] == []
+    assert response is not None
+    assert response["result"]["tools"] == []
 
 
 def test_stdio_server_advertises_one_bound_workflow_tool_when_configured() -> None:

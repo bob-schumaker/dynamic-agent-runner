@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 and A2 implementation, documentation, and B4 validation complete; the full-suite configured-host MCP expectation failure remains recorded outside A2
+Status: A1 and A2 implementation, documentation, and B4 validation complete; full test suite green
 
 ## Scope
 
@@ -493,6 +493,19 @@ the restored-environment B0 result is investigated.
   SDK deprecation of `asyncio.iscoroutinefunction`; interpreter teardown also
   emitted the known ignored `_ManagedObject.__del__` ``TypeError``. Neither
   changed the approved or denied callback assertions.
+
+## T6.7 MCP ``tools/list`` contract — 2026-08-27
+
+- Decision: the generic DAR MCP server exposes ``run_dar_workflow`` only when
+  its local host opens successfully. An unavailable or unconfigured host
+  returns an empty tool list; a configured host exposes the one sealed-workflow
+  execution surface.
+- Replaced the environment-dependent no-host test, which had accidentally
+  opened the developer's configured default host, with an explicit opener that
+  raises ``OSError``. The configured-host test remains the positive contract
+  coverage.
+- `poetry run pytest -q tests/test_mcp_server.py` — `14 passed in 0.96s`.
+  `poetry run pytest -q` — `1195 passed, 1 skipped, 6 deselected in 10.88s`.
 
 ## Required evidence by slice
 
