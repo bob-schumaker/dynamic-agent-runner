@@ -4,6 +4,7 @@ import asyncio
 import importlib
 import json
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,9 +12,25 @@ from dynamic_agent_runner.apple_foundation_models import (
     create_apple_foundation_model_async_adapter,
 )
 from dynamic_agent_runner.artifacts import load_runtime_manifest
+from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
 from dynamic_agent_runner.executor import execute_workflow
-from dynamic_agent_runner.models import LoadedAgentWorkflow
+from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
 from dynamic_agent_runner.openai_client import build_openai_request
+from dynamic_agent_runner.registry import (
+    InMemoryToolRegistry,
+    RegisteredTool,
+    ToolResult,
+)
+from dynamic_agent_runner.retry import RetryPolicy
+from dynamic_agent_runner.tool_invocation import (
+    ProviderDecisionRequest,
+    ProviderDecisionState,
+    ProviderToolDecision,
+    ProviderToolTerminalError,
+    tool_context,
+)
+from dynamic_agent_runner.tracing import WorkflowTracer
 
 
 _LIVE_SYSTEM_MODEL: object | None = None
@@ -32,6 +49,64 @@ def _require_live_apple() -> object:
     if not available:
         pytest.skip(f"Apple system model is unavailable: {reason}")
     return sdk
+
+
+_LIVE_SENTINEL_SCHEMA = {
+    "type": "object",
+    "properties": {"token": {"type": "string"}},
+    "required": ["token"],
+    "additionalProperties": False,
+}
+
+
+def _live_tool_context(
+    registry: InMemoryToolRegistry,
+    tool: RegisteredTool,
+    *,
+    decision_collaborator: object,
+    lifecycle_hooks: WorkflowLifecycleHooks | None = None,
+):
+    state = SimpleNamespace(run_id="live-apple", tool_results={}, trace_events=[])
+    return tool_context(
+        plan=SimpleNamespace(
+            workflow=SimpleNamespace(
+                runtime_manifest=SimpleNamespace(package_id="live-apple-agent")
+            ),
+            max_steps=1,
+        ),
+        node=SimpleNamespace(id="live-apple-node"),
+        tools=(tool,),
+        registry=registry,
+        state=state,
+        tracer=WorkflowTracer(events=state.trace_events),
+        lifecycle_hooks=lifecycle_hooks,
+        retry_policy=RetryPolicy(),
+        decision_collaborator=decision_collaborator,  # type: ignore[arg-type]
+        executor_loop=asyncio.get_running_loop(),
+    )
+
+
+def _live_tool_request(
+    registry: InMemoryToolRegistry,
+    context: object,
+    *,
+    prompt: str,
+):
+    return build_openai_request(
+        model="apple-system-language-model",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You must call the supplied sentinel tool exactly once before "
+                    "responding. Do not substitute text for the required tool call."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        tools=registry.to_openai_tools(("sentinel",)),
+        adapter_context=context,
+    )
 
 
 @pytest.mark.apple_live
@@ -151,3 +226,145 @@ def test_live_apple_tool_callback_sentinel() -> None:
 
     assert callbacks == [{"token": "DAR_SENTINEL"}]
     assert str(response).strip()
+
+
+@pytest.mark.apple_live
+def test_live_apple_dar_callback_sentinel() -> None:
+    """Show a native callback enters DAR before a no-side-effect handler."""
+
+    _require_live_apple()
+    events: list[str] = []
+    invocations: list[dict[str, object]] = []
+    decisions: list[ProviderDecisionRequest] = []
+
+    class Approver:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            decisions.append(request)
+            return ProviderToolDecision(
+                state=ProviderDecisionState.APPROVED,
+                invocation_id=request.invocation_id,
+                fingerprint=request.fingerprint,
+            )
+
+    def handler(arguments: dict[str, object]) -> ToolResult:
+        assert events == ["before"]
+        invocations.append(dict(arguments))
+        return ToolResult(
+            tool_id="sentinel",
+            success=True,
+            output={"status": "DAR_LIVE_SENTINEL_OK"},
+        )
+
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "sentinel",
+                "input_schema": _LIVE_SENTINEL_SCHEMA,
+                "approval_required": "yes",
+                "description_for_llm": "Record a fixed local sentinel token.",
+            }
+        ),
+        handler,
+    )
+    registry = InMemoryToolRegistry([tool])
+
+    async def run() -> tuple[object, object]:
+        context = _live_tool_context(
+            registry,
+            registry.get_tool("sentinel"),
+            decision_collaborator=Approver(),
+            lifecycle_hooks=WorkflowLifecycleHooks(
+                before_tool=lambda _context: events.append("before"),
+                after_tool=lambda _context: events.append("after"),
+            ),
+        )
+        response = await create_apple_foundation_model_async_adapter().create_response(
+            _live_tool_request(
+                registry,
+                context,
+                prompt=(
+                    "Call the available sentinel tool now with token "
+                    "DAR_LIVE_SENTINEL. Do not answer until it succeeds."
+                ),
+            )
+        )
+        return response, context
+
+    response, context = asyncio.run(run())
+
+    assert invocations == [{"token": "DAR_LIVE_SENTINEL"}]
+    assert len(decisions) == 1
+    assert events == ["before", "after"]
+    assert [event.event_type for event in context.state.trace_events] == [
+        "tool_started",
+        "tool_result",
+        "tool_finished",
+    ]
+    assert isinstance(response.content, str)
+    assert response.content.strip()
+
+
+@pytest.mark.apple_live
+def test_live_apple_dar_callback_denied_approval_skips_handler() -> None:
+    """Show a native Apple callback reaches DAR approval but not its handler."""
+
+    _require_live_apple()
+    invocations: list[dict[str, object]] = []
+    decisions: list[ProviderDecisionRequest] = []
+
+    class Denier:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            decisions.append(request)
+            return ProviderToolDecision(
+                state=ProviderDecisionState.DENIED,
+                invocation_id=request.invocation_id,
+                fingerprint=request.fingerprint,
+            )
+
+    def handler(arguments: dict[str, object]) -> ToolResult:
+        invocations.append(dict(arguments))
+        raise AssertionError("denied approval must not invoke the handler")
+
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "sentinel",
+                "input_schema": _LIVE_SENTINEL_SCHEMA,
+                "approval_required": "yes",
+                "description_for_llm": "Record a fixed local sentinel token.",
+            }
+        ),
+        handler,
+    )
+    registry = InMemoryToolRegistry([tool])
+
+    async def run() -> object:
+        context = _live_tool_context(
+            registry,
+            registry.get_tool("sentinel"),
+            decision_collaborator=Denier(),
+        )
+        try:
+            await create_apple_foundation_model_async_adapter().create_response(
+                _live_tool_request(
+                    registry,
+                    context,
+                    prompt=(
+                        "Call the available sentinel tool now with token "
+                        "DAR_LIVE_SENTINEL. Do not answer before calling it."
+                    ),
+                )
+            )
+        except (ModelExecutionError, ProviderToolTerminalError):
+            pass
+        return context
+
+    context = asyncio.run(run())
+
+    assert len(decisions) == 1
+    assert invocations == []
+    assert context.state.tool_results == {}
+    assert all(
+        event.event_type == "provider_callback_budget_exhausted"
+        for event in context.state.trace_events
+    )
