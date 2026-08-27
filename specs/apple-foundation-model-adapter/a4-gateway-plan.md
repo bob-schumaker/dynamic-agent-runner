@@ -1,6 +1,6 @@
 # Apple Foundation Models A4 Gateway Fallback Plan
 
-Status: implementation-ready; not started
+Status: implementation complete; C4 live Fastmail/O7 validation pending human review
 
 ## Spec trace and objective
 
