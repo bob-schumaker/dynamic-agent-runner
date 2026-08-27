@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification blocked
+Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 plan approved
 
 ## Scope
 
@@ -9,7 +9,8 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - Plan: `specs/apple-foundation-model-adapter/plan.md`
 - Tasks: `specs/apple-foundation-model-adapter/tasks.md`
 - A1 only: local final text and explicit JSON Schema output.
-- A2 Apple tool callbacks remain separately gated.
+- A2 Apple tool callbacks are governed by `a2-plan.md` and `a2-tasks.md`; no
+  A2 implementation evidence exists yet.
 
 ## Preparation checks
 
@@ -48,6 +49,22 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - Focused pre-commit and `git diff --check` pass for the final slice.
 
 The implementation, deterministic validation, and standalone live runtime paths are complete. Pytest-native Apple SDK verification is explicitly blocked by native status-255 behavior and tracked as T6.6.
+
+## A2 B0 native-harness diagnosis — 2026-08-26
+
+- Installed the declared optional `apple-fm-sdk==0.2.1` extra into the project
+  environment; before installation, all marked live tests skipped because the
+  module was absent.
+- The minimal standalone text-generation probe passed cleanly.
+- The marked pytest file passed once, then passed in three consecutive repeat
+  runs: 12 live test executions total, with no recurrence of status 255.
+- Each pytest process emitted the same ignored `apple_fm_sdk` destructor error
+  during interpreter teardown: `_ManagedObject.__del__` attempted to call a
+  `None` release function. The standalone probe did not emit it.
+- Current conclusion: status 255 is not reproducible in the restored declared
+  environment. The teardown defect is SDK-native evidence, not a reason to add
+  retries or pytest-specific production behavior. Keep standalone execution as
+  the authoritative live gate while the harness is monitored.
 
 ## Required evidence by slice
 

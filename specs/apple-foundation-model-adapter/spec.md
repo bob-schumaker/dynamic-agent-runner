@@ -6,7 +6,7 @@
 - Feature slug: `apple-foundation-model-adapter`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification blocked; A2 separately gated
+- Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 plan approved
 - Version: `0.4`
 - Date: 2026-07-01
 - Owner: dynamic-agent-runner model-provider boundary
@@ -776,9 +776,10 @@ pass:
     the Apple SDK itself exposes more.
 11. Apple tool callbacks are provider ingress points and must pass through a
     DAR-owned tool invocation coordinator before any handler can run.
-12. A2 approval-required callbacks use DAR approval behavior; the coordinator
-    may await an in-process host decision, but it may not bypass approval or
-    disguise a DAR interruption as an ordinary direct tool invocation.
+12. A2 approval-required callbacks return a provider-aware DAR interruption
+    before any handler runs. A2 does not wait inside the Apple callback for an
+    approval decision, and it may not bypass approval or disguise an
+    interruption as an ordinary direct tool invocation.
 
 ## Open Questions
 
@@ -787,7 +788,6 @@ boundary. Exact class names, optional dependency version constraints, request
 renderer structure, error subtype reuse, and test-file placement belong to the
 technical plan and must not widen the approved first-release scope.
 
-The A2 technical plan must resolve whether the first approved host contract
-waits for approval in process or exits through a provider-aware DAR interruption.
-That mechanism may vary by host, but direct callback invocation of the handler or
-registry is not an allowed alternative.
+The approved A2 plan selects provider-aware interruption before handler
+invocation. Durable cross-process approval resume remains a later feature; direct
+callback invocation of the handler or registry is not an allowed alternative.
