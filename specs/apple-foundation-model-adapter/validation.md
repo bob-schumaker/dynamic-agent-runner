@@ -550,3 +550,17 @@ the absence of an eligible Mac does not weaken deterministic unit coverage.
   no status-255 recurrence, but emitted an SDK-native destructor error at
   process teardown. Standalone execution remains the authoritative live gate
   while that teardown defect is monitored.
+
+## T6.6 standalone direct release gate — 2026-08-27
+
+- Replaced pytest-native model generation as the A1 release gate with
+  `scripts/run_apple_live_release_gate.py`. The script directly exercises DAR's
+  Apple adapter for text, explicit JSON Schema output, and strict workflow
+  execution; it emits only a format-versioned status/check receipt.
+- Elevated eligible-Mac evidence: `poetry run python
+  scripts/run_apple_live_release_gate.py` —
+  `{"checks":["text","structured_output","strict_workflow"],"format_version":1,"status":"passed"}`.
+- The script is the A1 release gate and must run outside the Codex execution
+  sandbox on this host. Marked pytest-native Apple tests remain diagnostic
+  evidence and A2 callback smoke coverage; no runtime retry or pytest-specific
+  workaround was added.

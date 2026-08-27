@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Implementation Plan
 
-Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification is under investigation
+Status: A1 and A2 implementation complete; standalone direct release gate established; pytest-native SDK checks remain diagnostic
 
 ## Scope and authority
 
@@ -67,7 +67,10 @@ optional SDK. Separate live tests are marked for eligible Macs and validate
 real text, JSON Schema output, and a strict-coverage DAR workflow; they skip
 with an actionable prerequisite reason when the SDK or system model is absent.
 Run focused tests after each slice, then the full suite, Ruff, package checks,
-and focused pre-commit. A1 is complete when deterministic tests, standalone eligible-Mac live paths, import portability, and documentation checks pass; pytest-native SDK verification is tracked separately as T6.6.
+and focused pre-commit. A1 is complete when deterministic tests, standalone
+eligible-Mac direct runtime checks, import portability, and documentation checks
+pass. `scripts/run_apple_live_release_gate.py` is the A1 release gate;
+pytest-native checks remain separate diagnostic evidence.
 
 ## Explicit non-actions
 
@@ -77,4 +80,11 @@ selection, or expose Apple SDK sessions/transcripts as DAR state.
 
 ## Post-implementation decision
 
-Standalone runtime verification is accepted for A1 text, structured output, and strict workflow behavior. Historical pytest-native execution produced native `GenerationError` status 255 despite successful availability preflight; the restored declared environment later passed 12 live pytest executions but emitted an SDK-native teardown error. Future work must monitor or replace that harness before using it as a release gate. No provider retry or pytest-specific runtime behavior is added from this evidence.
+Standalone runtime verification is accepted for A1 text, structured output, and
+strict workflow behavior. `scripts/run_apple_live_release_gate.py` now makes
+that verification a direct executable release gate. Historical pytest-native
+execution produced native `GenerationError` status 255 despite successful
+availability preflight; the restored declared environment later passed 12 live
+pytest executions but emitted an SDK-native teardown error. Those checks remain
+diagnostic only. No provider retry or pytest-specific runtime behavior is added
+from this evidence.

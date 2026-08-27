@@ -390,7 +390,17 @@ non-string enums, ``const``, patterns/formats, string-length constraints, or
 unknown keywords. SDK-generated references for nested classes do not make
 caller-supplied references admissible.
 
-Apple live tests are opt-in:
+The standalone A1 release gate uses direct runtime calls rather than
+pytest-native model generation. Run it on an eligible Mac outside the Codex
+execution sandbox:
+
+.. code-block:: bash
+
+   poetry run python scripts/run_apple_live_release_gate.py
+
+It emits a redacted receipt after text, structured-output, and strict-workflow
+execution. The marked Apple pytest suite remains an opt-in diagnostic and A2
+callback smoke:
 
 .. code-block:: bash
 
@@ -402,6 +412,7 @@ execution sandbox despite successful availability; the restored environment
 has not reproduced it. In this Codex/macOS environment, run the native callback
 sentinel from an elevated host terminal outside that sandbox. This is a local
 harness constraint, not an Apple Foundation Models requirement on all hosts.
+Pytest-native Apple results are diagnostic evidence, not the A1 release gate.
 The current SDK also emits a known deprecation warning and ignored teardown
 ``TypeError`` after otherwise successful native tests.
 

@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Tasks
 
-Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification is under investigation
+Status: A1 and A2 implementation complete; standalone direct release gate established; pytest-native SDK checks remain diagnostic
 
 ## Prerequisites
 
@@ -71,7 +71,12 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - [x] T6.3 Run eligible-Mac standalone live text, structured-output, and strict-workflow verification; record the pytest-native SDK result.
 - [x] T6.4 Check spec links/status consistency and update `specs/README.md`.
 - [x] T6.5 Record the approved A2 handoff and the native SDK validation result.
-- [ ] T6.6 Resolve or replace the pytest-native Apple SDK harness before using it as a release gate.
+- [x] T6.6 Replace pytest-native Apple SDK generation as the A1 release gate
+      with the standalone direct-runtime runner. Keep marked pytest-native
+      checks as diagnostic evidence only.
+  - Evidence: `scripts/run_apple_live_release_gate.py` and
+    `validation.md` (2026-08-27); the elevated eligible-Mac runner passed text,
+    structured-output, and strict-workflow checks with a redacted receipt.
 - [ ] T6.7 Decide the configured-host MCP ``tools/list`` contract and restore a
       green full-suite gate: either hide execution tools without an explicit
       host or update the stale empty-list expectation to the intended

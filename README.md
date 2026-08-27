@@ -422,8 +422,17 @@ Apple Intelligence is disabled, the Mac is ineligible, the model is still
 preparing, or generation fails after preflight, the adapter reports a
 package-owned diagnostic with the SDK failure preserved as its cause.
 
-Default pytest runs exclude Apple live tests. Select them on an eligible Mac
-with:
+The standalone A1 release gate uses direct runtime calls rather than
+pytest-native model generation. Run it on an eligible Mac outside the Codex
+execution sandbox:
+
+```bash
+poetry run python scripts/run_apple_live_release_gate.py
+```
+
+It emits a redacted receipt after real text, structured-output, and strict
+workflow execution. Default pytest runs exclude Apple live tests. Select those
+diagnostic and A2 callback smokes on an eligible Mac with:
 
 ```bash
 poetry run pytest -m apple_live -q
@@ -434,7 +443,8 @@ available `SystemLanguageModel`; they skip when a prerequisite is absent. An
 historical native `GenerationError` with status 255 occurred inside the Codex
 execution sandbox despite successful availability. It did not recur in the
 restored environment, but the native callback sentinel should still run from an
-elevated host terminal outside that sandbox here. This is a local harness
+elevated host terminal outside that sandbox here. Pytest-native Apple tests are
+diagnostic evidence, not the A1 release gate. This is a local harness
 constraint, not a requirement for all Apple Foundation Models hosts. The SDK
 also emits a known deprecation warning and ignored teardown ``TypeError`` after
 successful native tests.
