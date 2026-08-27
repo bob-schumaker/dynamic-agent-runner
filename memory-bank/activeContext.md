@@ -168,7 +168,15 @@
   catalog parity bug-fix slice (`6d5d7a1`). TDD work remains: preserve catalog
   priority and visibility, choose the first visible model as default, forward
   `ChatGPT-Account-ID`, and retain generic-provider fallback behavior.
-- `specs/apple-foundation-model-adapter/` records A1 as implemented for local text and explicit JSON Schema output through the existing async facade. Standalone live text, structured, and strict-workflow paths succeeded; pytest-native Apple SDK generation remains blocked by opaque status 255 despite availability preflight. A2 remains a separately gated Apple tool-callback bridge through DAR approval and tool-runtime behavior.
+- `specs/apple-foundation-model-adapter/` is complete through C3 in `fcf89dc`.
+  Apple receives only wrappers for the sealed host's active tool snapshot: a
+  reviewed read-only MCP callback dispatches once through DAR, while a
+  side-effecting host binding enters DAR's existing unresolved approval path
+  before its handler. The Apple-private metadata projection preserves source
+  registry currentness and exposes neither raw handlers nor the registry.
+  Full validation passed with 1210 tests, one skipped, and six deselected.
+  C4 remains: package/release checks, redacted eligible-Mac receipts, Apple
+  schema preflight for Fastmail `search_email`, then a human-reviewed O7 run.
 - `specs/llm-step-interpreter-middleware/spec.md` now records the recommended
   multi-interpreter contract in commit `c9f505f`: one DAR-owned
   `run_interpreter` model gateway, bounded package-local or caller-supplied
@@ -488,11 +496,12 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
-- The next ROI actions are Apple Foundation Models A1 and
-  `memory-aware-context-pipeline` first-slice validation. LiteLLM Slice L1 is
-  complete with a bundled fallback and temporary OCI wheelhouse artifact;
-  OpenAI Responses R1 and semantic context selector Slice S1 are already
-  implemented.
+- Apple Foundation Models C4 is the active gated follow-up: run C4.1 package
+  and validation checks before any eligible-Mac receipt or Fastmail work.
+  `memory-aware-context-pipeline` first-slice validation remains separately
+  scheduled. LiteLLM Slice L1 is complete with a bundled fallback and
+  temporary OCI wheelhouse artifact; OpenAI Responses R1 and semantic context
+  selector Slice S1 are already implemented.
 
 ## Recent Completed Work
 
@@ -632,12 +641,9 @@
 
 ## Next Steps
 
-- Approve Apple Foundation Models A1 and execute its bounded `plan.md`,
-  `tasks.md`, and `validation.md` without pulling A2 tool callbacks into the
-  first release.
-- Keep Apple A2 and interpreter middleware aligned on one future DAR-owned tool
-  invocation coordinator. Do not let provider callbacks or interpreter bridges
-  call handlers or `ToolRegistry.invoke_tool_async(...)` directly.
+- Run Apple Foundation Models C4.1 package/release validation. Do not begin
+  Fastmail/OAuth invocation until C4.3 proves the current reviewed
+  `search_email` schema admissible for Apple translation.
 - Before planning interpreter implementation, resolve the five remaining
   clarification items and run backend prototypes/benchmarks. Keep executable
   adapters caller-provided and descriptor frontmatter non-executable.

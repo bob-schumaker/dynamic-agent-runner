@@ -162,7 +162,13 @@
   The full suite passes with 626 tests and one skip. Spec commit `54ac838`
   prepares T8, a pure advisory selector that compares fixed8 and token-aware
   estimates without changing the runtime default.
-- Apple Foundation Models A1 is implemented in `specs/apple-foundation-model-adapter/` and committed in `9984bd9`, with standalone live text, structured-output, and strict-workflow evidence. Pytest-native Apple SDK generation remains blocked by status 255 despite availability preflight; A2 separately requires DAR-managed callback routing through the approval and tool-runtime stack.
+- Apple Foundation Models is complete through C3 in `fcf89dc`: the sealed host
+  passes only active wrappers to Apple, read-only reviewed MCP calls dispatch
+  once through DAR, and side-effecting host callbacks become DAR approval
+  interruptions before handler entry. The private projection retains source
+  registry currentness. Council and ponytail review passed after direct tests
+  covered stale source replacement and zero handler/MCP dispatch. The full
+  suite passed 1210 tests with one skipped and six deselected.
 - Interpreter middleware now has a resolved model-facing design direction:
   one `run_interpreter` gateway tool, multiple node-allowed ids, bounded
   non-executable usage descriptors, caller-provided async-first adapters, and
@@ -672,7 +678,9 @@
   multi-interpreter, custom-adapter, and descriptor contracts are now specified,
   but implementation planning still requires backend evidence, safety/redaction
   decisions, descriptor budgets, and nested approval/resume semantics.
-- Apple Foundation Models A1 is implemented; standalone live paths are verified, while pytest-native SDK verification is a tracked harness follow-up. A2 tool callbacks remain a separate approval-gated release.
+- Apple Foundation Models C3 is complete. C4.1 package/release validation is
+  next; C4.2 eligible-Mac receipts and C4.3 Fastmail schema preflight remain
+  gates before any live Fastmail/OAuth acceptance.
 
 ## Risks or Follow-ups
 
