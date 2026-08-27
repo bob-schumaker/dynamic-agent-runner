@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     create_local_adapter,
 )
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.errors import ModelExecutionError  # noqa: E402
 
 
 def test_installation_identity_is_stable_and_cannot_be_caller_supplied(
@@ -137,3 +139,69 @@ def test_profile_requires_loopback_endpoint_and_constructs_local_adapter(
     assert config.base_url == "http://localhost:11434/v1"  # type: ignore[union-attr]
     assert config.model_aliases == ("local-model-v1", "local-model")  # type: ignore[union-attr]
     assert config.expected_model_id == "local-model-v1"  # type: ignore[union-attr]
+
+
+def test_human_control_plane_creates_apple_profile_without_http_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.getpass.getuser", lambda: "ada"
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.os.getuid", lambda: 501
+    )
+    preflight_calls: list[object] = []
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.preflight_apple_foundation_models",
+        lambda: preflight_calls.append(object()),
+    )
+    control_plane = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state"),
+    )
+
+    created = control_plane.create_apple(model_id="apple-system-language-model")
+    loaded = control_plane.load(created.profile_id)
+
+    assert loaded == created
+    assert loaded.adapter_id == "apple-foundation-models-adapter-v1"
+    assert loaded.base_url is None
+    assert loaded.capabilities == frozenset({"text_generation"})
+    assert len(preflight_calls) == 1
+
+
+def test_apple_profile_preflight_failure_does_not_issue_a_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.preflight_apple_foundation_models",
+        lambda: (_ for _ in ()).throw(ModelExecutionError("unavailable")),
+    )
+    store = PrivateStateStore(tmp_path / "state")
+    control_plane = LocalModelProfileControlPlane(store=store)
+    monkeypatch.setattr(
+        store, "issue", lambda **_: pytest.fail("preflight must precede persistence")
+    )
+
+    with pytest.raises(ModelExecutionError, match="unavailable"):
+        control_plane.create_apple(model_id="apple-system-language-model")
+
+
+def test_forged_apple_profile_with_http_data_is_rejected(tmp_path: Path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    control_plane = LocalModelProfileControlPlane(store=store)
+    profile_id = store.issue(
+        kind="local_model_profile",
+        owner=InstallationIdentityProvider().principal,
+        payload={
+            "model_id": "apple-system-language-model",
+            "adapter_id": "apple-foundation-models-adapter-v1",
+            "base_url": "http://127.0.0.1:11434/v1",
+            "profile_requirement": "local-general-model",
+            "capabilities": ["text_generation"],
+        },
+        expires_at=datetime.max.replace(tzinfo=UTC),
+        now=datetime.now(UTC),
+    )
+
+    with pytest.raises(LocalModelProfileError, match="invalid"):
+        control_plane.load(profile_id)

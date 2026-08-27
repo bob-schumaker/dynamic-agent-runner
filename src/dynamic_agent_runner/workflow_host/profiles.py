@@ -19,6 +19,9 @@ from dynamic_agent_runner.local_models import (
     create_local_openai_adapter,
 )
 from dynamic_agent_runner.openai_client import OpenAIClientAdapter
+from dynamic_agent_runner.apple_foundation_models import (
+    preflight_apple_foundation_models,
+)
 
 
 class LocalModelProfileError(ValueError):
@@ -45,7 +48,7 @@ class LocalModelProfile:
     profile_id: str
     model_id: str
     adapter_id: str
-    base_url: str
+    base_url: str | None
     profile_requirement: str
     capabilities: frozenset[str]
 
@@ -125,9 +128,13 @@ class LocalModelProfileControlPlane:
             raise LocalModelProfileError("local model profile is invalid") from error
         _nonempty(model_id, "model_id")
         _nonempty(profile_requirement, "profile_requirement")
-        if adapter_id != "strict-local-adapter-v1":
+        if adapter_id == "strict-local-adapter-v1":
+            _validate_loopback_base_url(base_url)
+        elif adapter_id == "apple-foundation-models-adapter-v1":
+            if base_url is not None:
+                raise LocalModelProfileError("local model profile is invalid")
+        else:
             raise LocalModelProfileError("local model profile is invalid")
-        _validate_loopback_base_url(base_url)
         if not capabilities or any(
             not isinstance(item, str) or not item for item in capabilities
         ):
@@ -138,6 +145,34 @@ class LocalModelProfileControlPlane:
             adapter_id,
             base_url,
             profile_requirement,
+            capabilities,
+        )
+
+    def create_apple(self, *, model_id: str) -> LocalModelProfile:
+        """Persist one human-confirmed on-device Apple model profile."""
+
+        _nonempty(model_id, "model_id")
+        preflight_apple_foundation_models()
+        capabilities = frozenset({"text_generation"})
+        handle = self._store.issue(
+            kind="local_model_profile",
+            owner=self._identity.principal,
+            payload={
+                "model_id": model_id,
+                "adapter_id": "apple-foundation-models-adapter-v1",
+                "base_url": None,
+                "profile_requirement": "local-general-model",
+                "capabilities": sorted(capabilities),
+            },
+            expires_at=datetime.max.replace(tzinfo=UTC),
+            now=datetime.now(UTC),
+        )
+        return LocalModelProfile(
+            handle,
+            model_id,
+            "apple-foundation-models-adapter-v1",
+            None,
+            "local-general-model",
             capabilities,
         )
 
