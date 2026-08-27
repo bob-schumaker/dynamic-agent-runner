@@ -75,6 +75,8 @@ from dynamic_agent_runner.tool_invocation import (
     ProviderDecisionRequest,
     ProviderDecisionState,
     ProviderToolDecision,
+    ProviderToolInterruption,
+    ProviderToolTerminalError,
     tool_context,
 )
 from dynamic_agent_runner.registry import (
@@ -4971,6 +4973,70 @@ def test_provider_model_tool_decision_has_the_declared_executor_outcome(
     assert state.tool_results == {}
     assert state.errors == []
     assert state.retry_records == []
+
+
+def test_executor_converts_provider_callback_interruption_to_workflow_result() -> None:
+    workflow = loop_tool_workflow(available_tools=[])
+    approval = ApprovalInterruption(
+        interruption_id="approval-1",
+        run_id="provider-run",
+        workflow_id="loop-tool-agent",
+        node_id="analyze",
+        tool_id="send",
+        action_id="apple-call-1",
+        arguments={"message": "private"},
+        policy={"approval_required": "yes"},
+        reason="approval required",
+    )
+
+    class ProviderInterruptingAdapter(AsyncOpenAIClientAdapter):
+        async def create_response(self, _request: object) -> ModelResponse:
+            raise ProviderToolInterruption(approval, provider="apple_foundation_models")
+
+    adapter = ProviderInterruptingAdapter(models=("gpt-test",))
+
+    result = asyncio.run(
+        execute_workflow_async(workflow, prompt="Send", model_adapter=adapter)
+    )
+
+    assert isinstance(result, WorkflowInterruptedResult)
+    assert result.interruption is approval
+    assert result.state.tool_results == {}
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "provider tool decision is denied",
+        "tool input rejected by guardrail",
+        "send delivery failed",
+    ],
+)
+def test_executor_does_not_retry_provider_callback_terminal_failures(
+    message: str,
+) -> None:
+    calls = 0
+    workflow = loop_tool_workflow(
+        available_tools=[],
+        execution_policy_extra={"model_retry_policy": {"max_attempts": 2}},
+    )
+
+    class TerminalAdapter(AsyncOpenAIClientAdapter):
+        async def create_response(self, _request: object) -> ModelResponse:
+            nonlocal calls
+            calls += 1
+            raise ProviderToolTerminalError(message)
+
+    with pytest.raises(WorkflowExecutionError, match=message):
+        asyncio.run(
+            execute_workflow_async(
+                workflow,
+                prompt="Send",
+                model_adapter=TerminalAdapter(models=("gpt-test",)),
+            )
+        )
+
+    assert calls == 1
 
 
 def loop_tool_workflow(

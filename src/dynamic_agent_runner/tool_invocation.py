@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum
 from hashlib import sha256
+import asyncio
 import json
 from threading import Lock
 from typing import Any, Protocol
@@ -87,6 +88,10 @@ class ProviderToolInterruption(Exception):
 
     def __str__(self) -> str:
         return "provider tool invocation interrupted"
+
+
+class ProviderToolTerminalError(Exception):
+    """Abort a provider callback without entering model retry behavior."""
 
 
 def unwrap_provider_tool_interruption(
@@ -261,6 +266,10 @@ class ActiveAdapterToolContext:
     retry_policy: RetryPolicy
     decision_collaborator: ProviderDecisionCollaborator | None = None
     callback_budget: ProviderCallbackBudget | None = None
+    provider_guardrail_runner: Callable[[PreparedToolInvocation, str], None] | None = (
+        None
+    )
+    executor_loop: asyncio.AbstractEventLoop | None = None
     _used_provider_invocation_ids: set[str] = field(
         default_factory=set, init=False, repr=False, compare=False
     )
@@ -368,6 +377,10 @@ def tool_context(
     retry_policy: RetryPolicy,
     decision_collaborator: ProviderDecisionCollaborator | None = None,
     callback_budget: ProviderCallbackBudget | None = None,
+    provider_guardrail_runner: (
+        Callable[[PreparedToolInvocation, str], None] | None
+    ) = None,
+    executor_loop: asyncio.AbstractEventLoop | None = None,
 ) -> ActiveAdapterToolContext:
     """Build the trusted non-wire context for one active model or tool node."""
 
@@ -383,6 +396,8 @@ def tool_context(
         retry_policy=retry_policy,
         decision_collaborator=decision_collaborator,
         callback_budget=callback_budget,
+        provider_guardrail_runner=provider_guardrail_runner,
+        executor_loop=executor_loop,
     )
 
 

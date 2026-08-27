@@ -99,8 +99,11 @@ from dynamic_agent_runner.tool_invocation import (
     ApprovalInterruption,
     ApprovalInterruptionState,  # noqa: F401 - public executor compatibility export
     ProviderToolDecisionTerminalOutcome,
+    ProviderToolInterruption,
+    ProviderToolTerminalError,
     coordinate_tool_invocation_async,
     tool_context,
+    unwrap_provider_tool_interruption,
 )
 from dynamic_agent_runner.tracing import TraceEvent, TraceSink, WorkflowTracer
 
@@ -943,7 +946,7 @@ async def _execute_llm_step_async(
     context_summarizer: ContextSummarizer | None,
     context_selector: ContextSelector | None,
     provider_context_compactor: ProviderContextCompactor | None,
-) -> ModelResponse:
+) -> ModelResponse | WorkflowInterruptedResult:
     prepared_input = prepare_model_input(
         node,
         plan,
@@ -968,6 +971,7 @@ async def _execute_llm_step_async(
         plan,
         state,
         registry,
+        guardrail_registry,
         tools,
         exposed_tools,
         tracer,
@@ -1018,6 +1022,14 @@ async def _execute_llm_step_async(
             policy=_exception_retry_policy(policy, "model_error"),
             retry_exceptions=(ModelExecutionError,),
         )
+    except ProviderToolInterruption as interruption:
+        return WorkflowInterruptedResult(
+            final_result=None,
+            state=state,
+            interruption=unwrap_provider_tool_interruption(interruption),
+        )
+    except ProviderToolTerminalError as exc:
+        raise WorkflowExecutionError(str(exc)) from exc
     except ModelExecutionError as exc:
         retry_response = await _retry_model_after_context_overflow_async(
             exc,
@@ -1131,6 +1143,7 @@ def _active_adapter_tool_context(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     tools: Sequence[Mapping[str, Any]],
     exposed_tools: Sequence[RegisteredTool],
     tracer: WorkflowTracer,
@@ -1152,7 +1165,39 @@ def _active_adapter_tool_context(
         tracer=tracer,
         lifecycle_hooks=lifecycle_hooks,
         retry_policy=RetryPolicy(),
+        provider_guardrail_runner=_provider_tool_input_guardrail_runner(
+            plan,
+            guardrail_registry,
+            tracer,
+            node,
+        ),
+        executor_loop=asyncio.get_running_loop(),
     )
+
+
+def _provider_tool_input_guardrail_runner(
+    plan: ExecutionPlan,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
+    tracer: WorkflowTracer,
+    node: PreparedNode,
+) -> Callable[[PreparedToolInvocation, str], None] | None:
+    """Bind active tool-input guardrails to provider callback action identifiers."""
+
+    if not _tool_input_guardrail_declarations(plan):
+        return None
+
+    def run(prepared: PreparedToolInvocation, action_id: str) -> None:
+        guardrail_runner = _tool_input_guardrail_runner(
+            plan,
+            guardrail_registry,
+            tracer,
+            node,
+            action_id,
+        )
+        if guardrail_runner is not None:
+            guardrail_runner(prepared)
+
+    return run
 
 
 async def _retry_model_after_context_overflow_async(

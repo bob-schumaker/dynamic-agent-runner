@@ -12,14 +12,27 @@ import sys
 from typing import Annotated, Any
 from uuid import uuid4
 
-from dynamic_agent_runner.errors import ModelExecutionError, ToolRegistryError
+from dynamic_agent_runner.errors import (
+    GuardrailExecutionError,
+    ModelExecutionError,
+    ToolRegistryError,
+)
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     ModelResponse,
     OpenAIModelRequest,
     normalize_openai_response,
 )
-from dynamic_agent_runner.tool_invocation import ActiveAdapterToolContext
+from dynamic_agent_runner.registry import PreparedToolInvocation, ToolResult
+from dynamic_agent_runner.tool_invocation import (
+    ActiveAdapterToolContext,
+    ApprovalInterruption,
+    ProviderToolDecisionTerminalOutcome,
+    ProviderToolInterruption,
+    ProviderToolTerminalError,
+    ToolInvocationRequest,
+    coordinate_tool_invocation_async,
+)
 
 
 AvailabilityChecker = Callable[[], tuple[bool, str | None]]
@@ -80,7 +93,7 @@ class AppleFoundationModelAsyncAdapter(AsyncOpenAIClientAdapter):
             "model_identity": "system_managed",
             "structured_output": True,
             "streaming": False,
-            "tool_calling": False,
+            "tool_calling": True,
             "multimodal": False,
             "embeddings": False,
         }
@@ -131,7 +144,11 @@ class _AppleResponsesResource:
                 result = await session.respond(
                     prompt, json_schema=schema, options=options
                 )
-        except asyncio.CancelledError:
+        except (
+            asyncio.CancelledError,
+            ProviderToolInterruption,
+            ProviderToolTerminalError,
+        ):
             raise
         except Exception as exc:  # noqa: BLE001 - SDK errors vary by release.
             raise ModelExecutionError(
@@ -182,6 +199,7 @@ def _apple_tool_wrappers(
         wrappers.append(
             _apple_tool_wrapper(
                 sdk,
+                context=context,
                 tool_id=tool.id,
                 name=f"dar_tool_{index}",
                 description=_apple_tool_description(tool.definition.raw, tool.id),
@@ -227,15 +245,50 @@ def _apple_tool_description(raw: Mapping[str, Any], tool_id: str) -> str:
 def _apple_tool_wrapper(
     sdk: Any,
     *,
+    context: ActiveAdapterToolContext,
     tool_id: str,
     name: str,
     description: str,
     arguments_type: type[object],
 ) -> object:
-    """Build one inert SDK wrapper; B3 supplies its DAR callback behavior."""
+    """Build one SDK wrapper that enters DAR through its coordinator."""
 
-    async def call(_self: object, _arguments: object) -> str:
-        raise ModelExecutionError("Apple tool callbacks are not available until B3")
+    async def call(_self: object, arguments: object) -> str:
+        try:
+            callback_arguments = _apple_callback_arguments(arguments)
+            action_id = f"apple-{uuid4().hex}"
+            guardrail_runner = _apple_guardrail_runner(context, action_id)
+            request = context.request(
+                tool_id=tool_id,
+                arguments=callback_arguments,
+                result_key=f"{context.node.id}.{action_id}",
+                action_id=action_id,
+                approval_reason=f"Apple tool {tool_id!r} requires approval",
+                guardrail_runner=guardrail_runner,
+                invoke=lambda prepared: _invoke_apple_tool_async(
+                    context,
+                    tool_id,
+                    callback_arguments,
+                    prepared,
+                ),
+            )
+            coordinated = await _coordinate_apple_callback_async(context, request)
+            if isinstance(coordinated, ApprovalInterruption):
+                raise ProviderToolInterruption(
+                    coordinated,
+                    provider="apple_foundation_models",
+                )
+            if isinstance(coordinated, ProviderToolDecisionTerminalOutcome):
+                raise ProviderToolTerminalError(
+                    f"provider tool decision is {coordinated.state.value}"
+                )
+            if not coordinated.success:
+                raise ProviderToolTerminalError(
+                    coordinated.error or f"tool {tool_id!r} failed"
+                )
+            return _apple_tool_result_output(coordinated)
+        except (GuardrailExecutionError, ToolRegistryError) as exc:
+            raise ProviderToolTerminalError(str(exc)) from exc
 
     def arguments_schema(_self: object) -> object:
         return arguments_type.generation_schema()
@@ -252,6 +305,74 @@ def _apple_tool_wrapper(
         },
     )
     return wrapper_type()
+
+
+async def _coordinate_apple_callback_async(
+    context: ActiveAdapterToolContext,
+    request: ToolInvocationRequest,
+) -> ToolResult | ApprovalInterruption | ProviderToolDecisionTerminalOutcome:
+    """Run one Apple callback on the executor loop when it differs from Apple's."""
+
+    executor_loop = context.executor_loop
+    if executor_loop is None or executor_loop is asyncio.get_running_loop():
+        return await coordinate_tool_invocation_async(request)
+    if not executor_loop.is_running():
+        raise ProviderToolTerminalError(
+            "executor loop is unavailable for Apple callback"
+        )
+    future = asyncio.run_coroutine_threadsafe(
+        coordinate_tool_invocation_async(request), executor_loop
+    )
+    return await asyncio.wrap_future(future)
+
+
+def _apple_guardrail_runner(
+    context: ActiveAdapterToolContext,
+    action_id: str,
+) -> Callable[[PreparedToolInvocation], None] | None:
+    """Bind DAR's active guardrail runner to one Apple callback action."""
+
+    if context.provider_guardrail_runner is None:
+        return None
+
+    def run(prepared: PreparedToolInvocation) -> None:
+        context.provider_guardrail_runner(prepared, action_id)
+
+    return run
+
+
+def _apple_callback_arguments(arguments: object) -> dict[str, Any]:
+    try:
+        value = arguments.to_json()
+    except Exception as exc:  # noqa: BLE001 - SDK content objects vary by release.
+        raise ToolRegistryError("Apple tool callback arguments are invalid") from exc
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ToolRegistryError("Apple tool callback arguments are invalid") from exc
+    if not isinstance(parsed, Mapping):
+        raise ToolRegistryError("Apple tool callback arguments must be an object")
+    return dict(parsed)
+
+
+async def _invoke_apple_tool_async(
+    context: ActiveAdapterToolContext,
+    tool_id: str,
+    arguments: Mapping[str, Any],
+    prepared: PreparedToolInvocation | None,
+) -> ToolResult:
+    if prepared is not None:
+        return await context.registry.invoke_prepared_tool_async(prepared)
+    return await context.registry.invoke_tool_async(tool_id, arguments)
+
+
+def _apple_tool_result_output(result: ToolResult) -> str:
+    try:
+        return json.dumps(result.model_facing_output)
+    except (TypeError, ValueError) as exc:
+        raise ProviderToolTerminalError(
+            "Apple tool result is not JSON serializable"
+        ) from exc
 
 
 def _apple_generated_object_type(

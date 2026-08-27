@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import inspect
 import json
 from pathlib import Path
+from threading import get_ident
 from types import SimpleNamespace
 from typing import Annotated, get_args, get_origin, get_type_hints
 
@@ -28,6 +29,8 @@ from dynamic_agent_runner.tool_invocation import (
     ProviderDecisionRequest,
     ProviderDecisionState,
     ProviderToolDecision,
+    ProviderToolInterruption,
+    ProviderToolTerminalError,
     coordinate_tool_invocation_async,
     tool_context,
 )
@@ -261,6 +264,42 @@ class FakeAppleCallbackSDK(FakeAppleToolSDK):
         return session
 
 
+class FakeAppleCrossLoopCallbackSession(FakeAppleCallbackSession):
+    async def respond(self, _prompt: str, **_kwargs: object) -> str:
+        for tool_index, arguments in self.callback_arguments:
+
+            async def invoke_callback(
+                callback_tool_index: int = tool_index,
+                callback_arguments: str = arguments,
+            ) -> object:
+                self.callback_thread_id = get_ident()
+                self.callback_loop_id = id(asyncio.get_running_loop())
+                return await self.tools[callback_tool_index].call(
+                    FakeAppleGeneratedContent(callback_arguments)
+                )
+
+            self.callback_results.append(
+                await asyncio.to_thread(lambda: asyncio.run(invoke_callback()))
+            )
+        return "answer"
+
+
+class FakeAppleCrossLoopCallbackSDK(FakeAppleCallbackSDK):
+    def LanguageModelSession(
+        self,
+        *,
+        instructions: str | None,
+        tools: list[object] | tuple[object, ...] = (),
+    ) -> FakeAppleCrossLoopCallbackSession:
+        session = FakeAppleCrossLoopCallbackSession(
+            instructions,
+            tools=tools,
+            callback_arguments=self.callback_arguments,
+        )
+        self.sessions.append(session)
+        return session
+
+
 @dataclass(frozen=True)
 class FakeAppleGenerationSchema:
     generated_type: type[object]
@@ -288,12 +327,16 @@ def _annotation_guides(annotation: object) -> dict[str, object]:
 
 
 def _has_cause(error: BaseException, error_type: type[BaseException]) -> bool:
+    return any(isinstance(item, error_type) for item in _exception_chain(error))
+
+
+def _exception_chain(error: BaseException) -> tuple[BaseException, ...]:
+    chain: list[BaseException] = []
     current: BaseException | None = error
-    while current is not None:
-        if isinstance(current, error_type):
-            return True
-        current = current.__cause__
-    return False
+    while current is not None and current not in chain:
+        chain.append(current)
+        current = current.__cause__ or current.__context__
+    return tuple(chain)
 
 
 def _tool(
@@ -318,6 +361,8 @@ def _active_tool_context(
     *,
     decision_collaborator: object | None = None,
     lifecycle_hooks: WorkflowLifecycleHooks | None = None,
+    provider_guardrail_runner: object | None = None,
+    executor_loop: object | None = None,
 ):
     state = SimpleNamespace(run_id="run-1", tool_results={}, trace_events=[])
     return tool_context(
@@ -334,6 +379,8 @@ def _active_tool_context(
         lifecycle_hooks=lifecycle_hooks,
         retry_policy=RetryPolicy(),
         decision_collaborator=decision_collaborator,  # type: ignore[arg-type]
+        provider_guardrail_runner=provider_guardrail_runner,  # type: ignore[arg-type]
+        executor_loop=executor_loop,  # type: ignore[arg-type]
     )
 
 
@@ -466,7 +513,7 @@ def test_adapter_exposes_conservative_apple_capabilities() -> None:
         "model_identity": "system_managed",
         "structured_output": True,
         "streaming": False,
-        "tool_calling": False,
+        "tool_calling": True,
         "multimodal": False,
         "embeddings": False,
     }
@@ -688,10 +735,6 @@ _APPLE_CALLBACK_SCHEMA = {
 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B3.2 must route Apple callbacks through DAR's coordinator",
-)
 def test_apple_callbacks_approved_dispatch_preserve_dar_state_and_model_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -820,10 +863,6 @@ def test_apple_callbacks_approved_dispatch_preserve_dar_state_and_model_output(
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B3.2 must run callback arguments through DAR validation first",
-)
 def test_apple_callback_rejects_invalid_arguments_before_decision_or_dispatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -861,7 +900,7 @@ def test_apple_callback_rejects_invalid_arguments_before_decision_or_dispatch(
             after_tool=lambda _context: hook_events.append("after"),
         ),
     )
-    sdk = FakeAppleCallbackSDK(((0, '{"message": 3}'),))
+    sdk = FakeAppleCallbackSDK(((0, "{}"),))
     monkeypatch.setattr(
         "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
     )
@@ -871,7 +910,7 @@ def test_apple_callback_rejects_invalid_arguments_before_decision_or_dispatch(
         raising=False,
     )
 
-    with pytest.raises(ModelExecutionError) as raised:
+    with pytest.raises(ProviderToolTerminalError) as raised:
         asyncio.run(
             create_apple_foundation_model_async_adapter().create_response(
                 _tool_request(
@@ -887,6 +926,271 @@ def test_apple_callback_rejects_invalid_arguments_before_decision_or_dispatch(
     assert decisions == []
     assert invocations == []
     assert hook_events == []
+    assert context.state.tool_results == {}
+    assert context.state.trace_events == []
+
+
+def test_apple_callback_rejecting_guardrail_stops_before_decision_or_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    guardrail_calls: list[tuple[str, dict[str, object]]] = []
+    invocations: list[dict[str, object]] = []
+    hook_events: list[str] = []
+    decisions: list[ProviderDecisionRequest] = []
+
+    def guardrail(prepared: object, action_id: object) -> None:
+        guardrail_calls.append((str(action_id), dict(prepared.arguments)))  # type: ignore[union-attr]
+        raise ToolRegistryError("tool input rejected by guardrail")
+
+    class Approver:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            decisions.append(request)
+            raise AssertionError("rejected input must not reach approval")
+
+    tool = _tool(
+        "send",
+        _APPLE_CALLBACK_SCHEMA,
+        approval_required=True,
+        handler=lambda arguments: invocations.append(dict(arguments)),
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(
+        registry,
+        (registry.get_tool("send"),),
+        decision_collaborator=Approver(),
+        lifecycle_hooks=WorkflowLifecycleHooks(
+            before_tool=lambda _context: hook_events.append("before"),
+            after_tool=lambda _context: hook_events.append("after"),
+        ),
+        provider_guardrail_runner=guardrail,
+    )
+    sdk = FakeAppleCallbackSDK(((0, '{"message": "hello"}'),))
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    with pytest.raises(ProviderToolTerminalError) as raised:
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("send",),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert _has_cause(raised.value, ToolRegistryError)
+    assert len(guardrail_calls) == 1
+    assert guardrail_calls[0][0].startswith("apple-")
+    assert guardrail_calls[0][1] == {"message": "hello"}
+    assert decisions == []
+    assert invocations == []
+    assert hook_events == []
+    assert context.state.tool_results == {}
+    assert context.state.trace_events == []
+
+
+def test_apple_callback_failed_result_records_dar_state_then_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[dict[str, object]] = []
+
+    def handler(arguments: dict[str, object]) -> ToolResult:
+        invocations.append(dict(arguments))
+        return ToolResult(
+            tool_id="send",
+            success=False,
+            output={"private": "details"},
+            model_output={"visible": "failed"},
+            error="send delivery failed",
+        )
+
+    tool = _tool("send", _APPLE_CALLBACK_SCHEMA, handler=handler)
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(registry, (registry.get_tool("send"),))
+    sdk = FakeAppleCallbackSDK(((0, '{"message": "hello"}'),))
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    with pytest.raises(ProviderToolTerminalError) as raised:
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("send",),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert any(
+        "send delivery failed" in str(error) for error in _exception_chain(raised.value)
+    )
+    assert invocations == [{"message": "hello"}]
+    assert len(context.state.tool_results) == 1
+    assert [event.event_type for event in context.state.trace_events] == [
+        "tool_started",
+        "tool_result",
+        "tool_finished",
+    ]
+    assert sdk.sessions[0].callback_results == []
+
+
+def test_apple_callback_marshals_cross_loop_coordination_to_executor_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    coordinator_loop_ids: list[int] = []
+    callback_thread_ids: list[int] = []
+    executor_loop_ids: list[int] = []
+
+    async def coordinate(request: object) -> object:
+        coordinator_loop_ids.append(id(asyncio.get_running_loop()))
+        return await coordinate_tool_invocation_async(request)  # type: ignore[arg-type]
+
+    tool = _tool("send", _APPLE_CALLBACK_SCHEMA)
+    registry = InMemoryToolRegistry([tool])
+    sdk = FakeAppleCrossLoopCallbackSDK(((0, '{"message": "hello"}'),))
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models.coordinate_tool_invocation_async",
+        coordinate,
+        raising=False,
+    )
+
+    async def invoke() -> object:
+        executor_loop = asyncio.get_running_loop()
+        executor_loop_ids.append(id(executor_loop))
+        context = _active_tool_context(
+            registry,
+            (registry.get_tool("send"),),
+            executor_loop=executor_loop,
+        )
+        response = await create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=("send",),
+                adapter_context=context,
+            )
+        )
+        callback_thread_ids.append(sdk.sessions[0].callback_thread_id)
+        return response
+
+    response = asyncio.run(invoke())
+
+    assert response.content == "answer"
+    assert coordinator_loop_ids == executor_loop_ids
+    assert callback_thread_ids[0] != get_ident()
+
+
+def test_apple_callback_unresolved_approval_preserves_dar_interruption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[dict[str, object]] = []
+
+    class UnresolvedApprover:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            return ProviderToolDecision(
+                state=ProviderDecisionState.UNRESOLVED,
+                invocation_id=request.invocation_id,
+                fingerprint=request.fingerprint,
+            )
+
+    tool = _tool(
+        "send",
+        _APPLE_CALLBACK_SCHEMA,
+        approval_required=True,
+        handler=lambda arguments: invocations.append(dict(arguments)),
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(
+        registry,
+        (registry.get_tool("send"),),
+        decision_collaborator=UnresolvedApprover(),
+    )
+    sdk = FakeAppleCallbackSDK(((0, '{"message": "hello"}'),))
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    with pytest.raises(ProviderToolInterruption) as raised:
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("send",),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert raised.value.provider == "apple_foundation_models"
+    assert raised.value.tool_id == "send"
+    assert invocations == []
+    assert context.state.tool_results == {}
+    assert [event.event_type for event in context.state.trace_events] == [
+        "approval_requested",
+        "approval_paused",
+    ]
+
+
+@pytest.mark.parametrize(
+    "decision_state",
+    [
+        ProviderDecisionState.DENIED,
+        ProviderDecisionState.CANCELLED,
+        ProviderDecisionState.EXPIRED,
+    ],
+)
+def test_apple_callback_terminal_approval_decision_never_dispatches(
+    monkeypatch: pytest.MonkeyPatch,
+    decision_state: ProviderDecisionState,
+) -> None:
+    invocations: list[dict[str, object]] = []
+
+    class TerminalApprover:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            return ProviderToolDecision(
+                state=decision_state,
+                invocation_id=request.invocation_id,
+                fingerprint=request.fingerprint,
+            )
+
+    tool = _tool(
+        "send",
+        _APPLE_CALLBACK_SCHEMA,
+        approval_required=True,
+        handler=lambda arguments: invocations.append(dict(arguments)),
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(
+        registry,
+        (registry.get_tool("send"),),
+        decision_collaborator=TerminalApprover(),
+    )
+    sdk = FakeAppleCallbackSDK(((0, '{"message": "hello"}'),))
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    with pytest.raises(ProviderToolTerminalError) as raised:
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("send",),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert any(
+        decision_state.value in str(error) for error in _exception_chain(raised.value)
+    )
+    assert invocations == []
     assert context.state.tool_results == {}
     assert context.state.trace_events == []
 
