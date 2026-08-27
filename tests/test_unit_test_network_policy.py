@@ -74,14 +74,19 @@ def test_ordinary_tests_do_not_import_live_provider_transports() -> None:
     assert not violations, f"ordinary unit tests import live transports: {violations}"
 
 
-def test_live_test_modules_have_an_explicit_opt_in() -> None:
-    missing_opt_in: list[str] = []
+def test_live_test_modules_have_an_explicit_eligibility_gate() -> None:
+    missing_eligibility_gate: list[str] = []
     for path in TEST_ROOT.glob("test_live_*.py"):
         source = path.read_text(encoding="utf-8")
         has_skip_gate = "pytest.skip" in source or "pytest.mark.skipif" in source
-        if "DAR_RUN_LIVE_" not in source or not has_skip_gate:
-            missing_opt_in.append(path.name)
+        has_apple_eligibility_gate = (
+            path.name == "test_live_apple_foundation_models.py"
+            and "SystemLanguageModel" in source
+        )
+        has_eligibility_gate = "DAR_RUN_LIVE_" in source or has_apple_eligibility_gate
+        if not has_eligibility_gate or not has_skip_gate:
+            missing_eligibility_gate.append(path.name)
 
-    assert not missing_opt_in, (
-        f"live tests need an explicit DAR_RUN_LIVE opt-in: {missing_opt_in}"
+    assert not missing_eligibility_gate, (
+        f"live tests need an explicit eligibility gate: {missing_eligibility_gate}"
     )

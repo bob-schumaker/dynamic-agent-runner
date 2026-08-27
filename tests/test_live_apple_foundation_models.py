@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
-import os
 import sys
 
 import pytest
@@ -21,8 +20,6 @@ _LIVE_SYSTEM_MODEL: object | None = None
 
 
 def _require_live_apple() -> object:
-    if os.environ.get("DAR_RUN_LIVE_APPLE") != "1":
-        pytest.skip("set DAR_RUN_LIVE_APPLE=1 to run live Apple tests")
     if sys.platform != "darwin":
         pytest.skip("Apple Foundation Models live tests require macOS")
     try:
@@ -115,3 +112,42 @@ def test_live_apple_strict_coverage_workflow() -> None:
 
     assert isinstance(result.final_result, str)
     assert result.final_result.strip()
+
+
+@pytest.mark.apple_live
+def test_live_apple_tool_callback_sentinel() -> None:
+    """Native callback smoke; this host requires elevated execution."""
+
+    sdk = _require_live_apple()
+    callbacks: list[dict[str, object]] = []
+
+    @sdk.generable("sentinel arguments")
+    class SentinelArguments:
+        token: str
+
+    class SentinelTool(sdk.Tool):
+        name = "dar_tool_0"
+        description = "Records one fixed local sentinel and has no side effects."
+
+        @property
+        def arguments_schema(self) -> object:
+            return SentinelArguments.generation_schema()
+
+        async def call(self, args: object) -> str:
+            callbacks.append(json.loads(args.to_json()))
+            return "DAR_SENTINEL_OK"
+
+    async def run() -> object:
+        session = sdk.LanguageModelSession(
+            instructions=(
+                "Call dar_tool_0 exactly once with token DAR_SENTINEL, then "
+                "reply SENTINEL_COMPLETE."
+            ),
+            tools=[SentinelTool()],
+        )
+        return await session.respond("Call the required tool now.")
+
+    response = asyncio.run(run())
+
+    assert callbacks == [{"token": "DAR_SENTINEL"}]
+    assert str(response).strip()

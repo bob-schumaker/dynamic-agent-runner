@@ -404,11 +404,17 @@ the Mac is ineligible, the model is still preparing, or generation fails after
 preflight, the adapter reports a package-owned diagnostic with the SDK failure
 preserved as its cause.
 
-The opt-in live checks require an eligible Mac and can be run with:
+Default pytest runs exclude Apple live tests. Select them on an eligible Mac
+with:
 
 ```bash
-DAR_RUN_LIVE_APPLE=1 poetry run pytest -m apple_live -q
+poetry run pytest -m apple_live -q
 ```
+
+The tests themselves require macOS, the optional `apple-fm-sdk`, and an
+available `SystemLanguageModel`; they skip when a prerequisite is absent. In
+the current Codex/macOS environment, run the native callback sentinel from an
+elevated host terminal outside the execution sandbox.
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls.
