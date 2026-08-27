@@ -6,8 +6,8 @@
 - Feature slug: `apple-foundation-model-adapter`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: A1 and A2 implementation complete; standalone direct release gate established; pytest-native SDK checks remain diagnostic
-- Version: `0.4`
+- Status: A1 and A2 implementation complete; A3 DAR-authoring host integration planned; standalone direct release gate established; pytest-native SDK checks remain diagnostic
+- Version: `0.5`
 - Date: 2026-07-01
 - Owner: dynamic-agent-runner model-provider boundary
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
@@ -24,6 +24,9 @@
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`
   - `src/dynamic_agent_runner/errors.py`
+  - `src/dynamic_agent_runner/workflow_host/host.py`
+  - `src/dynamic_agent_runner/workflow_host/profiles.py`
+  - `src/dynamic_agent_runner/workflow_host/runner.py`
   - `src/dynamic_agent_runner/__init__.py`
   - `tests/test_openai_client.py`
   - `tests/test_executor.py`
@@ -599,6 +602,40 @@ Acceptance criteria:
   `GenerationSchema`, then adapter preparation rejects that tool before session
   generation instead of weakening its validation silently.
 
+### FR-17: Support Apple Foundation Models in the sealed DAR-authoring host
+
+The human-configured local host must be able to select the Apple adapter for a
+saved workflow without turning it into an HTTP or LiteLLM profile.
+
+Acceptance criteria:
+
+- Given a human configures an Apple host profile on an eligible Mac, then it
+  records an Apple provider selection and model alias without a base URL, API
+  key, model-path, or downloaded-model reference.
+- Given an unsupported platform, missing optional SDK, or unavailable system
+  model, then profile setup and host opening fail with a package-owned,
+  redacted eligibility error before any workflow, MCP, or tool dispatch.
+- Given a saved workflow is registered to the Apple profile, then the host
+  constructs the canonical Apple async adapter rather than the HTTP local-model
+  adapter, while preserving strict-local registration checks and binding the
+  run to that exact profile. A workflow model alias outside the selected
+  adapter's strict coverage must fail before input consumption, provider work,
+  MCP initialization, or handler dispatch.
+- Given a saved workflow exposes a reviewed MCP tool, then an Apple callback
+  reaches the existing DAR coordinator and preserves reviewed-surface binding,
+  approval, lifecycle hooks, state, trace redaction, result shaping, and tool
+  budgets.
+- Given the configured host remains HTTP-backed, then its profile, adapter
+  selection, registration, and invocation behavior remain unchanged.
+- Given the eligible-Mac Fastmail read-only acceptance is run after A3, then it
+  first verifies from a redacted current-surface digest that the reviewed
+  `search_email` schema is admissible for an Apple wrapper, then uses the saved
+  Apple-backed workflow and calls only that tool. It records only
+  package/transcript digests, terminal status, and dispatch counts; no email
+  content, OAuth value, raw tool result, or raw schema enters checked-in
+  evidence. An inadmissible schema blocks the acceptance rather than weakening
+  the schema or starting the live run.
+
 ## Non-Functional Requirements
 
 ### NFR-1: Portability
@@ -697,6 +734,11 @@ The A1 release does not include:
 - automatic retry of unclassified SDK failures
 - benchmarks, model-quality evaluation, or parity claims against hosted models
 
+The A3 release does not add a generic provider-profile framework, an Apple HTTP
+server, a non-Apple host behavior change, workflow-selected provider routing,
+or a bypass around the existing sealed registration, MCP, approval, and trace
+boundaries.
+
 The A2 release additionally does not include direct callback-to-handler or
 direct callback-to-registry invocation, ambient access to all registered tools,
 or silent fallback around approval and schema constraints.
@@ -750,6 +792,26 @@ pass:
 - [x] Unsupported Apple argument-schema translations fail before generation.
 - [x] Fake-backed unit tests and live Apple callback tests cover the complete
       coordinator path.
+
+### A3 validation checklist
+
+- [ ] Apple profile configuration does not accept or persist HTTP transport,
+      credential, model-path, or downloaded-model fields.
+- [ ] Unsupported host/platform/SDK/model states fail before MCP initialization
+      or any handler dispatch.
+- [ ] A saved Apple-backed workflow constructs the canonical async adapter and
+      retains exact profile-registration binding and strict adapter coverage;
+      an unmatched package model fails before input consumption or dispatch.
+- [ ] Existing HTTP-backed host profiles retain their current adapter and
+      behavior.
+- [ ] Apple-backed saved workflows preserve reviewed MCP binding, coordinator
+      ingress, approval, lifecycle, state, trace redaction, result shaping, and
+      callback budgets.
+- [ ] Fake tests cover all host profile and runner paths; eligible-Mac live
+      tests prove direct Apple-backed saved-workflow execution.
+- [ ] The Fastmail read-only acceptance records only redacted evidence and
+      preflights the redacted `search_email` surface digest for Apple-schema
+      admissibility, then succeeds through the Apple-backed saved workflow.
 
 ## Resolved Decisions
 

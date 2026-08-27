@@ -61,3 +61,6 @@
 - [ ] With explicit user consent, conduct the Fastmail read-only acceptance run
       and bind human review evidence to the package digest and redacted terminal
       transcript. Do not check in email content or OAuth material.
+  - Current blocker for the approved Apple-backed run: complete
+    `apple-foundation-model-adapter/a3-tasks.md` so the sealed host selects the
+    Apple adapter instead of the unavailable HTTP local-model profile.

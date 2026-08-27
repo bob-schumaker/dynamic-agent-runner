@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Tasks
 
-Status: A1 and A2 implementation complete; standalone direct release gate established; full test suite green
+Status: A1 and A2 implementation complete; A3 sealed DAR-authoring host integration planned; standalone direct release gate established; full test suite green
 
 ## Prerequisites
 
@@ -10,6 +10,7 @@ Status: A1 and A2 implementation complete; standalone direct release gate establ
 - Existing adapter boundary: `AsyncOpenAIClientAdapter`
 - Strict local-only selection uses `model_adapter_coverage="strict"`.
 - Unit tests use fakes; live Apple tests are separate and eligibility-gated.
+- A3 plan: `a3-plan.md`; canonical A3 task list: `a3-tasks.md`.
 
 ## Slice 1 — Contract and portability RED tests
 
@@ -89,3 +90,10 @@ Status: A1 and A2 implementation complete; standalone direct release gate establ
 Apple `Tool` wrappers, provider ingress, callback lifecycle tracing, and live
 callback tests are governed by the approved `a2-plan.md` and `a2-tasks.md`.
 Durable approval pause/resume remains outside A2 scope.
+
+## A3 handoff
+
+Apple selection inside the sealed DAR-authoring host is governed by
+`a3-plan.md` and `a3-tasks.md`. It is required before the Apple-backed
+Fastmail O7 acceptance can be completed; it does not reopen A1/A2 or change
+generic OAuth/MCP ownership.

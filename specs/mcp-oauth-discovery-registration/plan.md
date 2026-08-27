@@ -2,11 +2,12 @@
 
 ## Status
 
-Implemented through O6. O7's opt-in Fastmail read-only run completed; human
-review of the specification and redacted terminal transcript remains required
-before claiming this integration live. This extension does not reopen the
-completed generic MCP baseline or change the plugin's skills-only control-plane
-direction.
+Implemented through O6. O7's opt-in Fastmail read-only run is authorized but
+blocked pending the Apple-backed sealed-host profile work in
+`../apple-foundation-model-adapter/a3-tasks.md`; human review of the
+specification and redacted terminal transcript remains required before claiming
+this integration live. This extension does not reopen the completed generic MCP
+baseline or change the plugin's skills-only control-plane direction.
 
 ## Commit-Sized Slices
 
