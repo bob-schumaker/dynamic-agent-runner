@@ -71,9 +71,9 @@ Create a minimal, redacted standalone/pytest comparison that captures Python,
 SDK, macOS, availability, session-construction, and generation phase evidence.
 In the version-pinned SDK spike, demonstrate `Tool`, `GenerationSchema`, and
 `GeneratedContent` construction/callback argument extraction for every admitted
-schema shape. Find a reproducible differentiator for native status 255, or
-record an environment-limited result and retain standalone execution as the
-live gate. No retry or pytest-specific production behavior is permitted.
+schema shape. Find a reproducible differentiator for native status 255, or, if
+it no longer reproduces, record that result and retain standalone execution as
+the live gate. No retry or pytest-specific production behavior is permitted.
 
 ### B1 — Provider-ingress and interruption contract
 
@@ -124,7 +124,7 @@ B0 separately from deterministic test gates.
   and typed interruption propagation
 - `tests/test_apple_foundation_models.py`, `tests/test_executor.py`, and focused
   coordinator tests
-- `README.md`, `spec.md`, `tasks.md`, and `validation.md`
+- `README.md`, `spec.md`, `a2-tasks.md`, and `validation.md`
 
 ## Verification
 
