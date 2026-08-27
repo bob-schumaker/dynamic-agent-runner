@@ -187,8 +187,8 @@ the restored-environment B0 result is investigated.
   normalized arguments. A synchronous collaborator receives the typed request;
   its returned invocation ID and fingerprint must exactly match or fail closed.
 - Added an atomic, non-negative provider callback budget with boolean claims.
-  The context can carry both collaborator and budget, but B1.4 does not route
-  decisions through coordinator dispatch or implement provider session behavior.
+  B1.4 does not route decisions through coordinator dispatch or implement
+  provider session behavior; B3.3 creates the budget per Apple session.
 - RED: `poetry run pytest tests/test_tool_invocation.py -q` — missing B1.4
   types first caused collection failure; raw descriptor and direct context tests
   separately established the prior B1.3 RED cycles.
@@ -343,6 +343,31 @@ the restored-environment B0 result is investigated.
 - Delivery checks: `poetry run ruff check src tests`, `poetry check`,
   `poetry build`, focused `pre-commit run --files`, and `git diff --check`
   passed. Full `poetry run pytest -q` reached `1180 passed, 1 skipped, 4
+  deselected` plus the known unrelated configured-host expectation failure in
+  `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
+
+## A2 B3.3 callback budget — 2026-08-26
+
+- Apple wrapper creation now creates one atomic `ProviderCallbackBudget` for
+  each native session and shares it among that session's wrappers. Its limit is
+  the active plan `max_steps`, with the executor's existing `max_steps or 8`
+  fallback; it does not reuse a context budget across sessions.
+- Each callback claims a slot before argument parsing, approval, coordinator
+  entry, handler dispatch, state mutation, or lifecycle hook. On exhaustion,
+  DAR emits `provider_callback_budget_exhausted` on the executor loop with only
+  the tool id, callback id, limit, and claimed count, then uses the existing
+  non-retry provider-terminal path.
+- RED: zero-, one-, and N+1-budget tests initially did not raise an exhaustion
+  outcome because callbacks had no budget. Council then identified a mismatch
+  where zero was interpreted as no calls rather than DAR's default eight;
+  correction now matches the executor. The obsolete context-level budget field
+  was removed so the per-session ownership is unambiguous.
+- GREEN: `poetry run pytest -q tests/test_apple_foundation_models.py
+  tests/test_tool_invocation.py tests/test_executor.py` — `220 passed`.
+  Council and ponytail final reviews found no P0/P1/P2 issues.
+- Delivery checks: `poetry run ruff check src tests`, `poetry check`,
+  `poetry build`, focused `pre-commit run --files`, and `git diff --check`
+  passed. Full `poetry run pytest -q` reached `1183 passed, 1 skipped, 4
   deselected` plus the known unrelated configured-host expectation failure in
   `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
 

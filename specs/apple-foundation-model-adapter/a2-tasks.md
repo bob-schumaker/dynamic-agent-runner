@@ -103,10 +103,13 @@ fixed decisions in `a2-plan.md`.
     to the executor loop, preserve guardrails/state/traces/hooks, and terminate
     non-retryably for denied, cancelled, expired, guardrail, and failed-result
     outcomes.
-- [ ] B3.3 [tests] Prove the atomic provider-callback budget derives from the
+- [x] B3.3 [tests] Prove the atomic provider-callback budget derives from the
       active DAR tool-call limit, translates zero and one correctly, caps N+1
       racing callbacks, emits the provider-origin exhaustion trace, and returns
       the declared DAR-controlled termination outcome.
+  - Evidence: `validation.md` (2026-08-26); each Apple session shares one
+    executor-traced atomic budget derived from `max_steps` with DAR's default
+    fallback, and exhaustion is a non-retry terminal outcome.
 - [ ] B3.4 [tests] Prove cancellation before and during a callback prevents
       later dispatch, result writes, post-session state mutation, or re-entrant
       event-loop use; prove callbacks after session completion fail closed.
