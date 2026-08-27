@@ -17,6 +17,7 @@ from dynamic_agent_runner.workflow_host.approvals import WorkflowApproval
 from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDecision
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
+    LocalWorkflowHostConfiguration,
     LocalWorkflowHostError,
     DiscoveredOAuthSetupPreview,
     DiscoveredOAuthSetupError,
@@ -24,6 +25,7 @@ from dynamic_agent_runner.workflow_host.host import (
     attach_mcp_client,
     authorize_mcp_oauth,
     configure_mcp_api_token,
+    configure_apple_local_host,
     configure_local_host,
     create_mcp_connection,
     inspect_discovered_mcp_oauth,
@@ -45,23 +47,9 @@ def main(
     args = parser.parse_args(argv)
     root = Path(args.state_root)
     try:
-        if args.command == "configure-local-model":
-            configured = configure_local_host(
-                root=root,
-                package_root=Path(args.package_root),
-                workspace_input_root=(
-                    Path(args.workspace_input_root)
-                    if args.workspace_input_root is not None
-                    else None
-                ),
-                workspace_input_max_bytes=args.workspace_input_max_bytes,
-                model_id=args.model_id,
-                base_url=args.base_url,
-            )
-            _write(
-                write,
-                {"status": "configured", "profile_id": configured.profile_id},
-            )
+        configured = _configured_model(args, root=root)
+        if configured is not None:
+            _write(write, {"status": "configured", "profile_id": configured.profile_id})
             return 0
         publisher_result = _publisher_control_result(args, root=root)
         if publisher_result is not None:
@@ -128,6 +116,27 @@ def run_main(
         return 2
 
 
+def _configured_model(
+    args: Any, *, root: Path
+) -> LocalWorkflowHostConfiguration | None:
+    if args.command not in {"configure-local-model", "configure-apple-model"}:
+        return None
+    shared = {
+        "root": root,
+        "package_root": Path(args.package_root),
+        "workspace_input_root": (
+            Path(args.workspace_input_root)
+            if args.workspace_input_root is not None
+            else None
+        ),
+        "workspace_input_max_bytes": args.workspace_input_max_bytes,
+        "model_id": args.model_id,
+    }
+    if args.command == "configure-apple-model":
+        return configure_apple_local_host(**shared)
+    return configure_local_host(base_url=args.base_url, **shared)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="dar-workflow")
     _state_root_argument(parser)
@@ -140,6 +149,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     configure.add_argument("--model-id", required=True)
     configure.add_argument("--base-url", required=True)
+    apple_configure = commands.add_parser("configure-apple-model")
+    apple_configure.add_argument("--package-root", required=True)
+    apple_configure.add_argument("--workspace-input-root")
+    apple_configure.add_argument(
+        "--workspace-input-max-bytes", type=int, default=8 * 1024 * 1024
+    )
+    apple_configure.add_argument("--model-id", required=True)
     issue_materials = commands.add_parser("issue-authoring-materials")
     issue_materials.add_argument("--materials-manifest", required=True, type=Path)
     project_materials = commands.add_parser("project-authoring-materials")

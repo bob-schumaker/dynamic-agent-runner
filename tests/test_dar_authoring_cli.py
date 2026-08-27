@@ -14,6 +14,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
+from dynamic_agent_runner.errors import ModelExecutionError  # noqa: E402
 from dynamic_agent_runner.workflow_host import cli  # noqa: E402
 from dynamic_agent_runner.workflow_host.cli import main, run_main  # noqa: E402
 
@@ -297,6 +298,67 @@ def test_cli_dry_run_rejects_workspace_files_before_ingress(
         )
         == 2
     )
+
+
+def test_cli_configures_apple_model_without_http_arguments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.preflight_apple_foundation_models",
+        lambda: None,
+    )
+    status, output = _invoke(
+        [
+            "--state-root",
+            str(tmp_path / "state"),
+            "configure-apple-model",
+            "--package-root",
+            str(tmp_path / "packages"),
+            "--model-id",
+            "apple-system-language-model",
+        ]
+    )
+
+    assert status == 0
+    assert output["status"] == "configured"
+
+
+def test_cli_rejects_apple_model_http_argument_and_redacts_preflight_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_args = ["--state-root", str(tmp_path / "state")]
+    with pytest.raises(SystemExit, match="2"):
+        main(
+            [
+                *state_args,
+                "configure-apple-model",
+                "--package-root",
+                str(tmp_path / "packages"),
+                "--model-id",
+                "apple-system-language-model",
+                "--base-url",
+                "http://127.0.0.1:11434/v1",
+            ]
+        )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.preflight_apple_foundation_models",
+        lambda: (_ for _ in ()).throw(ModelExecutionError("secret unavailable")),
+    )
+    output: list[str] = []
+    status = main(
+        [
+            *state_args,
+            "configure-apple-model",
+            "--package-root",
+            str(tmp_path / "packages"),
+            "--model-id",
+            "apple-system-language-model",
+        ],
+        write=output.append,
+    )
+
+    assert status == 2
+    assert output == []
 
 
 def test_cli_projects_selected_authoring_material_only_after_host_issuance(

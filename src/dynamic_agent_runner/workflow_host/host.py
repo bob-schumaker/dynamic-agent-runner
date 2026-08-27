@@ -127,6 +127,7 @@ from dynamic_agent_runner.workflow_host.workspace_ingress import (
     WorkspaceIngressService,
     WorkspaceInputArtifact,
 )
+from dynamic_agent_runner.errors import ModelExecutionError
 
 
 _DEFAULT_WORKSPACE_INPUT_MAX_BYTES = 8 * 1024 * 1024
@@ -219,6 +220,39 @@ def configure_local_host(
         workspace_input_root,
         workspace_input_max_bytes,
         mcp_client_configuration,
+    )
+    _write_configuration(root, configuration)
+    return configuration
+
+
+def configure_apple_local_host(
+    *,
+    root: Path,
+    package_root: Path,
+    model_id: str,
+    workspace_input_root: Path | None = None,
+    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
+) -> LocalWorkflowHostConfiguration:
+    """Create one human-owned on-device Apple model host configuration."""
+
+    _validate_root(root)
+    _validate_package_root(package_root)
+    if workspace_input_root is not None:
+        _validate_workspace_input_root(workspace_input_root)
+    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
+    try:
+        profile = LocalModelProfileControlPlane(
+            store=PrivateStateStore(root)
+        ).create_apple(model_id=model_id)
+    except ModelExecutionError as error:
+        raise LocalWorkflowHostError(
+            "Apple model eligibility is unavailable"
+        ) from error
+    configuration = LocalWorkflowHostConfiguration(
+        package_root,
+        profile.profile_id,
+        workspace_input_root,
+        workspace_input_max_bytes,
     )
     _write_configuration(root, configuration)
     return configuration
