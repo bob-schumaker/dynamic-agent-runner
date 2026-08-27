@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Implementation Plan
 
-Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification blocked
+Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification is under investigation
 
 ## Scope and authority
 

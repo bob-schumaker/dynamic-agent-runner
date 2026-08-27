@@ -182,9 +182,9 @@ execution ownership into the provider adapter:
    `ToolResult.model_facing_output` selection
 5. approval-required calls cannot reach the registered handler before DAR
    records and resolves the approval decision
-6. an in-process approval resolver may keep the Apple callback suspended while
-   DAR obtains a decision; hosts without such a resolver must receive a DAR
-   interruption or fail before the tool handler runs
+6. a synchronous, trusted decision collaborator may return an exact approved,
+   denied, cancelled, or expired result before dispatch; unresolved approval
+   must become a provider-aware DAR interruption before the tool handler runs
 7. Apple receives only the coordinator's serialized model-facing result or a
    provider-safe representation of a DAR-controlled failure
 8. live tests prove that an Apple callback enters DAR behavior before the test
@@ -195,12 +195,11 @@ DAR tool and a single schema-constrained gateway tool. Per-tool wrappers are
 preferred when DAR schemas can be translated without loss; a gateway remains an
 allowed fallback only if it preserves the same coordinator and allowlist.
 
-A2 is not authorized for implementation by the A1 release boundary. Its plan
-must depend on the prepared coordinator's completed direct/model-loop slice and
-then on a separately approved provider-ingress plus approval-resolution contract
-that preserves DAR state and correlation. The current coordinator slice excludes
-provider callbacks and approval resolution; it does not by itself authorize or
-enable Apple callbacks.
+A2 is authorized by its separately approved plan. Its implementation depends on
+the completed direct/model-loop coordinator slice, then extracts a provider-safe
+ingress seam and an explicit synchronous approval-decision contract that preserve
+DAR state and correlation. The current coordinator does not itself enable Apple
+callbacks.
 
 ### Deferred releases
 
@@ -581,12 +580,12 @@ Acceptance criteria:
   handler or registry is not invoked until approval succeeds.
 - Given the tool requires approval, when no approval decision exists, then the
   coordinator enters DAR's approval behavior and does not invoke the handler.
-- Given an in-process approval resolver approves the call, when the coordinator
-  resumes the suspended invocation, then it invokes the handler once with the
-  approved arguments and records the approval and tool lifecycle events.
+- Given a synchronous trusted decision collaborator approves the exact normalized
+  invocation, then the coordinator invokes the handler once with the approved
+  arguments and records the approval and tool lifecycle events.
 - Given approval is rejected, cancelled, expires, or cannot be resolved through
-  the active host contract, then the handler is not invoked and the outcome is
-  represented through DAR-owned interruption or failure behavior rather than an
+  the active host contract, then the handler is not invoked; unresolved approval
+  is represented through a provider-aware DAR interruption rather than an
   unclassified direct callback error.
 - Given the registry returns a `ToolResult`, when the callback completes, then
   Apple receives only a serialized form of `ToolResult.model_facing_output` and

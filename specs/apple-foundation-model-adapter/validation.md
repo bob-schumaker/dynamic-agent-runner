@@ -42,13 +42,17 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - Full suite: poetry run pytest -q — 677 passed, 4 skipped.
 - SDK extra installation succeeded and apple-fm-sdk 0.2.1 imported successfully.
 - Standalone live verification succeeded for text generation, structured JSON Schema generation, and a strict-coverage DAR workflow.
-- Pytest-native live execution reproducibly fails with native GenerationError status 255 despite availability reporting success; this remains an SDK/runtime harness limitation.
+- Historical pytest-native live execution produced native GenerationError status
+  255 despite availability reporting success; the current restored environment
+  result is recorded in the A2 B0 diagnosis below.
 - Ruff: `poetry run ruff check src tests` — passed.
 - Metadata: `poetry check` — passed.
 - Package build: `poetry build` — passed with network-enabled retry.
 - Focused pre-commit and `git diff --check` pass for the final slice.
 
-The implementation, deterministic validation, and standalone live runtime paths are complete. Pytest-native Apple SDK verification is explicitly blocked by native status-255 behavior and tracked as T6.6.
+The implementation, deterministic validation, and standalone live runtime paths
+are complete. The historical status-255 behavior remains tracked as T6.6 while
+the restored-environment B0 result is investigated.
 
 ## A2 B0 native-harness diagnosis — 2026-08-26
 
