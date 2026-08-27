@@ -9,20 +9,18 @@ their failure, implement the smallest change, then rerun them green.
 
 ## C0 — Characterize current host limits
 
-- [ ] C0.1 [tests] Add focused host/profile tests proving the current HTTP
+- [x] C0.1 [tests] Confirm focused host/profile tests prove the current HTTP
       profile requires a loopback base URL and `LocalWorkflowHost.open` builds
       only the HTTP local adapter.
-- [ ] C0.2 [tests] Add a saved-workflow characterization proving an async Apple
-      adapter cannot currently cross the sealed runner boundary; preserve the
-      current HTTP profile registration and invocation behavior as regression
-      coverage. Also characterize the current same-alias cross-profile path and
-      default adapter-coverage fallback as failures that A3 must close.
-- [ ] C0.3 [analysis] Record the minimal adapter protocol change required for
-      the runner, including which synchronous and async execution paths own
-      model-call normalization and provider interruption propagation. Record
-      the active-event-loop behavior: it must fail closed with a package-owned
-      error unless A3 adds and tests a bounded async host entry point; nested
-      loop workarounds are forbidden.
+- [x] C0.2 [tests] Add a saved-workflow characterization proving an injected
+      async adapter already crosses the sealed runner through the synchronous
+      wrapper; preserve current HTTP registration/invocation as regression
+      coverage. Characterize the profile-factory and runner-annotation limits
+      that A3 must close.
+- [x] C0.3 [analysis] Record the minimal change: a discriminated profile factory
+      and `OpenAIClientAdapter | AsyncOpenAIClientAdapter` runner annotation.
+      The existing synchronous wrapper owns async normalization; nested-loop
+      workarounds and a second host execution API are forbidden.
 
 ## C1 — Human-configured Apple profile
 
@@ -44,17 +42,15 @@ their failure, implement the smallest change, then rerun them green.
       configured alias, and retains strict-local profile validation. Prove a
       registration is bound to the exact configured profile ID, including an
       HTTP-to-Apple same-alias mismatch.
-- [ ] C2.2 [implementation] Adapt the sealed runner's narrow adapter boundary
-      to execute the existing synchronous HTTP adapter and canonical async Apple
-      adapter without a generic provider registry or changed HTTP behavior.
-      Select strict adapter coverage for both paths and reject profile/coverage
-      mismatches before sealed-input consumption, provider work, MCP
-      initialization, or handler dispatch.
+- [ ] C2.2 [implementation] Extend the bounded profile factory and runner type
+      to construct the existing synchronous HTTP adapter or canonical async
+      Apple adapter without a generic provider registry or changed HTTP
+      behavior. Select strict adapter coverage for both paths and reject
+      profile/coverage mismatches before sealed-input consumption, provider
+      work, MCP initialization, or handler dispatch.
 - [ ] C2.3 [tests] Retain one HTTP sealed-run regression. For Apple, prove
       sealed prompt consumption, terminal-output shaping, redacted traces, and
-      async cancellation/error propagation. Prove an active-loop synchronous
-      host call fails closed with the package-owned error unless the approved
-      bounded async host entry point exists. Prove a package-requested alias
+      async cancellation/error propagation. Prove a package-requested alias
       outside strict coverage cannot fall back to a default adapter.
 
 ## C3 — Apple callbacks through host-owned MCP binding

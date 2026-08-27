@@ -34,9 +34,11 @@ on-device and async-only.
 ### C0 — Characterize the sealed host boundary
 
 Write focused RED tests around `LocalWorkflowHost.open`, profile storage,
-registration, and `WorkflowRunner` proving that the existing host accepts only
-an HTTP profile and cannot represent an async Apple adapter. Record the
-required adapter protocol changes without changing behavior.
+registration, and `WorkflowRunner` proving that the existing host profile
+factory accepts only an HTTP profile and its runner annotation admits only the
+sync adapter. Also prove an injected async adapter already runs through the
+existing synchronous wrapper. Record the minimal type/factory changes without
+changing execution behavior.
 
 ### C1 — Add an Apple host profile
 
@@ -45,14 +47,15 @@ It records only the Apple model alias and strict-local capability metadata.
 Reject base URL, credentials, arbitrary provider names, model assets, and
 non-eligible hosts. Keep current HTTP-profile records and commands unchanged.
 
-### C2 — Make sealed execution adapter-neutral where necessary
+### C2 — Bind sealed execution to the selected profile
 
-Refactor the runner's narrow model-adapter boundary only enough to execute its
-existing synchronous HTTP adapter or the canonical async Apple adapter. Preserve
-strict adapter coverage and exact profile binding before sealed-input
+Extend the profile factory and runner annotation only enough to construct the
+canonical async Apple adapter alongside the existing synchronous HTTP adapter.
+Set strict adapter coverage and exact active-profile binding before sealed-input
 consumption, provider work, MCP initialization, or handler dispatch. Preserve
-failure classification, tracing, MCP binding, approvals, and terminal-output
-shaping. Do not introduce a general provider registry.
+the existing synchronous wrapper, failure classification, tracing, MCP binding,
+approvals, and terminal-output shaping. Do not introduce a general provider
+registry or a second host execution API.
 
 ### C3 — Preserve A2 tool behavior from the host
 

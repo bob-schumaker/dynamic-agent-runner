@@ -14,6 +14,7 @@ import yaml
 
 
 from dynamic_agent_runner.openai_client import (  # noqa: E402
+    AsyncOpenAIClientAdapter,
     ModelToolCall,
     ModelResponse,
     OpenAIClientAdapter,
@@ -75,6 +76,21 @@ class FakeResponses:
 class FakeClient:
     def __init__(self, content: str) -> None:
         self.responses = FakeResponses(content)
+
+
+class AsyncFakeResponses:
+    def __init__(self, content: str) -> None:
+        self.content = content
+        self.calls: list[dict[str, object]] = []
+
+    async def create(self, **kwargs: object) -> ModelResponse:
+        self.calls.append(kwargs)
+        return ModelResponse(content=self.content)
+
+
+class AsyncFakeClient:
+    def __init__(self, content: str) -> None:
+        self.responses = AsyncFakeResponses(content)
 
 
 class ArtifactVerifier:
@@ -205,6 +221,7 @@ def _runner(
     tmp_path: Path,
     *,
     local: bool = True,
+    async_adapter: bool = False,
     terminal_required_field: str = "message",
     artifact_verifier: object | None = None,
 ):
@@ -250,11 +267,19 @@ def _runner(
         store=store,
         artifact_verifier=artifact_verifier,  # type: ignore[arg-type]
     )
-    client = FakeClient("completed locally")
-    adapter = OpenAIClientAdapter(
-        client,
-        models=["local-model", "local-model-v1"],
-        is_local=local,
+    client = (
+        AsyncFakeClient("completed locally")
+        if async_adapter
+        else FakeClient("completed locally")
+    )
+    adapter = (
+        AsyncOpenAIClientAdapter(
+            client, models=["local-model", "local-model-v1"], is_local=local
+        )
+        if async_adapter
+        else OpenAIClientAdapter(
+            client, models=["local-model", "local-model-v1"], is_local=local
+        )
     )
     return (
         WorkflowRunner(
@@ -561,6 +586,27 @@ def test_runner_executes_one_sealed_no_tool_workflow(tmp_path: Path) -> None:
     assert len(client.responses.calls) == 1
     assert runner.traces()[-1].workflow_id == "document-helper"
     assert "Answer me." not in repr(runner.traces()[-1])
+
+
+def test_runner_sync_wrapper_executes_an_injected_async_adapter(tmp_path: Path) -> None:
+    runner, preparation, _, _, client = _runner(tmp_path, async_adapter=True)
+    prepared = preparation.prepare(
+        workflow_id="document-helper", prompt="Answer me.", now=NOW
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": "document-helper",
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+    )
+
+    assert result.output == {"message": "completed locally"}
+    assert len(client.responses.calls) == 1
 
 
 def test_runner_never_sends_a_sealed_workspace_artifact_to_the_model_or_trace(
