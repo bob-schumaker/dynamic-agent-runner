@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 implementation in progress through B3.4, with B3.5 and B4 remaining
+Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 implementation in progress through B3.5, with B4 remaining
 
 ## Scope
 
@@ -11,8 +11,7 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - Canonical A2 task list: `specs/apple-foundation-model-adapter/a2-tasks.md`
 - A1 only: local final text and explicit JSON Schema output.
 - A2 Apple tool callbacks are governed by `a2-plan.md` and `a2-tasks.md`.
-  B0 through B3.4 implementation evidence is recorded below; B3.5 and B4
-  remain.
+  B0 through B3.5 implementation evidence is recorded below; B4 remains.
 
 ## Preparation checks
 
@@ -400,6 +399,34 @@ the restored-environment B0 result is investigated.
   gap before handler dispatch. The pre-dispatch liveness recheck and lock-backed
   commit guard resolved both. Final council and ponytail reviews reported no
   P0/P1/P2 findings.
+
+## A2 B3.5 terminal callback cleanup — 2026-08-26
+
+- The installed `apple-fm-sdk` exposes no public session `abort`, `cancel`, or
+  `close` method. Its `respond()` implementation cancels its native task and
+  resets task state on coroutine cancellation or error. DAR therefore ends the
+  current response by propagating its typed terminal callback outcome and closes
+  its own callback capability once in the response `finally` path; it does not
+  invent or call an unsupported SDK cleanup API.
+- Deterministic fake session tests cover unresolved approval, callback-budget
+  exhaustion, and cancellation. Each terminal path stops the scripted
+  `respond()` callback sequence before its next callback, closes the DAR
+  callback capability exactly once, and rejects an attempted later callback.
+  The budget case retains only the permitted first handler call; the unresolved
+  case has no handler call. Cancellation retains its already-started handler
+  but has no result state and exactly one pre-cancellation `tool_started` trace,
+  with no `tool_result` or `tool_finished` trace.
+- Characterization/GREEN: `poetry run pytest -q
+  tests/test_apple_foundation_models.py -k 'unresolved_approval_preserves_dar_interruption
+  or budget_exhaustion_aborts_session_once or cancellation_aborts_session_once'`
+  — `3 passed`; `poetry run pytest -q tests/test_apple_foundation_models.py
+  tests/test_tool_invocation.py tests/test_executor.py` — `228 passed`.
+  The existing response `finally` and terminal propagation satisfy the added
+  B3.5 proof; no production cleanup behavior was added.
+- Ponytail initially required explicit cancellation trace evidence. The test
+  now requires exactly `tool_started`, excluding post-cancellation result and
+  completion traces. Final council and ponytail reviews reported no P0/P1/P2
+  findings.
 
 ## Required evidence by slice
 

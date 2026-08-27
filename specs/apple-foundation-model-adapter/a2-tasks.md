@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A2 Task List
 
-Status: implementation in progress through B3.4; B3.5 and B4 remain
+Status: implementation in progress through B3.5; B4 remains
 
 This is the canonical task list for A2. `tasks.md` remains the completed A1
 record and must not duplicate A2 implementation work. This list implements the
@@ -118,9 +118,14 @@ fixed decisions in `a2-plan.md`.
     finalization. Deterministic fake coverage proves pre-dispatch closure,
     cancellation, and late callbacks never reach a handler; a post-handler,
     pre-commit closure permits no result, trace, or after-hook effect.
-- [ ] B3.5 [tests] Prove unresolved interruption, callback-budget exhaustion,
+- [x] B3.5 [tests] Prove unresolved interruption, callback-budget exhaustion,
       and cancellation abort and clean up the Apple session exactly once, with
       no later callback dispatch or state mutation.
+  - Evidence: `validation.md` (2026-08-26); all three terminal paths stop the
+    current `respond()` sequence before another scripted callback, close DAR's
+    callback capability once, reject late callbacks, and prevent later result
+    state or finalization traces. The installed Apple SDK owns native-task
+    cancellation/reset and exposes no public session abort/close API.
 
 ## B4 — Live evidence and documentation
 
