@@ -35,6 +35,15 @@ class MCPConnectionAuthenticationError(MCPConnectionClientError):
     """Raised only when MCP setup rejects the presented credential."""
 
 
+class OAuthConnectionRevalidator(Protocol):
+    """Validate host-owned dynamic OAuth metadata before reconnecting."""
+
+    def revalidate(
+        self, *, connection: MCPConnection, authentication: MCPAuthentication
+    ) -> None:
+        """Raise when the dynamic OAuth binding has changed or is unavailable."""
+
+
 @dataclass(frozen=True)
 class MCPClientConfiguration:
     """Human-configured transport limits and immutable identity bindings."""
@@ -169,6 +178,7 @@ class HTTPSJSONRPCMCPTransportSession:
         self._connection_factory = connection_factory
         self._connection: http.client.HTTPSConnection | None = None
         self._initialized = False
+        self._mcp_session_id: str | None = None
 
     def initialize(
         self, *, timeout_seconds: int, max_response_bytes: int
@@ -217,6 +227,14 @@ class HTTPSJSONRPCMCPTransportSession:
             body = response.read(max_response_bytes + 1)
             if len(body) > max_response_bytes:
                 raise MCPConnectionClientError("HTTPS MCP response is too large")
+            session_id = response.getheader("Mcp-Session-Id")
+            if session_id is not None and (
+                not session_id
+                or len(session_id) > 512
+                or not session_id.isascii()
+                or not session_id.isprintable()
+            ):
+                raise MCPConnectionClientError("HTTPS MCP session identity is invalid")
             certificate = _peer_certificate(connection)
             result = _initialization_result(body)
         except MCPConnectionClientError:
@@ -224,6 +242,7 @@ class HTTPSJSONRPCMCPTransportSession:
         except Exception as error:
             raise MCPConnectionClientError("HTTPS MCP initialization failed") from error
         self._initialized = True
+        self._mcp_session_id = session_id
         return MCPTransportResponse(
             peer_certificate_sha256=hashlib.sha256(certificate).hexdigest(),
             body_bytes=len(body),
@@ -271,6 +290,7 @@ class HTTPSJSONRPCMCPTransportSession:
             self._connection.close()
             self._connection = None
         self._initialized = False
+        self._mcp_session_id = None
 
     def _json_rpc_request(
         self,
@@ -294,16 +314,19 @@ class HTTPSJSONRPCMCPTransportSession:
             },
             separators=(",", ":"),
         ).encode("utf-8")
+        headers = {
+            "Accept": "application/json, text/event-stream",
+            "Authorization": f"Bearer {self._bearer_token}",
+            "Content-Type": "application/json",
+        }
+        if self._mcp_session_id is not None:
+            headers["MCP-Session-Id"] = self._mcp_session_id
         try:
             self._connection.request(
                 "POST",
                 self._path,
                 body=payload,
-                headers={
-                    "Accept": "application/json, text/event-stream",
-                    "Authorization": f"Bearer {self._bearer_token}",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
             )
             response = self._connection.getresponse()
             if response.status != 200:
@@ -326,6 +349,7 @@ class MCPConnectionClient:
     configuration: MCPClientConfiguration
     transport_factory: HTTPSMCPTransportFactory
     oauth_refresher: OAuthTokenRefresher | None = None
+    oauth_revalidator: OAuthConnectionRevalidator | None = None
     now: Callable[[], datetime] = lambda: datetime.now(UTC)
     _session: HTTPSMCPTransportSession | None = field(
         default=None, init=False, repr=False
@@ -403,11 +427,27 @@ class MCPConnectionClient:
             raise MCPConnectionClientError(
                 "authentication is bound to another connection"
             )
+        self._revalidate_dynamic_oauth(connection, authentication)
         return (
             connection,
             authentication,
             self._refresh_expired_oauth_credential(authentication, secret),
         )
+
+    def _revalidate_dynamic_oauth(
+        self, connection: MCPConnection, authentication: MCPAuthentication
+    ) -> None:
+        """Require current metadata before any dynamic-OAuth reconnect action."""
+
+        if authentication.oauth_registration_id is not None:
+            if self.oauth_revalidator is None:
+                raise MCPConnectionClientError("OAuth metadata drift")
+            try:
+                self.oauth_revalidator.revalidate(
+                    connection=connection, authentication=authentication
+                )
+            except ValueError as error:
+                raise MCPConnectionClientError("OAuth metadata drift") from error
 
     def _initialize_bound_session(
         self,
@@ -435,6 +475,7 @@ class MCPConnectionClient:
                     raise MCPConnectionClientError(
                         "OAuth authentication is required"
                     ) from error
+                self._revalidate_dynamic_oauth(connection, authentication)
                 secret = self._refresh_expired_oauth_credential(
                     authentication, secret, force=True
                 )
@@ -488,11 +529,14 @@ class MCPConnectionClient:
             ):
                 raise OAuthError("OAuth credential cannot be refreshed")
             refresher = self.oauth_refresher or _default_oauth_refresher()
-            refreshed = refresher.refresh(
-                token_endpoint=authentication.oauth_token_endpoint,
-                client_id=authentication.oauth_client_id,
-                refresh_token=bundle.refresh_token,
-            )
+            refresh_arguments = {
+                "token_endpoint": authentication.oauth_token_endpoint,
+                "client_id": authentication.oauth_client_id,
+                "refresh_token": bundle.refresh_token,
+            }
+            if authentication.oauth_resource is not None:
+                refresh_arguments["resource"] = authentication.oauth_resource
+            refreshed = refresher.refresh(**refresh_arguments)
             if refreshed.refresh_token is None:
                 refreshed = OAuthTokenBundle(
                     access_token=refreshed.access_token,

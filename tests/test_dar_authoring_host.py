@@ -26,8 +26,15 @@ from dynamic_agent_runner.workflow_host.host import (  # noqa: E402
     create_mcp_connection,
     configure_local_host,
 )
+from dynamic_agent_runner.workflow_host.connections import (  # noqa: E402
+    MCPConnectionControlPlane,
+)
 from dynamic_agent_runner.workflow_host.mcp_client import MCPClientConfiguration  # noqa: E402
 from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
+from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
+    LocalModelProfileControlPlane,
+)
+from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -132,6 +139,7 @@ class _ToolClient:
 
 class _ToolResponses:
     def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
         self._responses = iter(
             [
                 ModelResponse(
@@ -146,7 +154,8 @@ class _ToolResponses:
             ]
         )
 
-    def create(self, **_: object) -> ModelResponse:
+    def create(self, **kwargs: object) -> ModelResponse:
+        self.calls.append(kwargs)
         return next(self._responses)
 
 
@@ -400,6 +409,128 @@ def test_host_runs_a_registered_reviewed_mcp_workflow(
 
     assert result.output == {"message": "three unread messages"}
     assert _ReviewedMCPClient.calls == [("list_unread", {})]
+
+
+def test_host_keeps_connection_setup_material_out_of_execution_surfaces(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "mail-reader"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    _add_read_only_mcp_tool(source)
+    root = tmp_path / "state"
+    oauth_sentinels = {
+        "oauth-access-token-sentinel",
+        "oauth-authorization-endpoint-sentinel",
+        "oauth-client-id-sentinel",
+        "oauth-issuer-sentinel",
+        "oauth-metadata-sentinel",
+        "oauth-refresh-token-sentinel",
+        "oauth-registration-id-sentinel",
+        "oauth-resource-sentinel",
+        "oauth-scope-sentinel",
+        "oauth-token-endpoint-sentinel",
+    }
+    model_client = _ToolClient()
+    _ReviewedMCPClient.calls.clear()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.host.create_local_adapter",
+        lambda profile: OpenAIClientAdapter(
+            model_client,
+            models=[profile.model_id, "local-model"],
+            is_local=True,
+        ),
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.connections.KeyringSecretStore",
+        _MemorySecretStore,
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.host.MCPConnectionClient",
+        _ReviewedMCPClient,
+    )
+    configure_local_host(
+        root=root,
+        package_root=package_root,
+        model_id="local-model-v1",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    connection = create_mcp_connection(
+        root=root,
+        endpoint="https://oauth-metadata-sentinel.example.test/mcp",
+        scopes={"oauth-scope-sentinel"},
+        authentication_method="oauth_authorization_code_pkce_loopback",
+    )
+    authentication = MCPConnectionControlPlane(
+        store=PrivateStateStore(root),
+        profiles=LocalModelProfileControlPlane(store=PrivateStateStore(root)),
+    ).configure_oauth_token(
+        connection.connection_id,
+        '{"access_token":"oauth-access-token-sentinel",'
+        '"refresh_token":"oauth-refresh-token-sentinel"}',
+        token_endpoint="https://oauth-token-endpoint-sentinel.example.test/token",
+        client_id="oauth-client-id-sentinel",
+        resource="https://oauth-resource-sentinel.example.test/mcp",
+        issuer="https://oauth-issuer-sentinel.example.test",
+        authorization_endpoint=(
+            "https://oauth-authorization-endpoint-sentinel.example.test/authorize"
+        ),
+        registration_id="v1.oauth-registration-id-sentinel",
+        persistent_reconnect=True,
+    )
+    attach_mcp_client(
+        root=root,
+        connection_id=connection.connection_id,
+        authentication_id=authentication.authentication_id,
+        peer_certificate_sha256="a" * 64,
+        timeout_seconds=10,
+        max_response_bytes=32_768,
+    )
+
+    host = LocalWorkflowHost.open(root)
+    snapshot = host.review_mcp_surface(approved_read_only_tool_names={"list_unread"})
+    source_handle = host.select_package(source, now=NOW)
+    binding = host.bind_mcp_package(
+        package_source_handle=source_handle, snapshot_id=snapshot.snapshot_id, now=NOW
+    )
+    registration = host.register(
+        workflow_id="mail-reader",
+        package_source_handle=source_handle,
+        mcp_binding_id=binding.binding_id,
+        now=NOW,
+    )
+    prepared = host.prepare(
+        workflow_id=registration.workflow_id, prompt="List unread email.", now=NOW
+    )
+
+    result = host.run(
+        workflow_id=registration.workflow_id,
+        prepared_input_id=prepared.prepared_input_id,
+        now=NOW,
+    )
+
+    package_text = "".join(
+        path.read_text(encoding="utf-8") for path in source.iterdir() if path.is_file()
+    )
+    model_requests = json.dumps(model_client.responses.calls, sort_keys=True)
+    traces = json.dumps([trace.__dict__ for trace in host.run_traces()], sort_keys=True)
+    action_payloads = json.loads((root / "records.json").read_text(encoding="utf-8"))[
+        "records"
+    ]
+    action_ledger = json.dumps(
+        [
+            record["payload"]
+            for record in action_payloads.values()
+            if str(record.get("kind", "")).startswith("workflow_action_")
+        ],
+        sort_keys=True,
+    )
+    public_values = "\n".join(
+        (package_text, model_requests, traces, action_ledger, str(result))
+    )
+
+    assert _ReviewedMCPClient.calls == [("list_unread", {})]
+    assert all(sentinel not in public_values for sentinel in oauth_sentinels)
 
 
 def _configured_reviewable_mcp_host(

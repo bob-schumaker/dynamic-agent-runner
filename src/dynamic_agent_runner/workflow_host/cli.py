@@ -18,11 +18,15 @@ from dynamic_agent_runner.workflow_host.authorized_tools import LocalApprovalDec
 from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHost,
     LocalWorkflowHostError,
+    DiscoveredOAuthSetupPreview,
+    DiscoveredOAuthSetupError,
+    authorize_discovered_mcp_oauth,
     attach_mcp_client,
     authorize_mcp_oauth,
     configure_mcp_api_token,
     configure_local_host,
     create_mcp_connection,
+    inspect_discovered_mcp_oauth,
     revoke_package_publisher,
     trust_package_publisher,
     trusted_package_publishers,
@@ -62,6 +66,12 @@ def main(
         publisher_result = _publisher_control_result(args, root=root)
         if publisher_result is not None:
             _write(write, publisher_result)
+            return 0
+        if args.command == "inspect-discovered-mcp-oauth":
+            preview = inspect_discovered_mcp_oauth(
+                root=root, connection_id=args.connection_id
+            )
+            write(_human_oauth_preview(preview))
             return 0
         control_result = _mcp_control_result(args, root=root, read_stdin=read_stdin)
         if control_result is not None:
@@ -147,7 +157,7 @@ def _parser() -> argparse.ArgumentParser:
     finalize.add_argument("--material-set-id", required=True)
     connection = commands.add_parser("create-mcp-connection")
     connection.add_argument("--endpoint", required=True)
-    connection.add_argument("--scope", action="append", required=True)
+    connection.add_argument("--scope", action="append", default=[])
     connection.add_argument(
         "--authentication-method",
         required=True,
@@ -161,6 +171,12 @@ def _parser() -> argparse.ArgumentParser:
     oauth.add_argument("--authorization-endpoint", required=True)
     oauth.add_argument("--token-endpoint", required=True)
     oauth.add_argument("--client-id", required=True)
+    discovered_oauth = commands.add_parser("authorize-discovered-mcp-oauth")
+    discovered_oauth.add_argument("--connection-id", required=True)
+    discovered_oauth.add_argument("--persistent-reconnect", action="store_true")
+    discovered_oauth.add_argument("--existing-registration-id")
+    inspect_discovered_oauth = commands.add_parser("inspect-discovered-mcp-oauth")
+    inspect_discovered_oauth.add_argument("--connection-id", required=True)
     attach = commands.add_parser("attach-mcp-client")
     attach.add_argument("--connection-id", required=True)
     attach.add_argument("--authentication-id", required=True)
@@ -261,6 +277,21 @@ def _mcp_control_result(
             "status": "authenticated",
             "authentication_id": authentication.authentication_id,
         }
+    if args.command == "authorize-discovered-mcp-oauth":
+        try:
+            result = authorize_discovered_mcp_oauth(
+                root=root,
+                connection_id=args.connection_id,
+                persistent_reconnect=args.persistent_reconnect,
+                existing_registration_id=args.existing_registration_id,
+            )
+        except DiscoveredOAuthSetupError as error:
+            return {"status": error.status}
+        return {
+            "status": "authenticated",
+            "authentication_id": result.authentication_id,
+            "registration_id": result.registration_id,
+        }
     if args.command == "attach-mcp-client":
         attach_mcp_client(
             root=root,
@@ -272,6 +303,20 @@ def _mcp_control_result(
         )
         return {"status": "attached"}
     return None
+
+
+def _human_oauth_preview(preview: DiscoveredOAuthSetupPreview) -> str:
+    """Format the intentionally human-only discovered OAuth scope display."""
+
+    endpoint = preview.endpoint
+    challenged = " ".join(preview.challenged_scopes) or "(none)"
+    advertised = " ".join(preview.advertised_scopes) or "(not advertised)"
+    return (
+        f"MCP endpoint: {endpoint}\n"
+        f"Challenged scopes: {challenged}\n"
+        f"Advertised scopes: {advertised}\n"
+        "Choose scopes in a human-only connection setup; package and workflow inputs cannot set them."
+    )
 
 
 def _authoring_control_result(

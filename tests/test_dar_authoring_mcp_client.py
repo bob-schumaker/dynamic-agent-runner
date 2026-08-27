@@ -111,14 +111,39 @@ class FakeOAuthRefresher:
     def __init__(self, result: OAuthTokenBundle | Exception) -> None:
         self._result = result
         self.calls: list[tuple[str, str, str]] = []
+        self.resources: list[str | None] = []
 
     def refresh(
-        self, *, token_endpoint: str, client_id: str, refresh_token: str
+        self,
+        *,
+        token_endpoint: str,
+        client_id: str,
+        refresh_token: str,
+        resource: str | None = None,
     ) -> OAuthTokenBundle:
         self.calls.append((token_endpoint, client_id, refresh_token))
+        self.resources.append(resource)
         if isinstance(self._result, Exception):
             raise self._result
         return self._result
+
+
+class FakeOAuthRevalidator:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+        self.calls: list[tuple[str, str]] = []
+
+    def revalidate(self, *, connection: object, authentication: object) -> None:
+        self.calls.append((connection.connection_id, authentication.authentication_id))
+        if self.error is not None:
+            raise self.error
+
+
+class FailsOnSecondOAuthRevalidation(FakeOAuthRevalidator):
+    def revalidate(self, *, connection: object, authentication: object) -> None:
+        super().revalidate(connection=connection, authentication=authentication)
+        if len(self.calls) == 2:
+            raise ValueError("metadata changed")
 
 
 def _client(
@@ -164,6 +189,9 @@ def _oauth_client(
     refresher: FakeOAuthRefresher,
     *,
     expires_at: datetime = datetime(2026, 8, 24, 12, 0, tzinfo=UTC),
+    resource: str | None = None,
+    discovered: bool = False,
+    revalidator: FakeOAuthRevalidator | None = None,
 ) -> tuple[MCPConnectionClient, MemorySecretStore]:
     store = PrivateStateStore(tmp_path / "state")
     profiles = LocalModelProfileControlPlane(store=store)
@@ -194,6 +222,12 @@ def _oauth_client(
         ).secret_value(),
         token_endpoint="https://login.example.test/token",
         client_id="public-client-id",
+        resource=resource,
+        issuer="https://login.example.test/tenant" if discovered else None,
+        authorization_endpoint="https://login.example.test/authorize"
+        if discovered
+        else None,
+        registration_id="v1.registration.signature" if discovered else None,
     )
     client = MCPConnectionClient(
         connections=connections,
@@ -206,6 +240,7 @@ def _oauth_client(
         ),
         transport_factory=factory,
         oauth_refresher=refresher,
+        oauth_revalidator=revalidator,
         now=lambda: datetime(2026, 8, 24, 12, 1, tzinfo=UTC),
     )
     return client, secrets
@@ -295,6 +330,91 @@ def test_client_refreshes_expired_oauth_credential_before_transport_setup(
         "expires_at": "2026-08-24T13:00:00+00:00",
         "refresh_token": "refresh-token",
     }
+
+
+def test_client_binds_discovered_resource_to_the_refresh_request(
+    tmp_path: Path,
+) -> None:
+    factory = FakeFactory([_response()])
+    refresher = FakeOAuthRefresher(OAuthTokenBundle(access_token="refreshed-access"))
+    client, _ = _oauth_client(
+        tmp_path,
+        factory,
+        refresher,
+        resource="https://mcp.example.test/v1",
+        discovered=True,
+        revalidator=FakeOAuthRevalidator(),
+    )
+
+    client.initialize()
+
+    assert refresher.resources == ["https://mcp.example.test/v1"]
+
+
+def test_client_revalidates_dynamic_oauth_before_refresh_or_transport_setup(
+    tmp_path: Path,
+) -> None:
+    factory = FakeFactory([_response()])
+    refresher = FakeOAuthRefresher(OAuthTokenBundle(access_token="refreshed-access"))
+    revalidator = FakeOAuthRevalidator()
+    client, _ = _oauth_client(
+        tmp_path,
+        factory,
+        refresher,
+        resource="https://mcp.example.test/v1",
+        discovered=True,
+        revalidator=revalidator,
+    )
+
+    client.initialize()
+
+    assert len(revalidator.calls) == 1
+    assert len(factory.opens) == 1
+
+
+def test_client_blocks_dynamic_oauth_reconnect_on_metadata_drift(
+    tmp_path: Path,
+) -> None:
+    factory = FakeFactory([_response()])
+    refresher = FakeOAuthRefresher(OAuthTokenBundle(access_token="refreshed-access"))
+    client, _ = _oauth_client(
+        tmp_path,
+        factory,
+        refresher,
+        resource="https://mcp.example.test/v1",
+        discovered=True,
+        revalidator=FakeOAuthRevalidator(ValueError("metadata changed")),
+    )
+
+    with pytest.raises(MCPConnectionClientError, match="metadata drift"):
+        client.initialize()
+
+    assert factory.opens == []
+    assert refresher.calls == []
+
+
+def test_client_revalidates_after_setup_authentication_rejection(
+    tmp_path: Path,
+) -> None:
+    factory = FakeFactory([MCPConnectionAuthenticationError("rejected"), _response()])
+    refresher = FakeOAuthRefresher(OAuthTokenBundle(access_token="refreshed-access"))
+    revalidator = FailsOnSecondOAuthRevalidation()
+    client, _ = _oauth_client(
+        tmp_path,
+        factory,
+        refresher,
+        resource="https://mcp.example.test/v1",
+        discovered=True,
+        revalidator=revalidator,
+        expires_at=datetime(2026, 8, 24, 13, 0, tzinfo=UTC),
+    )
+
+    with pytest.raises(MCPConnectionClientError, match="metadata drift"):
+        client.initialize()
+
+    assert len(revalidator.calls) == 2
+    assert len(factory.opens) == 1
+    assert refresher.calls == []
 
 
 def test_client_refreshes_an_expired_oauth_credential_on_reconnect(
@@ -484,12 +604,22 @@ def test_client_fails_closed_when_configured_https_startup_is_unavailable(
 
 
 class FakeHTTPResponse:
-    def __init__(self, body: bytes, *, status: int = 200) -> None:
+    def __init__(
+        self,
+        body: bytes,
+        *,
+        status: int = 200,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         self._body = body
         self.status = status
+        self._headers = headers or {}
 
     def read(self, limit: int) -> bytes:
         return self._body[:limit]
+
+    def getheader(self, name: str) -> str | None:
+        return self._headers.get(name)
 
 
 class FakeHTTPSConnection:
@@ -572,7 +702,13 @@ def test_https_json_rpc_transport_retrieves_tools_list_only_after_initialize() -
     class SequentialConnection(FakeHTTPSConnection):
         def __init__(self) -> None:
             super().__init__(initialized, certificate)
-            self._responses = [FakeHTTPResponse(initialized), FakeHTTPResponse(tools)]
+            self._responses = [
+                FakeHTTPResponse(
+                    initialized,
+                    headers={"Mcp-Session-Id": "session-id-not-in-results"},
+                ),
+                FakeHTTPResponse(tools),
+            ]
 
         def getresponse(self) -> FakeHTTPResponse:
             return self._responses.pop(0)
@@ -595,6 +731,7 @@ def test_https_json_rpc_transport_retrieves_tools_list_only_after_initialize() -
         ),
     )
     assert b"tools/list" in connection.requests[1][2]
+    assert connection.requests[1][3]["MCP-Session-Id"] == "session-id-not-in-results"
 
 
 def test_https_json_rpc_transport_calls_one_named_tool_after_initialize() -> None:
@@ -633,3 +770,4 @@ def test_https_json_rpc_transport_calls_one_named_tool_after_initialize() -> Non
     ) == {"content": [{"type": "text", "text": "ok"}]}
     assert b"tools/call" in connection.requests[1][2]
     assert b'"name":"list_unread"' in connection.requests[1][2]
+    assert "MCP-Session-Id" not in connection.requests[1][3]

@@ -63,6 +63,19 @@ from dynamic_agent_runner.workflow_host.oauth import (
     OAuthClientConfiguration,
     OAuthError,
 )
+from dynamic_agent_runner.workflow_host.oauth_discovery import (
+    OAuthDiscoveryError,
+    OAuthDiscoveryRecordStore,
+    OAuthMetadataDiscovery,
+    UrllibOAuthMetadataHTTPTransport,
+)
+from dynamic_agent_runner.workflow_host.oauth_registration import (
+    OAuthClientRegistrationError,
+    OAuthClientRegistrationService,
+)
+from dynamic_agent_runner.workflow_host.oauth_revalidation import (
+    DiscoveredOAuthRevalidator,
+)
 from dynamic_agent_runner.workflow_host.package_export import (
     ExportedPackage,
     PackageExportError,
@@ -126,6 +139,31 @@ _AUTHORING_OUTPUT_TTL = timedelta(hours=1)
 
 class LocalWorkflowHostError(ValueError):
     """Raised when required human-owned host configuration is unavailable."""
+
+
+class DiscoveredOAuthSetupError(LocalWorkflowHostError):
+    """One stable redacted status for a discovered OAuth setup failure."""
+
+    def __init__(self, status: str) -> None:
+        self.status = status
+        super().__init__(status)
+
+
+@dataclass(frozen=True)
+class DiscoveredOAuthAuthorizationResult:
+    """Redaction-safe result of one human-only discovered OAuth setup operation."""
+
+    authentication_id: str
+    registration_id: str
+
+
+@dataclass(frozen=True)
+class DiscoveredOAuthSetupPreview:
+    """Human-only metadata display, never a machine-readable workflow receipt."""
+
+    endpoint: str
+    challenged_scopes: tuple[str, ...]
+    advertised_scopes: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -285,6 +323,124 @@ def authorize_mcp_oauth(
         raise LocalWorkflowHostError("MCP OAuth authorization failed") from error
 
 
+def authorize_discovered_mcp_oauth(
+    *,
+    root: Path,
+    connection_id: str,
+    persistent_reconnect: bool,
+    existing_registration_id: str | None = None,
+) -> DiscoveredOAuthAuthorizationResult:
+    """Discover, register, revalidate, and authorize one human-configured MCP endpoint."""
+
+    _, connections = _connection_control(root)
+    transport = UrllibOAuthMetadataHTTPTransport()
+    discovery = OAuthMetadataDiscovery(transport=transport)
+    try:
+        connection = connections.load(connection_id)
+        protected_resource = discovery.discover_protected_resource(connection.endpoint)
+        authorization_server = discovery.discover_authorization_server(
+            protected_resource
+        )
+        scopes = discovery.confirm_scope_selection(
+            protected_resource,
+            selected_scopes=set(connection.scopes),
+            persistent_reconnect=persistent_reconnect,
+        )
+        OAuthDiscoveryRecordStore(
+            store=PrivateStateStore(root),
+            owner=InstallationIdentityProvider().principal,
+        ).record(
+            connection_id=connection.connection_id,
+            protected_resource=protected_resource,
+            authorization_server=authorization_server,
+            scopes=scopes,
+        )
+        registration = OAuthClientRegistrationService(
+            store=PrivateStateStore(root),
+            owner=InstallationIdentityProvider().principal,
+            transport=transport,
+        ).register_or_reuse(
+            metadata=authorization_server,
+            scopes=scopes,
+            resource=protected_resource.resource,
+            connection_id=connection.connection_id,
+            existing_registration_id=existing_registration_id,
+        )
+        revalidated_resource = discovery.discover_protected_resource(
+            connection.endpoint
+        )
+        if revalidated_resource != protected_resource:
+            raise DiscoveredOAuthSetupError("metadata_drift")
+        revalidated_server = discovery.discover_authorization_server(
+            revalidated_resource
+        )
+        revalidated_scopes = discovery.confirm_scope_selection(
+            revalidated_resource,
+            selected_scopes=set(connection.scopes),
+            persistent_reconnect=persistent_reconnect,
+        )
+        if revalidated_server != authorization_server or revalidated_scopes != scopes:
+            raise DiscoveredOAuthSetupError("metadata_drift")
+        authentication = OAuthAuthorizationService(connections=connections).authorize(
+            connection.connection_id,
+            configuration=OAuthClientConfiguration(
+                authorization_endpoint=authorization_server.authorization_endpoint,
+                token_endpoint=authorization_server.token_endpoint,
+                client_id=registration.client_id,
+                resource=protected_resource.resource,
+                issuer=authorization_server.issuer,
+                registered_redirect_template=registration.redirect_template,
+                registration_id=registration.registration_id,
+                persistent_reconnect=persistent_reconnect,
+                scope_is_omitted=scopes.scope_is_omitted,
+                require_issuer_callback=(
+                    authorization_server.authorization_response_iss_parameter_supported
+                ),
+            ),
+        )
+        return DiscoveredOAuthAuthorizationResult(
+            authentication_id=authentication.authentication_id,
+            registration_id=registration.registration_id,
+        )
+    except OAuthDiscoveryError as error:
+        raise DiscoveredOAuthSetupError(_discovery_status(error)) from error
+    except OAuthClientRegistrationError as error:
+        raise DiscoveredOAuthSetupError("registration_unavailable") from error
+    except MCPConnectionError as error:
+        raise DiscoveredOAuthSetupError("authorization_required") from error
+
+
+def inspect_discovered_mcp_oauth(
+    *, root: Path, connection_id: str
+) -> DiscoveredOAuthSetupPreview:
+    """Return a human-only scope preview for a configured MCP endpoint."""
+
+    _, connections = _connection_control(root)
+    try:
+        connection = connections.load(connection_id)
+        protected_resource = OAuthMetadataDiscovery(
+            transport=UrllibOAuthMetadataHTTPTransport()
+        ).discover_protected_resource(connection.endpoint)
+        return DiscoveredOAuthSetupPreview(
+            endpoint=protected_resource.resource,
+            challenged_scopes=tuple(sorted(protected_resource.challenged_scopes)),
+            advertised_scopes=tuple(sorted(protected_resource.scopes_supported)),
+        )
+    except OAuthDiscoveryError as error:
+        raise DiscoveredOAuthSetupError(_discovery_status(error)) from error
+    except MCPConnectionError as error:
+        raise DiscoveredOAuthSetupError("authorization_required") from error
+
+
+def _discovery_status(error: OAuthDiscoveryError) -> str:
+    message = str(error)
+    if message == "authorization server selection required":
+        return "authorization_server_selection_required"
+    if "unavailable" in message:
+        return "metadata_unavailable"
+    return "metadata_invalid"
+
+
 def attach_mcp_client(
     *,
     root: Path,
@@ -376,7 +532,9 @@ class LocalWorkflowHost:
         mcp_bindings = MCPWorkflowCapabilityBindingControlPlane(
             store=store, surfaces=surfaces
         )
-        mcp_client = _mcp_client(configuration=configuration, connections=connections)
+        mcp_client = _mcp_client(
+            root=root, configuration=configuration, connections=connections
+        )
         catalog = PackageCatalog(root / "catalog")
         registrations = WorkflowRegistrationService(
             profiles=profiles,
@@ -996,6 +1154,7 @@ def _write_configuration(root: Path, value: LocalWorkflowHostConfiguration) -> N
 
 def _mcp_client(
     *,
+    root: Path,
     configuration: LocalWorkflowHostConfiguration,
     connections: MCPConnectionControlPlane,
 ) -> MCPConnectionClient | None:
@@ -1006,6 +1165,10 @@ def _mcp_client(
         connections=connections,
         configuration=client_configuration,
         transport_factory=HTTPSJSONRPCMCPTransportFactory(),
+        oauth_revalidator=DiscoveredOAuthRevalidator(
+            store=PrivateStateStore(root),
+            transport=UrllibOAuthMetadataHTTPTransport(),
+        ),
     )
 
 

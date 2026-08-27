@@ -203,3 +203,33 @@ def test_connection_rejects_scalar_scope_string(tmp_path: Path) -> None:
             scopes="mail.read",  # type: ignore[arg-type]
             authentication_method="api_token",
         )
+
+
+def test_discovered_oauth_connection_can_confirm_an_omitted_scope(
+    tmp_path: Path,
+) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    profiles = LocalModelProfileControlPlane(store=store)
+    profile = profiles.create(
+        model_id="local-model-v1",
+        adapter_id="strict-local-adapter-v1",
+        base_url="http://127.0.0.1:11434/v1",
+        capabilities={"text_generation"},
+    )
+    control = MCPConnectionControlPlane(store=store, profiles=profiles)
+
+    oauth = control.create(
+        profile_id=profile.profile_id,
+        endpoint="https://mcp.example.test/v1",
+        scopes=set(),
+        authentication_method="oauth_authorization_code_pkce_loopback",
+    )
+
+    assert oauth.scopes == frozenset()
+    with pytest.raises(MCPConnectionError, match="scopes"):
+        control.create(
+            profile_id=profile.profile_id,
+            endpoint="https://mcp.example.test/v1",
+            scopes=set(),
+            authentication_method="api_token",
+        )

@@ -47,6 +47,7 @@ only path to an end-to-end authoring-plugin publication claim.
 | M3 | G3 | Local no-tool workflow execution through the one sealed runner interface. Implemented. | M2 |
 | M4 | RA1 — authoring acceptance | M4.0 material projection, M4.1 redacted behavioral evidence, M4.3's three reviewed package runs, and M4.4's two clean-Codex author-then-run cases are implemented. | M0, M2, M3 |
 | M5 | G2 | Configured HTTPS MCP control plane and reviewed binding. Implemented through one configured client per host; M5.5 execution evidence is `93159e9`. | M2; M3 for M5.5 execution integration |
+| O | OAuth-advertising HTTPS MCP setup | O1–O6 implement human-only protected-resource/authorization-server discovery, dynamic public-client registration, resource-bound PKCE/refresh, and drift handling. The O7 Fastmail read-only run awaits required human review before this integration is claimed live. It extends M5 rather than changing plugin skills. | M5; `mcp-oauth-discovery-registration` O1–O7; G2 reviewed-surface binding for O6/O7 |
 | M6 | G4 | Trusted caller-file ingress. Implemented. | Focused tested sandbox descriptor-relative no-follow-copy primitive at a recorded prerequisite revision; M2 |
 | M7 | G5 | Model-directed external side effects with audit and local `--ask`. Implemented for reviewed generic MCP bindings; multi-client composition requires a follow-up slice. | M3; M5 for MCP actions; M6 for file arguments |
 | M8 | Publication acceptance | Portable package exchange and published plugin evidence. | M0, M1, M3, M4 |
@@ -396,21 +397,21 @@ through the sealed, catalog-only runner interface.
    as coverage references for their owning G2, G4, G5, or M8 gate; they do not
    block the CLI-first author-then-invoke claim.
 
-   | Case | First text-only request | Run request or host invocation | Required result / exercised boundary |
-   | --- | --- | --- | --- |
-   | Simple document summary | “Design a workflow that summarizes supplied text.” | “Run `document-summary` and summarize this text in five bullet points: …” | Positive no-tool package through skill-invoked CLI (G3). |
-   | Structured single-model review | “Design a workflow from the supplied review guidance that accepts text and returns the review schema.” | “Run `single-model-review` for this proposal text: …” | G3 follow-up coverage; it does not claim a council. |
-   | Council/multi-agent request | “Turn the council skill into a workflow that uses multiple agents to review a document.” | No run turn. | Expected capability-unavailable at capability preflight; no subagent binding, registration, prepared input, or fabricated council. |
-   | Generic email send | “Design this specific email task with the supplied local-model profile, stable configured connection requirement, and reviewed semantic send-tool schema.” | “Run `custom-email` to send a birthday note to `john@example.com` with this inline body text: …” | Prompt-only fake generic MCP proves declared schema, provenance, action ledger, and default `workflow_auto` (G2/G5). The host/CLI separately proves `--dry-run` and `--ask` against the identical registration; neither is reported as an MCP run. |
-   | Read-only mailbox triage | “Use the supplied MCP read tools to return reply drafts for unread messages.” | “Run `inbox-triage`.” | G2 coverage: reviewed read surface, bounded calls, tool-result handling, and no send handler. |
-   | OAuth reconnect | “Design a workflow that uses the fixture's stable human-configured OAuth connection requirement and reviewed semantic read-tool schema to list account tasks.” | “Run `task-list`.” | Fixture control plane proves listener-first authorization; the clean turns observe only the preconfigured connection and refresh/reconnect result without a browser. Live-provider OAuth is separately authorized manual evidence (G2). |
-   | Hybrid brief | “Design a workflow that combines a supplied product brief, two workspace files, and bounded additional context into an executive decision memo.” | “Run `decision-memo` with the prepared brief and risk artifacts; extra context: …” | Host-mediated artifact invocation: artifact-role/type limits, bounded `additional_context`, structured terminal output, and redacted ingress/trace behavior (G3/G4). |
-   | Side-effect recovery | “Design a workflow that reads a vendor ticket and sends one approved clarification through the declared MCP tool.” | “Run `vendor-clarification` with the prepared ticket artifact.” | Host-mediated artifact invocation proves exact action binding, one dispatch, deny/expiry/replay zero-dispatch behavior, and `outcome_unknown` without automatic retry (G2/G4/G5). |
-   | Email file body | “Design an email workflow that sends a user-supplied HTML body through the reviewed semantic send-tool schema.” | Host-prepared CLI invocation with the ingressed `email_body` artifact. | G2/G4/G5 file provenance: the body hash/role reaches the tool only through the declared artifact source policy. |
-   | Portable package handoff | “Design a no-tool document classifier and export it as a portable package.” | “On a fresh recipient host, select the supplied package and run `document-classifier`.” | Expected pre-publication unavailability in M4; M8 alone proves the positive recipient-host manifest verification and any required publisher-signature check. |
-   | Embedding request | “Design a workflow that takes a document reference and returns an embedding using `model/embedding-model`.” | “Run `document-embedding` with `foo.txt`.” | Deterministic `capability_unavailable`/deferred result until retrieval/embedding profiles exist; no invented Hugging Face or vector-service invocation. |
-   | Authoring boundary attack | “Use this arbitrary MCP endpoint and secret to design a workflow that can do anything.” | No run turn. | Expected refusal at authoring validation: no output package or control-plane mutation. |
-   | Invocation boundary attack | A registered no-tool fixture package. | A malformed model-facing request supplies forbidden package-path, artifact, or approval fields. | Expected refusal at invocation validation: no prepared input, model call, handler, or external dispatch. |
+| Case                            | First text-only request                                                                                                                                        | Run request or host invocation                                                                   | Required result / exercised boundary                                                                                                                                                                                                                  |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Simple document summary         | “Design a workflow that summarizes supplied text.”                                                                                                             | “Run `document-summary` and summarize this text in five bullet points: …”                        | Positive no-tool package through skill-invoked CLI (G3).                                                                                                                                                                                              |
+| Structured single-model review  | “Design a workflow from the supplied review guidance that accepts text and returns the review schema.”                                                         | “Run `single-model-review` for this proposal text: …”                                            | G3 follow-up coverage; it does not claim a council.                                                                                                                                                                                                   |
+| Council/multi-agent request     | “Turn the council skill into a workflow that uses multiple agents to review a document.”                                                                       | No run turn.                                                                                     | Expected capability-unavailable at capability preflight; no subagent binding, registration, prepared input, or fabricated council.                                                                                                                    |
+| Generic email send              | “Design this specific email task with the supplied local-model profile, stable configured connection requirement, and reviewed semantic send-tool schema.”     | “Run `custom-email` to send a birthday note to `john@example.com` with this inline body text: …” | Prompt-only fake generic MCP proves declared schema, provenance, action ledger, and default `workflow_auto` (G2/G5). The host/CLI separately proves `--dry-run` and `--ask` against the identical registration; neither is reported as an MCP run.    |
+| Read-only mailbox triage        | “Use the supplied MCP read tools to return reply drafts for unread messages.”                                                                                  | “Run `inbox-triage`.”                                                                            | G2 coverage: reviewed read surface, bounded calls, tool-result handling, and no send handler.                                                                                                                                                         |
+| Explicit-client OAuth reconnect | “Design a workflow that uses the fixture's stable human-configured OAuth connection requirement and reviewed semantic read-tool schema to list account tasks.” | “Run `task-list`.”                                                                               | Fixture control plane proves M5's explicit-client listener-first authorization; the clean turns observe only the preconfigured connection and refresh/reconnect result without a browser. Standards-discovery/DCR and Fastmail evidence belong to O7. |
+| Hybrid brief                    | “Design a workflow that combines a supplied product brief, two workspace files, and bounded additional context into an executive decision memo.”               | “Run `decision-memo` with the prepared brief and risk artifacts; extra context: …”               | Host-mediated artifact invocation: artifact-role/type limits, bounded `additional_context`, structured terminal output, and redacted ingress/trace behavior (G3/G4).                                                                                  |
+| Side-effect recovery            | “Design a workflow that reads a vendor ticket and sends one approved clarification through the declared MCP tool.”                                             | “Run `vendor-clarification` with the prepared ticket artifact.”                                  | Host-mediated artifact invocation proves exact action binding, one dispatch, deny/expiry/replay zero-dispatch behavior, and `outcome_unknown` without automatic retry (G2/G4/G5).                                                                     |
+| Email file body                 | “Design an email workflow that sends a user-supplied HTML body through the reviewed semantic send-tool schema.”                                                | Host-prepared CLI invocation with the ingressed `email_body` artifact.                           | G2/G4/G5 file provenance: the body hash/role reaches the tool only through the declared artifact source policy.                                                                                                                                       |
+| Portable package handoff        | “Design a no-tool document classifier and export it as a portable package.”                                                                                    | “On a fresh recipient host, select the supplied package and run `document-classifier`.”          | Expected pre-publication unavailability in M4; M8 alone proves the positive recipient-host manifest verification and any required publisher-signature check.                                                                                          |
+| Embedding request               | “Design a workflow that takes a document reference and returns an embedding using `model/embedding-model`.”                                                    | “Run `document-embedding` with `foo.txt`.”                                                       | Deterministic `capability_unavailable`/deferred result until retrieval/embedding profiles exist; no invented Hugging Face or vector-service invocation.                                                                                               |
+| Authoring boundary attack       | “Use this arbitrary MCP endpoint and secret to design a workflow that can do anything.”                                                                        | No run turn.                                                                                     | Expected refusal at authoring validation: no output package or control-plane mutation.                                                                                                                                                                |
+| Invocation boundary attack      | A registered no-tool fixture package.                                                                                                                          | A malformed model-facing request supplies forbidden package-path, artifact, or approval fields.  | Expected refusal at invocation validation: no prepared input, model call, handler, or external dispatch.                                                                                                                                              |
 
    Run positive capability cases against de-identified files and deterministic
    fake DAR workflow-model, MCP, and OAuth collaborators by default. The clean
@@ -492,9 +493,11 @@ requirement.
    in the OS credential manager, bind its opaque reference to the immutable
    connection, and reject cross-connection authentication use. Test secret
    exclusion from state and returned records.
-3. **M5.2b: Add human-only OAuth authorization-code PKCE loopback setup.** Test
-   listener-first setup, state/exact-callback checking, one-time exchange, and
-   secret exclusion.
+3. **M5.2b: Add human-only explicit-client OAuth authorization-code PKCE
+   loopback setup.** Test listener-first setup, state/exact-callback checking,
+   one-time exchange, and secret exclusion. It requires human-supplied endpoint
+   and public-client data; standards discovery and dynamic registration belong to
+   O, not this completed M5 baseline.
 4. **M5.2c: Reuse and refresh OAuth credentials on reconnect.** Persist only
    immutable host-owned refresh configuration plus a credential-store token
    bundle. Test refresh before reconnect, one setup-authentication-failure
@@ -527,6 +530,26 @@ requirement.
     remote-tool dispatch.
 
 Do not add stdio or any unreviewed transport in this milestone.
+
+### O — OAuth metadata discovery and dynamic public-client registration
+
+The current configured HTTPS OAuth path is explicit-client setup. A server that
+advertises protected-resource metadata and dynamic client registration uses the
+separately specified
+[`mcp-oauth-discovery-registration`](../mcp-oauth-discovery-registration/spec.md)
+feature. O is host-only: it adds no skill command, endpoint input, credential,
+or provider-specific behavior to `dar-authoring`. A saved package continues to
+declare only a stable connection requirement and cannot cause discovery,
+registration, consent, or surface review.
+
+O imports the commit-sized O1–O7 work in
+[`mcp-oauth-discovery-registration/plan.md`](../mcp-oauth-discovery-registration/plan.md).
+That plan owns O1–O7 behavior and tests. O remains host-only, preserves M5's
+API-token and explicit-client flows, and requires the G2 authenticated
+`tools/list`/reviewed-surface binding before O6/O7. It adds no provider-specific
+branch and exposes no OAuth metadata, client ID, endpoint, scope, callback
+value, or tool surface to a package, plugin skill, workflow model, or
+`dar-package invoke` request.
 
 ### M6 — G4 trusted file ingress
 
@@ -577,8 +600,9 @@ graph.
 The following remain intentionally unscheduled because their host contracts are
 not yet implemented or need a separate decision: embedding/vector profiles,
 durable sessions and continuation, broader guardrail/context profiles,
-subagents/`ask_llm`, a picker UI, judge calibration, and live Artifactory or MCP
-provider acceptance tests. Their absence does not block M0–M3.
+subagents/`ask_llm`, a picker UI, judge calibration, and live Artifactory or
+other MCP-provider acceptance tests. The O7 Fastmail read-only acceptance run is
+scheduled above. Their absence does not block M0–M3.
 
 ## Milestone Verification
 
@@ -592,3 +616,8 @@ provider acceptance tests. Their absence does not block M0–M3.
   test.
 - M5–M7 require the positive fake fixtures named in `tasks.md` before their
   capabilities are advertised as live.
+- O requires every O1–O6 fake gate in
+  `mcp-oauth-discovery-registration/validation.md`, including its FR-8
+  redacted-status/non-leak suite; O7 additionally requires the approved threat
+  model, the G2 authenticated `tools/list`/reviewed-binding capability, and
+  opt-in human acceptance evidence. The live provider run is never a unit test.

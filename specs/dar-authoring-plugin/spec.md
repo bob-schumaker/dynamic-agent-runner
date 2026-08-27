@@ -14,6 +14,9 @@
   - `specs/approval-interruption-resume/spec.md` for DAR's live pause boundary;
     the wrapper owns v1 `workflow_auto` and `--ask` decisions because durable
     continuation remains deferred
+  - `specs/mcp-oauth-discovery-registration/spec.md` before an OAuth-advertising
+    HTTPS MCP server can be configured through standards discovery and dynamic
+    public-client registration
 - Task breakdown: `specs/dar-authoring-plugin/tasks.md`
 - Implementation plan: `specs/dar-authoring-plugin/plan.md`
 
@@ -31,8 +34,9 @@ does not own authoring policy.
 - [An MCP server for Fastmail](https://www.fastmail.com/blog/an-mcp-server-for-fastmail/)
 
 Fastmail is a non-normative example of a configured MCP connection. The plugin
-does not contain Fastmail-specific runtime behavior: it operates any
-human-configured MCP connection through its approved tool-surface snapshot.
+does not contain Fastmail-specific runtime behavior: its skills declare stable
+connection requirements, while DAR's host control plane discovers and configures
+an approved connection through its reviewed tool-surface snapshot.
 
 ## Problem Statement
 
@@ -64,7 +68,7 @@ The plugin shall provide:
 | --- | --- |
 | `dar-authoring` plugin | Skills, templates, fixture prompts, and the pinned CLI invocation instruction. |
 | `dynamic-agent-runner` wheel | `dar-package`, package catalog, configured MCP adapter, profiles, credential references, ingress, approval, execution, and trace services. |
-| Human host control plane | Package and material selection, profile/connection setup, OAuth consent, surface review, and credential rotation. |
+| Human host control plane | Package and material selection, profile/connection setup, OAuth discovery/registration and consent, surface review, and credential rotation. |
 
 In the remaining requirements, “wrapper” means the `dynamic-agent-runner`
 workflow-host implementation invoked by `dar-package`; it never means code
@@ -79,6 +83,8 @@ they cannot configure a profile, connection, credential, or approval policy.
 
 The plugin shall be a package-authoring plugin. It shall not add runtime,
 credential, MCP discovery, or model-server lifecycle responsibilities to DAR.
+The host's standards-based OAuth discovery and dynamic registration are still
+human-only control-plane operations, never plugin functionality.
 
 ## Non-Goals
 
@@ -691,7 +697,11 @@ human control plane's OAuth authorization-code flow with PKCE or a locally store
 API token, and binds the resulting authenticated HTTPS peer to the approved
 surface snapshot. This is a generic transport contract, not a Fastmail feature;
 the references above demonstrate an HTTPS endpoint with OAuth and scoped
-read/write/send consent. Stdio and any other transport remain unavailable until
+read/write/send consent. When an HTTPS `initialize` response supplies an
+`Mcp-Session-Id`, the host retains it only in the live transport session and
+sends it on subsequent protocol requests; it is never persisted, traced, or
+model-visible. Servers that omit it remain supported. Stdio and any other
+transport remain unavailable until
 their own adapter fixtures and lifecycle policy pass.
 
 Connection identity is transport-specific: an HTTPS profile pins its validated
@@ -803,7 +813,7 @@ replacement tool automatically. A profile's surface can be refreshed only by an
 explicit human-authorized provisioning request.
 
 When OAuth is used, authorization-code flow shall use PKCE, an allowlisted
-redirect URI, and validated state and nonce values. Tokens, authorization
+redirect URI, and validated state. Tokens, authorization
 headers, and raw MCP instructions must never appear in package artifacts, tool
 requests/results, or traces. The control plane binds connections immutably to a
 profile and approved scope. Scope escalation, connection replacement, and
@@ -824,16 +834,18 @@ pin, or approved tool surface.
 An HTTPS MCP connection definition may select the generic
 `oauth_authorization_code_pkce_loopback` authorization handler. Its human-only
 control-plane operation launches the provider authorization URL, after first
-binding a fresh loopback listener on an ephemeral port. It uses a registered
-`http://localhost/<provider-specific-path>` redirect template, a high-entropy
-PKCE verifier/challenge and state value, accepts exactly one callback, verifies
-the state and exact callback URI, exchanges the one-time code, and stores the
-result only in the connection credential store. It returns a bounded connection
-status, never a code, token, or callback query to a skill or model-facing tool.
-The handler is available only when the provider registration explicitly permits
-loopback redirects; otherwise the connection definition must choose a different
-human-approved redirect handler. This is part of the generic MCP connection
-definition, not Fastmail-specific workflow behavior.
+binding a fresh loopback listener on an ephemeral port. Explicit-client setup
+uses a human-approved registered redirect template and verifies the state and
+exact callback URI. The standards-discovery/DCR path is instead governed
+by `mcp-oauth-discovery-registration`, including its `localhost` registered
+template, `127.0.0.1` bound callback, variable port, and issuer-bound path
+policy. Both variants exchange one code and store
+the result only in the connection credential store. They return a bounded
+connection status, never a code, token, or callback query to a skill or
+model-facing tool. The handler is available only when the provider registration
+explicitly permits its loopback policy; otherwise the connection definition must
+choose a different human-approved redirect handler. This is part of the generic
+MCP connection definition, not Fastmail-specific workflow behavior.
 
 Snapshot comparison shall use canonical identity and input-schema digests plus a
 pinned HTTPS server identity. The wrapper supplies host-authored semantic

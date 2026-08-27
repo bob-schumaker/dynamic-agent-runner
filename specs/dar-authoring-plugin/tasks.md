@@ -4,10 +4,13 @@
 
 This task breakdown implements the release gates in `spec.md`; `plan.md` groups
 the known work into milestones and commit-sized slices. Complete each task
-test-first. G3 depends on G0/G1; G2 and G4 are additive G0/G1 extensions; G5
-depends on G0/G1/G3 plus G2 for MCP actions or G4 for file-backed arguments. A
-capability cannot be implemented or advertised as live before its applicable gate
-passes.
+test-first. G3 depends on G0/G1; G2 connection/surface setup and G4 are additive
+G0/G1 extensions, while G2 execution/binding requires G3; G5 depends on
+G0/G1/G3 plus G2 for MCP actions or G4 for file-backed arguments. The separate
+OAuth O extension is owned by
+[`mcp-oauth-discovery-registration/tasks.md`](../mcp-oauth-discovery-registration/tasks.md).
+A capability cannot be implemented or advertised as live before its applicable
+gate passes.
 
 ## Direction Change: Skills-Only CLI Control Plane
 
@@ -299,6 +302,24 @@ make the Codex plugin an MCP server.
       invocation / declared-MCP-tool policy and a current G2 binding before it
       can execute through the shared capability-resolution path.
 
+## O: OAuth Metadata Discovery and Dynamic Public-Client Registration
+
+O extends the completed G2 configured-HTTPS connection path; it does not add a
+plugin skill command or change the saved-package/invocation interface. The
+authoritative O1–O7 implementation checklist, including its fake fixtures and
+Fastmail acceptance work, is
+[`mcp-oauth-discovery-registration/tasks.md`](../mcp-oauth-discovery-registration/tasks.md).
+Do not duplicate those checkboxes here. O preserves M5's explicit-client and
+API-token setup paths. O1's approved OAuth threat model is a prerequisite for
+O2. O6/O7 additionally require G2's authenticated `tools/list` and
+reviewed-surface binding. O7 requires every authoritative O1–O6 fake gate,
+control-plane help/redacted receipt and package verification, then opt-in human
+acceptance evidence binding the reviewed saved read-only workflow package digest
+to its redacted terminal transcript. No OAuth metadata, client ID,
+endpoint, scope, callback value, registration material, or reviewed tool surface
+may be exposed to a package, plugin skill, workflow model, or `dar-package
+invoke` request.
+
 ## G3: Read-Only Workflow Runner
 
 - [x] RED/GREEN: select a strict local model adapter and reject hosted fallback.
@@ -463,6 +484,8 @@ make the Codex plugin an MCP server.
       and filesystem primitives; no live Fastmail, Hugging Face, or model call.
 - [x] A positive fixture is required before a gate's capability is reported live.
       `validation.md` records the G0–G5 fixture map; M8 remains publication-gated.
+O remains unavailable until the authoritative O1–O7 checklist is complete.
+Its O7 live-provider run is never a unit test.
 - [ ] G5 may run after G0, G1, and G3; it additionally requires G2 for MCP
       actions and G4 for file-backed arguments. It must not replay a DAR approval
       interruption or claim graph-preserving continuation.

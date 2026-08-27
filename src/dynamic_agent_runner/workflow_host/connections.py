@@ -132,6 +132,11 @@ class MCPAuthentication:
     authentication_status: str
     oauth_token_endpoint: str | None = None
     oauth_client_id: str | None = None
+    oauth_resource: str | None = None
+    oauth_issuer: str | None = None
+    oauth_authorization_endpoint: str | None = None
+    oauth_registration_id: str | None = None
+    oauth_persistent_reconnect: bool = False
 
 
 class MCPConnectionControlPlane:
@@ -167,9 +172,14 @@ class MCPConnectionControlPlane:
         except LocalModelProfileError as error:
             raise MCPConnectionError("profile is unavailable") from error
         _https_endpoint(endpoint)
-        scope_set = _scopes(scopes)
         if authentication_method not in SUPPORTED_AUTHENTICATION_METHODS:
             raise MCPConnectionError("authentication method is unsupported")
+        scope_set = _scopes(
+            scopes,
+            allow_empty=(
+                authentication_method == "oauth_authorization_code_pkce_loopback"
+            ),
+        )
         try:
             connection_id = self._store.issue(
                 kind="mcp_connection",
@@ -215,8 +225,13 @@ class MCPConnectionControlPlane:
             profile_id = payload["profile_id"]
             transport = payload["transport"]
             endpoint = payload["endpoint"]
-            scopes = _scopes(payload["scopes"])
             authentication_method = payload["authentication_method"]
+            scopes = _scopes(
+                payload["scopes"],
+                allow_empty=(
+                    authentication_method == "oauth_authorization_code_pkce_loopback"
+                ),
+            )
         except (KeyError, TypeError, MCPConnectionError) as error:
             raise MCPConnectionError("connection record is invalid") from error
         _opaque_id(profile_id, "profile_id")
@@ -253,6 +268,11 @@ class MCPConnectionControlPlane:
         *,
         token_endpoint: str,
         client_id: str,
+        resource: str | None = None,
+        issuer: str | None = None,
+        authorization_endpoint: str | None = None,
+        registration_id: str | None = None,
+        persistent_reconnect: bool = False,
     ) -> MCPAuthentication:
         """Store an OAuth token bundle after the human-only PKCE exchange."""
 
@@ -264,11 +284,30 @@ class MCPConnectionControlPlane:
         _https_endpoint(token_endpoint)
         if not isinstance(client_id, str) or not client_id:
             raise MCPConnectionError("OAuth client_id is invalid")
+        if resource is not None:
+            _https_endpoint(resource)
+            _https_endpoint(issuer)
+            _https_endpoint(authorization_endpoint)
+            _opaque_id(registration_id, "registration_id")
+            if not isinstance(persistent_reconnect, bool):
+                raise MCPConnectionError("OAuth reconnect policy is invalid")
+        elif (
+            issuer is not None
+            or authorization_endpoint is not None
+            or registration_id is not None
+            or persistent_reconnect
+        ):
+            raise MCPConnectionError("OAuth discovery binding is invalid")
         return self._store_authentication(
             connection,
             token_bundle,
             oauth_token_endpoint=token_endpoint,
             oauth_client_id=client_id,
+            oauth_resource=resource,
+            oauth_issuer=issuer,
+            oauth_authorization_endpoint=authorization_endpoint,
+            oauth_registration_id=registration_id,
+            oauth_persistent_reconnect=persistent_reconnect,
         )
 
     def _store_authentication(
@@ -278,6 +317,11 @@ class MCPConnectionControlPlane:
         *,
         oauth_token_endpoint: str | None = None,
         oauth_client_id: str | None = None,
+        oauth_resource: str | None = None,
+        oauth_issuer: str | None = None,
+        oauth_authorization_endpoint: str | None = None,
+        oauth_registration_id: str | None = None,
+        oauth_persistent_reconnect: bool = False,
     ) -> MCPAuthentication:
         """Persist only an opaque secret-store reference for one connection."""
 
@@ -295,6 +339,11 @@ class MCPConnectionControlPlane:
                     "credential_ref": credential_ref,
                     "oauth_token_endpoint": oauth_token_endpoint,
                     "oauth_client_id": oauth_client_id,
+                    "oauth_resource": oauth_resource,
+                    "oauth_issuer": oauth_issuer,
+                    "oauth_authorization_endpoint": oauth_authorization_endpoint,
+                    "oauth_registration_id": oauth_registration_id,
+                    "oauth_persistent_reconnect": oauth_persistent_reconnect,
                 },
                 expires_at=datetime.max.replace(tzinfo=UTC),
                 now=datetime.now(UTC),
@@ -315,6 +364,11 @@ class MCPConnectionControlPlane:
             authentication_status="authenticated",
             oauth_token_endpoint=oauth_token_endpoint,
             oauth_client_id=oauth_client_id,
+            oauth_resource=oauth_resource,
+            oauth_issuer=oauth_issuer,
+            oauth_authorization_endpoint=oauth_authorization_endpoint,
+            oauth_registration_id=oauth_registration_id,
+            oauth_persistent_reconnect=oauth_persistent_reconnect,
         )
 
     def load_authentication(self, authentication_id: str) -> MCPAuthentication:
@@ -332,6 +386,15 @@ class MCPConnectionControlPlane:
             credential_ref = record.payload["credential_ref"]
             oauth_token_endpoint = record.payload.get("oauth_token_endpoint")
             oauth_client_id = record.payload.get("oauth_client_id")
+            oauth_resource = record.payload.get("oauth_resource")
+            oauth_issuer = record.payload.get("oauth_issuer")
+            oauth_authorization_endpoint = record.payload.get(
+                "oauth_authorization_endpoint"
+            )
+            oauth_registration_id = record.payload.get("oauth_registration_id")
+            oauth_persistent_reconnect = record.payload.get(
+                "oauth_persistent_reconnect", False
+            )
         except (OpaqueRecordError, KeyError, TypeError) as error:
             raise MCPConnectionError("authentication record is unavailable") from error
         _opaque_id(connection_id, "connection_id")
@@ -348,7 +411,29 @@ class MCPConnectionControlPlane:
             _https_endpoint(oauth_token_endpoint)
             if not isinstance(oauth_client_id, str) or not oauth_client_id:
                 raise MCPConnectionError("authentication record is invalid")
-        elif oauth_token_endpoint is not None or oauth_client_id is not None:
+            if oauth_resource is not None:
+                _https_endpoint(oauth_resource)
+                _https_endpoint(oauth_issuer)
+                _https_endpoint(oauth_authorization_endpoint)
+                _opaque_id(oauth_registration_id, "registration_id")
+                if not isinstance(oauth_persistent_reconnect, bool):
+                    raise MCPConnectionError("authentication record is invalid")
+            elif (
+                oauth_issuer is not None
+                or oauth_authorization_endpoint is not None
+                or oauth_registration_id is not None
+                or oauth_persistent_reconnect
+            ):
+                raise MCPConnectionError("authentication record is invalid")
+        elif (
+            oauth_token_endpoint is not None
+            or oauth_client_id is not None
+            or oauth_resource is not None
+            or oauth_issuer is not None
+            or oauth_authorization_endpoint is not None
+            or oauth_registration_id is not None
+            or oauth_persistent_reconnect
+        ):
             raise MCPConnectionError("authentication record is invalid")
         return MCPAuthentication(
             authentication_id=authentication_id,
@@ -358,6 +443,11 @@ class MCPConnectionControlPlane:
             authentication_status="authenticated",
             oauth_token_endpoint=oauth_token_endpoint,
             oauth_client_id=oauth_client_id,
+            oauth_resource=oauth_resource,
+            oauth_issuer=oauth_issuer,
+            oauth_authorization_endpoint=oauth_authorization_endpoint,
+            oauth_registration_id=oauth_registration_id,
+            oauth_persistent_reconnect=oauth_persistent_reconnect,
         )
 
     def replace_oauth_credential(
@@ -428,10 +518,12 @@ def _https_endpoint(value: object) -> None:
         raise MCPConnectionError("endpoint must be an HTTPS URL")
 
 
-def _scopes(value: Iterable[object]) -> frozenset[str]:
+def _scopes(value: Iterable[object], *, allow_empty: bool = False) -> frozenset[str]:
     if isinstance(value, str):
         raise MCPConnectionError("scopes must contain non-empty strings")
     scopes = frozenset(value)
-    if not scopes or any(not isinstance(scope, str) or not scope for scope in scopes):
+    if (not allow_empty and not scopes) or any(
+        not isinstance(scope, str) or not scope for scope in scopes
+    ):
         raise MCPConnectionError("scopes must contain non-empty strings")
     return scopes

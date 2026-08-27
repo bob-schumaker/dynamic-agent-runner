@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
 from enum import StrEnum
+import json
 from threading import Lock
 from typing import Protocol
 
@@ -13,6 +14,7 @@ from jsonschema import SchemaError, ValidationError
 from jsonschema.validators import validator_for
 
 from dynamic_agent_runner import HostToolBinding
+from dynamic_agent_runner.registry import ToolResult
 
 from dynamic_agent_runner.workflow_host.action_ledger import (
     ActionLedgerError,
@@ -157,8 +159,9 @@ def _binding(
 ) -> HostToolBinding:
     _validate_schema(remote_schema)
 
-    def handler(arguments: Mapping[str, object]) -> Mapping[str, object]:
+    def handler(arguments: Mapping[str, object]) -> Mapping[str, object] | ToolResult:
         envelope = _envelope_argument(arguments)
+        uses_artifact = _envelope_uses_artifact(envelope)
         try:
             normalized = verify_argument_provenance(envelope, provenance)
             _validate_arguments(remote_schema, normalized)
@@ -212,6 +215,12 @@ def _binding(
                 raise AuthorizedToolBindingError(
                     "external action outcome is unknown"
                 ) from error
+            if uses_artifact:
+                return ToolResult(
+                    tool_id=tool.tool_id,
+                    success=True,
+                    output={"status": "artifact_result_redacted"},
+                )
             return dict(result)
         except (
             ArgumentProvenanceError,
@@ -399,6 +408,30 @@ def _envelope_argument(arguments: Mapping[str, object]) -> str:
     if not isinstance(envelope, str):
         raise AuthorizedToolBindingError("model tool arguments are invalid")
     return envelope
+
+
+def _envelope_uses_artifact(envelope: str) -> bool:
+    """Return whether one canonical provenance envelope contains an artifact."""
+
+    try:
+        parsed = json.loads(envelope)
+        sources = parsed.get("sources") if isinstance(parsed, Mapping) else None
+    except (TypeError, json.JSONDecodeError):
+        return False
+    return isinstance(sources, Mapping) and any(
+        _source_uses_artifact(source) for source in sources.values()
+    )
+
+
+def _source_uses_artifact(source: object) -> bool:
+    if not isinstance(source, Mapping):
+        return False
+    if source.get("kind") == "artifact":
+        return True
+    inputs = source.get("inputs")
+    return isinstance(inputs, list) and any(
+        _source_uses_artifact(item) for item in inputs
+    )
 
 
 def _validate_schema(schema: Mapping[str, object]) -> None:

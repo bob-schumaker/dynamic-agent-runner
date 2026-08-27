@@ -112,6 +112,32 @@ class PrivateStateStore:
         self._require_active(record, now)
         return record
 
+    def active_records(
+        self, *, kind: str, owner: str, now: datetime
+    ) -> tuple[tuple[str, OpaqueRecord], ...]:
+        """Return the caller's active records of one internal kind."""
+
+        _require_nonempty(kind, "kind")
+        _require_nonempty(owner, "owner")
+        with self._mutation_lock():
+            records = self._read_records()
+            active: list[tuple[str, OpaqueRecord]] = []
+            for handle in sorted(records):
+                raw_record = records[handle]
+                if raw_record.get("owner") != owner:
+                    continue
+                record = self._validated_record_from_records(
+                    handle, owner=owner, records=records
+                )
+                if record.kind != kind:
+                    continue
+                try:
+                    self._require_active(record, now)
+                except OpaqueRecordError:
+                    continue
+                active.append((handle, record))
+        return tuple(active)
+
     def revoke(self, handle: str, *, owner: str, now: datetime) -> None:
         """Irreversibly revoke an active record owned by the caller."""
 

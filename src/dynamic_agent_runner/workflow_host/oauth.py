@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Callable, Protocol
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from dynamic_agent_runner.workflow_host.connections import (
     MCPAuthentication,
@@ -35,12 +35,49 @@ class OAuthClientConfiguration:
     authorization_endpoint: str
     token_endpoint: str
     client_id: str
+    resource: str | None = None
+    issuer: str | None = None
+    registered_redirect_template: str | None = None
+    registration_id: str | None = None
+    persistent_reconnect: bool = False
+    scope_is_omitted: bool = False
+    require_issuer_callback: bool = False
 
     def __post_init__(self) -> None:
         _https_url(self.authorization_endpoint, "authorization_endpoint")
         _https_url(self.token_endpoint, "token_endpoint")
         if not isinstance(self.client_id, str) or not self.client_id:
             raise OAuthError("client_id must be a non-empty string")
+        discovered_values = (
+            self.resource,
+            self.issuer,
+            self.registered_redirect_template,
+            self.registration_id,
+        )
+        if any(value is not None for value in discovered_values) and any(
+            value is None for value in discovered_values
+        ):
+            raise OAuthError("discovered OAuth configuration is incomplete")
+        if self.resource is not None:
+            _https_url(self.resource, "resource")
+            _https_url(self.issuer, "issuer")
+            _registered_redirect_template(self.registered_redirect_template)
+            if not isinstance(
+                self.registration_id, str
+            ) or not self.registration_id.startswith("v1."):
+                raise OAuthError("registration_id is invalid")
+            if not isinstance(self.persistent_reconnect, bool):
+                raise OAuthError("persistent_reconnect is invalid")
+            if not isinstance(self.scope_is_omitted, bool):
+                raise OAuthError("scope_is_omitted is invalid")
+            if not isinstance(self.require_issuer_callback, bool):
+                raise OAuthError("require_issuer_callback is invalid")
+        elif (
+            self.persistent_reconnect
+            or self.scope_is_omitted
+            or self.require_issuer_callback
+        ):
+            raise OAuthError("discovered OAuth configuration is invalid")
 
 
 @dataclass(frozen=True)
@@ -49,6 +86,7 @@ class OAuthCallback:
 
     code: str = field(repr=False)
     state: str = field(repr=False)
+    issuer: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -108,7 +146,7 @@ class OAuthCallbackReceiver(Protocol):
 
 
 class OAuthCallbackReceiverFactory(Protocol):
-    def open(self) -> OAuthCallbackReceiver:
+    def open(self, *, callback_path: str = "/oauth/callback") -> OAuthCallbackReceiver:
         """Bind and return one loopback callback receiver."""
 
 
@@ -126,6 +164,7 @@ class OAuthTokenExchanger(Protocol):
         code: str,
         redirect_uri: str,
         code_verifier: str,
+        resource: str | None = None,
     ) -> OAuthTokenBundle:
         """Exchange one code without exposing token material to callers."""
 
@@ -139,6 +178,7 @@ class OAuthTokenRefresher(Protocol):
         token_endpoint: str,
         client_id: str,
         refresh_token: str,
+        resource: str | None = None,
     ) -> OAuthTokenBundle:
         """Refresh one token bundle without exposing token material to callers."""
 
@@ -160,9 +200,12 @@ class LoopbackOAuthCallbackReceiver:
 
     _CALLBACK_PATH = "/oauth/callback"
 
-    def __init__(self) -> None:
+    def __init__(self, *, callback_path: str = _CALLBACK_PATH) -> None:
+        if not isinstance(callback_path, str) or not callback_path.startswith(
+            "/oauth/callback"
+        ):
+            raise OAuthError("OAuth callback path is invalid")
         callbacks: queue.Queue[OAuthCallback] = queue.Queue(maxsize=1)
-        callback_path = self._CALLBACK_PATH
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:  # noqa: N802
@@ -180,8 +223,13 @@ class LoopbackOAuthCallbackReceiver:
                     self.send_response(409)
                     self.end_headers()
                     return
+                body, headers = _callback_success_response()
                 self.send_response(200)
+                for name, value in headers.items():
+                    self.send_header(name, value)
+                self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
+                self.wfile.write(body)
 
             def log_message(self, format: str, *args: object) -> None:
                 return
@@ -189,7 +237,7 @@ class LoopbackOAuthCallbackReceiver:
         self._callbacks = callbacks
         self._server = HTTPServer(("127.0.0.1", 0), Handler)
         port = self._server.server_address[1]
-        self._redirect_uri = f"http://127.0.0.1:{port}{self._CALLBACK_PATH}"
+        self._redirect_uri = f"http://127.0.0.1:{port}{callback_path}"
 
     @property
     def redirect_uri(self) -> str:
@@ -213,12 +261,47 @@ class LoopbackOAuthCallbackReceiver:
 
 
 class LoopbackOAuthCallbackReceiverFactory:
-    def open(self) -> LoopbackOAuthCallbackReceiver:
-        return LoopbackOAuthCallbackReceiver()
+    def open(
+        self, *, callback_path: str = "/oauth/callback"
+    ) -> LoopbackOAuthCallbackReceiver:
+        return LoopbackOAuthCallbackReceiver(callback_path=callback_path)
+
+
+def _callback_success_response() -> tuple[bytes, dict[str, str]]:
+    """Return the static, non-cacheable browser acknowledgement for a callback."""
+
+    body = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        "<title>OAuth authorization complete</title></head><body>"
+        "<p>The OAuth token has been received. You may now close this window "
+        "and return to the terminal.</p></body></html>"
+    ).encode("utf-8")
+    return body, {
+        "Cache-Control": "no-store",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+        "Content-Type": "text/html; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+    }
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, *args: object, **kwargs: object) -> None:
+        return None
 
 
 class HttpOAuthTokenExchanger:
     """Exchange a public-client authorization code over HTTPS."""
+
+    def __init__(
+        self, *, opener: object | None = None, max_response_bytes: int = 32_768
+    ):
+        if (
+            not isinstance(max_response_bytes, int)
+            or not 0 < max_response_bytes <= 65_536
+        ):
+            raise OAuthError("OAuth token response limit is invalid")
+        self._opener = opener or build_opener(_NoRedirectHandler())
+        self._max_response_bytes = max_response_bytes
 
     def exchange(
         self,
@@ -228,24 +311,19 @@ class HttpOAuthTokenExchanger:
         code: str,
         redirect_uri: str,
         code_verifier: str,
+        resource: str | None = None,
     ) -> OAuthTokenBundle:
-        request = Request(
-            token_endpoint,
-            data=urlencode(
-                {
-                    "grant_type": "authorization_code",
-                    "client_id": client_id,
-                    "code": code,
-                    "redirect_uri": redirect_uri,
-                    "code_verifier": code_verifier,
-                }
-            ).encode("ascii"),
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            method="POST",
-        )
+        form = {
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "code_verifier": code_verifier,
+        }
+        if resource is not None:
+            form["resource"] = resource
         try:
-            with urlopen(request, timeout=30) as response:  # noqa: S310
-                payload = json.loads(response.read().decode("utf-8"))
+            payload = self._post_form(token_endpoint, form)
             return _token_bundle_from_response(payload)
         except Exception as error:
             raise OAuthError("OAuth code exchange failed") from error
@@ -256,27 +334,37 @@ class HttpOAuthTokenExchanger:
         token_endpoint: str,
         client_id: str,
         refresh_token: str,
+        resource: str | None = None,
     ) -> OAuthTokenBundle:
         """Refresh a public-client OAuth credential over HTTPS."""
 
-        request = Request(
-            token_endpoint,
-            data=urlencode(
-                {
-                    "grant_type": "refresh_token",
-                    "client_id": client_id,
-                    "refresh_token": refresh_token,
-                }
-            ).encode("ascii"),
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            method="POST",
-        )
+        form = {
+            "grant_type": "refresh_token",
+            "client_id": client_id,
+            "refresh_token": refresh_token,
+        }
+        if resource is not None:
+            form["resource"] = resource
         try:
-            with urlopen(request, timeout=30) as response:  # noqa: S310
-                payload = json.loads(response.read().decode("utf-8"))
+            payload = self._post_form(token_endpoint, form)
             return _token_bundle_from_response(payload)
         except Exception as error:
             raise OAuthError("OAuth token refresh failed") from error
+
+    def _post_form(self, endpoint: str, form: dict[str, str]) -> object:
+        request = Request(
+            endpoint,
+            data=urlencode(form).encode("ascii"),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        with self._opener.open(request, timeout=30) as response:  # type: ignore[union-attr]
+            if response.geturl() != endpoint:
+                raise OAuthError("OAuth token response was redirected")
+            body = response.read(self._max_response_bytes + 1)
+        if len(body) > self._max_response_bytes:
+            raise OAuthError("OAuth token response is too large")
+        return json.loads(body.decode("utf-8"))
 
 
 class OAuthAuthorizationService:
@@ -318,8 +406,17 @@ class OAuthAuthorizationService:
             raise MCPConnectionError("connection does not use OAuth authentication")
         state = _secret_text(self._state_factory(), "OAuth state")
         verifier = _secret_text(self._verifier_factory(), "PKCE verifier")
-        receiver = self._receiver_factory.open()
+        receiver = self._receiver_factory.open(
+            callback_path=_callback_path(configuration.registered_redirect_template)
+        )
         try:
+            if (
+                configuration.registered_redirect_template is not None
+                and not _matches_registered_redirect_uri(
+                    receiver.redirect_uri, configuration.registered_redirect_template
+                )
+            ):
+                raise MCPConnectionError("OAuth callback is invalid")
             authorization_url = _authorization_url(
                 configuration=configuration,
                 redirect_uri=receiver.redirect_uri,
@@ -331,18 +428,36 @@ class OAuthAuthorizationService:
             callback = receiver.wait_for_callback(self._timeout_seconds)
             if not hmac.compare_digest(callback.state, state):
                 raise MCPConnectionError("OAuth callback is invalid")
-            bundle = self._exchanger.exchange(
-                token_endpoint=configuration.token_endpoint,
-                client_id=configuration.client_id,
-                code=callback.code,
-                redirect_uri=receiver.redirect_uri,
-                code_verifier=verifier,
-            )
+            if configuration.require_issuer_callback and callback.issuer is None:
+                raise MCPConnectionError("OAuth callback is invalid")
+            if (
+                callback.issuer is not None
+                and configuration.issuer is not None
+                and not hmac.compare_digest(callback.issuer, configuration.issuer)
+            ):
+                raise MCPConnectionError("OAuth callback is invalid")
+            exchange_arguments = {
+                "token_endpoint": configuration.token_endpoint,
+                "client_id": configuration.client_id,
+                "code": callback.code,
+                "redirect_uri": receiver.redirect_uri,
+                "code_verifier": verifier,
+            }
+            if configuration.resource is not None:
+                exchange_arguments["resource"] = configuration.resource
+            bundle = self._exchanger.exchange(**exchange_arguments)
             return self._connections.configure_oauth_token(
                 connection.connection_id,
                 bundle.secret_value(),
                 token_endpoint=configuration.token_endpoint,
                 client_id=configuration.client_id,
+                resource=configuration.resource,
+                issuer=configuration.issuer,
+                authorization_endpoint=configuration.authorization_endpoint
+                if configuration.resource is not None
+                else None,
+                registration_id=configuration.registration_id,
+                persistent_reconnect=configuration.persistent_reconnect,
             )
         except MCPConnectionError:
             raise
@@ -361,17 +476,19 @@ def _authorization_url(
     verifier: str,
 ) -> str:
     parsed = urlsplit(configuration.authorization_endpoint)
-    query = urlencode(
-        {
-            "response_type": "code",
-            "client_id": configuration.client_id,
-            "redirect_uri": redirect_uri,
-            "scope": " ".join(sorted(scopes)),
-            "state": state,
-            "code_challenge": _code_challenge(verifier),
-            "code_challenge_method": "S256",
-        }
-    )
+    parameters = {
+        "response_type": "code",
+        "client_id": configuration.client_id,
+        "redirect_uri": redirect_uri,
+        "state": state,
+        "code_challenge": _code_challenge(verifier),
+        "code_challenge_method": "S256",
+    }
+    if not configuration.scope_is_omitted:
+        parameters["scope"] = " ".join(sorted(scopes))
+    if configuration.resource is not None:
+        parameters["resource"] = configuration.resource
+    query = urlencode(parameters)
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, query, ""))
 
 
@@ -381,7 +498,7 @@ def _callback_from_query(
     if path != expected_path:
         return None
     values = parse_qs(query, keep_blank_values=True)
-    if set(values) != {"code", "state"}:
+    if set(values) not in ({"code", "state"}, {"code", "state", "iss"}):
         return None
     code = values.get("code")
     state = values.get("state")
@@ -389,7 +506,12 @@ def _callback_from_query(
         return None
     if not code[0] or not state[0]:
         return None
-    return OAuthCallback(code=code[0], state=state[0])
+    issuer = values.get("iss")
+    if issuer is not None and (len(issuer) != 1 or not issuer[0]):
+        return None
+    return OAuthCallback(
+        code=code[0], state=state[0], issuer=None if issuer is None else issuer[0]
+    )
 
 
 def _code_challenge(verifier: str) -> str:
@@ -413,6 +535,46 @@ def _https_url(value: object, name: str) -> None:
         or parsed.fragment
     ):
         raise OAuthError(f"{name} must be an HTTPS URL")
+
+
+def _registered_redirect_template(value: object) -> None:
+    if not isinstance(value, str) or not value:
+        raise OAuthError("registered_redirect_template is invalid")
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname != "localhost"
+        or parsed.port is not None
+        or not parsed.path.startswith("/oauth/callback/")
+        or parsed.query
+        or parsed.fragment
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise OAuthError("registered_redirect_template is invalid")
+
+
+def _callback_path(registered_redirect_template: str | None) -> str:
+    if registered_redirect_template is None:
+        return LoopbackOAuthCallbackReceiver._CALLBACK_PATH
+    return urlsplit(registered_redirect_template).path
+
+
+def _matches_registered_redirect_uri(uri: str, template: str) -> bool:
+    parsed = urlsplit(uri)
+    expected = urlsplit(template)
+    return (
+        parsed.scheme == "http"
+        and parsed.hostname == "127.0.0.1"
+        and expected.hostname == "localhost"
+        and parsed.port is not None
+        and 0 < parsed.port <= 65_535
+        and parsed.path == expected.path
+        and not parsed.query
+        and not parsed.fragment
+        and parsed.username is None
+        and parsed.password is None
+    )
 
 
 def _secret_text(value: object, name: str) -> str:
