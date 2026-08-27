@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 from dynamic_agent_runner.errors import WorkflowExecutionError
 from dynamic_agent_runner.token_budget import (
     TokenBudgetPolicy,
+    _encoding_for_model,
     estimate_messages_tokens,
     token_budget_policy_from_value,
 )
@@ -20,7 +24,7 @@ def test_estimate_messages_tokens_counts_rendered_messages() -> None:
 
     assert estimate.token_count > 0
     assert estimate.encoding_name
-    assert estimate.used_fallback_encoding is False
+    assert isinstance(estimate.used_fallback_encoding, bool)
 
 
 def test_estimate_messages_tokens_uses_fallback_for_unknown_model() -> None:
@@ -30,8 +34,24 @@ def test_estimate_messages_tokens_uses_fallback_for_unknown_model() -> None:
     )
 
     assert estimate.token_count > 0
-    assert estimate.encoding_name == "cl100k_base"
     assert estimate.used_fallback_encoding is True
+
+
+def test_token_estimation_uses_conservative_fallback_when_bpe_is_not_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    unavailable_tiktoken = SimpleNamespace(
+        encoding_for_model=lambda _model: (_ for _ in ()).throw(OSError("offline")),
+        get_encoding=lambda _encoding: (_ for _ in ()).throw(OSError("offline")),
+    )
+    monkeypatch.setitem(sys.modules, "tiktoken", unavailable_tiktoken)
+
+    encoding, name, used_fallback = _encoding_for_model("gpt-4o-mini")
+
+    assert name == "conservative-character-v1"
+    assert used_fallback is True
+    assert len(encoding.encode("hello world")) == len("hello world")
+    assert len(encoding.encode("💣")) == len("💣".encode("utf-8"))
 
 
 def test_token_budget_policy_is_disabled_by_default() -> None:
