@@ -845,6 +845,25 @@ class LocalWorkflowHost:
         except (MCPConnectionClientError, MCPSurfaceSnapshotError) as error:
             raise LocalWorkflowHostError("MCP surface review is unavailable") from error
 
+    def preflight_apple_mcp_tool_schema(self, *, snapshot_id: str, tool_name: str):
+        """Classify one current reviewed read-only MCP schema without dispatch."""
+
+        self._ensure_mcp_client(policy_requires_mcp=True)
+        if self._mcp_client is None or self._mcp_surfaces is None:
+            raise LocalWorkflowHostError("MCP client is not configured")
+        try:
+            return self._mcp_surfaces.preflight_apple_reviewed_tool_schema(
+                snapshot_id, self._mcp_client, tool_name=tool_name
+            )
+        except (
+            MCPConnectionClientError,
+            MCPSurfaceSnapshotError,
+            ModelExecutionError,
+        ) as error:
+            raise LocalWorkflowHostError(
+                "Apple MCP schema preflight is unavailable"
+            ) from error
+
     def discover_mcp_tools(self) -> tuple[MCPDiscoveredTool, ...]:
         """Return the current configured MCP tool names and schemas for human review."""
 

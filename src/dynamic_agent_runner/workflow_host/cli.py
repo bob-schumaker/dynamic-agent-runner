@@ -209,6 +209,9 @@ def _parser() -> argparse.ArgumentParser:
     review = commands.add_parser("review-mcp-surface")
     review.add_argument("--approve-read-tool", action="append", default=[])
     review.add_argument("--approve-tool", action="append", default=[])
+    preflight = commands.add_parser("preflight-apple-mcp-tool")
+    preflight.add_argument("--snapshot-id", required=True)
+    preflight.add_argument("--tool-name", required=True)
     bind = commands.add_parser("bind-mcp-package")
     bind.add_argument("--package-source-handle", required=True)
     bind.add_argument("--snapshot-id", required=True)
@@ -469,6 +472,11 @@ def _mcp_workflow_result(
             approved_tool_side_effects=_approved_tool_effects(args.approve_tool),
         )
         return {"status": "reviewed", "snapshot_id": snapshot.snapshot_id}
+    if args.command == "preflight-apple-mcp-tool":
+        receipt = host.preflight_apple_mcp_tool_schema(
+            snapshot_id=args.snapshot_id, tool_name=args.tool_name
+        )
+        return {"mode": receipt.mode, "tool_set_digest": receipt.tool_set_digest}
     if args.command == "bind-mcp-package":
         binding = host.bind_mcp_package(
             package_source_handle=args.package_source_handle,

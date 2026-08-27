@@ -1346,6 +1346,14 @@ def test_cli_inspects_reviews_binds_and_registers_mcp_workflows(
             calls.append(("review", kwargs))
             return SimpleNamespace(snapshot_id="v1.snapshot")
 
+        def preflight_apple_mcp_tool_schema(self, **kwargs: object) -> SimpleNamespace:
+            calls.append(("preflight", kwargs))
+            return SimpleNamespace(
+                mode="gateway",
+                tool_set_digest="a" * 64,
+                input_schema={"secret": "must not be emitted"},
+            )
+
         def bind_mcp_package(self, **kwargs: object) -> SimpleNamespace:
             calls.append(("bind", kwargs))
             return SimpleNamespace(binding_id="v1.binding")
@@ -1377,6 +1385,19 @@ def test_cli_inspects_reviews_binds_and_registers_mcp_workflows(
     )
     assert status == 0
     assert snapshot == {"snapshot_id": "v1.snapshot", "status": "reviewed"}
+
+    status, receipt = _invoke(
+        [
+            *state_args,
+            "preflight-apple-mcp-tool",
+            "--snapshot-id",
+            "v1.snapshot",
+            "--tool-name",
+            "list_unread",
+        ]
+    )
+    assert status == 0
+    assert receipt == {"mode": "gateway", "tool_set_digest": "a" * 64}
 
     status, binding = _invoke(
         [
@@ -1412,8 +1433,12 @@ def test_cli_inspects_reviews_binds_and_registers_mcp_workflows(
             "approved_tool_side_effects": {},
         },
     )
-    assert calls[1][0] == "bind"
-    assert calls[1][1]["package_source_handle"] == "v1.source"
-    assert calls[1][1]["snapshot_id"] == "v1.snapshot"
-    assert calls[2][0] == "register"
-    assert calls[2][1]["mcp_binding_id"] == "v1.binding"
+    assert calls[2][0] == "bind"
+    assert calls[2][1]["package_source_handle"] == "v1.source"
+    assert calls[2][1]["snapshot_id"] == "v1.snapshot"
+    assert calls[3][0] == "register"
+    assert calls[3][1]["mcp_binding_id"] == "v1.binding"
+    assert calls[1] == (
+        "preflight",
+        {"snapshot_id": "v1.snapshot", "tool_name": "list_unread"},
+    )
