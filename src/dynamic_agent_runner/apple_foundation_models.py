@@ -288,6 +288,7 @@ class _AppleResponsesResource:
             if self._config.session_factory is None:
                 sdk = sdk or _load_sdk()
             prompt, instructions = _render_messages(request.messages)
+            instructions = _append_apple_gateway_instruction(instructions, wrappers)
             session = _make_session(
                 self._config,
                 sdk,
@@ -385,7 +386,7 @@ def _apple_tool_wrappers(
             continue
         if mode != "gateway" or not _is_gateway_mcp_tool(tool):
             raise ModelExecutionError("Apple tool has an untranslatable schema")
-        gateway_targets[secrets.token_urlsafe(24)] = _AppleGatewayTarget(
+        gateway_targets[secrets.token_hex(24)] = _AppleGatewayTarget(
             tool=tool,
             validator=_gateway_validator(schema),
         )
@@ -548,6 +549,32 @@ def _apple_gateway_description(
     if len(catalog.encode("utf-8")) > 16 * 1024:
         raise ModelExecutionError("Apple gateway capability catalog is too large")
     return catalog
+
+
+def _append_apple_gateway_instruction(
+    instructions: str | None, wrappers: Sequence[object]
+) -> str | None:
+    """Tell Apple how to select the fixed gateway without exposing MCP schemas."""
+
+    descriptions = tuple(
+        description
+        for wrapper in wrappers
+        if getattr(wrapper, "name", None) == "dar_gateway"
+        and isinstance((description := getattr(wrapper, "description", None)), str)
+    )
+    if not descriptions:
+        return instructions
+    gateway_instruction = (
+        "Call dar_gateway for fallback capabilities; do not call a logical tool name "
+        "from the task instructions. Its arguments must contain tool_token and "
+        "arguments_json; arguments_json is a JSON object encoded as a string. Use "
+        "only the opaque capability token in this catalog:\n" + "\n".join(descriptions)
+    )
+    return (
+        f"{instructions}\n{gateway_instruction}"
+        if instructions
+        else gateway_instruction
+    )
 
 
 def _apple_tool_wrapper(

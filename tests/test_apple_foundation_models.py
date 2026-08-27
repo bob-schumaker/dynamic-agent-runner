@@ -998,8 +998,48 @@ def test_apple_tool_bridge_selects_one_gateway_for_active_read_only_mcp_tools(
         "dar_tool_0",
         "dar_gateway",
     ]
+    assert sdk.sessions[0].instructions is not None
+    assert "Call dar_gateway for fallback capabilities" in sdk.sessions[0].instructions
+    assert "do not call a logical tool name" in sdk.sessions[0].instructions
+    assert "arguments_json" in sdk.sessions[0].instructions
+    assert sdk.sessions[0].tools[1].description in sdk.sessions[0].instructions
     assert "search-email" not in sdk.sessions[0].tools[1].description
     assert "Search the reviewed mailbox" in sdk.sessions[0].tools[1].description
+
+
+def test_apple_gateway_capability_tokens_are_apple_safe_hex(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fallback = _tool(
+        "search-email",
+        _GATEWAY_APPLE_TOOL_SCHEMA,
+        side_effect="read",
+        host_canonical_id="authorized-mcp:binding:search-email",
+        description_for_llm="Search the reviewed mailbox",
+    )
+    registry = InMemoryToolRegistry([fallback])
+    context = _active_tool_context(registry, (registry.get_tool("search-email"),))
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models.secrets.token_hex",
+        lambda _bytes: "a" * 48,
+    )
+
+    asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=("search-email",),
+                adapter_context=context,
+            )
+        )
+    )
+
+    token = sdk.sessions[0].tools[0].description.split("\n", 1)[1].split(":", 1)[0]
+    assert token == "a" * 48
 
 
 def test_apple_tool_bridge_blocks_a_generic_gateway_schema_before_session(

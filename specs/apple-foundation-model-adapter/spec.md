@@ -643,7 +643,9 @@ contract. DAR must retain direct per-tool wrappers for losslessly representable
 schemas, but select one Apple-admissible gateway wrapper for an active tool with
 ordinary JSON Schema that Apple cannot represent directly. The gateway accepts
 only `{tool_token: string, arguments_json: string}`, with both fields required
-and `additionalProperties: false`. Tokens are per-response opaque capabilities
+and `additionalProperties: false`. Tokens use an Apple-safe lowercase-hex
+encoding while retaining 192 bits of random entropy. Tokens are per-response
+opaque capabilities
 bound only to fallback tools in the exact active snapshot; they are never DAR
 ids, remote names, schemas, or reusable across responses. DAR rejects payloads
 over its fixed byte/depth/key limits, duplicate keys, non-object JSON, unknown,

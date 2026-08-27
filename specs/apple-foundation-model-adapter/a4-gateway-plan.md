@@ -240,7 +240,7 @@ preflight occurs only after A4.1–A4.4 are green.
 | Risk | Mitigation | Blocks |
 | --- | --- | --- |
 | Gateway broadens an upstream contract | validate the exact original schema before coordinator entry | callback dispatch |
-| Token leaks or replay | opaque random response-local single-use tokens; redacted errors/receipts | session construction and C4 evidence |
+| Token leaks, replay, or Apple parser rejection | opaque random 192-bit lowercase-hex response-local single-use tokens; redacted errors/receipts | session construction and C4 evidence |
 | Rejected callbacks consume budget or mutate state unexpectedly | test claim-before-parse parity and zero coordinator ingress | parity sign-off |
 | Gateway becomes a side-effect bypass | accept fallback only for current reviewed read-only MCP bindings | A4 implementation |
 | Apple envelope cannot be proven admissible | use only the A2-proven closed object schema | session construction |
