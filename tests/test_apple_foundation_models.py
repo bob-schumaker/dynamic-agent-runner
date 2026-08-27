@@ -2,16 +2,24 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import inspect
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Annotated, get_args, get_origin, get_type_hints
 
 import pytest
 
 from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner.models import ToolDefinition
 from dynamic_agent_runner.openai_client import build_openai_request
 from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
     create_apple_foundation_model_async_adapter,
 )
+from dynamic_agent_runner.registry import InMemoryToolRegistry, RegisteredTool
+from dynamic_agent_runner.retry import RetryPolicy
+from dynamic_agent_runner.tool_invocation import tool_context
+from dynamic_agent_runner.tracing import WorkflowTracer
 
 
 @pytest.fixture(autouse=True)
@@ -128,6 +136,137 @@ class FakeSession:
 class CancelledSession(FakeSession):
     async def respond(self, prompt: str, **kwargs: object) -> object:
         raise asyncio.CancelledError
+
+
+class FakeAppleToolSession:
+    def __init__(
+        self,
+        instructions: str | None,
+        *,
+        tools: list[object] | tuple[object, ...] = (),
+    ) -> None:
+        self.instructions = instructions
+        self.tools = tuple(tools)
+        for tool in self.tools:
+            if not isinstance(tool, FakeAppleToolSDK.Tool):
+                raise TypeError("Apple tool must subclass sdk.Tool")
+            if not isinstance(getattr(tool, "name", None), str) or not tool.name:
+                raise TypeError("Apple tool name must be a non-empty string")
+            if (
+                not isinstance(getattr(tool, "description", None), str)
+                or not tool.description
+            ):
+                raise TypeError("Apple tool description must be a non-empty string")
+            if not isinstance(tool.arguments_schema, FakeAppleGenerationSchema):
+                raise TypeError("Apple tool must provide a GenerationSchema")
+            if not inspect.iscoroutinefunction(tool.call):
+                raise TypeError("Apple tool call must be async")
+
+    async def respond(self, _prompt: str, **_kwargs: object) -> str:
+        return "answer"
+
+
+class FakeAppleToolSDK:
+    class Tool:
+        pass
+
+    def __init__(self) -> None:
+        self.sessions: list[FakeAppleToolSession] = []
+
+    def SystemLanguageModel(self) -> object:
+        return SimpleNamespace(is_available=lambda: (True, None))
+
+    def LanguageModelSession(
+        self,
+        *,
+        instructions: str | None,
+        tools: list[object] | tuple[object, ...] = (),
+    ) -> FakeAppleToolSession:
+        session = FakeAppleToolSession(instructions, tools=tools)
+        self.sessions.append(session)
+        return session
+
+    @staticmethod
+    def generable(_description: str):
+        def decorate(cls: type[object]) -> type[object]:
+            cls.generation_schema = classmethod(
+                lambda _cls: FakeAppleGenerationSchema(_cls)
+            )
+            return cls
+
+        return decorate
+
+    @staticmethod
+    def guide(**values: object) -> "FakeAppleGuide":
+        return FakeAppleGuide(values)
+
+
+@dataclass(frozen=True)
+class FakeAppleGenerationSchema:
+    generated_type: type[object]
+
+
+@dataclass(frozen=True)
+class FakeAppleGuide:
+    values: dict[str, object]
+
+
+def _annotation_base(annotation: object) -> object:
+    if get_origin(annotation) is Annotated:
+        return get_args(annotation)[0]
+    return annotation
+
+
+def _annotation_guides(annotation: object) -> dict[str, object]:
+    if get_origin(annotation) is not Annotated:
+        return {}
+    values: dict[str, object] = {}
+    for metadata in get_args(annotation)[1:]:
+        if isinstance(metadata, FakeAppleGuide):
+            values.update(metadata.values)
+    return values
+
+
+def _tool(tool_id: str, input_schema: dict[str, object]) -> RegisteredTool:
+    return RegisteredTool(
+        ToolDefinition.from_mapping({"id": tool_id, "input_schema": input_schema}),
+        lambda _arguments: {"ok": True},
+    )
+
+
+def _active_tool_context(
+    registry: InMemoryToolRegistry,
+    tools: tuple[RegisteredTool, ...],
+):
+    state = SimpleNamespace(run_id="run-1", tool_results={}, trace_events=[])
+    return tool_context(
+        plan=SimpleNamespace(
+            workflow=SimpleNamespace(
+                runtime_manifest=SimpleNamespace(package_id="workflow-1")
+            )
+        ),
+        node=SimpleNamespace(id="node-1"),
+        tools=tools,
+        registry=registry,
+        state=state,
+        tracer=WorkflowTracer(events=state.trace_events),
+        lifecycle_hooks=None,
+        retry_policy=RetryPolicy(),
+    )
+
+
+def _tool_request(
+    registry: InMemoryToolRegistry,
+    *,
+    descriptor_ids: tuple[str, ...],
+    adapter_context: object,
+):
+    return build_openai_request(
+        model="apple-system-language-model",
+        messages=[{"role": "user", "content": "Use the available tool."}],
+        tools=registry.to_openai_tools(descriptor_ids),
+        adapter_context=adapter_context,
+    )
 
 
 def test_text_request_preserves_instructions_and_ordered_history() -> None:
@@ -334,3 +473,296 @@ def test_invalid_structured_output_is_rejected() -> None:
 
     with pytest.raises(ModelExecutionError, match="valid JSON"):
         asyncio.run(adapter.create_response(request))
+
+
+_ADMITTED_APPLE_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string", "enum": ["brief", "full"]},
+        "count": {"type": "integer", "minimum": 1, "maximum": 5},
+        "scores": {
+            "type": "array",
+            "items": {"type": "number"},
+            "minItems": 1,
+            "maxItems": 3,
+        },
+        "target": {
+            "type": "object",
+            "properties": {"enabled": {"type": "boolean"}},
+            "required": ["enabled"],
+            "additionalProperties": False,
+        },
+        "recipients": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"address": {"type": "string"}},
+                "required": ["address"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["title", "count", "scores", "target", "recipients"],
+    "additionalProperties": False,
+}
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="B2.2 must translate the B0.3 admitted schema subset into Apple wrappers",
+)
+def test_apple_tool_bridge_constructs_only_opaque_active_wrappers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    active = _tool("email/send-with spaces", _ADMITTED_APPLE_TOOL_SCHEMA)
+    second_active = _tool("review@2", _ADMITTED_APPLE_TOOL_SCHEMA)
+    inactive = _tool("inactive_tool", _ADMITTED_APPLE_TOOL_SCHEMA)
+    registry = InMemoryToolRegistry([active, second_active, inactive])
+    active = registry.get_tool("email/send-with spaces")
+    second_active = registry.get_tool("review@2")
+    context = _active_tool_context(registry, (active, second_active))
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    response = asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=(
+                    "email/send-with spaces",
+                    "review@2",
+                    "inactive_tool",
+                ),
+                adapter_context=context,
+            )
+        )
+    )
+
+    assert response.content == "answer"
+    assert len(sdk.sessions) == 1
+    wrappers = sdk.sessions[0].tools
+    assert [wrapper.name for wrapper in wrappers] == ["dar_tool_0", "dar_tool_1"]
+    assert all(
+        wrapper.name not in {"email/send-with spaces", "review@2", "inactive_tool"}
+        for wrapper in wrappers
+    )
+    generated_type = wrappers[0].arguments_schema.generated_type
+    annotations = get_type_hints(generated_type, include_extras=True)
+    assert set(annotations) == {"title", "count", "scores", "target", "recipients"}
+    assert _annotation_base(annotations["title"]) is str
+    assert _annotation_guides(annotations["title"]) == {"anyOf": ["brief", "full"]}
+    assert _annotation_base(annotations["count"]) is int
+    assert _annotation_guides(annotations["count"]) == {
+        "minimum": 1,
+        "maximum": 5,
+    }
+    scores_type = _annotation_base(annotations["scores"])
+    assert get_origin(scores_type) is list
+    assert get_args(scores_type) == (float,)
+    assert _annotation_guides(annotations["scores"]) == {
+        "minItems": 1,
+        "maxItems": 3,
+    }
+    target_type = _annotation_base(annotations["target"])
+    target_annotations = get_type_hints(target_type, include_extras=True)
+    assert target_annotations == {"enabled": bool}
+    assert isinstance(target_type.generation_schema(), FakeAppleGenerationSchema)
+    recipients_type = _annotation_base(annotations["recipients"])
+    assert get_origin(recipients_type) is list
+    recipient_type = _annotation_base(get_args(recipients_type)[0])
+    assert get_type_hints(recipient_type, include_extras=True) == {"address": str}
+    assert isinstance(recipient_type.generation_schema(), FakeAppleGenerationSchema)
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"$ref": "#/definitions/value"},
+        {
+            "type": "object",
+            "properties": {"value": {"anyOf": [{"type": "string"}]}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string"}},
+            "required": [],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": ["string", "null"]}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string", "enum": [1]}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string", "const": "fixed"}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string", "format": "email"}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string", "pattern": "[a-z]+"}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string", "minLength": 1}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string", "maxLength": 12}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"allOf": [{"type": "string"}]}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"oneOf": [{"type": "string"}]}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "null"}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string", "x-future": True}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string"}},
+            "required": ["value"],
+            "additionalProperties": {"type": "string"},
+        },
+        {
+            "type": "object",
+            "properties": {"value": {"type": "string"}},
+            "required": ["value"],
+            "additionalProperties": True,
+        },
+    ],
+)
+@pytest.mark.xfail(
+    strict=True,
+    reason="B2.2 must reject unsupported schema forms before Apple session creation",
+)
+def test_apple_tool_bridge_rejects_untranslatable_schema_before_session_creation(
+    monkeypatch: pytest.MonkeyPatch,
+    schema: dict[str, object],
+) -> None:
+    tool = _tool("write", schema)
+    registry = InMemoryToolRegistry([tool])
+    tool = registry.get_tool("write")
+    context = _active_tool_context(registry, (tool,))
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    with pytest.raises(ModelExecutionError, match="untranslatable.*schema"):
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("write",),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert sdk.sessions == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="B2.2 must reject stale and raw adapter contexts before session creation",
+)
+def test_apple_tool_bridge_rejects_stale_or_raw_context_before_session_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = _tool("write", _ADMITTED_APPLE_TOOL_SCHEMA)
+    registry = InMemoryToolRegistry([tool])
+    active = registry.get_tool("write")
+    stale_context = _active_tool_context(registry, (active,))
+    registry.register(_tool("write", _ADMITTED_APPLE_TOOL_SCHEMA), replace=True)
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    for adapter_context in (
+        stale_context,
+        {"tools": registry.to_openai_tools(("write",))},
+    ):
+        with pytest.raises(ModelExecutionError, match="active tool context"):
+            asyncio.run(
+                create_apple_foundation_model_async_adapter().create_response(
+                    _tool_request(
+                        registry,
+                        descriptor_ids=("write",),
+                        adapter_context=adapter_context,
+                    )
+                )
+            )
+
+    assert sdk.sessions == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="B2.2 must reject duplicate active tool identities before name generation",
+)
+def test_apple_tool_bridge_rejects_colliding_active_tool_mapping_before_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = _tool("write", _ADMITTED_APPLE_TOOL_SCHEMA)
+    registry = InMemoryToolRegistry([tool])
+    tool = registry.get_tool("write")
+    context = _active_tool_context(registry, (tool, tool))
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    with pytest.raises(ModelExecutionError, match="duplicate active tool"):
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("write",),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert sdk.sessions == []

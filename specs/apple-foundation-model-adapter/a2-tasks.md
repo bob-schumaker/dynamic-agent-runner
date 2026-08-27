@@ -70,11 +70,13 @@ fixed decisions in `a2-plan.md`.
 
 ## B2 — Schema-safe Apple wrappers
 
-- [ ] B2.1 [tests] Add RED schema/name-translation tests for the B0 capability
+- [x] B2.1 [tests] Add RED schema/name-translation tests for the B0 capability
       matrix; prove session construction receives exactly the effective
       model-facing selected-tool allowlist, invalid or colliding names fail
       closed, and inactive, unexposed, stale-context, and raw-descriptor tools
       never reach Apple session creation.
+  - Evidence: `validation.md` (2026-08-26); strict expected-failure coverage
+    defines the B2.2 wrapper contract without enabling Apple tool use.
 - [ ] B2.2 [implementation] Generate one Apple wrapper per exposed active-node
       DAR tool and provide no wrapper for inactive or unexposed tools.
 

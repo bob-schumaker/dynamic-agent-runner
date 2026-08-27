@@ -229,6 +229,35 @@ the restored-environment B0 result is investigated.
   plus the pre-existing unrelated configured-host expectation failure in
   `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
 
+## A2 B2.1 schema-safe wrapper RED contract — 2026-08-26
+
+- Added strict expected-failure tests for B2.2, with a fake SDK that enforces
+  the observed `Tool` subclass, non-empty opaque name/description,
+  `GenerationSchema`, and async `call(...)` construction contract without
+  invoking callbacks.
+- The admitted representative requires two ordered opaque wrappers
+  (`dar_tool_0`, `dar_tool_1`) for only the trusted active context, including
+  string enum, numeric bounds, array cardinality, nested object, and
+  `list[Nested]` forms. Nested generated types must themselves provide a
+  `GenerationSchema`.
+- Rejection coverage requires a pre-session failure for caller `$ref`,
+  composition, optional properties, null forms, non-string enums, `const`,
+  `format`, `pattern`, string lengths, unknown keywords, and object-map forms.
+  Stale/raw contexts and duplicate active identities also fail before session
+  creation.
+- RED evidence: `poetry run pytest -q --runxfail
+  tests/test_apple_foundation_models.py::test_apple_tool_bridge_constructs_only_opaque_active_wrappers`
+  fails because the current A1 adapter reports tool calling unsupported.
+- Stored contract gate: `poetry run pytest -q -rxX
+  tests/test_apple_foundation_models.py` — `20 passed, 19 xfailed`; all xfails
+  are strict and must be removed by B2.2 when the implementation turns them
+  green.
+- Delivery validation: `poetry run ruff check src tests`, `poetry check`,
+  `poetry build`, focused pre-commit, and `git diff --check` passed. `poetry run
+  pytest -q` reached `1145 passed, 1 skipped, 4 deselected, 19 xfailed` plus
+  the same pre-existing configured-host expectation failure in
+  `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
+
 ## Required evidence by slice
 
 ### Slice 1
