@@ -344,6 +344,34 @@ class FakeAppleRacingCallbackSDK(FakeAppleCallbackSDK):
         return session
 
 
+class FakeAppleWaitingSession(FakeAppleToolSession):
+    def __init__(
+        self,
+        instructions: str | None,
+        *,
+        tools: list[object] | tuple[object, ...] = (),
+    ) -> None:
+        super().__init__(instructions, tools=tools)
+        self.started = asyncio.Event()
+
+    async def respond(self, _prompt: str, **_kwargs: object) -> str:
+        self.started.set()
+        await asyncio.Event().wait()
+        return "answer"
+
+
+class FakeAppleWaitingSDK(FakeAppleToolSDK):
+    def LanguageModelSession(
+        self,
+        *,
+        instructions: str | None,
+        tools: list[object] | tuple[object, ...] = (),
+    ) -> FakeAppleWaitingSession:
+        session = FakeAppleWaitingSession(instructions, tools=tools)
+        self.sessions.append(session)
+        return session
+
+
 @dataclass(frozen=True)
 class FakeAppleGenerationSchema:
     generated_type: type[object]
@@ -1247,6 +1275,141 @@ def test_apple_callback_budget_caps_racing_callbacks(
     assert len(exhausted) == 1
     assert exhausted[0].payload["limit"] == 2
     assert exhausted[0].payload["claimed"] == 2
+
+
+def test_apple_callback_after_session_completion_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[dict[str, object]] = []
+    tool = _tool(
+        "send",
+        _APPLE_CALLBACK_SCHEMA,
+        handler=lambda arguments: invocations.append(dict(arguments)),
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(registry, (registry.get_tool("send"),))
+    sdk = FakeAppleCallbackSDK(((0, '{"message": "first"}'),))
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    response = asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=("send",),
+                adapter_context=context,
+            )
+        )
+    )
+
+    with pytest.raises(ProviderToolTerminalError, match="session is no longer active"):
+        asyncio.run(
+            sdk.sessions[0]
+            .tools[0]
+            .call(FakeAppleGeneratedContent('{"message": "late"}'))
+        )
+
+    assert response.content == "answer"
+    assert invocations == [{"message": "first"}]
+    assert len(context.state.tool_results) == 1
+
+
+def test_apple_callback_after_session_cancellation_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[dict[str, object]] = []
+    tool = _tool(
+        "send",
+        _APPLE_CALLBACK_SCHEMA,
+        handler=lambda arguments: invocations.append(dict(arguments)),
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(registry, (registry.get_tool("send"),))
+    sdk = FakeAppleWaitingSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    async def cancel_then_call() -> None:
+        task = asyncio.create_task(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("send",),
+                    adapter_context=context,
+                )
+            )
+        )
+        while not sdk.sessions:
+            await asyncio.sleep(0)
+        await sdk.sessions[0].started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        with pytest.raises(
+            ProviderToolTerminalError, match="session is no longer active"
+        ):
+            await (
+                sdk.sessions[0]
+                .tools[0]
+                .call(FakeAppleGeneratedContent('{"message": "late"}'))
+            )
+
+    asyncio.run(cancel_then_call())
+
+    assert invocations == []
+    assert context.state.tool_results == {}
+    assert context.state.trace_events == []
+
+
+def test_apple_cancellation_during_callback_prevents_dispatch_and_state_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    callback_started = asyncio.Event()
+    invocations: list[dict[str, object]] = []
+    tool = _tool(
+        "send",
+        _APPLE_CALLBACK_SCHEMA,
+        handler=lambda arguments: invocations.append(dict(arguments)),
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(registry, (registry.get_tool("send"),))
+    sdk = FakeAppleCallbackSDK(((0, '{"message": "hello"}'),))
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    async def pause_before_coordinate(_request: object) -> object:
+        callback_started.set()
+        await asyncio.Event().wait()
+        raise AssertionError("cancelled callback must not coordinate")
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models.coordinate_tool_invocation_async",
+        pause_before_coordinate,
+    )
+
+    async def cancel_callback() -> None:
+        task = asyncio.create_task(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("send",),
+                    adapter_context=context,
+                )
+            )
+        )
+        await callback_started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(cancel_callback())
+
+    assert invocations == []
+    assert context.state.tool_results == {}
+    assert context.state.trace_events == []
 
 
 def test_apple_callback_unresolved_approval_preserves_dar_interruption(

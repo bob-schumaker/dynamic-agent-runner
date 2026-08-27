@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -576,6 +577,156 @@ def test_unexposed_provider_tool_fails_before_decision_resolution() -> None:
         )
 
     assert decisions == []
+
+
+def test_continuation_guard_rejects_result_after_handler_before_state_write() -> None:
+    invocations: list[object] = []
+    hook_events: list[str] = []
+    active = True
+    tool = _tool("write")
+    registry = InMemoryToolRegistry([tool])
+    state = SimpleNamespace(run_id="run", tool_results={}, trace_events=[])
+    context = tool_context(
+        plan=SimpleNamespace(),
+        node=SimpleNamespace(id="node"),
+        tools=(registry.get_tool("write"),),
+        registry=registry,
+        state=state,
+        tracer=WorkflowTracer(events=state.trace_events),
+        lifecycle_hooks=WorkflowLifecycleHooks(
+            before_tool=lambda _context: hook_events.append("before"),
+            after_tool=lambda _context: hook_events.append("after"),
+        ),
+        retry_policy=RetryPolicy(),
+    )
+
+    def require_active() -> None:
+        if not active:
+            raise ToolRegistryError("Apple callback session is no longer active")
+
+    async def invoke(_prepared: object) -> ToolResult:
+        nonlocal active
+        invocations.append(True)
+        active = False
+        return ToolResult(tool_id="write", success=True, output={"ok": True})
+
+    with pytest.raises(ToolRegistryError, match="session is no longer active"):
+        asyncio.run(
+            coordinate_tool_invocation_async(
+                context.request(
+                    tool_id="write",
+                    arguments={},
+                    result_key="node.call-1",
+                    approval_reason="test",
+                    continuation_guard=require_active,
+                    invoke=invoke,
+                )
+            )
+        )
+
+    assert invocations == [True]
+    assert hook_events == ["before"]
+    assert state.tool_results == {}
+    assert [event.event_type for event in state.trace_events] == ["tool_started"]
+
+
+def test_continuation_guard_rejects_cancellation_before_handler_dispatch() -> None:
+    invocations: list[object] = []
+    active = True
+    tool = _tool("write")
+    registry = InMemoryToolRegistry([tool])
+    state = SimpleNamespace(run_id="run", tool_results={}, trace_events=[])
+
+    def require_active() -> None:
+        if not active:
+            raise ToolRegistryError("Apple callback session is no longer active")
+
+    def cancel_before_dispatch(_context: object) -> None:
+        nonlocal active
+        active = False
+
+    async def invoke(_prepared: object) -> ToolResult:
+        invocations.append(True)
+        return ToolResult(tool_id="write", success=True, output={"ok": True})
+
+    context = tool_context(
+        plan=SimpleNamespace(),
+        node=SimpleNamespace(id="node"),
+        tools=(registry.get_tool("write"),),
+        registry=registry,
+        state=state,
+        tracer=WorkflowTracer(events=state.trace_events),
+        lifecycle_hooks=WorkflowLifecycleHooks(before_tool=cancel_before_dispatch),
+        retry_policy=RetryPolicy(),
+    )
+
+    with pytest.raises(ToolRegistryError, match="session is no longer active"):
+        asyncio.run(
+            coordinate_tool_invocation_async(
+                context.request(
+                    tool_id="write",
+                    arguments={},
+                    result_key="node.call-1",
+                    approval_reason="test",
+                    continuation_guard=require_active,
+                    invoke=invoke,
+                )
+            )
+        )
+
+    assert invocations == []
+    assert state.tool_results == {}
+    assert [event.event_type for event in state.trace_events] == ["tool_started"]
+
+
+def test_result_commit_guard_rejects_closure_before_state_and_trace_writes() -> None:
+    invocations: list[object] = []
+    hook_events: list[str] = []
+    tool = _tool("write")
+    registry = InMemoryToolRegistry([tool])
+    state = SimpleNamespace(run_id="run", tool_results={}, trace_events=[])
+
+    @contextmanager
+    def closed_result_commit_guard():
+        raise ToolRegistryError("Apple callback session is no longer active")
+        yield
+
+    async def invoke(_prepared: object) -> ToolResult:
+        invocations.append(True)
+        return ToolResult(tool_id="write", success=True, output={"ok": True})
+
+    context = tool_context(
+        plan=SimpleNamespace(),
+        node=SimpleNamespace(id="node"),
+        tools=(registry.get_tool("write"),),
+        registry=registry,
+        state=state,
+        tracer=WorkflowTracer(events=state.trace_events),
+        lifecycle_hooks=WorkflowLifecycleHooks(
+            before_tool=lambda _context: hook_events.append("before"),
+            after_tool=lambda _context: hook_events.append("after"),
+        ),
+        retry_policy=RetryPolicy(),
+    )
+
+    with pytest.raises(ToolRegistryError, match="session is no longer active"):
+        asyncio.run(
+            coordinate_tool_invocation_async(
+                context.request(
+                    tool_id="write",
+                    arguments={},
+                    result_key="node.call-1",
+                    approval_reason="test",
+                    result_commit_guard=closed_result_commit_guard,
+                    invoke=invoke,
+                )
+            )
+        )
+
+    assert invocations == [True]
+    assert hook_events == ["before"]
+    assert state.tool_results == {}
+    assert [event.event_type for event in state.trace_events] == ["tool_started"]
 
 
 async def _record_result(invoked: list[object]) -> ToolResult:

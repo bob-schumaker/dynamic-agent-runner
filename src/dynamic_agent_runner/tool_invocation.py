@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum
 from hashlib import sha256
@@ -333,6 +334,8 @@ class ActiveAdapterToolContext:
         action_id: str | None = None,
         emit_tool_invocation: bool = False,
         guardrail_runner: Callable[[PreparedToolInvocation], None] | None = None,
+        continuation_guard: Callable[[], None] | None = None,
+        result_commit_guard: Callable[[], AbstractContextManager[None]] | None = None,
     ) -> ToolInvocationRequest:
         """Bind one trusted provider or executor tool call to this context."""
 
@@ -346,6 +349,8 @@ class ActiveAdapterToolContext:
             action_id=action_id,
             emit_tool_invocation=emit_tool_invocation,
             guardrail_runner=guardrail_runner,
+            continuation_guard=continuation_guard,
+            result_commit_guard=result_commit_guard,
         )
 
 
@@ -362,6 +367,8 @@ class ToolInvocationRequest:
     action_id: str | None = None
     emit_tool_invocation: bool = False
     guardrail_runner: Callable[[PreparedToolInvocation], None] | None = None
+    continuation_guard: Callable[[], None] | None = None
+    result_commit_guard: Callable[[], AbstractContextManager[None]] | None = None
 
 
 def tool_context(
@@ -406,6 +413,7 @@ async def coordinate_tool_invocation_async(
     context = request.context
     tool = context.tool_for_id(request.tool_id)
     context.require_current_tool(tool)
+    _require_request_continuation(request)
     prepared: PreparedToolInvocation | None = None
     if request.guardrail_runner is not None:
         prepared = context.registry.prepare_tool_invocation(tool.id, request.arguments)
@@ -484,27 +492,30 @@ async def coordinate_tool_invocation_async(
         ),
     )
     context.require_current_tool(tool)
+    _require_request_continuation(request)
     result = await request.invoke(prepared)
-    context.state.tool_results[request.result_key] = result
-    trace_payload = result.trace_payload()
-    if request.action_id is not None:
-        trace_payload = {"tool_call_id": request.action_id, **trace_payload}
-    context.tracer.emit(
-        "tool_result",
-        node_id=str(context.node.id),
-        payload=trace_payload,
-        sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
-    )
-    finished_payload = {
-        "tool_id": tool.id,
-        "success": result.success,
-        "error": result.error,
-    }
-    if request.action_id is not None:
-        finished_payload["tool_call_id"] = request.action_id
-    context.tracer.emit(
-        "tool_finished", node_id=str(context.node.id), payload=finished_payload
-    )
+    _require_request_continuation(request)
+    with _request_result_commit_guard(request):
+        context.state.tool_results[request.result_key] = result
+        trace_payload = result.trace_payload()
+        if request.action_id is not None:
+            trace_payload = {"tool_call_id": request.action_id, **trace_payload}
+        context.tracer.emit(
+            "tool_result",
+            node_id=str(context.node.id),
+            payload=trace_payload,
+            sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
+        )
+        finished_payload = {
+            "tool_id": tool.id,
+            "success": result.success,
+            "error": result.error,
+        }
+        if request.action_id is not None:
+            finished_payload["tool_call_id"] = request.action_id
+        context.tracer.emit(
+            "tool_finished", node_id=str(context.node.id), payload=finished_payload
+        )
     await invoke_lifecycle_hook_async(
         (
             context.lifecycle_hooks.registered_hook("after_tool")
@@ -521,6 +532,23 @@ async def coordinate_tool_invocation_async(
         ),
     )
     return result
+
+
+def _require_request_continuation(request: ToolInvocationRequest) -> None:
+    """Require that a provider callback's owning session is still active."""
+
+    if request.continuation_guard is not None:
+        request.continuation_guard()
+
+
+def _request_result_commit_guard(
+    request: ToolInvocationRequest,
+) -> AbstractContextManager[None]:
+    """Return the optional atomic guard for result state and trace finalization."""
+
+    if request.result_commit_guard is None:
+        return nullcontext()
+    return request.result_commit_guard()
 
 
 def _emit_approval_interruption(

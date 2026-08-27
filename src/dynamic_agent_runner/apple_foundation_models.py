@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 import asyncio
 import importlib
 import json
 import keyword
 import sys
+from threading import Lock
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -117,7 +119,8 @@ class _AppleResponsesResource:
 
         _require_macos()
         sdk = _load_sdk() if self._config.availability_checker is None else None
-        wrappers = _apple_tool_wrappers(request, sdk)
+        callback_session = _AppleCallbackSessionState()
+        wrappers = _apple_tool_wrappers(request, sdk, callback_session)
         _validate_request(request, tool_bridge_active=bool(wrappers))
         available, reason = _check_availability(self._config, sdk)
         if not available:
@@ -155,6 +158,8 @@ class _AppleResponsesResource:
             raise ModelExecutionError(
                 "Apple Foundation Models generation failed"
             ) from exc
+        finally:
+            callback_session.close()
         content = (
             result.to_json()
             if schema is not None and hasattr(result, "to_json")
@@ -173,6 +178,7 @@ class _AppleResponsesResource:
 def _apple_tool_wrappers(
     request: OpenAIModelRequest,
     sdk: Any | None,
+    callback_session: "_AppleCallbackSessionState",
 ) -> tuple[object, ...]:
     """Translate the trusted active DAR tool snapshot into Apple SDK wrappers."""
 
@@ -203,6 +209,7 @@ def _apple_tool_wrappers(
                 sdk,
                 context=context,
                 callback_budget=callback_budget,
+                callback_session=callback_session,
                 tool_id=tool.id,
                 name=f"dar_tool_{index}",
                 description=_apple_tool_description(tool.definition.raw, tool.id),
@@ -250,6 +257,7 @@ def _apple_tool_wrapper(
     *,
     context: ActiveAdapterToolContext,
     callback_budget: ProviderCallbackBudget,
+    callback_session: "_AppleCallbackSessionState",
     tool_id: str,
     name: str,
     description: str,
@@ -260,6 +268,7 @@ def _apple_tool_wrapper(
     async def call(_self: object, arguments: object) -> str:
         try:
             action_id = f"apple-{uuid4().hex}"
+            callback_session.require_active()
             if not callback_budget.claim():
                 await _emit_apple_callback_budget_exhausted(
                     context,
@@ -279,6 +288,8 @@ def _apple_tool_wrapper(
                 action_id=action_id,
                 approval_reason=f"Apple tool {tool_id!r} requires approval",
                 guardrail_runner=guardrail_runner,
+                continuation_guard=callback_session.require_active,
+                result_commit_guard=callback_session.result_commit_guard,
                 invoke=lambda prepared: _invoke_apple_tool_async(
                     context,
                     tool_id,
@@ -319,6 +330,36 @@ def _apple_tool_wrapper(
         },
     )
     return wrapper_type()
+
+
+class _AppleCallbackSessionState:
+    """Thread-safe liveness guard for callbacks owned by one Apple response."""
+
+    def __init__(self) -> None:
+        self._active = True
+        self._lock = Lock()
+
+    def close(self) -> None:
+        """Prevent any later callback from entering or completing DAR work."""
+
+        with self._lock:
+            self._active = False
+
+    def require_active(self) -> None:
+        """Fail closed once the owning Apple response has completed or cancelled."""
+
+        with self._lock:
+            if not self._active:
+                raise ToolRegistryError("Apple callback session is no longer active")
+
+    @contextmanager
+    def result_commit_guard(self):
+        """Keep closure from racing DAR's result-state and trace finalization."""
+
+        with self._lock:
+            if not self._active:
+                raise ToolRegistryError("Apple callback session is no longer active")
+            yield
 
 
 def _apple_callback_budget(context: ActiveAdapterToolContext) -> ProviderCallbackBudget:
