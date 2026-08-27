@@ -190,7 +190,7 @@ def test_snapshot_detects_tool_or_input_schema_drift(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("input_schema", "expected_status"),
+    ("input_schema", "expected_mode"),
     [
         (
             {
@@ -199,7 +199,7 @@ def test_snapshot_detects_tool_or_input_schema_drift(tmp_path: Path) -> None:
                 "required": ["query"],
                 "additionalProperties": False,
             },
-            "admissible",
+            "direct",
         ),
         (
             {
@@ -208,12 +208,12 @@ def test_snapshot_detects_tool_or_input_schema_drift(tmp_path: Path) -> None:
                 "required": ["query"],
                 "additionalProperties": True,
             },
-            "blocked",
+            "gateway",
         ),
     ],
 )
 def test_snapshot_preflights_one_current_reviewed_apple_tool_without_retaining_schema(
-    tmp_path: Path, input_schema: dict[str, object], expected_status: str
+    tmp_path: Path, input_schema: dict[str, object], expected_mode: str
 ) -> None:
     control, connection_id, authentication_id = _control(tmp_path)
     tools = [
@@ -244,7 +244,7 @@ def test_snapshot_preflights_one_current_reviewed_apple_tool_without_retaining_s
     )
 
     assert receipt.tool_set_digest == snapshot.tool_set_digest
-    assert receipt.status == expected_status
+    assert receipt.mode == expected_mode
     assert "query" not in repr(receipt)
     assert client.list_tools_calls == 1
 

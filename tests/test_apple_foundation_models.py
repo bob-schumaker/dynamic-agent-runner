@@ -88,9 +88,7 @@ def test_package_root_exports_apple_preflight() -> None:
     )
 
 
-def test_apple_tool_schema_preflight_returns_only_a_redacted_admissible_receipt() -> (
-    None
-):
+def test_apple_tool_schema_preflight_classifies_a_direct_schema() -> None:
     receipt = preflight_apple_tool_schema(
         {
             "type": "object",
@@ -101,11 +99,13 @@ def test_apple_tool_schema_preflight_returns_only_a_redacted_admissible_receipt(
         sdk=FakeAppleToolSDK(),
     )
 
-    assert receipt.status == "admissible"
+    assert receipt.mode == "direct"
     assert "query" not in repr(receipt)
 
 
-def test_apple_tool_schema_preflight_blocks_without_creating_a_session() -> None:
+def test_apple_tool_schema_preflight_classifies_an_ordinary_schema_for_gateway() -> (
+    None
+):
     sdk = FakeAppleToolSDK()
 
     receipt = preflight_apple_tool_schema(
@@ -118,7 +118,23 @@ def test_apple_tool_schema_preflight_blocks_without_creating_a_session() -> None
         sdk=sdk,
     )
 
-    assert receipt.status == "blocked"
+    assert receipt.mode == "gateway"
+    assert "query" not in repr(receipt)
+    assert sdk.sessions == []
+
+
+def test_apple_tool_schema_preflight_blocks_an_invalid_json_schema() -> None:
+    sdk = FakeAppleToolSDK()
+
+    receipt = preflight_apple_tool_schema(
+        {
+            "type": "not-a-json-schema-type",
+            "properties": {"query": {"type": "string"}},
+        },
+        sdk=sdk,
+    )
+
+    assert receipt.mode == "blocked"
     assert "query" not in repr(receipt)
     assert sdk.sessions == []
 

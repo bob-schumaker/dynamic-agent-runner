@@ -60,7 +60,7 @@ class MCPAppleToolSchemaPreflight:
     """Redacted Apple schema result bound to one current reviewed surface."""
 
     tool_set_digest: str
-    status: str
+    mode: str
 
 
 class CurrentMCPSurfaceClient(Protocol):
@@ -266,7 +266,7 @@ class MCPSurfaceSnapshotControlPlane:
         receipt = preflight_apple_tool_schema(tool.input_schema, sdk=sdk)
         return MCPAppleToolSchemaPreflight(
             tool_set_digest=snapshot.tool_set_digest,
-            status=receipt.status,
+            mode=receipt.mode,
         )
 
 

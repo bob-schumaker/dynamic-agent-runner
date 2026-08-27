@@ -14,6 +14,9 @@ from threading import Lock
 from typing import Annotated, Any
 from uuid import uuid4
 
+from jsonschema import SchemaError
+from jsonschema.validators import validator_for
+
 from dynamic_agent_runner.errors import (
     GuardrailExecutionError,
     ModelExecutionError,
@@ -67,9 +70,9 @@ class AppleFoundationModelConfig:
 
 @dataclass(frozen=True)
 class AppleToolSchemaPreflight:
-    """Redacted Apple-tool schema admissibility result."""
+    """Redacted Apple-tool schema mode for one current tool definition."""
 
-    status: str
+    mode: str
 
 
 def create_apple_foundation_model_async_adapter(
@@ -104,7 +107,7 @@ def preflight_apple_foundation_models(
 def preflight_apple_tool_schema(
     schema: Mapping[str, Any], *, sdk: Any | None = None
 ) -> AppleToolSchemaPreflight:
-    """Translate one in-memory tool schema without creating a model session."""
+    """Classify one in-memory schema without creating an Apple session."""
 
     if not isinstance(schema, Mapping):
         raise ModelExecutionError("Apple tool preflight schema is invalid")
@@ -115,8 +118,20 @@ def preflight_apple_tool_schema(
             type_name="DarPreflightArguments",
         )
     except ModelExecutionError:
-        return AppleToolSchemaPreflight(status="blocked")
-    return AppleToolSchemaPreflight(status="admissible")
+        if _is_gateway_schema(schema):
+            return AppleToolSchemaPreflight(mode="gateway")
+        return AppleToolSchemaPreflight(mode="blocked")
+    return AppleToolSchemaPreflight(mode="direct")
+
+
+def _is_gateway_schema(schema: Mapping[str, Any]) -> bool:
+    """Return whether jsonschema accepts an otherwise non-direct tool schema."""
+
+    try:
+        validator_for(schema).check_schema(schema)
+    except SchemaError:
+        return False
+    return True
 
 
 class AppleFoundationModelAsyncAdapter(AsyncOpenAIClientAdapter):
