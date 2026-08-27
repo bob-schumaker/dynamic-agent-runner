@@ -72,6 +72,11 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - [x] T6.4 Check spec links/status consistency and update `specs/README.md`.
 - [x] T6.5 Record the approved A2 handoff and the native SDK validation result.
 - [ ] T6.6 Resolve or replace the pytest-native Apple SDK harness before using it as a release gate.
+- [ ] T6.7 Decide the configured-host MCP ``tools/list`` contract and restore a
+      green full-suite gate: either hide execution tools without an explicit
+      host or update the stale empty-list expectation to the intended
+      ``run_dar_workflow`` behavior. Record the decision, add focused coverage,
+      and rerun the full suite.
 
 ## A2 handoff
 
