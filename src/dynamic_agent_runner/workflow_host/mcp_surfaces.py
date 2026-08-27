@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import MappingProxyType
-from typing import Iterable, Mapping, Protocol
+from typing import Any, Iterable, Mapping, Protocol
 
 from dynamic_agent_runner.workflow_host.connections import (
     MCPConnectionControlPlane,
@@ -53,6 +53,14 @@ class MCPSurfaceSnapshot:
             for name, side_effect in self.tool_side_effects.items()
             if side_effect == "read"
         )
+
+
+@dataclass(frozen=True)
+class MCPAppleToolSchemaPreflight:
+    """Redacted Apple schema result bound to one current reviewed surface."""
+
+    tool_set_digest: str
+    status: str
 
 
 class CurrentMCPSurfaceClient(Protocol):
@@ -234,6 +242,32 @@ class MCPSurfaceSnapshotControlPlane:
             raise MCPSurfaceSnapshotError("surface_changed")
         tools = client.list_tools()
         return self.verify_current(snapshot_id, tools), tools
+
+    def preflight_apple_reviewed_tool_schema(
+        self,
+        snapshot_id: str,
+        client: CurrentMCPSurfaceClient,
+        *,
+        tool_name: str,
+        sdk: Any | None = None,
+    ) -> MCPAppleToolSchemaPreflight:
+        """Translate one current reviewed read-only schema without dispatching it."""
+
+        snapshot, tools = self.verify_reconnected_client_tools(snapshot_id, client)
+        if snapshot.tool_side_effects.get(tool_name) != "read":
+            raise MCPSurfaceSnapshotError("tool is not approved for read-only use")
+        tool = next((item for item in tools if item.name == tool_name), None)
+        if tool is None:
+            raise MCPSurfaceSnapshotError("reviewed tool is unavailable")
+        from dynamic_agent_runner.apple_foundation_models import (
+            preflight_apple_tool_schema,
+        )
+
+        receipt = preflight_apple_tool_schema(tool.input_schema, sdk=sdk)
+        return MCPAppleToolSchemaPreflight(
+            tool_set_digest=snapshot.tool_set_digest,
+            status=receipt.status,
+        )
 
 
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")

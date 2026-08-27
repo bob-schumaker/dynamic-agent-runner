@@ -65,6 +65,13 @@ class AppleFoundationModelConfig:
         object.__setattr__(self, "model_aliases", aliases)
 
 
+@dataclass(frozen=True)
+class AppleToolSchemaPreflight:
+    """Redacted Apple-tool schema admissibility result."""
+
+    status: str
+
+
 def create_apple_foundation_model_async_adapter(
     config: AppleFoundationModelConfig | None = None,
 ):
@@ -92,6 +99,24 @@ def preflight_apple_foundation_models(
         raise ModelExecutionError(
             f"Apple Foundation Models are unavailable: {reason or 'unknown reason'}"
         )
+
+
+def preflight_apple_tool_schema(
+    schema: Mapping[str, Any], *, sdk: Any | None = None
+) -> AppleToolSchemaPreflight:
+    """Translate one in-memory tool schema without creating a model session."""
+
+    if not isinstance(schema, Mapping):
+        raise ModelExecutionError("Apple tool preflight schema is invalid")
+    try:
+        _apple_generated_object_type(
+            schema,
+            sdk or _load_sdk(),
+            type_name="DarPreflightArguments",
+        )
+    except ModelExecutionError:
+        return AppleToolSchemaPreflight(status="blocked")
+    return AppleToolSchemaPreflight(status="admissible")
 
 
 class AppleFoundationModelAsyncAdapter(AsyncOpenAIClientAdapter):

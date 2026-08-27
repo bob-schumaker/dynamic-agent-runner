@@ -19,6 +19,7 @@ from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
     create_apple_foundation_model_async_adapter,
     preflight_apple_foundation_models,
+    preflight_apple_tool_schema,
 )
 from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
 from dynamic_agent_runner.registry import (
@@ -85,6 +86,41 @@ def test_package_root_exports_apple_preflight() -> None:
     assert dynamic_agent_runner.preflight_apple_foundation_models is (
         preflight_apple_foundation_models
     )
+
+
+def test_apple_tool_schema_preflight_returns_only_a_redacted_admissible_receipt() -> (
+    None
+):
+    receipt = preflight_apple_tool_schema(
+        {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+        sdk=FakeAppleToolSDK(),
+    )
+
+    assert receipt.status == "admissible"
+    assert "query" not in repr(receipt)
+
+
+def test_apple_tool_schema_preflight_blocks_without_creating_a_session() -> None:
+    sdk = FakeAppleToolSDK()
+
+    receipt = preflight_apple_tool_schema(
+        {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+            "additionalProperties": True,
+        },
+        sdk=sdk,
+    )
+
+    assert receipt.status == "blocked"
+    assert "query" not in repr(receipt)
+    assert sdk.sessions == []
 
 
 def test_non_darwin_generation_fails_before_sdk_import(

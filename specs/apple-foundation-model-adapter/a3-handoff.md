@@ -4,7 +4,10 @@
 ## Status
 
 The Apple Foundation Models sealed-host integration is complete through C3.
-C4 validation and the gated Fastmail O7 continuation are next.
+C4 validation and the gated Fastmail O7 continuation are next. C4.3 now has a
+fake-tested, reconnect-compatible, redacted schema-preflight seam; a
+human-authorized eligible-Mac Fastmail receipt remains required before it can
+be marked complete.
 
 ## Completed commits
 

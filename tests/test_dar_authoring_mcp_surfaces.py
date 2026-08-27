@@ -35,15 +35,28 @@ class MemorySecretStore:
 
 class ReconnectedClient:
     def __init__(
-        self, connection_id: str, authentication_id: str, tools: list[MCPDiscoveredTool]
+        self,
+        connection_id: str,
+        authentication_id: str,
+        tools: list[MCPDiscoveredTool],
+        *,
+        generation: int = 2,
     ) -> None:
         self.connection_id = connection_id
         self.authentication_id = authentication_id
-        self.current_generation = 2
+        self.current_generation = generation
         self._tools = tuple(tools)
+        self.list_tools_calls = 0
 
     def list_tools(self) -> tuple[MCPDiscoveredTool, ...]:
+        self.list_tools_calls += 1
         return self._tools
+
+
+class FakeAppleSchemaSDK:
+    @staticmethod
+    def generable(_description: str):
+        return lambda generated_type: generated_type
 
 
 def _control(
@@ -174,6 +187,66 @@ def test_snapshot_detects_tool_or_input_schema_drift(tmp_path: Path) -> None:
 
     with pytest.raises(MCPSurfaceSnapshotError, match="surface_changed"):
         control.verify_current(snapshot.snapshot_id, changed)
+
+
+@pytest.mark.parametrize(
+    ("input_schema", "expected_status"),
+    [
+        (
+            {
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"],
+                "additionalProperties": False,
+            },
+            "admissible",
+        ),
+        (
+            {
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"],
+                "additionalProperties": True,
+            },
+            "blocked",
+        ),
+    ],
+)
+def test_snapshot_preflights_one_current_reviewed_apple_tool_without_retaining_schema(
+    tmp_path: Path, input_schema: dict[str, object], expected_status: str
+) -> None:
+    control, connection_id, authentication_id = _control(tmp_path)
+    tools = [
+        MCPDiscoveredTool(
+            name="search_email",
+            input_schema=input_schema,
+        )
+    ]
+    snapshot = control.create(
+        connection_id=connection_id,
+        authentication_id=authentication_id,
+        connection_generation=1,
+        tools=tools,
+        approved_read_only_tool_names={"search_email"},
+    )
+    client = ReconnectedClient(
+        connection_id,
+        authentication_id,
+        tools,
+        generation=2,
+    )
+
+    receipt = control.preflight_apple_reviewed_tool_schema(
+        snapshot.snapshot_id,
+        client,
+        tool_name="search_email",
+        sdk=FakeAppleSchemaSDK(),
+    )
+
+    assert receipt.tool_set_digest == snapshot.tool_set_digest
+    assert receipt.status == expected_status
+    assert "query" not in repr(receipt)
+    assert client.list_tools_calls == 1
 
 
 def test_snapshot_revalidates_same_identity_reconnect_but_rejects_schema_drift(

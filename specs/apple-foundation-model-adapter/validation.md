@@ -3,6 +3,28 @@
 
 Status: A1 and A2 implementation, documentation, and B4 validation complete; full test suite green
 
+## A3 C4.3 Fastmail-schema preflight readiness — 2026-08-27
+
+- RED: no host-owned operation could prove that the current reviewed MCP
+  schema would translate into an Apple wrapper without creating a model session
+  or dispatching the tool.
+- GREEN: a reconnect-compatible reviewed-surface preflight performs one
+  `tools/list` revalidation, requires the named tool to remain human-approved
+  read-only, translates its schema only in memory through the same Apple
+  wrapper translator, and returns only the full-surface digest and
+  `admissible` or `blocked`. It retains no raw schema and creates neither
+  an Apple model session nor a tool dispatch.
+- Fake coverage proves admissible and blocked schemas, redacted receipt
+  representations, one reconnected-surface lookup, and no Apple session. No
+  OAuth, Fastmail, Apple live model, or mailbox call was made.
+- Validation: `poetry run pytest tests/test_apple_foundation_models.py
+  tests/test_dar_authoring_mcp_surfaces.py -q` — 73 passed; the full suite,
+  Ruff, package check, and focused pre-commit remain required before C4.1 is
+  recorded.
+- C4.3 is not yet checked: its required human-authorized eligible-Mac run must
+  supply Fastmail's current `search_email` surface, retain only the redacted
+  receipt, and block O7 unless the receipt is admissible.
+
 ## A3 C3 Apple callbacks through host-owned MCP binding — 2026-08-27
 
 - RED: a fake Apple sealed-host write callback reached the reviewed
