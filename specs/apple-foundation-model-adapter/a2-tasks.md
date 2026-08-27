@@ -38,9 +38,13 @@ fixed decisions in `a2-plan.md`.
 
 ## B1 — Provider ingress contract
 
-- [ ] B1.1 [tests] Add RED parity tests before extracting the executor-private
-      coordinator, including direct/model-loop behavior and provider-origin
-      request correlation.
+- [x] B1.1 [tests] Add passing characterization tests before extracting the
+      executor-private coordinator. Cover common direct/model-loop dispatch
+      behavior plus direct result-key and model-loop continuation ownership,
+      then preserve provider-origin model call-id correlation across multiple
+      calls. Existing direct-retry and model-loop-failure tests remain coverage
+      for their respective paths. The non-wire provider ingress request itself
+      is B1.2 work; its wire exclusion is B1.3 RED coverage.
 - [ ] B1.2 [implementation] Extract a dependency-light internal coordinator,
       migrate existing callers, and define the non-wire active adapter context.
 - [ ] B1.3 [tests] Prove non-Apple wire kwargs/traces contain no adapter context

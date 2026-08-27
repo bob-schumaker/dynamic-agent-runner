@@ -112,6 +112,26 @@ the restored-environment B0 result is investigated.
   `asyncio.iscoroutinefunction` warning and ignored teardown deallocator error;
   neither changed the successful callback assertions.
 
+## A2 B1.1 coordinator characterization — 2026-08-26
+
+- Added passing characterization coverage before B1.2 extraction. This is not a
+  RED/GREEN implementation slice: the existing private coordinator already
+  serves both executor paths, and the tests freeze its observable contract.
+- Direct `tool_use_step` coverage proves normalized prepared arguments,
+  `before_tool` → handler → `after_tool` order, direct result and node-output
+  ownership, a fixed run id, and the absence of a provider call id.
+- The model-loop coverage issues two distinct provider call ids and proves each
+  remains bound to its own normalized arguments, lifecycle traces, result key,
+  result output, and final model continuation.
+- `poetry run pytest tests/test_executor.py -q` — `143 passed`.
+- Ruff, pre-commit, and `git diff --check` passed for the B1.1 files.
+- `poetry run pytest -q` produced `1125 passed, 1 skipped, 4 deselected`, plus
+  the pre-existing unrelated MCP-server expectation failure in
+  `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
+- Council, runtime, and ponytail review found no remaining P0/P1 issue. B1.2
+  remains responsible for the dependency-light provider ingress request; B1.3
+  owns wire-context exclusion tests.
+
 ## Required evidence by slice
 
 ### Slice 1

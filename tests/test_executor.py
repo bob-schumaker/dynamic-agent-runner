@@ -4164,6 +4164,96 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     }
 
 
+def test_execute_workflow_keeps_provider_tool_call_correlations_separate() -> None:
+    """Provider-origin call ids must remain bound to their own results and traces."""
+
+    calls: list[object] = []
+    result = execute_workflow(
+        loop_tool_workflow(),
+        prompt="Run",
+        tool_registry=InMemoryToolRegistry(
+            [
+                RegisteredTool(
+                    ToolDefinition.from_mapping({"id": "search_repo"}),
+                    lambda arguments: (
+                        calls.append(arguments) or {"summary": arguments["query"]}
+                    ),
+                )
+            ]
+        ),
+        model_adapter=make_adapter(
+            [
+                {
+                    "id": "response-1",
+                    "output": [
+                        {
+                            "type": "function_call",
+                            "call_id": "provider-call-a",
+                            "name": "search_repo",
+                            "arguments": '{"query":"first"}',
+                        }
+                    ],
+                },
+                {
+                    "id": "response-2",
+                    "output": [
+                        {
+                            "type": "function_call",
+                            "call_id": "provider-call-b",
+                            "name": "search_repo",
+                            "arguments": '{"query":"second"}',
+                        }
+                    ],
+                },
+                {"id": "response-3", "output_text": "done"},
+            ]
+        ),
+        run_id="provider-run",
+    )
+
+    assert calls == [{"query": "first"}, {"query": "second"}]
+    assert result.final_result == "done"
+    assert result.state.tool_results["analyze.provider-call-a"].model_facing_output == {
+        "summary": "first"
+    }
+    assert result.state.tool_results["analyze.provider-call-b"].model_facing_output == {
+        "summary": "second"
+    }
+    for call_id, query in (
+        ("provider-call-a", "first"),
+        ("provider-call-b", "second"),
+    ):
+        loop_events = [
+            event
+            for event in result.state.trace_events
+            if event.event_type == "model_tool_loop_tool_call"
+            and event.payload.get("tool_call_id") == call_id
+        ]
+        correlated_events = [
+            event
+            for event in result.state.trace_events
+            if event.event_type in {"tool_started", "tool_result", "tool_finished"}
+            and event.payload.get("tool_call_id") == call_id
+        ]
+        assert len(loop_events) == 1
+        assert loop_events[0].payload["tool_id"] == "search_repo"
+        assert loop_events[0].payload["arguments"] == {"query": query}
+        assert [event.event_type for event in correlated_events] == [
+            "tool_started",
+            "tool_result",
+            "tool_finished",
+        ]
+        assert {event.run_id for event in correlated_events} == {"provider-run"}
+        assert {event.node_id for event in correlated_events} == {"analyze"}
+        assert {event.payload["tool_id"] for event in correlated_events} == {
+            "search_repo"
+        }
+        result_event = next(
+            event for event in correlated_events if event.event_type == "tool_result"
+        )
+        assert result_event.payload["output"] == {"summary": query}
+
+
 def test_execute_workflow_renders_chatgpt_codex_tool_loop_follow_up_items() -> None:
     workflow = loop_tool_workflow()
     registry = InMemoryToolRegistry(
@@ -6690,6 +6780,7 @@ def tool_input_guardrail_workflow(
 def test_execute_workflow_runs_tool_input_guardrail_after_validation() -> None:
     observed_subjects: list[object] = []
     observed_handler_arguments: list[object] = []
+    invocation_order: list[str] = []
 
     def guardrail(subject: object) -> GuardrailResult:
         observed_subjects.append(deepcopy(subject))
@@ -6702,7 +6793,9 @@ def test_execute_workflow_runs_tool_input_guardrail_after_validation() -> None:
             RegisteredTool(
                 ToolDefinition.from_mapping({"id": "search_repo"}),
                 lambda arguments: (
-                    observed_handler_arguments.append(arguments) or {"ok": True}
+                    observed_handler_arguments.append(arguments)
+                    or invocation_order.append("handler")
+                    or {"ok": True}
                 ),
             )
         ]
@@ -6713,6 +6806,11 @@ def test_execute_workflow_runs_tool_input_guardrail_after_validation() -> None:
         prompt="Run",
         tool_registry=registry,
         guardrail_registry=InMemoryGuardrailRegistry({"safe_tool_args": guardrail}),
+        lifecycle_hooks=WorkflowLifecycleHooks(
+            before_tool=lambda _context: invocation_order.append("before_tool"),
+            after_tool=lambda _context: invocation_order.append("after_tool"),
+        ),
+        run_id="direct-tool-run",
     )
 
     assert observed_subjects == [
@@ -6724,7 +6822,10 @@ def test_execute_workflow_runs_tool_input_guardrail_after_validation() -> None:
         }
     ]
     assert observed_handler_arguments == [{"query": {"terms": ["agents"]}}]
+    assert invocation_order == ["before_tool", "handler", "after_tool"]
     assert result.final_result == {"ok": True}
+    assert result.state.tool_results["lookup"].model_facing_output == {"ok": True}
+    assert result.state.node_outputs["lookup"].model_facing_output == {"ok": True}
     assert [event.event_type for event in result.state.trace_events] == [
         "workflow_started",
         "node_started",
@@ -6738,6 +6839,14 @@ def test_execute_workflow_runs_tool_input_guardrail_after_validation() -> None:
         "node_completed",
         "workflow_completed",
     ]
+    direct_tool_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type
+        in {"tool_started", "tool_invocation", "tool_result", "tool_finished"}
+    ]
+    assert {event.run_id for event in direct_tool_events} == {"direct-tool-run"}
+    assert all("tool_call_id" not in event.payload for event in direct_tool_events)
 
 
 def test_execute_workflow_aborts_tool_input_guardrail_before_approval_or_tool_hooks() -> (
