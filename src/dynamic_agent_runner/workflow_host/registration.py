@@ -128,7 +128,10 @@ class WorkflowRegistrationService:
     def _validate_profile(
         self, policy: WorkflowPolicy, profile: LocalModelProfile
     ) -> None:
-        if profile.adapter_id != "strict-local-adapter-v1":
+        if profile.adapter_id not in {
+            "strict-local-adapter-v1",
+            "apple-foundation-models-adapter-v1",
+        }:
             raise WorkflowRegistrationError("configured adapter is not strict local")
         if profile.profile_requirement != policy.model_profile_requirement:
             raise WorkflowRegistrationError(

@@ -222,6 +222,9 @@ def _runner(
     *,
     local: bool = True,
     async_adapter: bool = False,
+    active_profile_id: str | None = None,
+    active_apple_profile: bool = False,
+    package_model: str = "local-model",
     terminal_required_field: str = "message",
     artifact_verifier: object | None = None,
 ):
@@ -229,6 +232,8 @@ def _runner(
     shutil.copytree(TEMPLATE_ROOT, source)
     runtime_path = source / "agent-runtime.yaml"
     runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
+    runtime["runtime"]["execution_policy"]["model"] = package_model
+    runtime["nodes"][0]["model"] = package_model
     runtime["output_contracts"][0]["required_fields"] = [terminal_required_field]
     runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
@@ -261,6 +266,8 @@ def _runner(
             policy, available_capabilities={"local_model"}
         ),
     )
+    if active_apple_profile:
+        active_profile_id = profiles.create_apple(model_id=profile.model_id).profile_id
     preparation = WorkflowInvocationPreparationService(
         registrations=registrations,
         catalog=catalog,
@@ -287,6 +294,7 @@ def _runner(
             catalog=catalog,
             preparation=preparation,
             model_adapter=adapter,
+            configured_profile_id=active_profile_id or profile.profile_id,
         ),
         preparation,
         registration,
@@ -544,6 +552,7 @@ def _tool_runner(
             catalog=catalog,
             preparation=preparation,
             model_adapter=adapter,
+            configured_profile_id=profile.profile_id,
             mcp_bindings=mcp_bindings,
             mcp_client=mcp_client,
             mcp_surfaces=surfaces,
@@ -972,6 +981,60 @@ def test_runner_rejects_hosted_adapter_before_consuming_input(tmp_path: Path) ->
         ).prompt
         == "Answer me."
     )
+    assert client.responses.calls == []
+
+
+def test_runner_rejects_same_alias_cross_profile_before_consuming_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.preflight_apple_foundation_models",
+        lambda: None,
+    )
+    runner, preparation, registration, _, client = _runner(
+        tmp_path, active_apple_profile=True
+    )
+    prepared = preparation.prepare(
+        workflow_id="document-helper", prompt="Answer me.", now=NOW
+    )
+    request = RunDarWorkflowRequest.from_mapping(
+        {
+            "format_version": 1,
+            "workflow_id": "document-helper",
+            "prepared_input_id": prepared.prepared_input_id,
+        }
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="configured profile"):
+        runner.run(request, now=NOW)
+
+    assert (
+        preparation.load(
+            prepared.prepared_input_id, registration=registration, now=NOW
+        ).prompt
+        == "Answer me."
+    )
+    assert client.responses.calls == []
+
+
+def test_runner_uses_strict_coverage_before_model_fallback(tmp_path: Path) -> None:
+    runner, preparation, _, _, client = _runner(
+        tmp_path, package_model="unadvertised-local-model"
+    )
+    prepared = preparation.prepare(
+        workflow_id="document-helper", prompt="Answer me.", now=NOW
+    )
+    request = RunDarWorkflowRequest.from_mapping(
+        {
+            "format_version": 1,
+            "workflow_id": "document-helper",
+            "prepared_input_id": prepared.prepared_input_id,
+        }
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="DAR workflow execution failed"):
+        runner.run(request, now=NOW)
+
     assert client.responses.calls == []
 
 

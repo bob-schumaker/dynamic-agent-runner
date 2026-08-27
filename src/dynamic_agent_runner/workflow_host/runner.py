@@ -12,7 +12,10 @@ from dynamic_agent_runner import (
     load_agent_package_workflow,
     run_agent_workflow,
 )
-from dynamic_agent_runner.openai_client import OpenAIClientAdapter
+from dynamic_agent_runner.openai_client import (
+    AsyncOpenAIClientAdapter,
+    OpenAIClientAdapter,
+)
 
 from dynamic_agent_runner.workflow_host.action_ledger import WorkflowActionLedger
 from dynamic_agent_runner.workflow_host.argument_provenance import (
@@ -123,7 +126,8 @@ class WorkflowRunner:
         registrations: WorkflowRegistrationService,
         catalog: PackageCatalog,
         preparation: WorkflowInvocationPreparationService,
-        model_adapter: OpenAIClientAdapter,
+        model_adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter,
+        configured_profile_id: str,
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
         mcp_client: AuthorizedMCPToolClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
@@ -134,6 +138,7 @@ class WorkflowRunner:
         self._catalog = catalog
         self._preparation = preparation
         self._model_adapter = model_adapter
+        self._configured_profile_id = configured_profile_id
         self._mcp_bindings = mcp_bindings
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
@@ -180,6 +185,7 @@ class WorkflowRunner:
                 model_adapter=self._model_adapter,
                 tool_registry=tool_registry,
                 max_steps=policy.limits.max_steps,
+                model_adapter_coverage="strict",
                 run_id=run_id,
             )
             output = _terminal_output(final_result, terminal_output_contract)
@@ -343,6 +349,10 @@ class WorkflowRunner:
             ) from error
 
     def _validate_adapter(self, registration: WorkflowRegistration) -> None:
+        if registration.profile_id != self._configured_profile_id:
+            raise RunDarWorkflowError(
+                "registered workflow is not bound to the configured profile"
+            )
         if not self._model_adapter.is_local:
             raise RunDarWorkflowError("configured adapter is not strict local")
         if registration.model_id not in self._model_adapter.models:

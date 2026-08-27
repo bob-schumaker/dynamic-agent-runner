@@ -3,6 +3,24 @@
 
 Status: A1 and A2 implementation, documentation, and B4 validation complete; full test suite green
 
+## A3 C2 sealed-runner adapter selection — 2026-08-27
+
+- RED: the focused runner suite failed because `WorkflowRunner` did not accept
+  an active configured profile ID.
+- GREEN: HTTP profiles still construct `create_local_adapter`; Apple profiles
+  construct `create_apple_foundation_model_async_adapter` from exactly one
+  stored alias. The runner accepts both existing adapter types, rejects a
+  same-alias HTTP-to-Apple profile mismatch before sealed input consumption,
+  and passes strict adapter coverage to DAR.
+- Fake Apple saved-workflow coverage proves sealed input consumption, terminal
+  `{\"message\": ...}` shaping, async bridge execution, error/cancellation
+  propagation, and redacted trace metadata. An unadvertised package model
+  fails without invoking the model.
+- Validation: `poetry run pytest tests/test_dar_authoring_runner.py
+  tests/test_dar_authoring_host.py -q` — 29 passed; `poetry run pytest -q` —
+  1207 passed, 1 skipped, 6 deselected; `poetry run ruff check src tests` and
+  `git diff --check` passed.
+
 ## Scope
 
 - Feature: `specs/apple-foundation-model-adapter/spec.md`

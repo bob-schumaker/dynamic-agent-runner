@@ -10,6 +10,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Sequence
 
+from dynamic_agent_runner.apple_foundation_models import (
+    AppleFoundationModelConfig,
+    create_apple_foundation_model_async_adapter,
+)
 from dynamic_agent_runner.workflow_host.catalog import (
     PackageCatalog,
     PackageCatalogError,
@@ -100,6 +104,7 @@ from dynamic_agent_runner.workflow_host.preparation import (
 )
 from dynamic_agent_runner.workflow_host.profiles import (
     InstallationIdentityProvider,
+    LocalModelProfile,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
     create_local_adapter,
@@ -148,6 +153,16 @@ class DiscoveredOAuthSetupError(LocalWorkflowHostError):
     def __init__(self, status: str) -> None:
         self.status = status
         super().__init__(status)
+
+
+def _create_model_adapter(profile: LocalModelProfile):
+    if profile.adapter_id == "strict-local-adapter-v1":
+        return create_local_adapter(profile)
+    if profile.adapter_id == "apple-foundation-models-adapter-v1":
+        return create_apple_foundation_model_async_adapter(
+            AppleFoundationModelConfig(model_aliases=(profile.model_id,))
+        )
+    raise LocalWorkflowHostError("configured local profile is unavailable")
 
 
 @dataclass(frozen=True)
@@ -604,7 +619,8 @@ class LocalWorkflowHost:
                 registrations=registrations,
                 catalog=catalog,
                 preparation=preparation,
-                model_adapter=create_local_adapter(profile),
+                model_adapter=_create_model_adapter(profile),
+                configured_profile_id=profile.profile_id,
                 mcp_bindings=mcp_bindings if mcp_client is not None else None,
                 mcp_client=mcp_client,
                 mcp_surfaces=surfaces if mcp_client is not None else None,

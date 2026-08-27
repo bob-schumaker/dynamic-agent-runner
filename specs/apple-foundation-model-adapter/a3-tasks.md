@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A3 Sealed-Host Task List
 
-Status: planned
+Status: C2 complete; C3 next
 
 This is the canonical A3 task list. It implements `a3-plan.md` and FR-17 in
 `spec.md`. All implementation tasks are test-first: add focused tests, observe
@@ -37,18 +37,18 @@ their failure, implement the smallest change, then rerun them green.
 
 ## C2 — Sealed runner adapter selection
 
-- [ ] C2.1 [tests] Add RED host-open and registration tests proving an Apple
+- [x] C2.1 [tests] Add RED host-open and registration tests proving an Apple
       profile constructs the canonical Apple async adapter, advertises only its
       configured alias, and retains strict-local profile validation. Prove a
       registration is bound to the exact configured profile ID, including an
       HTTP-to-Apple same-alias mismatch.
-- [ ] C2.2 [implementation] Extend the bounded profile factory and runner type
+- [x] C2.2 [implementation] Extend the bounded profile factory and runner type
       to construct the existing synchronous HTTP adapter or canonical async
       Apple adapter without a generic provider registry or changed HTTP
       behavior. Select strict adapter coverage for both paths and reject
       profile/coverage mismatches before sealed-input consumption, provider
       work, MCP initialization, or handler dispatch.
-- [ ] C2.3 [tests] Retain one HTTP sealed-run regression. For Apple, prove
+- [x] C2.3 [tests] Retain one HTTP sealed-run regression. For Apple, prove
       sealed prompt consumption, terminal-output shaping, redacted traces, and
       async cancellation/error propagation. Prove a package-requested alias
       outside strict coverage cannot fall back to a default adapter.

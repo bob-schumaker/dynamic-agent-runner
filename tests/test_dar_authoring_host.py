@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import shutil
@@ -14,6 +15,7 @@ import yaml
 
 
 from dynamic_agent_runner.openai_client import (  # noqa: E402
+    AsyncOpenAIClientAdapter,
     ModelResponse,
     ModelToolCall,
     OpenAIClientAdapter,
@@ -22,6 +24,7 @@ from dynamic_agent_runner.openai_client import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.host import (  # noqa: E402
     LocalWorkflowHost,
     attach_mcp_client,
+    configure_apple_local_host,
     configure_mcp_api_token,
     create_mcp_connection,
     configure_local_host,
@@ -84,6 +87,23 @@ class _Responses:
 class _Client:
     def __init__(self) -> None:
         self.responses = _Responses()
+
+
+class _AsyncResponses:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+        self.error: BaseException | None = None
+
+    async def create(self, **kwargs: object) -> ModelResponse:
+        self.calls.append(kwargs)
+        if self.error is not None:
+            raise self.error
+        return ModelResponse(content="completed on device")
+
+
+class _AsyncClient:
+    def __init__(self) -> None:
+        self.responses = _AsyncResponses()
 
 
 class _MemorySecretStore:
@@ -192,6 +212,82 @@ def test_host_selects_and_registers_a_local_zip_package(
 
     assert source_handle.startswith("v1.")
     assert registration.workflow_id == "document-helper"
+
+
+def test_host_open_constructs_apple_adapter_with_only_configured_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    source = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    runtime_path = source / "agent-runtime.yaml"
+    runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
+    runtime["runtime"]["execution_policy"]["model"] = "apple-system-language-model"
+    runtime["nodes"][0]["model"] = "apple-system-language-model"
+    runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
+    constructed_with: list[object] = []
+    client = _AsyncClient()
+    adapter = AsyncOpenAIClientAdapter(
+        client, models=["apple-system-language-model"], is_local=True
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.preflight_apple_foundation_models",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.host.create_apple_foundation_model_async_adapter",
+        lambda config: constructed_with.append(config) or adapter,
+    )
+    configured = configure_apple_local_host(
+        root=tmp_path / "state",
+        package_root=package_root,
+        model_id="apple-system-language-model",
+    )
+
+    host = LocalWorkflowHost.open(tmp_path / "state")
+    source_handle = host.select_package(source, now=NOW)
+    registration = host.register(
+        workflow_id="document-helper", package_source_handle=source_handle, now=NOW
+    )
+    prepared = host.prepare(
+        workflow_id=registration.workflow_id, prompt="Answer me.", now=NOW
+    )
+    result = host.run(
+        workflow_id=registration.workflow_id,
+        prepared_input_id=prepared.prepared_input_id,
+        now=NOW,
+    )
+
+    assert host._runner._model_adapter is adapter
+    assert constructed_with[0].model_aliases == ("apple-system-language-model",)
+    assert host._runner._configured_profile_id == configured.profile_id
+    assert result.output == {"message": "completed on device"}
+    assert len(client.responses.calls) == 1
+    assert "Answer me." not in repr(host._runner.traces()[-1])
+
+    client.responses.error = RuntimeError("Apple async failure")
+    failed = host.prepare(
+        workflow_id=registration.workflow_id, prompt="Do not disclose me.", now=NOW
+    )
+    with pytest.raises(ValueError, match="DAR workflow execution failed"):
+        host.run(
+            workflow_id=registration.workflow_id,
+            prepared_input_id=failed.prepared_input_id,
+            now=NOW,
+        )
+    assert "Do not disclose me." not in repr(host._runner.traces()[-1])
+
+    client.responses.error = asyncio.CancelledError()
+    cancelled = host.prepare(
+        workflow_id=registration.workflow_id, prompt="Cancel me.", now=NOW
+    )
+    with pytest.raises(asyncio.CancelledError):
+        host.run(
+            workflow_id=registration.workflow_id,
+            prepared_input_id=cancelled.prepared_input_id,
+            now=NOW,
+        )
 
 
 def test_host_reopens_a_secret_free_configured_mcp_client(
