@@ -954,6 +954,27 @@ def test_local_openai_adapter_translates_endpoint_connectivity_failures() -> Non
         adapter.create_response(request)
 
 
+def test_local_openai_endpoint_disables_default_auth_discovery() -> None:
+    """A loopback model endpoint must not inherit Codex or API-key auth."""
+
+    from dynamic_agent_runner.local_models import (
+        LocalOpenAIEndpointConfig,
+        _provider_config_from_local_endpoint,
+    )
+
+    provider = _provider_config_from_local_endpoint(
+        LocalOpenAIEndpointConfig(
+            base_url="http://localhost:11434/v1",
+            model_aliases=["local-qwen-chat"],
+        )
+    )
+
+    assert provider.base_url == "http://localhost:11434/v1"
+    assert provider.api_key == "local-endpoint"
+    assert provider.provider_name == "openai"
+    assert provider.discover_default_auth is False
+
+
 def test_local_async_openai_adapter_translates_endpoint_protocol_failures() -> None:
     from dynamic_agent_runner.errors import LocalModelEndpointProtocolError
     from dynamic_agent_runner.local_models import (

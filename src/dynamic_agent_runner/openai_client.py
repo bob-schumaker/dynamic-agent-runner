@@ -1025,7 +1025,9 @@ def _request_message_to_provider_input(message: Mapping[str, Any]) -> Mapping[st
         return dict(message)
     if message.get(_DAR_TRANSCRIPT_TYPE_KEY) == _DAR_MODEL_TOOL_CALL:
         return {
-            key: value for key, value in message.items() if key in {"role", "content"}
+            key: value
+            for key, value in message.items()
+            if key in {"role", "content", "tool_calls"}
         }
     return {
         key: value

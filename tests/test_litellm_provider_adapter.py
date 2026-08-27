@@ -36,6 +36,37 @@ def test_litellm_codex_model_alias_preserves_public_ids() -> None:
     assert normalize_litellm_codex_model("openai/gpt-test") == "openai/gpt-test"
 
 
+def test_litellm_adapter_passes_configured_provider_name() -> None:
+    """A local OpenAI-compatible endpoint needs an explicit LiteLLM provider."""
+
+    calls: list[dict[str, object]] = []
+
+    def completion(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"id": "local", "choices": [{"message": {"content": "ok"}}]}
+
+    adapter = create_litellm_adapter_from_provider_config(
+        OpenAIProviderConfig(
+            base_url="http://localhost:11434/v1",
+            provider_name="openai",
+            discover_default_auth=False,
+        ),
+        completion=completion,
+        models=["local-qwen-chat"],
+        is_local=True,
+    )
+
+    adapter.create_response(
+        build_openai_request(
+            model="local-qwen-chat",
+            messages=[OpenAIMessage("user", "Hello")],
+        )
+    )
+
+    assert calls[0]["api_base"] == "http://localhost:11434/v1"
+    assert calls[0]["custom_llm_provider"] == "openai"
+
+
 def test_litellm_codex_adapter_translates_only_outbound_model_alias() -> None:
     calls: list[dict[str, object]] = []
 
@@ -422,6 +453,43 @@ def test_litellm_adapter_translates_tools_and_normalizes_tool_calls() -> None:
     assert result.tool_calls[0].id == "call_1"
     assert result.tool_calls[0].name == "search_repo"
     assert result.tool_calls[0].arguments == '{"query":"adapter"}'
+
+
+def test_litellm_adapter_normalizes_flat_response_function_tools() -> None:
+    """Responses-style tool schemas are nested for Chat Completions transport."""
+
+    calls: list[dict[str, object]] = []
+
+    def completion(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"id": "chatcmpl", "choices": [{"message": {"content": "ok"}}]}
+
+    flat_tool = {
+        "type": "function",
+        "name": "search_repo",
+        "description": "Search repository files.",
+        "parameters": {"type": "object", "properties": {}},
+    }
+    adapter = create_litellm_adapter(completion=completion)
+
+    adapter.create_response(
+        build_openai_request(
+            model="openai/gpt-test",
+            messages=[OpenAIMessage("user", "Search")],
+            tools=[flat_tool],
+        )
+    )
+
+    assert calls[0]["tools"] == [
+        {
+            "type": "function",
+            "function": {
+                "name": "search_repo",
+                "description": "Search repository files.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    ]
 
 
 def test_litellm_adapter_redacts_provider_secrets() -> None:

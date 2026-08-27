@@ -887,8 +887,9 @@ def _provider_config_from_local_endpoint(
 ) -> OpenAIProviderConfig:
     return OpenAIProviderConfig(
         base_url=config.base_url,
-        api_key=config.api_key,
-        provider_name=config.provider_name,
+        api_key=config.api_key or "local-endpoint",
+        provider_name=config.provider_name or "openai",
+        discover_default_auth=False,
     )
 
 

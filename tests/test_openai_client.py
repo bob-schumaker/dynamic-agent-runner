@@ -242,6 +242,7 @@ def test_create_local_openai_adapter_builds_local_provider_backed_adapter() -> N
         base_url="http://localhost:11434/v1",
         api_key="local-key",
         provider_name="llama.cpp",
+        discover_default_auth=False,
     )
 
 
@@ -271,6 +272,7 @@ def test_create_local_async_openai_adapter_builds_local_provider_backed_adapter(
         base_url="http://localhost:11434/v1",
         api_key="local-key",
         provider_name="llama.cpp",
+        discover_default_auth=False,
     )
 
 

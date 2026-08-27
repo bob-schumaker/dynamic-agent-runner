@@ -449,12 +449,26 @@ def _translate_request(request: OpenAIModelRequest) -> dict[str, Any]:
     kwargs["model"] = request.model
     kwargs["messages"] = [dict(message) for message in request.messages]
     if request.tools:
-        kwargs["tools"] = [dict(tool) for tool in request.tools]
+        kwargs["tools"] = [_chat_completion_tool_schema(tool) for tool in request.tools]
     if request.tool_choice is not None:
         kwargs["tool_choice"] = request.tool_choice
     if request.response_format is not None:
         kwargs["response_format"] = dict(request.response_format)
     return kwargs
+
+
+def _chat_completion_tool_schema(tool: Mapping[str, Any]) -> dict[str, Any]:
+    """Nest one DAR Responses-style function tool for LiteLLM Chat Completions."""
+
+    normalized = dict(tool)
+    if normalized.get("type") != "function" or "function" in normalized:
+        return normalized
+    function = {
+        key: normalized.pop(key)
+        for key in ("name", "description", "parameters")
+        if key in normalized
+    }
+    return {**normalized, "function": function}
 
 
 def _translate_openai_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
@@ -588,6 +602,8 @@ def _provider_litellm_kwargs(
     configured: Mapping[str, Any],
 ) -> dict[str, Any]:
     kwargs = dict(configured)
+    if config.provider_name is not None:
+        kwargs.setdefault("custom_llm_provider", config.provider_name)
     if config.api_key is not None:
         kwargs.setdefault("api_key", config.api_key)
     if config.base_url is not None:
