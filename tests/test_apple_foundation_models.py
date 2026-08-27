@@ -18,6 +18,7 @@ from dynamic_agent_runner.openai_client import build_openai_request
 from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
     create_apple_foundation_model_async_adapter,
+    preflight_apple_foundation_models,
 )
 from dynamic_agent_runner.hooks import WorkflowLifecycleHooks
 from dynamic_agent_runner.registry import (
@@ -65,6 +66,27 @@ def test_factory_accepts_injected_availability_and_session_seams() -> None:
     assert adapter.is_local is True
 
 
+def test_preflight_requires_an_available_apple_model() -> None:
+    preflight_apple_foundation_models(
+        AppleFoundationModelConfig(availability_checker=lambda: (True, None))
+    )
+
+    with pytest.raises(ModelExecutionError, match="Apple Intelligence is disabled"):
+        preflight_apple_foundation_models(
+            AppleFoundationModelConfig(
+                availability_checker=lambda: (False, "Apple Intelligence is disabled")
+            )
+        )
+
+
+def test_package_root_exports_apple_preflight() -> None:
+    import dynamic_agent_runner
+
+    assert dynamic_agent_runner.preflight_apple_foundation_models is (
+        preflight_apple_foundation_models
+    )
+
+
 def test_non_darwin_generation_fails_before_sdk_import(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -79,6 +101,20 @@ def test_non_darwin_generation_fails_before_sdk_import(
 
     with pytest.raises(ModelExecutionError, match="macOS"):
         asyncio.run(adapter.create_response(request))
+    with pytest.raises(ModelExecutionError, match="macOS"):
+        preflight_apple_foundation_models()
+
+
+def test_preflight_reports_missing_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk",
+        lambda: (_ for _ in ()).throw(
+            ModelExecutionError("Apple Foundation Models SDK is unavailable")
+        ),
+    )
+
+    with pytest.raises(ModelExecutionError, match="SDK is unavailable"):
+        preflight_apple_foundation_models()
 
 
 def test_unavailable_system_model_reports_actionable_reason() -> None:

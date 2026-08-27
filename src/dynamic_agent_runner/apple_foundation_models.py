@@ -73,6 +73,21 @@ def create_apple_foundation_model_async_adapter(
     )
 
 
+def preflight_apple_foundation_models(
+    config: AppleFoundationModelConfig | None = None,
+) -> None:
+    """Verify platform, SDK, and system-model availability without a session."""
+
+    _require_macos()
+    resolved = config or AppleFoundationModelConfig()
+    sdk = _load_sdk() if resolved.availability_checker is None else None
+    available, reason = _check_availability(resolved, sdk)
+    if not available:
+        raise ModelExecutionError(
+            f"Apple Foundation Models are unavailable: {reason or 'unknown reason'}"
+        )
+
+
 class AppleFoundationModelAsyncAdapter(AsyncOpenAIClientAdapter):
     """Existing DAR async adapter with conservative Apple capability metadata."""
 

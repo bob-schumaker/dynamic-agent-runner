@@ -96,6 +96,7 @@ from dynamic_agent_runner.mlx_models import (
 from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
     create_apple_foundation_model_async_adapter,
+    preflight_apple_foundation_models,
 )
 from dynamic_agent_runner.mcp import (
     MCPToolBinding,
@@ -309,6 +310,7 @@ __all__ = [
     "create_mlx_local_adapter",
     "create_mlx_local_async_adapter",
     "create_apple_foundation_model_async_adapter",
+    "preflight_apple_foundation_models",
     "create_mcp_registry",
     "create_host_tool_registry",
     "create_default_async_openai_client",
