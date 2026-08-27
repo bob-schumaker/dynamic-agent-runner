@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typing import Annotated, get_args, get_origin, get_type_hints
 
 import pytest
+from jsonschema import ValidationError
 
 import dynamic_agent_runner.apple_foundation_models as apple_foundation_models
 from dynamic_agent_runner.errors import ModelExecutionError, ToolRegistryError
@@ -137,6 +138,59 @@ def test_apple_tool_schema_preflight_blocks_an_invalid_json_schema() -> None:
     assert receipt.mode == "blocked"
     assert "query" not in repr(receipt)
     assert sdk.sessions == []
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"$ref": "https://example.test/schema"},
+        {"$schema": "https://example.test/unknown-draft"},
+        {
+            "type": "object",
+            "properties": {"address": {"type": "string", "format": "unknown"}},
+            "required": ["address"],
+            "additionalProperties": False,
+        },
+    ],
+)
+def test_apple_tool_schema_preflight_blocks_unsafe_gateway_schema(
+    schema: dict[str, object],
+) -> None:
+    receipt = preflight_apple_tool_schema(schema, sdk=FakeAppleToolSDK())
+
+    assert receipt.mode == "blocked"
+
+
+def test_apple_gateway_validator_enforces_supported_format() -> None:
+    validator = apple_foundation_models._gateway_validator(
+        {
+            "type": "object",
+            "properties": {"address": {"type": "string", "format": "email"}},
+            "required": ["address"],
+            "additionalProperties": False,
+        }
+    )
+
+    with pytest.raises(ValidationError):
+        validator.validate({"address": "not-an-email"})
+
+
+@pytest.mark.parametrize(
+    ("payload", "bounded"),
+    [
+        ('{"value": 1, "value": 2}', False),
+        ('{"value": NaN}', False),
+        ("[1, 2]", False),
+        (json.dumps({"value": "x" * (16 * 1024)}), True),
+        ("{" + '"a":{' * 16 + '"a":0' + "}" * 16 + "}", True),
+        (json.dumps({str(index): index for index in range(65)}), True),
+    ],
+)
+def test_apple_gateway_json_boundary_rejects_invalid_payloads(
+    payload: str, bounded: bool
+) -> None:
+    with pytest.raises(ToolRegistryError):
+        apple_foundation_models._apple_gateway_json_object(payload, bounded=bounded)
 
 
 def test_non_darwin_generation_fails_before_sdk_import(
@@ -531,11 +585,20 @@ def _tool(
     input_schema: dict[str, object],
     *,
     approval_required: bool = False,
+    side_effect: str | None = None,
+    host_canonical_id: str | None = None,
+    description_for_llm: str | None = None,
     handler: object | None = None,
 ) -> RegisteredTool:
     definition: dict[str, object] = {"id": tool_id, "input_schema": input_schema}
     if approval_required:
         definition["approval_required"] = "yes"
+    if side_effect is not None:
+        definition["side_effect"] = side_effect
+    if host_canonical_id is not None:
+        definition["host_canonical_id"] = host_canonical_id
+    if description_for_llm is not None:
+        definition["description_for_llm"] = description_for_llm
     return RegisteredTool(
         ToolDefinition.from_mapping(definition),
         handler if handler is not None else lambda _arguments: {"ok": True},  # type: ignore[arg-type]
@@ -824,6 +887,15 @@ _ADMITTED_APPLE_TOOL_SCHEMA = {
     "additionalProperties": False,
 }
 
+_GATEWAY_APPLE_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "query": {"type": "string", "description": "Search terms"},
+    },
+    "required": [],
+    "additionalProperties": False,
+}
+
 
 def test_apple_tool_bridge_constructs_only_opaque_active_wrappers(
     monkeypatch: pytest.MonkeyPatch,
@@ -888,6 +960,136 @@ def test_apple_tool_bridge_constructs_only_opaque_active_wrappers(
     recipient_type = _annotation_base(get_args(recipients_type)[0])
     assert get_type_hints(recipient_type, include_extras=True) == {"address": str}
     assert isinstance(recipient_type.generation_schema(), FakeAppleGenerationSchema)
+
+
+def test_apple_tool_bridge_selects_one_gateway_for_active_read_only_mcp_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    direct = _tool("direct", _ADMITTED_APPLE_TOOL_SCHEMA)
+    fallback = _tool(
+        "search-email",
+        _GATEWAY_APPLE_TOOL_SCHEMA,
+        side_effect="read",
+        host_canonical_id="authorized-mcp:binding:search-email",
+        description_for_llm="Search the reviewed mailbox",
+    )
+    registry = InMemoryToolRegistry([direct, fallback])
+    context = _active_tool_context(
+        registry,
+        (registry.get_tool("direct"), registry.get_tool("search-email")),
+    )
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    response = asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=("direct", "search-email"),
+                adapter_context=context,
+            )
+        )
+    )
+
+    assert response.content == "answer"
+    assert [wrapper.name for wrapper in sdk.sessions[0].tools] == [
+        "dar_tool_0",
+        "dar_gateway",
+    ]
+    assert "search-email" not in sdk.sessions[0].tools[1].description
+    assert "Search the reviewed mailbox" in sdk.sessions[0].tools[1].description
+
+
+def test_apple_tool_bridge_blocks_a_generic_gateway_schema_before_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    direct = _tool("direct", _ADMITTED_APPLE_TOOL_SCHEMA)
+    generic = _tool("generic", _GATEWAY_APPLE_TOOL_SCHEMA)
+    registry = InMemoryToolRegistry([direct, generic])
+    context = _active_tool_context(
+        registry,
+        (registry.get_tool("direct"), registry.get_tool("generic")),
+    )
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    with pytest.raises(ModelExecutionError, match="untranslatable.*schema"):
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("direct", "generic"),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert sdk.sessions == []
+
+
+def test_apple_gateway_dispatches_only_its_mapped_read_only_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[dict[str, object]] = []
+
+    class GatewaySession(FakeAppleToolSession):
+        async def respond(self, _prompt: str, **_kwargs: object) -> str:
+            gateway = next(tool for tool in self.tools if tool.name == "dar_gateway")
+            token = gateway.description.split("\n", 1)[1].split(":", 1)[0]
+            await gateway.call(
+                FakeAppleGeneratedContent(
+                    json.dumps(
+                        {
+                            "tool_token": token,
+                            "arguments_json": json.dumps({"query": "last five"}),
+                        }
+                    )
+                )
+            )
+            return "answer"
+
+    class GatewaySDK(FakeAppleToolSDK):
+        def LanguageModelSession(
+            self,
+            *,
+            instructions: str | None,
+            tools: list[object] | tuple[object, ...] = (),
+        ) -> GatewaySession:
+            session = GatewaySession(instructions, tools=tools)
+            self.sessions.append(session)
+            return session
+
+    fallback = _tool(
+        "search-email",
+        _GATEWAY_APPLE_TOOL_SCHEMA,
+        side_effect="read",
+        host_canonical_id="authorized-mcp:binding:search-email",
+        description_for_llm="Search the reviewed mailbox",
+        handler=lambda arguments: invocations.append(dict(arguments)) or {"ok": True},
+    )
+    registry = InMemoryToolRegistry([fallback])
+    context = _active_tool_context(registry, (registry.get_tool("search-email"),))
+    sdk = GatewaySDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    response = asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=("search-email",),
+                adapter_context=context,
+            )
+        )
+    )
+
+    assert response.content == "answer"
+    assert invocations == [{"query": "last five"}]
 
 
 def test_apple_tool_bridge_uses_active_context_without_wire_descriptors(

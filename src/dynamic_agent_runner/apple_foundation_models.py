@@ -9,12 +9,14 @@ import asyncio
 import importlib
 import json
 import keyword
+import secrets
 import sys
+import warnings
 from threading import Lock
 from typing import Annotated, Any
 from uuid import uuid4
 
-from jsonschema import SchemaError
+from jsonschema import FormatChecker, SchemaError, ValidationError
 from jsonschema.validators import validator_for
 
 from dynamic_agent_runner.errors import (
@@ -75,6 +77,45 @@ class AppleToolSchemaPreflight:
     mode: str
 
 
+@dataclass(frozen=True)
+class _AppleGatewayTarget:
+    """One response-local fallback target retained behind an opaque token."""
+
+    tool: RegisteredTool
+    validator: Any
+
+
+class _AppleGatewayCapabilities:
+    """One-shot gateway targets that disappear with their Apple response."""
+
+    def __init__(self, targets: Mapping[str, _AppleGatewayTarget]) -> None:
+        self._targets = dict(targets)
+        self._lock = Lock()
+
+    def resolve(
+        self,
+        token: str,
+        *,
+        context: ActiveAdapterToolContext,
+        callback_session: "_AppleCallbackSessionState",
+    ) -> _AppleGatewayTarget:
+        """Atomically revalidate and consume one response-local target."""
+
+        with self._lock:
+            callback_session.require_active()
+            target = self._targets.pop(token, None)
+            if target is None:
+                raise ToolRegistryError("Apple gateway capability is unavailable")
+            context.require_current_tool(target.tool)
+            return target
+
+    def clear(self) -> None:
+        """Discard every unconsumed target when the response ends."""
+
+        with self._lock:
+            self._targets.clear()
+
+
 def create_apple_foundation_model_async_adapter(
     config: AppleFoundationModelConfig | None = None,
 ):
@@ -111,27 +152,81 @@ def preflight_apple_tool_schema(
 
     if not isinstance(schema, Mapping):
         raise ModelExecutionError("Apple tool preflight schema is invalid")
+    return AppleToolSchemaPreflight(
+        mode=_apple_tool_schema_mode(schema, sdk or _load_sdk())
+    )
+
+
+def _apple_tool_schema_mode(schema: Mapping[str, Any], sdk: Any) -> str:
+    """Classify one active schema for direct, gateway, or blocked use."""
+
     try:
         _apple_generated_object_type(
             schema,
-            sdk or _load_sdk(),
+            sdk,
             type_name="DarPreflightArguments",
         )
     except ModelExecutionError:
         if _is_gateway_schema(schema):
-            return AppleToolSchemaPreflight(mode="gateway")
-        return AppleToolSchemaPreflight(mode="blocked")
-    return AppleToolSchemaPreflight(mode="direct")
+            return "gateway"
+        return "blocked"
+    return "direct"
 
 
 def _is_gateway_schema(schema: Mapping[str, Any]) -> bool:
     """Return whether jsonschema accepts an otherwise non-direct tool schema."""
 
     try:
-        validator_for(schema).check_schema(schema)
+        _gateway_validator(schema)
     except SchemaError:
         return False
     return True
+
+
+def _gateway_validator(schema: Mapping[str, Any]) -> Any:
+    """Build the exact-json-schema validator retained for one gateway target."""
+
+    formats = _gateway_formats(schema)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        validator_type = validator_for(schema)
+    declared_dialect = schema.get("$schema")
+    if declared_dialect is not None and (
+        not isinstance(declared_dialect, str)
+        or validator_type.META_SCHEMA.get("$id") != declared_dialect
+    ):
+        raise SchemaError("gateway schema dialect is unsupported")
+    validator_type.check_schema(schema)
+    return validator_type(schema, format_checker=FormatChecker(formats=formats))
+
+
+def _gateway_formats(schema: Mapping[str, Any]) -> frozenset[str]:
+    """Reject unresolved resources and unsupported format semantics."""
+
+    formats: set[str] = set()
+
+    def visit(value: object) -> None:
+        if isinstance(value, Mapping):
+            if any(
+                key in value for key in ("$ref", "$dynamicRef", "$recursiveRef", "$id")
+            ):
+                raise SchemaError("gateway schema references are unsupported")
+            format_name = value.get("format")
+            if format_name is not None:
+                if (
+                    not isinstance(format_name, str)
+                    or format_name not in FormatChecker.checkers
+                ):
+                    raise SchemaError("gateway schema format is unsupported")
+                formats.add(format_name)
+            for item in value.values():
+                visit(item)
+        elif isinstance(value, list):
+            for item in value:
+                visit(item)
+
+    visit(schema)
+    return frozenset(formats)
 
 
 class AppleFoundationModelAsyncAdapter(AsyncOpenAIClientAdapter):
@@ -181,23 +276,28 @@ class _AppleResponsesResource:
         _require_macos()
         sdk = _load_sdk() if self._config.availability_checker is None else None
         callback_session = _AppleCallbackSessionState()
-        wrappers = _apple_tool_wrappers(request, sdk, callback_session)
-        _validate_request(request, tool_bridge_active=bool(wrappers))
-        available, reason = _check_availability(self._config, sdk)
-        if not available:
-            raise ModelExecutionError(
-                f"Apple Foundation Models are unavailable: {reason or 'unknown reason'}"
+        try:
+            wrappers = _apple_tool_wrappers(request, sdk, callback_session)
+            _validate_request(request, tool_bridge_active=bool(wrappers))
+            available, reason = _check_availability(self._config, sdk)
+            if not available:
+                raise ModelExecutionError(
+                    "Apple Foundation Models are unavailable: "
+                    f"{reason or 'unknown reason'}"
+                )
+            if self._config.session_factory is None:
+                sdk = sdk or _load_sdk()
+            prompt, instructions = _render_messages(request.messages)
+            session = _make_session(
+                self._config,
+                sdk,
+                request,
+                instructions,
+                tools=wrappers,
             )
-        if self._config.session_factory is None:
-            sdk = sdk or _load_sdk()
-        prompt, instructions = _render_messages(request.messages)
-        session = _make_session(
-            self._config,
-            sdk,
-            request,
-            instructions,
-            tools=wrappers,
-        )
+        except BaseException:
+            callback_session.close()
+            raise
         options = _make_generation_options(sdk, request.extra)
         schema = _extract_json_schema(request.response_format)
         if schema is not None and self._config.session_factory is None:
@@ -254,6 +354,7 @@ def _apple_tool_wrappers(
         raise ModelExecutionError("Apple tool bridge has duplicate active tool ids")
     callback_budget = _apple_callback_budget(context)
     wrappers: list[object] = []
+    gateway_targets: dict[str, _AppleGatewayTarget] = {}
     for index, tool in enumerate(context.tools):
         try:
             context.require_current_tool(tool)
@@ -261,21 +362,44 @@ def _apple_tool_wrappers(
             raise ModelExecutionError(
                 "Apple tool bridge active tool context is stale"
             ) from exc
-        arguments_type = _apple_generated_object_type(
-            _tool_input_schema(tool.definition.raw),
-            sdk,
-            type_name=f"DarTool{index}Arguments",
+        schema = _tool_input_schema(tool.definition.raw)
+        mode = _apple_tool_schema_mode(schema, sdk)
+        if mode == "direct":
+            arguments_type = _apple_generated_object_type(
+                schema,
+                sdk,
+                type_name=f"DarTool{index}Arguments",
+            )
+            wrappers.append(
+                _apple_tool_wrapper(
+                    sdk,
+                    context=context,
+                    callback_budget=callback_budget,
+                    callback_session=callback_session,
+                    tool_id=tool.id,
+                    name=f"dar_tool_{index}",
+                    description=_apple_tool_description(tool.definition.raw, tool.id),
+                    arguments_type=arguments_type,
+                )
+            )
+            continue
+        if mode != "gateway" or not _is_gateway_mcp_tool(tool):
+            raise ModelExecutionError("Apple tool has an untranslatable schema")
+        gateway_targets[secrets.token_urlsafe(24)] = _AppleGatewayTarget(
+            tool=tool,
+            validator=_gateway_validator(schema),
         )
+    if gateway_targets:
+        capabilities = _AppleGatewayCapabilities(gateway_targets)
+        callback_session.add_close_callback(capabilities.clear)
         wrappers.append(
-            _apple_tool_wrapper(
+            _apple_gateway_wrapper(
                 sdk,
                 context=context,
                 callback_budget=callback_budget,
                 callback_session=callback_session,
-                tool_id=tool.id,
-                name=f"dar_tool_{index}",
-                description=_apple_tool_description(tool.definition.raw, tool.id),
-                arguments_type=arguments_type,
+                capabilities=capabilities,
+                description=_apple_gateway_description(gateway_targets),
             )
         )
     return tuple(wrappers)
@@ -395,6 +519,37 @@ def _apple_tool_description(raw: Mapping[str, Any], tool_id: str) -> str:
     return description
 
 
+def _is_gateway_mcp_tool(tool: RegisteredTool) -> bool:
+    """Limit the A4 fallback to current reviewed read-only MCP bindings."""
+
+    canonical_id = tool.definition.raw.get("host_canonical_id")
+    return (
+        tool.definition.side_effect == "read"
+        and isinstance(canonical_id, str)
+        and canonical_id.startswith("authorized-mcp:")
+    )
+
+
+def _apple_gateway_description(
+    targets: Mapping[str, _AppleGatewayTarget],
+) -> str:
+    """Return the bounded, opaque capability catalog visible to Apple."""
+
+    entries: list[str] = []
+    for token, target in targets.items():
+        raw = target.tool.definition.raw
+        description = raw.get("description_for_llm") or raw.get("label")
+        if not isinstance(description, str) or not description.strip():
+            raise ModelExecutionError("Apple gateway tool description is invalid")
+        entries.append(f"{token}: {description.strip()}")
+    catalog = "Use one opaque tool token for one reviewed capability:\n" + "\n".join(
+        entries
+    )
+    if len(catalog.encode("utf-8")) > 16 * 1024:
+        raise ModelExecutionError("Apple gateway capability catalog is too large")
+    return catalog
+
+
 def _apple_tool_wrapper(
     sdk: Any,
     *,
@@ -475,18 +630,128 @@ def _apple_tool_wrapper(
     return wrapper_type()
 
 
+def _apple_gateway_wrapper(
+    sdk: Any,
+    *,
+    context: ActiveAdapterToolContext,
+    callback_budget: ProviderCallbackBudget,
+    callback_session: "_AppleCallbackSessionState",
+    capabilities: _AppleGatewayCapabilities,
+    description: str,
+) -> object:
+    """Build the one fixed-schema Apple gateway wrapper for fallback tools."""
+
+    envelope_type = _apple_generated_object_type(
+        {
+            "type": "object",
+            "properties": {
+                "tool_token": {"type": "string"},
+                "arguments_json": {"type": "string"},
+            },
+            "required": ["tool_token", "arguments_json"],
+            "additionalProperties": False,
+        },
+        sdk,
+        type_name="DarGatewayArguments",
+    )
+
+    async def call(_self: object, arguments: object) -> str:
+        try:
+            action_id = f"apple-{uuid4().hex}"
+            callback_session.require_active()
+            if not callback_budget.claim():
+                await _emit_apple_callback_budget_exhausted(
+                    context,
+                    tool_id="dar_gateway",
+                    action_id=action_id,
+                    callback_budget=callback_budget,
+                )
+                raise ProviderToolTerminalError(
+                    "Apple provider callback budget is exhausted"
+                )
+            tool_id, callback_arguments = _apple_gateway_callback_arguments(
+                arguments,
+                capabilities=capabilities,
+                context=context,
+                callback_session=callback_session,
+            )
+            guardrail_runner = _apple_guardrail_runner(context, action_id)
+            request = context.request(
+                tool_id=tool_id,
+                arguments=callback_arguments,
+                result_key=f"{context.node.id}.{action_id}",
+                action_id=action_id,
+                approval_reason=f"Apple tool {tool_id!r} requires approval",
+                guardrail_runner=guardrail_runner,
+                continuation_guard=callback_session.require_active,
+                result_commit_guard=callback_session.result_commit_guard,
+                invoke=lambda prepared: _invoke_apple_tool_async(
+                    context,
+                    tool_id,
+                    callback_arguments,
+                    prepared,
+                ),
+            )
+            coordinated = await _coordinate_apple_callback_async(context, request)
+            if isinstance(coordinated, ApprovalInterruption):
+                raise ProviderToolInterruption(
+                    coordinated,
+                    provider="apple_foundation_models",
+                )
+            if isinstance(coordinated, ProviderToolDecisionTerminalOutcome):
+                raise ProviderToolTerminalError(
+                    f"provider tool decision is {coordinated.state.value}"
+                )
+            if not coordinated.success:
+                raise ProviderToolTerminalError(
+                    coordinated.error or f"tool {tool_id!r} failed"
+                )
+            return _apple_tool_result_output(coordinated)
+        except (GuardrailExecutionError, ToolRegistryError) as exc:
+            raise ProviderToolTerminalError(str(exc)) from exc
+
+    def arguments_schema(_self: object) -> object:
+        return envelope_type.generation_schema()
+
+    wrapper_type = type(
+        "DarGatewayTool",
+        (sdk.Tool,),
+        {
+            "name": "dar_gateway",
+            "description": description,
+            "arguments_schema": property(arguments_schema),
+            "call": call,
+        },
+    )
+    return wrapper_type()
+
+
 class _AppleCallbackSessionState:
     """Thread-safe liveness guard for callbacks owned by one Apple response."""
 
     def __init__(self) -> None:
         self._active = True
         self._lock = Lock()
+        self._close_callbacks: list[Callable[[], None]] = []
+
+    def add_close_callback(self, callback: Callable[[], None]) -> None:
+        """Register response-local cleanup before Apple session construction."""
+
+        with self._lock:
+            if not self._active:
+                callback()
+                return
+            self._close_callbacks.append(callback)
 
     def close(self) -> None:
         """Prevent any later callback from entering or completing DAR work."""
 
         with self._lock:
             self._active = False
+            callbacks = tuple(self._close_callbacks)
+            self._close_callbacks.clear()
+        for callback in callbacks:
+            callback()
 
     def require_active(self) -> None:
         """Fail closed once the owning Apple response has completed or cancelled."""
@@ -593,6 +858,108 @@ def _apple_callback_arguments(arguments: object) -> dict[str, Any]:
     if not isinstance(parsed, Mapping):
         raise ToolRegistryError("Apple tool callback arguments must be an object")
     return dict(parsed)
+
+
+def _apple_gateway_callback_arguments(
+    arguments: object,
+    *,
+    capabilities: _AppleGatewayCapabilities,
+    context: ActiveAdapterToolContext,
+    callback_session: _AppleCallbackSessionState,
+) -> tuple[str, dict[str, Any]]:
+    """Resolve and validate one strict gateway callback before coordinator entry."""
+
+    envelope = _apple_gateway_json_object(arguments)
+    if set(envelope) != {"tool_token", "arguments_json"}:
+        raise ToolRegistryError("Apple gateway envelope is invalid")
+    token = envelope["tool_token"]
+    arguments_json = envelope["arguments_json"]
+    if not isinstance(token, str) or not isinstance(arguments_json, str):
+        raise ToolRegistryError("Apple gateway envelope is invalid")
+    target = capabilities.resolve(
+        token,
+        context=context,
+        callback_session=callback_session,
+    )
+    decoded = _apple_gateway_json_object(arguments_json, bounded=True)
+    try:
+        target.validator.validate(decoded)
+    except ValidationError as exc:
+        raise ToolRegistryError("Apple gateway arguments are invalid") from exc
+    return target.tool.id, decoded
+
+
+def _apple_gateway_json_object(
+    value: object,
+    *,
+    bounded: bool = False,
+) -> dict[str, Any]:
+    """Decode JSON without duplicate or non-finite values."""
+
+    text = _apple_gateway_json_text(value)
+    if bounded and len(_apple_gateway_utf8(text)) > 16 * 1024:
+        raise ToolRegistryError("Apple gateway arguments are too large")
+    try:
+        parsed = json.loads(
+            text,
+            object_pairs_hook=_apple_gateway_object_pairs,
+            parse_constant=_reject_apple_gateway_constant,
+        )
+    except (TypeError, ValueError, json.JSONDecodeError, RecursionError) as exc:
+        raise ToolRegistryError("Apple gateway arguments are invalid") from exc
+    if not isinstance(parsed, dict):
+        raise ToolRegistryError("Apple gateway arguments must be an object")
+    if bounded and (_json_depth(parsed) > 16 or _json_object_keys(parsed) > 64):
+        raise ToolRegistryError("Apple gateway arguments exceed limits")
+    return parsed
+
+
+def _apple_gateway_json_text(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    try:
+        text = value.to_json()
+    except Exception as exc:  # noqa: BLE001 - SDK content objects vary by release.
+        raise ToolRegistryError("Apple gateway arguments are invalid") from exc
+    if not isinstance(text, str):
+        raise ToolRegistryError("Apple gateway arguments are invalid")
+    return text
+
+
+def _apple_gateway_utf8(value: str) -> bytes:
+    try:
+        return value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ToolRegistryError("Apple gateway arguments are invalid") from exc
+
+
+def _apple_gateway_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in result:
+            raise ValueError("duplicate key")
+        result[key] = item
+    return result
+
+
+def _reject_apple_gateway_constant(_value: str) -> None:
+    raise ValueError("non-finite value")
+
+
+def _json_depth(value: object) -> int:
+    if isinstance(value, dict):
+        return 1 + max((_json_depth(item) for item in value.values()), default=0)
+    if isinstance(value, list):
+        return 1 + max((_json_depth(item) for item in value), default=0)
+    return 0
+
+
+def _json_object_keys(value: object) -> int:
+    if isinstance(value, dict):
+        return len(value) + sum(_json_object_keys(item) for item in value.values())
+    if isinstance(value, list):
+        return sum(_json_object_keys(item) for item in value)
+    return 0
 
 
 async def _invoke_apple_tool_async(
