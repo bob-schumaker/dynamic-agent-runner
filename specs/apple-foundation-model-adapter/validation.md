@@ -177,6 +177,29 @@ the restored-environment B0 result is investigated.
   deselected`; `poetry run ruff check src tests`, `pre-commit run --files
   <B1.3 files>`, and `git diff --check` passed.
 
+## A2 B1.4 provider interruption and decision primitives — 2026-08-26
+
+- Added a typed provider interruption with fixed safe text and opaque metadata;
+  the original DAR approval record is accessible only through the internal
+  unwrap helper and never through a public `approval` field.
+- Added canonical SHA-256 fingerprints bound to a runtime-checked
+  `PreparedToolInvocation`, run/workflow/node/tool/action correlation, and
+  normalized arguments. A synchronous collaborator receives the typed request;
+  its returned invocation ID and fingerprint must exactly match or fail closed.
+- Added an atomic, non-negative provider callback budget with boolean claims.
+  The context can carry both collaborator and budget, but B1.4 does not route
+  decisions through coordinator dispatch or implement provider session behavior.
+- RED: `poetry run pytest tests/test_tool_invocation.py -q` — missing B1.4
+  types first caused collection failure; raw descriptor and direct context tests
+  separately established the prior B1.3 RED cycles.
+- GREEN: `poetry run pytest tests/test_tool_invocation.py
+  tests/test_openai_client.py tests/test_executor.py -q` — `214 passed`.
+- Council and ponytail review found no remaining P0/P1 findings.
+- Delivery validation: `poetry run pytest -q` — `1134 passed, 1 skipped, 4
+  deselected`; `poetry run ruff check src tests`, `poetry check`, elevated
+  `poetry build`, `pre-commit run --files <B1.4 files>`, and `git diff --check`
+  passed.
+
 ## Required evidence by slice
 
 ### Slice 1

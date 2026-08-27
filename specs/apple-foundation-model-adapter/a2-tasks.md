@@ -53,8 +53,10 @@ fixed decisions in `a2-plan.md`.
       or registry/state reference; stale and raw descriptor contexts fail closed.
   - Evidence: `validation.md` (2026-08-26); constructor and factory paths both
     reject raw descriptors, and stale contexts fail before their closure runs.
-- [ ] B1.4 [implementation] Define typed provider interruption, synchronous
+- [x] B1.4 [implementation] Define typed provider interruption, synchronous
       exact-fingerprint decision collaborator, and atomic callback budget.
+  - Evidence: `validation.md` (2026-08-26); no decision dispatch, outcome
+    rendering, or callback/session lifecycle behavior is introduced before B1.5/B3.
 - [ ] B1.5 [tests] Prove approved dispatches once; denied/cancelled/expired and
       unresolved approvals prevent handler/hook/retry/registry/state effects;
       exposure and argument validation precede decision resolution and

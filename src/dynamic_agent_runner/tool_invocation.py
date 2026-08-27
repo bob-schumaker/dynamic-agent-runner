@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any
+from enum import Enum, StrEnum
+from hashlib import sha256
+import json
+from threading import Lock
+from typing import Any, Protocol
 from uuid import uuid4
 
 from dynamic_agent_runner.hooks import (
@@ -52,6 +55,183 @@ class ApprovalInterruption:
     schema_version: int = 1
 
 
+class ProviderToolInterruption(Exception):
+    """Provider-safe typed escape carrying an approval interruption privately."""
+
+    __slots__ = ("_approval", "provider")
+
+    def __init__(
+        self, approval: ApprovalInterruption, *, provider: str | None = None
+    ) -> None:
+        Exception.__init__(self, "provider tool invocation interrupted")
+        self._approval = approval
+        self.provider = provider
+
+    @property
+    def interruption_id(self) -> str:
+        """Return the opaque DAR interruption identity."""
+
+        return self._approval.interruption_id
+
+    @property
+    def tool_id(self) -> str | None:
+        """Return the interrupted tool identity without arguments."""
+
+        return self._approval.tool_id
+
+    @property
+    def state(self) -> ApprovalInterruptionState:
+        """Return the DAR approval state."""
+
+        return self._approval.state
+
+    def __str__(self) -> str:
+        return "provider tool invocation interrupted"
+
+
+def unwrap_provider_tool_interruption(
+    interruption: ProviderToolInterruption,
+) -> ApprovalInterruption:
+    """Return the DAR approval record only inside trusted runtime code."""
+
+    if not isinstance(interruption, ProviderToolInterruption):
+        raise ToolRegistryError("provider interruption is invalid")
+    return interruption._approval
+
+
+class ProviderDecisionState(StrEnum):
+    """Synchronous provider approval decision states."""
+
+    APPROVED = "approved"
+    DENIED = "denied"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+    UNRESOLVED = "unresolved"
+
+
+@dataclass(frozen=True)
+class ProviderDecisionRequest:
+    """One callback's opaque approval-binding request."""
+
+    invocation_id: str
+    fingerprint: str
+
+    def __post_init__(self) -> None:
+        _non_empty_string(self.invocation_id, "invocation_id")
+        _fingerprint(self.fingerprint)
+
+
+@dataclass(frozen=True)
+class ProviderToolDecision:
+    """Typed decision returned synchronously by a trusted collaborator."""
+
+    state: ProviderDecisionState
+    invocation_id: str
+    fingerprint: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.state, ProviderDecisionState):
+            raise ToolRegistryError("provider decision state is invalid")
+        _non_empty_string(self.invocation_id, "invocation_id")
+        _fingerprint(self.fingerprint)
+
+
+class ProviderDecisionCollaborator(Protocol):
+    """Trusted synchronous resolver for one exact provider callback decision."""
+
+    def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+        """Return one typed decision without awaiting or dispatching tools."""
+
+
+def request_provider_tool_decision(
+    collaborator: ProviderDecisionCollaborator,
+    request: ProviderDecisionRequest,
+) -> ProviderToolDecision:
+    """Invoke a synchronous decision collaborator at the provider boundary."""
+
+    decision = collaborator.decide(request)
+    if not isinstance(decision, ProviderToolDecision):
+        raise ToolRegistryError(
+            "provider decision collaborator returned an invalid value"
+        )
+    if (
+        decision.invocation_id != request.invocation_id
+        or decision.fingerprint != request.fingerprint
+    ):
+        raise ToolRegistryError("provider decision does not match its request")
+    return decision
+
+
+def provider_invocation_fingerprint(
+    *,
+    run_id: str,
+    workflow_id: str,
+    node_id: str,
+    action_id: str | None,
+    prepared: PreparedToolInvocation,
+) -> str:
+    """Hash one normalized provider invocation without exposing its arguments."""
+
+    if not isinstance(prepared, PreparedToolInvocation):
+        raise ToolRegistryError(
+            "provider invocation fingerprint requires PreparedToolInvocation"
+        )
+    payload = {
+        "action_id": action_id,
+        "arguments": dict(prepared.arguments),
+        "node_id": node_id,
+        "run_id": run_id,
+        "tool_id": prepared.tool.id,
+        "workflow_id": workflow_id,
+    }
+    try:
+        serialized = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+    except (TypeError, ValueError) as error:
+        raise ToolRegistryError(
+            "provider invocation arguments are not fingerprintable"
+        ) from error
+    return sha256(serialized.encode("utf-8")).hexdigest()
+
+
+class ProviderCallbackBudget:
+    """Thread-safe bounded callback claims for one future provider session."""
+
+    def __init__(self, *, limit: int) -> None:
+        if not isinstance(limit, int) or isinstance(limit, bool) or limit < 0:
+            raise ToolRegistryError("provider callback budget limit is invalid")
+        self._limit = limit
+        self._claimed = 0
+        self._lock = Lock()
+
+    @property
+    def limit(self) -> int:
+        """Return the configured callback limit."""
+
+        return self._limit
+
+    @property
+    def claimed(self) -> int:
+        """Return the number of successful claims."""
+
+        with self._lock:
+            return self._claimed
+
+    def claim(self) -> bool:
+        """Atomically claim one callback slot."""
+
+        with self._lock:
+            if self._claimed >= self._limit:
+                return False
+            self._claimed += 1
+            return True
+
+
 @dataclass(frozen=True)
 class ActiveAdapterToolContext:
     """Trusted, non-wire state for one active tool-enabled model node."""
@@ -64,6 +244,8 @@ class ActiveAdapterToolContext:
     tracer: WorkflowTracer
     lifecycle_hooks: WorkflowLifecycleHooks | None
     retry_policy: RetryPolicy
+    decision_collaborator: ProviderDecisionCollaborator | None = None
+    callback_budget: ProviderCallbackBudget | None = None
 
     def __post_init__(self) -> None:
         """Reject descriptors and stale registry entries at the trust boundary."""
@@ -152,6 +334,8 @@ def tool_context(
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     retry_policy: RetryPolicy,
+    decision_collaborator: ProviderDecisionCollaborator | None = None,
+    callback_budget: ProviderCallbackBudget | None = None,
 ) -> ActiveAdapterToolContext:
     """Build the trusted non-wire context for one active model or tool node."""
 
@@ -165,6 +349,8 @@ def tool_context(
         tracer=tracer,
         lifecycle_hooks=lifecycle_hooks,
         retry_policy=retry_policy,
+        decision_collaborator=decision_collaborator,
+        callback_budget=callback_budget,
     )
 
 
@@ -312,3 +498,17 @@ def _tool_policy_payload(tool: RegisteredTool) -> dict[str, str]:
         if value is not None:
             payload[key] = str(value)
     return payload
+
+
+def _non_empty_string(value: object, field_name: str) -> None:
+    if not isinstance(value, str) or not value:
+        raise ToolRegistryError(f"provider decision {field_name} is invalid")
+
+
+def _fingerprint(value: object) -> None:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ToolRegistryError("provider decision fingerprint is invalid")
