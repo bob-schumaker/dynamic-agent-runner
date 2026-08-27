@@ -1936,6 +1936,26 @@ def test_apple_tool_bridge_rejects_stale_or_raw_context_before_session_creation(
     assert sdk.sessions == []
 
 
+def test_apple_host_callback_projection_rejects_a_replaced_source_tool() -> None:
+    definition = ToolDefinition.from_mapping(
+        {
+            "id": "send",
+            "input_schema": _APPLE_CALLBACK_SCHEMA,
+            "side_effect": "write",
+            "approval_required": "no",
+            "host_canonical_id": "authorized-mcp:binding:send",
+        }
+    )
+    registry = InMemoryToolRegistry([RegisteredTool(definition, lambda _: {})])
+    active = registry.get_tool("send")
+    context = _active_tool_context(registry, (active,))
+    projected = apple_foundation_models._apple_callback_context(context)
+    registry.register(_tool("send", _APPLE_CALLBACK_SCHEMA), replace=True)
+
+    with pytest.raises(ToolRegistryError, match="active invocation context"):
+        projected.registry.get_tool("send")
+
+
 def test_apple_tool_bridge_rejects_colliding_active_tool_mapping_before_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

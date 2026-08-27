@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import asyncio
 import importlib
 import json
@@ -25,7 +25,13 @@ from dynamic_agent_runner.openai_client import (
     OpenAIModelRequest,
     normalize_openai_response,
 )
-from dynamic_agent_runner.registry import PreparedToolInvocation, ToolResult
+from dynamic_agent_runner.registry import (
+    InMemoryToolRegistry,
+    PreparedToolInvocation,
+    RegisteredTool,
+    ToolRegistry,
+    ToolResult,
+)
 from dynamic_agent_runner.tool_invocation import (
     ActiveAdapterToolContext,
     ApprovalInterruption,
@@ -200,6 +206,7 @@ def _apple_tool_wrappers(
     context = _active_apple_tool_context(request)
     if context is None:
         return ()
+    context = _apple_callback_context(context)
     if sdk is None:
         raise ModelExecutionError("Apple Foundation Models SDK is unavailable")
     tool_ids = [tool.id for tool in context.tools]
@@ -232,6 +239,87 @@ def _apple_tool_wrappers(
             )
         )
     return tuple(wrappers)
+
+
+def _apple_callback_context(
+    context: ActiveAdapterToolContext,
+) -> ActiveAdapterToolContext:
+    """Require DAR approval before Apple can invoke a side-effecting binding."""
+
+    if not any(_requires_apple_host_approval(tool) for tool in context.tools):
+        return context
+    tools = tuple(_apple_callback_tool(tool) for tool in context.tools)
+    registry = _AppleCallbackToolRegistry(context.registry, context.tools, tools)
+    return replace(context, tools=tools, registry=registry)
+
+
+def _apple_callback_tool(tool: RegisteredTool) -> RegisteredTool:
+    """Keep a host binding private while strengthening Apple callback metadata."""
+
+    if not _requires_apple_host_approval(tool):
+        return tool
+    raw = {**tool.definition.raw, "approval_required": "yes"}
+    definition = replace(
+        tool.definition,
+        raw=raw,
+        policy=type(tool.definition.policy).from_mapping(raw),
+        approval_required="yes",
+    )
+    return RegisteredTool(definition, tool.handler)
+
+
+def _requires_apple_host_approval(tool: RegisteredTool) -> bool:
+    """Identify a side-effecting binding constructed by the sealed host."""
+
+    canonical_id = tool.definition.raw.get("host_canonical_id")
+    return (
+        isinstance(canonical_id, str)
+        and canonical_id.startswith("authorized-mcp:")
+        and tool.definition.side_effect != "read"
+    )
+
+
+class _AppleCallbackToolRegistry:
+    """Project stricter callback metadata without losing source currentness."""
+
+    def __init__(
+        self,
+        source: ToolRegistry,
+        source_tools: Sequence[RegisteredTool],
+        tools: Sequence[RegisteredTool],
+    ) -> None:
+        self._source = source
+        self._source_tools = {tool.id: tool for tool in source_tools}
+        self._projected = InMemoryToolRegistry(tools)
+
+    def get_tool(self, tool_id: str) -> RegisteredTool:
+        self._require_current(tool_id)
+        return self._projected.get_tool(tool_id)
+
+    async def invoke_tool_async(
+        self, tool_id: str, arguments: Mapping[str, Any] | None = None
+    ) -> ToolResult:
+        self._require_current(tool_id)
+        return await self._projected.invoke_tool_async(tool_id, arguments)
+
+    def prepare_tool_invocation(
+        self, tool_id: str, arguments: Mapping[str, Any] | None = None
+    ) -> PreparedToolInvocation:
+        self._require_current(tool_id)
+        return self._projected.prepare_tool_invocation(tool_id, arguments)
+
+    async def invoke_prepared_tool_async(
+        self, prepared: PreparedToolInvocation
+    ) -> ToolResult:
+        self._require_current(prepared.tool.id)
+        return await self._projected.invoke_prepared_tool_async(prepared)
+
+    def _require_current(self, tool_id: str) -> None:
+        expected = self._source_tools.get(tool_id)
+        if expected is None or self._source.get_tool(tool_id) is not expected:
+            raise ToolRegistryError(
+                f"tool {tool_id!r} no longer matches the active invocation context"
+            )
 
 
 def _active_apple_tool_context(

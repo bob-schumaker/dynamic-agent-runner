@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A3 Sealed-Host Task List
 
-Status: C2 complete; C3 next
+Status: C3 complete; C4 next
 
 This is the canonical A3 task list. It implements `a3-plan.md` and FR-17 in
 `spec.md`. All implementation tasks are test-first: add focused tests, observe
@@ -55,13 +55,13 @@ their failure, implement the smallest change, then rerun them green.
 
 ## C3 — Apple callbacks through host-owned MCP binding
 
-- [ ] C3.1 [tests] Add RED fake Apple-host workflow coverage with one reviewed
+- [x] C3.1 [tests] Add RED fake Apple-host workflow coverage with one reviewed
       read-only MCP tool. Prove only the bound current surface reaches the Apple
       session and no raw handler/registry is exposed. The reviewed read-only
       call requires no provider approval and dispatches once.
-- [ ] C3.2 [implementation] Wire the existing A2 active adapter tool context
+- [x] C3.2 [implementation] Wire the existing A2 active adapter tool context
       through the sealed host runner without bypassing coordinator ownership.
-- [ ] C3.3 [tests] Prove the sealed-host composition preserves the A2 entry
+- [x] C3.3 [tests] Prove the sealed-host composition preserves the A2 entry
       point: the reviewed read-only call runs once; an approval-required fake
       tool remains unresolved and never reaches a handler; and host
       traces/state/results remain DAR-owned. Keep the A2 suite as regression

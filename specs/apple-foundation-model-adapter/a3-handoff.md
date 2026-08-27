@@ -3,8 +3,8 @@
 
 ## Status
 
-The Apple Foundation Models sealed-host integration is complete through C2.
-C3 is the next implementation slice.
+The Apple Foundation Models sealed-host integration is complete through C3.
+C4 validation and the gated Fastmail O7 continuation are next.
 
 ## Completed commits
 
@@ -18,6 +18,30 @@ C3 is the next implementation slice.
 - `a16574c` — add the human-only `configure-apple-model` command and redacted
   setup failures.
 - `f677c0f` — bind sealed workflows to their configured Apple profiles.
+
+## C3 completion — 2026-08-27
+
+C3 is complete. Apple receives only generated wrappers for the active sealed
+host tool snapshot. A reviewed read-only MCP callback dispatches exactly once
+through DAR. A side-effecting `authorized-mcp` binding receives a private,
+Apple-only projected policy that requires DAR approval while preserving source
+registry currentness; with no decision collaborator, the callback ends in a
+typed provider interruption before entering the host handler.
+
+Focused fake-host coverage proves the Apple session receives only the bound
+read-only surface (not every discovered MCP tool), exposes neither a raw
+handler nor a registry, dispatches once without provider approval, and returns
+the DAR-owned terminal shape with redacted host traces. The write-path test
+proves zero handler entries and zero MCP dispatches, a typed interruption, and
+a redacted failed trace. A direct regression rejects a source-registry tool
+replacement after the Apple projection is built. A2's callback suite remains
+green.
+
+Focused C3/A2/host/runner MCP validation passed 98 tests; the full suite passed
+1210 tests with one skipped and six deselected. Full Ruff and `git diff --check`
+passed. A debugging council reviewed the change in independent and challenge
+rounds; its source-currentness and handler-entry findings were addressed.
+Ponytail found no complexity worth removing.
 
 ## C2 completion — 2026-08-27
 

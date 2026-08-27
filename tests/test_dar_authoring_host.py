@@ -7,6 +7,7 @@ import hashlib
 import json
 import shutil
 import zipfile
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -32,12 +33,16 @@ from dynamic_agent_runner.workflow_host.host import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.connections import (  # noqa: E402
     MCPConnectionControlPlane,
 )
+from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
+    create_authorized_mcp_tool_bindings,
+)
 from dynamic_agent_runner.workflow_host.mcp_client import MCPClientConfiguration  # noqa: E402
 from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool  # noqa: E402
 from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     LocalModelProfileControlPlane,
 )
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
+from dynamic_agent_runner.tool_invocation import ProviderToolInterruption  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -106,6 +111,62 @@ class _AsyncClient:
         self.responses = _AsyncResponses()
 
 
+class _AppleCallbackContent:
+    def __init__(self, payload: str) -> None:
+        self._payload = payload
+
+    def to_json(self) -> str:
+        return self._payload
+
+
+class _AppleCallbackSession:
+    def __init__(self, *, tools: list[object], callback_payload: str) -> None:
+        self.tools = tuple(tools)
+        self.callback_payload = callback_payload
+        self.callback_results: list[object] = []
+        self.callback_error: BaseException | None = None
+
+    async def respond(self, _prompt: str, **_kwargs: object) -> str:
+        try:
+            self.callback_results.append(
+                await self.tools[0].call(_AppleCallbackContent(self.callback_payload))
+            )
+        except BaseException as error:
+            self.callback_error = error
+            raise
+        return "three unread messages"
+
+
+class _AppleCallbackSDK:
+    class Tool:
+        pass
+
+    def __init__(self, callback_payload: str = "{}") -> None:
+        self.callback_payload = callback_payload
+        self.sessions: list[_AppleCallbackSession] = []
+
+    def SystemLanguageModel(self) -> object:
+        return type("SystemModel", (), {"is_available": lambda _self: (True, None)})()
+
+    def LanguageModelSession(
+        self, *, instructions: str | None, tools: list[object]
+    ) -> _AppleCallbackSession:
+        del instructions
+        session = _AppleCallbackSession(
+            tools=tools, callback_payload=self.callback_payload
+        )
+        self.sessions.append(session)
+        return session
+
+    @staticmethod
+    def generable(_description: str):
+        def decorate(cls: type[object]) -> type[object]:
+            cls.generation_schema = classmethod(lambda _cls: object())
+            return cls
+
+        return decorate
+
+
 class _MemorySecretStore:
     values: dict[str, str] = {}
 
@@ -139,11 +200,24 @@ class _ReviewedMCPClient:
         return (
             MCPDiscoveredTool(
                 name="list_unread",
-                input_schema={"type": "object", "properties": {}},
+                input_schema={
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "additionalProperties": False,
+                },
             ),
             MCPDiscoveredTool(
                 name="send_email",
-                input_schema={"type": "object", "properties": {}},
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "recipient": {"type": "string"},
+                        "body": {"type": "string"},
+                    },
+                    "required": ["recipient", "body"],
+                    "additionalProperties": False,
+                },
             ),
         )
 
@@ -507,6 +581,224 @@ def test_host_runs_a_registered_reviewed_mcp_workflow(
     assert _ReviewedMCPClient.calls == [("list_unread", {})]
 
 
+def test_apple_host_runs_only_the_bound_read_only_mcp_callback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "mail-reader"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    _add_read_only_mcp_tool(source)
+    runtime_path = source / "agent-runtime.yaml"
+    runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
+    runtime["runtime"]["execution_policy"]["model"] = "apple-system-language-model"
+    runtime["nodes"][0]["model"] = "apple-system-language-model"
+    runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
+    sdk = _AppleCallbackSDK()
+    _ReviewedMCPClient.calls.clear()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.connections.KeyringSecretStore",
+        _MemorySecretStore,
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.host.MCPConnectionClient",
+        _ReviewedMCPClient,
+    )
+    root = tmp_path / "state"
+    configure_apple_local_host(
+        root=root,
+        package_root=package_root,
+        model_id="apple-system-language-model",
+    )
+    connection = create_mcp_connection(
+        root=root,
+        endpoint="https://mcp.example.test/v1",
+        scopes={"mail.read"},
+        authentication_method="api_token",
+    )
+    authentication = configure_mcp_api_token(
+        root=root, connection_id=connection.connection_id, token="secret-token"
+    )
+    attach_mcp_client(
+        root=root,
+        connection_id=connection.connection_id,
+        authentication_id=authentication.authentication_id,
+        peer_certificate_sha256="a" * 64,
+        timeout_seconds=10,
+        max_response_bytes=32_768,
+    )
+    host = LocalWorkflowHost.open(root)
+    snapshot = host.review_mcp_surface(approved_read_only_tool_names={"list_unread"})
+    source_handle = host.select_package(source, now=NOW)
+    binding = host.bind_mcp_package(
+        package_source_handle=source_handle, snapshot_id=snapshot.snapshot_id, now=NOW
+    )
+    registration = host.register(
+        workflow_id="mail-reader",
+        package_source_handle=source_handle,
+        mcp_binding_id=binding.binding_id,
+        now=NOW,
+    )
+    prepared = host.prepare(
+        workflow_id=registration.workflow_id, prompt="List unread email.", now=NOW
+    )
+
+    result = host.run(
+        workflow_id=registration.workflow_id,
+        prepared_input_id=prepared.prepared_input_id,
+        now=NOW,
+    )
+
+    session = sdk.sessions[0]
+    assert result.output == {"message": "three unread messages"}
+    assert _ReviewedMCPClient.calls == [("list_unread", {})]
+    assert len(session.tools) == 1
+    assert session.callback_error is None
+    assert not hasattr(session.tools[0], "handler")
+    assert not hasattr(session.tools[0], "registry")
+    trace = host.run_traces()[-1]
+    assert trace.status == "completed"
+    assert "List unread email." not in repr(trace)
+
+
+def test_apple_host_does_not_dispatch_an_unapproved_write_callback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package_root = tmp_path / "packages"
+    source = package_root / "mail-writer"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    _add_approval_mcp_tool(source)
+    runtime_path = source / "agent-runtime.yaml"
+    runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
+    runtime["runtime"]["execution_policy"]["model"] = "apple-system-language-model"
+    runtime["nodes"][0]["model"] = "apple-system-language-model"
+    runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
+    sdk = _AppleCallbackSDK(
+        json.dumps(
+            {
+                "provenance_envelope": json.dumps(
+                    {
+                        "arguments": {
+                            "body": "Welcome!",
+                            "recipient": "ada@example.test",
+                        },
+                        "format_version": 1,
+                        "sources": {
+                            "body": {
+                                "end_byte": 25,
+                                "kind": "prompt_span",
+                                "normalization": "identity",
+                                "start_byte": 17,
+                            },
+                            "recipient": {
+                                "end_byte": 16,
+                                "kind": "prompt_span",
+                                "normalization": "identity",
+                                "start_byte": 0,
+                            },
+                        },
+                    },
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    )
+    _ReviewedMCPClient.calls.clear()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.connections.KeyringSecretStore",
+        _MemorySecretStore,
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.host.MCPConnectionClient",
+        _ReviewedMCPClient,
+    )
+    root = tmp_path / "state"
+    configure_apple_local_host(
+        root=root,
+        package_root=package_root,
+        model_id="apple-system-language-model",
+    )
+    connection = create_mcp_connection(
+        root=root,
+        endpoint="https://mcp.example.test/v1",
+        scopes={"mail.send"},
+        authentication_method="api_token",
+    )
+    authentication = configure_mcp_api_token(
+        root=root, connection_id=connection.connection_id, token="secret-token"
+    )
+    attach_mcp_client(
+        root=root,
+        connection_id=connection.connection_id,
+        authentication_id=authentication.authentication_id,
+        peer_certificate_sha256="a" * 64,
+        timeout_seconds=10,
+        max_response_bytes=32_768,
+    )
+    host = LocalWorkflowHost.open(root)
+    snapshot = host.review_mcp_surface(
+        approved_read_only_tool_names=(),
+        approved_tool_side_effects={"send_email": "write"},
+    )
+    source_handle = host.select_package(source, now=NOW)
+    binding = host.bind_mcp_package(
+        package_source_handle=source_handle, snapshot_id=snapshot.snapshot_id, now=NOW
+    )
+    registration = host.register(
+        workflow_id="mail-writer",
+        package_source_handle=source_handle,
+        mcp_binding_id=binding.binding_id,
+        now=NOW,
+    )
+    prepared = host.prepare(
+        workflow_id=registration.workflow_id,
+        prompt="ada@example.test Welcome!",
+        now=NOW,
+    )
+    handler_calls: list[dict[str, object]] = []
+
+    def spy_bindings(**kwargs: object):
+        bindings = create_authorized_mcp_tool_bindings(**kwargs)
+
+        def handler(arguments: dict[str, object], *, binding=bindings[0]):
+            handler_calls.append(dict(arguments))
+            return binding.handler(arguments)
+
+        return (replace(bindings[0], handler=handler),)
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.runner.create_authorized_mcp_tool_bindings",
+        spy_bindings,
+    )
+
+    with pytest.raises(ValueError, match="DAR workflow execution failed"):
+        host.run(
+            workflow_id=registration.workflow_id,
+            prepared_input_id=prepared.prepared_input_id,
+            now=NOW,
+        )
+
+    assert _ReviewedMCPClient.calls == []
+    assert handler_calls == []
+    session = sdk.sessions[0]
+    assert session.callback_results == []
+    assert isinstance(session.callback_error, ProviderToolInterruption)
+    assert len(session.tools) == 1
+    assert not hasattr(session.tools[0], "handler")
+    assert not hasattr(session.tools[0], "registry")
+    trace = host.run_traces()[-1]
+    assert trace.status == "failed"
+    assert "ada@example.test Welcome!" not in repr(trace)
+
+
 def test_host_keeps_connection_setup_material_out_of_execution_surfaces(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -705,7 +997,12 @@ def _add_read_only_mcp_tool(source: Path) -> None:
             "tool_type": "external_api",
             "description_for_llm": "List unread mail.",
             "adapter": "host.mcp",
-            "input_schema": {"type": "object", "properties": {}},
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            },
             "side_effect": "read",
             "approval_required": False,
             "timeout": "runtime_default",
@@ -714,6 +1011,73 @@ def _add_read_only_mcp_tool(source: Path) -> None:
         }
     ]
     runtime_value["nodes"][0]["available_tools"] = ["mail_list_unread"]
+    runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+
+
+def _add_approval_mcp_tool(source: Path) -> None:
+    descriptor = source / "workflow-descriptor.yaml"
+    descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+    descriptor_value["package_id"] = "mail-writer"
+    descriptor_value["tools"] = [
+        {
+            "id": "mail_send",
+            "kind": "mcp",
+            "remote_tool_name": "send_email",
+            "side_effect": "write",
+            "approval_required": True,
+        }
+    ]
+    descriptor_value["task_invocation"].update(
+        {
+            "allowed_tool_ids": ["mail_send"],
+            "argument_sources": {
+                "mail_send": {
+                    "recipient": {
+                        "sources": ["cited_original_prompt_span"],
+                        "authority": True,
+                    },
+                    "body": {
+                        "sources": ["cited_original_prompt_span"],
+                        "authority": False,
+                    },
+                }
+            },
+            "max_total_tool_calls": 1,
+        }
+    )
+    descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+    runtime = source / "agent-runtime.yaml"
+    runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+    runtime_value["package_id"] = "mail-writer"
+    runtime_value["runtime"]["execution_policy"]["tool_use_completion"] = {
+        "run_again": "required",
+        "stop_on_tool": "disabled",
+        "final_output": "default",
+    }
+    runtime_value["tools"] = [
+        {
+            "id": "mail_send",
+            "label": "Send email",
+            "tool_type": "external_api",
+            "description_for_llm": "Send email.",
+            "adapter": "host.mcp",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "recipient": {"type": "string"},
+                    "body": {"type": "string"},
+                },
+                "required": ["recipient", "body"],
+                "additionalProperties": False,
+            },
+            "side_effect": "write",
+            "approval_required": True,
+            "timeout": "runtime_default",
+            "retry_policy": "none",
+            "failure_behavior": "error",
+        }
+    ]
+    runtime_value["nodes"][0]["available_tools"] = ["mail_send"]
     runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
 
 

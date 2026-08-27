@@ -3,6 +3,38 @@
 
 Status: A1 and A2 implementation, documentation, and B4 validation complete; full test suite green
 
+## A3 C3 Apple callbacks through host-owned MCP binding — 2026-08-27
+
+- RED: a fake Apple sealed-host write callback reached the reviewed
+  `send_email` MCP handler without an approval interruption. The original
+  host-side `approval_required="no"` metadata correctly preserves the legacy
+  host action flow, but did not give the Apple callback coordinator a pending
+  approval boundary.
+- GREEN: the Apple adapter now projects only active sealed-host
+  `authorized-mcp:` side-effect bindings into a private callback registry with
+  `approval_required="yes"`. That registry validates each operation against
+  the original active registry object before allowing its projected entry, so
+  the projection cannot hide a changed host surface. No generic provider
+  registry, Apple-specific host decision collaborator, or second host run API
+  was added.
+- Fake Apple-host coverage proves the session receives only the currently bound
+  read-only wrapper despite a broader discovered MCP surface; the reviewed
+  callback dispatches once, has no exposed raw handler or registry, and returns
+  a DAR-owned terminal result with a redacted host trace. The approval-required
+  write callback reaches neither the host handler nor the MCP client, returns a
+  typed provider interruption, and leaves a redacted failed trace. A direct
+  regression rejects a source-registry replacement after callback projection.
+- Validation: `poetry run pytest tests/test_apple_foundation_models.py
+  tests/test_dar_authoring_host.py::test_apple_host_runs_only_the_bound_read_only_mcp_callback
+  tests/test_dar_authoring_host.py::test_apple_host_does_not_dispatch_an_unapproved_write_callback
+  tests/test_dar_authoring_runner.py tests/test_dar_authoring_authorized_tools.py
+  tests/test_dar_authoring_mcp_tools.py -q` — 98 passed; `poetry run pytest -q`
+  — 1210 passed, 1 skipped, 6 deselected; `poetry run ruff check src tests` and
+  `git diff --check` passed.
+- Council: the debugging triad's independent review found a source-currentness
+  gap and a missing handler-entry assertion; both were added before its
+  challenge round cleared C3. Ponytail: `Lean already. Ship.`
+
 ## A3 C2 sealed-runner adapter selection — 2026-08-27
 
 - RED: the focused runner suite failed because `WorkflowRunner` did not accept
