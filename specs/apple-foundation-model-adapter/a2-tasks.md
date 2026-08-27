@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A2 Task List
 
-Status: implementation in progress through B3.5; B4 remains
+Status: implementation in progress through B4.1; B4.2 and B4.3 remain
 
 This is the canonical task list for A2. `tasks.md` remains the completed A1
 record and must not duplicate A2 implementation work. This list implements the
@@ -129,12 +129,16 @@ fixed decisions in `a2-plan.md`.
 
 ## B4 — Live evidence and documentation
 
-- [ ] B4.1 [tests] Add a marked-live/manual eligible-Mac callback smoke using a
+- [x] B4.1 [tests] Add a marked-live/manual eligible-Mac callback smoke using a
       safely observable no-side-effect sentinel to show callback entry into DAR
       before handler execution and denied approval prevents the handler; retain
       exactly-once approval proof in fakes. In this Codex/macOS environment,
       run the native callback portion elevated outside the execution sandbox as
       demonstrated by B0.3.
+  - Evidence: `validation.md` (2026-08-26); elevated approved and denied DAR
+    callback sentinels passed independently. The approved path proves
+    `before_tool` precedes the handler; the denied path reaches DAR once without
+    handler, result-state, or normal lifecycle effects.
 - [ ] B4.2 [docs] Document A2 capabilities, interruption behavior, schema
       limits, and the status-255 harness result.
 - [ ] B4.3 [validation] Record RED/GREEN focused A2 test module results, then

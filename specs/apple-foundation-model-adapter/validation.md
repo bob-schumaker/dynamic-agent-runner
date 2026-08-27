@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 implementation in progress through B3.5, with B4 remaining
+Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 implementation in progress through B4.1, with B4.2 and B4.3 remaining
 
 ## Scope
 
@@ -11,7 +11,8 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - Canonical A2 task list: `specs/apple-foundation-model-adapter/a2-tasks.md`
 - A1 only: local final text and explicit JSON Schema output.
 - A2 Apple tool callbacks are governed by `a2-plan.md` and `a2-tasks.md`.
-  B0 through B3.5 implementation evidence is recorded below; B4 remains.
+  B0 through B4.1 implementation evidence is recorded below; B4.2 and B4.3
+  remain.
 
 ## Preparation checks
 
@@ -427,6 +428,31 @@ the restored-environment B0 result is investigated.
   now requires exactly `tool_started`, excluding post-cancellation result and
   completion traces. Final council and ponytail reviews reported no P0/P1/P2
   findings.
+
+## A2 B4.1 elevated live callback smoke — 2026-08-26
+
+- Added two `apple_live` no-side-effect sentinels that use the real Apple SDK
+  and DAR's Apple adapter, active tool context, coordinator, approval decision,
+  hooks, tracing, and tool registry. They are selected explicitly and run
+  elevated outside the Codex sandbox on this host.
+- Approved sentinel: `before_tool` is observed before its local handler, then
+  `after_tool`; it records one approved decision and DAR's
+  `tool_started`/`tool_result`/`tool_finished` traces. The handler only returns
+  a fixed local status object.
+- Denied sentinel: the real callback reaches DAR's collaborator exactly once;
+  it never reaches the handler or result state and emits no normal tool
+  lifecycle trace. Apple may retry its failed native callback; the per-session
+  one-call budget blocks that retry before another decision, optionally emitting
+  only `provider_callback_budget_exhausted`.
+- Elevated live evidence: `poetry run pytest -vv -m apple_live
+  tests/test_live_apple_foundation_models.py::test_live_apple_dar_callback_sentinel`
+  — `1 passed, 1 warning in 1.46s`; the denied test with its corresponding node
+  — `1 passed, 1 warning in 1.63s`. Both emitted the known SDK deprecated
+  `asyncio.iscoroutinefunction` warning and ignored `_ManagedObject.__del__`
+  teardown `TypeError`; neither changed the test assertions.
+- Council and ponytail reviews reported no P0/P1/P2 findings. Exactly-once and
+  cross-loop behavior remain deterministic fake-backed proof, as specified by
+  B0/B3 rather than this nondeterministic provider smoke.
 
 ## Required evidence by slice
 
