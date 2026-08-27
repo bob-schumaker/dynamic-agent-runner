@@ -775,10 +775,12 @@ pass:
     the Apple SDK itself exposes more.
 11. Apple tool callbacks are provider ingress points and must pass through a
     DAR-owned tool invocation coordinator before any handler can run.
-12. A2 approval-required callbacks return a provider-aware DAR interruption
-    before any handler runs. A2 does not wait inside the Apple callback for an
-    approval decision, and it may not bypass approval or disguise an
-    interruption as an ordinary direct tool invocation.
+12. A2 approval-required callbacks may dispatch once only when a synchronous
+    trusted decision approves the exact normalized invocation. Denied,
+    cancelled, and expired decisions do not dispatch; unresolved approval
+    returns a provider-aware DAR interruption before any handler runs. A2 does
+    not wait for durable approval resume inside the Apple callback, bypass
+    approval, or disguise an interruption as an ordinary direct tool invocation.
 
 ## Open Questions
 

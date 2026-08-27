@@ -34,7 +34,9 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
   package-owned error causes.
 - Slice 4: `01c1146` — strict executor selection coverage.
 - Slice 5: live text/JSON/workflow tests and README documentation are prepared;
-  live tests skip unless `DAR_RUN_LIVE_APPLE=1` is set on an eligible Mac.
+  default pytest excludes their `apple_live` marker, while selected tests skip
+  unless macOS, `apple-fm-sdk`, and `SystemLanguageModel.is_available()` are
+  present.
 - Focused implementation suite: `149 passed, 2 skipped`.
 - `poetry check`, Ruff, and focused pre-commit passed.
 
@@ -70,6 +72,45 @@ the restored-environment B0 result is investigated.
   environment. The teardown defect is SDK-native evidence, not a reason to add
   retries or pytest-specific production behavior. Keep standalone execution as
   the authoritative live gate while the harness is monitored.
+
+## A2 B0.3 SDK construction spike — 2026-08-26
+
+- Detected installed optional dependency: `apple-fm-sdk==0.2.1`.
+- A local, non-generating construction probe created `@generable`
+  `GenerationSchema` instances, a `Tool` subclass, and `GeneratedContent`; it
+  awaited the tool callback directly without constructing a model session or
+  invoking model generation.
+- The probe demonstrated scalar, array, nested-object, string-enum, numeric,
+  and array-cardinality schema paths plus JSON callback-argument extraction.
+- `Optional[T]` serialized as a required field; `Literal[...]` and `dict[...]`
+  schemas failed serialization. These are rejected A2 input forms.
+- The version-pinned admitted/rejected matrix and generated wrapper-name policy
+  are authoritative in `a2-plan.md`.
+- The distribution metadata and lockfile report `apple-fm-sdk==0.2.1`; the
+  installed module's `__version__` reports stale `0.1.0` metadata.
+- Inside the Codex execution sandbox, both `SystemLanguageModel.token_count`
+  and bare `LanguageModelSession.respond` returned native
+  `GenerationError(status: 255)` despite `(True, None)` availability; this is
+  not a context-window or tool-registration failure.
+- Outside that sandbox, a bare response succeeded, then a no-side-effect
+  `LanguageModelSession.respond` sentinel invoked `dar_tool_0` exactly once
+  with parsed `{"token": "DAR_SENTINEL"}` arguments. The callback ran on a
+  different thread and event loop from the caller. B0.3 is complete; B1 must
+  marshal bridge work to the executor-owned loop.
+- **Live-test environment requirement:** run Apple Foundation Models probes
+  elevated outside the Codex sandbox in this environment. This requirement is
+  proven only for the B0.3 native callback probe, not for all Apple hosts.
+- Reproducible callback evidence (run this command from an elevated host
+  terminal outside the Codex execution sandbox in this environment):
+
+  ```bash
+  poetry run pytest -m apple_live \
+    tests/test_live_apple_foundation_models.py::test_live_apple_tool_callback_sentinel -q
+  ```
+
+  It passed on 2026-08-26. The SDK emitted its known deprecated
+  `asyncio.iscoroutinefunction` warning and ignored teardown deallocator error;
+  neither changed the successful callback assertions.
 
 ## Required evidence by slice
 

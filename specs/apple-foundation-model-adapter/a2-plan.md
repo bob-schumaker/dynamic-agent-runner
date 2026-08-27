@@ -47,6 +47,11 @@ interruption without raw arguments, aborts and cleans up the Apple session, and
 is recognized by `AsyncOpenAIClientAdapter` and the executor as a
 `WorkflowInterruptedResult`, not a model failure or retry.
 
+An Apple callback may not await coordinator work directly from the SDK callback
+loop. It schedules that work on the executor-owned loop, awaits its
+thread-safe result, and treats cancellation, session completion, and unresolved
+interruption as terminal before any later callback can mutate DAR state.
+
 The bridge must not own approval policy, registry invocation, lifecycle hooks,
 trace emission, state writes, or redaction. Those remain coordinator behavior.
 
@@ -75,6 +80,43 @@ schema shape. Find a reproducible differentiator for native status 255, or, if
 it no longer reproduces, record that result and retain standalone execution as
 the live gate. No retry or pytest-specific production behavior is permitted.
 
+#### B0.3 SDK capability matrix — `apple-fm-sdk==0.2.1`
+
+The 2026-08-26 local construction spike used the installed optional SDK without
+calling `LanguageModelSession.respond`. `Tool` requires a subclass with string
+`name` and `description`, a `GenerationSchema`-returning `arguments_schema`, and
+an `async call(args: GeneratedContent) -> str`. A tool and schema constructed
+successfully, and direct `GeneratedContent` construction, `to_json()`,
+`value(...)`, and an awaited `call(...)` callback all succeeded.
+
+| DAR input shape | A2 admission and translation | Evidence / limitation |
+| --- | --- | --- |
+| Root object | Admit finite `properties` with `additionalProperties: false`; every property must be required. | `@generable` produces object schemas with `additionalProperties: false` and every dataclass field in `required`, including `Optional[T]`. |
+| Scalars | Admit `string`, `integer`, `number`, and `boolean`. | Constructed fields serialize to those four schema types. |
+| Arrays and nested objects | Admit arrays of admitted scalars or recursively admitted objects; emit generated `@generable` classes. | `list[str]`, nested object, and `list[Nested]` construct successfully. The SDK emits its own `$defs`/`$ref`; DAR must reject caller-supplied `$ref` and composition. |
+| Enum and bounds | Admit string `enum`; numeric `minimum`/`maximum`; array `minItems`/`maxItems`. | `guide(anyOf=...)`, numeric bounds, and array cardinality serialize and construct successfully. |
+| Callback arguments | Parse `GeneratedContent.to_json()` as JSON and submit that value to DAR validation; do not rely on SDK coercion from `value(type, ...)`. | Direct content construction and JSON round-trip preserve object, array, null, and scalar values. |
+| Names | Generate an opaque ASCII `dar_tool_<index>` wrapper name for each active allowlist entry and retain the DAR tool id in bridge context. | Direct construction accepted tested hyphen, space, mixed-case, digit-leading, and 129-character names; the SDK exposes no safer documented constraint in this version, so user-controlled ids are never passed through. |
+| Rejected forms | Reject caller-supplied `$ref`, composition, object maps, optional properties, JSON `null` types, non-string enum values, `const`, `pattern`/`format`, string-length constraints, and unknown keywords. | `Optional[T]` remains required; `Literal[...]` and `dict[...]` fail schema serialization. The untested forms are intentionally not admitted. |
+
+The translator must preserve the one-way distinction above: internal SDK
+`$defs`/`$ref` output is expected for generated nested classes and never makes
+caller-supplied references admissible.
+
+The native callback loop was verified by a marked-live, no-side-effect
+`LanguageModelSession.respond` sentinel outside the Codex execution sandbox. It
+invoked one wrapper exactly once with parsed JSON arguments on a different
+thread and event loop from the caller. The same bare native operations return
+status 255 inside that sandbox despite successful availability. The B1 bridge
+must therefore support both same- and cross-loop callbacks, marshalling
+coordinator work and all run-state, hook, and tracer mutation to the
+executor-owned loop with a thread-safe hop when the callback is cross-loop.
+
+**Live-test environment requirement:** the B0.3 native callback probe in this
+Codex/macOS environment requires elevated execution outside the Codex sandbox.
+This is a harness requirement observed here, not a claim that all Apple
+Foundation Models hosts require elevation.
+
 ### B1 — Provider-ingress and interruption contract
 
 Extract the executor-private coordinator into a dependency-light request/outcome
@@ -88,12 +130,13 @@ decision or after cancellation/budget exhaustion.
 ### B2 — Schema-safe wrapper preparation
 
 Implement one wrapper per active-node exposed tool. The B0 spike defines the
-admitted schema subset: object `properties`/`required`/`additionalProperties`,
-nested arrays and objects, scalar types, enum, nullability, and supported
-numeric/string constraints. Reject `$ref`, composition, patterns/formats, and
-unknown or semantically unrepresentable keywords before session creation.
+admitted schema subset: finite objects with required properties and
+`additionalProperties: false`, nested arrays and objects, scalar types, string
+enum, numeric bounds, and array cardinality. Reject caller-supplied `$ref`,
+composition, optional properties, JSON null types, patterns/formats, and unknown
+or semantically unrepresentable keywords before session creation.
 Define injective DAR-tool-id to Apple-wrapper-name mapping and reject invalid or
-colliding names. Prove inactive, unexposed, stale-context, and raw-descriptor
+colliding mappings. Prove inactive, unexposed, stale-context, and raw-descriptor
 tools never reach the Apple session.
 
 ### B3 — Coordinator dispatch and response translation
@@ -110,7 +153,7 @@ completion.
 
 Add fake tests for validation ordering, allowlist, stale-context/replay, single
 dispatch, all decision outcomes, cancellation, traces, redaction, callback
-budget, and schema/name rejection. Add an opt-in/manual eligible-Mac smoke with
+budget, and schema/name rejection. Add a marked-live/manual eligible-Mac smoke with
 a no-side-effect sentinel; exactly-once behavior is deterministic fake evidence,
 not a nondeterministic live-model assertion. Run the native-harness result from
 B0 separately from deterministic test gates.
@@ -124,11 +167,14 @@ B0 separately from deterministic test gates.
   and typed interruption propagation
 - `tests/test_apple_foundation_models.py`, `tests/test_executor.py`, and focused
   coordinator tests
+- `tests/test_live_apple_foundation_models.py` for the elevated B0.3 callback
+  sentinel and later B4 callback smoke
 - `README.md`, `spec.md`, `a2-tasks.md`, and `validation.md`
 
 ## Verification
 
 Use fake-backed tests first, then `poetry run pytest -q`,
-`poetry run ruff check src tests`, `poetry check`, and `poetry build`. Live Apple
-callback checks are opt-in and must use the isolated harness validated in B0 or
+`poetry run ruff check src tests`, `poetry check`, and `poetry build`. Default
+pytest excludes marked Apple live tests; selected live callback checks must use
+the isolated harness validated in B0 or
 record the precise status-255 limitation.

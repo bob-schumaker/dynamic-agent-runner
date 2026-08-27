@@ -17,10 +17,24 @@ fixed decisions in `a2-plan.md`.
       status-255 context, repeated teardown defect, and authoritative standalone
       gate; reconcile the validation record so its current conclusion is
       unambiguous.
-- [ ] B0.3 [spike] Pin and demonstrate the SDK `Tool`, `GenerationSchema`, and
+- [x] B0.3 [spike] Pin and demonstrate the SDK `Tool`, `GenerationSchema`, and
       `GeneratedContent` APIs; record the admitted A2 schema capability matrix,
       Apple tool-name constraints, supported callback argument conversion, and
-      rejected schema forms in `a2-plan.md`.
+      rejected schema forms in `a2-plan.md`; then run a marked-live no-side-effect
+      `LanguageModelSession.respond` sentinel that invokes one wrapper exactly
+      once with parsed callback arguments. Record the observed callback
+      thread/event-loop topology in the B0.3 evidence, but do not make its
+      relationship a live-test invariant.
+  - Construction evidence: `apple-fm-sdk` distribution `0.2.1` local probe,
+    recorded in `a2-plan.md` (2026-08-26); no model generation was invoked.
+    The package's `apple_fm_sdk.__version__` reports stale `0.1.0` metadata.
+  - Live evidence: outside the Codex execution sandbox, the sentinel invoked
+    exactly once with `{"token": "DAR_SENTINEL"}` on a different thread and
+    event loop from its caller. Inside that sandbox, even bare native operations
+    returned `GenerationError(status: 255)` despite successful availability.
+  - Reproducible command (run from an elevated host terminal outside the Codex
+    execution sandbox in this environment):
+    `poetry run pytest -m apple_live tests/test_live_apple_foundation_models.py::test_live_apple_tool_callback_sentinel -q`.
 
 ## B1 — Provider ingress contract
 
@@ -72,10 +86,12 @@ fixed decisions in `a2-plan.md`.
 
 ## B4 — Live evidence and documentation
 
-- [ ] B4.1 [tests] Add an opt-in/manual eligible-Mac callback smoke using a
+- [ ] B4.1 [tests] Add a marked-live/manual eligible-Mac callback smoke using a
       safely observable no-side-effect sentinel to show callback entry into DAR
       before handler execution and denied approval prevents the handler; retain
-      exactly-once approval proof in fakes.
+      exactly-once approval proof in fakes. In this Codex/macOS environment,
+      run the native callback portion elevated outside the execution sandbox as
+      demonstrated by B0.3.
 - [ ] B4.2 [docs] Document A2 capabilities, interruption behavior, schema
       limits, and the status-255 harness result.
 - [ ] B4.3 [validation] Record RED/GREEN focused A2 test module results, then
