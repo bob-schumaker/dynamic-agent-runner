@@ -9,7 +9,6 @@ from copy import deepcopy
 from pathlib import Path
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, TypeVar
 from uuid import uuid4
 
@@ -43,7 +42,6 @@ from dynamic_agent_runner.graph_mutation import ContextPruningMutation
 from dynamic_agent_runner.hooks import (
     ModelHookContext,
     NodeHookContext,
-    ToolHookContext,
     WorkflowHookContext,
     WorkflowLifecycleHooks,
     invoke_lifecycle_hook_async,
@@ -96,6 +94,13 @@ from dynamic_agent_runner.token_budget import (
     estimate_messages_tokens,
     token_budget_policy_from_value,
 )
+from dynamic_agent_runner.tool_invocation import (
+    ActiveAdapterToolContext,
+    ApprovalInterruption,
+    ApprovalInterruptionState,  # noqa: F401 - public executor compatibility export
+    coordinate_tool_invocation_async,
+    tool_context,
+)
 from dynamic_agent_runner.tracing import TraceEvent, TraceSink, WorkflowTracer
 
 
@@ -119,34 +124,6 @@ class NodeExecution:
     kind: str
     output: Any = None
     error: str | None = None
-
-
-class ApprovalInterruptionState(str, Enum):
-    """Lifecycle state for an approval interruption."""
-
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    CANCELLED = "cancelled"
-    EXPIRED = "expired"
-    FAILED = "failed"
-
-
-@dataclass(frozen=True)
-class ApprovalInterruption:
-    """Structured pause record for an approval-required runtime action."""
-
-    interruption_id: str
-    run_id: str
-    workflow_id: str
-    node_id: str
-    tool_id: str | None = None
-    action_id: str | None = None
-    arguments: Mapping[str, Any] = field(default_factory=dict)
-    policy: Mapping[str, Any] = field(default_factory=dict)
-    reason: str = ""
-    state: ApprovalInterruptionState = ApprovalInterruptionState.PENDING
-    schema_version: int = 1
 
 
 @dataclass
@@ -731,33 +708,6 @@ def _new_run_id() -> str:
     return str(uuid4())
 
 
-def _new_approval_id() -> str:
-    return str(uuid4())
-
-
-def _approval_required(tool: RegisteredTool) -> bool:
-    value = (
-        tool.definition.policy.approval_required or tool.definition.approval_required
-    )
-    return str(value).strip().lower() in {"1", "true", "yes", "required"}
-
-
-def _tool_policy_payload(tool: RegisteredTool) -> dict[str, str]:
-    policy = tool.definition.policy
-    payload: dict[str, str] = {}
-    for key, value in (
-        ("approval_required", policy.approval_required),
-        ("side_effect", policy.side_effect),
-        ("sandbox", policy.sandbox),
-        ("timeout", policy.timeout),
-        ("retry_policy", policy.retry_policy),
-        ("failure_behavior", policy.failure_behavior),
-    ):
-        if value is not None:
-            payload[key] = str(value)
-    return payload
-
-
 def _run_input_guardrails(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
@@ -1012,6 +962,16 @@ async def _execute_llm_step_async(
         prepared_input,
         registry,
     )
+    adapter_context = _active_adapter_tool_context(
+        node,
+        plan,
+        state,
+        registry,
+        tools,
+        exposed_tools,
+        tracer,
+        lifecycle_hooks,
+    )
     request = build_openai_request(
         model=prepared_input.model,
         messages=prepared_input.messages,
@@ -1022,6 +982,7 @@ async def _execute_llm_step_async(
             phase="initial",
         ),
         response_format=prepared_input.response_format,
+        adapter_context=adapter_context,
         **prepared_input.model_parameters,
     )
     model_request_payload = {
@@ -1064,6 +1025,7 @@ async def _execute_llm_step_async(
             state,
             prepared_input,
             tools,
+            adapter_context,
             tracer,
         )
         if retry_response is not None:
@@ -1117,7 +1079,7 @@ async def _execute_llm_step_async(
             prepared_input,
             response,
             tools,
-            exposed_tools,
+            adapter_context,
             tracer,
             lifecycle_hooks,
         )
@@ -1163,6 +1125,35 @@ def _llm_step_tools(
     return selection.tools, exposed_tools, selection.diagnostics.to_trace_payload()
 
 
+def _active_adapter_tool_context(
+    node: PreparedNode,
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+    registry: ToolRegistry | None,
+    tools: Sequence[Mapping[str, Any]],
+    exposed_tools: Sequence[RegisteredTool],
+    tracer: WorkflowTracer,
+    lifecycle_hooks: WorkflowLifecycleHooks | None,
+) -> ActiveAdapterToolContext | None:
+    """Bind only the model-facing tool surface to this active node request."""
+
+    if registry is None or not exposed_tools:
+        return None
+    model_tool_ids = {
+        str(tool["name"]) for tool in tools if isinstance(tool.get("name"), str)
+    }
+    return tool_context(
+        plan=plan,
+        node=node,
+        tools=tuple(tool for tool in exposed_tools if tool.id in model_tool_ids),
+        registry=registry,
+        state=state,
+        tracer=tracer,
+        lifecycle_hooks=lifecycle_hooks,
+        retry_policy=RetryPolicy(),
+    )
+
+
 async def _retry_model_after_context_overflow_async(
     exc: ModelExecutionError,
     node: PreparedNode,
@@ -1170,6 +1161,7 @@ async def _retry_model_after_context_overflow_async(
     state: WorkflowExecutionState,
     prepared_input: PreparedModelInput,
     tools: Sequence[Mapping[str, Any]],
+    adapter_context: ActiveAdapterToolContext | None,
     tracer: WorkflowTracer,
 ) -> ModelResponse | None:
     auto = _context_compaction_auto_policy(
@@ -1207,6 +1199,7 @@ async def _retry_model_after_context_overflow_async(
             phase="initial",
         ),
         response_format=prepared_input.response_format,
+        adapter_context=adapter_context,
         **prepared_input.model_parameters,
     )
     state.node_inputs[str(node.id)] = retry_request.to_kwargs()
@@ -1302,7 +1295,7 @@ async def _execute_model_tool_loop_async(
     prepared_input: PreparedModelInput,
     initial_response: ModelResponse,
     tools: Sequence[Mapping[str, Any]],
-    exposed_tools: Sequence[RegisteredTool],
+    adapter_context: ActiveAdapterToolContext | None,
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ModelResponse | WorkflowInterruptedResult:
@@ -1319,7 +1312,12 @@ async def _execute_model_tool_loop_async(
     tracer.emit(
         "model_tool_loop_started",
         node_id=str(node.id),
-        payload={"max_iterations": max_iterations, "tool_count": len(exposed_tools)},
+        payload={
+            "max_iterations": max_iterations,
+            "tool_count": len(adapter_context.allowed_tool_ids)
+            if adapter_context is not None
+            else 0,
+        },
     )
     for iteration in range(1, max_iterations + 1):
         if not response.tool_calls:
@@ -1349,9 +1347,8 @@ async def _execute_model_tool_loop_async(
                     tool_call,
                     tool_call_id,
                     iteration,
-                    registry,
                     guardrail_registry,
-                    exposed_tools,
+                    adapter_context,
                     state,
                     tracer,
                     lifecycle_hooks,
@@ -1396,6 +1393,7 @@ async def _execute_model_tool_loop_async(
             prepared_input,
             tuple(tools),
             tuple(transcript),
+            adapter_context,
             tracer,
             lifecycle_hooks,
         )
@@ -1416,6 +1414,7 @@ async def _request_loop_model_response_async(
     prepared_input: PreparedModelInput,
     tools: Sequence[Mapping[str, Any]],
     transcript: Sequence[Mapping[str, Any]],
+    adapter_context: ActiveAdapterToolContext | None,
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ModelResponse:
@@ -1444,6 +1443,7 @@ async def _request_loop_model_response_async(
             phase="after_tool_result",
         ),
         response_format=prepared_input.response_format,
+        adapter_context=adapter_context,
         **prepared_input.model_parameters,
     )
     state.node_inputs[str(node.id)] = request.to_kwargs()
@@ -1546,143 +1546,23 @@ def _message_from_model_input(
     )
 
 
-async def _coordinate_tool_invocation_async(
-    *,
-    node: PreparedNode,
-    plan: ExecutionPlan,
-    state: WorkflowExecutionState,
-    tracer: WorkflowTracer,
-    lifecycle_hooks: WorkflowLifecycleHooks | None,
-    registry: ToolRegistry,
-    tool: RegisteredTool,
-    arguments: Mapping[str, Any],
-    result_key: str,
-    invoke: Callable[[PreparedToolInvocation | None], Awaitable[ToolResult]],
-    approval_reason: str,
-    action_id: str | None = None,
-    emit_tool_invocation: bool = False,
-    guardrail_runner: Callable[[PreparedToolInvocation], None] | None = None,
-) -> ToolResult | WorkflowInterruptedResult:
-    """Apply DAR's shared approval, lifecycle, and observation boundary."""
-
-    prepared: PreparedToolInvocation | None = None
-    if guardrail_runner is not None:
-        prepared = registry.prepare_tool_invocation(tool.id, arguments)
-        guardrail_runner(prepared)
-    active_arguments = prepared.arguments if prepared is not None else arguments
-    event_payload = {"tool_id": tool.id, "arguments": active_arguments}
-    if action_id is not None:
-        event_payload["tool_call_id"] = action_id
-    if _approval_required(tool):
-        prepared = prepared or registry.prepare_tool_invocation(tool.id, arguments)
-        interruption = ApprovalInterruption(
-            interruption_id=_new_approval_id(),
-            run_id=str(state.run_id),
-            workflow_id=str(plan.workflow.runtime_manifest.package_id),
-            node_id=str(node.id),
-            tool_id=tool.id,
-            action_id=action_id,
-            arguments=prepared.arguments,
-            policy=_tool_policy_payload(tool),
-            reason=approval_reason,
-        )
-        approval_payload = {
-            "interruption_id": interruption.interruption_id,
-            "tool_id": tool.id,
-            "arguments": prepared.arguments,
-            "policy": interruption.policy,
-            "reason": interruption.reason,
-        }
-        if action_id is not None:
-            approval_payload["tool_call_id"] = action_id
-        tracer.emit(
-            "approval_requested",
-            node_id=str(node.id),
-            payload=approval_payload,
-            sensitive_fields=("arguments",),
-        )
-        paused_payload = {
-            "interruption_id": interruption.interruption_id,
-            "tool_id": tool.id,
-            "state": interruption.state.value,
-        }
-        if action_id is not None:
-            paused_payload["tool_call_id"] = action_id
-        tracer.emit("approval_paused", node_id=str(node.id), payload=paused_payload)
-        return WorkflowInterruptedResult(
-            final_result=None,
-            state=state,
-            interruption=interruption,
-        )
-    tracer.emit(
-        "tool_started",
-        node_id=str(node.id),
-        payload=event_payload,
-        sensitive_fields=("arguments",),
-    )
-    if emit_tool_invocation:
-        tracer.emit(
-            "tool_invocation",
-            node_id=str(node.id),
-            payload=event_payload,
-            sensitive_fields=("arguments",),
-        )
-    await invoke_lifecycle_hook_async(
-        lifecycle_hooks.registered_hook("before_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=tool.id,
-            arguments=active_arguments,
-            run_id=state.run_id,
-        ),
-    )
-    result = await invoke(prepared)
-    state.tool_results[result_key] = result
-    trace_payload = result.trace_payload()
-    if action_id is not None:
-        trace_payload = {"tool_call_id": action_id, **trace_payload}
-    tracer.emit(
-        "tool_result",
-        node_id=str(node.id),
-        payload=trace_payload,
-        sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
-    )
-    finished_payload = {
-        "tool_id": tool.id,
-        "success": result.success,
-        "error": result.error,
-    }
-    if action_id is not None:
-        finished_payload["tool_call_id"] = action_id
-    tracer.emit("tool_finished", node_id=str(node.id), payload=finished_payload)
-    await invoke_lifecycle_hook_async(
-        lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=tool.id,
-            arguments=active_arguments,
-            result=result,
-            error=result.error,
-            run_id=state.run_id,
-        ),
-    )
-    return result
-
-
 async def _invoke_model_tool_call_async(
     node: PreparedNode,
     plan: ExecutionPlan,
     tool_call: ModelToolCall,
     tool_call_id: str,
     iteration: int,
-    registry: ToolRegistry,
     guardrail_registry: InMemoryGuardrailRegistry | None,
-    exposed_tools: Sequence[RegisteredTool],
+    adapter_context: ActiveAdapterToolContext | None,
     state: WorkflowExecutionState,
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ToolResult | WorkflowInterruptedResult:
-    tool = _exposed_model_tool(tool_call, exposed_tools)
+    if adapter_context is None:
+        raise WorkflowExecutionError(
+            f"model requested unavailable tool {tool_call.name!r}"
+        )
+    tool = _exposed_model_tool(tool_call, adapter_context.tools)
     arguments = _model_tool_arguments(tool_call)
     tracer.emit(
         "model_tool_loop_tool_call",
@@ -1695,33 +1575,31 @@ async def _invoke_model_tool_call_async(
         },
         sensitive_fields=("arguments",),
     )
-    coordinated = await _coordinate_tool_invocation_async(
-        node=node,
-        plan=plan,
-        state=state,
-        tracer=tracer,
-        lifecycle_hooks=lifecycle_hooks,
-        registry=registry,
-        tool=tool,
-        arguments=arguments,
-        result_key=f"{node.id}.{tool_call_id}",
-        action_id=tool_call_id,
-        invoke=lambda prepared: (
-            registry.invoke_prepared_tool_async(prepared)
-            if prepared is not None
-            else registry.invoke_tool_async(tool.id, arguments)
-        ),
-        approval_reason=f"model tool {tool.id!r} requires approval",
-        guardrail_runner=_tool_input_guardrail_runner(
-            plan,
-            guardrail_registry,
-            tracer,
-            node,
-            tool_call_id,
-        ),
+    coordinated = await coordinate_tool_invocation_async(
+        adapter_context.request(
+            tool_id=tool.id,
+            arguments=arguments,
+            result_key=f"{node.id}.{tool_call_id}",
+            action_id=tool_call_id,
+            invoke=lambda prepared: (
+                adapter_context.registry.invoke_prepared_tool_async(prepared)
+                if prepared is not None
+                else adapter_context.registry.invoke_tool_async(tool.id, arguments)
+            ),
+            approval_reason=f"model tool {tool.id!r} requires approval",
+            guardrail_runner=_tool_input_guardrail_runner(
+                plan,
+                guardrail_registry,
+                tracer,
+                node,
+                tool_call_id,
+            ),
+        )
     )
-    if isinstance(coordinated, WorkflowInterruptedResult):
-        return coordinated
+    if isinstance(coordinated, ApprovalInterruption):
+        return WorkflowInterruptedResult(
+            final_result=None, state=state, interruption=coordinated
+        )
     result = coordinated
     if not result.success:
         raise WorkflowExecutionError(result.error or f"tool {tool.id!r} failed")
@@ -1955,27 +1833,34 @@ async def _execute_tool_step_async(
     arguments = _tool_arguments(node, state)
     state.node_inputs[str(node.id)] = arguments
     tool = registry.get_tool(str(node.tool_id))
-    coordinated = await _coordinate_tool_invocation_async(
-        node=node,
-        plan=plan,
-        state=state,
-        tracer=tracer,
-        lifecycle_hooks=lifecycle_hooks,
-        registry=registry,
-        tool=tool,
-        arguments=arguments,
-        result_key=str(node.id),
-        invoke=lambda prepared: _invoke_tool_with_retry_async(
-            node, registry, prepared or arguments, state, tracer
-        ),
-        approval_reason=f"tool {node.tool_id!r} requires approval",
-        emit_tool_invocation=True,
-        guardrail_runner=_tool_input_guardrail_runner(
-            plan, guardrail_registry, tracer, node
-        ),
+    coordinated = await coordinate_tool_invocation_async(
+        tool_context(
+            plan=plan,
+            node=node,
+            tools=(tool,),
+            registry=registry,
+            state=state,
+            tracer=tracer,
+            lifecycle_hooks=lifecycle_hooks,
+            retry_policy=_tool_retry_policy(node, registry),
+        ).request(
+            tool_id=tool.id,
+            arguments=arguments,
+            result_key=str(node.id),
+            invoke=lambda prepared: _invoke_tool_with_retry_async(
+                node, registry, prepared or arguments, state, tracer
+            ),
+            approval_reason=f"tool {node.tool_id!r} requires approval",
+            emit_tool_invocation=True,
+            guardrail_runner=_tool_input_guardrail_runner(
+                plan, guardrail_registry, tracer, node
+            ),
+        )
     )
-    if isinstance(coordinated, WorkflowInterruptedResult):
-        return coordinated
+    if isinstance(coordinated, ApprovalInterruption):
+        return WorkflowInterruptedResult(
+            final_result=None, state=state, interruption=coordinated
+        )
     result = coordinated
     if not result.success and _failure_behavior(node) == "error":
         error = result.error or f"tool {node.tool_id!r} failed"

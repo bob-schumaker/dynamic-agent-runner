@@ -45,8 +45,10 @@ fixed decisions in `a2-plan.md`.
       calls. Existing direct-retry and model-loop-failure tests remain coverage
       for their respective paths. The non-wire provider ingress request itself
       is B1.2 work; its wire exclusion is B1.3 RED coverage.
-- [ ] B1.2 [implementation] Extract a dependency-light internal coordinator,
+- [x] B1.2 [implementation] Extract a dependency-light internal coordinator,
       migrate existing callers, and define the non-wire active adapter context.
+  - Evidence: `validation.md` (2026-08-26); the selected-tool snapshot and
+    explicit retry policy are carried only in the non-wire adapter context.
 - [ ] B1.3 [tests] Prove non-Apple wire kwargs/traces contain no adapter context
       or registry/state reference; stale and raw descriptor contexts fail closed.
 - [ ] B1.4 [implementation] Define typed provider interruption, synchronous

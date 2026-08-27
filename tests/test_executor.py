@@ -68,6 +68,7 @@ from dynamic_agent_runner.openai_client import (
     OpenAIMessage,
     OpenAIProviderConfig,
 )
+from dynamic_agent_runner.tool_invocation import ActiveAdapterToolContext
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
@@ -3959,7 +3960,11 @@ def test_execute_workflow_applies_descriptor_budget_to_model_tools() -> None:
         }
     )
     registry = InMemoryToolRegistry([make_tool("search_repo"), make_tool("read_file")])
-    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+    captured_requests: list[object] = []
+    adapter = OpenAIClientAdapter(
+        FakeClient([{"id": "resp", "output_text": "done"}]),
+        response_validator=lambda request, _response: captured_requests.append(request),
+    )
 
     result = execute_workflow(
         workflow,
@@ -3982,6 +3987,11 @@ def test_execute_workflow_applies_descriptor_budget_to_model_tools() -> None:
     assert diagnostics["omitted"][0]["reason"] == "max_tools"
     assert "Read pyproject" not in repr(diagnostics)
     assert "parameters" not in repr(diagnostics)
+    assert len(captured_requests) == 1
+    context = captured_requests[0].adapter_context
+    assert isinstance(context, ActiveAdapterToolContext)
+    assert context.allowed_tool_ids == frozenset({"read_file"})
+    assert [tool.id for tool in context.tools] == ["read_file"]
 
 
 def test_execute_workflow_fails_before_dispatch_when_required_tool_excluded() -> None:

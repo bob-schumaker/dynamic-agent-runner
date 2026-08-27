@@ -186,6 +186,7 @@ class OpenAIModelRequest:
     tool_choice: str | Mapping[str, Any] | None = None
     response_format: Mapping[str, Any] | None = None
     extra: Mapping[str, Any] = field(default_factory=dict)
+    adapter_context: object | None = field(default=None, repr=False, compare=False)
 
     def to_kwargs(self) -> dict[str, Any]:
         """Return keyword arguments for ``client.responses.create``."""
@@ -673,6 +674,7 @@ def build_openai_request(
     tools: Iterable[Mapping[str, Any]] | None = None,
     tool_choice: str | Mapping[str, Any] | None = None,
     response_format: Mapping[str, Any] | None = None,
+    adapter_context: object | None = None,
     **extra: Any,
 ) -> OpenAIModelRequest:
     """Build a normalized OpenAI model request from rendered messages."""
@@ -689,6 +691,7 @@ def build_openai_request(
         tool_choice=tool_choice,
         response_format=dict(response_format) if response_format is not None else None,
         extra={key: value for key, value in extra.items() if value is not None},
+        adapter_context=adapter_context,
     )
 
 
@@ -997,6 +1000,7 @@ def _prepare_chatgpt_codex_request(
         tool_choice=request.tool_choice,
         response_format=request.response_format,
         extra=extra,
+        adapter_context=request.adapter_context,
     )
 
 

@@ -132,6 +132,30 @@ the restored-environment B0 result is investigated.
   remains responsible for the dependency-light provider ingress request; B1.3
   owns wire-context exclusion tests.
 
+## A2 B1.2 coordinator extraction — 2026-08-26
+
+- Extracted the shared tool invocation boundary to
+  `dynamic_agent_runner.tool_invocation`. The executor retains retries, node
+  output recording, and workflow interruption/result control flow.
+- `ActiveAdapterToolContext` is a non-wire `OpenAIModelRequest` field. It
+  snapshots the exact model-facing selected `RegisteredTool` objects, the run
+  state, plan/node, tracer/hooks, registry, and explicit retry policy; the
+  coordinator accepts one request-bound invocation closure.
+- Initial, overflow-retry, and iterative follow-up requests retain the same
+  adapter context. Direct and model-loop callers both use the extracted
+  coordinator.
+- Descriptor-budget coverage captures the active adapter request and proves
+  that its selected-tool snapshot contains `read_file` and excludes the
+  node-exposed but omitted `search_repo` tool.
+- RED: `poetry run pytest tests/test_openai_client.py::test_build_openai_request_keeps_adapter_context_out_of_extra -q`
+  — expected `AttributeError` before the field was introduced.
+- GREEN: `poetry run pytest tests/test_openai_client.py tests/test_executor.py -q`
+  — `207 passed` after extraction and migration.
+- Full validation: `poetry run pytest -q` — `1127 passed, 1 skipped, 4
+  deselected`; `poetry run ruff check src tests`, `pre-commit run --files
+  <B1.2 files>`, and `git diff --check` passed. B1.3 remains the owner of
+  explicit wire-kwargs/trace exclusion and stale/raw-context tests.
+
 ## Required evidence by slice
 
 ### Slice 1

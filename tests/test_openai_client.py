@@ -1579,3 +1579,18 @@ def test_build_openai_request_validates_required_inputs(
 ) -> None:
     with pytest.raises(ModelExecutionError, match=message):
         build_openai_request(model=model, messages=messages)
+
+
+def test_build_openai_request_keeps_adapter_context_out_of_extra() -> None:
+    """Adapter-only context must not be model request extra data."""
+
+    context = object()
+
+    request = build_openai_request(
+        model="gpt-test",
+        messages=[OpenAIMessage("user", "Hello")],
+        adapter_context=context,
+    )
+
+    assert request.adapter_context is context
+    assert "adapter_context" not in request.extra
