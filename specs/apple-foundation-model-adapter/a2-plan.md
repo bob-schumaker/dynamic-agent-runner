@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A2 Implementation Plan
 
-Status: implementation complete through B4.2; B4.3 validation remains
+Status: implementation, documentation, and B4 validation complete
 
 ## Scope and fixed decisions
 

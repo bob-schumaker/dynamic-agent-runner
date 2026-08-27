@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification under investigation; A2 implementation and documentation complete through B4.2, with B4.3 validation remaining
+Status: A1 and A2 implementation, documentation, and B4 validation complete; the full-suite configured-host MCP expectation failure remains recorded outside A2
 
 ## Scope
 
@@ -11,8 +11,8 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - Canonical A2 task list: `specs/apple-foundation-model-adapter/a2-tasks.md`
 - A1 only: local final text and explicit JSON Schema output.
 - A2 Apple tool callbacks are governed by `a2-plan.md` and `a2-tasks.md`.
-  B0 through B4.2 implementation and documentation evidence is recorded below;
-  B4.3 remains.
+  B0 through B4.3 implementation, documentation, and validation evidence is
+  recorded below.
 
 ## Preparation checks
 
@@ -468,6 +468,31 @@ the restored-environment B0 result is investigated.
   command boundary, and the current SDK deprecation warning plus ignored
   teardown ``TypeError``. It explicitly states that the harness condition is
   not a universal Apple-host requirement.
+
+## A2 B4.3 consolidated validation — 2026-08-27
+
+- RED/GREEN provenance: the focused RED/GREEN transitions for B1 through B3
+  remain recorded in their individual entries above. The consolidated current
+  GREEN command, `poetry run pytest -q tests/test_apple_foundation_models.py
+  tests/test_tool_invocation.py tests/test_executor.py`, completed with `228
+  passed in 2.05s`.
+- Full test command, `poetry run pytest -q`, completed with `1191 passed, 1
+  skipped, 6 deselected, 1 failed in 9.47s`. The sole failure remains
+  `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`:
+  it expects an empty stdio tool list, while the configured runtime exposes
+  `run_dar_workflow`. This is an existing non-A2 MCP expectation conflict, not
+  an Apple callback failure.
+- `poetry run ruff check src tests` reported `All checks passed!`; `poetry
+  check` reported `All set!`; and `poetry build` produced the 0.2.1 sdist and
+  wheel.
+- Elevated eligible-Mac gate, run outside the Codex execution sandbox:
+  `poetry run pytest -vv -m apple_live
+  tests/test_live_apple_foundation_models.py::test_live_apple_dar_callback_sentinel
+  tests/test_live_apple_foundation_models.py::test_live_apple_dar_callback_denied_approval_skips_handler`
+  completed with `2 passed, 2 warnings in 3.28s`. The warnings were the known
+  SDK deprecation of `asyncio.iscoroutinefunction`; interpreter teardown also
+  emitted the known ignored `_ManagedObject.__del__` ``TypeError``. Neither
+  changed the approved or denied callback assertions.
 
 ## Required evidence by slice
 

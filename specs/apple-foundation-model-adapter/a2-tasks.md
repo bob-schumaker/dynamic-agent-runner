@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A2 Task List
 
-Status: implementation and documentation complete through B4.2; B4.3 remains
+Status: A2 implementation, documentation, and B4 validation complete
 
 This is the canonical task list for A2. `tasks.md` remains the completed A1
 record and must not duplicate A2 implementation work. This list implements the
@@ -144,7 +144,10 @@ fixed decisions in `a2-plan.md`.
   - Evidence: `README.md` and `docs/files/python-api.rst` (2026-08-26);
     published source describes the active-tool bridge, decision outcomes,
     admitted schema subset, and environment-specific native test constraint.
-- [ ] B4.3 [validation] Record RED/GREEN focused A2 test module results, then
+- [x] B4.3 [validation] Record RED/GREEN focused A2 test module results, then
       run and record `poetry run pytest -q`, `poetry run ruff check src tests`,
       `poetry check`, `poetry build`, and the opt-in eligible-Mac callback gate
       or its precise skip, with redacted evidence identifiers/outputs.
+  - Evidence: `validation.md` (2026-08-27); the focused A2 suite, quality
+    checks, build, and elevated live callback gate passed. The full suite's
+    sole configured-host MCP expectation failure is recorded precisely.
