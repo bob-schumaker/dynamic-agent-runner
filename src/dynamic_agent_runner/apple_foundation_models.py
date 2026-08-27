@@ -7,15 +7,19 @@ from dataclasses import dataclass
 import asyncio
 import importlib
 import json
+import keyword
 import sys
-from typing import Any
+from typing import Annotated, Any
 from uuid import uuid4
 
-from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner.errors import ModelExecutionError, ToolRegistryError
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
+    ModelResponse,
     OpenAIModelRequest,
+    normalize_openai_response,
 )
+from dynamic_agent_runner.tool_invocation import ActiveAdapterToolContext
 
 
 AvailabilityChecker = Callable[[], tuple[bool, str | None]]
@@ -56,6 +60,17 @@ def create_apple_foundation_model_async_adapter(
 class AppleFoundationModelAsyncAdapter(AsyncOpenAIClientAdapter):
     """Existing DAR async adapter with conservative Apple capability metadata."""
 
+    async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        """Preserve trusted Apple tool context outside OpenAI wire kwargs."""
+
+        if request.adapter_context is None:
+            return await super().create_response(request)
+        try:
+            raw_response = await self.client.responses.create_request(request)
+        except ModelExecutionError as exc:
+            raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+        return normalize_openai_response(raw_response)
+
     @property
     def capabilities(self) -> Mapping[str, Any]:
         return {
@@ -81,10 +96,15 @@ class _AppleResponsesResource:
         self._config = config
 
     async def create(self, **kwargs: Any) -> Mapping[str, Any]:
+        return await self.create_request(_request_from_kwargs(kwargs))
+
+    async def create_request(self, request: OpenAIModelRequest) -> Mapping[str, Any]:
+        """Create one Apple response while retaining non-wire adapter context."""
+
         _require_macos()
-        request = _request_from_kwargs(kwargs)
-        _validate_request(request)
         sdk = _load_sdk() if self._config.availability_checker is None else None
+        wrappers = _apple_tool_wrappers(request, sdk)
+        _validate_request(request, tool_bridge_active=bool(wrappers))
         available, reason = _check_availability(self._config, sdk)
         if not available:
             raise ModelExecutionError(
@@ -93,7 +113,13 @@ class _AppleResponsesResource:
         if self._config.session_factory is None:
             sdk = sdk or _load_sdk()
         prompt, instructions = _render_messages(request.messages)
-        session = _make_session(self._config, sdk, request, instructions)
+        session = _make_session(
+            self._config,
+            sdk,
+            request,
+            instructions,
+            tools=wrappers,
+        )
         options = _make_generation_options(sdk, request.extra)
         schema = _extract_json_schema(request.response_format)
         if schema is not None and self._config.session_factory is None:
@@ -124,6 +150,244 @@ class _AppleResponsesResource:
                     "Apple Foundation Models structured output was not valid JSON"
                 ) from exc
         return {"id": f"apple-{uuid4().hex}", "output_text": content}
+
+
+def _apple_tool_wrappers(
+    request: OpenAIModelRequest,
+    sdk: Any | None,
+) -> tuple[object, ...]:
+    """Translate the trusted active DAR tool snapshot into Apple SDK wrappers."""
+
+    context = _active_apple_tool_context(request)
+    if context is None:
+        return ()
+    if sdk is None:
+        raise ModelExecutionError("Apple Foundation Models SDK is unavailable")
+    tool_ids = [tool.id for tool in context.tools]
+    if len(set(tool_ids)) != len(tool_ids):
+        raise ModelExecutionError("Apple tool bridge has duplicate active tool ids")
+    wrappers: list[object] = []
+    for index, tool in enumerate(context.tools):
+        try:
+            context.require_current_tool(tool)
+        except ToolRegistryError as exc:
+            raise ModelExecutionError(
+                "Apple tool bridge active tool context is stale"
+            ) from exc
+        arguments_type = _apple_generated_object_type(
+            _tool_input_schema(tool.definition.raw),
+            sdk,
+            type_name=f"DarTool{index}Arguments",
+        )
+        wrappers.append(
+            _apple_tool_wrapper(
+                sdk,
+                tool_id=tool.id,
+                name=f"dar_tool_{index}",
+                description=_apple_tool_description(tool.definition.raw, tool.id),
+                arguments_type=arguments_type,
+            )
+        )
+    return tuple(wrappers)
+
+
+def _active_apple_tool_context(
+    request: OpenAIModelRequest,
+) -> ActiveAdapterToolContext | None:
+    context = request.adapter_context
+    if isinstance(context, ActiveAdapterToolContext) and context.tools:
+        return context
+    if request.tools:
+        raise ModelExecutionError("Apple tool bridge requires an active tool context")
+    return None
+
+
+def _tool_input_schema(raw: Mapping[str, Any]) -> Mapping[str, Any]:
+    schema = raw.get("input_schema")
+    if schema is None:
+        return {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        }
+    if not isinstance(schema, Mapping):
+        raise ModelExecutionError("Apple tool has an untranslatable input schema")
+    return schema
+
+
+def _apple_tool_description(raw: Mapping[str, Any], tool_id: str) -> str:
+    value = raw.get("description_for_llm") or raw.get("label") or tool_id
+    description = str(value).strip()
+    if not description:
+        raise ModelExecutionError("Apple tool has an invalid description")
+    return description
+
+
+def _apple_tool_wrapper(
+    sdk: Any,
+    *,
+    tool_id: str,
+    name: str,
+    description: str,
+    arguments_type: type[object],
+) -> object:
+    """Build one inert SDK wrapper; B3 supplies its DAR callback behavior."""
+
+    async def call(_self: object, _arguments: object) -> str:
+        raise ModelExecutionError("Apple tool callbacks are not available until B3")
+
+    def arguments_schema(_self: object) -> object:
+        return arguments_type.generation_schema()
+
+    wrapper_type = type(
+        f"{arguments_type.__name__}Tool",
+        (sdk.Tool,),
+        {
+            "name": name,
+            "description": description,
+            "dar_tool_id": tool_id,
+            "arguments_schema": property(arguments_schema),
+            "call": call,
+        },
+    )
+    return wrapper_type()
+
+
+def _apple_generated_object_type(
+    schema: Mapping[str, Any],
+    sdk: Any,
+    *,
+    type_name: str,
+) -> type[object]:
+    """Translate an admitted finite object schema into an SDK-generable class."""
+
+    _require_schema_keys(
+        schema,
+        {"type", "properties", "required", "additionalProperties"},
+    )
+    if schema.get("type") != "object":
+        raise ModelExecutionError("Apple tool has an untranslatable object schema")
+    properties = schema.get("properties")
+    required = schema.get("required")
+    if not isinstance(properties, Mapping) or not isinstance(required, list):
+        raise ModelExecutionError("Apple tool has an untranslatable object schema")
+    property_names = tuple(properties)
+    if (
+        not all(
+            isinstance(name, str)
+            and name.isidentifier()
+            and not keyword.iskeyword(name)
+            for name in property_names
+        )
+        or not all(isinstance(name, str) for name in required)
+        or set(required) != set(property_names)
+        or schema.get("additionalProperties") is not False
+    ):
+        raise ModelExecutionError("Apple tool has an untranslatable object schema")
+    annotations: dict[str, object] = {}
+    for field_name, field_schema in properties.items():
+        if not isinstance(field_schema, Mapping):
+            raise ModelExecutionError("Apple tool has an untranslatable schema")
+        annotations[field_name] = _apple_annotation(
+            field_schema,
+            sdk,
+            type_name=f"{type_name}{field_name.title()}",
+        )
+    generated_type = type(type_name, (), {"__annotations__": annotations})
+    try:
+        return sdk.generable(f"DAR tool arguments for {type_name}")(generated_type)
+    except Exception as exc:  # noqa: BLE001 - SDK construction errors vary.
+        raise ModelExecutionError("Apple tool has an untranslatable schema") from exc
+
+
+def _apple_annotation(schema: Mapping[str, Any], sdk: Any, *, type_name: str) -> object:
+    schema_type = schema.get("type")
+    if schema_type == "object":
+        return _apple_generated_object_type(schema, sdk, type_name=type_name)
+    if schema_type == "array":
+        return _apple_array_annotation(schema, sdk, type_name=type_name)
+    if isinstance(schema_type, str) and schema_type in {
+        "string",
+        "integer",
+        "number",
+        "boolean",
+    }:
+        return _apple_scalar_annotation(schema, sdk)
+    raise ModelExecutionError("Apple tool has an untranslatable schema")
+
+
+def _apple_scalar_annotation(schema: Mapping[str, Any], sdk: Any) -> object:
+    schema_type = str(schema["type"])
+    allowed = {"type"}
+    constraints: dict[str, object] = {}
+    if schema_type == "string":
+        allowed.add("enum")
+        enum = schema.get("enum")
+        if enum is not None:
+            if (
+                not isinstance(enum, list)
+                or not enum
+                or not all(isinstance(value, str) for value in enum)
+            ):
+                raise ModelExecutionError("Apple tool has an untranslatable schema")
+            constraints["anyOf"] = list(enum)
+        annotation: object = str
+    elif schema_type in {"integer", "number"}:
+        allowed.update({"minimum", "maximum"})
+        minimum = schema.get("minimum")
+        maximum = schema.get("maximum")
+        for key, value in (("minimum", minimum), ("maximum", maximum)):
+            if value is not None:
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise ModelExecutionError("Apple tool has an untranslatable schema")
+                constraints[key] = value
+        if minimum is not None and maximum is not None and minimum > maximum:
+            raise ModelExecutionError("Apple tool has an untranslatable schema")
+        annotation = int if schema_type == "integer" else float
+    else:
+        annotation = bool
+    _require_schema_keys(schema, allowed)
+    return _guided_annotation(annotation, sdk, constraints)
+
+
+def _apple_array_annotation(
+    schema: Mapping[str, Any], sdk: Any, *, type_name: str
+) -> object:
+    _require_schema_keys(schema, {"type", "items", "minItems", "maxItems"})
+    items = schema.get("items")
+    if not isinstance(items, Mapping):
+        raise ModelExecutionError("Apple tool has an untranslatable schema")
+    constraints: dict[str, object] = {}
+    minimum = schema.get("minItems")
+    maximum = schema.get("maxItems")
+    for key, value in (("minItems", minimum), ("maxItems", maximum)):
+        if value is not None:
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ModelExecutionError("Apple tool has an untranslatable schema")
+            constraints[key] = value
+    if minimum is not None and maximum is not None and minimum > maximum:
+        raise ModelExecutionError("Apple tool has an untranslatable schema")
+    item_annotation = _apple_annotation(items, sdk, type_name=f"{type_name}Item")
+    return _guided_annotation(list[item_annotation], sdk, constraints)
+
+
+def _guided_annotation(
+    annotation: object,
+    sdk: Any,
+    constraints: Mapping[str, object],
+) -> object:
+    if not constraints:
+        return annotation
+    try:
+        return Annotated[annotation, sdk.guide(**dict(constraints))]
+    except Exception as exc:  # noqa: BLE001 - SDK guide construction errors vary.
+        raise ModelExecutionError("Apple tool has an untranslatable schema") from exc
+
+
+def _require_schema_keys(schema: Mapping[str, Any], allowed: set[str]) -> None:
+    if set(schema) - allowed:
+        raise ModelExecutionError("Apple tool has an untranslatable schema")
 
 
 def _require_macos() -> None:
@@ -160,13 +424,19 @@ def _make_session(
     sdk: Any | None,
     request: OpenAIModelRequest,
     instructions: str | None = None,
+    *,
+    tools: Sequence[object] = (),
 ) -> Any:
     try:
         if config.session_factory is not None:
+            if tools:
+                raise ModelExecutionError(
+                    "Apple Foundation Models tool bridge requires native session setup"
+                )
             return config.session_factory(instructions)
         if sdk is None:
             raise ModelExecutionError("Apple Foundation Models SDK is unavailable")
-        return sdk.LanguageModelSession(instructions=instructions)
+        return sdk.LanguageModelSession(instructions=instructions, tools=list(tools))
     except ModelExecutionError:
         raise
     except Exception as exc:  # noqa: BLE001 - SDK errors vary by release.
@@ -190,8 +460,12 @@ def _request_from_kwargs(kwargs: Mapping[str, Any]) -> OpenAIModelRequest:
     )
 
 
-def _validate_request(request: OpenAIModelRequest) -> None:
-    if request.tools or request.tool_choice is not None:
+def _validate_request(
+    request: OpenAIModelRequest,
+    *,
+    tool_bridge_active: bool = False,
+) -> None:
+    if (request.tools and not tool_bridge_active) or request.tool_choice is not None:
         raise ModelExecutionError("Apple Foundation Models tool calling is unsupported")
     for message in request.messages:
         content = message.get("content") if isinstance(message, Mapping) else None

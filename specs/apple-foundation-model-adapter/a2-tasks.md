@@ -77,8 +77,15 @@ fixed decisions in `a2-plan.md`.
       never reach Apple session creation.
   - Evidence: `validation.md` (2026-08-26); strict expected-failure coverage
     defines the B2.2 wrapper contract without enabling Apple tool use.
-- [ ] B2.2 [implementation] Generate one Apple wrapper per exposed active-node
-      DAR tool and provide no wrapper for inactive or unexposed tools.
+- [x] B2.2 [implementation] Generate one Apple wrapper per exposed active-node
+      DAR tool and provide no wrapper for inactive or unexposed tools. Select
+      wrappers solely from the typed active context, reject non-identifier and
+      keyword property names until an SDK alias mechanism is proven, and keep
+      wrapper callbacks inert until B3.
+  - Evidence: `validation.md` (2026-08-26); the focused fake SDK suite passes
+    with opaque wrapper names, active-context-only selection, strict schema
+    rejection, and non-identifier/keyword property-name rejection before
+    session setup.
 
 ## B3 — Callback execution
 

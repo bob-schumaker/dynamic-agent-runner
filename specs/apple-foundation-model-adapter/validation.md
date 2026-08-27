@@ -258,6 +258,35 @@ the restored-environment B0 result is investigated.
   the same pre-existing configured-host expectation failure in
   `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
 
+## A2 B2.2 schema-safe wrapper preparation — 2026-08-26
+
+- Apple session construction receives one native `Tool` subclass per current
+  tool in the typed `ActiveAdapterToolContext`; inactive and unexposed tools
+  never reach the session. Opaque provider-facing names remain ordered
+  `dar_tool_<index>` values, while the DAR tool id stays bridge-private.
+- The active context, not wire descriptors, determines wrapper selection. A
+  tool-bearing wire request without that typed context fails before session
+  creation; an active typed context still produces wrappers when the wire
+  descriptor list is empty.
+- The strict translator admits the B0.3 scalar, array, nested-object, enum, and
+  bound subset and rejects unsupported forms before session construction. It
+  also rejects non-identifier and Python-keyword property names because the
+  SDK spike did not prove an alias mechanism that preserves their model-visible
+  names. Wrapper callbacks deliberately raise the B3 boundary error and never
+  dispatch a DAR handler in this slice.
+- RED/GREEN: B2.1's 19 strict expected-failure cases were removed after the
+  implementation made them pass. `poetry run pytest -q
+  tests/test_apple_foundation_models.py tests/test_openai_client.py
+  tests/test_executor.py` — `251 passed`.
+- Council and ponytail review found and resolved trusted-context activation,
+  model-visible aliasing, and Python-keyword admission gaps. Final council and
+  ponytail reviews reported no remaining P0/P1 findings.
+- Delivery checks: `poetry run ruff check src tests`, `poetry check`,
+  `poetry build`, `pre-commit run --files <B2.2 files>`, and `git diff --check`
+  passed. Full `poetry run pytest -q` reached `1167 passed, 1 skipped, 4
+  deselected` plus the known unrelated configured-host expectation failure in
+  `tests/test_mcp_server.py::test_stdio_server_hides_execution_tools_without_a_configured_host`.
+
 ## Required evidence by slice
 
 ### Slice 1

@@ -91,7 +91,7 @@ successfully, and direct `GeneratedContent` construction, `to_json()`,
 
 | DAR input shape | A2 admission and translation | Evidence / limitation |
 | --- | --- | --- |
-| Root object | Admit finite `properties` with `additionalProperties: false`; every property must be required. | `@generable` produces object schemas with `additionalProperties: false` and every dataclass field in `required`, including `Optional[T]`. |
+| Root object | Admit finite `properties` with `additionalProperties: false`; every property must be required and have a non-keyword Python-identifier name. | `@generable` produces object schemas with `additionalProperties: false` and every dataclass field in `required`, including `Optional[T]`. The B0.3 spike did not prove an alias mechanism, so non-identifier or keyword property names are rejected rather than changing the Apple-visible schema. |
 | Scalars | Admit `string`, `integer`, `number`, and `boolean`. | Constructed fields serialize to those four schema types. |
 | Arrays and nested objects | Admit arrays of admitted scalars or recursively admitted objects; emit generated `@generable` classes. | `list[str]`, nested object, and `list[Nested]` construct successfully. The SDK emits its own `$defs`/`$ref`; DAR must reject caller-supplied `$ref` and composition. |
 | Enum and bounds | Admit string `enum`; numeric `minimum`/`maximum`; array `minItems`/`maxItems`. | `guide(anyOf=...)`, numeric bounds, and array cardinality serialize and construct successfully. |
@@ -134,7 +134,9 @@ admitted schema subset: finite objects with required properties and
 `additionalProperties: false`, nested arrays and objects, scalar types, string
 enum, numeric bounds, and array cardinality. Reject caller-supplied `$ref`,
 composition, optional properties, JSON null types, patterns/formats, and unknown
-or semantically unrepresentable keywords before session creation.
+or semantically unrepresentable keywords before session creation. Reject
+non-identifier or keyword property names until a B0-proven SDK alias mechanism
+can preserve them in the Apple-visible schema and reconstruct callback arguments.
 Define injective DAR-tool-id to Apple-wrapper-name mapping and reject invalid or
 colliding mappings. Prove inactive, unexposed, stale-context, and raw-descriptor
 tools never reach the Apple session.

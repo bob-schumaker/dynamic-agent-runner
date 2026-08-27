@@ -507,10 +507,6 @@ _ADMITTED_APPLE_TOOL_SCHEMA = {
 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B2.2 must translate the B0.3 admitted schema subset into Apple wrappers",
-)
 def test_apple_tool_bridge_constructs_only_opaque_active_wrappers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -574,6 +570,103 @@ def test_apple_tool_bridge_constructs_only_opaque_active_wrappers(
     recipient_type = _annotation_base(get_args(recipients_type)[0])
     assert get_type_hints(recipient_type, include_extras=True) == {"address": str}
     assert isinstance(recipient_type.generation_schema(), FakeAppleGenerationSchema)
+
+
+def test_apple_tool_bridge_uses_active_context_without_wire_descriptors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = _tool("write", _ADMITTED_APPLE_TOOL_SCHEMA)
+    registry = InMemoryToolRegistry([tool])
+    active = registry.get_tool("write")
+    context = _active_tool_context(registry, (active,))
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    response = asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=(),
+                adapter_context=context,
+            )
+        )
+    )
+
+    assert response.content == "answer"
+    assert [wrapper.name for wrapper in sdk.sessions[0].tools] == ["dar_tool_0"]
+
+
+def test_apple_tool_bridge_rejects_non_identifier_property_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "email-address": {"type": "string"},
+            "recipient name": {
+                "type": "object",
+                "properties": {"given-name": {"type": "string"}},
+                "required": ["given-name"],
+                "additionalProperties": False,
+            },
+        },
+        "required": ["email-address", "recipient name"],
+        "additionalProperties": False,
+    }
+    tool = _tool("write", schema)
+    registry = InMemoryToolRegistry([tool])
+    active = registry.get_tool("write")
+    context = _active_tool_context(registry, (active,))
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    with pytest.raises(ModelExecutionError, match="untranslatable.*schema"):
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("write",),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert sdk.sessions == []
+
+
+def test_apple_tool_bridge_rejects_keyword_property_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = {
+        "type": "object",
+        "properties": {"class": {"type": "string"}},
+        "required": ["class"],
+        "additionalProperties": False,
+    }
+    tool = _tool("write", schema)
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(registry, (registry.get_tool("write"),))
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    with pytest.raises(ModelExecutionError, match="untranslatable.*schema"):
+        asyncio.run(
+            create_apple_foundation_model_async_adapter().create_response(
+                _tool_request(
+                    registry,
+                    descriptor_ids=("write",),
+                    adapter_context=context,
+                )
+            )
+        )
+
+    assert sdk.sessions == []
 
 
 @pytest.mark.parametrize(
@@ -672,10 +765,6 @@ def test_apple_tool_bridge_constructs_only_opaque_active_wrappers(
         },
     ],
 )
-@pytest.mark.xfail(
-    strict=True,
-    reason="B2.2 must reject unsupported schema forms before Apple session creation",
-)
 def test_apple_tool_bridge_rejects_untranslatable_schema_before_session_creation(
     monkeypatch: pytest.MonkeyPatch,
     schema: dict[str, object],
@@ -703,10 +792,6 @@ def test_apple_tool_bridge_rejects_untranslatable_schema_before_session_creation
     assert sdk.sessions == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B2.2 must reject stale and raw adapter contexts before session creation",
-)
 def test_apple_tool_bridge_rejects_stale_or_raw_context_before_session_creation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -738,10 +823,6 @@ def test_apple_tool_bridge_rejects_stale_or_raw_context_before_session_creation(
     assert sdk.sessions == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B2.2 must reject duplicate active tool identities before name generation",
-)
 def test_apple_tool_bridge_rejects_colliding_active_tool_mapping_before_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
