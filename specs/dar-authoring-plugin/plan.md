@@ -595,6 +595,26 @@ and concurrent prepared-input consumption has exactly one winner.
 This milestone must not simulate DAR continuation or replay an interrupted
 graph.
 
+### G5.1 — Workflow-owned per-tool approval
+
+1. **G5.1.1: Admit the declared policy.** First add descriptor and policy tests
+   proving `write` and `delete` tools may set `approval_required` either way,
+   while still requiring provenance and exact reviewed bindings. Then remove
+   the side-effect-class rule that silently requires approval.
+2. **G5.1.2: Bind approval at dispatch.** Pass the immutable per-tool policy to
+   authorized MCP bindings. An auto-policy tool follows `workflow_auto` even
+   if `--ask` has supplied a broker; an approval-policy tool fails preflight
+   without one. Preserve the action ledger and every existing binding check.
+3. **G5.1.3: Add the two human decisions.** Reuse the atomic action-bound
+   record for `approve_once`. Add only a lock-protected in-memory, per-run,
+   per-declared-tool grant for `approve_rest_of_run`; bind it to the sealed
+   registration/policy/profile/surface/principal context and destroy it on all
+   run exits. Do not introduce durable grants or a generic permission layer.
+4. **G5.1.4: Prove non-escalation.** Use a mixed A/B mutation fixture to prove
+   that A's rest-of-run grant never dispatches B, a new run cannot reuse it,
+   and all later A calls still pass schema, provenance, surface, budget, and
+   ledger checks before exactly one dispatch.
+
 ## Not Yet Commit-Sized
 
 The following remain intentionally unscheduled because their host contracts are

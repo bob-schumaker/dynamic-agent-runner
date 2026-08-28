@@ -420,12 +420,28 @@ invoke` request.
     the local approval broker only for tools that request it; otherwise use the
     reviewed `workflow_auto` action path. Preserve the action ledger,
     provenance, snapshot, schema, budget, and no-retry guarantees in both
-    paths.
+    paths. `--ask` supplies a broker but cannot broaden the exposed surface or
+    cause an `approval_required: false` tool to prompt.
   - RED/GREEN: when approval is required, support `approve_once` and
-    `approve_rest_of_run`. The latter is a run-local grant bound to the
-    registration, workflow revision, profile, reviewed surface snapshot, and
-    exact declared tool contract. It expires at run end and must not apply to a
-    different workflow, revision, connection, or future run.
+    `approve_rest_of_run`. Retain the existing short-lived, atomic action
+    record for `approve_once`. Implement the latter as one in-memory,
+    lock-protected grant for one immutable declared tool contract, not as a
+    durable approval record or generic permission system. Bind it to run,
+    registration/revision and policy digest, principal, profile, reviewed
+    surface and connection generation, exact declared tool-to-remote mapping,
+    side-effect class, argument-source contract, and remaining per-tool budget.
+    Remove it on every terminal or recovery path.
+  - RED: exercise a mixed-tool run with two approval-required mutations A and
+    B. Grant “rest of run” for A; a later valid A call dispatches once only after
+    the normal validation path, while B still prompts separately and has zero
+    handler/MCP dispatch if it is denied or lacks a new decision. A grant must
+    fail in a new or reused run, after snapshot/registration drift, and after
+    its per-tool budget is exhausted.
+  - GREEN: show the broker’s receipt without raw sensitive arguments: operation
+    label, effect, registration/revision, reviewed surface, “this tool for this
+    run only,” and remaining per-tool budget. Later grant-backed calls must
+    still independently enforce schema, provenance, current snapshot, ledger
+    intent, and dispatch integrity.
   - Verify mixed-tool workflows cannot use `--ask` to broaden their exposed
     surface or bypass a required approval, and that a no-approval workflow is
     still limited to its user-selected exact tool contract.

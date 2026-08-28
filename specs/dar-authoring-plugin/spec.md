@@ -519,8 +519,9 @@ Acceptance criteria:
 - An MCP declaration identifies the configured server and tool to which the host
   will bind it. Design does not contact the server or fabricate remote tool
   names; provisioning discovers and validates the exact remote surface.
-- A side-effecting tool is marked approval-required in package metadata and is
-  also enforced by the plugin server under FR-6.
+- A side-effecting tool declares its user-selected `approval_required` policy
+  in package metadata. DAR enforces that exact per-tool choice at the handler
+  boundary under FR-6; the side-effect class alone never rewrites it.
 - Tool registration is supplied by the host when executing the workflow.
 
 ### FR-3: `agent-evaluation` is a companion skill
@@ -898,11 +899,19 @@ dispatch rules remain DAR-owned constraints.
 
 For a tool whose generated-workflow policy requires approval, the local broker
 shall offer exactly two positive decisions: approve the presented invocation
-once, or approve subsequent declared side-effecting invocations for the
-remainder of this run. A run-scoped approval is bound to the run identifier,
-workflow revision, registration, profile, reviewed surface snapshot, and the
-workflow's exact declared tool contract; it ends when the run ends and cannot
-authorize a different workflow, revision, connection, or future run. The model
+once, or approve later invocations of that same immutable declared tool contract
+for the remainder of this run. The latter is not workflow-wide approval: a
+separate declared mutation tool requires its own decision. A run-scoped grant
+is in-memory and bound to the run identifier, workflow revision, registration,
+policy digest, profile, reviewed surface snapshot and connection generation,
+local principal, declared tool identifier-to-remote mapping, side-effect class,
+argument-source contract, and remaining per-tool call budget. It ends on every
+run terminal or recovery path and cannot authorize a different workflow,
+revision, connection, tool, or future run. The broker displays the safe
+operation label, side-effect class, reviewed surface identity, current revision,
+remaining budget, and “this tool for this run only”; it does not persist raw
+arguments in the grant receipt. Every later invocation still passes schema,
+provenance, snapshot, budget, ledger-intent, and dispatch checks. The model
 cannot create, extend, or select either approval. Cross-run approval for a
 specific workflow is deferred.
 
@@ -947,7 +956,8 @@ path or source handle.
 - `--ask`: serve an approval-required call through the interactive wrapper
   broker before its handler runs. The broker displays the normalized action and
   returns a workflow-policy-bound decision; it is not a model-provided approval
-  token.
+  token. It does not broaden the sealed tool surface or cause a tool with
+  `approval_required: false` to obtain a broker decision.
 
 `--ask` is a local CLI/control-plane-only synchronous mode: the wrapper holds
 the current handler boundary while the broker decides, then dispatches exactly
@@ -1013,6 +1023,9 @@ Acceptance criteria:
 - Changing a subject, recipient group, package revision, or referenced body file
   after an `--ask` preview invalidates the approval.
 - A valid `--ask` approval cannot be consumed twice or by another local principal.
+- An `approve_rest_of_run` grant for declared tool A cannot dispatch declared
+  tool B. A second schema-valid A call may use the grant only within its
+  remaining budget, and the grant is unusable after the run ends.
 - An audit-store failure prevents dispatch; an uncertain post-dispatch outcome is
   recorded as `outcome_unknown` and cannot be automatically replayed.
 - A reconnect, identity change, or snapshot drift between planning and dispatch
