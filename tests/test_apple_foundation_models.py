@@ -1042,6 +1042,37 @@ def test_apple_gateway_capability_tokens_are_apple_safe_hex(
     assert token == "a" * 48
 
 
+def test_apple_gateway_accepts_current_host_read_only_mcp_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fallback = _tool(
+        "search-email",
+        _GATEWAY_APPLE_TOOL_SCHEMA,
+        side_effect="read",
+        host_canonical_id="mcp:binding-id:search-email",
+        description_for_llm="Search the reviewed mailbox",
+    )
+    registry = InMemoryToolRegistry([fallback])
+    context = _active_tool_context(registry, (registry.get_tool("search-email"),))
+    sdk = FakeAppleToolSDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    response = asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=("search-email",),
+                adapter_context=context,
+            )
+        )
+    )
+
+    assert response.content == "answer"
+    assert [tool.name for tool in sdk.sessions[0].tools] == ["dar_gateway"]
+
+
 def test_apple_tool_bridge_blocks_a_generic_gateway_schema_before_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1292,6 +1323,121 @@ def test_apple_callbacks_approved_dispatch_preserve_dar_state_and_model_output(
         "tool_result",
         "tool_finished",
     ]
+
+
+def test_apple_callback_bounds_large_model_output_without_losing_first_five_items() -> (
+    None
+):
+    result = ToolResult(
+        tool_id="search_email",
+        success=True,
+        model_output={
+            "messages": [
+                {"subject": f"subject-{index}", "body": "x" * 1_000}
+                for index in range(5)
+            ],
+            "extra": "x" * 1_000,
+        },
+    )
+
+    payload = json.loads(
+        asyncio.run(apple_foundation_models._apple_tool_result_output(result))
+    )
+
+    assert len(json.dumps(payload, separators=(",", ":"))) <= 2_048
+    assert payload["truncated"] is True
+    assert [message["subject"] for message in payload["result"]["messages"]] == [
+        "subject-0",
+        "subject-1",
+        "subject-2",
+        "subject-3",
+        "subject-4",
+    ]
+    assert all(
+        len(message["body"]) < 1_000 for message in payload["result"]["messages"]
+    )
+
+
+def test_apple_callback_result_budget_uses_system_context_size() -> None:
+    class Model:
+        context_size = 8_192
+
+        async def token_count(self, value: str) -> int:
+            return len(value)
+
+    budget = apple_foundation_models._apple_callback_result_budget(
+        SimpleNamespace(SystemLanguageModel=lambda: Model())
+    )
+
+    assert budget.limit == 2_048
+
+
+def test_apple_callback_result_output_uses_token_budget_before_character_fallback() -> (
+    None
+):
+    token_count_calls: list[str] = []
+
+    async def token_count(value: str) -> int:
+        token_count_calls.append(value)
+        return len(value)
+
+    budget = apple_foundation_models._AppleCallbackResultBudget(
+        limit=75,
+        token_count=token_count,
+    )
+    result = ToolResult(
+        tool_id="search_email",
+        success=True,
+        model_output={"subject": "Email", "body": "x" * 100},
+    )
+
+    payload = json.loads(
+        asyncio.run(
+            apple_foundation_models._apple_tool_result_output(
+                result,
+                callback_result_budget=budget,
+            )
+        )
+    )
+
+    assert payload["truncated"] is True
+    assert token_count_calls
+
+
+def test_apple_callback_prefers_bounded_mcp_structured_content() -> None:
+    result = ToolResult(
+        tool_id="search_email",
+        success=True,
+        model_output={
+            "content": [{"type": "text", "text": "x" * 10_000}],
+            "structuredContent": {
+                "results": [
+                    {
+                        "isForwarded": False,
+                        "messageId": f"message-{index}",
+                        "isDraft": False,
+                        "isFlagged": False,
+                        "folder": {"name": "Inbox"},
+                        "preview": "x" * 1_000,
+                        "subject": f"subject-{index}",
+                    }
+                    for index in range(5)
+                ]
+            },
+        },
+    )
+
+    payload = json.loads(
+        asyncio.run(apple_foundation_models._apple_tool_result_output(result))
+    )
+
+    assert len(json.dumps(payload, separators=(",", ":"))) <= 2_048
+    assert payload["truncated"] is True
+    assert set(payload["result"]) == {"structuredContent"}
+    assert [
+        message["subject"]
+        for message in payload["result"]["structuredContent"]["results"]
+    ] == ["subject-0", "subject-1", "subject-2", "subject-3", "subject-4"]
 
 
 def test_apple_callback_rejects_invalid_arguments_before_decision_or_dispatch(

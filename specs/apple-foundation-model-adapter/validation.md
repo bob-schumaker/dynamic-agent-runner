@@ -1,7 +1,20 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1 and A2 implementation, documentation, and B4 validation complete; full test suite green
+Status: A1–A4 implementation and A3 C4 validation complete; full test suite green
+
+## A3 C4 Apple-backed Fastmail/O7 acceptance — 2026-08-27
+
+- The eligible-Mac Apple-backed saved workflow completed the human-authorized
+  Fastmail read-only invocation after a current-surface preflight. The retained
+  evidence is limited to package/transcript digests, terminal status, dispatch
+  count, and bounded diagnostic byte counts.
+- Final verification: `poetry run pytest -q` — 1234 passed, 1 skipped, 6
+  deselected; `poetry run ruff check src tests`, `pre-commit run --all-files`,
+  and `git diff --check` passed.
+- This completes C4.1–C4.5 and O7. A future Fastmail mutation acceptance is
+  governed by the generic G5.1–G5.3 workflow-policy work, not by an
+  Apple-specific permission model.
 
 ## A3 C4.3 Fastmail-schema preflight readiness — 2026-08-27
 
@@ -17,13 +30,10 @@ Status: A1 and A2 implementation, documentation, and B4 validation complete; ful
 - Fake coverage proves admissible and blocked schemas, redacted receipt
   representations, one reconnected-surface lookup, and no Apple session. No
   OAuth, Fastmail, Apple live model, or mailbox call was made.
-- Validation: `poetry run pytest tests/test_apple_foundation_models.py
-  tests/test_dar_authoring_mcp_surfaces.py -q` — 73 passed; the full suite,
-  Ruff, package check, and focused pre-commit remain required before C4.1 is
-  recorded.
-- C4.3 is not yet checked: its required human-authorized eligible-Mac run must
-  supply Fastmail's current `search_email` surface, retain only the redacted
-  receipt, and block O7 unless the receipt is admissible.
+- Checkpoint validation: `poetry run pytest tests/test_apple_foundation_models.py
+  tests/test_dar_authoring_mcp_surfaces.py -q` — 73 passed. The later C4
+  completion evidence above records the full verification and human-authorized
+  eligible-Mac run.
 
 ## A3 C3 Apple callbacks through host-owned MCP binding — 2026-08-27
 

@@ -88,6 +88,7 @@ build-backend = "poetry.masonry.api"
 
 [tool.pytest.ini_options]
 addopts = "-m 'not apple_live'"
+testpaths = ["tests"]
 markers = [
     "apple_live: live Apple Foundation Models test on an eligible Mac",
 ]

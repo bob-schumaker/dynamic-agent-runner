@@ -411,6 +411,66 @@ invoke` request.
 - [x] RED/GREEN: atomically consume a side-effect-capable prepared input at run
       creation. Concurrent/replayed consumption fails; prompt-only actions pass
       without G4, while file-backed actions require G4.
+- [ ] G5.1 [tests then implementation]: move per-invocation approval ownership
+      from the DAR side-effect taxonomy to the generated workflow policy.
+  - RED: prove `write` and `delete` descriptors may explicitly choose either
+    `approval_required: true` or `false`, while retaining required argument
+    provenance and the exact reviewed tool mapping.
+  - GREEN: make the authorized MCP binding consult that declared policy: require
+    the local approval broker only for tools that request it; otherwise use the
+    reviewed `workflow_auto` action path. Preserve the action ledger,
+    provenance, snapshot, schema, budget, and no-retry guarantees in both
+    paths.
+  - RED/GREEN: when approval is required, support `approve_once` and
+    `approve_rest_of_run`. The latter is a run-local grant bound to the
+    registration, workflow revision, profile, reviewed surface snapshot, and
+    exact declared tool contract. It expires at run end and must not apply to a
+    different workflow, revision, connection, or future run.
+  - Verify mixed-tool workflows cannot use `--ask` to broaden their exposed
+    surface or bypass a required approval, and that a no-approval workflow is
+    still limited to its user-selected exact tool contract.
+  - Defer a durable “approve all future runs of this specific workflow” decision
+    until a separate scope, revocation, and audit design is approved.
+- [ ] G5.2 [tests then implementation]: replace the sealed-host strict-local
+      adapter restriction with registered execution-profile capability matching.
+  - RED: prove a registered workflow with a host-configured non-local profile
+    is rejected only when its configured adapter, model identity, or declared
+    capabilities fail to match; prove a matching adapter is eligible without
+    requiring `is_local`.
+  - GREEN: make runtime admission compare the immutable registration and
+    workflow profile requirement with the host-configured execution profile and
+    adapter capabilities. Keep profile selection, credentials, endpoints, and
+    provider configuration host-owned; package and invocation inputs cannot
+    select or widen them.
+  - Preserve strict adapter coverage, exact model identity, policy-digest,
+    registration, and tool-binding checks. Existing local profiles remain valid
+    execution profiles rather than a global DAR requirement.
+  - Run focused registration, runner, capability, and adapter tests; then run
+    the full suite and lint.
+- [ ] G5.3 [tests then implementation]: establish and enforce the
+      generated-workflow-policy versus DAR-execution-control matrix.
+  - Define the authoritative ownership matrix in the DAR authoring specification:
+    generated workflow policy selects its exact tools, side-effect classes,
+    call/step budgets within host ceilings, approval mode, argument-source
+    rules, and profile requirement; host configuration supplies available
+    profiles, adapters, credentials, and reviewed MCP surfaces; DAR execution
+    enforces registration/revision/profile/policy binding, schemas, snapshots,
+    provenance, budgets, audit, and dispatch semantics.
+  - RED: add table-driven fixtures showing that valid declared choices for
+    approval, tool allowlist, budgets, argument sources, and an eligible profile
+    are accepted; reject only unavailable host capabilities, invalid contracts,
+    binding drift, schema/provenance violations, exhausted budgets, or dispatch
+    integrity failures.
+  - GREEN: remove any remaining core rule that silently substitutes a stricter
+    policy solely from a side-effect class or provider category. Keep generic
+    safety ceilings and unsupported capability versions as explicit runtime
+    availability results, never as an unannounced policy rewrite.
+  - Verify the same matrix through descriptor compilation, registration,
+    dry-run, and live runner dispatch with fake adapters and MCP clients. Add
+    regression cases for mixed read/write/delete workflows and both approval
+    modes.
+  - G5.3 depends on G5.1 and G5.2. Do not add provider-specific policy branches
+    or an `all access` grant.
 
 ## M8: Publication Hardening
 

@@ -2,11 +2,9 @@
 
 ## Status
 
-Implemented through O6. O7's opt-in Fastmail read-only run is authorized but
-blocked pending the Apple-backed sealed-host profile work in
-`../apple-foundation-model-adapter/a3-tasks.md`; human review of the
-specification and redacted terminal transcript remains required before claiming
-this integration live. This extension does not reopen the completed generic MCP
+Implemented through O7's approved Apple-backed Fastmail read-only run. A
+separately authorized mutation acceptance remains pending under the G5.1–G5.3
+workflow-policy work. This extension does not reopen the completed generic MCP
 baseline or change the plugin's skills-only control-plane direction.
 
 ## Commit-Sized Slices

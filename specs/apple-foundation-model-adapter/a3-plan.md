@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A3 Sealed-Host Integration Plan
 
-Status: planned
+Status: completed through C4; G5.2 will generalize execution-profile admission
 
 ## Objective
 
@@ -15,7 +15,7 @@ on-device and async-only.
 
 - A3 extends `apple-foundation-model-adapter`; it does not create an
   Apple-specific Fastmail or OAuth feature.
-- Apple is a strict-local, human-configured host profile with no base URL, API
+- Apple is a human-configured host execution profile with no base URL, API
   key, model path, downloaded-model reference, or workflow-controlled provider
   selection.
 - The host must use the canonical Apple async adapter and preserve its A2

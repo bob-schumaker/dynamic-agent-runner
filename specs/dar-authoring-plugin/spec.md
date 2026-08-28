@@ -872,7 +872,7 @@ Acceptance criteria:
 - A send-like fake tool remains unavailable and its handler is not invoked under
   G2 + G3 before G5 passes.
 
-### FR-6: Enforce write approval in the DAR host boundary
+### FR-6: Enforce declared external-action policy in the DAR host boundary
 
 The wrapper shall default to `workflow_auto` for every run of a pre-built,
 approved workflow revision. The CLI exposes this policy as its default `auto`
@@ -886,6 +886,26 @@ not require predeclared argument values, but it requires every final argument
 to satisfy the package `argument_sources` policy. Any profile or surface drift
 fails closed rather than silently widening that boundary.
 
+The side-effect class (`read`, `write`, or `delete`) describes the reviewed
+tool; it is not an approval policy. `approval_required` is an explicit,
+user-selected generated-workflow attribute. DAR validates and enforces that
+declared policy at the handler boundary, but must not require approval merely
+because a tool is `write` or `delete`. A workflow may therefore deliberately
+run an exact reviewed mutation through `workflow_auto`, or require a local
+approval for each invocation. In both cases, the exact tool allowlist, schema,
+surface snapshot, provenance, action ledger, call budget, and at-most-once
+dispatch rules remain DAR-owned constraints.
+
+For a tool whose generated-workflow policy requires approval, the local broker
+shall offer exactly two positive decisions: approve the presented invocation
+once, or approve subsequent declared side-effecting invocations for the
+remainder of this run. A run-scoped approval is bound to the run identifier,
+workflow revision, registration, profile, reviewed surface snapshot, and the
+workflow's exact declared tool contract; it ends when the run ends and cannot
+authorize a different workflow, revision, connection, or future run. The model
+cannot create, extend, or select either approval. Cross-run approval for a
+specific workflow is deferred.
+
 For a saved v1 package, the CLI provides one skill-facing composition command:
 
 ```text
@@ -898,7 +918,7 @@ ingress, sealed preparation, and execution internally, and never reveals a
 prepared-input identifier. The command accepts only descriptor-declared inputs;
 it cannot configure or widen a model, profile, connection, or tool binding.
 `--dry-run` validates without model or handler dispatch, while `--ask`
-uses the local broker for a side-effecting registered workflow. It accepts
+supplies the local broker when the generated workflow requires approval. It accepts
 neither a model endpoint nor arbitrary tool configuration. `--workspace-file`
 is accepted only when the
 saved descriptor has exactly one artifact role and one accepted media type;
@@ -924,9 +944,10 @@ path or source handle.
   invoke a model, invoke a tool handler, or ingress/copy caller files. It may
   validate a supplied source path read-only; a real run repeats trusted ingress
   and cannot reuse a dry-run observation or digest as an artifact authorization.
-- `--ask`: send each side-effecting call to an interactive wrapper approval
+- `--ask`: serve an approval-required call through the interactive wrapper
   broker before its handler runs. The broker displays the normalized action and
-  returns an allow/deny decision; it is not a model-provided approval token.
+  returns a workflow-policy-bound decision; it is not a model-provided approval
+  token.
 
 `--ask` is a local CLI/control-plane-only synchronous mode: the wrapper holds
 the current handler boundary while the broker decides, then dispatches exactly
@@ -967,11 +988,11 @@ body, credentials, or sensitive tool payload.
 DAR does not currently expose a public continuation API that resumes an
 interrupted execution at the pending tool call. The wrapper therefore creates an
 `AuthorizedToolBinding` from the immutable `WorkflowRegistration`, marked
-`approval_required: no` only for DAR compatibility, and owns both `workflow_auto`
-and `--ask` enforcement in the handler boundary. Registration compilation must
-prove the binding metadata equals the package tool contract. The generated
-package still declares side-effect and approval metadata for design, validation,
-and audit.
+`approval_required: no` only for DAR compatibility. The handler enforces the
+generated workflow's declared approval policy; G5.1 adds the required per-tool
+selection and run-scoped approval decisions. Registration compilation must prove
+the binding metadata equals the package tool contract. The generated package
+declares side-effect and approval metadata for design, validation, and audit.
 Arbitrary model-tool calls and normal registry construction cannot use the
 internal bindings; every handler verifies its immutable registration context,
 schema, and remaining call cardinality before external invocation. Native DAR
@@ -1305,7 +1326,7 @@ initially fail for the required behavior.
    rejects changed, expired, cross-principal, and replayed approvals.
 7. **G5:** Prove a v1.1 side-effecting handler enforces its registration policy
    without replaying an interrupted DAR execution.
-8. **G1/G3:** Verify a strict local profile never creates or uses a hosted fallback
+8. **G1/G3:** Verify an execution profile never falls back to an unregistered
    adapter, and trace output is redacted and correlates registration, adapter,
    and tool provenance.
 9. **Deferred slices:** Validate an embedding workflow only when its host adapter

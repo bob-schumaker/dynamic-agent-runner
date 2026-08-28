@@ -591,8 +591,14 @@ Acceptance criteria:
   is represented through a provider-aware DAR interruption rather than an
   unclassified direct callback error.
 - Given the registry returns a `ToolResult`, when the callback completes, then
-  Apple receives only a serialized form of `ToolResult.model_facing_output` and
-  DAR retains the full result in workflow state.
+  Apple receives only a serialized, token-bounded form of
+  `ToolResult.model_facing_output` and DAR retains the full result in workflow
+  state. When the active system model exposes its context size and token-count
+  API, DAR reserves three quarters of that context and bounds the callback to
+  the remaining quarter; older SDKs use a conservative fallback. The bounded
+  form is valid JSON, marks truncation, and retains the first five structured
+  items so a provider context limit cannot prevent a read-only result from being
+  summarized.
 - Given tool output declares sensitive fields, when trace events are emitted,
   then the coordinator preserves the current DAR redaction contract.
 - Given Apple invokes more tools or iterations than DAR policy permits, then the
@@ -617,8 +623,9 @@ Acceptance criteria:
   redacted eligibility error before any workflow, MCP, or tool dispatch.
 - Given a saved workflow is registered to the Apple profile, then the host
   constructs the canonical Apple async adapter rather than the HTTP local-model
-  adapter, while preserving strict-local registration checks and binding the
-  run to that exact profile. A workflow model alias outside the selected
+  adapter, while preserving registered execution-profile and strict adapter
+  coverage checks and binding the run to that exact profile. A workflow model
+  alias outside the selected
   adapter's strict coverage must fail before input consumption, provider work,
   MCP initialization, or handler dispatch.
 - Given a saved workflow exposes a reviewed MCP tool, then an Apple callback
@@ -801,7 +808,8 @@ pass:
 - [x] Live tests skip cleanly with an actionable reason when Apple prerequisites
       are unavailable.
 - [x] Focused tests, full tests, lint, package build, and import checks pass.
-- [x] Documentation covers installation, prerequisites, strict local usage,
+- [x] Documentation covers installation, prerequisites, registered
+      execution-profile usage,
       capabilities, limitations, and diagnostics.
 
 ### A2 validation checklist
@@ -836,9 +844,9 @@ pass:
 - [ ] Apple-backed saved workflows preserve reviewed MCP binding, coordinator
       ingress, approval, lifecycle, state, trace redaction, result shaping, and
       callback budgets.
-- [ ] Fake tests cover all host profile and runner paths; eligible-Mac live
+- [x] Fake tests cover all host profile and runner paths; eligible-Mac live
       tests prove direct Apple-backed saved-workflow execution.
-- [ ] The Fastmail read-only acceptance records only redacted evidence and
+- [x] The Fastmail read-only acceptance records only redacted evidence and
       preflights the redacted `search_email` surface digest for Apple-schema
       admissibility, then succeeds through the Apple-backed saved workflow.
 

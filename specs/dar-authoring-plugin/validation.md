@@ -18,7 +18,7 @@ remains publication-gated and is not advertised live.
 | G2 + G3 | Reviewed read-only MCP workflow execution | `tests/test_dar_authoring_runner.py::test_runner_executes_one_registered_reviewed_read_only_mcp_workflow` | One fake reviewed read-only MCP handler dispatches within the declared policy. |
 | G4 | Trusted workspace-file ingress | `tests/test_dar_authoring_cli.py::test_cli_ingresses_a_registered_workspace_file_without_returning_its_path` | A selected file becomes an opaque artifact without exposing its path. |
 | G5 | `workflow_auto` side-effect execution | `tests/test_dar_authoring_runner.py::test_runner_executes_one_registered_reviewed_side_effecting_mcp_workflow` | One schema-valid fake side-effect dispatches once through the action ledger. |
-| G5 | Local `--ask` approval path | `tests/test_dar_authoring_authorized_tools.py::test_authorized_binding_dispatches_only_after_local_approval` | One approved fake side effect dispatches once; unapproved paths are covered by adjacent negative tests. |
+| G5 | Local approval path | `tests/test_dar_authoring_authorized_tools.py::test_authorized_binding_dispatches_only_after_local_approval` | One approved fake side effect dispatches once; unapproved paths are covered by adjacent negative tests. G5.1 adds generated-policy selection and run-scoped approval coverage. |
 
 <!-- rumdl-enable MD013 -->
 

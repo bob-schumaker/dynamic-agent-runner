@@ -58,9 +58,25 @@
 ## Acceptance
 
 - [x] Run the full focused fake suite, lint, and package build.
-- [ ] With explicit user consent, conduct the Fastmail read-only acceptance run
+- [x] With explicit user consent, conduct the Fastmail read-only acceptance run
       and bind human review evidence to the package digest and redacted terminal
       transcript. Do not check in email content or OAuth material.
-  - Current blocker for the approved Apple-backed run: complete
-    `apple-foundation-model-adapter/a3-tasks.md` so the sealed host selects the
-    Apple adapter instead of the unavailable HTTP local-model profile.
+  - Completed with the Apple-backed `fastmail-last-five-subjects-apple-v2`
+    package after the callback-result token budget fix.
+- [ ] With fresh explicit user authorization, conduct the Fastmail mutation
+      acceptance using the existing G5 authorized-binding path.
+  - Before dispatch, reauthorize through Fastmail's human consent screen,
+    inspect the newly advertised tools, and have the human choose one exact
+    reviewed tool plus its `write` or `delete` classification.
+  - Build a workflow that declares only that tool, explicitly selects its
+    per-invocation approval policy, and supplies complete argument-provenance
+    rules. Do not introduce `send` or an `all access` side-effect class.
+  - RED/GREEN: first add fake coverage proving the generated descriptor rejects
+    any missing approval, provenance, exact reviewed-tool mapping, or
+    side-effect classification. Then prove the selected policy dispatches
+    through either `workflow_auto` or `--ask`, records intent exactly once, and
+    records a terminal ledger result.
+  - Run the focused G5 tests, lint, and a human-reviewed live action using the
+    generated workflow's selected approval policy.
+    Do not retain mailbox content, OAuth material, or raw tool results in the
+    checked-in evidence.

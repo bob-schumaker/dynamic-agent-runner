@@ -51,6 +51,18 @@ from dynamic_agent_runner.tool_invocation import (
 
 AvailabilityChecker = Callable[[], tuple[bool, str | None]]
 SessionFactory = Callable[[str | None], Any]
+_APPLE_CALLBACK_RESULT_MAX_CHARS = 2_048
+_APPLE_CALLBACK_RESULT_MAX_STRING_CHARS = 64
+_APPLE_CALLBACK_RESULT_MAX_ITEMS = 5
+_APPLE_CALLBACK_RESULT_MAX_FIELDS = 4
+_APPLE_CALLBACK_RESULT_MAX_DEPTH = 6
+_APPLE_CALLBACK_RESULT_PRIORITY_FIELDS = (
+    "subject",
+    "title",
+    "name",
+    "summary",
+    "id",
+)
 
 
 @dataclass(frozen=True)
@@ -83,6 +95,14 @@ class _AppleGatewayTarget:
 
     tool: RegisteredTool
     validator: Any
+
+
+@dataclass(frozen=True)
+class _AppleCallbackResultBudget:
+    """One active Apple model's safe callback-result token allowance."""
+
+    limit: int
+    token_count: Callable[[str], Any]
 
 
 class _AppleGatewayCapabilities:
@@ -277,7 +297,15 @@ class _AppleResponsesResource:
         sdk = _load_sdk() if self._config.availability_checker is None else None
         callback_session = _AppleCallbackSessionState()
         try:
-            wrappers = _apple_tool_wrappers(request, sdk, callback_session)
+            callback_result_budget = (
+                _apple_callback_result_budget(sdk) if sdk is not None else None
+            )
+            wrappers = _apple_tool_wrappers(
+                request,
+                sdk,
+                callback_session,
+                callback_result_budget=callback_result_budget,
+            )
             _validate_request(request, tool_bridge_active=bool(wrappers))
             available, reason = _check_availability(self._config, sdk)
             if not available:
@@ -341,6 +369,8 @@ def _apple_tool_wrappers(
     request: OpenAIModelRequest,
     sdk: Any | None,
     callback_session: "_AppleCallbackSessionState",
+    *,
+    callback_result_budget: _AppleCallbackResultBudget | None = None,
 ) -> tuple[object, ...]:
     """Translate the trusted active DAR tool snapshot into Apple SDK wrappers."""
 
@@ -376,6 +406,7 @@ def _apple_tool_wrappers(
                     sdk,
                     context=context,
                     callback_budget=callback_budget,
+                    callback_result_budget=callback_result_budget,
                     callback_session=callback_session,
                     tool_id=tool.id,
                     name=f"dar_tool_{index}",
@@ -398,6 +429,7 @@ def _apple_tool_wrappers(
                 sdk,
                 context=context,
                 callback_budget=callback_budget,
+                callback_result_budget=callback_result_budget,
                 callback_session=callback_session,
                 capabilities=capabilities,
                 description=_apple_gateway_description(gateway_targets),
@@ -527,7 +559,7 @@ def _is_gateway_mcp_tool(tool: RegisteredTool) -> bool:
     return (
         tool.definition.side_effect == "read"
         and isinstance(canonical_id, str)
-        and canonical_id.startswith("authorized-mcp:")
+        and canonical_id.startswith(("authorized-mcp:", "mcp:"))
     )
 
 
@@ -582,6 +614,7 @@ def _apple_tool_wrapper(
     *,
     context: ActiveAdapterToolContext,
     callback_budget: ProviderCallbackBudget,
+    callback_result_budget: _AppleCallbackResultBudget | None,
     callback_session: "_AppleCallbackSessionState",
     tool_id: str,
     name: str,
@@ -636,7 +669,10 @@ def _apple_tool_wrapper(
                 raise ProviderToolTerminalError(
                     coordinated.error or f"tool {tool_id!r} failed"
                 )
-            return _apple_tool_result_output(coordinated)
+            return await _apple_tool_result_output(
+                coordinated,
+                callback_result_budget=callback_result_budget,
+            )
         except (GuardrailExecutionError, ToolRegistryError) as exc:
             raise ProviderToolTerminalError(str(exc)) from exc
 
@@ -662,6 +698,7 @@ def _apple_gateway_wrapper(
     *,
     context: ActiveAdapterToolContext,
     callback_budget: ProviderCallbackBudget,
+    callback_result_budget: _AppleCallbackResultBudget | None,
     callback_session: "_AppleCallbackSessionState",
     capabilities: _AppleGatewayCapabilities,
     description: str,
@@ -733,7 +770,10 @@ def _apple_gateway_wrapper(
                 raise ProviderToolTerminalError(
                     coordinated.error or f"tool {tool_id!r} failed"
                 )
-            return _apple_tool_result_output(coordinated)
+            return await _apple_tool_result_output(
+                coordinated,
+                callback_result_budget=callback_result_budget,
+            )
         except (GuardrailExecutionError, ToolRegistryError) as exc:
             raise ProviderToolTerminalError(str(exc)) from exc
 
@@ -804,6 +844,25 @@ def _apple_callback_budget(context: ActiveAdapterToolContext) -> ProviderCallbac
     if not isinstance(limit, int) or isinstance(limit, bool) or limit < 0:
         raise ModelExecutionError("Apple callback tool-call limit is invalid")
     return ProviderCallbackBudget(limit=limit)
+
+
+def _apple_callback_result_budget(sdk: Any) -> _AppleCallbackResultBudget | None:
+    """Reserve three quarters of the active model context for the session itself."""
+
+    try:
+        model = sdk.SystemLanguageModel()
+        context_size = model.context_size
+        token_count = model.token_count
+    except Exception:  # noqa: BLE001 - older SDKs expose neither API consistently.
+        return None
+    if (
+        not isinstance(context_size, int)
+        or isinstance(context_size, bool)
+        or context_size < 4
+        or not callable(token_count)
+    ):
+        return None
+    return _AppleCallbackResultBudget(limit=context_size // 4, token_count=token_count)
 
 
 async def _emit_apple_callback_budget_exhausted(
@@ -1000,13 +1059,87 @@ async def _invoke_apple_tool_async(
     return await context.registry.invoke_tool_async(tool_id, arguments)
 
 
-def _apple_tool_result_output(result: ToolResult) -> str:
+async def _apple_tool_result_output(
+    result: ToolResult,
+    *,
+    callback_result_budget: _AppleCallbackResultBudget | None = None,
+) -> str:
     try:
-        return json.dumps(result.model_facing_output)
+        serialized = json.dumps(result.model_facing_output)
     except (TypeError, ValueError) as exc:
         raise ProviderToolTerminalError(
             "Apple tool result is not JSON serializable"
         ) from exc
+    if await _apple_callback_result_fits(serialized, callback_result_budget):
+        return serialized
+    bounded = {
+        "truncated": True,
+        "result": _bounded_apple_callback_result(json.loads(serialized)),
+    }
+    serialized = json.dumps(bounded, separators=(",", ":"))
+    if await _apple_callback_result_fits(serialized, callback_result_budget):
+        return serialized
+    return json.dumps(
+        {
+            "truncated": True,
+            "result": "Tool result exceeds the Apple callback result limit.",
+        },
+        separators=(",", ":"),
+    )
+
+
+async def _apple_callback_result_fits(
+    serialized: str,
+    callback_result_budget: _AppleCallbackResultBudget | None,
+) -> bool:
+    """Use native token counting when available, with a stable fallback."""
+
+    if callback_result_budget is None:
+        return len(serialized) <= _APPLE_CALLBACK_RESULT_MAX_CHARS
+    try:
+        token_count = await callback_result_budget.token_count(serialized)
+    except Exception:  # noqa: BLE001 - token counting is an optional SDK feature.
+        return len(serialized) <= _APPLE_CALLBACK_RESULT_MAX_CHARS
+    if (
+        not isinstance(token_count, int)
+        or isinstance(token_count, bool)
+        or token_count < 0
+    ):
+        return len(serialized) <= _APPLE_CALLBACK_RESULT_MAX_CHARS
+    return token_count <= callback_result_budget.limit
+
+
+def _bounded_apple_callback_result(value: Any, *, depth: int = 0) -> Any:
+    """Return a compact JSON-safe result for Apple's bounded callback context."""
+
+    if depth >= _APPLE_CALLBACK_RESULT_MAX_DEPTH:
+        return "[truncated]"
+    if isinstance(value, Mapping):
+        if "structuredContent" in value:
+            fields = [("structuredContent", value["structuredContent"])]
+        else:
+            priorities = {
+                field_name: index
+                for index, field_name in enumerate(
+                    _APPLE_CALLBACK_RESULT_PRIORITY_FIELDS
+                )
+            }
+            fields = sorted(
+                value.items(),
+                key=lambda item: priorities.get(str(item[0]).lower(), len(priorities)),
+            )[:_APPLE_CALLBACK_RESULT_MAX_FIELDS]
+        return {
+            str(key): _bounded_apple_callback_result(item, depth=depth + 1)
+            for key, item in fields
+        }
+    if isinstance(value, list):
+        return [
+            _bounded_apple_callback_result(item, depth=depth + 1)
+            for item in value[:_APPLE_CALLBACK_RESULT_MAX_ITEMS]
+        ]
+    if isinstance(value, str) and len(value) > _APPLE_CALLBACK_RESULT_MAX_STRING_CHARS:
+        return value[:_APPLE_CALLBACK_RESULT_MAX_STRING_CHARS] + "…"
+    return value
 
 
 def _apple_generated_object_type(
