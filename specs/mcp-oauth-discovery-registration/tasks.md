@@ -81,6 +81,11 @@
     must not emit `ProviderToolInterruption` before the binding can record its
     one intent, obtain the workflow-selected local decision, dispatch once, and
     record a terminal ledger result.
+  - [x] RED/GREEN: fail closed when a workflow with
+    `tool_use_completion.run_again: required` receives an initial text-only
+    model response before any tool call completes. Preserve the normal
+    final-response path after an executor or provider-callback tool call; never
+    synthesize or dispatch a tool call.
   - Run the focused G5 tests, lint, and a human-reviewed live action using the
     generated workflow's selected approval policy.
     Do not retain mailbox content, OAuth material, or raw tool results in the
