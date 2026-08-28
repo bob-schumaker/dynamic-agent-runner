@@ -273,3 +273,35 @@ def test_descriptor_rejects_side_effects_without_a_safe_source_contract(
 
     with pytest.raises(WorkflowDescriptorError, match=match):
         WorkflowDescriptor.from_mapping(value)
+
+
+def test_descriptor_rejects_create_note_without_an_explicit_approval_policy() -> None:
+    value = _descriptor()
+    value["tools"] = [
+        {
+            "id": "create_note",
+            "kind": "mcp",
+            "remote_tool_name": "create_note",
+            "side_effect": "write",
+        }
+    ]
+    value["task_invocation"] = {
+        **value["task_invocation"],  # type: ignore[index]
+        "allowed_tool_ids": ["create_note"],
+        "max_total_tool_calls": 1,
+        "argument_sources": {
+            "create_note": {
+                "body": {
+                    "sources": ["cited_original_prompt_span"],
+                    "authority": False,
+                },
+                "title": {
+                    "sources": ["cited_original_prompt_span"],
+                    "authority": False,
+                },
+            }
+        },
+    }
+
+    with pytest.raises(WorkflowDescriptorError, match="approval_required"):
+        WorkflowDescriptor.from_mapping(value)

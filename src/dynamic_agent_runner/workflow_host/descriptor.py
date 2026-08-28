@@ -293,6 +293,10 @@ def _parse_declared_tools(value: object) -> tuple[DeclaredTool, ...]:
         side_effect = mapping.get("side_effect")
         if side_effect not in {"read", "write", "delete"}:
             raise WorkflowDescriptorError("declared MCP tool side_effect is invalid")
+        if side_effect in {"write", "delete"} and "approval_required" not in mapping:
+            raise WorkflowDescriptorError(
+                "side-effecting MCP tools must declare approval_required"
+            )
         approval_required = mapping.get("approval_required", False)
         if not isinstance(approval_required, bool):
             raise WorkflowDescriptorError("tool.approval_required must be boolean")
