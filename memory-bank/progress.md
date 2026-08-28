@@ -170,6 +170,12 @@
   and cleared on session close. Non-MCP or side-effecting tools do not gain this
   fallback. The full suite passed 1228 tests with one skipped and six
   deselected; Ruff, Poetry package checks, and package build also passed.
+- Apple C4 live acceptance is complete and manually verified. Commit `28472f5`
+  normalizes the Apple callback's compact provenance transports into DAR's
+  canonical prompt-span envelope using only uniquely reconstructible spans from
+  the sealed original prompt; provider offsets, lengths, and malformed duplicate
+  envelope text do not become authority. The human-authorized sealed workflow
+  then created one Fastmail `create_note` successfully.
 - Interpreter middleware now has a resolved model-facing design direction:
   one `run_interpreter` gateway tool, multiple node-allowed ids, bounded
   non-executable usage descriptors, caller-provided async-first adapters, and
@@ -679,11 +685,10 @@
   multi-interpreter, custom-adapter, and descriptor contracts are now specified,
   but implementation planning still requires backend evidence, safety/redaction
   decisions, descriptor budgets, and nested approval/resume semantics.
-- Apple Foundation Models implementation and C4 package validation are
-  complete. The remaining C4/O7 acceptance is human-gated: on an eligible Mac,
-  run and review a current Fastmail `preflight-apple-mcp-tool` receipt before
-  any separately authorized live Fastmail/OAuth workflow dispatch. Receipt
-  modes are `direct`, `gateway`, or `blocked`; none grants dispatch authority.
+- Apple Foundation Models implementation, C4 package validation, and the
+  manually verified C4 live Fastmail `create_note` acceptance are complete. Any
+  distinct live Fastmail/OAuth workflow still requires its own eligible-Mac
+  receipt and human dispatch authorization; receipt modes never grant it.
 
 ## Risks or Follow-ups
 

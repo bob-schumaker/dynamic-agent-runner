@@ -293,6 +293,13 @@
   collaborator, they remain an unresolved typed provider interruption before
   handler entry. Preserve this narrow projection and do not add an
   Apple-specific decision path.
+- Apple callback provenance is an adapter-transport concern, not a relaxation
+  of host provenance. When Apple returns one of its compact source-list or
+  top-level envelope forms, the adapter may emit DAR's canonical prompt-span
+  proofs only when every string argument occurs exactly once in the sealed
+  original prompt. Provider byte offsets, lengths, and duplicate serialized
+  envelopes are not evidence; unknown or ambiguous forms remain for the host's
+  fail-closed verification path.
 - Interpreter middleware has a resolved gateway and custom-adapter direction but
   is not implementation-ready. Prototype candidate backends and resolve safety,
   redaction, descriptor-budget, and nested approval/resume questions first.
@@ -301,11 +308,11 @@
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
 - The current roadmap has capability status, approval/sandbox v1, MCP v1,
   guardrail v1, iterative loops, skill source resolution, host integration,
-  local-model availability, Apple A4, and LiteLLM L1 plus opt-in Codex L2
-  slices complete. Apple C4 live Fastmail/O7 gates, memory
-  retrieval/persistence, and provider-backed compaction remain follow-up work;
-  upstream LiteLLM publication and global default Codex replacement remain
-  deferred.
+  local-model availability, Apple A4, Apple C4's verified Fastmail note
+  acceptance, and LiteLLM L1 plus opt-in Codex L2 slices complete. Distinct
+  Apple Fastmail/O7 operations, memory retrieval/persistence, and
+  provider-backed compaction remain follow-up work; upstream LiteLLM
+  publication and global default Codex replacement remain deferred.
 - `specs/capability-status-report/spec.md` owns the implemented preflight
   reporting direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.

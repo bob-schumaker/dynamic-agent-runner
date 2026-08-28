@@ -176,9 +176,17 @@
   dispatch. The gateway is response-local, single-use, bounded, and exposes no
   tool identity or handler. Ineligible schemas fail closed. Full validation
   passed with 1228 tests, one skipped, and six deselected, plus Ruff, Poetry
-  package checks, and a package build. C4's live Fastmail/O7 acceptance remains
+  package checks, and a package build. C4's live Fastmail/O7 operations are
   human-gated: obtain a current eligible-Mac receipt from
-  `preflight-apple-mcp-tool`, review it, then authorize any live dispatch.
+  `preflight-apple-mcp-tool`, review it, then separately authorize each live
+  dispatch.
+- Apple C4 live Fastmail acceptance is now complete. The human-authorized,
+  sealed Apple-backed `create_note` workflow created and was manually verified
+  as one Fastmail note. Commit `28472f5` hardens the callback bridge for the
+  compact provenance transports observed from Apple: DAR reconstructs only
+  unambiguous UTF-8 prompt spans from the sealed original prompt and emits its
+  canonical envelope before the existing approval and dispatch path. Apple
+  source offsets, lengths, and duplicate malformed text are not trusted.
 - `specs/llm-step-interpreter-middleware/spec.md` now records the recommended
   multi-interpreter contract in commit `c9f505f`: one DAR-owned
   `run_interpreter` model gateway, bounded package-local or caller-supplied
@@ -498,11 +506,10 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
-- Apple Foundation Models C4 is the active gated follow-up: implementation and
-  package validation are complete. Before any Fastmail/OAuth invocation, obtain
-  and review a current eligible-Mac `preflight-apple-mcp-tool` receipt; its
-  `direct`, `gateway`, or `blocked` mode is informational and does not itself
-  authorize live dispatch.
+- Apple Foundation Models C4 is complete, including its manually verified live
+  Fastmail `create_note` acceptance. Any distinct Fastmail/OAuth operation
+  still requires its own current eligible-Mac receipt and human authorization;
+  receipt mode is informational and never grants dispatch authority.
   `memory-aware-context-pipeline` first-slice validation remains separately
   scheduled. LiteLLM Slice L1 is complete with a bundled fallback and
   temporary OCI wheelhouse artifact; OpenAI Responses R1 and semantic context
@@ -646,10 +653,10 @@
 
 ## Next Steps
 
-- On an eligible Mac, have a human run and review the current Fastmail
-  `preflight-apple-mcp-tool` receipt. Only then decide whether to authorize the
-  separately gated O7 last-five-subjects workflow; do not treat a `gateway`
-  receipt as dispatch authorization.
+- No Fastmail action is currently pending. For any distinct live operation,
+  obtain and review a current eligible-Mac `preflight-apple-mcp-tool` receipt,
+  then obtain separate human dispatch authorization; do not treat a `gateway`
+  receipt as authorization.
 - Before planning interpreter implementation, resolve the five remaining
   clarification items and run backend prototypes/benchmarks. Keep executable
   adapters caller-provided and descriptor frontmatter non-executable.
