@@ -1,7 +1,9 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Implementation Plan
 
-Status: A1 and A2 implementation complete; standalone direct release gate established; pytest-native SDK checks remain diagnostic
+Status: A1–A4 implementation complete; A3 C4 eligible-Mac Fastmail read-only
+acceptance complete; standalone direct release gate established; pytest-native
+SDK checks remain diagnostic
 
 ## Scope and authority
 

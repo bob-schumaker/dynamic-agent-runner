@@ -1,7 +1,8 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A3 Sealed-Host Task List
 
-Status: C4 complete; future mutation support follows G5.1–G5.3
+Status: C4 complete; generic G5 mutation support and one human-authorized
+Fastmail `create_note` acceptance complete
 
 This is the canonical A3 task list. It implements `a3-plan.md` and FR-17 in
 `spec.md`. All implementation tasks are test-first: add focused tests, observe
@@ -24,13 +25,13 @@ their failure, implement the smallest change, then rerun them green.
 
 ## C1 — Human-configured Apple profile
 
-- [ ] C1.1 [tests] Add RED profile/control-plane tests for an Apple profile:
+- [x] C1.1 [tests] Add RED profile/control-plane tests for an Apple profile:
       model alias only, no HTTP base URL, no credentials, no asset path, and
       no workflow-provided provider selection.
-- [ ] C1.2 [implementation] Add the bounded Apple profile record and
+- [x] C1.2 [implementation] Add the bounded Apple profile record and
       human-only CLI configuration command. Preserve existing HTTP-profile
       schemas, receipts, and state records.
-- [ ] C1.3 [tests] Add RED/GREEN eligibility tests for unsupported platform,
+- [x] C1.3 [tests] Add RED/GREEN eligibility tests for unsupported platform,
       absent optional SDK, unavailable Apple system model, and failed Apple
       preflight. Each fails before MCP client initialization or handler
       dispatch, with redacted package-owned errors.

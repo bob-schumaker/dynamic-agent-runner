@@ -1,7 +1,9 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Tasks
 
-Status: A1 and A2 implementation complete; A3 sealed DAR-authoring host integration planned; standalone direct release gate established; full test suite green
+Status: A1–A4 implementation complete; A3 C4 eligible-Mac Fastmail read-only
+acceptance complete; standalone direct release gate established; full test suite
+green
 
 ## Prerequisites
 
@@ -94,6 +96,6 @@ Durable approval pause/resume remains outside A2 scope.
 ## A3 handoff
 
 Apple selection inside the sealed DAR-authoring host is governed by
-`a3-plan.md` and `a3-tasks.md`. It is required before the Apple-backed
-Fastmail O7 acceptance can be completed; it does not reopen A1/A2 or change
-generic OAuth/MCP ownership.
+`a3-plan.md` and `a3-tasks.md`. A3 C4 completed the Apple-backed Fastmail O7
+read-only acceptance with redacted evidence. This completed slice does not
+reopen A1/A2 or change generic OAuth/MCP ownership.

@@ -2,10 +2,10 @@
 
 ## Status
 
-Implemented through O7's approved Apple-backed Fastmail read-only run. A
-separately authorized mutation acceptance remains pending under the G5.1–G5.3
-workflow-policy work. This extension does not reopen the completed generic MCP
-baseline or change the plugin's skills-only control-plane direction.
+Implemented through O7's approved Apple-backed Fastmail read-only run and one
+separately authorized Fastmail `create_note` mutation acceptance through the
+G5 workflow-policy path. This extension does not reopen the completed generic
+MCP baseline or change the plugin's skills-only control-plane direction.
 
 ## Commit-Sized Slices
 

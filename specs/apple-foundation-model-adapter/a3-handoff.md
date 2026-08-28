@@ -3,11 +3,12 @@
 
 ## Status
 
-The Apple Foundation Models sealed-host integration is complete through C3.
-C4 validation and the gated Fastmail O7 continuation are next. C4.3 now has a
-fake-tested, reconnect-compatible, redacted schema-preflight seam; a
-human-authorized eligible-Mac Fastmail receipt remains required before it can
-be marked complete.
+The Apple Foundation Models sealed-host integration is complete through C4.
+The eligible-Mac Fastmail O7 read-only acceptance ran after the fake-tested,
+reconnect-compatible schema preflight and produced the redacted evidence
+recorded in `validation.md`. One later human-authorized Fastmail `create_note`
+acceptance used the generic workflow-policy path. Any distinct mutation remains
+outside this completed A3 handoff and requires its own authorization.
 
 ## Completed commits
 
@@ -68,6 +69,12 @@ passed 1207 tests with one skipped and six deselected. Ruff and `git diff
 - [Canonical A3 task list](a3-tasks.md).
 - [C0 boundary analysis](a3-c0-analysis.md).
 
+## Historical implementation detail
+
+The remaining C2 objective and implementation notes below are a pre-completion
+handoff snapshot. They explain the completed boundary and are not an active
+task list.
+
 ## C2 objective
 
 Make the sealed saved-workflow host select and bind the configured Apple
@@ -112,9 +119,9 @@ or a second host execution API.
 - `workflow_host/host.py` provides `configure_apple_local_host()`.
 - `workflow_host/cli.py` exposes `configure-apple-model`.
 - `WorkflowRegistration` already persists `profile_id`.
-- `WorkflowRunner` currently accepts only `OpenAIClientAdapter`, calls
-  `run_agent_workflow()` without strict coverage, and validates only localness
-  and model alias.
+- `WorkflowRunner` accepts the existing sync and async adapter types, passes
+  strict coverage, and validates exact profile registration before consuming
+  sealed input.
 - Do not add an async host entry point or nested-loop workaround. Generic
   synchronous-wrapper behavior owns that boundary.
 

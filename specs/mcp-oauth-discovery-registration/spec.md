@@ -6,7 +6,8 @@
 - Mode: `light`
 - Artifact type: authoritative SDD feature specification
 - Status: implemented through O7's approved Apple-backed Fastmail read-only
-  acceptance; a separately authorized mutation acceptance remains pending
+  acceptance and one separately authorized Fastmail `create_note` mutation
+  acceptance
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related specifications:
   - `specs/mcp-runtime-integration/spec.md`
@@ -266,17 +267,15 @@ received emails. It must not retain email content, OAuth material, or tool
 results in the checked-in evidence. Human review of the workflow specification
 and redacted terminal transcript is the final gate.
 
-An optional mutation acceptance is a separate human-authorized slice. It must
-reauthorize the connection through Fastmail's consent screen before inspecting
-the new surface. A workflow then declares one exact reviewed remote tool and
-uses the existing generic taxonomy: `write` for a non-destructive external
-mutation or `delete` for a destructive one. There is no provider-specific
-`send` class and no connection- or workflow-level "all access" grant. The
-side-effecting workflow must use the existing action ledger and, when its
-user-selected workflow policy requests it, the local approval broker. Its final
-arguments must satisfy the declared provenance policy.
-The human selects the concrete action only after reviewing the post-consent
-schema; neither this specification nor a package may guess it.
+One optional mutation acceptance has completed as a separate human-authorized
+slice. The sealed Apple-backed workflow declared one reviewed `create_note`
+tool under the generic `write` taxonomy and used the existing G5 action ledger,
+provenance, and selected approval policy. There is no provider-specific `send`
+class and no connection- or workflow-level "all access" grant. Its human
+verification did not retain mailbox content, OAuth material, raw tool results,
+or raw schema. Any distinct mutation still requires a fresh human authorization
+and reviewed current tool contract; neither this specification nor a package may
+guess that action.
 
 ## Delivery Plan
 

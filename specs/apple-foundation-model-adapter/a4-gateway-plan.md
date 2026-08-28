@@ -51,8 +51,9 @@ Out of scope:
 - Side-effecting fallback tools, provenance envelopes, a second Apple session,
   a new provider API, or a generic schema gateway usable outside the active
   Apple callback context.
-- Live Fastmail/O7 invocation. That remains C4.4 after fake parity evidence,
-  eligible-Mac evidence, and human review.
+- Live Fastmail/O7 invocation. That was C4.4 after fake parity evidence,
+  eligible-Mac evidence, and human review; its redacted completion evidence is
+  recorded in `validation.md`.
 
 ## Gateway contract
 

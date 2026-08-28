@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models A3 Sealed-Host Integration Plan
 
-Status: completed through C4; G5.2 will generalize execution-profile admission
+Status: completed through C4; G5.2 generalizes execution-profile admission
 
 ## Objective
 
@@ -26,8 +26,8 @@ on-device and async-only.
   same-alias profile of another kind cannot run them.
 - Eligibility failures occur before MCP initialization, surface discovery, or
   tool dispatch. No fallback to an HTTP adapter is allowed.
-- A3 is complete only after fake coverage, an eligible-Mac saved-workflow live
-  gate, and the consented Fastmail read-only O7 retry produce redacted evidence.
+- A3 is complete: fake coverage, an eligible-Mac saved-workflow live gate, and
+  the consented Fastmail read-only O7 retry produced redacted evidence.
 
 ## Milestones
 

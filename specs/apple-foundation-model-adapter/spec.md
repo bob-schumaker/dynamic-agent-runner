@@ -6,7 +6,9 @@
 - Feature slug: `apple-foundation-model-adapter`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: A1 and A2 implementation complete; A3 DAR-authoring host integration planned; standalone direct release gate established; pytest-native SDK checks remain diagnostic
+- Status: A1–A4 implementation complete; A3 C4 eligible-Mac Fastmail read-only
+  acceptance complete; standalone direct release gate established; pytest-native
+  SDK checks remain diagnostic
 - Version: `0.5`
 - Date: 2026-07-01
 - Owner: dynamic-agent-runner model-provider boundary
@@ -20,6 +22,7 @@
   - `specs/tool-invocation-coordinator/spec.md`
   - `specs/model-event-streaming/spec.md`
   - `specs/mlx-local-model-adapter/spec.md`
+  - `specs/model-interface-parity/spec.md`
 - Related implementation surfaces:
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`
@@ -667,10 +670,10 @@ only digests, status, and dispatch counts.
 
 FR-18 supersedes FR-16's direct-wrapper rejection only when this gateway
 contract is fully available; otherwise an unrepresentable schema still rejects
-before session generation. C4.3 must be regenerated as a digest-bound
-`direct`, `gateway`, or `blocked` classification. A gateway classification does
-not complete C4/O7: it requires A4 parity tests, eligible-Mac evidence, and
-human review before the one permitted Fastmail dispatch.
+before session generation. A4 implementation regenerated C4.3 as a digest-bound
+`direct`, `gateway`, or `blocked` classification. The recorded C4/O7 read-only
+acceptance required A4 parity tests, eligible-Mac evidence, and human review
+before its one permitted Fastmail dispatch.
 
 ## Non-Functional Requirements
 
@@ -832,16 +835,16 @@ pass:
 
 ### A3 validation checklist
 
-- [ ] Apple profile configuration does not accept or persist HTTP transport,
+- [x] Apple profile configuration does not accept or persist HTTP transport,
       credential, model-path, or downloaded-model fields.
-- [ ] Unsupported host/platform/SDK/model states fail before MCP initialization
+- [x] Unsupported host/platform/SDK/model states fail before MCP initialization
       or any handler dispatch.
-- [ ] A saved Apple-backed workflow constructs the canonical async adapter and
+- [x] A saved Apple-backed workflow constructs the canonical async adapter and
       retains exact profile-registration binding and strict adapter coverage;
       an unmatched package model fails before input consumption or dispatch.
-- [ ] Existing HTTP-backed host profiles retain their current adapter and
+- [x] Existing HTTP-backed host profiles retain their current adapter and
       behavior.
-- [ ] Apple-backed saved workflows preserve reviewed MCP binding, coordinator
+- [x] Apple-backed saved workflows preserve reviewed MCP binding, coordinator
       ingress, approval, lifecycle, state, trace redaction, result shaping, and
       callback budgets.
 - [x] Fake tests cover all host profile and runner paths; eligible-Mac live

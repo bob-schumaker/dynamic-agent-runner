@@ -1,7 +1,16 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Validation Log
 
-Status: A1–A4 implementation and A3 C4 validation complete; full test suite green
+Status: A1–A4 implementation, A3 C4 validation, and one human-authorized
+Fastmail mutation acceptance complete; full test suite green
+
+## Post-C4 Fastmail mutation acceptance — 2026-08-28
+
+- A sealed Apple-backed workflow used the generic G5 authorized-binding path to
+  create one Fastmail `create_note`. The human manually verified the result.
+- The acceptance retained no mailbox content, OAuth material, raw tool result,
+  or unredacted tool schema. A distinct live Fastmail/OAuth operation still
+  requires its own current receipt and human dispatch authorization.
 
 ## A3 C4 Apple-backed Fastmail/O7 acceptance — 2026-08-27
 
@@ -12,9 +21,9 @@ Status: A1–A4 implementation and A3 C4 validation complete; full test suite gr
 - Final verification: `poetry run pytest -q` — 1234 passed, 1 skipped, 6
   deselected; `poetry run ruff check src tests`, `pre-commit run --all-files`,
   and `git diff --check` passed.
-- This completes C4.1–C4.5 and O7. A future Fastmail mutation acceptance is
-  governed by the generic G5.1–G5.3 workflow-policy work, not by an
-  Apple-specific permission model.
+- This completes C4.1–C4.5 and O7. The later single Fastmail mutation
+  acceptance used the generic G5 workflow-policy path, not an Apple-specific
+  permission model.
 
 ## A3 C4.3 Fastmail-schema preflight readiness — 2026-08-27
 

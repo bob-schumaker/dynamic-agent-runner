@@ -63,7 +63,7 @@
       transcript. Do not check in email content or OAuth material.
   - Completed with the Apple-backed `fastmail-last-five-subjects-apple-v2`
     package after the callback-result token budget fix.
-- [ ] With fresh explicit user authorization, conduct the Fastmail mutation
+- [x] With fresh explicit user authorization, conduct the Fastmail mutation
       acceptance using the existing G5 authorized-binding path.
   - Before dispatch, reauthorize through Fastmail's human consent screen,
     inspect the newly advertised tools, and have the human choose one exact
@@ -86,7 +86,7 @@
     model response before any tool call completes. Preserve the normal
     final-response path only after a successful executor or provider-callback
     tool call; never synthesize or dispatch a tool call.
-  - Run the focused G5 tests, lint, and a human-reviewed live action using the
-    generated workflow's selected approval policy.
-    Do not retain mailbox content, OAuth material, or raw tool results in the
-    checked-in evidence.
+  - Completed: the sealed Apple-backed workflow created one Fastmail
+    `create_note` through the generated workflow's selected approval policy;
+    the human manually verified it. No mailbox content, OAuth material, raw
+    tool result, or raw schema was retained in checked-in evidence.
