@@ -1409,7 +1409,8 @@ async def _execute_model_tool_loop_async(
         },
     )
     if not initial_response.tool_calls and not any(
-        result_key.startswith(f"{node.id}.") for result_key in state.tool_results
+        result_key.startswith(f"{node.id}.") and result.success
+        for result_key, result in state.tool_results.items()
     ):
         tracer.emit(
             "model_tool_loop_stopped",

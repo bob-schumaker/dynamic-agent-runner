@@ -32,6 +32,7 @@ from dynamic_agent_runner.errors import (
 from dynamic_agent_runner.executor import (
     ApprovalInterruption,
     ApprovalInterruptionState,
+    _execute_model_tool_loop_async,
     _invoke_model_tool_call_async,
     execute_workflow,
     execute_workflow_async,
@@ -4526,6 +4527,35 @@ def test_execute_workflow_rejects_initial_text_only_response_when_tool_required(
 
     assert len(adapter.client.responses.calls) == 1
     assert tool_invocations == []
+
+
+def test_required_tool_loop_rejects_text_after_failed_provider_callback() -> None:
+    plan = prepare_execution_plan(loop_tool_workflow())
+    node = plan.nodes_by_id["analyze"]
+    state = WorkflowExecutionState(prompt="Search for DAR", run_id="failed-callback")
+    state.tool_results["analyze.apple-failed"] = ToolResult(
+        tool_id="search_repo",
+        success=False,
+        error="external action unavailable",
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id=state.run_id)
+
+    with pytest.raises(WorkflowExecutionError, match="required tool call"):
+        asyncio.run(
+            _execute_model_tool_loop_async(
+                node,
+                plan,
+                state,
+                None,
+                None,
+                SimpleNamespace(),
+                ModelResponse(content="I cannot do that."),
+                (),
+                None,
+                tracer,
+                None,
+            )
+        )
 
 
 def test_execute_workflow_keeps_provider_tool_call_correlations_separate() -> None:
