@@ -560,7 +560,10 @@ def _apple_tool_wrapper(
                 raise ProviderToolTerminalError(
                     "Apple provider callback budget is exhausted"
                 )
-            callback_arguments = _apple_callback_arguments(arguments)
+            callback_arguments = _apple_callback_arguments(
+                arguments,
+                original_prompt=_apple_original_prompt(context),
+            )
             guardrail_runner = _apple_guardrail_runner(context, action_id)
             request = context.request(
                 tool_id=tool_id,
@@ -855,7 +858,11 @@ def _apple_guardrail_runner(
     return run
 
 
-def _apple_callback_arguments(arguments: object) -> dict[str, Any]:
+def _apple_callback_arguments(
+    arguments: object,
+    *,
+    original_prompt: str | None = None,
+) -> dict[str, Any]:
     try:
         value = arguments.to_json()
     except Exception as exc:  # noqa: BLE001 - SDK content objects vary by release.
@@ -866,7 +873,10 @@ def _apple_callback_arguments(arguments: object) -> dict[str, Any]:
         raise ToolRegistryError("Apple tool callback arguments are invalid") from exc
     if not isinstance(parsed, Mapping):
         raise ToolRegistryError("Apple tool callback arguments must be an object")
-    return _canonicalize_apple_provenance_envelope(dict(parsed))
+    return _canonicalize_apple_provenance_envelope(
+        dict(parsed),
+        original_prompt=original_prompt,
+    )
 
 
 def _apple_gateway_callback_arguments(
@@ -895,32 +905,171 @@ def _apple_gateway_callback_arguments(
         target.validator.validate(decoded)
     except ValidationError as exc:
         raise ToolRegistryError("Apple gateway arguments are invalid") from exc
-    return target.tool.id, _canonicalize_apple_provenance_envelope(decoded)
+    return target.tool.id, _canonicalize_apple_provenance_envelope(
+        decoded,
+        original_prompt=_apple_original_prompt(context),
+    )
+
+
+def _apple_original_prompt(context: ActiveAdapterToolContext) -> str | None:
+    """Return the sealed prompt available to the active DAR invocation."""
+
+    prompt = getattr(context.state, "prompt", None)
+    return prompt if isinstance(prompt, str) else None
 
 
 def _canonicalize_apple_provenance_envelope(
     arguments: dict[str, Any],
+    *,
+    original_prompt: str | None = None,
 ) -> dict[str, Any]:
     """Normalize Apple JSON transport without relaxing provenance verification."""
 
     serialized = arguments.get("provenance_envelope")
-    if not isinstance(serialized, str):
-        return arguments
+    top_level = False
     try:
-        envelope = json.loads(
-            serialized,
+        if not isinstance(serialized, str):
+            raise TypeError("Apple provenance envelope is not text")
+        envelope, _ = json.JSONDecoder(
             object_pairs_hook=_apple_gateway_object_pairs,
             parse_constant=_reject_apple_gateway_constant,
-        )
+        ).raw_decode(serialized.lstrip())
     except (TypeError, ValueError, json.JSONDecodeError, RecursionError):
-        return arguments
+        envelope = _apple_top_level_provenance_envelope(arguments)
+        top_level = envelope is not None
+        if envelope is None:
+            return arguments
     if not isinstance(envelope, dict):
         return arguments
-    normalized = dict(arguments)
+    envelope = _normalize_apple_prompt_span_sources(
+        envelope,
+        original_prompt=original_prompt,
+    )
+    normalized = {} if top_level else dict(arguments)
     normalized["provenance_envelope"] = json.dumps(
         envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
     return normalized
+
+
+def _apple_top_level_provenance_envelope(
+    arguments: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Extract Apple's top-level fallback form without preserving duplicate text."""
+
+    fields = ("format_version", "arguments", "sources")
+    if not all(field in arguments for field in fields):
+        return None
+    return {field: arguments[field] for field in fields}
+
+
+def _normalize_apple_prompt_span_sources(
+    envelope: dict[str, Any],
+    *,
+    original_prompt: str | None,
+) -> dict[str, Any]:
+    """Translate Apple's compact prompt-span list to DAR's strict source map."""
+
+    values = envelope.get("arguments")
+    source_list = envelope.get("sources")
+    if (
+        not isinstance(values, dict)
+        or not isinstance(source_list, list)
+        or original_prompt is None
+    ):
+        return envelope
+    if not _apple_prompt_span_sources_are_valid(source_list):
+        return envelope
+    normalized_envelope = (
+        {**envelope, "format_version": 1}
+        if envelope.get("format_version") == "1.0"
+        else envelope
+    )
+    normalized_sources: dict[str, dict[str, object]] = {}
+    for name, value in values.items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            return envelope
+        try:
+            encoded_value = value.encode("utf-8")
+            encoded_prompt = original_prompt.encode("utf-8")
+        except UnicodeError:
+            return envelope
+        start_byte = encoded_prompt.find(encoded_value)
+        if start_byte < 0 or encoded_prompt.find(encoded_value, start_byte + 1) >= 0:
+            return envelope
+        normalized_sources[name] = {
+            "kind": "prompt_span",
+            "start_byte": start_byte,
+            "end_byte": start_byte + len(encoded_value),
+            "normalization": "identity",
+        }
+    return {**normalized_envelope, "sources": normalized_sources}
+
+
+def _apple_prompt_span_sources_are_valid(source_list: list[Any]) -> bool:
+    """Validate Apple prompt-span hints without treating their offsets as proof."""
+
+    if not source_list:
+        return False
+    for source in source_list:
+        if not isinstance(source, dict):
+            return False
+        if _apple_named_prompt_span_source_is_valid(source):
+            continue
+        if _apple_normalized_prompt_span_source_is_valid(source):
+            continue
+        return False
+    return True
+
+
+def _apple_named_prompt_span_source_is_valid(source: dict[str, Any]) -> bool:
+    """Validate Apple's named prompt-span source representation."""
+
+    if not {"identity", "byte_offset"} <= set(source):
+        return False
+    offset = source["byte_offset"]
+    if (
+        not _is_apple_prompt_span_identity(source["identity"])
+        or not isinstance(offset, int)
+        or isinstance(offset, bool)
+        or offset < 0
+    ):
+        return False
+    if "text" in source and not isinstance(source["text"], str):
+        return False
+    if "length" in source and (
+        not isinstance(source["length"], int)
+        or isinstance(source["length"], bool)
+        or source["length"] < 0
+    ):
+        return False
+    return True
+
+
+def _apple_normalized_prompt_span_source_is_valid(source: dict[str, Any]) -> bool:
+    """Validate Apple's normalized prompt-span source representation."""
+
+    if set(source) != {"identity_normalization", "byte_offsets"}:
+        return False
+    value = source["identity_normalization"]
+    offsets = source["byte_offsets"]
+    if not isinstance(value, str) or not isinstance(offsets, list) or len(offsets) != 2:
+        return False
+    return all(
+        isinstance(offset, int) and not isinstance(offset, bool) and offset >= 0
+        for offset in offsets
+    )
+
+
+def _is_apple_prompt_span_identity(value: object) -> bool:
+    """Return whether an Apple source identity names a provider prompt span."""
+
+    if not isinstance(value, str):
+        return False
+    if value == "prompt_span":
+        return True
+    prefix = "prompt_span_"
+    return value.startswith(prefix) and value.removeprefix(prefix).isdigit()
 
 
 def _apple_gateway_json_object(

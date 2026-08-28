@@ -737,6 +737,65 @@ def test_apple_callback_canonicalizes_provenance_envelope_before_dispatch(
     ]
 
 
+def test_apple_callback_uses_first_provenance_envelope_object() -> None:
+    envelope = {
+        "format_version": 1,
+        "arguments": {"message": "hello"},
+        "sources": {"message": {"kind": "constant", "reference": "note-1"}},
+    }
+
+    normalized = apple_foundation_models._canonicalize_apple_provenance_envelope(
+        {"provenance_envelope": json.dumps(envelope) + "}"}
+    )
+
+    assert normalized == {
+        "provenance_envelope": json.dumps(
+            envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+    }
+
+
+def test_apple_callback_normalizes_prompt_span_source_list() -> None:
+    original_prompt = (
+        'Create one note with title "This is DAR" and body "DAR is a runner.".'
+    )
+    envelope = {
+        "format_version": "1.0",
+        "arguments": {"title": "This is DAR", "body": "DAR is a runner."},
+        "sources": [
+            {"identity_normalization": "This is DAR", "byte_offsets": [0, 0]},
+        ],
+    }
+
+    normalized = apple_foundation_models._canonicalize_apple_provenance_envelope(
+        {**envelope, "provenance_envelope": '{"format_version":'},
+        original_prompt=original_prompt,
+    )
+
+    prompt_bytes = original_prompt.encode("utf-8")
+    title_start = prompt_bytes.index(b"This is DAR")
+    body_start = prompt_bytes.index(b"DAR is a runner.")
+
+    assert json.loads(normalized["provenance_envelope"]) == {
+        "format_version": 1,
+        "arguments": {"title": "This is DAR", "body": "DAR is a runner."},
+        "sources": {
+            "title": {
+                "kind": "prompt_span",
+                "start_byte": title_start,
+                "end_byte": title_start + len(b"This is DAR"),
+                "normalization": "identity",
+            },
+            "body": {
+                "kind": "prompt_span",
+                "start_byte": body_start,
+                "end_byte": body_start + len(b"DAR is a runner."),
+                "normalization": "identity",
+            },
+        },
+    }
+
+
 def test_text_request_preserves_instructions_and_ordered_history() -> None:
     sessions: list[FakeSession] = []
 
