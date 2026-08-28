@@ -83,6 +83,7 @@ from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
     ToolResult,
+    tool_from_function,
 )
 from dynamic_agent_runner.retry import RetryPolicy
 from dynamic_agent_runner.tracing import InMemoryTraceSink, WorkflowTracer
@@ -4882,6 +4883,65 @@ def test_execute_workflow_pauses_approval_required_model_tool_before_invocation(
     assert isinstance(result, WorkflowInterruptedResult)
     assert calls == []
     assert result.interruption.node_id == "analyze"
+    assert result.interruption.tool_id == "workspace_write"
+    assert result.interruption.action_id == "call_1"
+    assert result.interruption.arguments == {"query": "notes"}
+    assert result.state.tool_results == {}
+
+
+def test_tool_from_function_pauses_approval_required_tool_before_invocation() -> None:
+    calls: list[str] = []
+
+    def workspace_write(query: str) -> dict[str, bool]:
+        calls.append(query)
+        return {"ok": True}
+
+    workflow = loop_tool_workflow(
+        tools=[
+            {
+                "id": "workspace_write",
+                "approval_required": "yes",
+                "side_effect": "write",
+            }
+        ],
+        available_tools=["workspace_write"],
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "workspace_write",
+                        "arguments": '{"query":"notes"}',
+                    }
+                ],
+            }
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=InMemoryToolRegistry(
+            [
+                tool_from_function(
+                    workspace_write,
+                    metadata={
+                        "id": "workspace_write",
+                        "approval_required": "yes",
+                        "side_effect": "write",
+                    },
+                )
+            ]
+        ),
+        model_adapter=adapter,
+    )
+
+    assert isinstance(result, WorkflowInterruptedResult)
+    assert calls == []
     assert result.interruption.tool_id == "workspace_write"
     assert result.interruption.action_id == "call_1"
     assert result.interruption.arguments == {"query": "notes"}

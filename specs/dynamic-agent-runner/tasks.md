@@ -1381,7 +1381,7 @@ explicitly instead of leaving them as undocumented future behavior.
         schema fields.
       - Validation: `poetry run pytest tests/test_registry.py
         tests/test_import.py -q 2>&1` — pass; 32 tests passed.
-- [ ] OA9.1. Add focused executor coverage proving that a
+- [x] OA9.1. Add focused executor coverage proving that a
       `tool_from_function(...)` result with `approval_required: yes` pauses before
       handler invocation through the same approval path as an explicitly built
       `RegisteredTool`.
