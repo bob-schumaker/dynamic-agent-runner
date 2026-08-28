@@ -461,6 +461,15 @@ def _context_management_items(
     if not isinstance(auto, Mapping):
         return tuple(items)
     implementation = str(auto.get("implementation") or "metadata_only")
+    remote = auto.get("remote")
+    remote = remote if isinstance(remote, Mapping) else {}
+    capability = str(remote.get("provider_capability") or "")
+    fallback = str(remote.get("fallback") or "basic")
+    provider_details = {
+        "provider_capability": capability,
+        "phase": "pre_turn",
+        "fallback": fallback,
+    }
     if auto.get("enabled") is not True:
         if implementation == "provider":
             items.append(
@@ -471,6 +480,8 @@ def _context_management_items(
                     category="runtime",
                     summary="Provider-backed context compaction is disabled by policy.",
                     owner=_OWNER_PROVIDER_CONTEXT_COMPACTION,
+                    required_collaborator="ProviderContextCompactor",
+                    details=provider_details,
                 )
             )
         return tuple(items)
@@ -494,21 +505,21 @@ def _context_management_items(
         ),
     )
     if implementation == "provider":
-        remote = auto.get("remote")
-        remote = remote if isinstance(remote, Mapping) else {}
-        capability = str(remote.get("provider_capability") or "")
         capabilities = getattr(provider_context_compactor, "capabilities", {})
         has_capability = (
             isinstance(capabilities, Mapping) and capabilities.get(capability) is True
         )
         if provider_context_compactor is None:
             state = CapabilityState.MISSING_COLLABORATOR
-            summary = (
-                "Provider compaction is configured but no collaborator was supplied."
+            summary = _provider_compaction_unavailable_summary(
+                "no collaborator was supplied", fallback
             )
         elif not has_capability:
             state = CapabilityState.UNSUPPORTED
-            summary = "The supplied provider compactor lacks the configured capability."
+            summary = _provider_compaction_unavailable_summary(
+                "the supplied provider compactor lacks the configured capability",
+                fallback,
+            )
         else:
             state = CapabilityState.LIVE
             summary = "Provider-backed context compaction is available."
@@ -521,10 +532,19 @@ def _context_management_items(
                 summary=summary,
                 owner=_OWNER_PROVIDER_CONTEXT_COMPACTION,
                 required_collaborator="ProviderContextCompactor",
-                details={"provider_capability": capability, "phase": "pre_turn"},
+                details=provider_details,
             )
         )
     return tuple(items)
+
+
+def _provider_compaction_unavailable_summary(reason: str, fallback: str) -> str:
+    outcome = (
+        "Deterministic basic fallback will be used at compaction time."
+        if fallback == "basic"
+        else "Compaction will fail closed at execution time."
+    )
+    return f"Provider compaction is configured but {reason}. {outcome}"
 
 
 def _metadata_only_item(

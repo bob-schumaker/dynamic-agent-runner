@@ -30,6 +30,17 @@ provider transport binding deferred.
 - `poetry run pytest -q`: 1264 passed, 1 skipped, 6 deselected. Ruff, package
   build, and docs build passed.
 
+## T0.4 Completion Evidence — 2026-08-27
+
+- Capability preflight now distinguishes disabled, metadata-only, missing
+  collaborator, unsupported required capability, and live provider compaction.
+  It reports the declared `basic` or `error` fallback without claiming fallback
+  has already occurred.
+- `poetry run pytest tests/test_validation.py tests/test_executor.py
+  tests/test_capabilities.py tests/test_import.py -q`: 270 passed.
+- `poetry run pytest -q`: 1270 passed, 1 skipped, 6 deselected. Ruff, package
+  build, and docs build passed.
+
 ## Required Evidence
 
 - RED tests distinguish absent provider compaction from existing injected and

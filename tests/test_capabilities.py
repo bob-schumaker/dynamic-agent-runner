@@ -864,6 +864,87 @@ def test_provider_context_compaction_capability_reports_collaborator_state(
     assert live_item.state is CapabilityState.LIVE
 
 
+@pytest.mark.parametrize(
+    ("enabled", "fallback", "capability", "expected_state", "summary"),
+    [
+        (False, "basic", None, "disabled", "disabled by policy"),
+        (True, "basic", None, "missing_collaborator", "basic fallback"),
+        (True, "error", None, "missing_collaborator", "fail closed"),
+        (True, "basic", False, "unsupported", "basic fallback"),
+        (True, "error", False, "unsupported", "fail closed"),
+        (True, "basic", True, "live", "available"),
+    ],
+)
+def test_provider_context_compaction_capability_reports_declared_fallback(
+    tmp_path: Path,
+    enabled: bool,
+    fallback: str,
+    capability: bool | None,
+    expected_state: str,
+    summary: str,
+) -> None:
+    from dynamic_agent_runner import CapabilityState, inspect_agent_package_capabilities
+
+    package_dir = write_agent_package(
+        tmp_path,
+        f"""
+        format_version: 1
+        package_type: dynamic_agent_design
+        package_id: provider-context-compaction-{enabled}-{fallback}-{capability}
+        entrypoint: answer
+        packaging:
+          mode: hybrid_bundle
+        runtime:
+          execution_policy:
+            model: gpt-test
+            prepare_model_input:
+              context_compaction:
+                auto:
+                  enabled: {str(enabled).lower()}
+                  implementation: provider
+                  strategy: provider_remote
+                  remote:
+                    provider_capability: responses_compact
+                    fallback: {fallback}
+        nodes:
+          - id: answer
+            kind: llm_step
+            prompt:
+              user_template: "Answer {{prompt}}"
+        edges: []
+        """,
+    )
+
+    class FakeProviderCompactor:
+        capabilities = {"responses_compact": capability}
+
+    kwargs = (
+        {}
+        if capability is None
+        else {"provider_context_compactor": FakeProviderCompactor()}
+    )
+    report = inspect_agent_package_capabilities(
+        package_directory=package_dir,
+        **kwargs,
+    )
+    items = {item.id: item for item in report.items}
+    provider_item = items["runtime.context.provider_compaction"]
+
+    assert provider_item.state is CapabilityState(expected_state)
+    assert provider_item.owner == "provider-backed-context-compaction"
+    assert provider_item.required_collaborator == "ProviderContextCompactor"
+    assert summary in provider_item.summary
+    assert provider_item.details == {
+        "provider_capability": "responses_compact",
+        "phase": "pre_turn",
+        "fallback": fallback,
+    }
+    if enabled:
+        assert items["metadata.context.pre_turn_compaction"].state is (
+            CapabilityState.METADATA_ONLY
+        )
+
+
 def test_inspect_agent_package_capabilities_reports_new_window_reset(
     tmp_path: Path,
 ) -> None:
