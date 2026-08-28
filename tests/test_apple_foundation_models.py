@@ -650,6 +650,44 @@ def _tool_request(
     )
 
 
+def test_apple_callback_leaves_authorized_host_approval_with_its_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[dict[str, object]] = []
+
+    def handler(arguments: dict[str, object]) -> dict[str, bool]:
+        invocations.append(dict(arguments))
+        return {"ok": True}
+
+    tool = _tool(
+        "create_note",
+        _APPLE_CALLBACK_SCHEMA,
+        side_effect="write",
+        host_canonical_id="authorized-mcp:binding-1:create_note",
+        handler=handler,
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(registry, (registry.get_tool("create_note"),))
+    sdk = FakeAppleCallbackSDK(((0, '{"message":"hello"}'),))
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    response = asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=("create_note",),
+                adapter_context=context,
+            )
+        )
+    )
+
+    assert response.content == "answer"
+    assert invocations == [{"message": "hello"}]
+    assert sdk.sessions[0].callback_results == ['{"ok": true}']
+
+
 def test_text_request_preserves_instructions_and_ordered_history() -> None:
     sessions: list[FakeSession] = []
 
@@ -2377,7 +2415,7 @@ def test_apple_tool_bridge_rejects_stale_or_raw_context_before_session_creation(
     assert sdk.sessions == []
 
 
-def test_apple_host_callback_projection_rejects_a_replaced_source_tool() -> None:
+def test_apple_host_callback_rejects_a_replaced_source_tool() -> None:
     definition = ToolDefinition.from_mapping(
         {
             "id": "send",
@@ -2390,11 +2428,18 @@ def test_apple_host_callback_projection_rejects_a_replaced_source_tool() -> None
     registry = InMemoryToolRegistry([RegisteredTool(definition, lambda _: {})])
     active = registry.get_tool("send")
     context = _active_tool_context(registry, (active,))
-    projected = apple_foundation_models._apple_callback_context(context)
     registry.register(_tool("send", _APPLE_CALLBACK_SCHEMA), replace=True)
 
-    with pytest.raises(ToolRegistryError, match="active invocation context"):
-        projected.registry.get_tool("send")
+    with pytest.raises(ModelExecutionError, match="active tool context is stale"):
+        apple_foundation_models._apple_tool_wrappers(
+            _tool_request(
+                registry,
+                descriptor_ids=("send",),
+                adapter_context=context,
+            ),
+            FakeAppleToolSDK(),
+            apple_foundation_models._AppleCallbackSessionState(),
+        )
 
 
 def test_apple_tool_bridge_rejects_colliding_active_tool_mapping_before_session(

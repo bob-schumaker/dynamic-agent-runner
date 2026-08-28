@@ -76,6 +76,11 @@
     side-effect classification. Then prove the selected policy dispatches
     through either `workflow_auto` or `--ask`, records intent exactly once, and
     records a terminal ledger result.
+  - [x] RED/GREEN: preserve authorized-MCP binding ownership of local approval
+    through Apple Foundation callback wrappers. The generic provider coordinator
+    must not emit `ProviderToolInterruption` before the binding can record its
+    one intent, obtain the workflow-selected local decision, dispatch once, and
+    record a terminal ledger result.
   - Run the focused G5 tests, lint, and a human-reviewed live action using the
     generated workflow's selected approval policy.
     Do not retain mailbox content, OAuth material, or raw tool results in the
