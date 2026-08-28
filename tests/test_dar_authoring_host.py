@@ -26,6 +26,7 @@ from dynamic_agent_runner.workflow_host.host import (  # noqa: E402
     LocalWorkflowHost,
     attach_mcp_client,
     configure_apple_local_host,
+    configure_hosted_openai_host,
     configure_mcp_api_token,
     create_mcp_connection,
     configure_local_host,
@@ -267,7 +268,11 @@ def test_host_selects_and_registers_a_local_zip_package(
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
-            _Client(), models=[profile.model_id], is_local=True
+            _Client(),
+            models=[profile.execution_model_id],
+            is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
     root = tmp_path / "state"
@@ -303,7 +308,10 @@ def test_host_open_constructs_apple_adapter_with_only_configured_alias(
     constructed_with: list[object] = []
     client = _AsyncClient()
     adapter = AsyncOpenAIClientAdapter(
-        client, models=["apple-system-language-model"], is_local=True
+        client,
+        models=["apple-system-language-model"],
+        is_local=True,
+        execution_profile_adapter_id="apple-foundation-models-adapter-v1",
     )
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.profiles.preflight_apple_foundation_models",
@@ -335,7 +343,7 @@ def test_host_open_constructs_apple_adapter_with_only_configured_alias(
 
     assert host._runner._model_adapter is adapter
     assert constructed_with[0].model_aliases == ("apple-system-language-model",)
-    assert host._runner._configured_profile_id == configured.profile_id
+    assert host._runner._configured_profile.profile_id == configured.profile_id
     assert result.output == {"message": "completed on device"}
     assert len(client.responses.calls) == 1
     assert "Answer me." not in repr(host._runner.traces()[-1])
@@ -364,6 +372,55 @@ def test_host_open_constructs_apple_adapter_with_only_configured_alias(
         )
 
 
+def test_host_open_constructs_configured_hosted_adapter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package_root = tmp_path / "packages"
+    package_root.mkdir()
+    source = package_root / "document-helper"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    descriptor_path = source / "workflow-descriptor.yaml"
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["model"]["profile_requirement"] = "general-language-model-v1"
+    descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+    client = _Client()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.host.create_hosted_openai_adapter",
+        lambda profile: OpenAIClientAdapter(
+            client,
+            models=[profile.execution_model_id],
+            is_local=False,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
+        ),
+    )
+    configured = configure_hosted_openai_host(
+        root=tmp_path / "state",
+        package_root=package_root,
+        model_id="hosted-model-v1",
+        base_url="https://models.example.test/v1",
+    )
+
+    host = LocalWorkflowHost.open(tmp_path / "state")
+    source_handle = host.select_package(source, now=NOW)
+    registration = host.register(
+        workflow_id="document-helper", package_source_handle=source_handle, now=NOW
+    )
+    prepared = host.prepare(
+        workflow_id=registration.workflow_id, prompt="Answer me.", now=NOW
+    )
+    result = host.run(
+        workflow_id=registration.workflow_id,
+        prepared_input_id=prepared.prepared_input_id,
+        now=NOW,
+    )
+
+    assert host._runner._configured_profile.profile_id == configured.profile_id
+    assert host._runner._model_adapter.is_local is False
+    assert result.output == {"message": "completed locally"}
+    assert len(client.responses.calls) == 1
+
+
 def test_host_reopens_a_secret_free_configured_mcp_client(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -372,7 +429,11 @@ def test_host_reopens_a_secret_free_configured_mcp_client(
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
-            _Client(), models=[profile.model_id], is_local=True
+            _Client(),
+            models=[profile.execution_model_id],
+            is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
     mcp_configuration = MCPClientConfiguration(
@@ -409,7 +470,11 @@ def test_host_control_plane_binds_an_authenticated_generic_mcp_connection(
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
-            _Client(), models=[profile.model_id], is_local=True
+            _Client(),
+            models=[profile.execution_model_id],
+            is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
     monkeypatch.setattr(
@@ -458,7 +523,11 @@ def test_host_reviews_only_the_human_approved_generic_mcp_surface(
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
-            _Client(), models=[profile.model_id], is_local=True
+            _Client(),
+            models=[profile.execution_model_id],
+            is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
     monkeypatch.setattr(
@@ -551,8 +620,10 @@ def test_host_runs_a_registered_reviewed_mcp_workflow(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
             model_client,
-            models=[profile.model_id, "local-model"],
+            models=[profile.execution_model_id],
             is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
     host = LocalWorkflowHost.open(root)
@@ -825,8 +896,10 @@ def test_host_keeps_connection_setup_material_out_of_execution_surfaces(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
             model_client,
-            models=[profile.model_id, "local-model"],
+            models=[profile.execution_model_id],
             is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
     monkeypatch.setattr(
@@ -927,7 +1000,11 @@ def _configured_reviewable_mcp_host(
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
-            _Client(), models=[profile.model_id], is_local=True
+            _Client(),
+            models=[profile.execution_model_id],
+            is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
     monkeypatch.setattr(
@@ -1091,7 +1168,11 @@ def test_host_composes_human_setup_with_sealed_dry_run(
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
-            client, models=[profile.model_id], is_local=True
+            client,
+            models=[profile.execution_model_id],
+            is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
 
@@ -1140,7 +1221,11 @@ def test_host_ingresses_a_file_only_under_the_registered_workspace_contract(
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
-            _Client(), models=[profile.model_id], is_local=True
+            _Client(),
+            models=[profile.execution_model_id],
+            is_local=True,
+            model_id_mapping={profile.execution_model_id: profile.model_id},
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
 

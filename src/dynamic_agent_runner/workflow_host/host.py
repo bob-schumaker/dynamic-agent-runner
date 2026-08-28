@@ -107,6 +107,7 @@ from dynamic_agent_runner.workflow_host.profiles import (
     LocalModelProfile,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
+    create_hosted_openai_adapter,
     create_local_adapter,
 )
 from dynamic_agent_runner.workflow_host.registration import (
@@ -162,7 +163,9 @@ def _create_model_adapter(profile: LocalModelProfile):
         return create_apple_foundation_model_async_adapter(
             AppleFoundationModelConfig(model_aliases=(profile.model_id,))
         )
-    raise LocalWorkflowHostError("configured local profile is unavailable")
+    if profile.adapter_id == "hosted-openai-adapter-v1":
+        return create_hosted_openai_adapter(profile)
+    raise LocalWorkflowHostError("configured execution profile is unavailable")
 
 
 @dataclass(frozen=True)
@@ -263,6 +266,39 @@ def configure_apple_local_host(
         raise LocalWorkflowHostError(
             "Apple model eligibility is unavailable"
         ) from error
+    configuration = LocalWorkflowHostConfiguration(
+        package_root,
+        profile.profile_id,
+        workspace_input_root,
+        workspace_input_max_bytes,
+    )
+    _write_configuration(root, configuration)
+    return configuration
+
+
+def configure_hosted_openai_host(
+    *,
+    root: Path,
+    package_root: Path,
+    model_id: str,
+    base_url: str,
+    workspace_input_root: Path | None = None,
+    workspace_input_max_bytes: int = _DEFAULT_WORKSPACE_INPUT_MAX_BYTES,
+) -> LocalWorkflowHostConfiguration:
+    """Create one human-owned hosted OpenAI-compatible host configuration."""
+
+    _validate_root(root)
+    _validate_package_root(package_root)
+    if workspace_input_root is not None:
+        _validate_workspace_input_root(workspace_input_root)
+    _validate_workspace_input_max_bytes(workspace_input_max_bytes)
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(root)
+    ).create_hosted_openai(
+        model_id=model_id,
+        base_url=base_url,
+        capabilities={"text_generation"},
+    )
     configuration = LocalWorkflowHostConfiguration(
         package_root,
         profile.profile_id,
@@ -620,7 +656,7 @@ class LocalWorkflowHost:
                 catalog=catalog,
                 preparation=preparation,
                 model_adapter=_create_model_adapter(profile),
-                configured_profile_id=profile.profile_id,
+                configured_profile=profile,
                 mcp_bindings=mcp_bindings if mcp_client is not None else None,
                 mcp_client=mcp_client,
                 mcp_surfaces=surfaces if mcp_client is not None else None,

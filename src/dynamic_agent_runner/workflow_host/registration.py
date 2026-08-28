@@ -1,4 +1,4 @@
-"""Immutable strict-local workflow registrations and alias mappings."""
+"""Immutable host execution-profile workflow registrations and alias mappings."""
 
 from __future__ import annotations
 
@@ -31,12 +31,12 @@ from dynamic_agent_runner.workflow_host.profiles import (
 
 
 class WorkflowRegistrationError(ValueError):
-    """Raised when a policy cannot receive an immutable local registration."""
+    """Raised when a policy cannot receive an immutable execution registration."""
 
 
 @dataclass(frozen=True)
 class WorkflowRegistration:
-    """A catalog-local alias bound to one policy and strict-local model profile."""
+    """A catalog-local alias bound to one policy and execution profile."""
 
     workflow_id: str
     registration_digest: str
@@ -44,12 +44,13 @@ class WorkflowRegistration:
     revision_digest: str
     policy_digest: str
     profile_id: str
+    profile_digest: str
     model_id: str
     mcp_binding_id: str | None = None
 
 
 class WorkflowRegistrationService:
-    """Bind eligible policies only to the human-configured strict local profile."""
+    """Bind eligible policies only to the human-configured execution profile."""
 
     def __init__(
         self,
@@ -81,7 +82,7 @@ class WorkflowRegistrationService:
         capability_resolution: CapabilityResolution,
         mcp_binding_id: str | None = None,
     ) -> WorkflowRegistration:
-        """Create or retrieve a local alias for an eligible strict-local policy."""
+        """Create or retrieve a local alias for an eligible profile-bound policy."""
 
         _nonempty(workflow_id, "workflow_id")
         if capability_resolution.status != "eligible":
@@ -122,17 +123,12 @@ class WorkflowRegistrationService:
             return self._profiles.load(self._configured_profile_id)
         except LocalModelProfileError as error:
             raise WorkflowRegistrationError(
-                "configured local profile is unavailable"
+                "configured profile is unavailable"
             ) from error
 
     def _validate_profile(
         self, policy: WorkflowPolicy, profile: LocalModelProfile
     ) -> None:
-        if profile.adapter_id not in {
-            "strict-local-adapter-v1",
-            "apple-foundation-models-adapter-v1",
-        }:
-            raise WorkflowRegistrationError("configured adapter is not strict local")
         if profile.profile_requirement != policy.model_profile_requirement:
             raise WorkflowRegistrationError(
                 "configured profile requirement does not match policy"
@@ -215,6 +211,7 @@ def _registration_from(
         "revision_digest": policy.revision_digest,
         "policy_digest": policy.policy_digest,
         "profile_id": profile.profile_id,
+        "profile_digest": profile.profile_digest,
         "model_id": profile.model_id,
     }
     if mcp_binding_id is not None:
@@ -229,6 +226,7 @@ def _registration_from(
         revision_digest=policy.revision_digest,
         policy_digest=policy.policy_digest,
         profile_id=profile.profile_id,
+        profile_digest=profile.profile_digest,
         model_id=profile.model_id,
         mcp_binding_id=mcp_binding_id,
     )
@@ -242,6 +240,7 @@ def _to_mapping(registration: WorkflowRegistration) -> dict[str, str]:
         "revision_digest": registration.revision_digest,
         "policy_digest": registration.policy_digest,
         "profile_id": registration.profile_id,
+        "profile_digest": registration.profile_digest,
         "model_id": registration.model_id,
     }
     if registration.mcp_binding_id is not None:
@@ -277,6 +276,7 @@ _RECORD_FIELDS = {
     "revision_digest",
     "policy_digest",
     "profile_id",
+    "profile_digest",
     "model_id",
 }
 

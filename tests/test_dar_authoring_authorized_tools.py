@@ -179,6 +179,7 @@ def _setup(tmp_path: Path):
         revision_digest="a" * 64,
         policy_digest="c" * 64,
         profile_id=profile.profile_id,
+        profile_digest=profile.profile_digest,
         model_id="local-model-v1",
         mcp_binding_id=binding.binding_id,
     )

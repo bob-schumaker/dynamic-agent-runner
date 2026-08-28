@@ -51,6 +51,7 @@ from dynamic_agent_runner.workflow_host.preparation import (
     SealedWorkflowInput,
     WorkflowInvocationPreparationService,
 )
+from dynamic_agent_runner.workflow_host.profiles import LocalModelProfile
 from dynamic_agent_runner.workflow_host.registration import (
     WorkflowRegistration,
     WorkflowRegistrationError,
@@ -118,7 +119,7 @@ class RedactedRunTrace:
 
 
 class WorkflowRunner:
-    """Run one registered package through a configured strict-local adapter."""
+    """Run one registered package through its configured host execution profile."""
 
     def __init__(
         self,
@@ -127,7 +128,7 @@ class WorkflowRunner:
         catalog: PackageCatalog,
         preparation: WorkflowInvocationPreparationService,
         model_adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter,
-        configured_profile_id: str,
+        configured_profile: LocalModelProfile,
         mcp_bindings: MCPWorkflowCapabilityBindingControlPlane | None = None,
         mcp_client: AuthorizedMCPToolClient | None = None,
         mcp_surfaces: MCPSurfaceSnapshotControlPlane | None = None,
@@ -138,7 +139,7 @@ class WorkflowRunner:
         self._catalog = catalog
         self._preparation = preparation
         self._model_adapter = model_adapter
-        self._configured_profile_id = configured_profile_id
+        self._configured_profile = configured_profile
         self._mcp_bindings = mcp_bindings
         self._mcp_client = mcp_client
         self._mcp_surfaces = mcp_surfaces
@@ -349,16 +350,43 @@ class WorkflowRunner:
             ) from error
 
     def _validate_adapter(self, registration: WorkflowRegistration) -> None:
-        if registration.profile_id != self._configured_profile_id:
+        profile = self._configured_profile
+        if registration.profile_id != profile.profile_id:
             raise RunDarWorkflowError(
                 "registered workflow is not bound to the configured profile"
             )
-        if not self._model_adapter.is_local:
-            raise RunDarWorkflowError("configured adapter is not strict local")
-        if registration.model_id not in self._model_adapter.models:
+        if registration.profile_digest != profile.profile_digest:
+            raise RunDarWorkflowError("configured profile does not match registration")
+        if registration.model_id != profile.model_id:
             raise RunDarWorkflowError(
-                "configured adapter does not advertise registered model"
+                "configured profile model does not match registration"
             )
+        if self._model_adapter.execution_profile_adapter_id != profile.adapter_id:
+            raise RunDarWorkflowError("configured adapter does not match profile")
+        if "text_generation" not in profile.capabilities:
+            raise RunDarWorkflowError("configured profile lacks text_generation")
+        if not _adapter_supports(self._model_adapter, "text_generation"):
+            raise RunDarWorkflowError("configured adapter lacks text_generation")
+        if profile.execution_model_id not in self._model_adapter.models:
+            raise RunDarWorkflowError(
+                "configured adapter does not advertise execution model"
+            )
+        if (
+            self._model_adapter.resolved_model_id(profile.execution_model_id)
+            != registration.model_id
+        ):
+            raise RunDarWorkflowError(
+                "configured adapter does not resolve registered model"
+            )
+
+
+def _adapter_supports(
+    adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter, capability: str
+) -> bool:
+    capabilities = getattr(adapter, "capabilities", {})
+    if not isinstance(capabilities, Mapping):
+        return False
+    return capabilities.get(capability) is True
 
 
 def _render_prompt(prompt: str, additional_context: str) -> str:

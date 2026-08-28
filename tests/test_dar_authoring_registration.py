@@ -17,7 +17,6 @@ from dynamic_agent_runner.workflow_host.policy import (  # noqa: E402
     WorkflowPolicy,
 )
 from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
-    LocalModelProfile,
     LocalModelProfileControlPlane,
 )
 from dynamic_agent_runner.workflow_host.registration import (  # noqa: E402
@@ -27,13 +26,15 @@ from dynamic_agent_runner.workflow_host.registration import (  # noqa: E402
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
 
 
-def _policy(*, digest: str = "a" * 64) -> WorkflowPolicy:
+def _policy(
+    *, digest: str = "a" * 64, profile_requirement: str = "local-general-model"
+) -> WorkflowPolicy:
     return WorkflowPolicy(
         package_id="document-helper",
         revision_digest="b" * 64,
         descriptor_digest="c" * 64,
         policy_digest=digest,
-        model_profile_requirement="local-general-model",
+        model_profile_requirement=profile_requirement,
         input_contract=InputContract(
             mode="hybrid",
             additional_context_max_bytes=8192,
@@ -81,6 +82,7 @@ def test_registration_binds_eligible_policy_to_configured_local_profile(
     assert registration.workflow_id == "document-helper"
     assert registration.model_id == "local-model-v1"
     assert registration.profile_id.startswith("v1.")
+    assert len(registration.profile_digest) == 64
     assert len(registration.registration_digest) == 64
     assert service.resolve("document-helper") == registration
 
@@ -96,36 +98,35 @@ def test_registration_rejects_unavailable_or_mismatched_profile(tmp_path: Path) 
         )
 
 
-def test_registration_rejects_a_hosted_adapter_fallback(tmp_path: Path) -> None:
-    class HostedProfileControlPlane:
-        def load(self, profile_id: str) -> LocalModelProfile:
-            return LocalModelProfile(
-                profile_id=profile_id,
-                model_id="hosted-model-v1",
-                adapter_id="hosted-adapter-v1",
-                base_url="https://models.example.test/v1",
-                profile_requirement="local-general-model",
-                capabilities=frozenset({"text_generation"}),
-            )
-
+def test_registration_binds_a_matching_hosted_execution_profile(tmp_path: Path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    profiles = LocalModelProfileControlPlane(store=store)
+    profile = profiles.create_hosted_openai(
+        model_id="hosted-model-v1",
+        base_url="https://models.example.test/v1",
+        capabilities={"text_generation"},
+    )
     service = WorkflowRegistrationService(
-        profiles=HostedProfileControlPlane(),  # type: ignore[arg-type]
-        configured_profile_id="configured-profile",
+        profiles=profiles,
+        configured_profile_id=profile.profile_id,
         root=tmp_path / "registrations",
     )
 
-    with pytest.raises(WorkflowRegistrationError, match="strict local"):
-        service.register(
-            workflow_id="document-helper",
-            policy=_policy(),
-            capability_resolution=CapabilityResolution("eligible", ()),
-        )
+    registration = service.register(
+        workflow_id="document-helper",
+        policy=_policy(profile_requirement="general-language-model-v1"),
+        capability_resolution=CapabilityResolution("eligible", ()),
+    )
+
+    assert registration.profile_id == profile.profile_id
+    assert registration.profile_digest == profile.profile_digest
+
+
+def test_registration_rejects_mismatched_profile_requirement(tmp_path: Path) -> None:
     with pytest.raises(WorkflowRegistrationError, match="profile requirement"):
-        _service(
-            tmp_path / "mismatched", profile_requirement="other-local-model"
-        ).register(
+        _service(tmp_path / "mismatched").register(
             workflow_id="document-helper",
-            policy=_policy(),
+            policy=_policy(profile_requirement="general-language-model-v1"),
             capability_resolution=CapabilityResolution("eligible", ()),
         )
 

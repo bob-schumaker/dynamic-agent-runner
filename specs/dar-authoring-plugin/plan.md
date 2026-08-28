@@ -625,15 +625,19 @@ graph.
    selection field.
 2. **G5.2.2: Seal the host execution profile.** Evolve the existing immutable
    local profile record with a profile digest that binds host adapter factory or
-   configuration identity, exact model ID, requirement, and closed capability
-   set. Bind the profile digest and model ID into a registration. Reuse the
+   configuration identity, canonical non-secret endpoint identity, host-owned
+   execution alias, exact provider-model ID, requirement, and closed capability
+   set. Bind the profile digest and
+   model ID into a registration. Reuse the
    host's bounded adapter construction; do not add a generic provider registry.
    Hash only non-secret execution identity; fail legacy records without the new
    identity closed and require re-registration, never inferred auto-upgrade.
 3. **G5.2.3: Validate before input use.** At registration and before every run,
    require exact registration/profile ID/digest, profile requirement, model, and
-   capability agreement. The host-built adapter must advertise the registered
-   model and satisfy the profile's bound capabilities. Remove only `is_local` as
+   capability agreement. The host-built adapter must expose its factory-issued
+   identity, advertise the registered execution alias, resolve it to the bound
+   provider model, and satisfy the profile's bound capabilities. Remove only
+   `is_local` as
    a runner admission predicate; retain strict coverage and no fallback.
 4. **G5.2.4: Prove bounded non-local admission.** Use a fake host-configured
    non-local adapter to prove a matching profile can register and run. Prove

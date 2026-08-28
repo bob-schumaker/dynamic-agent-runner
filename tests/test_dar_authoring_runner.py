@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 import shutil
 from concurrent.futures import ThreadPoolExecutor
@@ -221,6 +222,8 @@ def _runner(
     tmp_path: Path,
     *,
     local: bool = True,
+    hosted: bool = False,
+    configured_adapter_id: str | None = None,
     async_adapter: bool = False,
     active_profile_id: str | None = None,
     active_apple_profile: bool = False,
@@ -236,6 +239,11 @@ def _runner(
     runtime["nodes"][0]["model"] = package_model
     runtime["output_contracts"][0]["required_fields"] = [terminal_required_field]
     runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
+    if hosted:
+        descriptor_path = source / "workflow-descriptor.yaml"
+        descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+        descriptor["model"]["profile_requirement"] = "general-language-model-v1"
+        descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
         allowed_root=source.parent, store=store
@@ -248,11 +256,19 @@ def _runner(
     )
     policy = compile_workflow_policy(revision)
     profiles = LocalModelProfileControlPlane(store=store)
-    profile = profiles.create(
-        model_id="local-model-v1",
-        adapter_id="strict-local-adapter-v1",
-        base_url="http://127.0.0.1:11434/v1",
-        capabilities={"text_generation"},
+    profile = (
+        profiles.create_hosted_openai(
+            model_id="local-model-v1",
+            base_url="https://models.example.test/v1",
+            capabilities={"text_generation"},
+        )
+        if hosted
+        else profiles.create(
+            model_id="local-model-v1",
+            adapter_id="strict-local-adapter-v1",
+            base_url="http://127.0.0.1:11434/v1",
+            capabilities={"text_generation"},
+        )
     )
     registrations = WorkflowRegistrationService(
         profiles=profiles,
@@ -281,11 +297,33 @@ def _runner(
     )
     adapter = (
         AsyncOpenAIClientAdapter(
-            client, models=["local-model", "local-model-v1"], is_local=local
+            client,
+            models=["local-model", "local-model-v1"],
+            is_local=local,
+            model_id_mapping={"local-model": "local-model-v1"},
+            execution_profile_adapter_id=(
+                configured_adapter_id
+                or (
+                    "apple-foundation-models-adapter-v1"
+                    if active_apple_profile
+                    else profile.adapter_id
+                )
+            ),
         )
         if async_adapter
         else OpenAIClientAdapter(
-            client, models=["local-model", "local-model-v1"], is_local=local
+            client,
+            models=["local-model", "local-model-v1"],
+            is_local=local,
+            model_id_mapping={"local-model": "local-model-v1"},
+            execution_profile_adapter_id=(
+                configured_adapter_id
+                or (
+                    "apple-foundation-models-adapter-v1"
+                    if active_apple_profile
+                    else profile.adapter_id
+                )
+            ),
         )
     )
     return (
@@ -294,7 +332,7 @@ def _runner(
             catalog=catalog,
             preparation=preparation,
             model_adapter=adapter,
-            configured_profile_id=active_profile_id or profile.profile_id,
+            configured_profile=profiles.load(active_profile_id or profile.profile_id),
         ),
         preparation,
         registration,
@@ -544,7 +582,11 @@ def _tool_runner(
         ]
     )
     adapter = OpenAIClientAdapter(
-        model_client, models=["local-model", "local-model-v1"], is_local=True
+        model_client,
+        models=["local-model", "local-model-v1"],
+        is_local=True,
+        model_id_mapping={"local-model": "local-model-v1"},
+        execution_profile_adapter_id=profile.adapter_id,
     )
     return (
         WorkflowRunner(
@@ -552,7 +594,7 @@ def _tool_runner(
             catalog=catalog,
             preparation=preparation,
             model_adapter=adapter,
-            configured_profile_id=profile.profile_id,
+            configured_profile=profile,
             mcp_bindings=mcp_bindings,
             mcp_client=mcp_client,
             mcp_surfaces=surfaces,
@@ -959,8 +1001,12 @@ def test_request_rejects_raw_prompt_and_unknown_fields() -> None:
         )
 
 
-def test_runner_rejects_hosted_adapter_before_consuming_input(tmp_path: Path) -> None:
-    runner, preparation, registration, _, client = _runner(tmp_path, local=False)
+def test_runner_rejects_adapter_profile_mismatch_before_consuming_input(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, client = _runner(
+        tmp_path, configured_adapter_id="hosted-openai-adapter-v1"
+    )
     prepared = preparation.prepare(
         workflow_id="document-helper", prompt="Answer me.", now=NOW
     )
@@ -972,8 +1018,126 @@ def test_runner_rejects_hosted_adapter_before_consuming_input(tmp_path: Path) ->
         }
     )
 
-    with pytest.raises(RunDarWorkflowError, match="strict local"):
+    with pytest.raises(RunDarWorkflowError, match="does not match profile"):
         runner.run(request, now=NOW)
+
+    assert (
+        preparation.load(
+            prepared.prepared_input_id, registration=registration, now=NOW
+        ).prompt
+        == "Answer me."
+    )
+    assert client.responses.calls == []
+
+
+def test_runner_admits_matching_hosted_adapter_before_consuming_input(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, _, _, client = _runner(tmp_path, local=False, hosted=True)
+    prepared = preparation.prepare(
+        workflow_id="document-helper", prompt="Answer me.", now=NOW
+    )
+    request = RunDarWorkflowRequest.from_mapping(
+        {
+            "format_version": 1,
+            "workflow_id": "document-helper",
+            "prepared_input_id": prepared.prepared_input_id,
+        }
+    )
+
+    result = runner.run(request, now=NOW)
+
+    assert result.status == "completed"
+    assert client.responses.calls
+    assert client.responses.calls[0]["model"] == "local-model-v1"
+
+
+def test_runner_rejects_execution_alias_resolution_drift_before_consuming_input(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, client = _runner(tmp_path, hosted=True)
+    runner._model_adapter._model_id_mapping["local-model"] = "other-model-v1"  # noqa: SLF001
+    prepared = preparation.prepare(
+        workflow_id="document-helper", prompt="Answer me.", now=NOW
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="does not resolve registered model"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": "document-helper",
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert (
+        preparation.load(
+            prepared.prepared_input_id, registration=registration, now=NOW
+        ).prompt
+        == "Answer me."
+    )
+    assert client.responses.calls == []
+
+
+def test_runner_rejects_profile_digest_drift_before_consuming_input(
+    tmp_path: Path,
+) -> None:
+    runner, preparation, registration, _, client = _runner(tmp_path)
+    runner._configured_profile = replace(  # noqa: SLF001 - admission boundary seam.
+        runner._configured_profile, profile_digest="d" * 64
+    )
+    prepared = preparation.prepare(
+        workflow_id="document-helper", prompt="Answer me.", now=NOW
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="does not match registration"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": "document-helper",
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
+
+    assert (
+        preparation.load(
+            prepared.prepared_input_id, registration=registration, now=NOW
+        ).prompt
+        == "Answer me."
+    )
+    assert client.responses.calls == []
+
+
+def test_runner_rejects_adapter_capability_drift_before_consuming_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        OpenAIClientAdapter,
+        "capabilities",
+        property(lambda _adapter: {}),
+    )
+    runner, preparation, registration, _, client = _runner(tmp_path)
+    prepared = preparation.prepare(
+        workflow_id="document-helper", prompt="Answer me.", now=NOW
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="adapter lacks text_generation"):
+        runner.run(
+            RunDarWorkflowRequest.from_mapping(
+                {
+                    "format_version": 1,
+                    "workflow_id": "document-helper",
+                    "prepared_input_id": prepared.prepared_input_id,
+                }
+            ),
+            now=NOW,
+        )
 
     assert (
         preparation.load(

@@ -763,6 +763,7 @@ def test_adapter_exposes_conservative_apple_capabilities() -> None:
         "execution": "in_process",
         "local": True,
         "model_identity": "system_managed",
+        "text_generation": True,
         "structured_output": True,
         "streaming": False,
         "tool_calling": True,

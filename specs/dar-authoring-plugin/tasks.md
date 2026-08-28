@@ -447,7 +447,7 @@ invoke` request.
     still limited to its user-selected exact tool contract.
   - Defer a durable “approve all future runs of this specific workflow” decision
     until a separate scope, revocation, and audit design is approved.
-- [ ] G5.2 [tests then implementation]: replace the sealed-host strict-local
+- [x] G5.2 [tests then implementation]: replace the sealed-host strict-local
       adapter restriction with registered execution-profile capability matching.
   - RED: define a closed, versioned profile-requirement vocabulary and derive
     the required model capabilities from it and actual DAR runtime needs. Keep
@@ -463,23 +463,28 @@ invoke` request.
   - GREEN: evolve the immutable local profile record into the host-owned
     execution-profile contract without a generic provider registry. Persist an
     opaque profile ID and canonical profile digest binding the host-selected
-    non-secret adapter-factory/configuration identity, exact model identity,
-    requirement, and closed capability set. Exclude endpoints, credentials,
-    tokens, and connection values. Bind that digest and model identity into the
+    non-secret adapter-factory/configuration identity, canonical endpoint
+    identity, host-owned execution alias and exact provider-model identity,
+    requirement, and closed capability set.
+    Exclude credentials, tokens, queries, and connection values. Bind that
+    digest and model identity into the
     registration. Legacy profile or registration records that lack the digest
     fail closed and require human re-registration; they are never inferred,
     auto-upgraded, or widened.
   - GREEN: before sealed-input load, MCP initialization, model invocation, or
     handler dispatch, compare the registration against the configured profile
     ID/digest, profile requirement, model identity, and capabilities; verify
-    the host-built adapter is from that factory, advertises the registered exact
-    model, and satisfies the bound capability contract. Delete `is_local` only
-    as an admission criterion. Do not select a default/fallback adapter or model.
+    the host-built adapter exposes its factory-issued identity, advertises the
+    registered execution alias, resolves it to the bound exact provider model,
+    and satisfies the bound capability contract. Delete
+    `is_local` only as an admission criterion. Do not select a default/fallback
+    adapter or model.
   - RED/GREEN: prove profile requirement/digest, adapter factory/capability,
-    registered model, runtime model, and same-alias different-profile mismatch
-    paths all fail before input consumption and make zero provider/MCP/handler
+    registered model, runtime alias resolution, and same-alias different-profile
+    mismatch paths all fail before input consumption and make zero provider/MCP/handler
     calls. Include a legacy record with no digest and a local-only policy against
-    a non-local profile. Preserve policy-digest, registration, strict adapter coverage,
+    a non-local profile. Preserve policy-digest, registration, strict adapter
+    coverage,
     reviewed tool-binding, snapshot, provenance, budget, and audit checks.
   - Keep profile selection, credentials, endpoints, provider configuration, and
     adapter construction host-owned. Package and invocation inputs cannot select
@@ -487,6 +492,13 @@ invoke` request.
     not a global DAR policy change.
   - Run focused registration, runner, capability, and adapter tests; then run
     the full suite and lint.
+  - Completed: profile and registration digests bind canonical non-secret
+    endpoint identity, host-owned execution alias, and exact provider model.
+    Runtime admission derives adapter identity from the constructed adapter and
+    rejects profile, identity, capability, model, or alias-resolution drift
+    before sealed-input consumption. Hosted profiles never discover ambient
+    OpenAI or Codex credentials. Focused and full fake-only suites, Ruff, and
+    pre-commit pass.
 - [ ] G5.3 [tests then implementation]: establish and enforce the
       generated-workflow-policy versus DAR-execution-control matrix.
   - Define the authoritative ownership matrix in the DAR authoring specification:

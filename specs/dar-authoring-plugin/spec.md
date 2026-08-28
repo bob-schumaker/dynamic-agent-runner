@@ -1062,6 +1062,15 @@ discover, or configure any of those model services. G5.2 does not add a generic
 provider registry: the host's bounded factory selection remains the sole place
 that can construct an adapter for a configured profile.
 
+An execution-profile digest binds the factory identity, host-owned execution
+alias, exact provider model, closed capabilities, requirement, and canonical
+endpoint identity. The adapter advertises only that execution alias and
+translates it to the bound provider model before provider I/O; package artifacts
+cannot select either identity. The digest excludes credentials, tokens, query
+strings, and connection values. A hosted profile must not discover ambient
+OpenAI or Codex credentials; explicit credential-reference provisioning remains
+a host-control-plane slice.
+
 Before it issues any package-source, catalog, registration, or prepared-input
 handle, the wrapper shall provide one private per-user state store and an
 authenticated opaque-record format. Each record has a kind, local-OS-user owner,

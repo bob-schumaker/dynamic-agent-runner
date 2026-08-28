@@ -468,7 +468,10 @@ def test_invoke_runs_an_already_registered_saved_package(
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
-            _Client(), models=[profile.model_id], is_local=True
+            _Client(),
+            models=[profile.model_id],
+            is_local=True,
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
     configure_local_host(
@@ -526,7 +529,10 @@ def test_authoring_cli_finalizes_a_package_that_a_human_can_register_and_invoke(
     monkeypatch.setattr(
         "dynamic_agent_runner.workflow_host.host.create_local_adapter",
         lambda profile: OpenAIClientAdapter(
-            _Client(), models=[profile.model_id], is_local=True
+            _Client(),
+            models=[profile.model_id],
+            is_local=True,
+            execution_profile_adapter_id=profile.adapter_id,
         ),
     )
     configure_local_host(

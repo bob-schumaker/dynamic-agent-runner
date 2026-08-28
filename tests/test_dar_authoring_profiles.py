@@ -12,6 +12,7 @@ from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     InstallationIdentityProvider,
     LocalModelProfileControlPlane,
     LocalModelProfileError,
+    create_hosted_openai_adapter,
     create_local_adapter,
 )
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
@@ -63,7 +64,91 @@ def test_human_control_plane_creates_immutable_local_model_profile(
     assert loaded.base_url == "http://127.0.0.1:11434/v1"
     assert loaded.profile_requirement == "local-general-model"
     assert loaded.capabilities == frozenset({"text_generation"})
+    assert len(loaded.profile_digest) == 64
     assert loaded.profile_id.startswith("v1.")
+
+
+def test_human_control_plane_creates_immutable_hosted_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.getpass.getuser", lambda: "ada"
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.os.getuid", lambda: 501
+    )
+    control_plane = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state"),
+    )
+
+    created = control_plane.create_hosted_openai(
+        model_id="hosted-model-v1",
+        base_url="https://models.example.test/v1",
+        capabilities={"text_generation"},
+    )
+
+    loaded = control_plane.load(created.profile_id)
+
+    assert loaded == created
+    assert loaded.adapter_id == "hosted-openai-adapter-v1"
+    assert loaded.profile_requirement == "general-language-model-v1"
+    assert loaded.capabilities == frozenset({"text_generation"})
+    assert len(loaded.profile_digest) == 64
+
+
+def test_profile_digest_rejects_a_forged_hosted_endpoint(tmp_path: Path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    control_plane = LocalModelProfileControlPlane(store=store)
+    created = control_plane.create_hosted_openai(
+        model_id="hosted-model-v1",
+        base_url="https://models.example.test/v1",
+        capabilities={"text_generation"},
+    )
+    forged_profile_id = store.issue(
+        kind="local_model_profile",
+        owner=InstallationIdentityProvider().principal,
+        payload={
+            "model_id": created.model_id,
+            "adapter_id": created.adapter_id,
+            "base_url": "https://other-models.example.test/v1",
+            "profile_requirement": created.profile_requirement,
+            "capabilities": sorted(created.capabilities),
+            "profile_digest": created.profile_digest,
+        },
+        expires_at=datetime.max.replace(tzinfo=UTC),
+        now=datetime.now(UTC),
+    )
+
+    with pytest.raises(LocalModelProfileError, match="invalid"):
+        control_plane.load(forged_profile_id)
+
+
+def test_hosted_adapter_never_discovers_ambient_openai_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    profile = LocalModelProfileControlPlane(
+        store=PrivateStateStore(tmp_path / "state")
+    ).create_hosted_openai(
+        model_id="hosted-model-v1",
+        base_url="https://models.example.test/v1",
+        capabilities={"text_generation"},
+    )
+    observed: dict[str, object] = {}
+    sentinel = object()
+
+    def fake_create(config: object, **kwargs: object) -> object:
+        observed["config"] = config
+        observed["kwargs"] = kwargs
+        return sentinel
+
+    monkeypatch.setattr(
+        "dynamic_agent_runner.workflow_host.profiles.create_openai_adapter_from_provider_config",
+        fake_create,
+    )
+
+    assert create_hosted_openai_adapter(profile) is sentinel
+    assert observed["config"].discover_default_auth is False  # type: ignore[union-attr]
+    assert observed["kwargs"]["execution_profile_adapter_id"] == profile.adapter_id  # type: ignore[index]
 
 
 def test_profile_rejects_empty_or_nonlocal_definition(
@@ -137,7 +222,7 @@ def test_profile_requires_loopback_endpoint_and_constructs_local_adapter(
     assert create_local_adapter(created) is sentinel
     config = observed["config"]
     assert config.base_url == "http://localhost:11434/v1"  # type: ignore[union-attr]
-    assert config.model_aliases == ("local-model-v1", "local-model")  # type: ignore[union-attr]
+    assert config.model_aliases == ("local-model",)  # type: ignore[union-attr]
     assert config.expected_model_id == "local-model-v1"  # type: ignore[union-attr]
 
 
@@ -195,6 +280,27 @@ def test_forged_apple_profile_with_http_data_is_rejected(tmp_path: Path) -> None
         payload={
             "model_id": "apple-system-language-model",
             "adapter_id": "apple-foundation-models-adapter-v1",
+            "base_url": "http://127.0.0.1:11434/v1",
+            "profile_requirement": "local-general-model",
+            "capabilities": ["text_generation"],
+        },
+        expires_at=datetime.max.replace(tzinfo=UTC),
+        now=datetime.now(UTC),
+    )
+
+    with pytest.raises(LocalModelProfileError, match="invalid"):
+        control_plane.load(profile_id)
+
+
+def test_legacy_profile_without_digest_fails_closed(tmp_path: Path) -> None:
+    store = PrivateStateStore(tmp_path / "state")
+    control_plane = LocalModelProfileControlPlane(store=store)
+    profile_id = store.issue(
+        kind="local_model_profile",
+        owner=InstallationIdentityProvider().principal,
+        payload={
+            "model_id": "local-model-v1",
+            "adapter_id": "strict-local-adapter-v1",
             "base_url": "http://127.0.0.1:11434/v1",
             "profile_requirement": "local-general-model",
             "capabilities": ["text_generation"],

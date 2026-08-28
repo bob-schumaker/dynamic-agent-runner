@@ -744,6 +744,12 @@ def create_local_openai_adapter(
         _provider_config_from_local_endpoint(config),
         models=config.model_aliases,
         is_local=True,
+        execution_profile_adapter_id="strict-local-adapter-v1",
+        model_id_mapping=(
+            dict.fromkeys(config.model_aliases, config.expected_model_id)
+            if config.expected_model_id is not None
+            else None
+        ),
         error_translator=_local_endpoint_error_translator(config),
         response_validator=_local_endpoint_response_validator(config),
     )
@@ -758,6 +764,12 @@ def create_local_async_openai_adapter(
         _provider_config_from_local_endpoint(config),
         models=config.model_aliases,
         is_local=True,
+        execution_profile_adapter_id="strict-local-adapter-v1",
+        model_id_mapping=(
+            dict.fromkeys(config.model_aliases, config.expected_model_id)
+            if config.expected_model_id is not None
+            else None
+        ),
         error_translator=_local_endpoint_error_translator(config),
         response_validator=_local_endpoint_response_validator(config),
     )

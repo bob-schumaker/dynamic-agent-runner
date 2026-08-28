@@ -264,12 +264,19 @@ class AppleFoundationModelAsyncAdapter(AsyncOpenAIClientAdapter):
         return normalize_openai_response(raw_response)
 
     @property
+    def execution_profile_adapter_id(self) -> str:
+        """Identify the concrete Apple adapter factory for profile admission."""
+
+        return "apple-foundation-models-adapter-v1"
+
+    @property
     def capabilities(self) -> Mapping[str, Any]:
         return {
             "provider": "apple_foundation_models",
             "execution": "in_process",
             "local": True,
             "model_identity": "system_managed",
+            "text_generation": True,
             "structured_output": True,
             "streaming": False,
             "tool_calling": True,
