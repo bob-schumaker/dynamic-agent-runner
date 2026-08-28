@@ -311,6 +311,52 @@ def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
     return LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
 
 
+def provider_compaction_workflow(
+    *,
+    fallback: str,
+    retry_on_overflow: bool = False,
+    prompt_hierarchy: dict[str, list[str]] | None = None,
+) -> LoadedAgentWorkflow:
+    auto: dict[str, object] = {
+        "enabled": True,
+        "threshold_ratio": 0.01,
+        "implementation": "provider",
+        "strategy": "provider_remote",
+        "remote": {
+            "provider_capability": "responses_compact",
+            "fallback": fallback,
+        },
+    }
+    if retry_on_overflow:
+        auto["retry_on_overflow"] = True
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "provider-context-compaction-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "prompt_hierarchy": prompt_hierarchy or {},
+                        "context_compaction": {"auto": auto},
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+
 def test_compile_agent_workflow_preserves_base_workflow_and_executes_from_compiled() -> (
     None
 ):
@@ -2052,6 +2098,8 @@ def test_prepare_model_input_provider_compaction_replaces_over_threshold_context
         ProviderContextCompactionResult,
     )
 
+    prompt = "finish " * 80
+
     class FakeProviderCompactor:
         capabilities = {"responses_compact": True}
 
@@ -2065,7 +2113,7 @@ def test_prepare_model_input_provider_compaction_replaces_over_threshold_context
             return ProviderContextCompactionResult(
                 messages=(
                     OpenAIMessage(role="developer", content="Compacted history."),
-                    OpenAIMessage(role="user", content="Answer finish."),
+                    OpenAIMessage(role="user", content=f"Answer {prompt}"),
                 ),
                 provider_window_id="window-1",
                 token_baseline=3,
@@ -2108,10 +2156,11 @@ def test_prepare_model_input_provider_compaction_replaces_over_threshold_context
         }
     )
     plan = prepare_execution_plan(workflow)
-    state = WorkflowExecutionState(prompt="finish " * 80)
+    state = WorkflowExecutionState(prompt=prompt)
     adapter = make_adapter([])
     adapter.context_windows = {"gpt-test": 1000}
     compactor = FakeProviderCompactor()
+    tracer = WorkflowTracer(events=state.trace_events)
 
     prepared_input = prepare_model_input(
         plan.nodes_by_id["answer"],
@@ -2119,12 +2168,20 @@ def test_prepare_model_input_provider_compaction_replaces_over_threshold_context
         state,
         model_adapters=(adapter,),
         provider_context_compactor=compactor,
+        tracer=tracer,
     )
 
     assert compactor.requests[0].phase == "pre_turn"
     assert prepared_input.messages[0].content == "Compacted history."
     assert prepared_input.preparation.pre_turn_compaction["status"] == "complete"
-    assert prepared_input.preparation.pre_turn_compaction["window_id"] == "window-1"
+    assert prepared_input.preparation.pre_turn_compaction["window_id"] != "window-1"
+    prepared_event = next(
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    )
+    assert "Compacted history." not in repr(prepared_event.payload)
+    assert "window-1" not in repr(prepared_event.payload)
 
 
 def test_prepare_model_input_new_window_reset_does_not_count_as_compaction() -> None:
@@ -2254,6 +2311,8 @@ def test_execute_workflow_retries_once_after_context_overflow_with_provider_comp
         ProviderContextCompactionResult,
     )
 
+    prompt = "finish " * 80
+
     class FakeProviderCompactor:
         capabilities = {"responses_compact": True}
 
@@ -2262,7 +2321,7 @@ def test_execute_workflow_retries_once_after_context_overflow_with_provider_comp
         ) -> ProviderContextCompactionResult:
             assert request.phase == "overflow_retry"
             return ProviderContextCompactionResult(
-                messages=(OpenAIMessage(role="user", content="Compacted question."),),
+                messages=(OpenAIMessage(role="user", content=f"Answer {prompt}"),),
                 provider_window_id="window-retry",
             )
 
@@ -2311,7 +2370,7 @@ def test_execute_workflow_retries_once_after_context_overflow_with_provider_comp
 
     result = execute_workflow(
         workflow,
-        prompt="finish " * 80,
+        prompt=prompt,
         model_adapter=adapter,
         provider_context_compactor=FakeProviderCompactor(),
     )
@@ -2322,7 +2381,229 @@ def test_execute_workflow_retries_once_after_context_overflow_with_provider_comp
         for event in result.state.trace_events
         if event.event_type == "context_overflow_retry"
     )
-    assert retry_event.payload["window_id"] == "window-retry"
+    assert retry_event.payload["window_id"] != "window-retry"
+    assert retry_event.payload["tokens_after"] > 0
+    assert "window-retry" not in repr(retry_event.payload)
+    assert prompt not in repr(retry_event.payload)
+
+
+@pytest.mark.parametrize(
+    ("capability", "fallback", "expected_status"),
+    [
+        (None, "basic", "fallback"),
+        (False, "basic", "fallback"),
+        (None, "error", None),
+        (False, "error", None),
+    ],
+)
+def test_prepare_model_input_provider_compaction_handles_missing_collaborator_or_capability(
+    capability: bool | None,
+    fallback: str,
+    expected_status: str | None,
+) -> None:
+    workflow = provider_compaction_workflow(fallback=fallback)
+    plan = prepare_execution_plan(workflow)
+    adapter = make_adapter([])
+    adapter.context_windows = {"gpt-test": 1000}
+    state = WorkflowExecutionState(prompt="active prompt " * 80)
+
+    class Compactor:
+        capabilities = {"responses_compact": capability}
+
+    kwargs = {} if capability is None else {"provider_context_compactor": Compactor()}
+    if expected_status is None:
+        with pytest.raises(WorkflowExecutionError, match="provider context compaction"):
+            prepare_model_input(
+                plan.nodes_by_id["answer"],
+                plan,
+                state,
+                model_adapters=(adapter,),
+                **kwargs,
+            )
+        return
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        **kwargs,
+    )
+
+    assert prepared_input.preparation.pre_turn_compaction["status"] == expected_status
+    assert prepared_input.messages[-1].content == "Answer " + "active prompt " * 80
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        (OpenAIMessage(role="tool", content="unpaired tool history"),),
+        (
+            OpenAIMessage(role="developer", content="Pinned instruction."),
+            OpenAIMessage(role="user", content="rewritten active prompt"),
+        ),
+        [OpenAIMessage(role="user", content="not a tuple")],
+    ],
+)
+def test_prepare_model_input_provider_compaction_falls_back_for_invalid_replacement(
+    replacement: object,
+) -> None:
+    from dynamic_agent_runner import ProviderContextCompactionResult
+
+    class Compactor:
+        capabilities = {"responses_compact": True}
+
+        def compact(self, _request: object) -> ProviderContextCompactionResult:
+            return ProviderContextCompactionResult(messages=replacement)  # type: ignore[arg-type]
+
+    workflow = provider_compaction_workflow(
+        fallback="basic",
+        prompt_hierarchy={"developer": ["Pinned instruction."]},
+    )
+    plan = prepare_execution_plan(workflow)
+    adapter = make_adapter([])
+    adapter.context_windows = {"gpt-test": 1000}
+    state = WorkflowExecutionState(prompt="active prompt " * 80)
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        provider_context_compactor=Compactor(),
+    )
+
+    assert prepared_input.preparation.pre_turn_compaction["status"] == "fallback"
+    assert prepared_input.messages[-1].content == "Answer " + "active prompt " * 80
+
+
+def test_prepare_model_input_provider_compaction_redacts_invalid_token_baseline() -> (
+    None
+):
+    from dynamic_agent_runner import ProviderContextCompactionResult
+
+    prompt = "active prompt " * 80
+
+    class Compactor:
+        capabilities = {"responses_compact": True}
+
+        def compact(self, _request: object) -> ProviderContextCompactionResult:
+            return ProviderContextCompactionResult(
+                messages=(OpenAIMessage(role="user", content=f"Answer {prompt}"),),
+                token_baseline="raw-provider-baseline",  # type: ignore[arg-type]
+            )
+
+    workflow = provider_compaction_workflow(fallback="basic")
+    plan = prepare_execution_plan(workflow)
+    adapter = make_adapter([])
+    adapter.context_windows = {"gpt-test": 1000}
+    state = WorkflowExecutionState(prompt=prompt)
+    tracer = WorkflowTracer(events=state.trace_events)
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        provider_context_compactor=Compactor(),
+        tracer=tracer,
+    )
+
+    assert prepared_input.preparation.pre_turn_compaction["status"] == "fallback"
+    prepared_event = next(
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    )
+    assert "raw-provider-baseline" not in repr(prepared_event.payload)
+
+
+@pytest.mark.parametrize(
+    ("capability", "fallback", "should_retry"),
+    [
+        (None, "basic", True),
+        (False, "basic", True),
+        (None, "error", False),
+        (False, "error", False),
+    ],
+)
+def test_execute_workflow_handles_unavailable_provider_overflow_compaction(
+    capability: bool | None,
+    fallback: str,
+    should_retry: bool,
+) -> None:
+    class Compactor:
+        capabilities = {"responses_compact": capability}
+
+    workflow = provider_compaction_workflow(fallback=fallback, retry_on_overflow=True)
+    adapter = make_adapter(
+        [
+            RuntimeError("context_length_exceeded: too many tokens"),
+            {"id": "resp_retry", "output_text": "fallback answer"},
+        ]
+    )
+
+    kwargs = {} if capability is None else {"provider_context_compactor": Compactor()}
+    if not should_retry:
+        with pytest.raises(WorkflowExecutionError, match="provider context compaction"):
+            execute_workflow(
+                workflow,
+                prompt="active prompt " * 80,
+                model_adapter=adapter,
+                **kwargs,
+            )
+        assert len(adapter.client.responses.calls) == 1
+        return
+
+    result = execute_workflow(
+        workflow,
+        prompt="active prompt " * 80,
+        model_adapter=adapter,
+        **kwargs,
+    )
+
+    assert result.final_result == "fallback answer"
+    assert len(adapter.client.responses.calls) == 2
+    retry_event = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "context_overflow_retry"
+    )
+    assert retry_event.payload["fallback"] == "basic"
+
+
+def test_execute_workflow_rejects_provider_overflow_replacement_that_changes_active_turn() -> (
+    None
+):
+    from dynamic_agent_runner import ProviderContextCompactionResult
+
+    class Compactor:
+        capabilities = {"responses_compact": True}
+
+        def compact(self, _request: object) -> ProviderContextCompactionResult:
+            return ProviderContextCompactionResult(
+                messages=(
+                    OpenAIMessage(role="user", content="rewritten active prompt"),
+                )
+            )
+
+    workflow = provider_compaction_workflow(fallback="error", retry_on_overflow=True)
+    adapter = make_adapter(
+        [
+            RuntimeError("context_length_exceeded: too many tokens"),
+            {"id": "resp_retry", "output_text": "must not be used"},
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="provider context compaction"):
+        execute_workflow(
+            workflow,
+            prompt="active prompt " * 80,
+            model_adapter=adapter,
+            provider_context_compactor=Compactor(),
+        )
+
+    assert len(adapter.client.responses.calls) == 1
 
 
 def test_prepare_model_input_reports_context_lanes() -> None:

@@ -1269,45 +1269,97 @@ def _provider_overflow_replacement(
     capability = str(remote.get("provider_capability") or "")
     fallback = str(remote.get("fallback") or "basic")
     compactor = prepared_input.provider_context_compactor
-    if compactor is None or compactor.capabilities.get(capability) is not True:
-        if fallback == "error":
-            raise WorkflowExecutionError("provider context compaction unavailable")
-        return None, {}
-    result = compactor.compact(
-        ProviderContextCompactionRequest(
-            messages=prepared_input.messages,
-            model=prepared_input.model,
-            phase="overflow_retry",
-            provider_capability=capability,
-            max_replacement_messages=int(remote.get("max_replacement_messages") or 32),
-            preserve_system_messages=remote.get("preserve_system_messages")
-            is not False,
-            tokens_before=estimate_messages_tokens(
-                tuple(
-                    {"role": message.role, "content": message.content}
-                    for message in prepared_input.messages
-                ),
-                model=prepared_input.model,
-            ).token_count,
-        )
-    )
-    if (
-        not isinstance(result, ProviderContextCompactionResult)
-        or not isinstance(result.messages, tuple)
-        or not result.messages
-        or not all(isinstance(message, OpenAIMessage) for message in result.messages)
-    ):
-        raise WorkflowExecutionError("provider context compaction returned no messages")
-    return result.messages, {
+    messages = prepared_input.messages
+    tokens_before = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content} for message in messages
+        ),
+        model=prepared_input.model,
+    ).token_count
+    base_metadata = {
         "phase": "overflow_retry",
         "trigger": "provider_context_overflow",
         "implementation": "provider",
+        "provider_capability": capability,
+        "tokens_before": tokens_before,
+    }
+    if compactor is None or compactor.capabilities.get(capability) is not True:
+        reason = (
+            "provider_context_compactor_unavailable"
+            if compactor is None
+            else "provider_capability_unavailable"
+        )
+        return _provider_overflow_fallback(
+            messages,
+            base_metadata,
+            fallback=fallback,
+            reason=reason,
+            model=prepared_input.model,
+        )
+    try:
+        result = compactor.compact(
+            ProviderContextCompactionRequest(
+                messages=messages,
+                model=prepared_input.model,
+                phase="overflow_retry",
+                provider_capability=capability,
+                max_replacement_messages=int(
+                    remote.get("max_replacement_messages") or 32
+                ),
+                preserve_system_messages=remote.get("preserve_system_messages")
+                is not False,
+                tokens_before=tokens_before,
+            )
+        )
+        replacement_messages = _validated_provider_replacement_messages(
+            result,
+            messages=messages,
+            remote=remote,
+        )
+    except Exception:
+        return _provider_overflow_fallback(
+            messages,
+            base_metadata,
+            fallback=fallback,
+            reason="invalid_replacement",
+            model=prepared_input.model,
+        )
+    return replacement_messages, {
+        **base_metadata,
         "status": "retrying",
         "reason": "context_overflow",
-        "provider_capability": capability,
-        "window_id": result.provider_window_id or str(uuid4()),
+        "window_id": str(uuid4()),
         "token_baseline": result.token_baseline,
+        "tokens_after": estimate_messages_tokens(
+            tuple(
+                {"role": message.role, "content": message.content}
+                for message in replacement_messages
+            ),
+            model=prepared_input.model,
+        ).token_count,
     }
+
+
+def _provider_overflow_fallback(
+    messages: Sequence[OpenAIMessage],
+    base_metadata: Mapping[str, Any],
+    *,
+    fallback: str,
+    reason: str,
+    model: str,
+) -> tuple[tuple[OpenAIMessage, ...], Mapping[str, Any]]:
+    parts = [
+        (f"overflow_retry_message_{index}", message)
+        for index, message in enumerate(messages, start=1)
+    ]
+    replacement_parts, metadata = _provider_compaction_fallback(
+        parts,
+        base_metadata,
+        fallback=fallback,
+        reason=reason,
+        model=model,
+    )
+    return tuple(message for _part_name, message in replacement_parts), metadata
 
 
 def _iterative_loop_enabled(plan: ExecutionPlan) -> bool:
@@ -3514,21 +3566,69 @@ def _apply_provider_pre_turn_compaction(
                 tokens_before=int(base_metadata["tokens_before"]),
             )
         )
-    except Exception as exc:
+        replacement_messages = _validated_provider_replacement_messages(
+            result,
+            messages=messages,
+            remote=remote,
+        )
+    except Exception:
         return _provider_compaction_fallback(
             parts,
             base_metadata,
             fallback=fallback,
-            reason=type(exc).__name__,
+            reason="invalid_replacement",
             model=model,
         )
-    if not isinstance(result, ProviderContextCompactionResult) or not result.messages:
-        raise WorkflowExecutionError("provider context compaction returned no messages")
-    if len(result.messages) > int(remote.get("max_replacement_messages") or 32):
+    tokens_after = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content}
+            for message in replacement_messages
+        ),
+        model=model,
+    ).token_count
+    return [
+        (f"pre_turn_compacted_{index}", message)
+        for index, message in enumerate(replacement_messages, start=1)
+    ], {
+        **base_metadata,
+        "status": "complete",
+        "reason": "token_threshold_exceeded",
+        "provider_capability": capability,
+        "window_id": str(uuid4()),
+        "token_baseline": result.token_baseline,
+        "tokens_after": tokens_after,
+    }
+
+
+def _validated_provider_replacement_messages(
+    result: object,
+    *,
+    messages: Sequence[OpenAIMessage],
+    remote: Mapping[str, Any],
+) -> tuple[OpenAIMessage, ...]:
+    if (
+        not isinstance(result, ProviderContextCompactionResult)
+        or not isinstance(result.messages, tuple)
+        or not result.messages
+        or not all(isinstance(message, OpenAIMessage) for message in result.messages)
+        or (
+            result.token_baseline is not None
+            and (
+                not isinstance(result.token_baseline, int)
+                or isinstance(result.token_baseline, bool)
+                or result.token_baseline < 0
+            )
+        )
+    ):
+        raise WorkflowExecutionError(
+            "provider context compaction returned invalid messages"
+        )
+    replacement_messages = result.messages
+    if len(replacement_messages) > int(remote.get("max_replacement_messages") or 32):
         raise WorkflowExecutionError(
             "provider context compaction exceeded replacement limit"
         )
-    if any(message.role == "tool" for message in result.messages):
+    if any(message.role == "tool" for message in replacement_messages):
         raise WorkflowExecutionError(
             "provider context compaction returned tool history"
         )
@@ -3538,30 +3638,19 @@ def _apply_provider_pre_turn_compaction(
         )
         if (
             pinned_messages
-            and result.messages[: len(pinned_messages)] != pinned_messages
+            and replacement_messages[: len(pinned_messages)] != pinned_messages
         ):
             raise WorkflowExecutionError(
                 "provider context compaction did not preserve pinned messages"
             )
-    tokens_after = estimate_messages_tokens(
-        tuple(
-            {"role": message.role, "content": message.content}
-            for message in result.messages
-        ),
-        model=model,
-    ).token_count
-    return [
-        (f"pre_turn_compacted_{index}", message)
-        for index, message in enumerate(result.messages, start=1)
-    ], {
-        **base_metadata,
-        "status": "complete",
-        "reason": "token_threshold_exceeded",
-        "provider_capability": capability,
-        "window_id": result.provider_window_id or str(uuid4()),
-        "token_baseline": result.token_baseline,
-        "tokens_after": tokens_after,
-    }
+    active_user = next(
+        (message for message in reversed(messages) if message.role == "user"), None
+    )
+    if active_user is not None and replacement_messages[-1] != active_user:
+        raise WorkflowExecutionError(
+            "provider context compaction did not preserve the active user message"
+        )
+    return replacement_messages
 
 
 def _provider_compaction_fallback(

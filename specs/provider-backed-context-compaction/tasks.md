@@ -8,7 +8,7 @@ Status: implemented first slice; provider transport remains deferred
       result, and caller-owned protocol exports.
 - [x] T0.2 Add RED validation tests for provider policy, required capability,
       fallback, bounded replacement count, and unsupported combinations.
-- [ ] T0.3 Add RED executor tests for pre-turn and overflow-retry success,
+- [x] T0.3 Add RED executor tests for pre-turn and overflow-retry success,
       missing collaborator/capability, malformed/protected-boundary replacement,
       `basic` fallback, `error` failure, and redacted trace metadata.
 - [ ] T0.4 Add RED capability-report tests for disabled, metadata-only, missing

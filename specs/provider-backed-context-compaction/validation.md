@@ -17,6 +17,19 @@ overflow retry, emits redacted metadata, reports missing/live collaborator
 capability state, and deliberately leaves mid-turn/tool-loop compaction and
 provider transport binding deferred.
 
+## T0.3 Completion Evidence — 2026-08-27
+
+- RED coverage exposed two overflow-retry gaps: `fallback: basic` did not retry,
+  and overflow replacements did not enforce the pre-turn bounded-history and
+  protected-boundary invariants.
+- GREEN shares replacement validation across pre-turn and overflow retry,
+  preserves the active user turn, retries the deterministic fallback once, and
+  uses a runtime-generated window ID instead of emitting the provider's ID.
+- `poetry run pytest tests/test_validation.py tests/test_executor.py
+  tests/test_capabilities.py tests/test_import.py -q`: 264 passed.
+- `poetry run pytest -q`: 1264 passed, 1 skipped, 6 deselected. Ruff, package
+  build, and docs build passed.
+
 ## Required Evidence
 
 - RED tests distinguish absent provider compaction from existing injected and
