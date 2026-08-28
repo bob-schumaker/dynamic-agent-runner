@@ -4501,6 +4501,33 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
         assert not _contains_identity(trace_event.payload, registry, result.state)
 
 
+def test_execute_workflow_rejects_initial_text_only_response_when_tool_required() -> (
+    None
+):
+    tool_invocations: list[object] = []
+    workflow = loop_tool_workflow()
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "search_repo"}),
+                lambda arguments: tool_invocations.append(arguments) or {"ok": True},
+            )
+        ]
+    )
+    adapter = make_adapter([{"id": "resp_1", "output_text": "I cannot do that."}])
+
+    with pytest.raises(WorkflowExecutionError, match="required tool call"):
+        execute_workflow(
+            workflow,
+            prompt="Search for DAR",
+            tool_registry=registry,
+            model_adapter=adapter,
+        )
+
+    assert len(adapter.client.responses.calls) == 1
+    assert tool_invocations == []
+
+
 def test_execute_workflow_keeps_provider_tool_call_correlations_separate() -> None:
     """Provider-origin call ids must remain bound to their own results and traces."""
 

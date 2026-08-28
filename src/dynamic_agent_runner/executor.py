@@ -1397,15 +1397,6 @@ async def _execute_model_tool_loop_async(
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ModelResponse | WorkflowInterruptedResult:
-    if not initial_response.tool_calls:
-        return initial_response
-    if registry is None:
-        raise WorkflowExecutionError(
-            f"llm_step node {node.id!r} requested tools but no registry was provided"
-        )
-
-    response = initial_response
-    transcript: list[Mapping[str, Any]] = []
     max_iterations = plan.max_steps or 8
     tracer.emit(
         "model_tool_loop_started",
@@ -1417,6 +1408,24 @@ async def _execute_model_tool_loop_async(
             else 0,
         },
     )
+    if not initial_response.tool_calls and not any(
+        result_key.startswith(f"{node.id}.") for result_key in state.tool_results
+    ):
+        tracer.emit(
+            "model_tool_loop_stopped",
+            node_id=str(node.id),
+            payload={"iteration": 0, "stop_reason": "required_tool_not_called"},
+        )
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} completed without a required tool call"
+        )
+    if registry is None:
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} requested tools but no registry was provided"
+        )
+
+    response = initial_response
+    transcript: list[Mapping[str, Any]] = []
     for iteration in range(1, max_iterations + 1):
         if not response.tool_calls:
             _emit_model_tool_loop_stop(
