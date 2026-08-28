@@ -1033,12 +1033,34 @@ Acceptance criteria:
 
 ### FR-7: Profile-backed execution owns external collaborators
 
-A host-managed profile is reusable collaborator configuration: it selects its
-local model adapter, MCP bindings, tool handlers, and allowed workspace roots.
-`WorkflowRegistration` binds that profile to one package revision and its
-execution limits.
-Profiles may also reference a local OpenAI-compatible, llama.cpp, or MLX
-adapter, but the plugin shall not start or discover any of those model services.
+A host-managed execution profile is reusable collaborator configuration: it
+selects an adapter factory/configuration reference, exact model identity,
+immutable profile requirement and capability set, MCP bindings, tool handlers,
+and allowed workspace roots. Its opaque profile ID and canonical profile digest
+are host-owned. Endpoint, credential, provider, transport, and adapter
+configuration values remain private host state; they are never descriptor,
+package, or invocation fields. `WorkflowRegistration` binds one package revision
+and policy digest to that exact profile ID, profile digest, and model identity.
+The host computes that digest only from non-secret execution identity: the
+versioned requirement, adapter-factory identity, exact model identity, and
+normalized capability set. It excludes endpoint, credential, token, and
+connection values and is never package- or invocation-selectable.
+
+A generated workflow may request only one closed, versioned abstract profile
+requirement and DAR-derived model capabilities. It cannot name a profile ID,
+adapter/factory kind, provider, endpoint, credential, transport, model alias,
+or fallback preference. The requirement vocabulary maps deterministically to
+capabilities; `local-general-model` remains a compatibility requirement for an
+explicitly local profile, while `general-language-model-v1` requires only
+`text_generation`. Tool-calling and structured-output capabilities enter that
+vocabulary only with a separately declared DAR runtime requirement. Capability
+matching supplements, never replaces, the exact registration-to-profile binding.
+
+The host may configure local OpenAI-compatible, llama.cpp, MLX, Apple, or a
+separately supported non-local adapter profile. The plugin shall not start,
+discover, or configure any of those model services. G5.2 does not add a generic
+provider registry: the host's bounded factory selection remains the sole place
+that can construct an adapter for a configured profile.
 
 Before it issues any package-source, catalog, registration, or prepared-input
 handle, the wrapper shall provide one private per-user state store and an
@@ -1077,8 +1099,10 @@ escaped or sandboxed in approval UI.
 Acceptance criteria:
 
 - A trusted CLI `body_html_path` outside an allowlisted input root is rejected.
-- A local-only profile uses strict adapter coverage and cannot silently fall back
-  to the default hosted OpenAI adapter.
+- Every execution profile uses strict adapter coverage and cannot silently fall
+  back to a default or substitute adapter. A matching host-configured non-local
+  profile is eligible only after the same exact profile, model, and capability
+  checks as a local or Apple profile.
 - Missing profile bindings fail before workflow execution.
 - A caller cannot read, select, approve, or execute another local principal's
   profile, connection, package, group alias, or trace.
@@ -1104,16 +1128,16 @@ capabilities; it does not imply that every profile exposes every integration:
 | Host capability | Wrapper responsibility |
 | --- | --- |
 | Package catalog | Compile and retain immutable `WorkflowPolicy` records; resolve an executable `WorkflowRegistration` only after capability preflight. |
-| Model manager | Select matching local adapters, enforce strict coverage, preflight local assets, and apply bounded generation settings. Hosted adapters are a later profile slice. |
+| Model manager | Select only the registered host execution profile, enforce its exact model identity and strict adapter coverage, compare declared capabilities before input consumption, preflight host-owned assets/configuration, and apply bounded generation settings. G5.2 admits a matching configured non-local profile; it does not add provider selection to workflows. |
 | Tool manager | Assemble declared host bindings; configured MCP bindings require G2. |
 | Secrets and files | Store credentials outside package artifacts. File references require G4 ingress and enforce workspace-root, size, type, and content-hash policies. |
 | State and audit | Persist wrapper audit records and own concurrency. Do not claim graph-state checkpoint restore or interrupted-run continuation until DAR supports it. |
 | Observability | Deep-redact or allowlist persisted trace fields; correlate run, registration, adapter, and tool provenance, and apply retention and audit policy. DAR's top-level event redaction alone is insufficient. |
 
 Future capability taxonomy, not a v1 wrapper commitment: guardrails, context
-management, retrieval/embeddings, durable sessions, hosted adapters, and
-subagents. A descriptor requiring one of these returns a capability failure
-until its later slice supplies a positive fixture.
+management, retrieval/embeddings, durable sessions, additional provider adapter
+families, and subagents. A descriptor requiring one of these returns a
+capability failure until its later slice supplies a positive fixture.
 
 Subagent bindings are explicitly deferred from the first wrapper release. It
 shall not configure `SubagentRunner` or `AskLLMRunner` collaborators, expose
@@ -1339,9 +1363,13 @@ initially fail for the required behavior.
    rejects changed, expired, cross-principal, and replayed approvals.
 7. **G5:** Prove a v1.1 side-effecting handler enforces its registration policy
    without replaying an interrupted DAR execution.
-8. **G1/G3:** Verify an execution profile never falls back to an unregistered
-   adapter, and trace output is redacted and correlates registration, adapter,
-   and tool provenance.
+8. **G5.2:** Verify a matching host-configured non-local profile is admitted
+   without `is_local`, while profile requirement/digest, adapter factory,
+   capability, model, same-alias cross-profile, and registration mismatches all
+   fail before sealed-input consumption, model/MCP setup, or handler dispatch.
+   Verify local and Apple profiles retain the same no-fallback behavior and
+   trace output is redacted and correlates registration, adapter, and tool
+   provenance.
 9. **Deferred slices:** Validate an embedding workflow only when its host adapter
    is live. Until then, prove capability resolution rejects packages requiring a
    missing guardrail, retrieval backend, session store, context component, or
@@ -1351,11 +1379,11 @@ initially fail for the required behavior.
 
 The v1 base release is complete when G0, G1, and G3 pass: the plugin manifest
 and skills are discoverable, generated no-tool fixture packages load under DAR,
-and focused tests prove local-principal selection, local-only model isolation,
-capability preflight, and redacted observability. G2 read-only MCP and G4 file
-input extensions are independently complete only when their required gate and
-positive fixtures pass. V1 must not expose side effects, retrieval/embeddings,
-durable sessions, broader guardrails/context, or subagents.
+and focused tests prove local-principal selection, host-owned execution-profile
+isolation, capability preflight, and redacted observability. G2 read-only MCP
+and G4 file input extensions are independently complete only when their
+required gates and positive fixtures pass. V1 must not expose side effects,
+retrieval/embeddings, durable sessions, broader guardrails/context, or subagents.
 
 The v1.1 side-effect extension is complete when G5 passes, plus G2 for an
 MCP-backed action and G4 for a file-backed argument. Focused tests prove the

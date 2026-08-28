@@ -449,18 +449,42 @@ invoke` request.
     until a separate scope, revocation, and audit design is approved.
 - [ ] G5.2 [tests then implementation]: replace the sealed-host strict-local
       adapter restriction with registered execution-profile capability matching.
-  - RED: prove a registered workflow with a host-configured non-local profile
-    is rejected only when its configured adapter, model identity, or declared
-    capabilities fail to match; prove a matching adapter is eligible without
-    requiring `is_local`.
-  - GREEN: make runtime admission compare the immutable registration and
-    workflow profile requirement with the host-configured execution profile and
-    adapter capabilities. Keep profile selection, credentials, endpoints, and
-    provider configuration host-owned; package and invocation inputs cannot
-    select or widen them.
-  - Preserve strict adapter coverage, exact model identity, policy-digest,
-    registration, and tool-binding checks. Existing local profiles remain valid
-    execution profiles rather than a global DAR requirement.
+  - RED: define a closed, versioned profile-requirement vocabulary and derive
+    the required model capabilities from it and actual DAR runtime needs. Keep
+    `local-general-model` as an explicitly local compatibility requirement;
+    add `general-language-model-v1` for the non-provider-specific
+    `text_generation` requirement. Reject an unknown requirement, arbitrary
+    capability string, package/provider/endpoint/profile/model selection, or
+    a policy whose required model capabilities are absent from its profile.
+  - RED: prove a host-configured non-local fake profile/adapter with matching
+    requirement, exact registered model, and capabilities currently fails only
+    because of strict-local admission. Then prove it registers and runs with
+    `is_local: false`; local and Apple profile regressions remain positive.
+  - GREEN: evolve the immutable local profile record into the host-owned
+    execution-profile contract without a generic provider registry. Persist an
+    opaque profile ID and canonical profile digest binding the host-selected
+    non-secret adapter-factory/configuration identity, exact model identity,
+    requirement, and closed capability set. Exclude endpoints, credentials,
+    tokens, and connection values. Bind that digest and model identity into the
+    registration. Legacy profile or registration records that lack the digest
+    fail closed and require human re-registration; they are never inferred,
+    auto-upgraded, or widened.
+  - GREEN: before sealed-input load, MCP initialization, model invocation, or
+    handler dispatch, compare the registration against the configured profile
+    ID/digest, profile requirement, model identity, and capabilities; verify
+    the host-built adapter is from that factory, advertises the registered exact
+    model, and satisfies the bound capability contract. Delete `is_local` only
+    as an admission criterion. Do not select a default/fallback adapter or model.
+  - RED/GREEN: prove profile requirement/digest, adapter factory/capability,
+    registered model, runtime model, and same-alias different-profile mismatch
+    paths all fail before input consumption and make zero provider/MCP/handler
+    calls. Include a legacy record with no digest and a local-only policy against
+    a non-local profile. Preserve policy-digest, registration, strict adapter coverage,
+    reviewed tool-binding, snapshot, provenance, budget, and audit checks.
+  - Keep profile selection, credentials, endpoints, provider configuration, and
+    adapter construction host-owned. Package and invocation inputs cannot select
+    or widen them; a matching non-local profile is an eligible execution profile,
+    not a global DAR policy change.
   - Run focused registration, runner, capability, and adapter tests; then run
     the full suite and lint.
 - [ ] G5.3 [tests then implementation]: establish and enforce the

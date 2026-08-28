@@ -10,7 +10,7 @@ provide a credential, or change approval policy.
 ## Common Authoring Input
 
 Every positive authoring case supplies a bounded task purpose, expected output
-schema, one human-configured local-model profile requirement, finite limits, and
+schema, one human-configured execution-profile requirement, finite limits, and
 either inline examples or a selected `AuthoringMaterialSet`. It may additionally
 declare a hybrid invocation contract:
 
@@ -23,7 +23,7 @@ invocation:
 output:
   schema: <terminal output schema>
 model:
-  profile_requirement: <human-configured local profile capability>
+  profile_requirement: <human-configured execution-profile capability>
 limits:
   max_steps: <finite positive integer>
 ```
@@ -40,7 +40,7 @@ replace the package's model, tool, skill, or connection requirements.
 
 | Capability | Additional authoring input | Expected status / host prerequisite |
 | --- | --- | --- |
-| Basic reasoning or document summary | Task instructions, examples, declared document artifact role, output shape | Positive with a compatible local model profile; no tools required. |
+| Basic reasoning or document summary | Task instructions, examples, declared document artifact role, output shape | Positive with a compatible host execution profile; no tools required. |
 | No-tool multi-step graph | Named `llm_step` and `decision_step` behavior; routes, intermediate outputs, finite step bound | Package graph validation and compatible model profile. |
 | Tool-using graph | A declared tool-use node plus its bounded routes and output rules | The tool's corresponding host binding and gate, in addition to graph validation. |
 | Structured terminal output | JSON schema or representative result | Output contract must match `task_invocation` terminal schema. |

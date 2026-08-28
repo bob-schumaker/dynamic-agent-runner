@@ -615,6 +615,34 @@ graph.
    and all later A calls still pass schema, provenance, surface, budget, and
    ledger checks before exactly one dispatch.
 
+### G5.2 — Registered execution-profile capability matching
+
+1. **G5.2.1: Compile closed model requirements.** First add policy tests for
+   the versioned abstract requirement vocabulary and its derived model
+   capabilities. Keep `local-general-model` as an explicit local compatibility
+   requirement; add `general-language-model-v1` for `text_generation`. Reject
+   unknown requirements and any descriptor/provider/profile/endpoint/model
+   selection field.
+2. **G5.2.2: Seal the host execution profile.** Evolve the existing immutable
+   local profile record with a profile digest that binds host adapter factory or
+   configuration identity, exact model ID, requirement, and closed capability
+   set. Bind the profile digest and model ID into a registration. Reuse the
+   host's bounded adapter construction; do not add a generic provider registry.
+   Hash only non-secret execution identity; fail legacy records without the new
+   identity closed and require re-registration, never inferred auto-upgrade.
+3. **G5.2.3: Validate before input use.** At registration and before every run,
+   require exact registration/profile ID/digest, profile requirement, model, and
+   capability agreement. The host-built adapter must advertise the registered
+   model and satisfy the profile's bound capabilities. Remove only `is_local` as
+   a runner admission predicate; retain strict coverage and no fallback.
+4. **G5.2.4: Prove bounded non-local admission.** Use a fake host-configured
+   non-local adapter to prove a matching profile can register and run. Prove
+   profile/digest/factory/capability/model mismatches, same-model-alias profile
+   substitution, and package/invocation provider-selection attempts fail before
+   sealed-input consumption or provider, MCP, and handler calls. Include legacy
+   digest-less records and local-only policies against non-local profiles. Keep
+   local and Apple regression fixtures positive.
+
 ## Not Yet Commit-Sized
 
 The following remain intentionally unscheduled because their host contracts are
