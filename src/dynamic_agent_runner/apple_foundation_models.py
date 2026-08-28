@@ -866,7 +866,7 @@ def _apple_callback_arguments(arguments: object) -> dict[str, Any]:
         raise ToolRegistryError("Apple tool callback arguments are invalid") from exc
     if not isinstance(parsed, Mapping):
         raise ToolRegistryError("Apple tool callback arguments must be an object")
-    return dict(parsed)
+    return _canonicalize_apple_provenance_envelope(dict(parsed))
 
 
 def _apple_gateway_callback_arguments(
@@ -895,7 +895,32 @@ def _apple_gateway_callback_arguments(
         target.validator.validate(decoded)
     except ValidationError as exc:
         raise ToolRegistryError("Apple gateway arguments are invalid") from exc
-    return target.tool.id, decoded
+    return target.tool.id, _canonicalize_apple_provenance_envelope(decoded)
+
+
+def _canonicalize_apple_provenance_envelope(
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    """Normalize Apple JSON transport without relaxing provenance verification."""
+
+    serialized = arguments.get("provenance_envelope")
+    if not isinstance(serialized, str):
+        return arguments
+    try:
+        envelope = json.loads(
+            serialized,
+            object_pairs_hook=_apple_gateway_object_pairs,
+            parse_constant=_reject_apple_gateway_constant,
+        )
+    except (TypeError, ValueError, json.JSONDecodeError, RecursionError):
+        return arguments
+    if not isinstance(envelope, dict):
+        return arguments
+    normalized = dict(arguments)
+    normalized["provenance_envelope"] = json.dumps(
+        envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    return normalized
 
 
 def _apple_gateway_json_object(

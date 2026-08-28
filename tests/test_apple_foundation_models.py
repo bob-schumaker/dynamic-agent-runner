@@ -688,6 +688,55 @@ def test_apple_callback_leaves_authorized_host_approval_with_its_binding(
     assert sdk.sessions[0].callback_results == ['{"ok": true}']
 
 
+def test_apple_callback_canonicalizes_provenance_envelope_before_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[dict[str, object]] = []
+    envelope = {
+        "format_version": 1,
+        "arguments": {"message": "hello"},
+        "sources": {"message": {"kind": "constant", "reference": "note-1"}},
+    }
+
+    tool = _tool(
+        "create_note",
+        {
+            "type": "object",
+            "properties": {"provenance_envelope": {"type": "string"}},
+            "required": ["provenance_envelope"],
+            "additionalProperties": False,
+        },
+        handler=lambda arguments: invocations.append(dict(arguments)) or {"ok": True},
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(registry, (registry.get_tool("create_note"),))
+    sdk = FakeAppleCallbackSDK(
+        ((0, json.dumps({"provenance_envelope": json.dumps(envelope, indent=2)})),)
+    )
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    response = asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=("create_note",),
+                adapter_context=context,
+            )
+        )
+    )
+
+    assert response.content == "answer"
+    assert invocations == [
+        {
+            "provenance_envelope": json.dumps(
+                envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            )
+        }
+    ]
+
+
 def test_text_request_preserves_instructions_and_ordered_history() -> None:
     sessions: list[FakeSession] = []
 
@@ -1200,6 +1249,85 @@ def test_apple_gateway_dispatches_only_its_mapped_read_only_tool(
 
     assert response.content == "answer"
     assert invocations == [{"query": "last five"}]
+
+
+def test_apple_gateway_canonicalizes_provenance_envelope_before_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocations: list[dict[str, object]] = []
+    envelope = {
+        "format_version": 1,
+        "arguments": {"message": "hello"},
+        "sources": {"message": {"kind": "constant", "reference": "note-1"}},
+    }
+
+    class GatewaySession(FakeAppleToolSession):
+        async def respond(self, _prompt: str, **_kwargs: object) -> str:
+            gateway = next(tool for tool in self.tools if tool.name == "dar_gateway")
+            token = gateway.description.split("\n", 1)[1].split(":", 1)[0]
+            await gateway.call(
+                FakeAppleGeneratedContent(
+                    json.dumps(
+                        {
+                            "tool_token": token,
+                            "arguments_json": json.dumps(
+                                {"provenance_envelope": json.dumps(envelope, indent=2)}
+                            ),
+                        }
+                    )
+                )
+            )
+            return "answer"
+
+    class GatewaySDK(FakeAppleToolSDK):
+        def LanguageModelSession(
+            self,
+            *,
+            instructions: str | None,
+            tools: list[object] | tuple[object, ...] = (),
+        ) -> GatewaySession:
+            session = GatewaySession(instructions, tools=tools)
+            self.sessions.append(session)
+            return session
+
+    tool = _tool(
+        "create_note",
+        {
+            "type": "object",
+            "properties": {"provenance_envelope": {"type": "string"}},
+            "required": ["provenance_envelope"],
+            "additionalProperties": True,
+        },
+        side_effect="read",
+        host_canonical_id="authorized-mcp:binding-1:create_note",
+        description_for_llm="Create a reviewed note",
+        handler=lambda arguments: invocations.append(dict(arguments)) or {"ok": True},
+    )
+    registry = InMemoryToolRegistry([tool])
+    context = _active_tool_context(registry, (registry.get_tool("create_note"),))
+    sdk = GatewaySDK()
+    monkeypatch.setattr(
+        "dynamic_agent_runner.apple_foundation_models._load_sdk", lambda: sdk
+    )
+
+    response = asyncio.run(
+        create_apple_foundation_model_async_adapter().create_response(
+            _tool_request(
+                registry,
+                descriptor_ids=("create_note",),
+                adapter_context=context,
+            )
+        )
+    )
+
+    assert response.content == "answer"
+    assert invocations == [
+        {
+            "provenance_envelope": json.dumps(
+                envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            )
+        }
+    ]
 
 
 def test_apple_tool_bridge_uses_active_context_without_wire_descriptors(
