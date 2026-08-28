@@ -26,6 +26,7 @@ from dynamic_agent_runner.workflow_host.authorized_tools import (
     AuthorizedMCPToolClient,
     AuthorizedToolBindingError,
     LocalActionApprovalBroker,
+    WorkflowRunApprovalGrants,
     create_authorized_mcp_tool_bindings,
 )
 from dynamic_agent_runner.workflow_host.catalog import (
@@ -39,6 +40,7 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     MCPSurfaceSnapshotControlPlane,
 )
 from dynamic_agent_runner.workflow_host.mcp_tools import (
+    MCPToolCallCounter,
     MCPToolBindingError,
     create_read_only_mcp_tool_bindings,
 )
@@ -235,7 +237,12 @@ class WorkflowRunner:
                 request.prepared_input_id, registration=registration, now=now
             )
             self._tool_registry(
-                policy, registration, sealed=sealed, run_id="dry-run", now=now
+                policy,
+                registration,
+                sealed=sealed,
+                run_id="dry-run",
+                require_approval_broker=False,
+                now=now,
             )
         except (
             WorkflowRegistrationError,
@@ -280,6 +287,7 @@ class WorkflowRunner:
         sealed: SealedWorkflowInput,
         run_id: str,
         approval_broker: LocalActionApprovalBroker | None = None,
+        require_approval_broker: bool = True,
         now: datetime,
     ) -> Any:
         if not policy.declared_tools:
@@ -294,15 +302,40 @@ class WorkflowRunner:
         ):
             raise RunDarWorkflowError("registered MCP capability is unavailable")
         try:
-            if "mcp_side_effects" in policy.required_capabilities:
+            read_tools = tuple(
+                tool for tool in policy.declared_tools if tool.side_effect == "read"
+            )
+            side_effect_tools = tuple(
+                tool for tool in policy.declared_tools if tool.side_effect != "read"
+            )
+            counter = MCPToolCallCounter(policy.task_invocation.max_total_tool_calls)
+            approval_grants = WorkflowRunApprovalGrants()
+            bindings = []
+            if read_tools:
+                bindings.extend(
+                    create_read_only_mcp_tool_bindings(
+                        policy=policy,
+                        binding_id=registration.mcp_binding_id,
+                        binding_control=self._mcp_bindings,
+                        client=self._mcp_client,
+                        surfaces=self._mcp_surfaces,
+                        tools=read_tools,
+                        counter=counter,
+                    )
+                )
+            if side_effect_tools:
                 if self._action_ledger is None:
                     raise RunDarWorkflowError("external action audit is unavailable")
-                if approval_broker is not None and self._approval_store is None:
+                if (
+                    require_approval_broker
+                    and any(tool.approval_required for tool in side_effect_tools)
+                    and (approval_broker is None or self._approval_store is None)
+                ):
                     raise RunDarWorkflowError("local approval is unavailable")
                 artifacts = self._preparation.materialize_workspace_artifacts(
                     sealed, registration=registration, now=now
                 )
-                return create_host_tool_registry(
+                bindings.extend(
                     create_authorized_mcp_tool_bindings(
                         policy=policy,
                         registration=registration,
@@ -326,24 +359,17 @@ class WorkflowRunner:
                         },
                         trace_correlation=run_id,
                         ledger=self._action_ledger,
-                        approval_store=(
-                            self._approval_store
-                            if approval_broker is not None
-                            else None
-                        ),
+                        approval_store=self._approval_store
+                        if approval_broker
+                        else None,
                         approval_broker=approval_broker,
+                        tools=side_effect_tools,
+                        counter=counter,
+                        approval_grants=approval_grants,
                         now=now,
                     )
                 )
-            return create_host_tool_registry(
-                create_read_only_mcp_tool_bindings(
-                    policy=policy,
-                    binding_id=registration.mcp_binding_id,
-                    binding_control=self._mcp_bindings,
-                    client=self._mcp_client,
-                    surfaces=self._mcp_surfaces,
-                )
-            )
+            return create_host_tool_registry(tuple(bindings))
         except (AuthorizedToolBindingError, MCPToolBindingError) as error:
             raise RunDarWorkflowError(
                 "registered MCP capability is unavailable"

@@ -411,7 +411,7 @@ invoke` request.
 - [x] RED/GREEN: atomically consume a side-effect-capable prepared input at run
       creation. Concurrent/replayed consumption fails; prompt-only actions pass
       without G4, while file-backed actions require G4.
-- [ ] G5.1 [tests then implementation]: move per-invocation approval ownership
+- [x] G5.1 [tests then implementation]: move per-invocation approval ownership
       from the DAR side-effect taxonomy to the generated workflow policy.
   - RED: prove `write` and `delete` descriptors may explicitly choose either
     `approval_required: true` or `false`, while retaining required argument
@@ -499,7 +499,7 @@ invoke` request.
     before sealed-input consumption. Hosted profiles never discover ambient
     OpenAI or Codex credentials. Focused and full fake-only suites, Ruff, and
     pre-commit pass.
-- [ ] G5.3 [tests then implementation]: establish and enforce the
+- [x] G5.3 [tests then implementation]: establish and enforce the
       generated-workflow-policy versus DAR-execution-control matrix.
   - Define the authoritative ownership matrix in the DAR authoring specification:
     generated workflow policy selects its exact tools, side-effect classes,

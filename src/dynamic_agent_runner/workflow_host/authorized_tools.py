@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
 from enum import StrEnum
+import hashlib
 import json
 from threading import Lock
 from typing import Protocol
@@ -45,6 +46,10 @@ from dynamic_agent_runner.workflow_host.mcp_surfaces import (
     MCPSurfaceSnapshotControlPlane,
     MCPSurfaceSnapshotError,
 )
+from dynamic_agent_runner.workflow_host.mcp_tools import (
+    MCPToolBindingError,
+    MCPToolCallCounter,
+)
 from dynamic_agent_runner.workflow_host.policy import WorkflowPolicy
 from dynamic_agent_runner.workflow_host.registration import WorkflowRegistration
 
@@ -66,6 +71,7 @@ class LocalApprovalDecision(StrEnum):
     """The only local-host decisions allowed for a reviewed action."""
 
     APPROVED = "approved"
+    APPROVED_FOR_REST_OF_RUN = "approved_for_rest_of_run"
     DENIED = "denied"
     CANCELLED = "cancelled"
 
@@ -77,6 +83,22 @@ class LocalActionApprovalBroker(Protocol):
         self, *, action: ExternalAction, approval: WorkflowApproval
     ) -> LocalApprovalDecision:
         """Return the local human's final decision for this action."""
+
+
+class WorkflowRunApprovalGrants:
+    """In-memory grants for one immutable tool contract in one workflow run."""
+
+    def __init__(self) -> None:
+        self._keys: set[str] = set()
+        self._lock = Lock()
+
+    def contains(self, key: str) -> bool:
+        with self._lock:
+            return key in self._keys
+
+    def add(self, key: str) -> None:
+        with self._lock:
+            self._keys.add(key)
 
 
 def create_authorized_mcp_tool_bindings(
@@ -93,6 +115,9 @@ def create_authorized_mcp_tool_bindings(
     ledger: WorkflowActionLedger,
     approval_store: WorkflowApprovalStore | None = None,
     approval_broker: LocalActionApprovalBroker | None = None,
+    tools: tuple[DeclaredTool, ...] | None = None,
+    counter: MCPToolCallCounter | None = None,
+    approval_grants: WorkflowRunApprovalGrants | None = None,
     now: datetime,
 ) -> tuple[HostToolBinding, ...]:
     """Create wrapper-private bindings from one immutable side-effect policy."""
@@ -114,7 +139,10 @@ def create_authorized_mcp_tool_bindings(
         raise AuthorizedToolBindingError(
             "MCP capability binding is unavailable"
         ) from error
-    counter = _CallCounter(policy.task_invocation.max_total_tool_calls)
+    selected = policy.declared_tools if tools is None else tools
+    if not selected or any(tool.side_effect == "read" for tool in selected):
+        raise AuthorizedToolBindingError("policy does not declare side effects")
+    counter = counter or MCPToolCallCounter(policy.task_invocation.max_total_tool_calls)
     return tuple(
         _binding(
             tool=tool,
@@ -133,8 +161,9 @@ def create_authorized_mcp_tool_bindings(
             approval_broker=approval_broker,
             now=now,
             counter=counter,
+            approval_grants=approval_grants,
         )
-        for tool in policy.declared_tools
+        for tool in selected
     )
 
 
@@ -155,7 +184,8 @@ def _binding(
     approval_store: WorkflowApprovalStore | None,
     approval_broker: LocalActionApprovalBroker | None,
     now: datetime,
-    counter: _CallCounter,
+    counter: MCPToolCallCounter,
+    approval_grants: WorkflowRunApprovalGrants | None,
 ) -> HostToolBinding:
     _validate_schema(remote_schema)
 
@@ -187,12 +217,15 @@ def _binding(
             )
             intent = ledger.record_intent(action, now=now)
             _require_local_approval(
+                required=tool.approval_required,
+                grant_key=_grant_key(action, policy, tool),
                 action=action,
                 intent=intent,
                 approval_store=approval_store,
                 approval_broker=approval_broker,
                 ledger=ledger,
                 now=now,
+                approval_grants=approval_grants,
             )
             dispatched = ledger.claim_dispatch(intent.action_id, now=now)
             try:
@@ -226,6 +259,7 @@ def _binding(
             ArgumentProvenanceError,
             MCPWorkflowCapabilityBindingError,
             MCPSurfaceSnapshotError,
+            MCPToolBindingError,
             ActionLedgerError,
         ) as error:
             raise AuthorizedToolBindingError(
@@ -251,38 +285,49 @@ def _binding(
 
 def _require_local_approval(
     *,
+    required: bool,
+    grant_key: str,
     action: ExternalAction,
     intent: ActionLedgerEvent,
     approval_store: WorkflowApprovalStore | None,
     approval_broker: LocalActionApprovalBroker | None,
     ledger: WorkflowActionLedger,
     now: datetime,
+    approval_grants: WorkflowRunApprovalGrants | None,
 ) -> None:
-    if approval_store is None or approval_broker is None:
+    if not required:
         return
+    if approval_grants is not None and approval_grants.contains(grant_key):
+        return
+    if approval_store is None or approval_broker is None:
+        _record_non_dispatch_terminal(ledger, intent.action_id, "failed", now)
+        raise AuthorizedToolBindingError("local approval is unavailable")
     try:
         approval = approval_store.request(action_digest=intent.action_digest, now=now)
         decision = approval_broker.decide(action=action, approval=approval)
-        if decision is LocalApprovalDecision.APPROVED:
-            granted = approval_store.grant(
-                approval.approval_id, action_digest=intent.action_digest, now=now
-            )
-            approval_store.consume(
-                granted.approval_id, action_digest=intent.action_digest, now=now
-            )
+        if _consume_approved_decision(
+            decision=decision,
+            approval=approval,
+            intent=intent,
+            approval_store=approval_store,
+            now=now,
+            grant_key=grant_key,
+            approval_grants=approval_grants,
+        ):
             return
-        if decision is LocalApprovalDecision.DENIED:
+        terminal = {
+            LocalApprovalDecision.DENIED: ("denied", "external action was denied"),
+            LocalApprovalDecision.CANCELLED: (
+                "cancelled",
+                "external action was cancelled",
+            ),
+        }.get(decision)
+        if terminal is not None:
             approval_store.deny(
                 approval.approval_id, action_digest=intent.action_digest, now=now
             )
-            _record_non_dispatch_terminal(ledger, intent.action_id, "denied", now)
-            raise AuthorizedToolBindingError("external action was denied")
-        if decision is LocalApprovalDecision.CANCELLED:
-            approval_store.deny(
-                approval.approval_id, action_digest=intent.action_digest, now=now
-            )
-            _record_non_dispatch_terminal(ledger, intent.action_id, "cancelled", now)
-            raise AuthorizedToolBindingError("external action was cancelled")
+            _record_non_dispatch_terminal(ledger, intent.action_id, terminal[0], now)
+            raise AuthorizedToolBindingError(terminal[1])
         approval_store.deny(
             approval.approval_id, action_digest=intent.action_digest, now=now
         )
@@ -298,6 +343,34 @@ def _require_local_approval(
     raise AuthorizedToolBindingError("local approval decision is invalid")
 
 
+def _consume_approved_decision(
+    *,
+    decision: LocalApprovalDecision,
+    approval: WorkflowApproval,
+    intent: ActionLedgerEvent,
+    approval_store: WorkflowApprovalStore,
+    now: datetime,
+    grant_key: str,
+    approval_grants: WorkflowRunApprovalGrants | None,
+) -> bool:
+    if decision not in {
+        LocalApprovalDecision.APPROVED,
+        LocalApprovalDecision.APPROVED_FOR_REST_OF_RUN,
+    }:
+        return False
+    granted = approval_store.grant(
+        approval.approval_id, action_digest=intent.action_digest, now=now
+    )
+    approval_store.consume(
+        granted.approval_id, action_digest=intent.action_digest, now=now
+    )
+    if decision is LocalApprovalDecision.APPROVED_FOR_REST_OF_RUN:
+        if approval_grants is None:
+            raise AuthorizedToolBindingError("local approval is unavailable")
+        approval_grants.add(grant_key)
+    return True
+
+
 def _record_non_dispatch_terminal(
     ledger: WorkflowActionLedger, action_id: str, status: str, now: datetime
 ) -> None:
@@ -311,6 +384,35 @@ def _try_record_non_dispatch_terminal(
         ledger.record_terminal(action_id, status, now=now)
     except ActionLedgerError:
         return
+
+
+def _grant_key(
+    action: ExternalAction, policy: WorkflowPolicy, tool: DeclaredTool
+) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            {
+                "run_id": action.trace_correlation,
+                "workflow_id": action.workflow_id,
+                "registration_digest": action.registration_digest,
+                "profile_id": action.profile_id,
+                "snapshot_id": action.snapshot_id,
+                "connection_generation": action.connection_generation,
+                "policy_digest": policy.policy_digest,
+                "tool_id": tool.tool_id,
+                "remote_tool_name": tool.remote_tool_name,
+                "side_effect": tool.side_effect,
+                "argument_sources": {
+                    name: {"sources": rule.sources, "authority": rule.authority}
+                    for name, rule in policy.task_invocation.argument_sources[
+                        tool.tool_id
+                    ].items()
+                },
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def _require_registration(
@@ -462,18 +564,3 @@ def _record_unknown_outcome(
         ledger.record_terminal(action_id, "outcome_unknown", now=now)
     except ActionLedgerError:
         return
-
-
-class _CallCounter:
-    def __init__(self, limit: int) -> None:
-        self._limit = limit
-        self._count = 0
-        self._lock = Lock()
-
-    def claim(self) -> None:
-        with self._lock:
-            if self._count >= self._limit:
-                raise AuthorizedToolBindingError(
-                    "workflow tool-call limit is exhausted"
-                )
-            self._count += 1

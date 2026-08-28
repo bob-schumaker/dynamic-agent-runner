@@ -70,6 +70,25 @@ The plugin shall provide:
 | `dynamic-agent-runner` wheel | `dar-package`, package catalog, configured MCP adapter, profiles, credential references, ingress, approval, execution, and trace services. |
 | Human host control plane | Package and material selection, profile/connection setup, OAuth discovery/registration and consent, surface review, and credential rotation. |
 
+### Workflow policy and execution-control ownership
+
+The generated package, host configuration, and DAR execution each own a
+separate part of an executable workflow. DAR must reject an unavailable or
+invalid declaration, never silently replace it with a stricter policy based on
+tool class or provider category.
+
+| Owner | Authoritative choices and controls |
+| --- | --- |
+| Generated workflow policy | Exact tool allowlist, reviewed side-effect classes, call and step budgets within DAR's generic ceilings, per-tool approval mode, argument-source rules, and profile requirement. |
+| Human host configuration | Available execution profiles, adapter construction, credentials, configured connections, and reviewed MCP surface snapshots. |
+| DAR execution | Registration/revision/profile/policy binding, capability availability, schema and snapshot checks, provenance, declared budgets, action audit, approvals selected by the declared policy, and at-most-once dispatch. |
+
+Unsupported capability versions and host capabilities are explicit
+non-executing availability results. Generic ceilings constrain the generated
+policy, but are not a substitute policy. A supplied broker likewise cannot make
+an auto-approved tool prompt or make a declared approval-required tool run
+without its broker.
+
 In the remaining requirements, “wrapper” means the `dynamic-agent-runner`
 workflow-host implementation invoked by `dar-package`; it never means code
 shipped by the Codex plugin.

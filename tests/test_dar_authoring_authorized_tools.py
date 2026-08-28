@@ -22,6 +22,7 @@ from dynamic_agent_runner.workflow_host.argument_provenance import (  # noqa: E4
 from dynamic_agent_runner.workflow_host.authorized_tools import (  # noqa: E402
     LocalActionApprovalBroker,
     LocalApprovalDecision,
+    WorkflowRunApprovalGrants,
     create_authorized_mcp_tool_bindings,
 )
 from dynamic_agent_runner.workflow_host.connections import MCPConnectionControlPlane  # noqa: E402
@@ -65,6 +66,16 @@ class BrokenApprovalBroker:
         raise RuntimeError("terminal is unavailable")
 
 
+class SequencedApprovalBroker:
+    def __init__(self, *decisions: LocalApprovalDecision) -> None:
+        self._decisions = iter(decisions)
+        self.actions: list[object] = []
+
+    def decide(self, *, action: object, approval: object) -> LocalApprovalDecision:
+        self.actions.append(action)
+        return next(self._decisions)
+
+
 class MemorySecretStore:
     def store(self, secret: str) -> str:
         return "secret-v1"
@@ -105,7 +116,9 @@ class CurrentClient:
         return {"sent": True}
 
 
-def _policy() -> WorkflowPolicy:
+def _policy(
+    *, approval_required: bool = False, max_total_tool_calls: int = 1
+) -> WorkflowPolicy:
     return WorkflowPolicy(
         package_id="mail-sender",
         revision_digest="a" * 64,
@@ -115,7 +128,7 @@ def _policy() -> WorkflowPolicy:
         input_contract=InputContract("hybrid", 8192, "original_prompt"),
         task_invocation=TaskInvocation(
             entrypoint="send_mail",
-            max_total_tool_calls=1,
+            max_total_tool_calls=max_total_tool_calls,
             allowed_structured_input_fields=(),
             allowed_artifact_roles=(),
             terminal_output_schema_ref="mail-v1",
@@ -133,7 +146,10 @@ def _policy() -> WorkflowPolicy:
         required_capabilities=frozenset({"local_model", "mcp_side_effects"}),
         declared_tools=(
             DeclaredTool(
-                "send_mail", "send_email", side_effect="write", approval_required=True
+                "send_mail",
+                "send_email",
+                side_effect="write",
+                approval_required=approval_required,
             ),
         ),
     )
@@ -210,10 +226,16 @@ def _registry(
     tmp_path: Path,
     *,
     approval_broker: LocalActionApprovalBroker | None = None,
+    approval_required: bool = False,
+    max_total_tool_calls: int = 1,
+    approval_grants: WorkflowRunApprovalGrants | None = None,
 ):
     store, surfaces, bindings, binding, registration, client = _setup(tmp_path)
     tools = create_authorized_mcp_tool_bindings(
-        policy=_policy(),
+        policy=_policy(
+            approval_required=approval_required,
+            max_total_tool_calls=max_total_tool_calls,
+        ),
         registration=registration,
         binding_id=binding.binding_id,
         binding_control=bindings,
@@ -235,6 +257,7 @@ def _registry(
             else None
         ),
         approval_broker=approval_broker,
+        approval_grants=approval_grants,
         now=NOW,
     )
     return create_host_tool_registry(tools), client, tmp_path / "state" / "records.json"
@@ -357,7 +380,9 @@ def test_authorized_binding_dispatches_only_after_local_approval(
     tmp_path: Path,
 ) -> None:
     broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
-    registry, client, _ = _registry(tmp_path, approval_broker=broker)
+    registry, client, _ = _registry(
+        tmp_path, approval_broker=broker, approval_required=True
+    )
 
     result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
 
@@ -382,7 +407,9 @@ def test_authorized_binding_does_not_dispatch_a_rejected_local_approval(
     terminal_status: str,
 ) -> None:
     broker = FakeApprovalBroker(decision)
-    registry, client, state_path = _registry(tmp_path, approval_broker=broker)
+    registry, client, state_path = _registry(
+        tmp_path, approval_broker=broker, approval_required=True
+    )
 
     result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
 
@@ -398,6 +425,7 @@ def test_authorized_binding_fails_closed_when_local_approval_fails(
     registry, client, state_path = _registry(
         tmp_path,
         approval_broker=BrokenApprovalBroker(),
+        approval_required=True,
     )
 
     result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
@@ -405,3 +433,51 @@ def test_authorized_binding_fails_closed_when_local_approval_fails(
     assert result.success is False
     assert client.calls == []
     assert '"status":"failed"' in state_path.read_text(encoding="utf-8")
+
+
+def test_authorized_binding_uses_declared_auto_policy_even_with_a_broker(
+    tmp_path: Path,
+) -> None:
+    broker = FakeApprovalBroker(LocalApprovalDecision.DENIED)
+    registry, client, _ = _registry(tmp_path, approval_broker=broker)
+
+    result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert result.success is True
+    assert broker.actions == []
+    assert client.calls == [
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
+
+
+def test_authorized_binding_fails_closed_without_broker_when_policy_requires_approval(
+    tmp_path: Path,
+) -> None:
+    registry, client, _ = _registry(tmp_path, approval_required=True)
+
+    result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert result.success is False
+    assert client.calls == []
+
+
+def test_authorized_binding_reuses_only_one_tool_run_grant(tmp_path: Path) -> None:
+    broker = SequencedApprovalBroker(
+        LocalApprovalDecision.APPROVED_FOR_REST_OF_RUN,
+        LocalApprovalDecision.DENIED,
+    )
+    registry, client, _ = _registry(
+        tmp_path,
+        approval_broker=broker,
+        approval_required=True,
+        max_total_tool_calls=2,
+        approval_grants=WorkflowRunApprovalGrants(),
+    )
+
+    first = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+    second = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert first.success is True
+    assert second.success is True
+    assert len(broker.actions) == 1
+    assert len(client.calls) == 2

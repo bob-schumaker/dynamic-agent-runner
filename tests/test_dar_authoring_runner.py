@@ -279,7 +279,7 @@ def _runner(
         workflow_id="document-helper",
         policy=policy,
         capability_resolution=resolve_capabilities(
-            policy, available_capabilities={"local_model"}
+            policy, available_capabilities={"text_generation"}
         ),
     )
     if active_apple_profile:
@@ -345,6 +345,8 @@ def _tool_runner(
     tmp_path: Path,
     *,
     side_effect: bool = False,
+    approval_required: bool = False,
+    mixed: bool = False,
     approval_broker: LocalActionApprovalBroker | None = None,
     body_from_artifact: bool = False,
     body_composed_from_artifact: bool = False,
@@ -363,7 +365,7 @@ def _tool_runner(
             "kind": "mcp",
             "remote_tool_name": remote_tool_name,
             "side_effect": "write" if side_effect else "read",
-            **({"approval_required": True} if side_effect else {}),
+            **({"approval_required": approval_required} if side_effect else {}),
         }
     ]
     descriptor["task_invocation"].update(
@@ -396,6 +398,53 @@ def _tool_runner(
             ),
         }
     )
+    if mixed:
+        descriptor["tools"] = [
+            {
+                "id": "mail_lookup",
+                "kind": "mcp",
+                "remote_tool_name": "list_unread",
+                "side_effect": "read",
+            },
+            {
+                "id": "mail_send",
+                "kind": "mcp",
+                "remote_tool_name": "send_email",
+                "side_effect": "write",
+                "approval_required": False,
+            },
+            {
+                "id": "mail_delete",
+                "kind": "mcp",
+                "remote_tool_name": "delete_email",
+                "side_effect": "delete",
+                "approval_required": True,
+            },
+        ]
+        descriptor["task_invocation"].update(
+            {
+                "allowed_tool_ids": ["mail_lookup", "mail_send", "mail_delete"],
+                "max_total_tool_calls": 3,
+                "argument_sources": {
+                    "mail_send": {
+                        "recipient": {
+                            "sources": ["cited_original_prompt_span"],
+                            "authority": True,
+                        },
+                        "body": {
+                            "sources": ["cited_original_prompt_span"],
+                            "authority": False,
+                        },
+                    },
+                    "mail_delete": {
+                        "message_id": {
+                            "sources": ["cited_original_prompt_span"],
+                            "authority": True,
+                        }
+                    },
+                },
+            }
+        )
     if body_from_artifact or body_composed_from_artifact:
         descriptor["task_invocation"]["allowed_artifact_roles"] = ["body"]
     descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
@@ -407,6 +456,8 @@ def _tool_runner(
         "stop_on_tool": "disabled",
         "final_output": "default",
     }
+    if mixed:
+        runtime["runtime"]["execution_policy"]["max_steps"] = 4
     runtime["tools"] = [
         {
             "id": tool_id,
@@ -433,13 +484,75 @@ def _tool_runner(
                 }
             ),
             "side_effect": "write" if side_effect else "read",
-            "approval_required": side_effect,
+            "approval_required": approval_required if side_effect else False,
             "timeout": "runtime_default",
             "retry_policy": "none",
             "failure_behavior": "error",
         }
     ]
     runtime["nodes"][0]["available_tools"] = [tool_id]
+    if mixed:
+        runtime["tools"] = [
+            {
+                "id": "mail_lookup",
+                "label": "List unread mail",
+                "tool_type": "external_api",
+                "description_for_llm": "List unread mail.",
+                "adapter": "host.mcp",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"folder": {"type": "string"}},
+                    "required": ["folder"],
+                    "additionalProperties": False,
+                },
+                "side_effect": "read",
+                "approval_required": False,
+                "timeout": "runtime_default",
+                "retry_policy": "none",
+                "failure_behavior": "error",
+            },
+            {
+                "id": "mail_send",
+                "label": "Send mail",
+                "tool_type": "external_api",
+                "description_for_llm": "Send mail.",
+                "adapter": "host.mcp",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"provenance_envelope": {"type": "string"}},
+                    "required": ["provenance_envelope"],
+                    "additionalProperties": False,
+                },
+                "side_effect": "write",
+                "approval_required": False,
+                "timeout": "runtime_default",
+                "retry_policy": "none",
+                "failure_behavior": "error",
+            },
+            {
+                "id": "mail_delete",
+                "label": "Delete mail",
+                "tool_type": "external_api",
+                "description_for_llm": "Delete mail.",
+                "adapter": "host.mcp",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"provenance_envelope": {"type": "string"}},
+                    "required": ["provenance_envelope"],
+                    "additionalProperties": False,
+                },
+                "side_effect": "delete",
+                "approval_required": False,
+                "timeout": "runtime_default",
+                "retry_policy": "none",
+                "failure_behavior": "error",
+            },
+        ]
+        runtime["nodes"][0]["available_tools"] = [
+            "mail_lookup",
+            "mail_send",
+            "mail_delete",
+        ]
     runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
     store = PrivateStateStore(tmp_path / "state")
     source_handle = PackageSourceSelectionPolicy(
@@ -472,7 +585,32 @@ def _tool_runner(
     mcp_client = FakeMCPClient(
         connection.connection_id, authentication.authentication_id
     )
-    if side_effect:
+    if mixed:
+        mcp_client._tools = (
+            mcp_client._tools[0],
+            MCPDiscoveredTool(
+                name="send_email",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "recipient": {"type": "string"},
+                        "body": {"type": "string"},
+                    },
+                    "required": ["recipient", "body"],
+                    "additionalProperties": False,
+                },
+            ),
+            MCPDiscoveredTool(
+                name="delete_email",
+                input_schema={
+                    "type": "object",
+                    "properties": {"message_id": {"type": "string"}},
+                    "required": ["message_id"],
+                    "additionalProperties": False,
+                },
+            ),
+        )
+    elif side_effect:
         mcp_client._tools = (
             MCPDiscoveredTool(
                 name="send_email",
@@ -493,8 +631,16 @@ def _tool_runner(
         authentication_id=authentication.authentication_id,
         connection_generation=1,
         tools=mcp_client.list_tools(),
-        approved_read_only_tool_names={"list_unread"} if not side_effect else (),
-        approved_tool_side_effects={"send_email": "write"} if side_effect else None,
+        approved_read_only_tool_names={"list_unread"}
+        if not side_effect or mixed
+        else (),
+        approved_tool_side_effects=(
+            {"send_email": "write", "delete_email": "delete"}
+            if mixed
+            else {"send_email": "write"}
+            if side_effect
+            else None
+        ),
     )
     mcp_bindings = MCPWorkflowCapabilityBindingControlPlane(
         store=store, surfaces=surfaces
@@ -516,9 +662,11 @@ def _tool_runner(
         capability_resolution=resolve_capabilities(
             policy,
             available_capabilities=(
-                {"local_model", "mcp_side_effects"}
+                {"text_generation", "mcp_read_only", "mcp_side_effects"}
+                if mixed
+                else {"text_generation", "mcp_side_effects"}
                 if side_effect
-                else {"local_model", "mcp_read_only"}
+                else {"text_generation", "mcp_read_only"}
             ),
         ),
         mcp_binding_id=mcp_binding.binding_id,
@@ -533,7 +681,7 @@ def _tool_runner(
         '{"provenance_envelope":"{\\"arguments\\":{\\"body\\":\\"Body from artifact\\",\\"recipient\\":\\"ada@example.test\\"},\\"format_version\\":1,\\"sources\\":{\\"body\\":{\\"kind\\":\\"artifact\\",\\"ref\\":\\"body\\"},\\"recipient\\":{\\"end_byte\\":16,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":0}}}"}'
         if body_from_artifact
         else '{"provenance_envelope":"{\\"arguments\\":{\\"body\\":\\"Welcome!\\",\\"recipient\\":\\"ada@example.test\\"},\\"format_version\\":1,\\"sources\\":{\\"body\\":{\\"end_byte\\":25,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":17},\\"recipient\\":{\\"end_byte\\":16,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":0}}}"}'
-        if side_effect
+        if side_effect or mixed
         else '{"folder":"inbox"}'
     )
     if body_composed_from_artifact:
@@ -566,21 +714,54 @@ def _tool_runner(
             separators=(",", ":"),
             sort_keys=True,
         )
-    model_client = QueuedClient(
-        [
+    model_responses = [
+        ModelResponse(
+            content=None,
+            tool_calls=(
+                ModelToolCall(
+                    id="call_1",
+                    name=tool_id,
+                    arguments=tool_arguments,
+                ),
+            ),
+        ),
+        ModelResponse(content="three unread messages"),
+    ]
+    if mixed:
+        model_responses = [
             ModelResponse(
                 content=None,
                 tool_calls=(
                     ModelToolCall(
-                        id="call_1",
-                        name=tool_id,
+                        id="call_1", name="mail_lookup", arguments='{"folder":"inbox"}'
+                    ),
+                ),
+            ),
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall(
+                        id="call_2",
+                        name="mail_send",
                         arguments=tool_arguments,
                     ),
                 ),
             ),
-            ModelResponse(content="three unread messages"),
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall(
+                        id="call_3",
+                        name="mail_delete",
+                        arguments=(
+                            '{"provenance_envelope":"{\\"arguments\\":{\\"message_id\\":\\"first\\"},\\"format_version\\":1,\\"sources\\":{\\"message_id\\":{\\"end_byte\\":31,\\"kind\\":\\"prompt_span\\",\\"normalization\\":\\"identity\\",\\"start_byte\\":26}}}"}'
+                        ),
+                    ),
+                ),
+            ),
+            ModelResponse(content="three mail actions completed"),
         ]
-    )
+    model_client = QueuedClient(model_responses)
     adapter = OpenAIClientAdapter(
         model_client,
         models=["local-model", "local-model-v1"],
@@ -600,12 +781,12 @@ def _tool_runner(
             mcp_surfaces=surfaces,
             action_ledger=(
                 WorkflowActionLedger(store=store, owner="local-os-user-v1:501:ada")
-                if side_effect
+                if side_effect or mixed
                 else None
             ),
             approval_store=(
                 WorkflowApprovalStore(store=store, owner="local-os-user-v1:501:ada")
-                if side_effect
+                if side_effect or mixed
                 else None
             ),
         ),
@@ -770,7 +951,7 @@ def test_runner_executes_one_registered_reviewed_side_effecting_mcp_workflow(
     assert len(model_client.responses.calls) == 2
 
 
-def test_runner_uses_a_local_broker_only_when_ask_is_selected(
+def test_runner_ignores_a_broker_for_declared_auto_policy(
     tmp_path: Path,
 ) -> None:
     broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
@@ -794,9 +975,67 @@ def test_runner_uses_a_local_broker_only_when_ask_is_selected(
     )
 
     assert result.status == "completed"
+    assert broker.actions == []
+    assert mcp_client.calls == [
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
+
+
+def test_runner_dispatches_declared_approval_policy_through_its_broker(
+    tmp_path: Path,
+) -> None:
+    broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
+    runner, preparation, mcp_client, _ = _tool_runner(
+        tmp_path, side_effect=True, approval_required=True
+    )
+    prepared = preparation.prepare(
+        workflow_id="mail-reader", prompt="ada@example.test\nWelcome!", now=NOW
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": "mail-reader",
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+        approval_broker=broker,
+    )
+
+    assert result.status == "completed"
     assert len(broker.actions) == 1
     assert mcp_client.calls == [
         ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
+
+
+def test_runner_keeps_mixed_read_write_delete_policies_separate(
+    tmp_path: Path,
+) -> None:
+    broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
+    runner, preparation, mcp_client, _ = _tool_runner(tmp_path, mixed=True)
+    prepared = preparation.prepare(
+        workflow_id="mail-reader", prompt="ada@example.test\nWelcome!\nfirst", now=NOW
+    )
+    request = RunDarWorkflowRequest.from_mapping(
+        {
+            "format_version": 1,
+            "workflow_id": "mail-reader",
+            "prepared_input_id": prepared.prepared_input_id,
+        }
+    )
+
+    assert runner.dry_run(request, now=NOW).status == "ready"
+    result = runner.run(request, now=NOW, approval_broker=broker)
+
+    assert result.status == "completed"
+    assert len(broker.actions) == 1
+    assert mcp_client.calls == [
+        ("list_unread", {"folder": "inbox"}),
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"}),
+        ("delete_email", {"message_id": "first"}),
     ]
 
 

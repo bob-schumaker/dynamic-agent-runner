@@ -47,7 +47,7 @@ def _service(
 def test_preflight_returns_only_package_policy_and_capability_result(
     tmp_path: Path,
 ) -> None:
-    service, source_handle = _service(tmp_path, capabilities={"local_model"})
+    service, source_handle = _service(tmp_path, capabilities={"text_generation"})
 
     result = service.preflight(source_handle, now=NOW)
 
@@ -67,11 +67,11 @@ def test_preflight_reports_unavailable_capabilities_without_binding(
     result = service.preflight(source_handle, now=NOW)
 
     assert result.capability_resolution.status == "capability_unavailable"
-    assert result.capability_resolution.missing_capabilities == ("local_model",)
+    assert result.capability_resolution.missing_capabilities == ("text_generation",)
 
 
 def test_preflight_rejects_a_raw_package_path(tmp_path: Path) -> None:
-    service, _ = _service(tmp_path, capabilities={"local_model"})
+    service, _ = _service(tmp_path, capabilities={"text_generation"})
 
     with pytest.raises(PackagePreflightError, match="opaque package source"):
         service.preflight(str(tmp_path / "packages" / "document-helper"), now=NOW)

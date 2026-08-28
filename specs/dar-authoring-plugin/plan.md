@@ -647,6 +647,22 @@ graph.
    digest-less records and local-only policies against non-local profiles. Keep
    local and Apple regression fixtures positive.
 
+### G5.3 — Generated policy versus DAR execution controls
+
+1. **G5.3.1: Make the ownership matrix authoritative.** Document generated
+   workflow policy, human host configuration, and DAR execution controls. Treat
+   unavailable host capabilities as explicit availability failures, never as
+   provider- or side-effect-class policy rewrites.
+2. **G5.3.2: Bind declared approval and mixed tool policies.** Compile
+   `text_generation` rather than a fictional local capability; preserve both
+   reviewed read-only and mutation capabilities in mixed packages. Bind read
+   tools with their native schemas and mutation tools with provenance, audit,
+   and declared per-tool approval. Share the declared total-call budget.
+3. **G5.3.3: Prove the matrix.** Use fake profile, MCP, and adapter fixtures to
+   cover descriptor compilation, registration, dry-run, and dispatch for mixed
+   read/write/delete workflows, both approval modes, unavailable capability,
+   invalid provenance/schema, reviewed-surface drift, and budget/ledger rules.
+
 ## Not Yet Commit-Sized
 
 The following remain intentionally unscheduled because their host contracts are

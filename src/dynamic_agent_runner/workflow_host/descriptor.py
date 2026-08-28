@@ -354,10 +354,6 @@ def _validate_side_effect_contract(
         rules = task.argument_sources.get(tool.tool_id, {})
         if tool.side_effect == "read":
             continue
-        if not tool.approval_required:
-            raise WorkflowDescriptorError(
-                "side-effecting tool must set approval_required"
-            )
         if not rules:
             raise WorkflowDescriptorError(
                 "side-effecting tool requires argument_sources"

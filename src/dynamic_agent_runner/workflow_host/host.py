@@ -959,7 +959,7 @@ class LocalWorkflowHost:
             capability_resolution=resolve_capabilities(
                 policy,
                 available_capabilities={
-                    "local_model",
+                    "text_generation",
                     *(
                         {"mcp_read_only", "mcp_side_effects"}
                         if self._mcp_client is not None

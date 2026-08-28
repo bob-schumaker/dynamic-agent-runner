@@ -99,7 +99,7 @@ def _prepared_service(tmp_path: Path):
         root=tmp_path / "registrations",
     )
     capability_resolution = resolve_capabilities(
-        policy, available_capabilities={"local_model"}
+        policy, available_capabilities={"text_generation"}
     )
     registration = registrations.register(
         workflow_id="document-helper",

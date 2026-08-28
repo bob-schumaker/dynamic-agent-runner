@@ -43,7 +43,6 @@ from dynamic_agent_runner.workflow_host.profiles import (  # noqa: E402
     LocalModelProfileControlPlane,
 )
 from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: E402
-from dynamic_agent_runner.tool_invocation import ProviderToolInterruption  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -850,7 +849,7 @@ def test_apple_host_does_not_dispatch_an_unapproved_write_callback(
         spy_bindings,
     )
 
-    with pytest.raises(ValueError, match="DAR workflow execution failed"):
+    with pytest.raises(ValueError, match="local approval is unavailable"):
         host.run(
             workflow_id=registration.workflow_id,
             prepared_input_id=prepared.prepared_input_id,
@@ -859,12 +858,7 @@ def test_apple_host_does_not_dispatch_an_unapproved_write_callback(
 
     assert _ReviewedMCPClient.calls == []
     assert handler_calls == []
-    session = sdk.sessions[0]
-    assert session.callback_results == []
-    assert isinstance(session.callback_error, ProviderToolInterruption)
-    assert len(session.tools) == 1
-    assert not hasattr(session.tools[0], "handler")
-    assert not hasattr(session.tools[0], "registry")
+    assert sdk.sessions == []
     trace = host.run_traces()[-1]
     assert trace.status == "failed"
     assert "ada@example.test Welcome!" not in repr(trace)

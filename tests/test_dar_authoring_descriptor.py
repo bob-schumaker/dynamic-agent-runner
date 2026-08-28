@@ -183,15 +183,21 @@ def test_read_only_mcp_descriptor_allows_only_its_declared_bounded_tool() -> Non
         )
 
 
-def test_descriptor_accepts_a_side_effect_with_explicit_authority_sources() -> None:
+@pytest.mark.parametrize(
+    ("side_effect", "approval_required"),
+    [("write", False), ("delete", True)],
+)
+def test_descriptor_accepts_a_side_effect_with_explicit_authority_sources(
+    side_effect: str, approval_required: bool
+) -> None:
     value = _descriptor()
     value["tools"] = [
         {
             "id": "mail_send",
             "kind": "mcp",
             "remote_tool_name": "send_email",
-            "side_effect": "write",
-            "approval_required": True,
+            "side_effect": side_effect,
+            "approval_required": approval_required,
         }
     ]
     value["task_invocation"] = {
@@ -216,8 +222,8 @@ def test_descriptor_accepts_a_side_effect_with_explicit_authority_sources() -> N
 
     descriptor = WorkflowDescriptor.from_mapping(value)
 
-    assert descriptor.declared_tools[0].side_effect == "write"
-    assert descriptor.declared_tools[0].approval_required is True
+    assert descriptor.declared_tools[0].side_effect == side_effect
+    assert descriptor.declared_tools[0].approval_required is approval_required
     assert (
         descriptor.task_invocation.argument_sources["mail_send"]["recipient"].authority
         is True
@@ -227,7 +233,6 @@ def test_descriptor_accepts_a_side_effect_with_explicit_authority_sources() -> N
 @pytest.mark.parametrize(
     ("tool_update", "argument_sources", "match"),
     [
-        ({"approval_required": False}, {}, "approval_required"),
         ({}, {}, "argument_sources"),
         (
             {},

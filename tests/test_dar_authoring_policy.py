@@ -197,7 +197,7 @@ def test_policy_compiles_a_cataloged_no_tool_package(tmp_path: Path) -> None:
     assert policy.package_id == "dar-authoring-no-tool-template"
     assert len(policy.descriptor_digest) == 64
     assert len(policy.policy_digest) == 64
-    assert policy.required_capabilities == frozenset({"local_model"})
+    assert policy.required_capabilities == frozenset({"text_generation"})
     assert policy.workspace.accepted_input_types == ("text/plain",)
 
 
@@ -226,10 +226,10 @@ def test_capability_resolution_is_eligible_or_nonexecuting(tmp_path: Path) -> No
     policy = compile_workflow_policy(_catalog_revision(tmp_path))
 
     unavailable = resolve_capabilities(policy, available_capabilities=set())
-    eligible = resolve_capabilities(policy, available_capabilities={"local_model"})
+    eligible = resolve_capabilities(policy, available_capabilities={"text_generation"})
 
     assert unavailable.status == "capability_unavailable"
-    assert unavailable.missing_capabilities == ("local_model",)
+    assert unavailable.missing_capabilities == ("text_generation",)
     assert eligible.status == "eligible"
     assert eligible.missing_capabilities == ()
 
@@ -242,10 +242,14 @@ def test_read_only_mcp_policy_requires_its_nonexecuting_capability(
     )
 
     assert policy.task_invocation.allowed_tool_ids == ("mail_list_unread",)
-    assert policy.required_capabilities == frozenset({"local_model", "mcp_read_only"})
-    unavailable = resolve_capabilities(policy, available_capabilities={"local_model"})
+    assert policy.required_capabilities == frozenset(
+        {"text_generation", "mcp_read_only"}
+    )
+    unavailable = resolve_capabilities(
+        policy, available_capabilities={"text_generation"}
+    )
     eligible = resolve_capabilities(
-        policy, available_capabilities={"local_model", "mcp_read_only"}
+        policy, available_capabilities={"text_generation", "mcp_read_only"}
     )
     assert unavailable.missing_capabilities == ("mcp_read_only",)
     assert eligible.status == "eligible"
@@ -260,12 +264,100 @@ def test_side_effecting_mcp_policy_requires_a_separate_unavailable_capability(
 
     assert policy.declared_tools[0].side_effect == "write"
     assert policy.required_capabilities == frozenset(
-        {"local_model", "mcp_side_effects"}
+        {"text_generation", "mcp_side_effects"}
     )
     unavailable = resolve_capabilities(
-        policy, available_capabilities={"local_model", "mcp_read_only"}
+        policy, available_capabilities={"text_generation", "mcp_read_only"}
     )
     assert unavailable.missing_capabilities == ("mcp_side_effects",)
+
+
+def test_mixed_mcp_policy_requires_both_reviewed_surfaces(tmp_path: Path) -> None:
+    source = tmp_path / "packages" / "mixed-mail"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    descriptor = source / "workflow-descriptor.yaml"
+    descriptor_value = yaml.safe_load(descriptor.read_text(encoding="utf-8"))
+    descriptor_value["tools"] = [
+        {
+            "id": "mail_lookup",
+            "kind": "mcp",
+            "remote_tool_name": "list_unread",
+            "side_effect": "read",
+        },
+        {
+            "id": "mail_delete",
+            "kind": "mcp",
+            "remote_tool_name": "delete_email",
+            "side_effect": "delete",
+            "approval_required": False,
+        },
+    ]
+    descriptor_value["task_invocation"].update(
+        {
+            "allowed_tool_ids": ["mail_lookup", "mail_delete"],
+            "max_total_tool_calls": 2,
+            "argument_sources": {
+                "mail_delete": {
+                    "message_id": {
+                        "sources": ["cited_original_prompt_span"],
+                        "authority": True,
+                    }
+                }
+            },
+        }
+    )
+    descriptor.write_text(yaml.safe_dump(descriptor_value), encoding="utf-8")
+    runtime = source / "agent-runtime.yaml"
+    runtime_value = yaml.safe_load(runtime.read_text(encoding="utf-8"))
+    runtime_value["tools"] = [
+        {
+            "id": "mail_lookup",
+            "label": "List unread mail",
+            "tool_type": "external_api",
+            "description_for_llm": "List unread mail.",
+            "adapter": "host.mcp",
+            "input_schema": {"type": "object"},
+            "side_effect": "read",
+            "approval_required": False,
+            "timeout": "runtime_default",
+            "retry_policy": "none",
+            "failure_behavior": "error",
+        },
+        {
+            "id": "mail_delete",
+            "label": "Delete mail",
+            "tool_type": "external_api",
+            "description_for_llm": "Delete mail.",
+            "adapter": "host.mcp",
+            "input_schema": {"type": "object"},
+            "side_effect": "delete",
+            "approval_required": False,
+            "timeout": "runtime_default",
+            "retry_policy": "none",
+            "failure_behavior": "error",
+        },
+    ]
+    runtime_value["nodes"][0]["available_tools"] = ["mail_lookup", "mail_delete"]
+    runtime.write_text(yaml.safe_dump(runtime_value), encoding="utf-8")
+    store = PrivateStateStore(tmp_path / "state")
+    handle = PackageSourceSelectionPolicy(
+        allowed_root=source.parent, store=store
+    ).select_directory(source, now=NOW)
+    revision = PackageCatalog(tmp_path / "catalog").import_staged(
+        PrivatePackageStager(store=store, private_root=tmp_path / "staging").stage(
+            handle, now=NOW
+        )
+    )
+
+    policy = compile_workflow_policy(revision)
+
+    assert policy.required_capabilities == frozenset(
+        {"text_generation", "mcp_read_only", "mcp_side_effects"}
+    )
+    assert resolve_capabilities(
+        policy,
+        available_capabilities={"text_generation", "mcp_read_only"},
+    ).missing_capabilities == ("mcp_side_effects",)
 
 
 def test_staging_rejects_descriptor_package_identity_mismatch(tmp_path: Path) -> None:

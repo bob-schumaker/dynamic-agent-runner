@@ -83,10 +83,8 @@ def compile_workflow_policy(revision: CatalogPackageRevision) -> WorkflowPolicy:
     if descriptor.output_schema_ref not in workflow.runtime_manifest.output_contracts:
         raise PolicyCompilationError("registered terminal output contract is missing")
     descriptor_digest = hashlib.sha256(descriptor_bytes).hexdigest()
-    tool_capability = _tool_capability(descriptor.declared_tools)
-    required_capabilities = frozenset(
-        {"local_model", *(() if tool_capability is None else (tool_capability,))}
-    )
+    tool_capabilities = _tool_capabilities(descriptor.declared_tools)
+    required_capabilities = frozenset({"text_generation", *tool_capabilities})
     policy_digest = _digest(
         {
             "format_version": 1,
@@ -166,12 +164,15 @@ def resolve_capabilities(
     )
 
 
-def _tool_capability(tools: tuple[DeclaredTool, ...]) -> str | None:
-    if not tools:
-        return None
-    if any(tool.side_effect != "read" for tool in tools):
-        return "mcp_side_effects"
-    return "mcp_read_only"
+def _tool_capabilities(tools: tuple[DeclaredTool, ...]) -> frozenset[str]:
+    return frozenset(
+        capability
+        for capability, present in (
+            ("mcp_read_only", any(tool.side_effect == "read" for tool in tools)),
+            ("mcp_side_effects", any(tool.side_effect != "read" for tool in tools)),
+        )
+        if present
+    )
 
 
 def _digest(value: dict[str, Any]) -> str:
