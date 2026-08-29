@@ -452,3 +452,11 @@ filesystem-only.
   - Validation: dry-run manifest review; focused fake resolver tests; local
     offline post-copy preflight only after A5.1; and targeted pre-commit for
     changed task, implementation, test, and evidence files.
+  - Readiness finding: the actual `Qwen/Qwen3-4B-MLX-4bit` snapshot is native
+    safetensors/tokenizer JSON, not DAR's currently accepted converted-MLX
+    layout. It cannot satisfy A5.2's converted-MLX acceptance without a separate
+    approved native-MLX validation slice.
+  - Gate: [`a5.2-dry-run-manifest.md`](a5.2-dry-run-manifest.md) records the
+    read-only source inventory. A5.2 copy authority requires fresh human
+    approval of its exact eligible entries and destination collision
+    disposition; do not infer it from broad `.ollama` scanning.
