@@ -118,17 +118,21 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
     and zero-dispatch behavior remain exclusively owned by T6.2.5. Ponytail
     confirmed that the test-only existing fake seam is the smallest delivery.
 
-- [ ] T6.2.5 [tests] Add RED then GREEN executor integration proving one fake
+- [ ] T6.2.5 [tests/implementation] Add RED then GREEN executor integration
+  proving one fake
   MLX tool call uses the normal coordinator and registry exactly once, resumes
   through the codec continuation, and rejects malformed output before dispatch.
   - Spec: FR-2, FR-3
-  - Files: `tests/test_executor.py`
+  - Files: `src/dynamic_agent_runner/executor.py`,
+    `src/dynamic_agent_runner/mlx_models.py`, `tests/test_executor.py`
   - Depends on: T6.2.4
   - Implementation route: TDD against the public synchronous executor using
     `loop_tool_workflow`, one real injected `MLXLocalModelAdapter`, a compatible
     fake codec/backend, and a recording `InMemoryToolRegistry` handler. Do not
-    add an MLX executor path, a shared test abstraction, production code, or an
-    approval-policy bypass.
+    add an MLX executor path, a shared test abstraction, or an approval-policy
+    bypass. If the RED test exposes generic executor admission or DAR's
+    canonical flat function descriptor as the missing boundary, repair only
+    that shared boundary and cover it with the integration test.
   - Acceptance: the valid two-turn fake codec response first emits the exposed
     `search_repo` call, then ordinary text. Assert exactly one normalized
     handler invocation and one tool-loop dispatch trace; exactly two codec and
@@ -148,6 +152,13 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
     this slice owns the public executor integration boundary. Ponytail accepted
     one local fake codec/backend and the existing executor fixture as the
     smallest solution; no runtime abstraction is justified.
+  - Readiness amendment: delivery RED evidence showed that the executor admitted
+    only OpenAI adapter classes and the MLX allowlist read only nested tool
+    descriptors, although DAR sends a canonical flat `type: "function"` form.
+    This authorizes exactly generic `create_response` admission/awaitable
+    handling and flat-function-name allowlisting; it does not authorize a
+    separate MLX loop or any policy change. The integration test is the
+    flat-descriptor acceptance evidence.
 
 - [ ] T6.2.6 [validation/docs] Run focused fake-only regression, document the
   opt-in capability and default unsupported state, and record the optional
