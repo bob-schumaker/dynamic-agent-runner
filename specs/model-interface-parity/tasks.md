@@ -1,6 +1,6 @@
 # Model Interface Tool-Parity Tasks
 
-Status: T1.1–T1.4 delivered; T1.5 is next
+Status: T1.1–T1.5 delivered; T1.6 is next
 
 ## Scope Rule
 
@@ -211,21 +211,43 @@ timestamps, and token usage remain diagnostic only.
     injected `_MLXLMBackend` and compatible codec; it reports no tool capability
     and rejects before path resolution, codec activity, generation, or dispatch.
 
-- [ ] T1.5 [tests] Add Apple Foundation Models injected SDK/bridge contract
+- [x] T1.5 [tests] Add Apple Foundation Models injected SDK/bridge contract
       coverage for its asynchronous callback path.
   - Spec: Interface Matrix; S1-S6; FR-1 and FR-3
   - Files/components: `tests/test_apple_foundation_models.py` and T1.1 fixture
     helpers.
-  - Acceptance: the Apple async cell executes S1-S6 with the shared record and
-    T1.1 blocker. Callbacks enter DAR's normal validation, coordinator,
-    lifecycle, tracing, and result shaping before every valid controlled handler
-    run; S2-invalid reaches validation but has zero handler dispatches, while
-    S6 has zero coordinator and handler dispatches.
+  - Acceptance: each cell runs through public `execute_workflow_async` with the
+    existing test-local no-loop workflow, so DAR—not a hand-built active
+    context—installs the trusted callback context. The Apple final response is
+    text-only and must not synthesize `ModelToolCall` values; derive the shared
+    record's normalized calls from an observed wrapper/coordinator callback
+    receipt, never the expected script or response text. The Apple async cell
+    executes S1-S6 with the T1.1 blocker and no approval trace. Callbacks enter
+    DAR's normal validation, coordinator, lifecycle, tracing, and result
+    shaping before every valid controlled handler run. Structured S2-invalid
+    variants reach the real coordinator once and have zero handler dispatches;
+    malformed native payloads (the S2 malformed variant and S6) enter the
+    provider-terminal path before coordinator or handler dispatch. S3
+    executes two ordered callbacks in one fake `session.respond`, including the
+    `record-seed` continuation. Within the fake callback S4 is a
+    `ProviderToolTerminalError`; through the executor it is the required
+    `WorkflowExecutionError` with no second model response, fixed failure/trace
+    evidence, and no provider exception leakage.
   - Expected RED: the injected bridge cannot yet satisfy each named scenario
     record.
   - Gate: fake SDK/bridge only; no eligible Mac, Apple Foundation runtime, or
     Fastmail invocation.
   - Validation: `poetry run pytest tests/test_apple_foundation_models.py -q`.
+  - Delivered: the public async executor installs the Apple callback context for
+    every controlled scenario through the existing no-loop workflow. The fake
+    SDK records callback attempts while a real coordinator spy supplies the
+    shared record's observed normalized calls; the adapter recorder proves the
+    text response contains no synthetic tool calls. S1–S6 include all
+    structured S2 failures, malformed native S2/S6 failures, S3's two ordered
+    callback results, and S4's terminal `tool_finished` evidence. The initial
+    RED found the fixture enum lacked its explicit JSON-Schema string type;
+    adding it preserves existing semantics and admits the exact controlled
+    schema to Apple's direct wrapper. No production code changed.
 
 - [ ] T1.6 [validation] Run the complete deterministic matrix and record the
       exact covered interface/scenario cells and remaining separate gates.
@@ -308,3 +330,14 @@ timestamps, and token usage remain diagnostic only.
 - Ponytail: approved the existing fake codec/backend plus small local sequence
   and recorder helpers as the smallest complete shape. No runtime change,
   default codec, model artifact, or generalized test framework was added.
+
+## T1.5 Delivery Review
+
+- Council triad: approved public-executor/no-loop coverage after independent
+  focused runs. It records actual coordinator receipts, covers every S2 invalid
+  variant, proves the first S3 callback returns `record-seed`, verifies S4's
+  failed `tool_finished` payload and no continuation, and rejects malformed
+  S2/S6 before coordinator, handler, or model response.
+- Ponytail: approved one adapter recorder because it is necessary to prove the
+  Apple text response contains no synthetic calls; all other coverage reuses
+  existing fake SDK/session, shared registry, record, and I/O blocker helpers.
