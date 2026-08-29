@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import re
 from copy import deepcopy
 from pathlib import Path
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from typing import Any, Protocol, TypeVar
 from uuid import uuid4
 
 from openai_model_registry import ModelRegistry
@@ -109,7 +110,19 @@ from dynamic_agent_runner.tracing import TraceEvent, TraceSink, WorkflowTracer
 
 
 T = TypeVar("T")
-ModelAdapter = OpenAIClientAdapter | AsyncOpenAIClientAdapter
+
+
+class ModelAdapter(Protocol):
+    """One sync or async model adapter accepted by the executor."""
+
+    @property
+    def models(self) -> tuple[str, ...]: ...
+
+    def create_response(
+        self, request: Any
+    ) -> ModelResponse | Awaitable[ModelResponse]: ...
+
+
 ContextCompactor = Callable[
     [tuple[OpenAIMessage, ...], Mapping[str, Any]],
     tuple[OpenAIMessage, ...],
@@ -1887,12 +1900,15 @@ def _tool_sources_payload(tools: Sequence[RegisteredTool]) -> dict[str, Any]:
 
 
 async def _create_model_response_async(
-    adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter,
+    adapter: ModelAdapter,
     request: Any,
 ) -> ModelResponse:
-    if isinstance(adapter, AsyncOpenAIClientAdapter):
+    if inspect.iscoroutinefunction(adapter.create_response):
         return await adapter.create_response(request)
-    return await asyncio.to_thread(adapter.create_response, request)
+    response = await asyncio.to_thread(adapter.create_response, request)
+    if inspect.isawaitable(response):
+        return await response
+    return response
 
 
 def _record_prompt_cache_provider_telemetry(
@@ -4366,7 +4382,7 @@ def _normalize_model_adapters(
 ) -> tuple[ModelAdapter, ...]:
     if value is None:
         return ()
-    if isinstance(value, (OpenAIClientAdapter, AsyncOpenAIClientAdapter)):
+    if callable(getattr(value, "create_response", None)):
         return (value,)
     return tuple(value)
 

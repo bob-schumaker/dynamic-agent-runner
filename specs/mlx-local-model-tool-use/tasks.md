@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Tasks
 
-Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
+Status: M6.1 and T6.2.1–T6.2.5 delivered; T6.2.6 is next
 
 ## M6.1 — Contract and Delivery Readiness
 
@@ -118,7 +118,7 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
     and zero-dispatch behavior remain exclusively owned by T6.2.5. Ponytail
     confirmed that the test-only existing fake seam is the smallest delivery.
 
-- [ ] T6.2.5 [tests/implementation] Add RED then GREEN executor integration
+- [x] T6.2.5 [tests/implementation] Add RED then GREEN executor integration
   proving one fake
   MLX tool call uses the normal coordinator and registry exactly once, resumes
   through the codec continuation, and rejects malformed output before dispatch.
@@ -159,6 +159,25 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
     handling and flat-function-name allowlisting; it does not authorize a
     separate MLX loop or any policy change. The integration test is the
     flat-descriptor acceptance evidence.
+  - Implementation: the executor now treats any object with callable
+    `create_response` as one adapter, keeps synchronous calls off-loop, and
+    awaits a returned awaitable when necessary. MLX allowlisting accepts DAR's
+    flat `type: "function"` descriptor as well as nested `function.name`.
+    The fake-only public-executor tests cover a valid MLX call and continuation,
+    malformed duplicate-key rejection before dispatch, and the generic
+    awaitable-returning adapter boundary.
+  - TDD: RED first exposed non-OpenAI adapter iteration, then the flat-tool-name
+    mismatch; the generic awaitable regression exposed the final protocol gap.
+    Each focused test passed after the shared boundary repair.
+  - Validation: `poetry run pytest tests/test_executor.py tests/test_mlx_models.py
+    -q` passed (213); `poetry run pytest tests/test_import.py
+    tests/test_local_models.py tests/test_mlx_models.py tests/test_executor.py
+    -q` passed (262); `poetry run ruff check src tests`, `ruff format --check`,
+    Markdown pre-commit, and whitespace checks passed.
+  - Delivery review: Council approved 3–0 after the readiness amendment.
+    Ponytail accepted the local fakes and necessary shared-boundary repair;
+    rejected a new adapter hierarchy, MLX-specific executor loop, or shared
+    test framework.
 
 - [ ] T6.2.6 [validation/docs] Run focused fake-only regression, document the
   opt-in capability and default unsupported state, and record the optional

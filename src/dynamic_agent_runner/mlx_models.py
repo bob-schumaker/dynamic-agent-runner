@@ -644,12 +644,17 @@ def _normalize_tool_codec_response(
 
 
 def _tool_names(request: OpenAIModelRequest) -> frozenset[str]:
-    return frozenset(
-        str(function["name"])
-        for tool in request.tools
-        if isinstance(tool.get("function"), Mapping)
-        and isinstance((function := tool["function"]).get("name"), str)
-    )
+    names: set[str] = set()
+    for tool in request.tools:
+        function = tool.get("function")
+        name = (
+            function.get("name") if isinstance(function, Mapping) else tool.get("name")
+        )
+        if isinstance(name, str) and (
+            isinstance(function, Mapping) or tool.get("type") == "function"
+        ):
+            names.add(name)
+    return frozenset(names)
 
 
 def _tool_candidate_byte_size(candidate: MLXToolCallCandidate) -> int:

@@ -52,6 +52,8 @@ from dynamic_agent_runner.local_models import (
 )
 from dynamic_agent_runner.mlx_models import (
     MLXLocalModelConfig,
+    MLXToolCallCandidate,
+    MLXToolCodecResponse,
     create_mlx_local_adapter,
 )
 from dynamic_agent_runner.apple_foundation_models import (
@@ -69,6 +71,7 @@ from dynamic_agent_runner.openai_client import (
     ModelResponse,
     OpenAIClientAdapter,
     OpenAIMessage,
+    OpenAIModelRequest,
     OpenAIProviderConfig,
 )
 from dynamic_agent_runner.tool_invocation import (
@@ -163,6 +166,34 @@ class FakeMLXBackend:
     def generate(self, request: object) -> str:
         self.requests.append(request)
         return self.content
+
+
+class FakeToolCapableMLXBackend(FakeMLXBackend):
+    tool_codec_versions = frozenset({"test-v1"})
+
+    def __init__(self, generated: str = "native tool response") -> None:
+        super().__init__()
+        self.generated = generated
+        self.rendered_prompts: list[str] = []
+
+    def generate_rendered(self, prompt: str, **_kwargs: object) -> str:
+        self.rendered_prompts.append(prompt)
+        return self.generated
+
+
+class FakeMLXToolCodec:
+    version = "test-v1"
+
+    def __init__(self, *decoded: MLXToolCodecResponse) -> None:
+        self.decoded = list(decoded)
+        self.rendered_requests: list[OpenAIModelRequest] = []
+
+    def render(self, request: OpenAIModelRequest) -> str:
+        self.rendered_requests.append(request)
+        return "<tool-aware-prompt>"
+
+    def decode(self, _generated: str) -> MLXToolCodecResponse:
+        return self.decoded.pop(0)
 
 
 class FakeLlamaCppBackend:
@@ -4500,6 +4531,187 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
         assert trace_event.payload["request"] == provider_call
         assert "adapter_context" not in trace_event.payload["request"]
         assert not _contains_identity(trace_event.payload, registry, result.state)
+
+
+def test_execute_workflow_runs_injected_mlx_tool_call_through_registry(
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "mlx-model"
+    model_path.mkdir()
+    (model_path / "config.json").write_text("{}", encoding="utf-8")
+    (model_path / "tokenizer.model").write_text("", encoding="utf-8")
+    (model_path / "weights.npz").write_bytes(b"")
+    backend = FakeToolCapableMLXBackend()
+    codec = FakeMLXToolCodec(
+        MLXToolCodecResponse(
+            tool_call=MLXToolCallCandidate(
+                name="search_repo", arguments='{"query":"agents"}'
+            )
+        ),
+        MLXToolCodecResponse(content="final answer"),
+    )
+    handler_calls: list[object] = []
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {
+                        "id": "search_repo",
+                        "description_for_llm": "Search the repository.",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                            "required": ["query"],
+                        },
+                    }
+                ),
+                lambda arguments: (
+                    handler_calls.append(arguments)
+                    or ToolResult(
+                        tool_id="search_repo",
+                        success=True,
+                        output={"raw": "secret raw"},
+                        model_output={"summary": "agents found"},
+                    )
+                ),
+            )
+        ]
+    )
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(model_aliases=("mlx-local-chat",), model_path=model_path),
+        backend=backend,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+
+    result = execute_workflow(
+        loop_tool_workflow(execution_policy_extra={"model": "mlx-local-chat"}),
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    assert handler_calls == [{"query": "agents"}]
+    assert backend.requests == []
+    assert backend.rendered_prompts == ["<tool-aware-prompt>"] * 2
+    assert len(codec.rendered_requests) == 2
+    continuation = codec.rendered_requests[1].messages
+    assistant_call, tool_result = continuation[-2:]
+    assert assistant_call["role"] == "assistant"
+    assert assistant_call["tool_calls"] == [
+        {
+            "id": assistant_call["call_id"],
+            "type": "function",
+            "function": {
+                "name": "search_repo",
+                "arguments": '{"query":"agents"}',
+            },
+        }
+    ]
+    assert tool_result == {
+        "role": "tool",
+        "tool_call_id": assistant_call["call_id"],
+        "name": "search_repo",
+        "content": '{"summary": "agents found"}',
+        "_dar_transcript_type": "model_tool_result",
+        "call_id": assistant_call["call_id"],
+        "output": '{"summary": "agents found"}',
+    }
+    tool_loop_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "model_tool_loop_tool_call"
+    ]
+    assert len(tool_loop_events) == 1
+    assert tool_loop_events[0].payload["tool_id"] == "search_repo"
+
+
+def test_execute_workflow_awaits_adapter_returning_awaitable_response() -> None:
+    class AwaitableAdapter:
+        models = ("gpt-test",)
+
+        def create_response(self, _request: object) -> object:
+            async def respond() -> ModelResponse:
+                return ModelResponse(content="awaited response")
+
+            return respond()
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "awaitable-model-adapter-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    result = execute_workflow(workflow, prompt="How?", model_adapter=AwaitableAdapter())
+
+    assert result.final_result == "awaited response"
+
+
+def test_execute_workflow_rejects_malformed_injected_mlx_tool_call_before_dispatch(
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "mlx-model"
+    model_path.mkdir()
+    (model_path / "config.json").write_text("{}", encoding="utf-8")
+    (model_path / "tokenizer.model").write_text("", encoding="utf-8")
+    (model_path / "weights.npz").write_bytes(b"")
+    backend = FakeToolCapableMLXBackend()
+    codec = FakeMLXToolCodec(
+        MLXToolCodecResponse(
+            tool_call=MLXToolCallCandidate(
+                name="search_repo", arguments='{"query":"first","query":"second"}'
+            )
+        )
+    )
+    handler_calls: list[object] = []
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "search_repo"}),
+                lambda arguments: handler_calls.append(arguments) or {"ok": True},
+            )
+        ]
+    )
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(model_aliases=("mlx-local-chat",), model_path=model_path),
+        backend=backend,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+    sink = InMemoryTraceSink()
+
+    with pytest.raises(ModelExecutionError, match="duplicate JSON keys"):
+        execute_workflow(
+            loop_tool_workflow(execution_policy_extra={"model": "mlx-local-chat"}),
+            prompt="How?",
+            tool_registry=registry,
+            model_adapter=adapter,
+            trace_sink=sink,
+        )
+
+    assert handler_calls == []
+    assert backend.requests == []
+    assert backend.rendered_prompts == ["<tool-aware-prompt>"]
+    assert len(codec.rendered_requests) == 1
+    assert not [
+        event
+        for event in sink.events
+        if event.event_type == "model_tool_loop_tool_call"
+    ]
 
 
 def test_execute_workflow_rejects_initial_text_only_response_when_tool_required() -> (
