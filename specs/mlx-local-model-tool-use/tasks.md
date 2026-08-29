@@ -122,8 +122,32 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
   MLX tool call uses the normal coordinator and registry exactly once, resumes
   through the codec continuation, and rejects malformed output before dispatch.
   - Spec: FR-2, FR-3
-  - Files: `tests/test_executor.py`, `tests/test_mlx_models.py`
+  - Files: `tests/test_executor.py`
   - Depends on: T6.2.4
+  - Implementation route: TDD against the public synchronous executor using
+    `loop_tool_workflow`, one real injected `MLXLocalModelAdapter`, a compatible
+    fake codec/backend, and a recording `InMemoryToolRegistry` handler. Do not
+    add an MLX executor path, a shared test abstraction, production code, or an
+    approval-policy bypass.
+  - Acceptance: the valid two-turn fake codec response first emits the exposed
+    `search_repo` call, then ordinary text. Assert exactly one normalized
+    handler invocation and one tool-loop dispatch trace; exactly two codec and
+    backend calls; and that the second codec request ends with DAR's ordered
+    assistant call and matching `model_tool_result`, retaining the canonical
+    call ID, name, arguments, and model-facing output. For a malformed first
+    candidate using the same exposed tool, assert the package-owned execution
+    failure, zero handler invocations, zero tool-loop dispatch traces, zero
+    continuation request, and one initial codec/backend call. Both cases use
+    fake temporary MLX assets only, with no optional MLX import, model load,
+    Metal, network, or approval interaction.
+  - Readiness: implementation-ready. This plan is ready to execute under its
+    stated gates.
+  - Review disposition: Council approved after requiring the real compatible
+    adapter path and explicit malformed-output zero-dispatch evidence. The
+    proposed sync/async duplicate was rejected as T6.2.4-owned adapter parity;
+    this slice owns the public executor integration boundary. Ponytail accepted
+    one local fake codec/backend and the existing executor fixture as the
+    smallest solution; no runtime abstraction is justified.
 
 - [ ] T6.2.6 [validation/docs] Run focused fake-only regression, document the
   opt-in capability and default unsupported state, and record the optional
