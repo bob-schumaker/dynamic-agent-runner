@@ -1,6 +1,6 @@
 # Model Interface Tool-Parity Tasks
 
-Status: T1.1–T1.2 delivered; T1.3 is next
+Status: T1.1–T1.3 delivered; T1.4 is next
 
 ## Scope Rule
 
@@ -124,11 +124,24 @@ timestamps, and token usage remain diagnostic only.
     including the complete invalid S2 matrix, continuation, failure, and
     no-coordinator boundaries.
 
-- [ ] T1.3 [tests] Add recording-transport and injected-backend coverage for
+- [x] T1.3 [tests] Add recording-transport and injected-backend coverage for
       the OpenAI-compatible local endpoint and direct llama.cpp adapters,
       sync and async.
   - Spec: Interface Matrix; S1-S6; deterministic contract gate
   - Files/components: `tests/test_local_models.py` and T1.1 fixture helpers.
+    The endpoint factory has no transport argument: install a sequence-capable
+    recording client on the constructed sync/async adapter's existing private
+    client seam only in the test. Assert the default-provider path is untouched
+    and retain the factory's normal local identity validator. Wrap each real
+    endpoint and llama adapter in a test-local delegating response recorder so
+    records derive normalized calls from actual adapter output, never expected
+    scripts. Direct llama may receive an inert `tmp_path` sentinel solely to
+    satisfy its local path locator; it is not a model artifact. Its injected
+    backend must supply every response, and tests must prove no dependency
+    loader, download callable, or model load touches the sentinel. For both
+    seams, include the complete S2 invalid matrix, S3 continuation request,
+    S4 one-call/no-continuation, S6 zero coordinator/handler, I/O blocker, and
+    sync/async projection equality.
   - Gate: transports and backends are injected fakes; no endpoint process,
     llama model load, Hugging Face download, or local artifact is permitted.
   - Acceptance: every local-endpoint and direct-llama sync/async cell executes
@@ -139,6 +152,16 @@ timestamps, and token usage remain diagnostic only.
   - Expected RED: the recording transport/injected backend cannot yet satisfy
     its named scenario record.
   - Validation: focused local-model adapter tests, then the T1.1 test.
+  - Delivered: `tests/test_local_models.py` drives the factory-created local
+    endpoint adapters through injected sequence-capable clients and a
+    test-local delegating response recorder. Its fail-on-call provider guard
+    proves no default client path is used, while the factory's identity
+    validator remains active. The direct llama adapters use injected sequence
+    backends and an inert existing path sentinel; their dependency loader,
+    download callables, and default loader are fail-on-call. Both seams cover
+    S1–S6 in sync and async modes, including the complete invalid S2 matrix,
+    S3 continuation, S4 stop/no-continuation, S6 pre-dispatch rejection, and
+    equal normalized projections.
 
 - [ ] T1.4 [tests] Add injected-pair MLX contract coverage and an explicit
       stock-backend unsupported regression.
@@ -233,3 +256,14 @@ timestamps, and token usage remain diagnostic only.
   external I/O was introduced.
 - Ponytail: accepted the one test-only support module and local scenario
   assertions; no generic parity framework or production abstraction was added.
+
+## T1.3 Delivery Review
+
+- Council triad: approved after requiring and verifying a fail-on-call default
+  provider guard for the endpoint seam, real-adapter normalized-response
+  recording, full S1–S6 sync/async coverage, and projection equality. The
+  injected llama backend and inert path sentinel prove the tests neither load
+  nor download a model.
+- Ponytail: approved the test-only fakes, recorders, scenario table, and shared
+  assertions as the smallest shape that covers both required native formats;
+  no runtime code, dependency, or generic framework was added.
