@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Implementation Plan
 
-Status: M6.1 and M6.2 delivered; M6.3 native-safetensors recognition is next
+Status: M6.1, M6.2, and M6.3 delivered
 
 ## Goal
 

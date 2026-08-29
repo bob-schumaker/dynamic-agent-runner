@@ -5,7 +5,7 @@
 - Feature slug: `mlx-local-model-tool-use`
 - Mode: guided
 - Artifact type: authoritative SDD follow-up specification
-- Status: M6.1 and M6.2 delivered; M6.3 is implementation-ready
+- Status: M6.1, M6.2, and M6.3 delivered
 - Parent feature: `specs/mlx-local-model-adapter/spec.md`
 - Related feature specs:
   - `specs/model-interface-parity/spec.md`
@@ -240,7 +240,7 @@ tool capability.
 
 ## Implementation Readiness
 
-M6.1 and M6.2 delivered the codec seam under their stated gates. M6.3 uses the
-contract above for native-snapshot admission only; a structurally admitted
-snapshot is not evidence that the default backend, tokenizer template, or tool
-codec is compatible.
+M6.1 and M6.2 delivered the codec seam under their stated gates. M6.3 delivered
+the structural admission contract with fake-only adapter, availability, and
+inventory tests; a structurally admitted snapshot is not evidence that the
+default backend, tokenizer template, or tool codec is compatible.

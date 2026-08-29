@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Tasks
 
-Status: M6.1 and M6.2 delivered; M6.3 native-safetensors recognition planned
+Status: M6.1, M6.2, and M6.3 delivered
 
 ## M6.1 — Contract and Delivery Readiness
 
@@ -248,7 +248,7 @@ Status: M6.1 and M6.2 delivered; M6.3 native-safetensors recognition planned
 
 ## M6.3 — Native MLX Safetensors Asset Recognition
 
-- [ ] T6.3.1 [tests/implementation] Extend DAR's MLX local-asset validation and
+- [x] T6.3.1 [tests/implementation] Extend DAR's MLX local-asset validation and
       scoped inventory contract to recognize native MLX safetensors snapshots
       while preserving the existing converted-NPZ layout.
   - Trigger: the locally cached `Qwen/Qwen3-4B-MLX-4bit` snapshot uses
@@ -285,3 +285,18 @@ Status: M6.1 and M6.2 delivered; M6.3 native-safetensors recognition planned
     index, containment, and error-taxonomy contracts; accepted above. Ponytail
     accepted one internal validator and existing fixtures: no dependency,
     public API, registry, or loader abstraction is warranted.
+  - Implementation: `_validate_mlx_model_directory` in `local_models.py` now
+    centralizes converted-NPZ and native-safetensors admission. MLX adapter
+    resolution, availability, and inventory reuse it. Native direct weights and
+    bounded duplicate-safe indexes are accepted only under the specified
+    containment root; invalid candidates fail closed through their existing
+    result/error taxonomy.
+  - Validation: focused import/local-model/MLX tests passed (197); full pytest
+    passed (`1501 passed, 1 skipped, 6 deselected`); Ruff lint/format and
+    targeted pre-commit passed. Tests use temporary fixtures and injected fake
+    backends only; no `mlx_lm` import, model load, generation, network,
+    endpoint, or external tool call occurred.
+  - Delivery review: Council approved after adding default-Hub cached
+    resolution, oversized-index pre-read bounds, adapter fail-closed, and
+    invalid-inventory-omission evidence. Ponytail confirmed the shared private
+    validator is the smallest complete delivery.

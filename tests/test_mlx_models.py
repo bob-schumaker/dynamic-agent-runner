@@ -1043,6 +1043,22 @@ def write_converted_mlx_model(model_path: Path) -> None:
     (model_path / "weights.npz").write_text("weights", encoding="utf-8")
 
 
+def write_native_mlx_model(model_path: Path, *, indexed: bool = False) -> None:
+    model_path.mkdir(parents=True)
+    (model_path / "config.json").write_text("{}", encoding="utf-8")
+    (model_path / "tokenizer.json").write_text("{}", encoding="utf-8")
+    if not indexed:
+        (model_path / "model.safetensors").write_text("weights", encoding="utf-8")
+        return
+    shards = ("model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors")
+    for shard in shards:
+        (model_path / shard).write_text("weights", encoding="utf-8")
+    (model_path / "model.safetensors.index.json").write_text(
+        '{"weight_map":{"one":"model-00001-of-00002.safetensors","two":"model-00002-of-00002.safetensors"}}',
+        encoding="utf-8",
+    )
+
+
 def write_gguf_model(model_path: Path) -> None:
     model_path.parent.mkdir(parents=True, exist_ok=True)
     model_path.write_text("gguf", encoding="utf-8")
@@ -1067,6 +1083,151 @@ def test_mlx_adapter_validates_converted_model_directory(tmp_path: Path) -> None
     response = adapter.create_response(make_request())
 
     assert response.content == "converted model answer"
+    assert backend.requests
+
+
+@pytest.mark.parametrize("indexed", (False, True))
+def test_mlx_adapter_validates_native_safetensors_directory(
+    tmp_path: Path,
+    indexed: bool,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path, indexed=indexed)
+    backend = FakeMLXBackend("native model answer")
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(model_aliases=("mlx-local-chat",), model_path=model_path),
+        backend=backend,
+        dependency_loader=lambda: pytest.fail("native validation must not load"),
+        platform_system=lambda: "Darwin",
+    )
+
+    assert adapter.create_response(make_request()).content == "native model answer"
+    assert backend.requests
+
+
+def test_async_mlx_adapter_validates_native_safetensors_directory(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_async_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path)
+    backend = FakeMLXBackend("native model answer")
+    adapter = create_mlx_local_async_adapter(
+        MLXLocalModelConfig(model_aliases=("mlx-local-chat",), model_path=model_path),
+        backend=backend,
+        dependency_loader=lambda: pytest.fail("native validation must not load"),
+        platform_system=lambda: "Darwin",
+    )
+
+    assert (
+        asyncio.run(adapter.create_response(make_request())).content
+        == "native model answer"
+    )
+    assert backend.requests
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    (
+        "missing-config",
+        "missing-tokenizer",
+        "missing-weights",
+        "malformed-index",
+        "escaping-shard",
+    ),
+)
+def test_mlx_adapter_rejects_invalid_native_safetensors_before_backend(
+    tmp_path: Path,
+    invalid: str,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+    from dynamic_agent_runner.errors import LocalModelResolutionError
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path, indexed=invalid == "escaping-shard")
+    if invalid == "missing-config":
+        (model_path / "config.json").unlink()
+    elif invalid == "missing-tokenizer":
+        (model_path / "tokenizer.json").unlink()
+    elif invalid == "missing-weights":
+        (model_path / "model.safetensors").unlink()
+    elif invalid == "malformed-index":
+        (model_path / "model.safetensors.index.json").write_text("{", encoding="utf-8")
+    else:
+        shard = model_path / "model-00001-of-00002.safetensors"
+        outside = tmp_path / "outside.safetensors"
+        outside.write_text("weights", encoding="utf-8")
+        shard.unlink()
+        shard.symlink_to(outside)
+    backend = FakeMLXBackend()
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(model_aliases=("mlx-local-chat",), model_path=model_path),
+        backend=backend,
+        dependency_loader=lambda: pytest.fail("validation must precede loading"),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(LocalModelResolutionError):
+        adapter.create_response(make_request())
+
+    assert backend.requests == []
+
+
+@pytest.mark.parametrize("async_adapter", (False, True))
+def test_mlx_adapter_resolves_cached_native_hub_snapshot_without_download(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    async_adapter: bool,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig
+    from dynamic_agent_runner.local_models import HuggingFaceSnapshotReference
+    from dynamic_agent_runner.mlx_models import (
+        create_mlx_local_adapter,
+        create_mlx_local_async_adapter,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    snapshot = (
+        home_dir
+        / ".cache/huggingface/hub/models--mlx-community--Qwen3-4B-MLX-4bit"
+        / "snapshots/commit-native"
+    )
+    write_native_mlx_model(snapshot)
+    downloads: list[object] = []
+
+    def deny_download(*args: object, **kwargs: object) -> Path:
+        downloads.append((args, kwargs))
+        raise AssertionError("cached snapshot must not download")
+
+    factory = (
+        create_mlx_local_async_adapter if async_adapter else create_mlx_local_adapter
+    )
+    backend = FakeMLXBackend("cached native answer")
+    adapter = factory(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=tmp_path / "not-present",
+            huggingface_snapshot=HuggingFaceSnapshotReference(
+                repo_id="mlx-community/Qwen3-4B-MLX-4bit", revision="commit-native"
+            ),
+        ),
+        backend=backend,
+        download_snapshot=deny_download,
+        platform_system=lambda: "Darwin",
+    )
+
+    response = (
+        asyncio.run(adapter.create_response(make_request()))
+        if async_adapter
+        else adapter.create_response(make_request())
+    )
+
+    assert response.content == "cached native answer"
+    assert downloads == []
     assert backend.requests
 
 
@@ -1142,6 +1303,168 @@ def test_local_model_availability_supports_converted_mlx_directory(
 
     assert availability.status is LocalModelAvailabilityStatus.AVAILABLE
     assert availability.resolved_path == model_path
+
+
+@pytest.mark.parametrize("indexed", (False, True))
+def test_local_model_availability_supports_native_mlx_directory(
+    tmp_path: Path,
+    indexed: bool,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path, indexed=indexed)
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.AVAILABLE
+    assert availability.resolved_path == model_path
+
+
+@pytest.mark.parametrize(
+    ("index", "message"),
+    [
+        ('{"weight_map":{"one":"../model.safetensors"}}', "shard reference"),
+        ('{"weight_map":{"one":"model.safetensors","two":"model.safetensors"}}', None),
+        (
+            '{"weight_map":{"one":"model.safetensors","one":"model.safetensors"}}',
+            "index",
+        ),
+    ],
+)
+def test_local_model_availability_rejects_invalid_native_mlx_index(
+    tmp_path: Path,
+    index: str,
+    message: str | None,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path)
+    (model_path / "model.safetensors.index.json").write_text(index, encoding="utf-8")
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    expected = (
+        LocalModelAvailabilityStatus.AVAILABLE
+        if message is None
+        else LocalModelAvailabilityStatus.INVALID
+    )
+    assert availability.status is expected
+    if message is not None:
+        assert message in availability.message
+
+
+@pytest.mark.parametrize(
+    "filename", ("config.json", "tokenizer.json", "model.safetensors")
+)
+def test_local_model_availability_rejects_escaping_native_mlx_file_links(
+    tmp_path: Path,
+    filename: str,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path)
+    outside = tmp_path / f"outside-{filename}"
+    outside.write_text("outside", encoding="utf-8")
+    (model_path / filename).unlink()
+    (model_path / filename).symlink_to(outside)
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.INVALID
+
+
+def test_local_model_availability_rejects_native_mlx_direct_extra_shard(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path)
+    (model_path / "model-00001-of-00002.safetensors").write_text(
+        "weights", encoding="utf-8"
+    )
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.INVALID
+
+
+def test_local_model_availability_rejects_oversized_native_mlx_index_without_reading(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import dynamic_agent_runner.local_models as local_models
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path)
+    index = model_path / "model.safetensors.index.json"
+    index.write_bytes(b" " * (local_models._NATIVE_MLX_INDEX_MAX_BYTES + 1))
+    original_read_bytes = Path.read_bytes
+
+    def fail_read_bytes(path: Path) -> bytes:
+        if path == index:
+            raise AssertionError("oversized index must not be read")
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", fail_read_bytes)
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.INVALID
 
 
 def test_local_model_availability_rejects_incomplete_mlx_directory(

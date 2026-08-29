@@ -17,6 +17,7 @@ from dynamic_agent_runner.local_models import (
     HuggingFaceModelFileReference,
     HuggingFaceSnapshotReference,
     LocalModelPathConfig,
+    _validate_mlx_model_directory,
     resolve_local_model_path,
     validate_local_model_identity,
 )
@@ -427,7 +428,9 @@ def _validate_resolved_mlx_model_path(
         _validate_gguf_model_file(model_path)
         return model_path
     model_directory = model_path if model_path.is_dir() else model_path.parent
-    _validate_converted_mlx_model_directory(model_directory)
+    validation_error = _validate_mlx_model_directory(model_directory)
+    if validation_error is not None:
+        raise LocalModelResolutionError(validation_error)
     return model_directory
 
 
@@ -449,28 +452,6 @@ def _validate_gguf_model_file(model_path: Path) -> None:
     if model_path.suffix.lower() != ".gguf":
         raise LocalModelResolutionError(
             f"MLX GGUF local model path {model_path!s} must use a .gguf suffix"
-        )
-
-
-def _validate_converted_mlx_model_directory(model_directory: Path) -> None:
-    if not model_directory.is_dir():
-        raise LocalModelResolutionError(
-            f"MLX local model path {model_directory!s} is not a directory"
-        )
-    missing_files = [
-        filename
-        for filename in ("config.json", "tokenizer.model")
-        if not (model_directory / filename).exists()
-    ]
-    if not (model_directory / "weights.npz").exists() and not list(
-        model_directory.glob("weights.*.npz")
-    ):
-        missing_files.append("weights.npz")
-    if missing_files:
-        raise LocalModelResolutionError(
-            "MLX local model directory "
-            f"{model_directory!s} is missing required file(s): "
-            f"{', '.join(missing_files)}"
         )
 
 

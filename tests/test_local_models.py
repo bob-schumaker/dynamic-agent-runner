@@ -725,6 +725,82 @@ def test_list_local_model_assets_scans_default_cache_root(
     assert inventory.warnings == ()
 
 
+def test_list_local_model_assets_scans_native_mlx_hub_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.local_models import list_local_model_assets
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    snapshot_root = _hub_snapshot_root(
+        home_dir,
+        "mlx-community/Qwen3-4B-MLX-4bit",
+        "commit-native",
+    )
+    snapshot_root.mkdir(parents=True)
+    (snapshot_root / "config.json").write_text("{}", encoding="utf-8")
+    (snapshot_root / "tokenizer.json").write_text("{}", encoding="utf-8")
+    (snapshot_root / "model.safetensors").write_text("weights", encoding="utf-8")
+
+    inventory = list_local_model_assets()
+
+    assert [asset.path for asset in inventory.assets] == [snapshot_root]
+    assert inventory.assets[0].model_format == "mlx"
+    assert inventory.assets[0].backend == "mlx"
+
+
+def test_list_local_model_assets_accepts_contained_native_mlx_blob_links(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.local_models import list_local_model_assets
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    snapshot_root = _hub_snapshot_root(
+        home_dir,
+        "mlx-community/Qwen3-4B-MLX-4bit",
+        "commit-native",
+    )
+    repository_root = snapshot_root.parent.parent
+    blobs = repository_root / "blobs"
+    blobs.mkdir(parents=True)
+    snapshot_root.mkdir(parents=True)
+    for filename in ("config.json", "tokenizer.json", "model.safetensors"):
+        blob = blobs / filename
+        blob.write_text("{}", encoding="utf-8")
+        (snapshot_root / filename).symlink_to(blob)
+
+    inventory = list_local_model_assets()
+
+    assert [asset.path for asset in inventory.assets] == [snapshot_root]
+
+
+def test_list_local_model_assets_omits_native_mlx_snapshot_with_missing_shard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.local_models import list_local_model_assets
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    snapshot_root = _hub_snapshot_root(
+        home_dir,
+        "mlx-community/Qwen3-4B-MLX-4bit",
+        "commit-native",
+    )
+    snapshot_root.mkdir(parents=True)
+    (snapshot_root / "config.json").write_text("{}", encoding="utf-8")
+    (snapshot_root / "tokenizer.json").write_text("{}", encoding="utf-8")
+    (snapshot_root / "model.safetensors.index.json").write_text(
+        '{"weight_map":{"missing":"model-00001-of-00001.safetensors"}}',
+        encoding="utf-8",
+    )
+
+    assert list_local_model_assets().assets == ()
+
+
 def test_list_local_model_assets_scans_current_caller_roots_without_persisting(
     tmp_path: Path,
     monkeypatch,

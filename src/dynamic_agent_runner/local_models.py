@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
@@ -1190,15 +1192,60 @@ def _availability_effective_model_format(
 
 
 def _validate_available_mlx_directory(model_directory: Path) -> str | None:
+    return _validate_mlx_model_directory(model_directory)
+
+
+_NATIVE_MLX_SHARD_PATTERN = re.compile(r"model(?:-\d{5}-of-\d{5})?\.safetensors")
+_NATIVE_MLX_INDEX_MAX_BYTES = 1024 * 1024
+_NATIVE_MLX_INDEX_MAX_ENTRIES = 10_000
+
+
+def _validate_mlx_model_directory(model_directory: Path) -> str | None:
     if not model_directory.is_dir():
         return f"MLX local model path {model_directory!s} is not a directory"
+    allowed_root = _mlx_allowed_root(model_directory)
+    converted_error = _converted_mlx_directory_error(
+        model_directory,
+        allowed_root=allowed_root if allowed_root != model_directory else None,
+    )
+    if converted_error is None:
+        return None
+    if any(
+        (model_directory / filename).exists()
+        for filename in (
+            "tokenizer.json",
+            "model.safetensors",
+            "model.safetensors.index.json",
+        )
+    ):
+        return _native_mlx_directory_error(model_directory)
+    return converted_error
+
+
+def _converted_mlx_directory_error(
+    model_directory: Path,
+    *,
+    allowed_root: Path | None,
+) -> str | None:
+    def exists(filename: str) -> bool:
+        path = model_directory / filename
+        return (
+            _is_contained_regular_file(path, allowed_root)
+            if allowed_root is not None
+            else path.exists()
+        )
+
     missing_files = [
         filename
         for filename in ("config.json", "tokenizer.model")
-        if not (model_directory / filename).exists()
+        if not exists(filename)
     ]
-    if not (model_directory / "weights.npz").exists() and not list(
-        model_directory.glob("weights.*.npz")
+    weights = [model_directory / "weights.npz", *model_directory.glob("weights.*.npz")]
+    if not any(
+        _is_contained_regular_file(path, allowed_root)
+        if allowed_root is not None
+        else path.exists()
+        for path in weights
     ):
         missing_files.append("weights.npz")
     if missing_files:
@@ -1207,6 +1254,107 @@ def _validate_available_mlx_directory(model_directory: Path) -> str | None:
             f"required file(s): {', '.join(missing_files)}"
         )
     return None
+
+
+def _native_mlx_directory_error(model_directory: Path) -> str | None:
+    allowed_root = _mlx_allowed_root(model_directory)
+    for filename in ("config.json", "tokenizer.json"):
+        if not _is_contained_regular_file(model_directory / filename, allowed_root):
+            return (
+                f"MLX native model directory {model_directory!s} is missing "
+                f"required file(s): {filename}"
+            )
+    index_path = model_directory / "model.safetensors.index.json"
+    shard_paths = {
+        path.name: path
+        for path in model_directory.iterdir()
+        if _NATIVE_MLX_SHARD_PATTERN.fullmatch(path.name)
+    }
+    if not index_path.exists():
+        if set(shard_paths) != {"model.safetensors"}:
+            return (
+                f"MLX native model directory {model_directory!s} requires exactly "
+                "model.safetensors or a valid index"
+            )
+        if not _is_contained_regular_file(
+            shard_paths["model.safetensors"], allowed_root
+        ):
+            return f"MLX native model directory {model_directory!s} has an invalid model.safetensors"
+        return None
+    return _native_mlx_index_error(model_directory, allowed_root, shard_paths)
+
+
+def _native_mlx_index_error(
+    model_directory: Path,
+    allowed_root: Path,
+    shard_paths: Mapping[str, Path],
+) -> str | None:
+    index_path = model_directory / "model.safetensors.index.json"
+    if not _is_contained_regular_file(index_path, allowed_root):
+        return f"MLX native model directory {model_directory!s} has an invalid safetensors index"
+    try:
+        if index_path.stat().st_size > _NATIVE_MLX_INDEX_MAX_BYTES:
+            raise ValueError("index exceeds byte limit")
+        payload = index_path.read_bytes()
+        index = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_object_keys,
+        )
+        weight_map = index["weight_map"]
+        if (
+            not isinstance(index, dict)
+            or not isinstance(weight_map, dict)
+            or not weight_map
+            or len(weight_map) > _NATIVE_MLX_INDEX_MAX_ENTRIES
+        ):
+            raise ValueError("invalid weight map")
+    except (
+        KeyError,
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        ValueError,
+        TypeError,
+    ):
+        return f"MLX native model directory {model_directory!s} has an invalid safetensors index"
+    referenced = set()
+    for shard_name in weight_map.values():
+        if not isinstance(shard_name, str) or not _NATIVE_MLX_SHARD_PATTERN.fullmatch(
+            shard_name
+        ):
+            return f"MLX native model directory {model_directory!s} has an invalid safetensors shard reference"
+        shard_path = model_directory / shard_name
+        if not _is_contained_regular_file(shard_path, allowed_root):
+            return f"MLX native model directory {model_directory!s} has an invalid safetensors shard reference"
+        referenced.add(shard_name)
+    if set(shard_paths) != referenced:
+        return f"MLX native model directory {model_directory!s} has unreferenced safetensors shard files"
+    return None
+
+
+def _reject_duplicate_json_object_keys(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
+def _mlx_allowed_root(model_directory: Path) -> Path:
+    snapshots_root = model_directory.parent
+    repository_root = snapshots_root.parent
+    if snapshots_root.name == "snapshots" and repository_root.name.startswith(
+        "models--"
+    ):
+        return repository_root
+    return model_directory
+
+
+def _is_contained_regular_file(path: Path, allowed_root: Path) -> bool:
+    return path.is_file() and _is_path_within(path, allowed_root)
 
 
 def _scan_local_model_inventory_root(
@@ -1336,19 +1484,9 @@ def _is_contained_hub_mlx_snapshot(
     snapshot_root: Path,
     repository_root: Path,
 ) -> bool:
-    required_files = (
-        snapshot_root / "config.json",
-        snapshot_root / "tokenizer.model",
-    )
-    if any(
-        not _is_path_within(path, repository_root) or not path.is_file()
-        for path in required_files
-    ):
-        return False
-    weights = [snapshot_root / "weights.npz"]
-    weights.extend(snapshot_root.glob("weights.*.npz"))
-    return any(
-        _is_path_within(path, repository_root) and path.is_file() for path in weights
+    return (
+        _mlx_allowed_root(snapshot_root) == repository_root
+        and _validate_mlx_model_directory(snapshot_root) is None
     )
 
 
