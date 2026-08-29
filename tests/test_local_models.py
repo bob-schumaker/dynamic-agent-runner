@@ -4,9 +4,22 @@ from __future__ import annotations
 
 import asyncio
 import builtins
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+
+from dynamic_agent_runner.errors import WorkflowExecutionError
+from dynamic_agent_runner.executor import execute_workflow, execute_workflow_async
+from dynamic_agent_runner.tracing import InMemoryTraceSink
+from parity_support import (
+    install_parity_io_blocker,
+    parity_contract_projection,
+    parity_loop_workflow,
+    parity_no_tool_workflow,
+    parity_record,
+    parity_registry,
+)
 
 
 def _default_cache_root(home_dir: Path) -> Path:
@@ -52,6 +65,278 @@ class _StaticClient:
         self.responses = _StaticResponses(response)
 
 
+class _RecordingResponses:
+    def __init__(self, responses: list[object]) -> None:
+        self.responses = list(responses)
+        self.calls: list[dict[str, object]] = []
+
+    def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.responses.pop(0)
+
+
+class _RecordingClient:
+    def __init__(self, responses: list[object]) -> None:
+        self.responses = _RecordingResponses(responses)
+
+
+class _RecordingAsyncResponses(_RecordingResponses):
+    async def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.responses.pop(0)
+
+
+class _RecordingAsyncClient:
+    def __init__(self, responses: list[object]) -> None:
+        self.responses = _RecordingAsyncResponses(responses)
+
+
+class _RecordingAdapter:
+    def __init__(self, adapter: object, observed: list[object]) -> None:
+        self._adapter = adapter
+        self._observed = observed
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        return self._adapter.models
+
+    def create_response(self, request: object) -> object:
+        response = self._adapter.create_response(request)
+        self._observed.extend(response.tool_calls)
+        return response
+
+
+class _AsyncRecordingAdapter:
+    def __init__(self, adapter: object, observed: list[object]) -> None:
+        self._adapter = adapter
+        self._observed = observed
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        return self._adapter.models
+
+    async def create_response(self, request: object) -> object:
+        response = await self._adapter.create_response(request)
+        self._observed.extend(response.tool_calls)
+        return response
+
+
+def _endpoint_tool_response(name: str, arguments: str) -> dict[str, object]:
+    return {
+        "id": "response-tool",
+        "model": "gpt-test",
+        "output": [
+            {
+                "type": "function_call",
+                "call_id": "call-1",
+                "name": name,
+                "arguments": arguments,
+            }
+        ],
+    }
+
+
+def _llama_tool_response(name: str, arguments: str) -> dict[str, object]:
+    return {
+        "id": "response-tool",
+        "model": "gpt-test",
+        "choices": [
+            {
+                "message": {
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {"name": name, "arguments": arguments},
+                        }
+                    ],
+                }
+            }
+        ],
+    }
+
+
+def _parity_scenarios(
+    tool_response: Callable[[str, str], dict[str, object]],
+) -> list[tuple[str, list[object], tuple[str, ...], bool]]:
+    return [
+        ("S5", [{"model": "gpt-test", "output_text": "no tool"}], (), False),
+        (
+            "S1",
+            [
+                tool_response("create_record", '{"title":"DAR","body":"controlled"}'),
+                {"model": "gpt-test", "output_text": "created"},
+            ],
+            ("create_record",),
+            False,
+        ),
+        (
+            "S2",
+            [
+                tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase"}',
+                ),
+                {"model": "gpt-test", "output_text": "transformed"},
+            ],
+            ("transform_record",),
+            False,
+        ),
+        (
+            "S2-invalid",
+            [tool_response("transform_record", '{"record_id":"record-seed"}')],
+            (),
+            True,
+        ),
+        (
+            "S2-wrong-type",
+            [
+                tool_response(
+                    "transform_record", '{"record_id":1,"operation":"uppercase"}'
+                )
+            ],
+            (),
+            True,
+        ),
+        (
+            "S2-invalid-enum",
+            [
+                tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"lowercase"}',
+                )
+            ],
+            (),
+            True,
+        ),
+        (
+            "S2-unknown",
+            [
+                tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase","unknown":true}',
+                )
+            ],
+            (),
+            True,
+        ),
+        ("S2-malformed", [tool_response("transform_record", "not-json")], (), True),
+        (
+            "S3",
+            [
+                tool_response("lookup_record", '{"key":"seed"}'),
+                tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase"}',
+                ),
+                {"model": "gpt-test", "output_text": "SEED"},
+            ],
+            ("lookup_record", "transform_record"),
+            False,
+        ),
+        (
+            "S4",
+            [tool_response("fail_controlled", '{"code":"planned"}')],
+            ("fail_controlled",),
+            True,
+        ),
+        ("S6", [tool_response("lookup_record", "not-json")], (), True),
+    ]
+
+
+def _run_local_endpoint_parity(
+    scenario: str,
+    native_responses: list[object],
+    *,
+    asynchronous: bool,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from dynamic_agent_runner.local_models import (
+        LocalOpenAIEndpointConfig,
+        create_local_async_openai_adapter,
+        create_local_openai_adapter,
+    )
+
+    config = LocalOpenAIEndpointConfig(
+        base_url="http://127.0.0.1:8000/v1",
+        model_aliases=("gpt-test",),
+        expected_model_id="gpt-test",
+    )
+    adapter = (
+        create_local_async_openai_adapter(config)
+        if asynchronous
+        else create_local_openai_adapter(config)
+    )
+    assert adapter._client is None
+    client = (
+        _RecordingAsyncClient(native_responses)
+        if asynchronous
+        else _RecordingClient(native_responses)
+    )
+    provider = adapter._provider
+    provider_calls: list[object] = []
+
+    def forbidden_provider_client(*args: object, **kwargs: object) -> object:
+        provider_calls.append((args, kwargs))
+        raise AssertionError("parity tests must not use the default endpoint client")
+
+    monkeypatch.setattr(type(provider), "get_client", forbidden_provider_client)
+    adapter._client = client
+    observed: list[object] = []
+    recorder = (
+        _AsyncRecordingAdapter(adapter, observed)
+        if asynchronous
+        else _RecordingAdapter(adapter, observed)
+    )
+    registry, invocations, results = parity_registry()
+    sink = InMemoryTraceSink()
+    error = None
+    result = None
+    try:
+        workflow = (
+            parity_no_tool_workflow() if scenario == "S5" else parity_loop_workflow()
+        )
+        if asynchronous:
+            result = asyncio.run(
+                execute_workflow_async(
+                    workflow,
+                    prompt="controlled parity",
+                    tool_registry=registry,
+                    model_adapter=recorder,
+                    trace_sink=sink,
+                )
+            )
+        else:
+            result = execute_workflow(
+                workflow,
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=recorder,
+                trace_sink=sink,
+            )
+    except Exception as caught:
+        error = caught
+    assert adapter._provider is provider
+    assert provider_calls == []
+    return (
+        result,
+        parity_record(
+            interface="local_endpoint_recording_client",
+            scenario=scenario,
+            asynchronous=asynchronous,
+            normalized_calls=tuple((call.name, call.arguments) for call in observed),
+            invocations=invocations,
+            results=results,
+            result=result,
+            error=error,
+            sink=sink,
+        ),
+        error,
+        client.responses.calls,
+    )
+
+
 class _FakeLlamaCppBackend:
     model_id = "Qwen/Qwen3-4B-Instruct-2507"
 
@@ -65,6 +350,234 @@ class _FakeLlamaCppBackend:
     def create_chat_completion(self, **kwargs: object) -> object:
         self.calls.append(kwargs)
         return self.response
+
+
+class _SequencedLlamaCppBackend:
+    model_id = "gpt-test"
+
+    def __init__(self, responses: list[object]) -> None:
+        self.responses = list(responses)
+        self.calls: list[dict[str, object]] = []
+
+    def create_chat_completion(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.responses.pop(0)
+
+
+def _run_llama_cpp_parity(
+    scenario: str,
+    native_responses: list[object],
+    *,
+    asynchronous: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import dynamic_agent_runner.local_models as local_models
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+        create_llama_cpp_local_async_adapter,
+    )
+
+    sentinel = tmp_path / "inert-model-path"
+    sentinel.touch()
+    forbidden_calls: list[object] = []
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        forbidden_calls.append((args, kwargs))
+        raise AssertionError("parity tests must not load or download a llama model")
+
+    monkeypatch.setattr(local_models, "_load_default_llama_cpp_backend", forbidden)
+    backend = _SequencedLlamaCppBackend(native_responses)
+    config = LlamaCppLocalModelConfig(
+        model_aliases=("gpt-test",),
+        model_path=sentinel,
+        expected_model_id="gpt-test",
+    )
+    adapter = (
+        create_llama_cpp_local_async_adapter(
+            config,
+            backend=backend,
+            dependency_loader=forbidden,
+            download_file=forbidden,
+            download_snapshot=forbidden,
+        )
+        if asynchronous
+        else create_llama_cpp_local_adapter(
+            config,
+            backend=backend,
+            dependency_loader=forbidden,
+            download_file=forbidden,
+            download_snapshot=forbidden,
+        )
+    )
+    observed: list[object] = []
+    recorder = (
+        _AsyncRecordingAdapter(adapter, observed)
+        if asynchronous
+        else _RecordingAdapter(adapter, observed)
+    )
+    registry, invocations, results = parity_registry()
+    sink = InMemoryTraceSink()
+    error = None
+    result = None
+    try:
+        workflow = (
+            parity_no_tool_workflow() if scenario == "S5" else parity_loop_workflow()
+        )
+        if asynchronous:
+            result = asyncio.run(
+                execute_workflow_async(
+                    workflow,
+                    prompt="controlled parity",
+                    tool_registry=registry,
+                    model_adapter=recorder,
+                    trace_sink=sink,
+                )
+            )
+        else:
+            result = execute_workflow(
+                workflow,
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=recorder,
+                trace_sink=sink,
+            )
+    except Exception as caught:
+        error = caught
+    assert forbidden_calls == []
+    return (
+        result,
+        parity_record(
+            interface="llama_cpp_injected_backend",
+            scenario=scenario,
+            asynchronous=asynchronous,
+            normalized_calls=tuple((call.name, call.arguments) for call in observed),
+            invocations=invocations,
+            results=results,
+            result=result,
+            error=error,
+            sink=sink,
+        ),
+        error,
+        backend.calls,
+    )
+
+
+def _assert_local_parity_scenario(
+    *,
+    scenario: str,
+    invoked: tuple[str, ...],
+    fails: bool,
+    result: object | None,
+    record: object,
+    error: Exception | None,
+    calls: list[dict[str, object]],
+) -> None:
+    assert tuple(name for name, _ in record.invocations) == invoked
+    assert (error is not None) is fails
+    assert (result is None) is fails
+    if fails:
+        assert isinstance(error, WorkflowExecutionError)
+        assert record.error_class == "WorkflowExecutionError"
+    if scenario == "S1":
+        assert result is not None
+        assert result.final_result == "created"
+        assert record.normalized_calls == (
+            ("create_record", '{"title":"DAR","body":"controlled"}'),
+        )
+    if scenario == "S4":
+        assert record.stop_reasons == ("tool_failure",)
+        assert len(calls) == 1
+        assert isinstance(error, WorkflowExecutionError)
+        assert "planned controlled failure" in str(error)
+        assert record.trace_event_types.count("model_tool_loop_tool_call") == 1
+    if scenario == "S6":
+        assert "tool_started" not in record.trace_event_types
+        assert "model_tool_loop_tool_call" not in record.trace_event_types
+        assert len(calls) == 1
+    if scenario == "S3":
+        assert len(calls) == 3
+        assert "record-seed" in str(calls[1])
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    ("scenario", "responses", "invoked", "fails"),
+    _parity_scenarios(_endpoint_tool_response),
+)
+def test_model_interface_parity_local_endpoint_native_scenarios(
+    scenario: str,
+    responses: list[object],
+    invoked: tuple[str, ...],
+    fails: bool,
+    asynchronous: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    result, record, error, calls = _run_local_endpoint_parity(
+        scenario, responses, asynchronous=asynchronous, monkeypatch=monkeypatch
+    )
+    _assert_local_parity_scenario(
+        scenario=scenario,
+        invoked=invoked,
+        fails=fails,
+        result=result,
+        record=record,
+        error=error,
+        calls=calls,
+    )
+    if not asynchronous:
+        _, async_record, _, _ = _run_local_endpoint_parity(
+            scenario, responses, asynchronous=True, monkeypatch=monkeypatch
+        )
+        assert parity_contract_projection(record) == parity_contract_projection(
+            async_record
+        )
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    ("scenario", "responses", "invoked", "fails"),
+    _parity_scenarios(_llama_tool_response),
+)
+def test_model_interface_parity_llama_cpp_native_scenarios(
+    scenario: str,
+    responses: list[object],
+    invoked: tuple[str, ...],
+    fails: bool,
+    asynchronous: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    result, record, error, calls = _run_llama_cpp_parity(
+        scenario,
+        responses,
+        asynchronous=asynchronous,
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+    )
+    _assert_local_parity_scenario(
+        scenario=scenario,
+        invoked=invoked,
+        fails=fails,
+        result=result,
+        record=record,
+        error=error,
+        calls=calls,
+    )
+    if not asynchronous:
+        _, async_record, _, _ = _run_llama_cpp_parity(
+            scenario,
+            responses,
+            asynchronous=True,
+            tmp_path=tmp_path,
+            monkeypatch=monkeypatch,
+        )
+        assert parity_contract_projection(record) == parity_contract_projection(
+            async_record
+        )
 
 
 class _FailingLlamaCppBackend:
