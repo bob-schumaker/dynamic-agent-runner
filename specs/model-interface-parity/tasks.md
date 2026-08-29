@@ -1,13 +1,14 @@
 # Model Interface Tool-Parity Tasks
 
-Status: T1.1–T1.6 deterministic matrix delivered; separate gates remain
+Status: T1.1–T1.6 deterministic matrix delivered; T2 approval interaction next
 
 ## Scope Rule
 
-This task delivers only the deterministic, offline controlled-tool contract
-matrix defined in `spec.md`. It does not run Fastmail, MCP, OAuth, a model
-server, a downloaded model, Metal, or an approval interaction. The approval
-gate and optional local-model competency measurements remain separate work.
+T1 delivers only the deterministic, offline controlled-tool contract matrix
+defined in `spec.md`. T1 does not run Fastmail, a live MCP connection, OAuth, a
+model server, a downloaded model, Metal, or an approval interaction. T2 is the
+sole separate, wrapper-local approval exception; optional local-model competency
+remains separate work.
 
 ## Authoritative Contract Cells
 
@@ -317,6 +318,102 @@ timestamps, and token usage remain diagnostic only.
   - Validation: the exact scoped node command passed (143); focused parity
     modules passed (578); full pytest passed (`1451 passed, 1 skipped, 6
     deselected`); Ruff check and format check passed.
+
+## T2 — Generated-Workflow Approval Interaction Gate
+
+T2 verifies approval as a generated-workflow execution attribute. It does not
+add a core DAR restriction, native DAR resume API, live model, live MCP
+connection, or external mutation. It uses the public `WorkflowRunner` with a
+scripted model, test-local binding/surface controls, and a fake authorized MCP
+client whose `call_tool` recorder is the counted dispatch surrogate.
+
+- [ ] T2.1 [discovery/tests] Extend the existing
+      `tests/test_dar_authoring_runner.py` generated-workflow runner seam with
+      a controlled `create_record` and one declared side-effect decoy. Use the
+      existing binding control, surface snapshot, and fake authorized MCP client
+      path; do not substitute a local handler or direct registry invocation.
+  - The compiled workflow policy declares `create_record` as
+    `approval_required: true`. Assert its materialized `authorized-mcp:` host
+    binding is `approval_required: "no"`, so DAR neither pauses nor emits
+    `approval_requested`/`approval_paused` or a `WorkflowInterruptedResult`.
+    The wrapper broker alone receives the wrapper-created action and approval.
+  - Install the existing deterministic no-I/O blocker for socket, subprocess,
+    and model-download seams. Use a scripted fake model and fake binding/surface
+    controls; no credential, Fastmail, live MCP, or external call is allowed.
+  - The fixture's `max_total_tool_calls` is explicit. One public runner run
+    preflights immutable registration/policy identity; each binding invocation
+    re-loads its current binding, verifies the current surface, and claims the
+    shared total-call counter before dispatch.
+  - Expected RED: the harness cannot yet prove wrapper-local decision outcomes
+    through the public runner.
+  - Validation: `poetry run pytest tests/test_dar_authoring_runner.py -q`.
+
+- [ ] T2.2 [tests/implementation] Add RED then GREEN deny and `approve_once`
+      cases for one schema-valid `create_record` invocation.
+  - Acceptance: an absent broker fails at public runner preflight with
+    `RunDarWorkflowError`, zero broker/fake-client calls, and no ledger action.
+    Deny or cancel after a schema-valid handler entry writes intent plus the
+    matching terminal ledger receipt and makes zero fake-client `call_tool`
+    calls. An invalid decision or broker exception after handler entry writes
+    intent plus a failed terminal receipt with zero fake-client calls. Invalid
+    schema, provenance, binding, current surface, or total-budget input reaches
+    neither broker nor fake client and does not spend budget.
+  - `approve_once` yields one broker decision and one fake-client dispatch only
+    after schema, provenance, binding, surface, ledger-claim, and budget checks.
+    Direct `WorkflowApprovalStore` coverage proves a granted receipt cannot be
+    replayed or used with a different action digest; a new generated invocation
+    receives a fresh action and may prompt again. Do not claim that changed valid
+    arguments automatically fail when the broker independently approves them.
+  - Boundary: this is generated-workflow policy. The wrapper cannot broaden its
+    exposed surface or bypass validation, provenance, current-surface, ledger,
+    or budget checks.
+  - Validation: `poetry run pytest tests/test_dar_authoring_runner.py`
+    `tests/test_dar_authoring_authorized_tools.py`
+    `tests/test_dar_authoring_approvals.py -q`.
+
+- [ ] T2.3 [tests/implementation] Add RED then GREEN
+      `approve_rest_of_run` coverage using two valid `create_record` calls in
+      one bounded run.
+  - Acceptance: an initial `approved_for_rest_of_run` decision allows a second
+    valid `create_record` call with different schema-valid,
+    provenance-valid arguments only after normal schema, provenance, binding,
+    surface, ledger, and total-budget checks, with no second broker decision
+    and exactly one second fake-client dispatch. A third scripted decoy call
+    must prompt independently, then deny, with zero decoy fake-client dispatch.
+    Prove grant scope behaviorally; the existing wrapper stores an opaque
+    in-memory key rather than exposing a new grant-scope receipt or presenter
+    API.
+  - The grant deliberately does not bind later valid arguments for the same
+    declared tool. Binding or current-surface drift blocks a later same-run
+    call, as does total-budget exhaustion. A fresh `WorkflowRunner.run()`
+    re-preflights current registration/profile and must prompt again, including
+    after a denied or failed prior run; there is no persistence or recovery reuse
+    claim.
+  - Non-goal: do not implement approval for all future workflow runs.
+  - Validation: focused wrapper approval test module.
+
+- [ ] T2.4 [validation/docs] Record the deterministic approval receipt and
+      update the parity spec status without changing T1's closed result.
+  - Acceptance: record exact test nodes/results, the injected no-I/O proof,
+    approval outcome evidence, and the continuing separation from local-model
+    competency and live/external acceptance. Run focused approval tests, full
+    pytest, Ruff, formatter, and pre-commit on changed files.
+
+## T2 Readiness Review
+
+- Council triad: approved after binding T2 to the public `WorkflowRunner` and
+  its existing wrapper-local broker/authorized-MCP fake seam. The tasks assert
+  generated-policy approval while keeping DAR's host binding unapproved, so no
+  core interruption, live connection, or external dispatch is introduced.
+- Council required fail-closed ordering: absent broker fails at runner preflight;
+  invalid inputs fail before broker or fake-client dispatch; post-entry deny,
+  cancel, invalid decision, and broker failure have their distinct ledger
+  outcomes. The run grant is proven only behaviorally, is isolated from a decoy,
+  and has no persistence claim across a fresh runner run.
+- Ponytail: approved reuse of the existing runner, fake authorized-MCP client,
+  approval broker, total-call counter, and opaque in-memory grant key. No new
+  parity framework, core resume API, grant-scope receipt, or provider transport
+  is authorized.
 
 ## Readiness Review
 

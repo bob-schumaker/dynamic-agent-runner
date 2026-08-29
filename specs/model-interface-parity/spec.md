@@ -5,8 +5,8 @@
 - Feature slug: `model-interface-parity`
 - Mode: `light`
 - Artifact type: test and acceptance specification
-- Status: deterministic matrix delivered; approval and local-competency gates
-  remain separate
+- Status: deterministic matrix delivered; approval-interaction T2 is
+  implementation-ready and local competency remains separate
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/model-adapter-coverage/spec.md`
@@ -249,6 +249,10 @@ This is a separate coordinator/executor pass. It reuses `create_record` with
 `approval_required: true` and tests deny, approve once, and approve for the
 current run. It must not be a prerequisite for no-approval interface parity and
 does not require a live model or external tool.
+
+The gate exercises the generated-workflow wrapper's existing approval broker,
+not DAR's pause-only public interruption boundary. DAR's durable resume and
+approval-decision APIs remain out of scope.
 
 ## Cross-Cutting Requirements
 
