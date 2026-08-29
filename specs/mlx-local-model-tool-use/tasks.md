@@ -183,8 +183,37 @@ Status: M6.1 and T6.2.1–T6.2.5 delivered; T6.2.6 is next
   opt-in capability and default unsupported state, and record the optional
   manual Qwen competency evidence separately from CI.
   - Spec: Acceptance and Validation
-  - Files: `README.md`, `docs/files/python-api.rst`, feature artifacts
+  - Files: `README.md`, `docs/files/python-api.rst`, `tasks.md`
   - Depends on: T6.2.5
+  - Implementation route: update only the existing public MLX sections. State
+    that the stock lazy `_MLXLMBackend` is text-only, reports
+    `tool_calling=False`, and rejects tool-bearing requests before generation.
+    State separately that an explicitly caller-injected `MLXToolCodec` and
+    version-compatible `MLXToolCapableBackend` can opt into tool calling; DAR
+    retains exposure, validation, approval, coordinator, tracing, and
+    continuation ownership. Do not add a default-codec or Qwen tool-use recipe.
+  - Acceptance: README and Python API documentation distinguish the default
+    unsupported backend from the opt-in injected pair, preserve unsupported
+    structured output/embeddings/multimodal/streaming claims, and make no claim
+    that arbitrary MLX, a tokenizer, or stock `mlx-lm` is tool-capable. The
+    focused CI record names fake-only tests and no optional MLX import, model
+    load, Metal, network, credential, or live generation. The manual Qwen
+    competency result is `not run` and remains outside pytest, CI, and release
+    gates. A future dated record must name the DAR revision; eligible macOS host
+    class; pinned model revision and local digest; `mlx-lm` distribution/lock
+    and codec version; nonsecret template/parser and generation settings;
+    bounded local recording-tool outcome; and redacted evidence digest. It can
+    establish only that exact environment and cannot enable the stock backend.
+  - Validation: `poetry run pytest tests/test_import.py
+    tests/test_local_models.py tests/test_mlx_models.py tests/test_executor.py
+    -q`; `poetry run ruff check src tests`; `ruff format --check`; targeted
+    pre-commit; and `make -C docs html` without editing generated output.
+  - Readiness: implementation-ready. This plan is ready to execute under its
+    stated gates.
+  - Review disposition: Council required an explicit default-versus-injected
+    distinction and a non-synthetic manual-evidence boundary; accepted. Ponytail
+    rejected a new documentation page, default codec recipe, and empty evidence
+    receipt; the existing sections and task record are sufficient.
 
 - [x] T6.2.7 [decision/discovery] Record the approved `mlx-lm` upstream source,
   immutable revision, license/provenance record, retention/update policy,
