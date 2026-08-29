@@ -327,26 +327,62 @@ connection, or external mutation. It uses the public `WorkflowRunner` with a
 scripted model, test-local binding/surface controls, and a fake authorized MCP
 client whose `call_tool` recorder is the counted dispatch surrogate.
 
-- [ ] T2.1 [discovery/tests] Extend the existing
-      `tests/test_dar_authoring_runner.py` generated-workflow runner seam with
-      a controlled `create_record` and one declared side-effect decoy. Use the
-      existing binding control, surface snapshot, and fake authorized MCP client
-      path; do not substitute a local handler or direct registry invocation.
+- [ ] T2.1 [discovery/tests] Add one dedicated, test-local `_approval_runner`
+      setup in `tests/test_dar_authoring_runner.py` for a controlled
+      `create_record` and one declared side-effect decoy. It builds their
+      discovered schemas, approved surface entries, per-tool provenance rules,
+      explicit total budget, ledger/store, and scripted `QueuedClient`
+      responses. Reuse the existing `FakeMCPClient` and `FakeApprovalBroker`;
+      do not evolve runtime code, a general fixture framework, a local handler,
+      or direct registry invocation.
   - The compiled workflow policy declares `create_record` as
-    `approval_required: true`. Assert its materialized `authorized-mcp:` host
-    binding is `approval_required: "no"`, so DAR neither pauses nor emits
-    `approval_requested`/`approval_paused` or a `WorkflowInterruptedResult`.
-    The wrapper broker alone receives the wrapper-created action and approval.
-  - Install the existing deterministic no-I/O blocker for socket, subprocess,
-    and model-download seams. Use a scripted fake model and fake binding/surface
-    controls; no credential, Fastmail, live MCP, or external call is allowed.
+    `approval_required: true`. Spy test-locally on
+    `workflow_host.runner.create_host_tool_registry`, delegating to the real
+    factory after recording its supplied bindings, and assert the materialized
+    `authorized-mcp:` binding is `approval_required: "no"`. Public runner
+    outcomes, broker decisions, and fake-client dispatch counts—not unexposed
+    DAR approval traces—prove the wrapper alone receives the action and approval.
+  - Call `parity_support.install_parity_io_blocker(monkeypatch)` and add a
+    small blocked-socket probe to prove it is active. Use a scripted fake model
+    and fake binding/surface controls; the fake client's recorded `call_tool` is
+    the allowed in-process dispatch surrogate. No credential, Fastmail, live
+    MCP, or external call is allowed.
   - The fixture's `max_total_tool_calls` is explicit. One public runner run
     preflights immutable registration/policy identity; each binding invocation
     re-loads its current binding, verifies the current surface, and claims the
     shared total-call counter before dispatch.
   - Expected RED: the harness cannot yet prove wrapper-local decision outcomes
-    through the public runner.
+    or capture the materialized wrapper binding through the public runner.
   - Validation: `poetry run pytest tests/test_dar_authoring_runner.py -q`.
+
+### T2.1 Readiness Review
+
+- Council triad: approved one dedicated, test-local `_approval_runner` because
+  the existing runner helper hard-codes the mail tools, schemas, provenance, and
+  scripted responses. The setup reuses its existing fake MCP client, broker,
+  and queued client rather than changing runtime code or creating a general
+  fixture framework.
+
+- Council triad: requires a delegating `create_host_tool_registry` spy because
+  public `WorkflowRunner` results do not expose materialized host bindings or
+  DAR approval traces. The spy proves wrapper-owned `approval_required: "no"`;
+  public result, broker, and fake-client counts prove the observable boundary.
+
+- Ponytail: approved the dedicated local helper as the smallest viable shape.
+  Reusing the existing `parity_support` blocker with a blocked-socket probe
+  avoids a second I/O fixture; no provider transport, core resume API, or
+  generic test abstraction is authorized.
+
+### T2.1 Delivery Review
+
+- Council triad: approved the implementation-ready task record. It confines
+  setup, binding observation, and I/O proof to the named runner test while
+  preserving public `WorkflowRunner` execution and the wrapper-only approval
+  boundary.
+
+- Ponytail: approved the local setup, delegating spy, and reused blocker as the
+  smallest complete test shape. No runtime policy/enforcement change, provider
+  transport, dependency, or generic fixture is included.
 
 - [ ] T2.2 [tests/implementation] Add RED then GREEN deny and `approve_once`
       cases for one schema-valid `create_record` invocation.
