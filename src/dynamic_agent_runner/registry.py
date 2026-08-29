@@ -1476,6 +1476,35 @@ def _validate_input_schema(
             raise ToolRegistryError(
                 f"tool {definition.id!r} missing required input {field_name!r}"
             )
+    properties = schema.get("properties", {})
+    if schema.get("additionalProperties") is False:
+        unknown = set(arguments) - set(properties)
+        if unknown:
+            raise ToolRegistryError(
+                f"tool {definition.id!r} received unknown input {sorted(unknown)[0]!r}"
+            )
+    for field_name, value in arguments.items():
+        property_schema = properties.get(field_name)
+        if not isinstance(property_schema, Mapping):
+            continue
+        allowed = property_schema.get("enum")
+        if (
+            schema.get("additionalProperties") is False
+            and isinstance(allowed, list)
+            and value not in allowed
+        ):
+            raise ToolRegistryError(
+                f"tool {definition.id!r} input {field_name!r} is not an allowed value"
+            )
+        expected_type = property_schema.get("type")
+        if (
+            schema.get("additionalProperties") is False
+            and expected_type == "string"
+            and not isinstance(value, str)
+        ):
+            raise ToolRegistryError(
+                f"tool {definition.id!r} input {field_name!r} must be a string"
+            )
 
 
 def _normalized_input_schema(definition: ToolDefinition) -> dict[str, Any]:

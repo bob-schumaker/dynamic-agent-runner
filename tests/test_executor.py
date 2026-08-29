@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
+import socket
+import subprocess
 import sys
 from types import SimpleNamespace
 from typing import Any
@@ -50,6 +53,8 @@ from dynamic_agent_runner.local_models import (
     LlamaCppLocalModelConfig,
     create_llama_cpp_local_adapter,
 )
+import dynamic_agent_runner.hugging_face_support as hugging_face_support
+import dynamic_agent_runner.local_models as local_models
 from dynamic_agent_runner.mlx_models import (
     MLXLocalModelConfig,
     MLXToolCallCandidate,
@@ -5693,6 +5698,722 @@ def loop_tool_workflow(
     if guardrails is not None:
         manifest["extensions"] = {"guardrails": {"declarations": guardrails}}
     return workflow_from(manifest)
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s1_selects_only_create_record(
+    asynchronous: bool,
+    parity_io_blocker: None,
+) -> None:
+    registry, invocations, results = _parity_registry()
+    result, _, record, error = _run_parity_loop(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall(
+                        "create-1",
+                        "create_record",
+                        {"title": "DAR", "body": "controlled"},
+                    ),
+                ),
+            ),
+            ModelResponse(content="created"),
+        ],
+        scenario="S1",
+        asynchronous=asynchronous,
+        registry=registry,
+        invocations=invocations,
+        results=results,
+    )
+
+    assert error is None
+    assert result is not None
+    assert result.final_result == "created"
+    assert record.interface == "executor_fake_adapter"
+    assert record.invocations == (
+        ("create_record", {"title": "DAR", "body": "controlled"}),
+    )
+    assert record.invocation_results == (
+        ("create_record", {"record_id": "record-created"}),
+    )
+    assert record.completion_class == "completed"
+
+
+@dataclass(frozen=True)
+class ParityRecord:
+    interface: str
+    scenario: str
+    asynchronous: bool
+    exposed_schemas: tuple[tuple[str, Mapping[str, object]], ...]
+    normalized_calls: tuple[tuple[str, Mapping[str, object]], ...]
+    invocations: tuple[tuple[str, Mapping[str, object]], ...]
+    invocation_results: tuple[tuple[str, object], ...]
+    completion_class: str
+    error_class: str | None
+    trace_event_types: tuple[str, ...]
+    stop_reasons: tuple[str, ...]
+
+
+class _ScriptedParityAdapter:
+    models = ("gpt-test",)
+
+    def __init__(self, responses: list[ModelResponse]) -> None:
+        self.responses = list(responses)
+        self.requests: list[OpenAIModelRequest] = []
+
+    def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        self.requests.append(request)
+        return self.responses.pop(0)
+
+
+class _AsyncScriptedParityAdapter(_ScriptedParityAdapter):
+    async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        self.requests.append(request)
+        await asyncio.sleep(0)
+        return self.responses.pop(0)
+
+
+@pytest.fixture
+def parity_io_blocker(monkeypatch: pytest.MonkeyPatch) -> None:
+    def blocked(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("parity tests prohibit external I/O")
+
+    monkeypatch.setattr(socket, "create_connection", blocked)
+    monkeypatch.setattr(socket.socket, "connect", blocked)
+    monkeypatch.setattr(subprocess, "Popen", blocked)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", blocked)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", blocked)
+    monkeypatch.setattr(local_models, "download_hub_file", blocked)
+    monkeypatch.setattr(local_models, "download_hub_snapshot", blocked)
+    monkeypatch.setattr(hugging_face_support, "download_hub_file", blocked)
+    monkeypatch.setattr(hugging_face_support, "download_hub_snapshot", blocked)
+
+
+def test_model_interface_parity_io_blocker_rejects_every_external_seam(
+    parity_io_blocker: None,
+) -> None:
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        socket.create_connection(("example.invalid", 443))
+    with (
+        socket.socket() as client,
+        pytest.raises(AssertionError, match="prohibit external I/O"),
+    ):
+        client.connect(("example.invalid", 443))
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        subprocess.Popen(["false"])
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        local_models.download_hub_file("repo", "file")
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        local_models.download_hub_snapshot("repo")
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        hugging_face_support.download_hub_file("repo", "file")
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        hugging_face_support.download_hub_snapshot("repo")
+
+    async def assert_async_interceptors() -> None:
+        with pytest.raises(AssertionError, match="prohibit external I/O"):
+            await asyncio.create_subprocess_exec("false")
+        with pytest.raises(AssertionError, match="prohibit external I/O"):
+            await asyncio.create_subprocess_shell("false")
+
+    asyncio.run(assert_async_interceptors())
+
+
+def _parity_tool_definitions() -> list[dict[str, object]]:
+    return [
+        {
+            "id": "lookup_record",
+            "approval_required": "no",
+            "input_schema": {
+                "type": "object",
+                "properties": {"key": {"type": "string"}},
+                "required": ["key"],
+                "additionalProperties": False,
+            },
+        },
+        {
+            "id": "create_record",
+            "approval_required": "no",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "body": {"type": "string"},
+                },
+                "required": ["title", "body"],
+                "additionalProperties": False,
+            },
+        },
+        {
+            "id": "transform_record",
+            "approval_required": "no",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "record_id": {"type": "string"},
+                    "operation": {"enum": ["uppercase"]},
+                },
+                "required": ["record_id", "operation"],
+                "additionalProperties": False,
+            },
+        },
+        {
+            "id": "fail_controlled",
+            "approval_required": "no",
+            "input_schema": {
+                "type": "object",
+                "properties": {"code": {"type": "string"}},
+                "required": ["code"],
+                "additionalProperties": False,
+            },
+        },
+    ]
+
+
+def _parity_registry() -> tuple[
+    InMemoryToolRegistry,
+    list[tuple[str, Mapping[str, object]]],
+    list[tuple[str, object]],
+]:
+    invocations: list[tuple[str, Mapping[str, object]]] = []
+    results: list[tuple[str, object]] = []
+
+    def handler(tool_id: str, output: object):
+        def run(arguments: Mapping[str, object]) -> object:
+            invocations.append((tool_id, dict(arguments)))
+            results.append((tool_id, output))
+            return output
+
+        return run
+
+    definitions = _parity_tool_definitions()
+    tools = [
+        RegisteredTool(
+            ToolDefinition.from_mapping(definitions[0]),
+            handler("lookup_record", {"record_id": "record-seed", "body": "seed"}),
+        ),
+        RegisteredTool(
+            ToolDefinition.from_mapping(definitions[1]),
+            handler("create_record", {"record_id": "record-created"}),
+        ),
+        RegisteredTool(
+            ToolDefinition.from_mapping(definitions[2]),
+            handler("transform_record", {"record_id": "record-seed", "body": "SEED"}),
+        ),
+        RegisteredTool(
+            ToolDefinition.from_mapping(definitions[3]),
+            handler(
+                "fail_controlled",
+                ToolResult(
+                    tool_id="fail_controlled",
+                    success=False,
+                    error="planned controlled failure",
+                ),
+            ),
+        ),
+    ]
+    return InMemoryToolRegistry(tools), invocations, results
+
+
+def _parity_record(
+    *,
+    scenario: str,
+    asynchronous: bool,
+    calls: tuple[ModelToolCall, ...],
+    invocations: list[tuple[str, Mapping[str, object]]],
+    results: list[tuple[str, object]],
+    result: object | None,
+    error: WorkflowExecutionError | None,
+    sink: InMemoryTraceSink,
+) -> ParityRecord:
+    events = result.state.trace_events if result is not None else sink.events
+    record = ParityRecord(
+        interface="executor_fake_adapter",
+        scenario=scenario,
+        asynchronous=asynchronous,
+        exposed_schemas=tuple(
+            (str(definition["id"]), definition["input_schema"])
+            for definition in _parity_tool_definitions()
+        ),
+        normalized_calls=tuple((call.name, call.arguments) for call in calls),
+        invocations=tuple(invocations),
+        invocation_results=tuple(results),
+        completion_class="error" if error is not None else "completed",
+        error_class=type(error).__name__ if error is not None else None,
+        trace_event_types=tuple(event.event_type for event in events),
+        stop_reasons=tuple(
+            str(event.payload["stop_reason"])
+            for event in events
+            if event.event_type == "model_tool_loop_stopped"
+        ),
+    )
+    assert result is None or not isinstance(result, WorkflowInterruptedResult)
+    assert not any("approval" in event_type for event_type in record.trace_event_types)
+    return record
+
+
+def _parity_loop_workflow() -> LoadedAgentWorkflow:
+    definitions = _parity_tool_definitions()
+    return loop_tool_workflow(
+        tools=definitions,
+        available_tools=[str(tool["id"]) for tool in definitions],
+        execution_policy_extra={
+            "tool_choice_policy": {"initial": "required", "after_tool_result": "auto"}
+        },
+    )
+
+
+def _run_parity_loop(
+    responses: list[ModelResponse],
+    *,
+    scenario: str,
+    asynchronous: bool,
+    registry: InMemoryToolRegistry,
+    invocations: list[tuple[str, Mapping[str, object]]],
+    results: list[tuple[str, object]],
+) -> tuple[
+    object | None, _ScriptedParityAdapter, ParityRecord, WorkflowExecutionError | None
+]:
+    adapter = (
+        _AsyncScriptedParityAdapter(responses)
+        if asynchronous
+        else _ScriptedParityAdapter(responses)
+    )
+    sink = InMemoryTraceSink()
+    calls = tuple(call for response in responses for call in response.tool_calls)
+    try:
+        if asynchronous:
+            result = asyncio.run(
+                execute_workflow_async(
+                    _parity_loop_workflow(),
+                    prompt="controlled parity",
+                    tool_registry=registry,
+                    model_adapter=adapter,
+                    trace_sink=sink,
+                )
+            )
+        else:
+            result = execute_workflow(
+                _parity_loop_workflow(),
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=adapter,
+                trace_sink=sink,
+            )
+    except WorkflowExecutionError as error:
+        return (
+            None,
+            adapter,
+            _parity_record(
+                scenario=scenario,
+                asynchronous=asynchronous,
+                calls=calls,
+                invocations=invocations,
+                results=results,
+                result=None,
+                error=error,
+                sink=sink,
+            ),
+            error,
+        )
+    return (
+        result,
+        adapter,
+        _parity_record(
+            scenario=scenario,
+            asynchronous=asynchronous,
+            calls=calls,
+            invocations=invocations,
+            results=results,
+            result=result,
+            error=None,
+            sink=sink,
+        ),
+        None,
+    )
+
+
+def _run_parity_no_tool(*, asynchronous: bool) -> tuple[object, ParityRecord]:
+    definitions = _parity_tool_definitions()
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "parity-no-tool",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                    "available_tools": [str(tool["id"]) for tool in definitions],
+                }
+            ],
+            "edges": [],
+            "tools": definitions,
+        }
+    )
+    registry, invocations, results = _parity_registry()
+    adapter = (
+        _AsyncScriptedParityAdapter([ModelResponse(content="no tool")])
+        if asynchronous
+        else _ScriptedParityAdapter([ModelResponse(content="no tool")])
+    )
+    sink = InMemoryTraceSink()
+    if asynchronous:
+        result = asyncio.run(
+            execute_workflow_async(
+                workflow,
+                prompt="answer",
+                tool_registry=registry,
+                model_adapter=adapter,
+                trace_sink=sink,
+            )
+        )
+    else:
+        result = execute_workflow(
+            workflow,
+            prompt="answer",
+            tool_registry=registry,
+            model_adapter=adapter,
+            trace_sink=sink,
+        )
+    return result, _parity_record(
+        scenario="S5",
+        asynchronous=asynchronous,
+        calls=(),
+        invocations=invocations,
+        results=results,
+        result=result,
+        error=None,
+        sink=sink,
+    )
+
+
+def _parity_contract_projection(record: ParityRecord) -> tuple[object, ...]:
+    return (
+        record.interface,
+        record.exposed_schemas,
+        record.normalized_calls,
+        record.invocations,
+        record.invocation_results,
+        record.completion_class,
+        record.error_class,
+        record.trace_event_types,
+        record.stop_reasons,
+    )
+
+
+@pytest.mark.parametrize(
+    ("scenario", "responses"),
+    [
+        (
+            "S1",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall(
+                            "create-1",
+                            "create_record",
+                            {"title": "DAR", "body": "controlled"},
+                        ),
+                    ),
+                ),
+                ModelResponse(content="created"),
+            ],
+        ),
+        (
+            "S2-valid",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall(
+                            "transform-1",
+                            "transform_record",
+                            {"record_id": "record-seed", "operation": "uppercase"},
+                        ),
+                    ),
+                ),
+                ModelResponse(content="transformed"),
+            ],
+        ),
+        (
+            "S2-invalid",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall(
+                            "invalid",
+                            "transform_record",
+                            {"record_id": "record-seed", "operation": "lowercase"},
+                        ),
+                    ),
+                )
+            ],
+        ),
+        (
+            "S3",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall("lookup-1", "lookup_record", {"key": "seed"}),
+                    ),
+                ),
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall(
+                            "transform-1",
+                            "transform_record",
+                            {"record_id": "record-seed", "operation": "uppercase"},
+                        ),
+                    ),
+                ),
+                ModelResponse(content="SEED"),
+            ],
+        ),
+        (
+            "S4",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall("fail-1", "fail_controlled", {"code": "planned"}),
+                    ),
+                )
+            ],
+        ),
+        (
+            "S6",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(ModelToolCall("bad-1", "lookup_record", "not-json"),),
+                )
+            ],
+        ),
+    ],
+)
+def test_model_interface_parity_sync_and_async_records_match(
+    scenario: str,
+    responses: list[ModelResponse],
+    parity_io_blocker: None,
+) -> None:
+    def run(asynchronous: bool) -> ParityRecord:
+        registry, invocations, results = _parity_registry()
+        _, _, record, _ = _run_parity_loop(
+            responses,
+            scenario=scenario,
+            asynchronous=asynchronous,
+            registry=registry,
+            invocations=invocations,
+            results=results,
+        )
+        return record
+
+    assert _parity_contract_projection(run(False)) == _parity_contract_projection(
+        run(True)
+    )
+
+
+def test_model_interface_parity_s5_sync_and_async_records_match(
+    parity_io_blocker: None,
+) -> None:
+    _, sync_record = _run_parity_no_tool(asynchronous=False)
+    _, async_record = _run_parity_no_tool(asynchronous=True)
+
+    assert _parity_contract_projection(sync_record) == _parity_contract_projection(
+        async_record
+    )
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s2_valid_and_invalid_arguments(
+    asynchronous: bool, parity_io_blocker: None
+) -> None:
+    registry, invocations, results = _parity_registry()
+    result, _, record, error = _run_parity_loop(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall(
+                        "transform-1",
+                        "transform_record",
+                        {"record_id": "record-seed", "operation": "uppercase"},
+                    ),
+                ),
+            ),
+            ModelResponse(content="transformed"),
+        ],
+        scenario="S2-valid",
+        asynchronous=asynchronous,
+        registry=registry,
+        invocations=invocations,
+        results=results,
+    )
+    assert error is None
+    assert result is not None
+    assert result.final_result == "transformed"
+    assert invocations == [
+        ("transform_record", {"record_id": "record-seed", "operation": "uppercase"})
+    ]
+    assert record.error_class is None
+    for name, arguments in (
+        ("missing", {"record_id": "record-seed"}),
+        ("wrong-type", {"record_id": 1, "operation": "uppercase"}),
+        ("invalid-enum", {"record_id": "record-seed", "operation": "lowercase"}),
+        (
+            "unknown",
+            {"record_id": "record-seed", "operation": "uppercase", "unknown": True},
+        ),
+        ("malformed", "not-json"),
+    ):
+        registry, invocations, results = _parity_registry()
+        _, _, invalid_record, invalid_error = _run_parity_loop(
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall("invalid", "transform_record", arguments),
+                    ),
+                )
+            ],
+            scenario=f"S2-{name}",
+            asynchronous=asynchronous,
+            registry=registry,
+            invocations=invocations,
+            results=results,
+        )
+        assert isinstance(invalid_error, WorkflowExecutionError)
+        assert invalid_record.error_class == "WorkflowExecutionError"
+        assert invocations == []
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s3_continues_with_lookup_identifier(
+    asynchronous: bool, parity_io_blocker: None
+) -> None:
+    registry, invocations, results = _parity_registry()
+    result, adapter, record, error = _run_parity_loop(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall("lookup-1", "lookup_record", {"key": "seed"}),
+                ),
+            ),
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall(
+                        "transform-1",
+                        "transform_record",
+                        {"record_id": "record-seed", "operation": "uppercase"},
+                    ),
+                ),
+            ),
+            ModelResponse(content="SEED"),
+        ],
+        scenario="S3",
+        asynchronous=asynchronous,
+        registry=registry,
+        invocations=invocations,
+        results=results,
+    )
+    assert error is None
+    assert result is not None
+    assert result.final_result == "SEED"
+    assert invocations == [
+        ("lookup_record", {"key": "seed"}),
+        ("transform_record", {"record_id": "record-seed", "operation": "uppercase"}),
+    ]
+    assert record.invocation_results[-1] == (
+        "transform_record",
+        {"record_id": "record-seed", "body": "SEED"},
+    )
+    assert len(adapter.requests) == 3
+    continuation = adapter.requests[1].messages
+    assert continuation[-1]["_dar_transcript_type"] == "model_tool_result"
+    assert continuation[-1]["name"] == "lookup_record"
+    assert "record-seed" in str(continuation[-1]["content"])
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s4_reports_controlled_failure(
+    asynchronous: bool, parity_io_blocker: None
+) -> None:
+    registry, invocations, results = _parity_registry()
+    result, adapter, record, error = _run_parity_loop(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall("fail-1", "fail_controlled", {"code": "planned"}),
+                ),
+            )
+        ],
+        scenario="S4",
+        asynchronous=asynchronous,
+        registry=registry,
+        invocations=invocations,
+        results=results,
+    )
+    assert result is None
+    assert isinstance(error, WorkflowExecutionError)
+    assert "planned controlled failure" in str(error)
+    assert invocations == [("fail_controlled", {"code": "planned"})]
+    assert len(adapter.requests) == 1
+    assert record.completion_class == "error"
+    assert record.error_class == "WorkflowExecutionError"
+    assert record.trace_event_types.count("model_tool_loop_tool_call") == 1
+    assert record.stop_reasons == ("tool_failure",)
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s5_completes_without_a_tool(
+    asynchronous: bool, parity_io_blocker: None
+) -> None:
+    result, record = _run_parity_no_tool(asynchronous=asynchronous)
+    assert result.final_result == "no tool"
+    assert record.invocations == ()
+    assert record.invocation_results == ()
+    assert "model_tool_result" not in record.trace_event_types
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s6_rejects_malformed_normalized_call_before_dispatch(
+    asynchronous: bool, parity_io_blocker: None
+) -> None:
+    registry, invocations, results = _parity_registry()
+    result, adapter, record, error = _run_parity_loop(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(ModelToolCall("bad-1", "lookup_record", "not-json"),),
+            )
+        ],
+        scenario="S6",
+        asynchronous=asynchronous,
+        registry=registry,
+        invocations=invocations,
+        results=results,
+    )
+    assert result is None
+    assert isinstance(error, WorkflowExecutionError)
+    assert "arguments must be JSON" in str(error)
+    assert record.error_class == "WorkflowExecutionError"
+    assert invocations == []
+    assert len(adapter.requests) == 1
+    assert "model_tool_loop_tool_call" not in record.trace_event_types
+    assert "tool_started" not in record.trace_event_types
 
 
 def test_execute_workflow_uses_model_facing_tool_output_in_context_and_trace() -> None:

@@ -268,6 +268,49 @@ def test_registry_prepares_then_invokes_one_validated_tool() -> None:
     assert calls == [{"query": "x"}]
 
 
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({"query": 1, "operation": "uppercase"}, "must be a string"),
+        ({"query": "x", "operation": "lowercase"}, "allowed value"),
+        (
+            {"query": "x", "operation": "uppercase", "unknown": True},
+            "unknown input",
+        ),
+    ],
+)
+def test_registry_rejects_invalid_strict_schema_inputs_before_handler(
+    arguments: dict[str, object], message: str
+) -> None:
+    calls: list[dict[str, object]] = []
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {
+                        "id": "strict",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string"},
+                                "operation": {"enum": ["uppercase"]},
+                            },
+                            "required": ["query", "operation"],
+                            "additionalProperties": False,
+                        },
+                    }
+                ),
+                lambda arguments: calls.append(dict(arguments)),
+            )
+        ]
+    )
+
+    with pytest.raises(ToolRegistryError, match=message):
+        registry.prepare_tool_invocation("strict", arguments)
+
+    assert calls == []
+
+
 def test_registry_preserves_structured_tool_result_facets() -> None:
     expected = ToolResult(
         tool_id="facet_tool",
