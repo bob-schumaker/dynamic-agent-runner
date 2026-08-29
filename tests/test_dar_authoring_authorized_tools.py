@@ -35,6 +35,7 @@ from dynamic_agent_runner.workflow_host.descriptor import (  # noqa: E402
 )
 from dynamic_agent_runner.workflow_host.mcp_binding import (  # noqa: E402
     MCPWorkflowCapabilityBindingControlPlane,
+    MCPWorkflowCapabilityBindingError,
 )
 from dynamic_agent_runner.workflow_host.mcp_surfaces import (  # noqa: E402
     MCPDiscoveredTool,
@@ -291,6 +292,29 @@ def test_authorized_binding_rejects_invalid_provenance_before_dispatch(
     assert client.calls == []
 
 
+def test_authorized_binding_rejects_invalid_inputs_before_approval_or_budget(
+    tmp_path: Path,
+) -> None:
+    broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
+    registry, client, _ = _registry(
+        tmp_path, approval_broker=broker, approval_required=True
+    )
+
+    malformed = registry.invoke_tool("send_mail", {})
+    invalid_provenance = registry.invoke_tool(
+        "send_mail", {"provenance_envelope": "{}"}
+    )
+    valid = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert malformed.success is False
+    assert invalid_provenance.success is False
+    assert valid.success is True
+    assert len(broker.actions) == 1
+    assert client.calls == [
+        ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
+    ]
+
+
 def test_authorized_binding_rejects_an_undeclared_constant_reference(
     tmp_path: Path,
 ) -> None:
@@ -323,6 +347,63 @@ def test_authorized_binding_rejects_a_second_call_over_its_budget(
     assert client.calls == [
         ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
     ]
+
+
+def test_authorized_binding_rejects_exhausted_budget_before_second_approval(
+    tmp_path: Path,
+) -> None:
+    broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
+    registry, client, _ = _registry(
+        tmp_path, approval_broker=broker, approval_required=True
+    )
+
+    first = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+    exhausted = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert first.success is True
+    assert exhausted.success is False
+    assert len(broker.actions) == 1
+    assert len(client.calls) == 1
+
+
+def test_authorized_binding_rejects_binding_failure_before_approval(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
+    registry, client, _ = _registry(
+        tmp_path, approval_broker=broker, approval_required=True
+    )
+
+    monkeypatch.setattr(
+        MCPWorkflowCapabilityBindingControlPlane,
+        "load",
+        lambda _self, _binding_id: (_ for _ in ()).throw(
+            MCPWorkflowCapabilityBindingError("binding unavailable")
+        ),
+    )
+    binding_failure = registry.invoke_tool(
+        "send_mail", {"provenance_envelope": _envelope()}
+    )
+
+    assert binding_failure.success is False
+    assert broker.actions == []
+    assert client.calls == []
+
+
+def test_authorized_binding_rejects_surface_drift_before_approval(
+    tmp_path: Path,
+) -> None:
+    broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
+    registry, client, _ = _registry(
+        tmp_path, approval_broker=broker, approval_required=True
+    )
+    client._tools = ()
+
+    result = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert result.success is False
+    assert broker.actions == []
+    assert client.calls == []
 
 
 def test_authorized_binding_prevents_dispatch_when_intent_audit_write_fails(

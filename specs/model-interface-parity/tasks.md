@@ -1,6 +1,6 @@
 # Model Interface Tool-Parity Tasks
 
-Status: T1.1–T1.6 deterministic matrix and T2.1 harness delivered; T2.2 next
+Status: T1.1–T1.6 deterministic matrix and T2.1–T2.2 delivered; T2.3 next
 
 ## Scope Rule
 
@@ -390,7 +390,7 @@ client whose `call_tool` recorder is the counted dispatch surrogate.
   transport, dependency, or generic fixture is included. Focused runner tests
   passed (26); full pytest passed (`1452 passed, 1 skipped, 6 deselected`).
 
-- [ ] T2.2 [tests/implementation] Add RED then GREEN deny and `approve_once`
+- [x] T2.2 [tests/implementation] Add RED then GREEN deny and `approve_once`
       cases for one schema-valid `create_record` invocation.
   - Acceptance: an absent broker fails at public runner preflight with
     `RunDarWorkflowError`, zero broker/fake-client calls, and no ledger action.
@@ -412,6 +412,21 @@ client whose `call_tool` recorder is the counted dispatch surrogate.
   - Validation: `poetry run pytest tests/test_dar_authoring_runner.py`
     `tests/test_dar_authoring_authorized_tools.py`
     `tests/test_dar_authoring_approvals.py -q`.
+  - Delivered: public runner coverage proves reusable absent-broker preflight,
+    one approved `create_record` dispatch, and deny/cancel/invalid/broken
+    intent-plus-terminal zero-dispatch outcomes. Existing approval-store tests
+    remain the direct replay and changed-digest proof. Authorized-binding tests
+    prove malformed/provenance input, binding failure, surface drift, and budget
+    exhaustion stop before an added broker or fake-client call.
+
+### T2.2 Delivery Review
+
+- Council triad and Ponytail: approved the test-only slice. It reuses the
+  T2.1 harness, fake client, approval broker, ledger/store, and I/O blocker;
+  it adds no runtime policy, transport, resume, or generic test abstraction.
+
+- Validation: focused approval modules passed (54); full pytest passed (`1462
+  passed, 1 skipped, 6 deselected`); Ruff passed.
 
 - [ ] T2.3 [tests/implementation] Add RED then GREEN
       `approve_rest_of_run` coverage using two valid `create_record` calls in

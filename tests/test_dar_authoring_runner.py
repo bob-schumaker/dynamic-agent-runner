@@ -189,6 +189,24 @@ class FakeApprovalBroker:
         return self.decision
 
 
+class BrokenApprovalBroker:
+    def __init__(self) -> None:
+        self.actions: list[object] = []
+
+    def decide(self, *, action: object, approval: object) -> LocalApprovalDecision:
+        self.actions.append(action)
+        raise RuntimeError("terminal is unavailable")
+
+
+class InvalidApprovalBroker:
+    def __init__(self) -> None:
+        self.actions: list[object] = []
+
+    def decide(self, *, action: object, approval: object) -> LocalApprovalDecision:
+        self.actions.append(action)
+        return "invalid"  # type: ignore[return-value]
+
+
 class BodyArtifactVerifier:
     def load(
         self,
@@ -344,7 +362,12 @@ def _runner(
     )
 
 
-def _approval_runner(tmp_path: Path):
+def _approval_runner(
+    tmp_path: Path,
+    *,
+    responses: list[ModelResponse] | None = None,
+    tool_loop: bool = False,
+):
     source = tmp_path / "packages" / "approval-runner"
     shutil.copytree(TEMPLATE_ROOT, source)
     descriptor_path = source / "workflow-descriptor.yaml"
@@ -390,11 +413,18 @@ def _approval_runner(tmp_path: Path):
             },
         }
     )
+
     descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
 
     runtime_path = source / "agent-runtime.yaml"
     runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
     runtime["package_id"] = "approval-runner"
+    if tool_loop:
+        runtime["runtime"]["execution_policy"]["tool_use_completion"] = {
+            "run_again": "required",
+            "stop_on_tool": "disabled",
+            "final_output": "default",
+        }
     runtime["tools"] = [
         {
             "id": tool_id,
@@ -511,7 +541,7 @@ def _approval_runner(tmp_path: Path):
     preparation = WorkflowInvocationPreparationService(
         registrations=registrations, catalog=catalog, store=store
     )
-    model_client = QueuedClient([ModelResponse(content="record ready")])
+    model_client = QueuedClient(responses or [ModelResponse(content="record ready")])
     adapter = OpenAIClientAdapter(
         model_client,
         models=["local-model", "local-model-v1"],
@@ -519,6 +549,7 @@ def _approval_runner(tmp_path: Path):
         model_id_mapping={"local-model": "local-model-v1"},
         execution_profile_adapter_id=profile.adapter_id,
     )
+    ledger = WorkflowActionLedger(store=store, owner="local-os-user-v1:501:ada")
     return (
         WorkflowRunner(
             registrations=registrations,
@@ -529,9 +560,7 @@ def _approval_runner(tmp_path: Path):
             mcp_bindings=mcp_bindings,
             mcp_client=mcp_client,
             mcp_surfaces=surfaces,
-            action_ledger=WorkflowActionLedger(
-                store=store, owner="local-os-user-v1:501:ada"
-            ),
+            action_ledger=ledger,
             approval_store=WorkflowApprovalStore(
                 store=store, owner="local-os-user-v1:501:ada"
             ),
@@ -540,6 +569,59 @@ def _approval_runner(tmp_path: Path):
         mcp_client,
         model_client,
         policy,
+        tmp_path / "state" / "records.json",
+    )
+
+
+def _approval_request(preparation: WorkflowInvocationPreparationService):
+    prepared = preparation.prepare(
+        workflow_id="approval-runner", prompt="Create DAR record.", now=NOW
+    )
+    return RunDarWorkflowRequest.from_mapping(
+        {
+            "format_version": 1,
+            "workflow_id": "approval-runner",
+            "prepared_input_id": prepared.prepared_input_id,
+        }
+    )
+
+
+def _create_record_response() -> ModelResponse:
+    envelope = {
+        "format_version": 1,
+        "arguments": {"title": "Create", "body": "DAR"},
+        "sources": {
+            "title": {
+                "kind": "prompt_span",
+                "start_byte": 0,
+                "end_byte": 6,
+                "normalization": "identity",
+            },
+            "body": {
+                "kind": "prompt_span",
+                "start_byte": 7,
+                "end_byte": 10,
+                "normalization": "identity",
+            },
+        },
+    }
+    return ModelResponse(
+        content=None,
+        tool_calls=(
+            ModelToolCall(
+                id="call_create",
+                name="create_record",
+                arguments=json.dumps(
+                    {
+                        "provenance_envelope": json.dumps(
+                            envelope, sort_keys=True, separators=(",", ":")
+                        )
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            ),
+        ),
     )
 
 
@@ -1231,7 +1313,9 @@ def test_runner_materializes_wrapper_approval_binding_without_external_io(
         workflow_runner_module, "create_host_tool_registry", capture_bindings
     )
     broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
-    runner, preparation, mcp_client, model_client, policy = _approval_runner(tmp_path)
+    runner, preparation, mcp_client, model_client, policy, _ = _approval_runner(
+        tmp_path
+    )
     prepared = preparation.prepare(
         workflow_id="approval-runner", prompt="Create DAR record.", now=NOW
     )
@@ -1265,6 +1349,83 @@ def test_runner_materializes_wrapper_approval_binding_without_external_io(
     assert broker.actions == []
     assert mcp_client.calls == []
     assert len(model_client.responses.calls) == 1
+
+
+def test_runner_requires_an_approval_broker_before_consuming_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    runner, preparation, mcp_client, model_client, _, records_path = _approval_runner(
+        tmp_path
+    )
+
+    request = _approval_request(preparation)
+    with pytest.raises(RunDarWorkflowError, match="local approval is unavailable"):
+        runner.run(request, now=NOW)
+
+    assert mcp_client.calls == []
+    assert model_client.responses.calls == []
+    assert "workflow_action_intent" not in records_path.read_text(encoding="utf-8")
+    assert (
+        runner.run(
+            request,
+            now=NOW,
+            approval_broker=FakeApprovalBroker(LocalApprovalDecision.APPROVED),
+        ).status
+        == "completed"
+    )
+
+
+def test_runner_dispatches_create_record_once_after_approval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
+    runner, preparation, mcp_client, model_client, _, records_path = _approval_runner(
+        tmp_path,
+        responses=[_create_record_response(), ModelResponse(content="record ready")],
+        tool_loop=True,
+    )
+
+    result = runner.run(_approval_request(preparation), now=NOW, approval_broker=broker)
+
+    assert result.status == "completed"
+    assert len(model_client.responses.calls) == 2
+    assert len(broker.actions) == 1
+    assert mcp_client.calls == [("create_record", {"title": "Create", "body": "DAR"})]
+    assert '"status":"completed"' in records_path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("broker", "terminal_status"),
+    [
+        (FakeApprovalBroker(LocalApprovalDecision.DENIED), "denied"),
+        (FakeApprovalBroker(LocalApprovalDecision.CANCELLED), "cancelled"),
+        (InvalidApprovalBroker(), "failed"),
+        (BrokenApprovalBroker(), "failed"),
+    ],
+)
+def test_runner_records_terminal_receipt_without_dispatch_when_approval_fails(
+    tmp_path: Path,
+    broker: LocalActionApprovalBroker,
+    terminal_status: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    runner, preparation, mcp_client, model_client, _, records_path = _approval_runner(
+        tmp_path, responses=[_create_record_response()], tool_loop=True
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="DAR workflow execution failed"):
+        runner.run(_approval_request(preparation), now=NOW, approval_broker=broker)
+
+    assert len(model_client.responses.calls) == 1
+    assert len(getattr(broker, "actions", ())) == 1
+    assert mcp_client.calls == []
+    records = records_path.read_text(encoding="utf-8")
+    assert '"kind":"workflow_action_intent"' in records
+    assert '"kind":"workflow_action_terminal"' in records
+    assert f'"status":"{terminal_status}"' in records
 
 
 def test_runner_keeps_mixed_read_write_delete_policies_separate(
