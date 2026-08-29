@@ -1,6 +1,6 @@
 # Model Interface Tool-Parity Tasks
 
-Status: T1.1–T1.6 deterministic matrix and T2.1–T2.2 delivered; T2.3 next
+Status: T1.1–T1.6 deterministic matrix and T2.1–T2.3 delivered; T2.4 next
 
 ## Scope Rule
 
@@ -428,7 +428,7 @@ client whose `call_tool` recorder is the counted dispatch surrogate.
 - Validation: focused approval modules passed (54); full pytest passed (`1462
   passed, 1 skipped, 6 deselected`); Ruff passed.
 
-- [ ] T2.3 [tests/implementation] Add RED then GREEN
+- [x] T2.3 [tests/implementation] Add RED then GREEN
       `approve_rest_of_run` coverage using two valid `create_record` calls in
       one bounded run.
   - Acceptance: an initial `approved_for_rest_of_run` decision allows a second
@@ -448,6 +448,26 @@ client whose `call_tool` recorder is the counted dispatch surrogate.
     claim.
   - Non-goal: do not implement approval for all future workflow runs.
   - Validation: focused wrapper approval test module.
+
+  - Delivered: the public wrapper sequence grants `create_record` once for its
+    active run, dispatches a second valid call with different arguments without
+    a second broker decision, then independently prompts and denies the
+    `delete_record` decoy. A fresh run prompts again for `create_record`.
+    Focused direct checks prove run grants cannot bypass total-budget, current
+    surface, or binding revalidation.
+
+### T2.3 Delivery Review
+
+- Council triad: approved after the public test identified the approval
+  sequence as `create_record`, `delete_record`, then fresh-run `create_record`,
+  and direct tests covered post-grant binding, surface, and budget failures.
+
+- Ponytail: approved the smallest change: existing wrapper harness, fake
+  client, broker, and in-memory grant store cover the behavior without runtime
+  code, dependencies, or a new test abstraction.
+
+- Validation: focused wrapper approval modules passed (54); full pytest passed
+  (`1466 passed, 1 skipped, 6 deselected`); Ruff passed.
 
 - [ ] T2.4 [validation/docs] Record the deterministic approval receipt and
       update the parity spec status without changing T1's closed result.

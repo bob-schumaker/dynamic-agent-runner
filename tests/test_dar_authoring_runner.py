@@ -207,6 +207,16 @@ class InvalidApprovalBroker:
         return "invalid"  # type: ignore[return-value]
 
 
+class SequencedApprovalBroker:
+    def __init__(self, *decisions: LocalApprovalDecision) -> None:
+        self._decisions = iter(decisions)
+        self.actions: list[object] = []
+
+    def decide(self, *, action: object, approval: object) -> LocalApprovalDecision:
+        self.actions.append(action)
+        return next(self._decisions)
+
+
 class BodyArtifactVerifier:
     def load(
         self,
@@ -367,6 +377,8 @@ def _approval_runner(
     *,
     responses: list[ModelResponse] | None = None,
     tool_loop: bool = False,
+    max_total_tool_calls: int = 2,
+    max_steps: int = 2,
 ):
     source = tmp_path / "packages" / "approval-runner"
     shutil.copytree(TEMPLATE_ROOT, source)
@@ -392,7 +404,7 @@ def _approval_runner(
     descriptor["task_invocation"].update(
         {
             "allowed_tool_ids": ["create_record", "delete_record"],
-            "max_total_tool_calls": 2,
+            "max_total_tool_calls": max_total_tool_calls,
             "argument_sources": {
                 "create_record": {
                     "title": {
@@ -413,12 +425,14 @@ def _approval_runner(
             },
         }
     )
+    descriptor["limits"]["max_steps"] = max_steps
 
     descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
 
     runtime_path = source / "agent-runtime.yaml"
     runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
     runtime["package_id"] = "approval-runner"
+    runtime["runtime"]["execution_policy"]["max_steps"] = max_steps
     if tool_loop:
         runtime["runtime"]["execution_policy"]["tool_use_completion"] = {
             "run_again": "required",
@@ -573,9 +587,12 @@ def _approval_runner(
     )
 
 
-def _approval_request(preparation: WorkflowInvocationPreparationService):
+def _approval_request(
+    preparation: WorkflowInvocationPreparationService,
+    prompt: str = "Create DAR record.",
+):
     prepared = preparation.prepare(
-        workflow_id="approval-runner", prompt="Create DAR record.", now=NOW
+        workflow_id="approval-runner", prompt=prompt, now=NOW
     )
     return RunDarWorkflowRequest.from_mapping(
         {
@@ -586,21 +603,27 @@ def _approval_request(preparation: WorkflowInvocationPreparationService):
     )
 
 
-def _create_record_response() -> ModelResponse:
+def _create_record_response(
+    *,
+    title: str = "Create",
+    body: str = "DAR",
+    title_span: tuple[int, int] = (0, 6),
+    body_span: tuple[int, int] = (7, 10),
+) -> ModelResponse:
     envelope = {
         "format_version": 1,
-        "arguments": {"title": "Create", "body": "DAR"},
+        "arguments": {"title": title, "body": body},
         "sources": {
             "title": {
                 "kind": "prompt_span",
-                "start_byte": 0,
-                "end_byte": 6,
+                "start_byte": title_span[0],
+                "end_byte": title_span[1],
                 "normalization": "identity",
             },
             "body": {
                 "kind": "prompt_span",
-                "start_byte": 7,
-                "end_byte": 10,
+                "start_byte": body_span[0],
+                "end_byte": body_span[1],
                 "normalization": "identity",
             },
         },
@@ -611,6 +634,39 @@ def _create_record_response() -> ModelResponse:
             ModelToolCall(
                 id="call_create",
                 name="create_record",
+                arguments=json.dumps(
+                    {
+                        "provenance_envelope": json.dumps(
+                            envelope, sort_keys=True, separators=(",", ":")
+                        )
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            ),
+        ),
+    )
+
+
+def _delete_record_response() -> ModelResponse:
+    envelope = {
+        "format_version": 1,
+        "arguments": {"record_id": "Delete"},
+        "sources": {
+            "record_id": {
+                "kind": "prompt_span",
+                "start_byte": 22,
+                "end_byte": 28,
+                "normalization": "identity",
+            }
+        },
+    }
+    return ModelResponse(
+        content=None,
+        tool_calls=(
+            ModelToolCall(
+                id="call_delete",
+                name="delete_record",
                 arguments=json.dumps(
                     {
                         "provenance_envelope": json.dumps(
@@ -1394,6 +1450,56 @@ def test_runner_dispatches_create_record_once_after_approval(
     assert len(broker.actions) == 1
     assert mcp_client.calls == [("create_record", {"title": "Create", "body": "DAR"})]
     assert '"status":"completed"' in records_path.read_text(encoding="utf-8")
+
+
+def test_runner_grants_rest_of_run_only_to_the_same_declared_tool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    broker = SequencedApprovalBroker(
+        LocalApprovalDecision.APPROVED_FOR_REST_OF_RUN,
+        LocalApprovalDecision.DENIED,
+        LocalApprovalDecision.DENIED,
+    )
+    runner, preparation, mcp_client, _, _, records_path = _approval_runner(
+        tmp_path,
+        responses=[
+            _create_record_response(),
+            _create_record_response(
+                title="Again", body="More", title_span=(11, 16), body_span=(17, 21)
+            ),
+            _delete_record_response(),
+            _create_record_response(),
+        ],
+        tool_loop=True,
+        max_total_tool_calls=3,
+        max_steps=4,
+    )
+
+    with pytest.raises(RunDarWorkflowError, match="DAR workflow execution failed"):
+        runner.run(
+            _approval_request(preparation, "Create DAR Again More Delete"),
+            now=NOW,
+            approval_broker=broker,
+        )
+
+    assert len(broker.actions) == 2
+    assert [action.remote_tool_name for action in broker.actions] == [
+        "create_record",
+        "delete_record",
+    ]
+    assert mcp_client.calls == [
+        ("create_record", {"title": "Create", "body": "DAR"}),
+        ("create_record", {"title": "Again", "body": "More"}),
+    ]
+    assert '"status":"denied"' in records_path.read_text(encoding="utf-8")
+
+    with pytest.raises(RunDarWorkflowError, match="DAR workflow execution failed"):
+        runner.run(_approval_request(preparation), now=NOW, approval_broker=broker)
+
+    assert len(broker.actions) == 3
+    assert broker.actions[-1].remote_tool_name == "create_record"
+    assert len(mcp_client.calls) == 2
 
 
 @pytest.mark.parametrize(

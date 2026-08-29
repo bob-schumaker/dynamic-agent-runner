@@ -562,3 +562,70 @@ def test_authorized_binding_reuses_only_one_tool_run_grant(tmp_path: Path) -> No
     assert second.success is True
     assert len(broker.actions) == 1
     assert len(client.calls) == 2
+
+
+def test_run_grant_does_not_bypass_an_exhausted_budget(tmp_path: Path) -> None:
+    broker = SequencedApprovalBroker(LocalApprovalDecision.APPROVED_FOR_REST_OF_RUN)
+    registry, client, _ = _registry(
+        tmp_path,
+        approval_broker=broker,
+        approval_required=True,
+        max_total_tool_calls=1,
+        approval_grants=WorkflowRunApprovalGrants(),
+    )
+
+    first = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+    second = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert first.success is True
+    assert second.success is False
+    assert len(broker.actions) == 1
+    assert len(client.calls) == 1
+
+
+def test_run_grant_does_not_bypass_surface_revalidation(tmp_path: Path) -> None:
+    broker = SequencedApprovalBroker(LocalApprovalDecision.APPROVED_FOR_REST_OF_RUN)
+    registry, client, _ = _registry(
+        tmp_path,
+        approval_broker=broker,
+        approval_required=True,
+        max_total_tool_calls=2,
+        approval_grants=WorkflowRunApprovalGrants(),
+    )
+
+    first = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+    client._tools = ()
+    second = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert first.success is True
+    assert second.success is False
+    assert len(broker.actions) == 1
+    assert len(client.calls) == 1
+
+
+def test_run_grant_does_not_bypass_binding_revalidation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    broker = SequencedApprovalBroker(LocalApprovalDecision.APPROVED_FOR_REST_OF_RUN)
+    registry, client, _ = _registry(
+        tmp_path,
+        approval_broker=broker,
+        approval_required=True,
+        max_total_tool_calls=2,
+        approval_grants=WorkflowRunApprovalGrants(),
+    )
+
+    first = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+    monkeypatch.setattr(
+        MCPWorkflowCapabilityBindingControlPlane,
+        "load",
+        lambda _self, _binding_id: (_ for _ in ()).throw(
+            MCPWorkflowCapabilityBindingError("binding unavailable")
+        ),
+    )
+    second = registry.invoke_tool("send_mail", {"provenance_envelope": _envelope()})
+
+    assert first.success is True
+    assert second.success is False
+    assert len(broker.actions) == 1
+    assert len(client.calls) == 1
