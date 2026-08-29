@@ -5,7 +5,7 @@
 - Feature slug: `model-interface-parity`
 - Mode: `light`
 - Artifact type: test and acceptance specification
-- Status: implementation in progress; T1.1–T1.3 delivered and T1.4 is next
+- Status: implementation in progress; T1.1–T1.4 delivered and T1.5 is next
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/model-adapter-coverage/spec.md`
