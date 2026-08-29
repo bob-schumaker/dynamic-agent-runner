@@ -3,16 +3,30 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from dynamic_agent_runner import MLXToolCallCandidate, MLXToolCodecResponse
-from dynamic_agent_runner.errors import ModelExecutionError
-from dynamic_agent_runner.executor import _model_tool_result_messages
+from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
+from dynamic_agent_runner.executor import (
+    _model_tool_result_messages,
+    execute_workflow,
+    execute_workflow_async,
+)
 from dynamic_agent_runner.openai_client import OpenAIModelRequest
 from dynamic_agent_runner.registry import ToolResult
+from dynamic_agent_runner.tracing import InMemoryTraceSink
+from parity_support import (
+    install_parity_io_blocker,
+    parity_contract_projection,
+    parity_loop_workflow,
+    parity_no_tool_workflow,
+    parity_record,
+    parity_registry,
+)
 
 
 class FakeMLXBackend:
@@ -54,6 +68,16 @@ class FakeToolCapableMLXBackend(FakeMLXBackend):
         return self.generated
 
 
+class SequencedToolCapableMLXBackend(FakeToolCapableMLXBackend):
+    def __init__(self, generated: list[str]) -> None:
+        super().__init__("")
+        self.generated = list(generated)
+
+    def generate_rendered(self, prompt: str, **kwargs: object) -> str:
+        self.rendered_prompts.append(prompt)
+        return self.generated.pop(0)
+
+
 class FakeMLXToolCodec:
     version = "test-v1"
 
@@ -69,6 +93,407 @@ class FakeMLXToolCodec:
     def decode(self, generated: str) -> MLXToolCodecResponse:
         self.generated.append(generated)
         return self.decoded.pop(0)
+
+
+class _RecordingMLXAdapter:
+    def __init__(self, adapter: object, observed: list[object]) -> None:
+        self._adapter = adapter
+        self._observed = observed
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        return self._adapter.models
+
+    def create_response(self, request: object) -> object:
+        response = self._adapter.create_response(request)
+        self._observed.extend(response.tool_calls)
+        return response
+
+
+class _AsyncRecordingMLXAdapter:
+    def __init__(self, adapter: object, observed: list[object]) -> None:
+        self._adapter = adapter
+        self._observed = observed
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        return self._adapter.models
+
+    async def create_response(self, request: object) -> object:
+        response = await self._adapter.create_response(request)
+        self._observed.extend(response.tool_calls)
+        return response
+
+
+def _mlx_parity_responses(scenario: str) -> list[MLXToolCodecResponse]:
+    call = MLXToolCallCandidate
+    text = MLXToolCodecResponse
+    scenarios = {
+        "S1": [
+            text(
+                tool_call=call("create_record", '{"title":"DAR","body":"controlled"}')
+            ),
+            text(content="created"),
+        ],
+        "S2": [
+            text(
+                tool_call=call(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase"}',
+                )
+            ),
+            text(content="transformed"),
+        ],
+        "S2-invalid": [
+            text(tool_call=call("transform_record", '{"record_id":"record-seed"}'))
+        ],
+        "S2-wrong-type": [
+            text(
+                tool_call=call(
+                    "transform_record", '{"record_id":1,"operation":"uppercase"}'
+                )
+            )
+        ],
+        "S2-invalid-enum": [
+            text(
+                tool_call=call(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"lowercase"}',
+                )
+            )
+        ],
+        "S2-unknown": [
+            text(
+                tool_call=call(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase","unknown":true}',
+                )
+            )
+        ],
+        "S2-malformed": [text(tool_call=call("transform_record", "not-json"))],
+        "S3": [
+            text(tool_call=call("lookup_record", '{"key":"seed"}')),
+            text(
+                tool_call=call(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase"}',
+                )
+            ),
+            text(content="SEED"),
+        ],
+        "S4": [text(tool_call=call("fail_controlled", '{"code":"planned"}'))],
+        "S5": [text(content="no tool")],
+        "S6": [text(tool_call=call("lookup_record", "not-json"))],
+    }
+    return scenarios[scenario]
+
+
+def _run_mlx_parity(
+    scenario: str,
+    *,
+    asynchronous: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from dynamic_agent_runner import (
+        MLXLocalModelConfig,
+        create_mlx_local_adapter,
+        create_mlx_local_async_adapter,
+    )
+    import dynamic_agent_runner.mlx_models as mlx_models
+
+    model_path = tmp_path / f"inert-mlx-layout-{asynchronous}"
+    write_converted_mlx_model(model_path)
+    forbidden_calls: list[object] = []
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        forbidden_calls.append((args, kwargs))
+        raise AssertionError("parity tests must not load or download MLX")
+
+    real_import = builtins.__import__
+
+    def forbid_mlx_import(
+        name: str,
+        globals_: object | None = None,
+        locals_: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "mlx_lm":
+            raise AssertionError("parity tests must not import mlx_lm")
+        return real_import(name, globals_, locals_, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", forbid_mlx_import)
+    monkeypatch.setattr(mlx_models, "_load_default_mlx_lm_backend", forbidden)
+    responses = _mlx_parity_responses(scenario)
+    backend = SequencedToolCapableMLXBackend(
+        [f"native-{index}" for index in range(len(responses))]
+    )
+    codec = FakeMLXToolCodec(*responses)
+    factory = (
+        create_mlx_local_async_adapter if asynchronous else create_mlx_local_adapter
+    )
+    adapter = factory(
+        MLXLocalModelConfig(model_aliases=("gpt-test",), model_path=model_path),
+        backend=backend,
+        dependency_loader=forbidden,
+        download_file=forbidden,
+        download_snapshot=forbidden,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+    observed: list[object] = []
+    recorder = (
+        _AsyncRecordingMLXAdapter(adapter, observed)
+        if asynchronous
+        else _RecordingMLXAdapter(adapter, observed)
+    )
+    registry, invocations, results = parity_registry()
+    sink = InMemoryTraceSink()
+    error = None
+    result = None
+    try:
+        workflow = (
+            parity_no_tool_workflow() if scenario == "S5" else parity_loop_workflow()
+        )
+        if asynchronous:
+            result = asyncio.run(
+                execute_workflow_async(
+                    workflow,
+                    prompt="controlled parity",
+                    tool_registry=registry,
+                    model_adapter=recorder,
+                    trace_sink=sink,
+                )
+            )
+        else:
+            result = execute_workflow(
+                workflow,
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=recorder,
+                trace_sink=sink,
+            )
+    except Exception as caught:
+        error = caught
+    assert forbidden_calls == []
+    assert backend.requests == []
+    return (
+        result,
+        parity_record(
+            interface="mlx_injected_codec_backend",
+            scenario=scenario,
+            asynchronous=asynchronous,
+            normalized_calls=tuple((call.name, call.arguments) for call in observed),
+            invocations=invocations,
+            results=results,
+            result=result,
+            error=error,
+            sink=sink,
+        ),
+        error,
+        codec,
+        backend,
+    )
+
+
+def _assert_mlx_parity_scenario(
+    *,
+    scenario: str,
+    invoked: tuple[str, ...],
+    fails: bool,
+    result: object | None,
+    record: object,
+    error: Exception | None,
+    codec: FakeMLXToolCodec,
+    backend: SequencedToolCapableMLXBackend,
+) -> None:
+    assert tuple(name for name, _ in record.invocations) == invoked
+    assert (error is not None) is fails
+    assert (result is None) is fails
+    if fails:
+        assert isinstance(error, WorkflowExecutionError | ModelExecutionError)
+        assert record.error_class in {"WorkflowExecutionError", "ModelExecutionError"}
+    if scenario in {
+        "S2-invalid",
+        "S2-wrong-type",
+        "S2-invalid-enum",
+        "S2-unknown",
+    }:
+        assert isinstance(error, WorkflowExecutionError)
+        assert record.error_class == "WorkflowExecutionError"
+        assert record.trace_event_types.count("model_tool_loop_tool_call") == 1
+    if scenario == "S2-malformed":
+        assert isinstance(error, ModelExecutionError)
+        assert record.error_class == "ModelExecutionError"
+        assert "model_tool_loop_tool_call" not in record.trace_event_types
+    if scenario == "S1":
+        assert result is not None
+        assert result.final_result == "created"
+        assert record.normalized_calls == (
+            ("create_record", '{"body":"controlled","title":"DAR"}'),
+        )
+    if scenario == "S3":
+        assert len(codec.rendered_requests) == len(backend.rendered_prompts) == 3
+        assert "record-seed" in str(codec.rendered_requests[1])
+    if scenario == "S4":
+        assert len(codec.rendered_requests) == len(backend.rendered_prompts) == 1
+        assert record.stop_reasons == ("tool_failure",)
+        assert isinstance(error, WorkflowExecutionError)
+        assert "planned controlled failure" in str(error)
+        assert record.trace_event_types.count("model_tool_loop_tool_call") == 1
+    if scenario == "S6":
+        assert len(codec.rendered_requests) == len(backend.rendered_prompts) == 1
+        assert "tool_started" not in record.trace_event_types
+        assert "model_tool_loop_tool_call" not in record.trace_event_types
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    ("scenario", "invoked", "fails"),
+    [
+        ("S1", ("create_record",), False),
+        ("S2", ("transform_record",), False),
+        ("S2-invalid", (), True),
+        ("S2-wrong-type", (), True),
+        ("S2-invalid-enum", (), True),
+        ("S2-unknown", (), True),
+        ("S2-malformed", (), True),
+        ("S3", ("lookup_record", "transform_record"), False),
+        ("S4", ("fail_controlled",), True),
+        ("S5", (), False),
+        ("S6", (), True),
+    ],
+)
+def test_model_interface_parity_mlx_injected_pair_native_scenarios(
+    scenario: str,
+    invoked: tuple[str, ...],
+    fails: bool,
+    asynchronous: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    result, record, error, codec, backend = _run_mlx_parity(
+        scenario,
+        asynchronous=asynchronous,
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+    )
+    _assert_mlx_parity_scenario(
+        scenario=scenario,
+        invoked=invoked,
+        fails=fails,
+        result=result,
+        record=record,
+        error=error,
+        codec=codec,
+        backend=backend,
+    )
+    if not asynchronous:
+        _, async_record, _, _, _ = _run_mlx_parity(
+            scenario,
+            asynchronous=True,
+            tmp_path=tmp_path,
+            monkeypatch=monkeypatch,
+        )
+        assert parity_contract_projection(record) == parity_contract_projection(
+            async_record
+        )
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_stock_mlx_rejects_tools_before_dispatch(
+    asynchronous: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner import (
+        MLXLocalModelConfig,
+        create_mlx_local_adapter,
+        create_mlx_local_async_adapter,
+    )
+    import dynamic_agent_runner.mlx_models as mlx_models
+
+    install_parity_io_blocker(monkeypatch)
+    forbidden_calls: list[object] = []
+    generation_calls: list[object] = []
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        forbidden_calls.append((args, kwargs))
+        raise AssertionError("stock MLX parity must not load or download")
+
+    def forbidden_generate(*args: object, **kwargs: object) -> object:
+        generation_calls.append((args, kwargs))
+        raise AssertionError("stock MLX parity must not generate")
+
+    real_import = builtins.__import__
+
+    def forbid_mlx_import(
+        name: str,
+        globals_: object | None = None,
+        locals_: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "mlx_lm":
+            raise AssertionError("stock MLX tool rejection must not import mlx_lm")
+        return real_import(name, globals_, locals_, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", forbid_mlx_import)
+    monkeypatch.setattr(mlx_models, "_load_default_mlx_lm_backend", forbidden)
+    monkeypatch.setattr(mlx_models._MLXLMBackend, "generate", forbidden_generate)
+    stock_backend = mlx_models._MLXLMBackend(model=object(), tokenizer=object())
+    codec = FakeMLXToolCodec(MLXToolCodecResponse(content="must not decode"))
+    factory = (
+        create_mlx_local_async_adapter if asynchronous else create_mlx_local_adapter
+    )
+    adapter = factory(
+        MLXLocalModelConfig(
+            model_aliases=("gpt-test",),
+            model_path=tmp_path / "missing-stock-layout",
+        ),
+        backend=stock_backend,
+        dependency_loader=forbidden,
+        download_file=forbidden,
+        download_snapshot=forbidden,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+    registry, invocations, _ = parity_registry()
+    sink = InMemoryTraceSink()
+
+    assert adapter.capabilities["tool_calling"] is False
+    with pytest.raises(ModelExecutionError, match="does not support tool"):
+        if asynchronous:
+            asyncio.run(
+                execute_workflow_async(
+                    parity_loop_workflow(),
+                    prompt="controlled parity",
+                    tool_registry=registry,
+                    model_adapter=adapter,
+                    trace_sink=sink,
+                )
+            )
+        else:
+            execute_workflow(
+                parity_loop_workflow(),
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=adapter,
+                trace_sink=sink,
+            )
+
+    assert codec.rendered_requests == []
+    assert codec.generated == []
+    assert generation_calls == []
+    assert forbidden_calls == []
+    assert invocations == []
+    assert not [
+        event
+        for event in sink.events
+        if event.event_type in {"tool_started", "model_tool_loop_tool_call"}
+    ]
 
 
 def make_request(
