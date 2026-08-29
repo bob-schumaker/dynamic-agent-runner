@@ -1,6 +1,6 @@
 # Model Interface Tool-Parity Tasks
 
-Status: T1.1 is delivered; T1.2 is next
+Status: T1.1–T1.2 delivered; T1.3 is next
 
 ## Scope Rule
 
@@ -92,12 +92,23 @@ timestamps, and token usage remain diagnostic only.
     before handlers run. This production repair is limited to the fixture's
     existing strict schemas and is covered by the focused executor/registry run.
 
-- [ ] T1.2 [tests] Add provider-seam contract fixtures for OpenAI and LiteLLM,
+- [x] T1.2 [tests] Add provider-seam contract fixtures for OpenAI and LiteLLM,
       sync and async, using only their existing scripted clients.
   - Spec: Interface Matrix; S1-S6; FR-1 and FR-3
   - Files/components: `tests/test_openai_client.py`,
-    `tests/test_litellm_provider_adapter.py`; share only the T1.1 fixture
-    helpers when their assertions are identical.
+    `tests/test_litellm_provider_adapter.py`; extract T1.1's immutable record,
+    controlled registry/workflow builders, projection, and explicit I/O blocker
+    into one importable test-only support module, then update T1.1 to use it.
+    Keep scenario-specific assertions in their named test modules. This does
+    not authorize runtime code, a global `conftest.py` hook, or a test framework.
+    Make the existing scripted OpenAI fake sequence-capable for S3 continuation;
+    script LiteLLM through its injected sync/async completion callables.
+    Each provider cell must capture its adapter's returned normalized
+    `ModelResponse` values at the existing `response_validator` boundary (or a
+    test-local equivalent delegating recorder) and derive `ParityRecord`
+    normalized calls from that capture. Do not populate a record from an
+    expected `ModelToolCall` sequence or substitute direct `ModelResponse`
+    values for a provider-native response.
   - Acceptance: every OpenAI and LiteLLM sync/async cell executes S1-S6 from
     the Authoritative Contract Cells table, installs the T1.1 blocker, and
     emits the shared `ParityRecord`. Valid calls use the public executor and
@@ -106,6 +117,12 @@ timestamps, and token usage remain diagnostic only.
   - Expected RED: each scripted native response cannot yet satisfy the named
     cell's common-record equality assertion.
   - Validation: focused OpenAI and LiteLLM adapter tests, then the T1.1 test.
+  - Delivered: `tests/parity_support.py` is the single test-only reusable seam;
+    native scripted Responses and Chat Completions payloads enter their actual
+    adapter normalizers, are captured by `response_validator`, and run through
+    the public executor. OpenAI and LiteLLM cover S1–S6 in sync and async,
+    including the complete invalid S2 matrix, continuation, failure, and
+    no-coordinator boundaries.
 
 - [ ] T1.3 [tests] Add recording-transport and injected-backend coverage for
       the OpenAI-compatible local endpoint and direct llama.cpp adapters,
@@ -193,3 +210,26 @@ timestamps, and token usage remain diagnostic only.
 - Ponytail: accepted the strict-schema repair and the test-only helper as the
   smallest delivery shape. No generic JSON-Schema engine, runtime parity
   framework, provider process, or new dependency was added.
+
+## T1.2 Readiness Review
+
+- Council triad: required a minimal, test-only support extraction because
+  pytest fixtures and helpers private to `test_executor.py` cannot safely serve
+  the named OpenAI and LiteLLM modules. The extraction is limited to the shared
+  controlled-tool fixtures, record projection, and I/O blocker; provider-native
+  scripts and assertions remain local to their adapter tests.
+- Ponytail: accepts the support module as the smallest reusable seam. It must
+  not become runtime code, a generic parity framework, or a global test hook.
+- Council parsing gate: require a test-local adapter-response recorder so each
+  provider record proves native scripted payloads became the observed normalized
+  calls before executor/coordinator entry.
+
+## T1.2 Delivery Review
+
+- Council triad: approved the bounded support extraction and native-provider
+  matrix after requiring full S2 invalid coverage, sync/async record equality,
+  S3 continuation evidence, strict S4/S6 failure boundaries, and package-owned
+  error assertions. No runtime code, provider process, approval interaction, or
+  external I/O was introduced.
+- Ponytail: accepted the one test-only support module and local scenario
+  assertions; no generic parity framework or production abstraction was added.
