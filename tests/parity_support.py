@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import socket
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 import dynamic_agent_runner.hugging_face_support as hugging_face_support
@@ -218,12 +219,191 @@ def parity_contract_projection(record: ParityRecord) -> tuple[object, ...]:
     )
 
 
+def parity_exposed_schemas(
+    tools: Sequence[Mapping[str, object]],
+) -> tuple[tuple[str, Mapping[str, object]], ...]:
+    """Normalize the tool definitions observed at one adapter-facing seam."""
+
+    schemas: list[tuple[str, Mapping[str, object]]] = []
+    for tool in tools:
+        function = tool.get("function")
+        definition = function if isinstance(function, Mapping) else tool
+        name = definition.get("name")
+        parameters = definition.get("parameters")
+        assert isinstance(name, str)
+        assert isinstance(parameters, Mapping)
+        schemas.append((name, parameters))
+    return tuple(schemas)
+
+
+def assert_parity_semantic_projection(record: ParityRecord) -> None:
+    """Require one native record to match its cross-interface scenario contract."""
+
+    actual = parity_semantic_projection(record)
+    expected = _parity_semantic_baseline(record.scenario)
+    assert actual == expected, (record.interface, record.scenario, actual, expected)
+
+
+def parity_semantic_projection(record: ParityRecord) -> tuple[object, ...]:
+    """Project one record without provider formatting or trace mechanics."""
+
+    scenario = _parity_scenario_name(record.scenario)
+    error_category = _parity_error_category(record)
+    normalized_calls = (
+        ()
+        if error_category == "normalization_error"
+        else _canonical_parity_value(record.normalized_calls)
+    )
+    return (
+        scenario,
+        _canonical_parity_value(record.exposed_schemas),
+        normalized_calls,
+        _canonical_parity_value(record.invocations),
+        _canonical_parity_value(record.invocation_results),
+        record.completion_class,
+        error_category,
+    )
+
+
+def _parity_semantic_baseline(scenario: str) -> tuple[object, ...]:
+    scenario = _parity_scenario_name(scenario)
+    schemas = tuple(
+        (str(definition["id"]), definition["input_schema"])
+        for definition in parity_tool_definitions()
+    )
+    calls: tuple[tuple[str, object], ...] = ()
+    invocations: tuple[tuple[str, object], ...] = ()
+    results: tuple[tuple[str, object], ...] = ()
+    completion = "completed"
+    error_category = "none"
+    if scenario == "S1":
+        calls = (("create_record", {"title": "DAR", "body": "controlled"}),)
+        invocations = calls
+        results = (("create_record", {"record_id": "record-created"}),)
+    elif scenario == "S2":
+        calls = (
+            (
+                "transform_record",
+                {"record_id": "record-seed", "operation": "uppercase"},
+            ),
+        )
+        invocations = calls
+        results = (("transform_record", {"record_id": "record-seed", "body": "SEED"}),)
+    elif scenario in {"S2-invalid", "S2-wrong-type", "S2-invalid-enum", "S2-unknown"}:
+        calls = _parity_invalid_calls(scenario)
+        completion = "error"
+        error_category = "validation_error"
+    elif scenario in {"S2-malformed", "S6"}:
+        completion = "error"
+        error_category = "normalization_error"
+    elif scenario == "S3":
+        calls = (
+            ("lookup_record", {"key": "seed"}),
+            (
+                "transform_record",
+                {"record_id": "record-seed", "operation": "uppercase"},
+            ),
+        )
+        invocations = calls
+        results = (
+            ("lookup_record", {"record_id": "record-seed", "body": "seed"}),
+            ("transform_record", {"record_id": "record-seed", "body": "SEED"}),
+        )
+    elif scenario == "S4":
+        calls = (("fail_controlled", {"code": "planned"}),)
+        invocations = calls
+        results = (
+            (
+                "fail_controlled",
+                ToolResult(
+                    tool_id="fail_controlled",
+                    success=False,
+                    error="planned controlled failure",
+                ),
+            ),
+        )
+        completion = "error"
+        error_category = "tool_failure"
+    elif scenario != "S5":
+        raise AssertionError(f"unknown parity scenario {scenario!r}")
+    return (
+        scenario,
+        _canonical_parity_value(schemas),
+        _canonical_parity_value(calls),
+        _canonical_parity_value(invocations),
+        _canonical_parity_value(results),
+        completion,
+        error_category,
+    )
+
+
+def _parity_scenario_name(scenario: str) -> str:
+    aliases = {"S2-valid": "S2", "S2-missing": "S2-invalid"}
+    return aliases.get(scenario, scenario)
+
+
+def _parity_error_category(record: ParityRecord) -> str:
+    scenario = _parity_scenario_name(record.scenario)
+    if record.error_class is None:
+        assert scenario in {"S1", "S2", "S3", "S5"}
+        return "none"
+    if scenario in {"S2-invalid", "S2-wrong-type", "S2-invalid-enum", "S2-unknown"}:
+        assert record.error_class == "WorkflowExecutionError"
+        return "validation_error"
+    if scenario in {"S2-malformed", "S6"}:
+        assert record.error_class in {"ModelExecutionError", "WorkflowExecutionError"}
+        return "normalization_error"
+    if scenario == "S4":
+        assert record.error_class == "WorkflowExecutionError"
+        return "tool_failure"
+    raise AssertionError(f"unexpected parity error for {scenario!r}")
+
+
+def _parity_invalid_calls(scenario: str) -> tuple[tuple[str, object], ...]:
+    arguments = {
+        "S2-invalid": {"record_id": "record-seed"},
+        "S2-wrong-type": {"record_id": 1, "operation": "uppercase"},
+        "S2-invalid-enum": {"record_id": "record-seed", "operation": "lowercase"},
+        "S2-unknown": {
+            "record_id": "record-seed",
+            "operation": "uppercase",
+            "unknown": True,
+        },
+    }
+    return (("transform_record", arguments[scenario]),)
+
+
+def _canonical_parity_value(value: object) -> object:
+    if isinstance(value, str):
+        try:
+            return _canonical_parity_value(json.loads(value))
+        except json.JSONDecodeError:
+            return value
+    if isinstance(value, ToolResult):
+        return (
+            "ToolResult",
+            value.tool_id,
+            value.success,
+            _canonical_parity_value(value.output),
+            value.error,
+        )
+    if isinstance(value, Mapping):
+        return tuple(
+            (str(key), _canonical_parity_value(item))
+            for key, item in sorted(value.items(), key=lambda item: str(item[0]))
+        )
+    if isinstance(value, tuple | list):
+        return tuple(_canonical_parity_value(item) for item in value)
+    return value
+
+
 def parity_record(
     *,
     interface: str,
     scenario: str,
     asynchronous: bool,
     normalized_calls: tuple[tuple[str, object], ...],
+    exposed_schemas: tuple[tuple[str, Mapping[str, object]], ...],
     invocations: list[tuple[str, Mapping[str, object]]],
     results: list[tuple[str, object]],
     result: object | None,
@@ -238,10 +418,7 @@ def parity_record(
         interface=interface,
         scenario=scenario,
         asynchronous=asynchronous,
-        exposed_schemas=tuple(
-            (str(definition["id"]), definition["input_schema"])
-            for definition in parity_tool_definitions()
-        ),
+        exposed_schemas=exposed_schemas,
         normalized_calls=normalized_calls,
         invocations=tuple(invocations),
         invocation_results=tuple(results),
@@ -255,4 +432,5 @@ def parity_record(
         ),
     )
     assert not any("approval" in event_type for event_type in record.trace_event_types)
+    assert_parity_semantic_projection(record)
     return record

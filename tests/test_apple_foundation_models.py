@@ -46,6 +46,7 @@ from dynamic_agent_runner.tool_invocation import (
 from dynamic_agent_runner.tracing import InMemoryTraceSink, WorkflowTracer
 from parity_support import (
     install_parity_io_blocker,
+    parity_exposed_schemas,
     parity_no_tool_workflow,
     parity_record,
     parity_registry,
@@ -424,6 +425,7 @@ class _RecordingAppleAdapter:
     def __init__(self, delegate: object) -> None:
         self._delegate = delegate
         self.responses: list[object] = []
+        self.requests: list[object] = []
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -438,6 +440,7 @@ class _RecordingAppleAdapter:
         return self._delegate.capabilities  # type: ignore[union-attr]
 
     async def create_response(self, request: object) -> object:
+        self.requests.append(request)
         response = await self._delegate.create_response(request)  # type: ignore[union-attr]
         self.responses.append(response)
         return response
@@ -537,13 +540,18 @@ def _assert_apple_callback_parity_observables(
         ("S2-missing", ((2, '{"record_id":"record-seed"}'),), (), True),
         (
             "S2-wrong-type",
-            ((2, '{"record_id":7,"operation":"uppercase"}'),),
+            ((2, '{"record_id":1,"operation":"uppercase"}'),),
             (),
             True,
         ),
         (
             "S2-unknown",
-            ((2, '{"record_id":"record-seed","operation":"uppercase","extra":true}'),),
+            (
+                (
+                    2,
+                    '{"record_id":"record-seed","operation":"uppercase","unknown":true}',
+                ),
+            ),
             (),
             True,
         ),
@@ -620,6 +628,7 @@ def test_model_interface_parity_apple_callback_native_scenarios(
         scenario=scenario,
         asynchronous=True,
         normalized_calls=tuple(coordinator_receipts),
+        exposed_schemas=parity_exposed_schemas(adapter.requests[0].tools),
         invocations=invocations,
         results=results,
         result=result,

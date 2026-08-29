@@ -34,6 +34,7 @@ from dynamic_agent_runner.models import ToolDefinition
 from dynamic_agent_runner.tracing import InMemoryTraceSink
 from parity_support import (
     install_parity_io_blocker,
+    parity_exposed_schemas,
     parity_loop_workflow,
     parity_no_tool_workflow,
     parity_contract_projection,
@@ -267,6 +268,7 @@ def _run_openai_parity(
             scenario=scenario,
             asynchronous=asynchronous,
             normalized_calls=tuple((call.name, call.arguments) for call in observed),
+            exposed_schemas=parity_exposed_schemas(responses.calls[0]["tools"]),
             invocations=invocations,
             results=results,
             result=result,

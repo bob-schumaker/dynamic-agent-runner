@@ -97,6 +97,8 @@ from dynamic_agent_runner.retry import RetryPolicy
 from dynamic_agent_runner.tracing import InMemoryTraceSink, WorkflowTracer
 from parity_support import (
     ParityRecord,
+    assert_parity_semantic_projection,
+    parity_exposed_schemas,
     parity_contract_projection as shared_parity_contract_projection,
     install_parity_io_blocker,
     parity_loop_workflow as shared_parity_loop_workflow,
@@ -5818,6 +5820,7 @@ def _parity_record(
     scenario: str,
     asynchronous: bool,
     calls: tuple[ModelToolCall, ...],
+    exposed_schemas: tuple[tuple[str, Mapping[str, object]], ...],
     invocations: list[tuple[str, Mapping[str, object]]],
     results: list[tuple[str, object]],
     result: object | None,
@@ -5829,10 +5832,7 @@ def _parity_record(
         interface="executor_fake_adapter",
         scenario=scenario,
         asynchronous=asynchronous,
-        exposed_schemas=tuple(
-            (str(definition["id"]), definition["input_schema"])
-            for definition in _parity_tool_definitions()
-        ),
+        exposed_schemas=exposed_schemas,
         normalized_calls=tuple((call.name, call.arguments) for call in calls),
         invocations=tuple(invocations),
         invocation_results=tuple(results),
@@ -5847,6 +5847,7 @@ def _parity_record(
     )
     assert result is None or not isinstance(result, WorkflowInterruptedResult)
     assert not any("approval" in event_type for event_type in record.trace_event_types)
+    assert_parity_semantic_projection(record)
     return record
 
 
@@ -5899,6 +5900,7 @@ def _run_parity_loop(
                 scenario=scenario,
                 asynchronous=asynchronous,
                 calls=calls,
+                exposed_schemas=parity_exposed_schemas(adapter.requests[0].tools),
                 invocations=invocations,
                 results=results,
                 result=None,
@@ -5914,6 +5916,7 @@ def _run_parity_loop(
             scenario=scenario,
             asynchronous=asynchronous,
             calls=calls,
+            exposed_schemas=parity_exposed_schemas(adapter.requests[0].tools),
             invocations=invocations,
             results=results,
             result=result,
@@ -5975,6 +5978,7 @@ def _run_parity_no_tool(*, asynchronous: bool) -> tuple[object, ParityRecord]:
         scenario="S5",
         asynchronous=asynchronous,
         calls=(),
+        exposed_schemas=parity_exposed_schemas(adapter.requests[0].tools),
         invocations=invocations,
         results=results,
         result=result,
@@ -6023,7 +6027,7 @@ def _parity_contract_projection(record: ParityRecord) -> tuple[object, ...]:
             ],
         ),
         (
-            "S2-invalid",
+            "S2-invalid-enum",
             [
                 ModelResponse(
                     content=None,

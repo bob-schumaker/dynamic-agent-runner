@@ -21,6 +21,7 @@ from dynamic_agent_runner.registry import ToolResult
 from dynamic_agent_runner.tracing import InMemoryTraceSink
 from parity_support import (
     install_parity_io_blocker,
+    parity_exposed_schemas,
     parity_contract_projection,
     parity_loop_workflow,
     parity_no_tool_workflow,
@@ -99,12 +100,14 @@ class _RecordingMLXAdapter:
     def __init__(self, adapter: object, observed: list[object]) -> None:
         self._adapter = adapter
         self._observed = observed
+        self.requests: list[object] = []
 
     @property
     def models(self) -> tuple[str, ...]:
         return self._adapter.models
 
     def create_response(self, request: object) -> object:
+        self.requests.append(request)
         response = self._adapter.create_response(request)
         self._observed.extend(response.tool_calls)
         return response
@@ -114,12 +117,14 @@ class _AsyncRecordingMLXAdapter:
     def __init__(self, adapter: object, observed: list[object]) -> None:
         self._adapter = adapter
         self._observed = observed
+        self.requests: list[object] = []
 
     @property
     def models(self) -> tuple[str, ...]:
         return self._adapter.models
 
     async def create_response(self, request: object) -> object:
+        self.requests.append(request)
         response = await self._adapter.create_response(request)
         self._observed.extend(response.tool_calls)
         return response
@@ -285,6 +290,7 @@ def _run_mlx_parity(
             scenario=scenario,
             asynchronous=asynchronous,
             normalized_calls=tuple((call.name, call.arguments) for call in observed),
+            exposed_schemas=parity_exposed_schemas(recorder.requests[0].tools),
             invocations=invocations,
             results=results,
             result=result,
