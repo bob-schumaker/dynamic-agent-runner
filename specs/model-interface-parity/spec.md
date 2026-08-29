@@ -58,7 +58,8 @@ This specification covers:
 - No claim that different providers or quantizations produce identical text,
   token ids, latency, or tool-call identifiers.
 - No expansion of the current in-process MLX tool capability. That capability
-  is owned by a follow-up to `mlx-local-model-adapter`.
+  is owned by the `mlx-local-model-tool-use` follow-up to
+  `mlx-local-model-adapter`.
 - No inclusion of human approval in the tool-path parity suite.
 - No automated live mutation of any external system.
 

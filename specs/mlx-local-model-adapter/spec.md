@@ -13,6 +13,7 @@
   - `specs/llama-cpp-local-model/spec.md`
   - `specs/model-adapter-coverage/spec.md`
   - `specs/openai-compatible-provider-wrapper/spec.md`
+  - `specs/mlx-local-model-tool-use/spec.md`
 - Related implementation surfaces:
   - `src/dynamic_agent_runner/executor.py`
   - `src/dynamic_agent_runner/context.py`
@@ -364,3 +365,6 @@ Acceptance criteria:
 - What capability metadata should be advertised for structured output, tool
   calling, embeddings, multimodal models, context length, and local memory
   limits after those capabilities are specified.
+- Tool calling is specified by the separate
+  `mlx-local-model-tool-use` follow-up; this completed text-generation feature
+  remains fail-closed for tools until that follow-up is implemented.
