@@ -1,6 +1,7 @@
 # Model Interface Tool-Parity Tasks
 
-Status: T1.1–T1.6 deterministic matrix and T2.1–T2.3 delivered; T2.4 next
+Status: T1.1–T1.6 deterministic matrix and T2 approval-interaction gate
+delivered; local-model competency and live/external acceptance remain separate
 
 ## Scope Rule
 
@@ -469,12 +470,65 @@ client whose `call_tool` recorder is the counted dispatch surrogate.
 - Validation: focused wrapper approval modules passed (54); full pytest passed
   (`1466 passed, 1 skipped, 6 deselected`); Ruff passed.
 
-- [ ] T2.4 [validation/docs] Record the deterministic approval receipt and
+- [x] T2.4 [validation/docs] Record the deterministic approval receipt and
       update the parity spec status without changing T1's closed result.
   - Acceptance: record exact test nodes/results, the injected no-I/O proof,
     approval outcome evidence, and the continuing separation from local-model
     competency and live/external acceptance. Run focused approval tests, full
     pytest, Ruff, formatter, and pre-commit on changed files.
+  - Delivered receipt:
+    - `poetry run pytest -q tests/test_dar_authoring_runner.py`
+      `tests/test_dar_authoring_authorized_tools.py`
+      `tests/test_dar_authoring_approvals.py` passed all 58 collected nodes.
+      The T2 nodes were:
+      `test_runner_materializes_wrapper_approval_binding_without_external_io`,
+      `test_runner_requires_an_approval_broker_before_consuming_input`,
+      `test_runner_dispatches_create_record_once_after_approval`,
+      `test_runner_grants_rest_of_run_only_to_the_same_declared_tool`, and
+      `test_runner_records_terminal_receipt_without_dispatch_when_approval_fails`
+      for `broker0-denied`, `broker1-cancelled`, `broker2-failed`, and
+      `broker3-failed`.
+    - The authorized-binding T2 nodes passed:
+      `test_authorized_binding_rejects_invalid_inputs_before_approval_or_budget`,
+      `test_authorized_binding_rejects_exhausted_budget_before_second_approval`,
+      `test_authorized_binding_rejects_binding_failure_before_approval`,
+      `test_authorized_binding_rejects_surface_drift_before_approval`,
+      `test_authorized_binding_dispatches_only_after_local_approval`,
+      `test_authorized_binding_does_not_dispatch_a_rejected_local_approval`
+      for `denied-denied` and `cancelled-cancelled`,
+      `test_authorized_binding_fails_closed_when_local_approval_fails`,
+      `test_authorized_binding_fails_closed_without_broker_when_policy_requires_approval`,
+      `test_authorized_binding_reuses_only_one_tool_run_grant`,
+      `test_run_grant_does_not_bypass_an_exhausted_budget`,
+      `test_run_grant_does_not_bypass_surface_revalidation`, and
+      `test_run_grant_does_not_bypass_binding_revalidation`.
+    - The approval-store T2 nodes passed:
+      `test_approval_is_granted_and_consumed_once_for_the_exact_action`,
+      `test_approval_rejects_a_changed_action_without_spending_the_request`,
+      `test_approval_expires_without_creating_a_grant`, and
+      `test_denied_approval_cannot_later_be_granted`.
+    - `test_runner_materializes_wrapper_approval_binding_without_external_io`
+      installs the executable blocked-socket/process/download probe; the T2.3
+      run-grant node uses the same probe. `FakeMCPClient.call_tool` is the
+      allowed in-process dispatch surrogate, not a live MCP invocation.
+    - `poetry run pytest -q` passed (`1466 passed, 1 skipped, 6 deselected`).
+      `poetry run ruff check src tests` passed. `poetry run ruff format --check
+      src tests` passed (173 files already formatted). `pre-commit run --files
+      specs/README.md specs/model-interface-parity/spec.md
+      specs/model-interface-parity/tasks.md` passed.
+  - Boundary: this closes only deterministic T1 parity and wrapper-local T2
+    approval interaction. Local-model competency measurements and live/external
+    acceptance remain manual, separate gates.
+
+### T2.4 Delivery Review
+
+- Council triad required the exact focused node/result list, executable no-I/O
+  proof, in-process dispatch distinction, and changed-file pre-commit receipt;
+  all are recorded above.
+
+- Ponytail approved the three-document receipt/status update: it reuses the
+  existing test evidence and adds no test, runtime code, dependency, or
+  abstraction.
 
 ## T2 Readiness Review
 
