@@ -83,7 +83,7 @@ def parity_tool_definitions() -> list[dict[str, object]]:
                 "type": "object",
                 "properties": {
                     "record_id": {"type": "string"},
-                    "operation": {"enum": ["uppercase"]},
+                    "operation": {"type": "string", "enum": ["uppercase"]},
                 },
                 "required": ["record_id", "operation"],
                 "additionalProperties": False,

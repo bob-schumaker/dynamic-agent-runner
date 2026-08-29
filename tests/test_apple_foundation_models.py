@@ -13,7 +13,12 @@ import pytest
 from jsonschema import ValidationError
 
 import dynamic_agent_runner.apple_foundation_models as apple_foundation_models
-from dynamic_agent_runner.errors import ModelExecutionError, ToolRegistryError
+from dynamic_agent_runner.errors import (
+    ModelExecutionError,
+    ToolRegistryError,
+    WorkflowExecutionError,
+)
+from dynamic_agent_runner.executor import execute_workflow_async
 from dynamic_agent_runner.models import ToolDefinition
 from dynamic_agent_runner.openai_client import build_openai_request
 from dynamic_agent_runner.apple_foundation_models import (
@@ -38,7 +43,13 @@ from dynamic_agent_runner.tool_invocation import (
     coordinate_tool_invocation_async,
     tool_context,
 )
-from dynamic_agent_runner.tracing import WorkflowTracer
+from dynamic_agent_runner.tracing import InMemoryTraceSink, WorkflowTracer
+from parity_support import (
+    install_parity_io_blocker,
+    parity_no_tool_workflow,
+    parity_record,
+    parity_registry,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -407,6 +418,231 @@ class FakeAppleCallbackSDK(FakeAppleToolSDK):
         )
         self.sessions.append(session)
         return session
+
+
+class _RecordingAppleAdapter:
+    def __init__(self, delegate: object) -> None:
+        self._delegate = delegate
+        self.responses: list[object] = []
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        return self._delegate.models  # type: ignore[union-attr]
+
+    @property
+    def is_local(self) -> bool:
+        return self._delegate.is_local  # type: ignore[union-attr]
+
+    @property
+    def capabilities(self) -> object:
+        return self._delegate.capabilities  # type: ignore[union-attr]
+
+    async def create_response(self, request: object) -> object:
+        response = await self._delegate.create_response(request)  # type: ignore[union-attr]
+        self.responses.append(response)
+        return response
+
+
+def _assert_apple_callback_parity_observables(
+    *,
+    scenario: str,
+    callbacks: tuple[tuple[int, str], ...],
+    invoked: tuple[str, ...],
+    fails: bool,
+    record: object,
+    session: FakeAppleCallbackSession,
+    coordinator_receipts: list[tuple[str, object]],
+    sink: InMemoryTraceSink,
+    adapter: _RecordingAppleAdapter,
+    result: object | None,
+    error: Exception | None,
+) -> None:
+    assert session.callback_attempts == list(callbacks)
+    assert tuple(name for name, _arguments in record.invocations) == invoked
+    assert (error is not None) is fails
+    assert (result is None) is fails
+    if fails:
+        assert isinstance(error, WorkflowExecutionError)
+    if invoked:
+        assert record.trace_event_types.count("tool_started") == len(invoked)
+        assert record.trace_event_types.count("tool_result") == len(invoked)
+        assert record.trace_event_types.count("tool_finished") == len(invoked)
+
+    malformed_scenarios = {"S2-malformed", "S6"}
+    callback_tool_ids = [
+        session.tools[index].dar_tool_id  # type: ignore[union-attr]
+        for index, _arguments in session.callback_attempts
+    ]
+    if scenario in malformed_scenarios:
+        assert coordinator_receipts == []
+        assert record.invocations == ()
+        assert session.callback_results == []
+        assert adapter.responses == []
+    else:
+        assert callback_tool_ids == [name for name, _arguments in coordinator_receipts]
+
+    expected_calls = {
+        "S1": (("create_record", {"title": "DAR", "body": "controlled"}),),
+        "S3": (
+            ("lookup_record", {"key": "seed"}),
+            (
+                "transform_record",
+                {"record_id": "record-seed", "operation": "uppercase"},
+            ),
+        ),
+        "S5": (),
+    }
+    if scenario in expected_calls:
+        assert record.normalized_calls == expected_calls[scenario]
+    if scenario == "S3":
+        assert [json.loads(value) for value in session.callback_results] == [
+            {"record_id": "record-seed", "body": "seed"},
+            {"record_id": "record-seed", "body": "SEED"},
+        ]
+    if scenario == "S4":
+        assert "planned controlled failure" in str(error)
+        assert len(session.callback_results) == 0
+        assert record.trace_event_types.count("model_request") == 1
+        finished = next(
+            event for event in sink.events if event.event_type == "tool_finished"
+        )
+        assert finished.payload["tool_id"] == "fail_controlled"
+        assert finished.payload["success"] is False
+        assert finished.payload["error"] == "planned controlled failure"
+        assert isinstance(finished.payload["tool_call_id"], str)
+    if scenario in {"S2-missing", "S2-wrong-type", "S2-unknown", "S2-invalid-enum"}:
+        assert len(coordinator_receipts) == 1
+        assert record.invocations == ()
+    if result is not None:
+        assert result.final_result == "answer"
+        assert len(adapter.responses) == 1
+        assert adapter.responses[0].tool_calls == ()  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize(
+    ("scenario", "callbacks", "invoked", "fails"),
+    [
+        (
+            "S1",
+            ((1, '{"title":"DAR","body":"controlled"}'),),
+            ("create_record",),
+            False,
+        ),
+        (
+            "S2",
+            ((2, '{"record_id":"record-seed","operation":"uppercase"}'),),
+            ("transform_record",),
+            False,
+        ),
+        ("S2-missing", ((2, '{"record_id":"record-seed"}'),), (), True),
+        (
+            "S2-wrong-type",
+            ((2, '{"record_id":7,"operation":"uppercase"}'),),
+            (),
+            True,
+        ),
+        (
+            "S2-unknown",
+            ((2, '{"record_id":"record-seed","operation":"uppercase","extra":true}'),),
+            (),
+            True,
+        ),
+        (
+            "S2-invalid-enum",
+            ((2, '{"record_id":"record-seed","operation":"lowercase"}'),),
+            (),
+            True,
+        ),
+        ("S2-malformed", ((2, "not-json"),), (), True),
+        (
+            "S3",
+            (
+                (0, '{"key":"seed"}'),
+                (2, '{"record_id":"record-seed","operation":"uppercase"}'),
+            ),
+            ("lookup_record", "transform_record"),
+            False,
+        ),
+        ("S4", ((3, '{"code":"planned"}'),), ("fail_controlled",), True),
+        ("S5", (), (), False),
+        ("S6", ((0, "not-json"),), (), True),
+    ],
+)
+def test_model_interface_parity_apple_callback_native_scenarios(
+    scenario: str,
+    callbacks: tuple[tuple[int, str], ...],
+    invoked: tuple[str, ...],
+    fails: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise Apple callbacks through DAR's public async executor boundary."""
+
+    install_parity_io_blocker(monkeypatch)
+    registry, invocations, results = parity_registry()
+    sdk = FakeAppleCallbackSDK(callbacks)
+    coordinator_receipts: list[tuple[str, object]] = []
+
+    async def coordinate(request: object) -> object:
+        coordinator_receipts.append(
+            (str(request.tool_id), dict(request.arguments))  # type: ignore[union-attr]
+        )
+        return await coordinate_tool_invocation_async(request)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(apple_foundation_models, "_load_sdk", lambda: sdk)
+    monkeypatch.setattr(
+        apple_foundation_models,
+        "coordinate_tool_invocation_async",
+        coordinate,
+    )
+    adapter = _RecordingAppleAdapter(
+        create_apple_foundation_model_async_adapter(
+            AppleFoundationModelConfig(model_aliases=("gpt-test",))
+        )
+    )
+    sink = InMemoryTraceSink()
+    result = None
+    error = None
+    try:
+        result = asyncio.run(
+            execute_workflow_async(
+                parity_no_tool_workflow(),
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=adapter,
+                trace_sink=sink,
+            )
+        )
+    except Exception as caught:  # noqa: BLE001 - assert public error taxonomy below.
+        error = caught
+
+    record = parity_record(
+        interface="apple_injected_callback_bridge",
+        scenario=scenario,
+        asynchronous=True,
+        normalized_calls=tuple(coordinator_receipts),
+        invocations=invocations,
+        results=results,
+        result=result,
+        error=error,
+        sink=sink,
+    )
+
+    assert len(sdk.sessions) == 1, repr(error)
+    session = sdk.sessions[0]
+    assert isinstance(session, FakeAppleCallbackSession)
+    _assert_apple_callback_parity_observables(
+        scenario=scenario,
+        callbacks=callbacks,
+        invoked=invoked,
+        fails=fails,
+        record=record,
+        session=session,
+        coordinator_receipts=coordinator_receipts,
+        sink=sink,
+        adapter=adapter,
+        result=result,
+        error=error,
+    )
 
 
 class FakeAppleCrossLoopCallbackSession(FakeAppleCallbackSession):
