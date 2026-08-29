@@ -5,7 +5,7 @@
 - Feature slug: `mlx-local-model-tool-use`
 - Mode: guided
 - Artifact type: authoritative SDD follow-up specification
-- Status: M6.1 delivered; M6.2 is implementation-ready
+- Status: M6.1 and M6.2 delivered; M6.3 is implementation-ready
 - Parent feature: `specs/mlx-local-model-adapter/spec.md`
 - Related feature specs:
   - `specs/model-interface-parity/spec.md`
@@ -45,6 +45,8 @@ This follow-up covers:
    `model_tool_result` continuation messages; and
 5. deterministic fake-only tests for the codec, sync/async adapter behavior,
    and the existing executor loop.
+6. structural recognition of native MLX safetensors snapshots for local
+   resolution, availability, and scoped inventory.
 
 ## Non-Goals
 
@@ -58,6 +60,8 @@ This follow-up covers:
 - No multi-call/parallel-call support in the first codec slice.
 - No structured-output, streaming, embeddings, multimodal, or model-conversion
   expansion.
+- No tensor-header inspection, tokenizer/template compatibility claim, model
+  load, generation, or tool-capability change from asset recognition alone.
 
 ## Authoritative Contract Decisions
 
@@ -125,6 +129,43 @@ closed before model generation. When both are present, the sync and async
 factories report `tool_calling=True` and share the same render/parse path; the
 async adapter continues to run that blocking work through `asyncio.to_thread`.
 
+### Native MLX safetensors asset recognition
+
+The existing converted layout remains an alternative accepted layout with its
+current `config.json`, `tokenizer.model`, and `weights.npz` (or
+`weights.*.npz`) behavior unchanged. Native recognition is structural only and
+is owned by one non-public validator in `local_models.py`; the MLX adapter,
+availability check, and scoped inventory must call it rather than reproduce
+their own native checks.
+
+A native layout has a `config.json` and `tokenizer.json`, plus native weights.
+Each required artifact must resolve to a regular file within its allowed root.
+For a detected Hub snapshot, the allowed root is its `models--*` repository so
+standard snapshot-to-repository-blob symlinks remain valid. For another local
+directory, it is the model directory itself. A required file or shard that
+resolves outside that root is invalid.
+
+Native weights are either exactly one root-level `model.safetensors` without an
+index and with no matching shard files, or an index named
+`model.safetensors.index.json`. Any multiweight or sharded layout requires that
+index. An index is at most 1 MiB of
+UTF-8 JSON, rejects duplicate object keys, and is an object with a nonempty
+`weight_map` object of at most 10,000 entries. Each mapped value must be a
+root-level safe filename matching `model.safetensors` or
+`model-<five digits>-of-<five digits>.safetensors`; it must resolve to a regular
+contained file. Repeated values are allowed because multiple tensor names may
+share a shard. If an index is present, every matching root-level model-weight
+file must be referenced by it. Malformed, missing, unreferenced, traversing,
+absolute, non-string, or escaping entries fail closed. This deliberately does
+not validate safetensors headers or tensor semantics.
+
+Valid native and converted layouts appear as one MLX directory item in scoped
+inventory. Invalid native layouts raise the existing package-owned
+`LocalModelResolutionError` for adapter resolution, yield `INVALID` for
+availability, and are omitted from inventory. Recognition alone never calls a
+loader, imports `mlx_lm`, downloads, contacts an endpoint, or changes stock
+tool capability.
+
 ## Functional Requirements
 
 ### FR-1: Explicit tool capability
@@ -161,6 +202,18 @@ async adapter continues to run that blocking work through `asyncio.to_thread`.
   fixed documented constants; every limit has a deterministic test.
 - The first codec accepts either a text response or a tool call, not both.
 
+### FR-5: Native MLX asset admission
+
+- Given a native safetensors directory matching the structural contract, when
+  it is resolved by an injected MLX adapter, checked for availability, or found
+  in a scoped default-Hub inventory, then it is admitted as one MLX asset
+  without loading a model.
+- Given the existing converted-NPZ layout, when the same entry points run, then
+  its current accepted behavior remains unchanged.
+- Given an invalid native file, index, or contained-path condition, when those
+  entry points run, then resolution fails with `LocalModelResolutionError`,
+  availability is `INVALID`, and inventory omits the snapshot.
+
 ## Acceptance and Validation
 
 - Fake codec tests prove initial rendering includes only the exposed schemas and
@@ -176,11 +229,18 @@ async adapter continues to run that blocking work through `asyncio.to_thread`.
   coordinator/registry, then the second rendered request contains the result;
   malformed output invokes no handler.
 - Focused tests remain fake-only and require no optional MLX import.
+- Native fixtures cover direct native weights, indexed shards, the unchanged
+  NPZ fixture, missing config/tokenizer/weights, malformed or duplicate-key
+  indexes, non-string/traversing/missing/unreferenced shard entries, a direct
+  layout with an extra shard, and
+  escaping required-file or shard symlinks. They cover injected sync and async
+  adapter resolution, availability, and default-Hub inventory, including a
+  valid repository-contained Hub blob symlink. They assert no loader, optional
+  import, download, endpoint, or process seam is called.
 
 ## Implementation Readiness
 
-M6.1 delivered this plan and its handoff under the stated gates. M6.2 must
-first inspect the selected Qwen3 tokenizer/template API before claiming the
-built-in codec works; a missing compatible upstream template is an
-implementation result that keeps the default backend unsupported, not authority
-to weaken this contract.
+M6.1 and M6.2 delivered the codec seam under their stated gates. M6.3 uses the
+contract above for native-snapshot admission only; a structurally admitted
+snapshot is not evidence that the default backend, tokenizer template, or tool
+codec is compatible.

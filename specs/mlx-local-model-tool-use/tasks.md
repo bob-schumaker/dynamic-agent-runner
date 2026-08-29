@@ -255,23 +255,33 @@ Status: M6.1 and M6.2 delivered; M6.3 native-safetensors recognition planned
     `model.safetensors`, `config.json`, `tokenizer.json`, tokenizer metadata,
     and vocabulary files; it is not a converted `tokenizer.model` plus
     `weights.npz` layout.
-  - Scope: add a single package-owned native-MLX structural validator used by
-    MLX model-path resolution and local-model inventory. Accept a directory only
-    when it has `config.json`, a tokenizer artifact accepted by the selected
-    native layout, and one or more contained `model.safetensors` shard files or
-    a valid safetensors index referencing only contained shards. Retain the
-    existing converted-NPZ validator unchanged as the alternative accepted
+  - Scope: add one non-public validator in `local_models.py`, reused by MLX
+    path resolution, availability, and caller/default-Hub inventory. The native
+    layout requires contained regular `config.json`, `tokenizer.json`, and
+    direct `model.safetensors` or the bounded, duplicate-safe index contract in
+    `spec.md`. A recognized Hub snapshot permits only repository-contained blob
+    symlinks; an ordinary directory permits only directory-contained files.
+    Preserve the converted-NPZ branch's current behavior as the alternative
     layout. Do not load a model, import `mlx_lm` in pytest, infer a tool codec,
-    add a model server, or relax snapshot containment.
-  - RED: temporary native-safetensors and converted-NPZ fixtures must prove
-    accepted adapter resolution and inventory classification. Cover missing
-    config/tokenizer/weights, escaping tokenizer or shard symlinks, malformed
-    index/shard references, and an unchanged NPZ regression fixture.
-  - GREEN: both layouts pass the same structural boundary; invalid layouts fail
-    through existing package-owned local-model errors/results. The native Qwen
-    snapshot may become eligible for a separate manual `mlx_lm` load check, but
-    that check is not a pytest, CI, or release requirement.
+    add a model server, or relax containment.
+  - RED: temporary direct-native, indexed-native, converted-NPZ, and valid
+    contained-Hub-symlink fixtures must prove sync/async injected-adapter
+    resolution, availability taxonomy, and one-item inventory classification.
+    Cover missing config/tokenizer/weights; malformed, duplicate-key,
+    non-string, traversing, missing, and unreferenced index entries; a direct
+    native layout with an extra shard; and
+    escaping config/tokenizer/shard symlinks. Assert zero loader, optional
+    import, download, endpoint, or process calls.
+  - GREEN: both layouts pass the shared structural boundary; invalid resolution
+    raises `LocalModelResolutionError`, availability is `INVALID`, and inventory
+    skips the candidate. The native Qwen snapshot may become eligible for a
+    separate manual `mlx_lm` load check, but that check is not a pytest, CI, or
+    release requirement.
   - Validation: `poetry run pytest tests/test_mlx_models.py
     tests/test_local_models.py -q`; focused import regression; Ruff, formatter,
     and targeted pre-commit. A real model load or generation requires a separate
     human-authorized manual acceptance step.
+  - Readiness: implementation-ready. Council required exact native-layout,
+    index, containment, and error-taxonomy contracts; accepted above. Ponytail
+    accepted one internal validator and existing fixtures: no dependency,
+    public API, registry, or loader abstraction is warranted.
