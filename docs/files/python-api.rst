@@ -324,13 +324,18 @@ resolution or dependency loading. The default in-process backend lazily imports
 ``mlx-lm``. MLX helpers validate converted model directories, explicit ``.gguf``
 files with ``model_format="gguf"``, and Hugging Face-resolved assets before
 generation. They normalize generated text into the package ``ModelResponse``
-contract and reject unsupported tool-call or structured-output requests. Install
-the ``mlx`` extra before using the default in-process backend. Use strict
-coverage for local-only execution. If a caller already exposes an MLX model
-through an OpenAI-compatible local server, use
-``LocalOpenAIEndpointConfig`` instead. Embeddings, multimodal IO, streaming
-public APIs, conversion, and server lifecycle helpers are separate feature
-surfaces.
+contract. The default in-process backend remains text-only: it reports
+``tool_calling=False`` and rejects tool-bearing requests before model resolution
+or generation. An advanced caller can opt into tool calling only by injecting
+both an ``MLXToolCodec`` and a version-compatible ``MLXToolCapableBackend``.
+That does not claim tool support for arbitrary MLX models, tokenizers, or stock
+``mlx-lm``; DAR still owns tool exposure and schema validation, approval,
+coordinator dispatch, tracing, and tool-result continuation. Install the
+``mlx`` extra before using the default in-process backend. Use strict coverage
+for local-only execution. If a caller already exposes an MLX model through an
+OpenAI-compatible local server, use ``LocalOpenAIEndpointConfig`` instead.
+Structured output, embeddings, multimodal IO, streaming public APIs,
+conversion, and server lifecycle helpers remain unsupported feature surfaces.
 
 .. header2:: Apple Foundation Models
 

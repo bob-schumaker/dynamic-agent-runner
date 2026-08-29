@@ -364,9 +364,16 @@ explicit `.gguf` file (`model_format="gguf"`), or explicit Hugging Face
 reference, and does not start a server or wrap MLX as hosted OpenAI. Install
 with the `mlx` extra before using the default in-process MLX backend, and with
 the `huggingface` extra before using Hugging Face-backed model discovery or
-asset downloads. The in-process adapter remains plain text generation only:
-tool calling, structured output, embeddings, multimodal IO, streaming public
-APIs, conversion, and server lifecycle helpers are separate feature surfaces.
+asset downloads. The default in-process backend remains text-only:
+`tool_calling=False`, and a tool-bearing request fails before model resolution
+or generation. An advanced caller may opt into tool calling only by injecting
+both an `MLXToolCodec` and a version-compatible `MLXToolCapableBackend`; this
+does not make arbitrary MLX models, tokenizers, or stock `mlx-lm` tool-capable.
+The injected pair emits DAR's strict tool-call contract, while DAR retains
+exposure and schema validation, approval, coordinator dispatch, tracing, and
+tool-result continuation. Structured output, embeddings, multimodal IO,
+streaming public APIs, conversion, and server lifecycle helpers remain separate
+unsupported feature surfaces.
 
 For Apple's system-managed Foundation Model, install the optional Apple SDK
 extra on an eligible Apple-silicon Mac with Apple Intelligence enabled:

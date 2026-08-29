@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Tasks
 
-Status: M6.1 and T6.2.1–T6.2.5 delivered; T6.2.6 is next
+Status: M6.1 and M6.2 delivered
 
 ## M6.1 — Contract and Delivery Readiness
 
@@ -179,7 +179,7 @@ Status: M6.1 and T6.2.1–T6.2.5 delivered; T6.2.6 is next
     rejected a new adapter hierarchy, MLX-specific executor loop, or shared
     test framework.
 
-- [ ] T6.2.6 [validation/docs] Run focused fake-only regression, document the
+- [x] T6.2.6 [validation/docs] Run focused fake-only regression, document the
   opt-in capability and default unsupported state, and record the optional
   manual Qwen competency evidence separately from CI.
   - Spec: Acceptance and Validation
@@ -214,6 +214,27 @@ Status: M6.1 and T6.2.1–T6.2.5 delivered; T6.2.6 is next
     distinction and a non-synthetic manual-evidence boundary; accepted. Ponytail
     rejected a new documentation page, default codec recipe, and empty evidence
     receipt; the existing sections and task record are sufficient.
+  - Implementation: the existing README and Python API MLX sections now state
+    that the default backend is text-only and document the advanced compatible
+    injected-pair option without a Qwen or default-codec recipe. They retain
+    DAR's ownership of the execution controls and the other unsupported
+    surfaces.
+  - Manual Qwen competency: not run. There is no verified built-in Qwen codec
+    and compatible stock backend; no local model was loaded and no live
+    generation, external tool, network, credential, pytest, CI, or release
+    claim was made. Any future dated evidence must satisfy the stated
+    environment-and-outcome record requirements.
+  - Validation: `poetry run pytest tests/test_import.py
+    tests/test_local_models.py tests/test_mlx_models.py tests/test_executor.py
+    -q` passed (262); `poetry run ruff check src tests` and `ruff format --check
+    src tests` passed; targeted Markdown pre-commit passed; and
+    `poetry run make -C docs html` passed. The generated Python API source and
+    rendered HTML were reviewed without hand-editing generated output.
+  - Delivery review: Council approved the documentation content 2–1; the sole
+    validation-evidence concern was resolved by the passing focused regression
+    and Poetry-scoped documentation build. Ponytail confirmed that the existing
+    two documentation sections plus this record are the smallest complete
+    delivery.
 
 - [x] T6.2.7 [decision/discovery] Record the approved `mlx-lm` upstream source,
   immutable revision, license/provenance record, retention/update policy,
