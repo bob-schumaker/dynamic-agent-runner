@@ -5,8 +5,8 @@
 - Feature slug: `model-interface-parity`
 - Mode: `light`
 - Artifact type: test and acceptance specification
-- Status: deterministic matrix delivered; approval-interaction T2 is
-  implementation-ready and local competency remains separate
+- Status: deterministic matrix and T2.1 approval harness delivered; T2.2 is
+  next and local competency remains separate
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/model-adapter-coverage/spec.md`

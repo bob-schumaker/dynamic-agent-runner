@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 import json
 import shutil
+import socket
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ from threading import Barrier
 import pytest
 import yaml
 
+from parity_support import install_parity_io_blocker
 
 from dynamic_agent_runner.openai_client import (  # noqa: E402
     AsyncOpenAIClientAdapter,
@@ -58,6 +60,7 @@ from dynamic_agent_runner.workflow_host.state import PrivateStateStore  # noqa: 
 from dynamic_agent_runner.workflow_host.workspace_ingress import (  # noqa: E402
     MaterializedWorkspaceInputArtifact,
 )
+import dynamic_agent_runner.workflow_host.runner as workflow_runner_module  # noqa: E402
 
 
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
@@ -338,6 +341,205 @@ def _runner(
         registration,
         revision,
         client,
+    )
+
+
+def _approval_runner(tmp_path: Path):
+    source = tmp_path / "packages" / "approval-runner"
+    shutil.copytree(TEMPLATE_ROOT, source)
+    descriptor_path = source / "workflow-descriptor.yaml"
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["package_id"] = "approval-runner"
+    descriptor["tools"] = [
+        {
+            "id": "create_record",
+            "kind": "mcp",
+            "remote_tool_name": "create_record",
+            "side_effect": "write",
+            "approval_required": True,
+        },
+        {
+            "id": "delete_record",
+            "kind": "mcp",
+            "remote_tool_name": "delete_record",
+            "side_effect": "delete",
+            "approval_required": True,
+        },
+    ]
+    descriptor["task_invocation"].update(
+        {
+            "allowed_tool_ids": ["create_record", "delete_record"],
+            "max_total_tool_calls": 2,
+            "argument_sources": {
+                "create_record": {
+                    "title": {
+                        "sources": ["cited_original_prompt_span"],
+                        "authority": False,
+                    },
+                    "body": {
+                        "sources": ["cited_original_prompt_span"],
+                        "authority": False,
+                    },
+                },
+                "delete_record": {
+                    "record_id": {
+                        "sources": ["cited_original_prompt_span"],
+                        "authority": True,
+                    }
+                },
+            },
+        }
+    )
+    descriptor_path.write_text(yaml.safe_dump(descriptor), encoding="utf-8")
+
+    runtime_path = source / "agent-runtime.yaml"
+    runtime = yaml.safe_load(runtime_path.read_text(encoding="utf-8"))
+    runtime["package_id"] = "approval-runner"
+    runtime["tools"] = [
+        {
+            "id": tool_id,
+            "label": tool_id,
+            "tool_type": "external_api",
+            "description_for_llm": tool_id,
+            "adapter": "host.mcp",
+            "input_schema": {
+                "type": "object",
+                "properties": {"provenance_envelope": {"type": "string"}},
+                "required": ["provenance_envelope"],
+                "additionalProperties": False,
+            },
+            "side_effect": side_effect,
+            "approval_required": False,
+            "timeout": "runtime_default",
+            "retry_policy": "none",
+            "failure_behavior": "error",
+        }
+        for tool_id, side_effect in (
+            ("create_record", "write"),
+            ("delete_record", "delete"),
+        )
+    ]
+    runtime["nodes"][0]["available_tools"] = ["create_record", "delete_record"]
+    runtime_path.write_text(yaml.safe_dump(runtime), encoding="utf-8")
+
+    store = PrivateStateStore(tmp_path / "state")
+    source_handle = PackageSourceSelectionPolicy(
+        allowed_root=source.parent, store=store
+    ).select_directory(source, now=NOW)
+    catalog = PackageCatalog(tmp_path / "catalog")
+    revision = catalog.import_staged(
+        PrivatePackageStager(store=store, private_root=tmp_path / "staging").stage(
+            source_handle, now=NOW
+        )
+    )
+    policy = compile_workflow_policy(revision)
+    profiles = LocalModelProfileControlPlane(store=store)
+    profile = profiles.create(
+        model_id="local-model-v1",
+        adapter_id="strict-local-adapter-v1",
+        base_url="http://127.0.0.1:11434/v1",
+        capabilities={"text_generation"},
+    )
+    connections = MCPConnectionControlPlane(
+        store=store, profiles=profiles, secret_store=MemorySecretStore()
+    )
+    connection = connections.create(
+        profile_id=profile.profile_id,
+        endpoint="https://mcp.example.test/v1",
+        scopes={"records.write"},
+        authentication_method="api_token",
+    )
+    authentication = connections.configure_api_token(connection.connection_id, "token")
+    mcp_client = FakeMCPClient(
+        connection.connection_id, authentication.authentication_id
+    )
+    mcp_client._tools = (
+        MCPDiscoveredTool(
+            name="create_record",
+            input_schema={
+                "type": "object",
+                "properties": {"title": {"type": "string"}, "body": {"type": "string"}},
+                "required": ["title", "body"],
+                "additionalProperties": False,
+            },
+        ),
+        MCPDiscoveredTool(
+            name="delete_record",
+            input_schema={
+                "type": "object",
+                "properties": {"record_id": {"type": "string"}},
+                "required": ["record_id"],
+                "additionalProperties": False,
+            },
+        ),
+    )
+    surfaces = MCPSurfaceSnapshotControlPlane(store=store, connections=connections)
+    snapshot = surfaces.create(
+        connection_id=connection.connection_id,
+        authentication_id=authentication.authentication_id,
+        connection_generation=1,
+        tools=mcp_client.list_tools(),
+        approved_read_only_tool_names=(),
+        approved_tool_side_effects={
+            "create_record": "write",
+            "delete_record": "delete",
+        },
+    )
+    mcp_bindings = MCPWorkflowCapabilityBindingControlPlane(
+        store=store, surfaces=surfaces
+    )
+    mcp_binding = mcp_bindings.bind(
+        policy=policy, snapshot_id=snapshot.snapshot_id, client=mcp_client
+    )
+    registrations = WorkflowRegistrationService(
+        profiles=profiles,
+        configured_profile_id=profile.profile_id,
+        root=tmp_path / "registrations",
+        mcp_bindings=mcp_bindings,
+        mcp_client=mcp_client,
+        mcp_surfaces=surfaces,
+    )
+    registrations.register(
+        workflow_id="approval-runner",
+        policy=policy,
+        capability_resolution=resolve_capabilities(
+            policy,
+            available_capabilities={"text_generation", "mcp_side_effects"},
+        ),
+        mcp_binding_id=mcp_binding.binding_id,
+    )
+    preparation = WorkflowInvocationPreparationService(
+        registrations=registrations, catalog=catalog, store=store
+    )
+    model_client = QueuedClient([ModelResponse(content="record ready")])
+    adapter = OpenAIClientAdapter(
+        model_client,
+        models=["local-model", "local-model-v1"],
+        is_local=True,
+        model_id_mapping={"local-model": "local-model-v1"},
+        execution_profile_adapter_id=profile.adapter_id,
+    )
+    return (
+        WorkflowRunner(
+            registrations=registrations,
+            catalog=catalog,
+            preparation=preparation,
+            model_adapter=adapter,
+            configured_profile=profile,
+            mcp_bindings=mcp_bindings,
+            mcp_client=mcp_client,
+            mcp_surfaces=surfaces,
+            action_ledger=WorkflowActionLedger(
+                store=store, owner="local-os-user-v1:501:ada"
+            ),
+            approval_store=WorkflowApprovalStore(
+                store=store, owner="local-os-user-v1:501:ada"
+            ),
+        ),
+        preparation,
+        mcp_client,
+        model_client,
+        policy,
     )
 
 
@@ -1009,6 +1211,60 @@ def test_runner_dispatches_declared_approval_policy_through_its_broker(
     assert mcp_client.calls == [
         ("send_email", {"recipient": "ada@example.test", "body": "Welcome!"})
     ]
+
+
+def test_runner_materializes_wrapper_approval_binding_without_external_io(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    with pytest.raises(AssertionError, match="external I/O"):
+        socket.create_connection(("example.invalid", 443))
+
+    captured_bindings: list[object] = []
+    create_registry = workflow_runner_module.create_host_tool_registry
+
+    def capture_bindings(bindings: object):
+        captured_bindings.extend(bindings)  # type: ignore[arg-type]
+        return create_registry(bindings)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        workflow_runner_module, "create_host_tool_registry", capture_bindings
+    )
+    broker = FakeApprovalBroker(LocalApprovalDecision.APPROVED)
+    runner, preparation, mcp_client, model_client, policy = _approval_runner(tmp_path)
+    prepared = preparation.prepare(
+        workflow_id="approval-runner", prompt="Create DAR record.", now=NOW
+    )
+
+    result = runner.run(
+        RunDarWorkflowRequest.from_mapping(
+            {
+                "format_version": 1,
+                "workflow_id": "approval-runner",
+                "prepared_input_id": prepared.prepared_input_id,
+            }
+        ),
+        now=NOW,
+        approval_broker=broker,
+    )
+
+    approval_bindings = [
+        binding
+        for binding in captured_bindings
+        if getattr(binding, "model_id", None) == "create_record"
+    ]
+    assert result.status == "completed"
+    assert [tool.approval_required for tool in policy.declared_tools] == [True, True]
+    assert len(approval_bindings) == 1
+    assert approval_bindings[0].canonical_id.startswith("authorized-mcp:")
+    assert approval_bindings[0].approval_required == "no"
+    assert {binding.model_id for binding in captured_bindings} == {
+        "create_record",
+        "delete_record",
+    }
+    assert broker.actions == []
+    assert mcp_client.calls == []
+    assert len(model_client.responses.calls) == 1
 
 
 def test_runner_keeps_mixed_read_write_delete_policies_separate(

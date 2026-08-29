@@ -1,6 +1,6 @@
 # Model Interface Tool-Parity Tasks
 
-Status: T1.1–T1.6 deterministic matrix delivered; T2 approval interaction next
+Status: T1.1–T1.6 deterministic matrix and T2.1 harness delivered; T2.2 next
 
 ## Scope Rule
 
@@ -327,7 +327,7 @@ connection, or external mutation. It uses the public `WorkflowRunner` with a
 scripted model, test-local binding/surface controls, and a fake authorized MCP
 client whose `call_tool` recorder is the counted dispatch surrogate.
 
-- [ ] T2.1 [discovery/tests] Add one dedicated, test-local `_approval_runner`
+- [x] T2.1 [discovery/tests] Add one dedicated, test-local `_approval_runner`
       setup in `tests/test_dar_authoring_runner.py` for a controlled
       `create_record` and one declared side-effect decoy. It builds their
       discovered schemas, approved surface entries, per-tool provenance rules,
@@ -351,9 +351,15 @@ client whose `call_tool` recorder is the counted dispatch surrogate.
     preflights immutable registration/policy identity; each binding invocation
     re-loads its current binding, verifies the current surface, and claims the
     shared total-call counter before dispatch.
-  - Expected RED: the harness cannot yet prove wrapper-local decision outcomes
-    or capture the materialized wrapper binding through the public runner.
+  - RED observed: the test initially failed because `_approval_runner` did not
+    exist; GREEN adds only the named test-local setup and delegating spy.
   - Validation: `poetry run pytest tests/test_dar_authoring_runner.py -q`.
+  - Delivered: the text-only scripted public run captures both real authorized
+    bindings through the delegated factory, proves the compiled declared tools
+    are approval-required while `authorized-mcp:create_record` is unapproved,
+    keeps the decoy exposed, and proves the shared I/O blocker is active. It
+    makes zero broker decisions and fake-client dispatches, leaving T2.2's
+    approval/dispatch outcomes unimplemented.
 
 ### T2.1 Readiness Review
 
@@ -375,14 +381,14 @@ client whose `call_tool` recorder is the counted dispatch surrogate.
 
 ### T2.1 Delivery Review
 
-- Council triad: approved the implementation-ready task record. It confines
-  setup, binding observation, and I/O proof to the named runner test while
-  preserving public `WorkflowRunner` execution and the wrapper-only approval
-  boundary.
+- Council triad: approved the delivered setup, binding observation, and I/O
+  proof in the named runner test. It preserves public `WorkflowRunner`
+  execution and the wrapper-only approval boundary without entering T2.2.
 
 - Ponytail: approved the local setup, delegating spy, and reused blocker as the
   smallest complete test shape. No runtime policy/enforcement change, provider
-  transport, dependency, or generic fixture is included.
+  transport, dependency, or generic fixture is included. Focused runner tests
+  passed (26); full pytest passed (`1452 passed, 1 skipped, 6 deselected`).
 
 - [ ] T2.2 [tests/implementation] Add RED then GREEN deny and `approve_once`
       cases for one schema-valid `create_record` invocation.
