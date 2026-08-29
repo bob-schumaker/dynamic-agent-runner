@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Tasks
 
-Status: M6.1 and M6.2 delivered
+Status: M6.1 and M6.2 delivered; M6.3 native-safetensors recognition planned
 
 ## M6.1 — Contract and Delivery Readiness
 
@@ -245,3 +245,33 @@ Status: M6.1 and M6.2 delivered
     `111ab717db337468c86004a79bd9df19c6e3986d`.
   - Gate: characterize the selected tokenizer API without importing `mlx_lm` in
     pytest; live competency remains an eligible-Mac manual step.
+
+## M6.3 — Native MLX Safetensors Asset Recognition
+
+- [ ] T6.3.1 [tests/implementation] Extend DAR's MLX local-asset validation and
+      scoped inventory contract to recognize native MLX safetensors snapshots
+      while preserving the existing converted-NPZ layout.
+  - Trigger: the locally cached `Qwen/Qwen3-4B-MLX-4bit` snapshot uses
+    `model.safetensors`, `config.json`, `tokenizer.json`, tokenizer metadata,
+    and vocabulary files; it is not a converted `tokenizer.model` plus
+    `weights.npz` layout.
+  - Scope: add a single package-owned native-MLX structural validator used by
+    MLX model-path resolution and local-model inventory. Accept a directory only
+    when it has `config.json`, a tokenizer artifact accepted by the selected
+    native layout, and one or more contained `model.safetensors` shard files or
+    a valid safetensors index referencing only contained shards. Retain the
+    existing converted-NPZ validator unchanged as the alternative accepted
+    layout. Do not load a model, import `mlx_lm` in pytest, infer a tool codec,
+    add a model server, or relax snapshot containment.
+  - RED: temporary native-safetensors and converted-NPZ fixtures must prove
+    accepted adapter resolution and inventory classification. Cover missing
+    config/tokenizer/weights, escaping tokenizer or shard symlinks, malformed
+    index/shard references, and an unchanged NPZ regression fixture.
+  - GREEN: both layouts pass the same structural boundary; invalid layouts fail
+    through existing package-owned local-model errors/results. The native Qwen
+    snapshot may become eligible for a separate manual `mlx_lm` load check, but
+    that check is not a pytest, CI, or release requirement.
+  - Validation: `poetry run pytest tests/test_mlx_models.py
+    tests/test_local_models.py -q`; focused import regression; Ruff, formatter,
+    and targeted pre-commit. A real model load or generation requires a separate
+    human-authorized manual acceptance step.

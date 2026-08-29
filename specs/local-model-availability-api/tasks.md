@@ -428,7 +428,7 @@ filesystem-only.
     6 deselected`); Ruff lint and format checks passed. Targeted pre-commit is
     recorded in the current A5.1 validation evidence.
 
-- [ ] A5.2 [migration/validation] Reuse the existing Hugging Face-formatted
+- [x] A5.2 [migration/validation] Reuse the existing Hugging Face-formatted
       test artifacts currently stored under `~/.ollama/models` without a model
       redownload.
   - Depends on: A5.1.
@@ -445,18 +445,20 @@ filesystem-only.
     `.ollama/models` root, create symlinks, delete source data, or make a live
     model/vLLM call.
   - Acceptance: both artifacts resolve from the new default Hub cache with
-    `allow_network=False` and zero download-helper calls; their model formats
-    remain GGUF and converted MLX respectively; the recorded manifest proves
-    content identity; and the source remains recoverable pending a separate
-    human-authorized cleanup task.
+    `allow_network=False` and zero download-helper calls; the GGUF remains
+    accepted by its current backend and the MLX snapshot remains correctly
+    classified as native safetensors pending M6.3; the recorded manifest and
+    copy receipt prove content identity; and the source remains recoverable
+    pending a separate human-authorized cleanup task.
   - Validation: dry-run manifest review; focused fake resolver tests; local
     offline post-copy preflight only after A5.1; and targeted pre-commit for
     changed task, implementation, test, and evidence files.
-  - Readiness finding: the actual `Qwen/Qwen3-4B-MLX-4bit` snapshot is native
+  - Completion finding: the actual `Qwen/Qwen3-4B-MLX-4bit` snapshot is native
     safetensors/tokenizer JSON, not DAR's currently accepted converted-MLX
-    layout. It cannot satisfy A5.2's converted-MLX acceptance without a separate
-    approved native-MLX validation slice.
-  - Gate: [`a5.2-dry-run-manifest.md`](a5.2-dry-run-manifest.md) records the
-    read-only source inventory. A5.2 copy authority requires fresh human
-    approval of its exact eligible entries and destination collision
-    disposition; do not infer it from broad `.ollama` scanning.
+    layout. Its physical cache migration and generic offline snapshot resolution
+    completed on 2026-08-29, but it cannot satisfy MLX availability/inventory
+    acceptance without M6.3.
+  - Evidence: [`a5.2-dry-run-manifest.md`](a5.2-dry-run-manifest.md) records
+    the source inventory, and [`a5.2-copy-receipt.md`](a5.2-copy-receipt.md)
+    records the authorized migration and offline preflight. Do not infer future
+    copy or cleanup authority from this one bounded operation.
