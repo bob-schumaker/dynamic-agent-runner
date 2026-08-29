@@ -216,6 +216,8 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Use deterministic, local controlled tools for cross-model parity; test human
   approval as a separate coordinator pass rather than coupling it to tool-path
   parity or external-service credentials.
+- Treat repository work-item artifacts as authoritative; do not route a task
+  identifier to Jira unless the user explicitly asks for Jira.
 
 ---
 
