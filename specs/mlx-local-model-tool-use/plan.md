@@ -54,6 +54,9 @@ claim of CI parity.
 
 - A tokenizer's native chat template may not support the selected codec. Inspect
   it before implementation; do not invent compatibility.
+- T6.2.1 found no installed or pinned `mlx-lm` source. Do not add a source pin
+  without explicit provenance approval; a future default-codec task is gated on
+  that decision, while the injected-codec seam remains independently executable.
 - Model output is untrusted. Bounds and duplicate-safe parsing happen before
   `ModelToolCall` emission.
 - This slice is serial and one-call-only. Parallel tool calls are a separate

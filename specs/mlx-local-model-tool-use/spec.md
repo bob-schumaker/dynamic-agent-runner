@@ -81,6 +81,13 @@ adding a default codec. If no selected tokenizer/template can meet this
 contract, the default backend remains unsupported rather than falling back to a
 generic text prompt.
 
+T6.2.1 observed that this checkout has neither an installed `mlx-lm`
+distribution nor a pinned source subproject. Adding one selects upstream
+provenance, revision, license, retention, and update ownership, so it requires
+an explicit maintainer decision. It is not implied by this feature. The stock
+backend therefore remains unsupported; this does not block a generic injected
+codec seam or its fake-only tests.
+
 ### Rendered transcript
 
 The codec receives the complete existing `OpenAIModelRequest`: system,

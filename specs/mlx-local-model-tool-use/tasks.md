@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Tasks
 
-Status: M6.1 delivered and validated; M6.2 is implementation-ready
+Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
 
 ## M6.1 — Contract and Delivery Readiness
 
@@ -24,25 +24,36 @@ Status: M6.1 delivered and validated; M6.2 is implementation-ready
 
 ## M6.2 — Tool-Capable MLX Adapter
 
-- [ ] T6.2.1 [discovery/tests] Inspect the installed/pinned `mlx-lm` tokenizer
-  and chat-template API. Add RED fake codec tests for initial schema rendering,
-  text response, one call, and canonical response-scoped IDs.
+- [x] T6.2.1 [discovery] Inspect the installed/pinned `mlx-lm` tokenizer and
+  chat-template API before making a default-codec claim.
+  - Spec: Codec and backend boundary; FR-1, FR-2
+  - Evidence: `mlx-lm` is not installed in the Poetry environment and no pinned
+    source exists in this repository. Existing unsupported-capability tests pass.
+  - Validation: `poetry run pytest`
+    `tests/test_mlx_models.py::test_mlx_adapter_rejects_tool_calls`
+    `tests/test_mlx_models.py::test_mlx_adapter_reports_conservative_capabilities`
+    passed (2 tests); targeted Markdown pre-commit passed.
+  - Council/Ponytail disposition: do not add an unapproved upstream subproject
+    or leave a permanently RED test in the repository; keep the default path
+    unsupported and move the generic codec TDD work into one GREEN slice.
+  - Gate: default codec remains blocked pending explicit upstream provenance,
+    revision, license, and retention/update approval. No source pin was added.
+
+- [ ] T6.2.2 [tests/implementation] Add the injected versioned codec/candidate
+  seam and make its focused RED tests GREEN in the same slice. Cover initial
+  schema rendering, text response, one call, and canonical response-scoped IDs.
   - Spec: Codec and backend boundary; FR-1, FR-2
   - Files: `src/dynamic_agent_runner/mlx_models.py`, `tests/test_mlx_models.py`
-  - Gate: no default codec claim without observed compatible upstream API.
+  - Gate: it must not claim default `mlx-lm` compatibility or change the stock
+    backend's unsupported state.
 
-- [ ] T6.2.2 [tests] Add RED parser-boundary tests for malformed JSON,
+- [ ] T6.2.3 [tests/implementation] Add RED then GREEN parser-boundary tests
+  and bounded normalization for malformed JSON,
   duplicate keys, non-finite values, invalid root, unknown name, duplicate ID,
   multiple calls, trailing prose, and all documented size/depth/member limits.
   - Spec: Parse and normalization boundary; FR-2, FR-4
-  - Files: `tests/test_mlx_models.py`
-
-- [ ] T6.2.3 [implementation] Add the typed versioned codec/candidate protocol,
-  compatible-backend gate, renderer, bounded parser normalization, and
-  capability-aware request rejection. Keep the stock backend text-only.
-  - Spec: FR-1, FR-2, FR-4
-  - Files: `src/dynamic_agent_runner/mlx_models.py`
-  - Depends on: T6.2.1, T6.2.2
+  - Files: `tests/test_mlx_models.py`, `src/dynamic_agent_runner/mlx_models.py`
+  - Depends on: T6.2.2
 
 - [ ] T6.2.4 [tests/implementation] Add RED then GREEN sync/async continuation
   tests, proving the second codec request renders DAR's existing assistant call
@@ -64,3 +75,9 @@ Status: M6.1 delivered and validated; M6.2 is implementation-ready
   - Spec: Acceptance and Validation
   - Files: `README.md`, `docs/files/python-api.rst`, feature artifacts
   - Depends on: T6.2.5
+
+- [ ] T6.2.7 [decision/discovery] Before adding a default `mlx-lm` codec,
+  obtain explicit approval for the authoritative upstream source, immutable
+  revision, license/provenance record, retention/update policy, and inspection
+  scope. Characterize that pinned API without importing it in pytest.
+  - Depends on: T6.2.6
