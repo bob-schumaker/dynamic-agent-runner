@@ -76,7 +76,7 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
     unknown-name, and bounded candidates failed before normalization; all passed
     after implementation in the T6.2.2 delivery slice.
 
-- [ ] T6.2.4 [tests/implementation] Add RED then GREEN sync/async continuation
+- [x] T6.2.4 [tests/implementation] Add RED then GREEN sync/async continuation
   tests, proving the second codec request renders DAR's existing assistant call
   and matching `model_tool_result` with canonical ID/name/arguments.
   - Spec: Rendered transcript; FR-3
@@ -99,6 +99,24 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
   - Review disposition: Council required exact ordered continuation-pair and
     ID assertions; accepted. Council found no production-code gap. Ponytail
     accepted the existing fake codec/backend seam as the smallest solution.
+  - Implementation: a four-case fake-only matrix covers sync/async adapters
+    with adapter-generated and codec-supplied IDs. It builds continuation maps
+    using DAR's existing transcript helper, captures the second codec request,
+    and asserts the canonical assistant/result pair, retained tools and choice,
+    two renders, and ordinary text completion. No runtime source change was
+    needed because the adapter already passes the complete request to its codec.
+  - TDD disposition: characterization exception. The new contract coverage was
+    GREEN on its first run because the existing complete-request pass-through
+    already satisfied the specified behavior; no production GREEN change or
+    refactor was warranted.
+  - Validation: `poetry run pytest tests/test_mlx_models.py -q` passed (45);
+    `poetry run pytest tests/test_import.py tests/test_local_models.py
+    tests/test_mlx_models.py tests/test_executor.py -q` passed (259); Ruff,
+    Markdown pre-commit, and whitespace checks passed.
+  - Delivery review: Council approved 2–1. The dissenting malformed-second-turn
+    case was rejected as duplicate parser coverage from T6.2.3; executor loop
+    and zero-dispatch behavior remain exclusively owned by T6.2.5. Ponytail
+    confirmed that the test-only existing fake seam is the smallest delivery.
 
 - [ ] T6.2.5 [tests] Add RED then GREEN executor integration proving one fake
   MLX tool call uses the normal coordinator and registry exactly once, resumes

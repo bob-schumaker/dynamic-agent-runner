@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from dynamic_agent_runner import MLXToolCallCandidate, MLXToolCodecResponse
 from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner.executor import _model_tool_result_messages
 from dynamic_agent_runner.openai_client import OpenAIModelRequest
+from dynamic_agent_runner.registry import ToolResult
 
 
 class FakeMLXBackend:
@@ -54,8 +57,8 @@ class FakeToolCapableMLXBackend(FakeMLXBackend):
 class FakeMLXToolCodec:
     version = "test-v1"
 
-    def __init__(self, decoded: MLXToolCodecResponse) -> None:
-        self.decoded = decoded
+    def __init__(self, *decoded: MLXToolCodecResponse) -> None:
+        self.decoded = list(decoded)
         self.rendered_requests: list[OpenAIModelRequest] = []
         self.generated: list[str] = []
 
@@ -65,7 +68,7 @@ class FakeMLXToolCodec:
 
     def decode(self, generated: str) -> MLXToolCodecResponse:
         self.generated.append(generated)
-        return self.decoded
+        return self.decoded.pop(0)
 
 
 def make_request(
@@ -237,6 +240,115 @@ def test_async_mlx_adapter_uses_compatible_tool_codec(tmp_path: Path) -> None:
     assert adapter.capabilities["tool_calling"] is True
     assert response.content == "decoded text"
     assert response.response_id is not None
+
+
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("supplied_id", [None, "codec-call-id"])
+def test_mlx_adapter_renders_canonical_tool_result_continuation(
+    tmp_path: Path,
+    *,
+    is_async: bool,
+    supplied_id: str | None,
+) -> None:
+    from dynamic_agent_runner import (
+        MLXLocalModelConfig,
+        create_mlx_local_adapter,
+        create_mlx_local_async_adapter,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    backend = FakeToolCapableMLXBackend("native response")
+    codec = FakeMLXToolCodec(
+        MLXToolCodecResponse(
+            tool_call=MLXToolCallCandidate(
+                name="lookup",
+                arguments='{"z":1,"a":2}',
+                id=supplied_id,
+            )
+        ),
+        MLXToolCodecResponse(content="final answer"),
+    )
+    factory = create_mlx_local_async_adapter if is_async else create_mlx_local_adapter
+    adapter = factory(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=backend,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+    request = replace(
+        tool_request(),
+        messages=(
+            {"role": "system", "content": "Use tools when needed."},
+            {"role": "user", "content": "Look up DAR."},
+        ),
+        tool_choice="required",
+    )
+
+    if is_async:
+        first = asyncio.run(adapter.create_response(request))
+    else:
+        first = adapter.create_response(request)
+
+    tool_call = first.tool_calls[0]
+    expected_id = supplied_id or f"{first.response_id}:1"
+    assert tool_call.id == expected_id
+    assert tool_call.arguments == '{"a":2,"z":1}'
+    assistant_call, tool_result = _model_tool_result_messages(
+        tool_call,
+        expected_id,
+        ToolResult(
+            tool_id="lookup",
+            success=True,
+            output={"record": "DAR"},
+        ),
+    )
+    continuation = replace(
+        request,
+        messages=(*request.messages, assistant_call, tool_result),
+    )
+
+    if is_async:
+        second = asyncio.run(adapter.create_response(continuation))
+    else:
+        second = adapter.create_response(continuation)
+
+    assert codec.rendered_requests == [request, continuation]
+    assert backend.rendered_prompts == ["<tool-aware-prompt>"] * 2
+    assert continuation.tools == request.tools
+    assert continuation.tool_choice == "required"
+    assert continuation.messages[-2] == {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+            {
+                "id": expected_id,
+                "type": "function",
+                "function": {
+                    "name": "lookup",
+                    "arguments": '{"a":2,"z":1}',
+                },
+            }
+        ],
+        "_dar_transcript_type": "model_tool_call",
+        "call_id": expected_id,
+        "name": "lookup",
+        "arguments": '{"a":2,"z":1}',
+    }
+    assert continuation.messages[-1] == {
+        "role": "tool",
+        "tool_call_id": expected_id,
+        "name": "lookup",
+        "content": '{"record": "DAR"}',
+        "_dar_transcript_type": "model_tool_result",
+        "call_id": expected_id,
+        "output": '{"record": "DAR"}',
+    }
+    assert second.content == "final answer"
+    assert second.tool_calls == ()
 
 
 @pytest.mark.parametrize(
