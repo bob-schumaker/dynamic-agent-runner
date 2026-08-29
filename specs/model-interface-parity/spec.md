@@ -5,7 +5,7 @@
 - Feature slug: `model-interface-parity`
 - Mode: `light`
 - Artifact type: test and acceptance specification
-- Status: proposed; implementation requires a separately scheduled task
+- Status: implementation in progress; T1.1 delivered and T1.2 is next
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/model-adapter-coverage/spec.md`
@@ -77,7 +77,7 @@ controlled fixture.
 | LiteLLM sync and async adapters | scripted completion client | not required |
 | OpenAI-compatible local endpoint sync and async adapters | recording local transport | eligible when a caller supplies a compatible server |
 | Direct llama.cpp sync and async adapters | injected llama.cpp backend | eligible with a pinned GGUF artifact |
-| In-process MLX sync and async adapters | injected MLX codec/backend seam | pending: selected Qwen3 Instruct artifact; current stock adapter rejects tools |
+| In-process MLX sync and async adapters | injected compatible MLX codec/backend seam | contract-eligible through the injected pair; the stock backend remains unsupported |
 | Apple Foundation Models async adapter | injected SDK/bridge seam | eligible on an eligible Mac as a separate provider-family run |
 
 The model-agnostic executor-level fixture must also run with sync and async
@@ -213,8 +213,9 @@ fakes, injected backends, or a recording local transport.
 
 This is optional, manually initiated, and outside CI. It uses Qwen3 Instruct
 with fixed generation settings to compare direct llama.cpp, a compatible local
-endpoint, and—after its tool-capable follow-up—MLX execution. The MLX artifact
-revision is owned by
+endpoint, and an explicitly compatible MLX codec/backend pair. The stock MLX
+backend remains outside this measurement because it rejects tool-bearing
+requests. The MLX artifact revision is owned by
 [`mlx-local-model-tool-use/implementation-decision.md`](../mlx-local-model-tool-use/implementation-decision.md).
 Apple Foundation Models is measured separately because it cannot use the same
 model weights.
@@ -249,8 +250,8 @@ state, or network resources.
 
 Tests must not mark an adapter as tool-parity capable merely because a fake
 backend can return a tool call. Capability metadata and public behavior must
-agree. The current MLX adapter remains an expected unsupported case until its
-separate tool-calling implementation changes that contract.
+agree. The MLX injected compatible codec/backend pair is tool-capable, while
+the stock MLX backend remains an expected unsupported case.
 
 ### FR-4: Separation of concerns
 
@@ -267,8 +268,8 @@ human-authorized test category.
       coverage at its injected transport or backend seam.
 - [ ] The comparison record omits nondeterministic provider metadata from hard
       equality assertions.
-- [ ] MLX tool requests remain an explicit expected-failure/unsupported case
-      until the MLX tool-capability feature is implemented.
+- [ ] MLX coverage proves the injected compatible codec/backend pair's normal
+      tool path and the stock backend's unsupported rejection separately.
 - [ ] A separate approval pass covers deny, approve once, and approve-for-run
       using only `create_record`.
 - [ ] No parity test performs a network request, authentication flow, model
