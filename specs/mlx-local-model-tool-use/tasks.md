@@ -82,6 +82,23 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
   - Spec: Rendered transcript; FR-3
   - Files: `tests/test_mlx_models.py`, `src/dynamic_agent_runner/mlx_models.py`
   - Depends on: T6.2.3
+  - Implementation route: TDD, using the existing fake MLX codec/backend seam;
+    do not add an MLX-specific executor loop.
+  - Acceptance: build the continuation from the first normalized
+    `ModelToolCall` and DAR's existing transcript shape. For both a
+    codec-supplied ID and an adapter-generated ID, assert the second captured
+    `OpenAIModelRequest` retains the exposed schemas, appends the assistant
+    call before its matching `model_tool_result`, and preserves the canonical
+    ID, name, and arguments in both records. The second decoded response is
+    ordinary text with zero tool calls. Run the same assertions through the
+    async factory and require two rendered requests in each path.
+  - Validation: `poetry run pytest tests/test_mlx_models.py -q`; no optional
+    MLX import, model load, Metal, network, or handler invocation.
+  - Readiness: implementation-ready. This plan is ready to execute under its
+    stated gates.
+  - Review disposition: Council required exact ordered continuation-pair and
+    ID assertions; accepted. Council found no production-code gap. Ponytail
+    accepted the existing fake codec/backend seam as the smallest solution.
 
 - [ ] T6.2.5 [tests] Add RED then GREEN executor integration proving one fake
   MLX tool call uses the normal coordinator and registry exactly once, resumes
