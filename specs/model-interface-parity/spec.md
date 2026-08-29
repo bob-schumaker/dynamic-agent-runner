@@ -5,7 +5,8 @@
 - Feature slug: `model-interface-parity`
 - Mode: `light`
 - Artifact type: test and acceptance specification
-- Status: implementation in progress; T1.1–T1.5 delivered and T1.6 is next
+- Status: deterministic matrix delivered; approval and local-competency gates
+  remain separate
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/model-adapter-coverage/spec.md`
@@ -196,6 +197,23 @@ Parity is assessed by comparing this record's contract fields. Response prose,
 provider request IDs, timestamps, token usage, and provider-native callback IDs
 are diagnostic metadata and must not be equality requirements.
 
+For deterministic matrix closure, a test-only semantic projection additionally
+compares every seam record with its scenario baseline. It excludes interface
+and sync/async mode, canonicalizes provider JSON arguments and mapping order,
+and omits provider-specific trace mechanics. Its mandatory fields are scenario
+or variant, exposed schemas, normalized calls, invocations/results, completion
+outcome, and an approved package-error category. Structured S2 invalids are
+`validation_error`; malformed S2/S6 are `normalization_error` and may be an
+MLX `ModelExecutionError` or a `WorkflowExecutionError` at another seam; S4
+is `tool_failure`. Native tests retain exact error-class assertions. Apple S4
+is callback-native: its semantic outcome is one failed `fail_controlled`
+invocation, package-owned executor error, and no response continuation; it does
+not require a model-loop `tool_failure` stop trace.
+
+The exposed-schema field is captured from the actual first adapter-facing
+request (or its provider-bound equivalent), then normalized to tool name and
+parameters. It must not be reconstructed from the shared fixture.
+
 ## Test Levels and Gates
 
 ### Deterministic contract gate
@@ -262,17 +280,18 @@ human-authorized test category.
 
 ## Validation Checklist
 
-- [ ] A controlled registry implements all four tools with no external I/O.
-- [ ] S1 through S6 run against sync and async executor-level fake adapters.
-- [ ] Every eligible provider/adapter row has focused deterministic contract
+- [x] A controlled registry implements all four tools with no external I/O.
+- [x] S1 through S6 run against sync and async executor-level fake adapters.
+- [x] Every eligible provider/adapter row has focused deterministic contract
       coverage at its injected transport or backend seam.
-- [ ] The comparison record omits nondeterministic provider metadata from hard
+- [x] The comparison record omits nondeterministic provider metadata from hard
       equality assertions.
-- [ ] MLX coverage proves the injected compatible codec/backend pair's normal
+- [x] MLX coverage proves the injected compatible codec/backend pair's normal
       tool path and the stock backend's unsupported rejection separately.
-- [ ] A separate approval pass covers deny, approve once, and approve-for-run
-      using only `create_record`.
-- [ ] No parity test performs a network request, authentication flow, model
+- [x] Approval interaction is explicitly a separate, not-run gate for this
+      deterministic matrix closure; it must cover deny, approve once, and
+      approve-for-run using only `create_record`.
+- [x] No parity test performs a network request, authentication flow, model
       download, live model call, or external mutation.
 
 ## Open Questions

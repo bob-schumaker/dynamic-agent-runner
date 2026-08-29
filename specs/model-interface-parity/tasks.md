@@ -1,6 +1,6 @@
 # Model Interface Tool-Parity Tasks
 
-Status: T1.1–T1.5 delivered; T1.6 is next
+Status: T1.1–T1.6 deterministic matrix delivered; separate gates remain
 
 ## Scope Rule
 
@@ -249,7 +249,7 @@ timestamps, and token usage remain diagnostic only.
     adding it preserves existing semantics and admits the exact controlled
     schema to Apple's direct wrapper. No production code changed.
 
-- [ ] T1.6 [validation] Run the complete deterministic matrix and record the
+- [x] T1.6 [validation] Run the complete deterministic matrix and record the
       exact covered interface/scenario cells and remaining separate gates.
   - Spec: Test Levels and Gates; Validation Checklist
   - Depends on: T1.1 through T1.5
@@ -258,11 +258,65 @@ timestamps, and token usage remain diagnostic only.
     two stock-MLX negative cells are separately asserted; no unaccounted cell
     remains. The I/O blocker passes for the scoped matrix before broad
     regression begins. Approval and local-competency evidence are explicitly
-    recorded as separate, not-run gates.
-  - Validation: run the exact scoped parity test-node list under the T1.1
-    blocker, then focused parity modules, `poetry run pytest -q`,
+    recorded as separate, not-run gates. Add
+    `parity_semantic_projection` and per-scenario baselines in
+    `tests/parity_support.py`, then assert them from its existing record maker
+    and `test_executor.py`'s local record maker; do not add an aggregate runner
+    that imports or private-calls other test modules. The projection must cover
+    scenario/variant identity, exposed schemas, JSON-canonical normalized
+    calls, invocation/results, completion outcome, and an approved package
+    error category. It excludes interface/mode and provider trace mechanics.
+    Structured S2 invalids are `validation_error`; malformed S2/S6 are
+    `normalization_error` and may be `ModelExecutionError` for the MLX codec or
+    `WorkflowExecutionError` elsewhere; S4 is `tool_failure`. Native tests
+    retain exact error assertions. Apple S4 is the explicit callback-native
+    exception: it proves one model request, a failed `tool_finished` event,
+    executor `WorkflowExecutionError`, and no response continuation rather
+    than a model-loop `tool_failure` stop trace. Record the closure in new
+    `specs/model-interface-parity/validation.md`: a machine-readable
+    13-positive-row (sync/async where applicable) by S1-S6 ledger including
+    S2 variants, plus two stock-MLX negative rows, each linked to exact pytest
+    nodes/results and separate-not-run approval, competency, and live gates.
+  - Validation: run this exact scoped parity command before broad checks:
+
+    <!-- rumdl-disable MD013 -->
+
+    ```sh
+    poetry run pytest -q \
+      tests/test_executor.py::test_model_interface_parity_s1_selects_only_create_record \
+      tests/test_executor.py::test_model_interface_parity_io_blocker_rejects_every_external_seam \
+      tests/test_executor.py::test_model_interface_parity_sync_and_async_records_match \
+      tests/test_executor.py::test_model_interface_parity_s5_sync_and_async_records_match \
+      tests/test_executor.py::test_model_interface_parity_s2_valid_and_invalid_arguments \
+      tests/test_executor.py::test_model_interface_parity_s3_continues_with_lookup_identifier \
+      tests/test_executor.py::test_model_interface_parity_s4_reports_controlled_failure \
+      tests/test_executor.py::test_model_interface_parity_s5_completes_without_a_tool \
+      tests/test_executor.py::test_model_interface_parity_s6_rejects_malformed_normalized_call_before_dispatch \
+      tests/test_openai_client.py::test_model_interface_parity_openai_s1_uses_normalized_native_call \
+      tests/test_openai_client.py::test_model_interface_parity_openai_native_scenarios \
+      tests/test_litellm_provider_adapter.py::test_model_interface_parity_litellm_native_scenarios \
+      tests/test_local_models.py::test_model_interface_parity_local_endpoint_native_scenarios \
+      tests/test_local_models.py::test_model_interface_parity_llama_cpp_native_scenarios \
+      tests/test_mlx_models.py::test_model_interface_parity_mlx_injected_pair_native_scenarios \
+      tests/test_mlx_models.py::test_model_interface_parity_stock_mlx_rejects_tools_before_dispatch \
+      tests/test_apple_foundation_models.py::test_model_interface_parity_apple_callback_native_scenarios
+    ```
+
+    <!-- rumdl-enable MD013 -->
+
+    Then run focused parity modules, `poetry run pytest -q`,
     `poetry run ruff check src tests`, `ruff format --check src tests`, and
     `pre-commit run --files <changed files>`.
+  - Delivered: `tests/parity_support.py` now supplies a scenario-level semantic
+    projection and canonical baselines, asserted from both existing record
+    makers. Each record captures schemas from its actual adapter-facing request
+    (or provider-bound equivalent), rather than reconstructing them from the
+    fixture. The Apple fixture uses the same wrong-type and unknown-field inputs
+    as every other seam. `validation.md` records the 13 positive rows, two stock
+    MLX negative rows, exact scoped nodes, and the separate gates.
+  - Validation: the exact scoped node command passed (143); focused parity
+    modules passed (578); full pytest passed (`1451 passed, 1 skipped, 6
+    deselected`); Ruff check and format check passed.
 
 ## Readiness Review
 
@@ -285,6 +339,18 @@ timestamps, and token usage remain diagnostic only.
 - Ponytail: accepted the strict-schema repair and the test-only helper as the
   smallest delivery shape. No generic JSON-Schema engine, runtime parity
   framework, provider process, or new dependency was added.
+
+## T1.6 Delivery Review
+
+- Council triad: approved after requiring records to capture exposed schemas
+  from each actual adapter-facing request or provider-bound tool envelope, and
+  requiring the closure ledger to name every supporting node for each positive
+  interface/mode row. The scoped command passed (143), focused parity modules
+  passed (578), and the full suite passed (`1451 passed, 1 skipped, 6
+  deselected`).
+- Ponytail: accepted the smallest correction: one test-only envelope normalizer
+  and request capture at existing recorders. No runtime change, aggregate test
+  runner, generic test framework, provider process, or dependency was added.
 
 ## T1.2 Readiness Review
 
