@@ -124,7 +124,7 @@ surface so it can represent:
 
 - explicit local file paths
 - explicit cache roots
-- default cache lookup under `~/.ollama/models`
+- default declared-reference cache lookup under `~/.cache/huggingface/hub`
 - explicit Hugging Face file references
 - explicit Hugging Face snapshot references
 

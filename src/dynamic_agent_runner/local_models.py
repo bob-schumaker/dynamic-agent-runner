@@ -442,9 +442,11 @@ def check_local_model_availability(
             cache_root=reference.model_cache_root,
         )
     default_cache_root = _default_local_model_cache_root()
-    default_cache_hit = _resolve_cache_hit(
+    default_cache_hit = _resolve_default_cache_hit(
         cache_root=default_cache_root,
         model_filename=model_filename,
+        repo_id=reference.repo_id,
+        revision=reference.revision,
     )
     if default_cache_hit is not None:
         return _availability_for_candidate(
@@ -487,6 +489,7 @@ def list_local_model_assets(
             assets=assets,
             warnings=warnings,
             seen_paths=seen_paths,
+            scan_hub_snapshots=True,
         )
     for cache_root_value in model_cache_roots:
         cache_root = Path(cache_root_value)
@@ -500,6 +503,7 @@ def list_local_model_assets(
             assets=assets,
             warnings=warnings,
             seen_paths=seen_paths,
+            scan_hub_snapshots=False,
         )
     return LocalModelInventory(
         assets=tuple(assets),
@@ -836,9 +840,11 @@ def resolve_local_model_path(
         return explicit_cache_hit
 
     default_cache_root = _default_local_model_cache_root()
-    default_cache_hit = _resolve_cache_hit(
+    default_cache_hit = _resolve_default_cache_hit(
         cache_root=default_cache_root,
         model_filename=config.model_filename,
+        repo_id=_huggingface_reference_repo_id(config),
+        revision=_huggingface_reference_revision(config),
     )
     if default_cache_hit is not None:
         return default_cache_hit
@@ -1107,7 +1113,7 @@ def _load_default_llama_cpp_backend(
 
 
 def _default_local_model_cache_root() -> Path:
-    return Path.home() / ".ollama" / "models"
+    return Path.home() / ".cache" / "huggingface" / "hub"
 
 
 def _availability_model_filename(reference: LocalModelAssetReference) -> str | None:
@@ -1210,12 +1216,21 @@ def _scan_local_model_inventory_root(
     assets: list[LocalModelInventoryItem],
     warnings: list[str],
     seen_paths: set[Path],
+    scan_hub_snapshots: bool,
 ) -> None:
     if not cache_root.exists():
         warnings.append(f"Local model inventory root {cache_root!s} does not exist")
         return
     if not cache_root.is_dir():
         warnings.append(f"Local model inventory root {cache_root!s} is not a directory")
+        return
+    if scan_hub_snapshots:
+        _scan_hub_snapshot_inventory_root(
+            cache_root=cache_root,
+            source=source,
+            assets=assets,
+            seen_paths=seen_paths,
+        )
         return
     for child in sorted(cache_root.iterdir(), key=lambda path: path.name):
         if child.name.startswith("."):
@@ -1232,6 +1247,109 @@ def _scan_local_model_inventory_root(
             continue
         seen_paths.add(resolved_child)
         assets.append(item)
+
+
+def _scan_hub_snapshot_inventory_root(
+    *,
+    cache_root: Path,
+    source: LocalModelAvailabilitySource,
+    assets: list[LocalModelInventoryItem],
+    seen_paths: set[Path],
+) -> None:
+    resolved_cache_root = cache_root.resolve()
+    for repository_root in sorted(
+        cache_root.glob("models--*"), key=lambda path: path.name
+    ):
+        if repository_root.is_symlink() or not repository_root.is_dir():
+            continue
+        if not _is_path_within(repository_root, resolved_cache_root):
+            continue
+        snapshots_root = repository_root / "snapshots"
+        if snapshots_root.is_symlink() or not snapshots_root.is_dir():
+            continue
+        for snapshot_root in sorted(
+            snapshots_root.iterdir(), key=lambda path: path.name
+        ):
+            if (
+                snapshot_root.is_symlink()
+                or not snapshot_root.is_dir()
+                or not _is_safe_hub_component(snapshot_root.name)
+                or not _is_path_within(snapshot_root, snapshots_root)
+            ):
+                continue
+            _append_hub_snapshot_inventory_items(
+                snapshot_root=snapshot_root,
+                repository_root=repository_root,
+                cache_root=cache_root,
+                source=source,
+                assets=assets,
+                seen_paths=seen_paths,
+            )
+
+
+def _append_hub_snapshot_inventory_items(
+    *,
+    snapshot_root: Path,
+    repository_root: Path,
+    cache_root: Path,
+    source: LocalModelAvailabilitySource,
+    assets: list[LocalModelInventoryItem],
+    seen_paths: set[Path],
+) -> None:
+    if _is_contained_hub_mlx_snapshot(snapshot_root, repository_root):
+        resolved_snapshot = snapshot_root.resolve()
+        if resolved_snapshot not in seen_paths:
+            seen_paths.add(resolved_snapshot)
+            assets.append(
+                LocalModelInventoryItem(
+                    path=snapshot_root,
+                    cache_root=cache_root,
+                    source=source,
+                    model_format="mlx",
+                    backend="mlx",
+                )
+            )
+        return
+    for child in sorted(snapshot_root.iterdir(), key=lambda path: path.name):
+        if (
+            child.suffix.lower() != ".gguf"
+            or not child.is_file()
+            or not _is_path_within(child, repository_root)
+        ):
+            continue
+        resolved_child = child.resolve()
+        if resolved_child in seen_paths:
+            continue
+        seen_paths.add(resolved_child)
+        assets.append(
+            LocalModelInventoryItem(
+                path=child,
+                cache_root=cache_root,
+                source=source,
+                model_format="gguf",
+                backend="llama_cpp",
+            )
+        )
+
+
+def _is_contained_hub_mlx_snapshot(
+    snapshot_root: Path,
+    repository_root: Path,
+) -> bool:
+    required_files = (
+        snapshot_root / "config.json",
+        snapshot_root / "tokenizer.model",
+    )
+    if any(
+        not _is_path_within(path, repository_root) or not path.is_file()
+        for path in required_files
+    ):
+        return False
+    weights = [snapshot_root / "weights.npz"]
+    weights.extend(snapshot_root.glob("weights.*.npz"))
+    return any(
+        _is_path_within(path, repository_root) and path.is_file() for path in weights
+    )
 
 
 def _local_model_inventory_item_for_child(
@@ -1311,6 +1429,132 @@ def _resolve_cache_hit(*, cache_root: Path | None, model_filename: str) -> Path 
     if candidate.exists():
         return candidate
     return None
+
+
+def _resolve_default_cache_hit(
+    *,
+    cache_root: Path,
+    model_filename: str,
+    repo_id: str | None,
+    revision: str | None,
+) -> Path | None:
+    if repo_id is None:
+        return _resolve_cache_hit(cache_root=cache_root, model_filename=model_filename)
+    repository_root = _hub_repository_cache_root(cache_root, repo_id)
+    if repository_root is None:
+        return None
+    snapshot_id = _hub_snapshot_id(
+        repository_root=repository_root,
+        revision=revision,
+    )
+    if snapshot_id is None:
+        return None
+    filename_parts = _safe_hub_relative_parts(model_filename)
+    if filename_parts is None:
+        return None
+    snapshots_root = repository_root / "snapshots"
+    snapshot_root = snapshots_root / snapshot_id
+    candidate = snapshot_root.joinpath(*filename_parts)
+    if (
+        not candidate.exists()
+        or not _is_path_within(snapshot_root, snapshots_root)
+        or not _is_path_within(candidate, repository_root)
+    ):
+        return None
+    return candidate
+
+
+def _huggingface_reference_repo_id(config: LocalModelPathConfig) -> str | None:
+    if config.huggingface_file is not None:
+        return config.huggingface_file.repo_id
+    if config.huggingface_snapshot is not None:
+        return config.huggingface_snapshot.repo_id
+    return None
+
+
+def _huggingface_reference_revision(config: LocalModelPathConfig) -> str | None:
+    if config.huggingface_file is not None:
+        return config.huggingface_file.revision
+    if config.huggingface_snapshot is not None:
+        return config.huggingface_snapshot.revision
+    return None
+
+
+def _hub_repository_cache_root(cache_root: Path, repo_id: str) -> Path | None:
+    repo_parts = _safe_hub_relative_parts(repo_id)
+    if repo_parts is None:
+        return None
+    repository_root = Path(cache_root) / f"models--{'--'.join(repo_parts)}"
+    if (
+        repository_root.is_symlink()
+        or not repository_root.is_dir()
+        or not _is_path_within(repository_root, cache_root)
+    ):
+        return None
+    return repository_root
+
+
+def _hub_snapshot_id(*, repository_root: Path, revision: str | None) -> str | None:
+    requested_revision = revision or "main"
+    if not _is_safe_hub_component(requested_revision):
+        return None
+    snapshots_root = repository_root / "snapshots"
+    if (
+        snapshots_root.is_symlink()
+        or not snapshots_root.is_dir()
+        or not _is_path_within(snapshots_root, repository_root)
+    ):
+        return None
+    direct_snapshot = snapshots_root / requested_revision
+    if direct_snapshot.is_dir() and not direct_snapshot.is_symlink():
+        return requested_revision
+    refs_root = repository_root / "refs"
+    if (
+        refs_root.is_symlink()
+        or not refs_root.is_dir()
+        or not _is_path_within(refs_root, repository_root)
+    ):
+        return None
+    ref_path = refs_root / requested_revision
+    if (
+        ref_path.is_symlink()
+        or not ref_path.is_file()
+        or not _is_path_within(ref_path, refs_root)
+    ):
+        return None
+    try:
+        snapshot_id = ref_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return snapshot_id if _is_safe_hub_component(snapshot_id) else None
+
+
+def _safe_hub_relative_parts(value: str) -> tuple[str, ...] | None:
+    if not value or value.startswith("/") or "\\" in value:
+        return None
+    parts = tuple(value.split("/"))
+    if not parts or any(not _is_safe_hub_component(part) for part in parts):
+        return None
+    return parts
+
+
+def _is_safe_hub_component(value: str) -> bool:
+    return (
+        bool(value)
+        and value not in {".", ".."}
+        and "/" not in value
+        and "\\" not in value
+        and not any(character.isspace() and character != " " for character in value)
+        and not any(ord(character) < 32 or ord(character) == 127 for character in value)
+    )
+
+
+def _is_path_within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
 
 
 def _download_model_file(

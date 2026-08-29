@@ -24,7 +24,48 @@ from parity_support import (
 
 
 def _default_cache_root(home_dir: Path) -> Path:
-    return home_dir / ".ollama" / "models"
+    return home_dir / ".cache" / "huggingface" / "hub"
+
+
+def _hub_snapshot_root(home_dir: Path, repo_id: str, revision: str) -> Path:
+    return (
+        _default_cache_root(home_dir)
+        / f"models--{repo_id.replace('/', '--')}"
+        / "snapshots"
+        / revision
+    )
+
+
+def _guard_ollama_access(
+    monkeypatch: pytest.MonkeyPatch,
+    home_dir: Path,
+) -> list[Path]:
+    ollama_root = home_dir / ".ollama"
+    observed: list[Path] = []
+    for method_name in (
+        "exists",
+        "is_dir",
+        "is_file",
+        "is_symlink",
+        "iterdir",
+        "read_text",
+        "resolve",
+    ):
+        original = getattr(Path, method_name)
+
+        def guarded(
+            path: Path,
+            *args: object,
+            _original: Callable[..., object] = original,
+            **kwargs: object,
+        ) -> object:
+            if path == ollama_root or ollama_root in path.parents:
+                observed.append(path)
+                raise AssertionError(f"A5.1 must not access {path!s}")
+            return _original(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, method_name, guarded)
+    return observed
 
 
 class _FailingResponses:
@@ -647,11 +688,22 @@ def test_list_local_model_assets_scans_default_cache_root(
     home_dir = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home_dir))
     cache_root = _default_cache_root(home_dir)
-    gguf_model = cache_root / "chat-model.gguf"
+    gguf_model = (
+        _hub_snapshot_root(
+            home_dir,
+            "Qwen/Qwen3-4B-GGUF",
+            "commit-gguf",
+        )
+        / "chat-model.gguf"
+    )
     gguf_model.parent.mkdir(parents=True)
     gguf_model.write_text("gguf", encoding="utf-8")
-    mlx_model = cache_root / "converted-mlx"
-    mlx_model.mkdir()
+    mlx_model = _hub_snapshot_root(
+        home_dir,
+        "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit",
+        "commit-mlx",
+    )
+    mlx_model.mkdir(parents=True)
     (mlx_model / "config.json").write_text("{}", encoding="utf-8")
     (mlx_model / "tokenizer.model").write_text("tokenizer", encoding="utf-8")
     (mlx_model / "weights.npz").write_text("weights", encoding="utf-8")
@@ -716,7 +768,14 @@ def test_list_local_model_assets_deduplicates_roots_and_warns_for_bad_roots(
     home_dir = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home_dir))
     cache_root = _default_cache_root(home_dir)
-    model_path = cache_root / "chat-model.gguf"
+    model_path = (
+        _hub_snapshot_root(
+            home_dir,
+            "Qwen/Qwen3-4B-GGUF",
+            "commit-gguf",
+        )
+        / "chat-model.gguf"
+    )
     model_path.parent.mkdir(parents=True)
     model_path.write_text("gguf", encoding="utf-8")
     missing_root = tmp_path / "missing-root"
@@ -913,9 +972,19 @@ def test_check_local_model_availability_prefers_explicit_cache_root(
 
     home_dir = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home_dir))
-    default_cache_hit = _default_cache_root(home_dir) / "chat-model.gguf"
+    default_cache_hit = (
+        _hub_snapshot_root(
+            home_dir,
+            "Qwen/Qwen3-4B-GGUF",
+            "commit-123",
+        )
+        / "chat-model.gguf"
+    )
     default_cache_hit.parent.mkdir(parents=True)
     default_cache_hit.write_text("default", encoding="utf-8")
+    refs_main = default_cache_hit.parents[2] / "refs" / "main"
+    refs_main.parent.mkdir(parents=True)
+    refs_main.write_text("commit-123", encoding="utf-8")
     explicit_cache_root = tmp_path / "explicit-cache-root"
     explicit_cache_root.mkdir()
     explicit_cache_hit = explicit_cache_root / "chat-model.gguf"
@@ -951,9 +1020,19 @@ def test_check_local_model_availability_uses_default_cache_root(
 
     home_dir = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home_dir))
-    default_cache_hit = _default_cache_root(home_dir) / "chat-model.gguf"
+    default_cache_hit = (
+        _hub_snapshot_root(
+            home_dir,
+            "Qwen/Qwen3-4B-GGUF",
+            "commit-123",
+        )
+        / "chat-model.gguf"
+    )
     default_cache_hit.parent.mkdir(parents=True)
     default_cache_hit.write_text("default", encoding="utf-8")
+    refs_main = default_cache_hit.parents[2] / "refs" / "main"
+    refs_main.parent.mkdir(parents=True)
+    refs_main.write_text("commit-123", encoding="utf-8")
 
     availability = check_local_model_availability(
         LocalModelAssetReference(
@@ -1117,6 +1196,358 @@ def test_resolve_local_model_path_prefers_explicit_local_path_over_cache_and_hub
     assert download_calls == []
 
 
+def test_resolve_local_model_path_uses_declared_default_hub_file_snapshot_offline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        LocalModelPathConfig,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    repo_id = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"
+    snapshot_root = _hub_snapshot_root(home_dir, repo_id, "commit-123")
+    cached_model = snapshot_root / "model.safetensors"
+    cached_model.parent.mkdir(parents=True)
+    cached_model.write_text("cached", encoding="utf-8")
+    sentinel = home_dir / ".ollama" / "models" / "sentinel"
+    sentinel.parent.mkdir(parents=True)
+    sentinel.write_text("untouched", encoding="utf-8")
+    download_calls: list[object] = []
+    ollama_accesses = _guard_ollama_access(monkeypatch, home_dir)
+
+    resolved = resolve_local_model_path(
+        LocalModelPathConfig(
+            model_filename="model.safetensors",
+            huggingface_file=HuggingFaceModelFileReference(
+                repo_id=repo_id,
+                filename="model.safetensors",
+                revision="commit-123",
+            ),
+        ),
+        allow_network=False,
+        download_file=lambda *_: download_calls.append("download"),  # type: ignore[arg-type]
+    )
+
+    assert resolved == cached_model
+    assert download_calls == []
+    assert ollama_accesses == []
+
+
+def test_check_local_model_availability_uses_declared_default_hub_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LocalModelAssetReference,
+        LocalModelAvailabilitySource,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    repo_id = "Qwen/Qwen2.5-3B-Instruct-GGUF"
+    cached_model = _hub_snapshot_root(home_dir, repo_id, "commit-123") / "chat.gguf"
+    cached_model.parent.mkdir(parents=True)
+    cached_model.write_text("cached", encoding="utf-8")
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="hugging_face",
+            repo_id=repo_id,
+            filename="chat.gguf",
+            revision="commit-123",
+            backend="llama_cpp",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.AVAILABLE
+    assert availability.source is LocalModelAvailabilitySource.DEFAULT_CACHE_ROOT
+    assert availability.resolved_path == cached_model
+
+
+def test_resolve_local_model_path_uses_declared_symbolic_hub_snapshot_ref(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceSnapshotReference,
+        LocalModelPathConfig,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    repo_id = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"
+    cached_model = (
+        _hub_snapshot_root(home_dir, repo_id, "commit-123") / "model.safetensors"
+    )
+    cached_model.parent.mkdir(parents=True)
+    cached_model.write_text("cached", encoding="utf-8")
+    ref_path = cached_model.parents[2] / "refs" / "main"
+    ref_path.parent.mkdir(parents=True)
+    ref_path.write_text("commit-123", encoding="utf-8")
+
+    resolved = resolve_local_model_path(
+        LocalModelPathConfig(
+            model_filename="model.safetensors",
+            huggingface_snapshot=HuggingFaceSnapshotReference(
+                repo_id=repo_id,
+                revision="main",
+            ),
+        ),
+        allow_network=False,
+    )
+
+    assert resolved == cached_model
+
+
+def test_resolve_local_model_path_rejects_default_hub_cross_repo_alias_offline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.errors import LocalModelOfflinePolicyError
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        LocalModelPathConfig,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    foreign_model = (
+        _hub_snapshot_root(
+            home_dir,
+            "other-org/other-model",
+            "commit-123",
+        )
+        / "chat.gguf"
+    )
+    foreign_model.parent.mkdir(parents=True)
+    foreign_model.write_text("foreign", encoding="utf-8")
+    flat_alias = _default_cache_root(home_dir) / "chat.gguf"
+    flat_alias.write_text("flat", encoding="utf-8")
+    download_calls: list[object] = []
+
+    with pytest.raises(LocalModelOfflinePolicyError):
+        resolve_local_model_path(
+            LocalModelPathConfig(
+                model_filename="chat.gguf",
+                huggingface_file=HuggingFaceModelFileReference(
+                    repo_id="wanted-org/wanted-model",
+                    filename="chat.gguf",
+                    revision="commit-123",
+                ),
+            ),
+            allow_network=False,
+            download_file=lambda *_: download_calls.append("download"),  # type: ignore[arg-type]
+        )
+
+    assert download_calls == []
+
+
+def test_default_hub_symlinked_repository_never_aliases_a_foreign_repository(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.errors import LocalModelOfflinePolicyError
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        LocalModelPathConfig,
+        check_local_model_availability,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    foreign_model = (
+        _hub_snapshot_root(
+            home_dir,
+            "foreign-org/foreign-model",
+            "commit-123",
+        )
+        / "chat.gguf"
+    )
+    foreign_model.parent.mkdir(parents=True)
+    foreign_model.write_text("foreign", encoding="utf-8")
+    declared_repository_root = (
+        _default_cache_root(home_dir) / "models--declared-org--declared-model"
+    )
+    declared_repository_root.symlink_to(
+        foreign_model.parents[2],
+        target_is_directory=True,
+    )
+    reference = HuggingFaceModelFileReference(
+        repo_id="declared-org/declared-model",
+        filename="chat.gguf",
+        revision="commit-123",
+    )
+    download_calls: list[object] = []
+
+    with pytest.raises(LocalModelOfflinePolicyError):
+        resolve_local_model_path(
+            LocalModelPathConfig(
+                model_filename="chat.gguf",
+                huggingface_file=reference,
+            ),
+            allow_network=False,
+            download_file=lambda *_: download_calls.append("download"),  # type: ignore[arg-type]
+        )
+
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="hugging_face",
+            repo_id=reference.repo_id,
+            filename=reference.filename,
+            revision=reference.revision,
+            backend="llama_cpp",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.MISSING
+    assert download_calls == []
+
+
+def test_resolve_local_model_path_rejects_escaping_hub_snapshot_file_link(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.errors import LocalModelOfflinePolicyError
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        LocalModelPathConfig,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    repo_id = "Qwen/Qwen2.5-3B-Instruct-GGUF"
+    outside = tmp_path / "outside.gguf"
+    outside.write_text("outside", encoding="utf-8")
+    cached_model = _hub_snapshot_root(home_dir, repo_id, "commit-123") / "chat.gguf"
+    cached_model.parent.mkdir(parents=True)
+    cached_model.symlink_to(outside)
+
+    with pytest.raises(LocalModelOfflinePolicyError):
+        resolve_local_model_path(
+            LocalModelPathConfig(
+                model_filename="chat.gguf",
+                huggingface_file=HuggingFaceModelFileReference(
+                    repo_id=repo_id,
+                    filename="chat.gguf",
+                    revision="commit-123",
+                ),
+            ),
+            allow_network=False,
+        )
+
+
+@pytest.mark.parametrize(
+    ("repo_id", "filename"),
+    [
+        ("wanted-org/./wanted-model", "chat.gguf"),
+        ("wanted-org/wanted-model", "./chat.gguf"),
+        ("wanted-org/wanted-model", "chat\x00.gguf"),
+    ],
+)
+def test_resolve_local_model_path_rejects_malformed_hub_cache_components(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    repo_id: str,
+    filename: str,
+) -> None:
+    from dynamic_agent_runner.errors import LocalModelOfflinePolicyError
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        LocalModelPathConfig,
+        resolve_local_model_path,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    download_calls: list[object] = []
+
+    with pytest.raises(LocalModelOfflinePolicyError):
+        resolve_local_model_path(
+            LocalModelPathConfig(
+                model_filename=filename,
+                huggingface_file=HuggingFaceModelFileReference(
+                    repo_id=repo_id,
+                    filename=filename,
+                    revision="commit-123",
+                ),
+            ),
+            allow_network=False,
+            download_file=lambda *_: download_calls.append("download"),  # type: ignore[arg-type]
+        )
+
+    assert download_calls == []
+
+
+def test_list_local_model_assets_scans_only_default_hub_snapshots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.local_models import list_local_model_assets
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    repo_id = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"
+    snapshot_root = _hub_snapshot_root(home_dir, repo_id, "commit-123")
+    for filename in ("config.json", "tokenizer.model", "weights.npz"):
+        path = snapshot_root / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(filename, encoding="utf-8")
+    ignored_blob = (
+        _default_cache_root(home_dir)
+        / f"models--{repo_id.replace('/', '--')}"
+        / "blobs"
+        / "weights.npz"
+    )
+    ignored_blob.parent.mkdir(parents=True)
+    ignored_blob.write_text("not an inventory root", encoding="utf-8")
+    sentinel = home_dir / ".ollama" / "models" / "sentinel"
+    sentinel.parent.mkdir(parents=True)
+    sentinel.write_text("untouched", encoding="utf-8")
+    ollama_accesses = _guard_ollama_access(monkeypatch, home_dir)
+
+    inventory = list_local_model_assets()
+
+    assert [asset.path for asset in inventory.assets] == [snapshot_root]
+    assert ollama_accesses == []
+
+
+def test_default_hub_inventory_ignores_escaping_mlx_required_file_links(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.local_models import list_local_model_assets
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    snapshot_root = _hub_snapshot_root(
+        home_dir,
+        "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit",
+        "commit-123",
+    )
+    snapshot_root.mkdir(parents=True)
+    (snapshot_root / "config.json").write_text("{}", encoding="utf-8")
+    (snapshot_root / "weights.npz").write_text("weights", encoding="utf-8")
+    outside_tokenizer = tmp_path / "outside-tokenizer.model"
+    outside_tokenizer.write_text("outside", encoding="utf-8")
+    (snapshot_root / "tokenizer.model").symlink_to(outside_tokenizer)
+
+    inventory = list_local_model_assets()
+
+    assert inventory.assets == ()
+
+
 def test_resolve_local_model_path_prefers_explicit_cache_root_over_default_cache(
     tmp_path: Path,
     monkeypatch,
@@ -1130,9 +1561,19 @@ def test_resolve_local_model_path_prefers_explicit_cache_root_over_default_cache
     home_dir = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home_dir))
 
-    default_cache_hit = _default_cache_root(home_dir) / "chat-model.gguf"
+    default_cache_hit = (
+        _hub_snapshot_root(
+            home_dir,
+            "Qwen/Qwen3-4B-GGUF",
+            "commit-123",
+        )
+        / "chat-model.gguf"
+    )
     default_cache_hit.parent.mkdir(parents=True)
     default_cache_hit.write_text("default-cache-model", encoding="utf-8")
+    refs_main = default_cache_hit.parents[2] / "refs" / "main"
+    refs_main.parent.mkdir(parents=True)
+    refs_main.write_text("commit-123", encoding="utf-8")
 
     explicit_cache_root = tmp_path / "explicit-cache-root"
     explicit_cache_root.mkdir()
@@ -1173,9 +1614,19 @@ def test_resolve_local_model_path_prefers_default_cache_root_over_hub_download(
     home_dir = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home_dir))
 
-    default_cache_hit = _default_cache_root(home_dir) / "chat-model.gguf"
+    default_cache_hit = (
+        _hub_snapshot_root(
+            home_dir,
+            "Qwen/Qwen3-4B-GGUF",
+            "commit-123",
+        )
+        / "chat-model.gguf"
+    )
     default_cache_hit.parent.mkdir(parents=True)
     default_cache_hit.write_text("default-cache-model", encoding="utf-8")
+    refs_main = default_cache_hit.parents[2] / "refs" / "main"
+    refs_main.parent.mkdir(parents=True)
+    refs_main.write_text("commit-123", encoding="utf-8")
 
     explicit_cache_root = tmp_path / "empty-explicit-cache-root"
     explicit_cache_root.mkdir()

@@ -358,7 +358,7 @@ Acceptance criteria:
   workflow manifest fields.
 - Given a caller configures the adapter, when no explicit model-cache folder is
   provided, then the adapter defaults its model-cache path to
-  `~/.ollama/models`.
+  `~/.cache/huggingface/hub`.
 - Given local-model support is implemented, when workflow packages are moved
   across environments, then the package does not require baked-in local
   filesystem paths to remain valid as a portable artifact.
@@ -392,11 +392,11 @@ Acceptance criteria:
   then the adapter should apply this precedence order:
   1. explicit local file path
   2. explicit cache-folder lookup
-  3. default cache-folder lookup at `~/.ollama/models`
+  3. declared-reference lookup in the default Hugging Face Hub cache
   4. Hugging Face download from an explicit remote reference
 - Given no explicit model-cache folder is provided, when Hub-backed download or
-  cache resolution occurs, then the adapter should use `~/.ollama/models` as
-  the default cache root.
+  cache resolution occurs, then the adapter should use
+  `~/.cache/huggingface/hub` as the default cache root.
 - Given the requested asset is already present in the Hugging Face local cache,
   when the adapter resolves the model path, then cached files should be reused
   instead of being redundantly downloaded.
@@ -530,7 +530,7 @@ this specification.
 - Supporting caller-owned or deployer-owned OpenAI-compatible local endpoints as
   an alternate wrapper path when the caller already has one.
 - Defining the runtime-owned local model-resolution contract, including explicit
-  local paths, cache lookup, default cache lookup at `~/.ollama/models`, and
+  local paths, cache lookup, default Hub-cache lookup, and
   explicit Hugging Face references.
 - Preserving repository-owned response normalization and tool-call shaping.
 - Defining the future contract for optional local embedding-capable
@@ -643,7 +643,7 @@ this specification.
   portable workflow-package semantics.
 - Default cache-path behavior should remain runtime-owned: callers may provide a
   model-cache folder explicitly, but when omitted the adapter uses
-  `~/.ollama/models`.
+  `~/.cache/huggingface/hub`.
 - Keep any local server process ownership, launch scripts, packaged runtimes,
   endpoint readiness, and shutdown behavior outside the library's core portable-
   workflow contract.

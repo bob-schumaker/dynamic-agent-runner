@@ -1403,6 +1403,49 @@ def test_mlx_adapter_resolves_hub_snapshot_reference_without_network(
     assert response.content == "hub snapshot answer"
 
 
+def test_mlx_adapter_resolves_default_hub_cache_snapshot_without_download(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+    from dynamic_agent_runner.local_models import HuggingFaceSnapshotReference
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    repo_id = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"
+    snapshot_root = (
+        home_dir
+        / ".cache"
+        / "huggingface"
+        / "hub"
+        / f"models--{repo_id.replace('/', '--')}"
+        / "snapshots"
+        / "commit-123"
+    )
+    write_converted_mlx_model(snapshot_root)
+    download_calls: list[object] = []
+
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=tmp_path / "missing-model",
+            model_filename="config.json",
+            huggingface_snapshot=HuggingFaceSnapshotReference(
+                repo_id=repo_id,
+                revision="commit-123",
+            ),
+        ),
+        backend=FakeMLXBackend("cached hub snapshot answer"),
+        platform_system=lambda: "Darwin",
+        download_snapshot=lambda *_: download_calls.append("download"),  # type: ignore[arg-type]
+    )
+
+    response = adapter.create_response(make_request())
+
+    assert response.content == "cached hub snapshot answer"
+    assert download_calls == []
+
+
 def test_mlx_adapter_fails_clearly_on_unsupported_platform(tmp_path: Path) -> None:
     from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
 
