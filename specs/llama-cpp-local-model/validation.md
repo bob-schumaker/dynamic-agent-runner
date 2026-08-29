@@ -1,6 +1,7 @@
 # llama.cpp Local-Model Adapter Validation Log
 
-Status: complete through Slice 3; optional embedding follow-up not started
+Status: complete through Slice 3 and T5.0 embedding planning; embedding
+execution awaits T5.1's consumer/contract decision
 
 ## Scope
 
@@ -272,6 +273,16 @@ Status: complete through Slice 3; optional embedding follow-up not started
 
 ## Pending Follow-up
 
-- T5.0 — add RED tests and a focused task breakdown for separate local embedding
-  configuration only if the optional embedding follow-up is explicitly
-  scheduled.
+### T5.0 — Separate local embedding planning
+
+- Date: 2026-08-29
+- Scope: planning-only. No source, dependency, model, network, endpoint, or
+  external-tool change was made.
+- Evidence: the refreshed spec, plan, and task breakdown isolate embedding
+  configuration from chat adapters, executor routing, workflow metadata,
+  server lifecycle, graph/RAG, and vector-store concerns.
+- Council/Ponytail: Council required a named internal consumer and a
+  source-inspected upstream method before execution. Ponytail accepted the
+  smallest outcome: do not add a generic embedding API before a consumer exists.
+- Next gate: T5.1 must resolve the consumer/output contract; it may stop for a
+  user decision when no consumer is available.

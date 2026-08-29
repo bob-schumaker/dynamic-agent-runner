@@ -5,14 +5,14 @@
 - Feature slug: `llama-cpp-local-model`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: implemented feature record; Slices 1-3 complete; optional embedding
-  follow-up remains unscheduled
+- Status: implemented through Slices 1-3; T5.0 embedding implementation
+  breakdown delivered, with embedding execution gated on a named consumer
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model follow-up
   work
-- Next gate: optional embedding follow-up or a separate advisory feature such as
-  `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md` remains the
-  source of truth for fresh execution evidence
+- Next gate: T5.1 embedding consumer/contract decision or a separate advisory
+  feature such as `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md`
+  remains the source of truth for fresh execution evidence
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
   - first-slice local endpoint helper implementation landed in commit `6d269ad`
@@ -308,6 +308,27 @@ Acceptance criteria:
   when that work is planned, then embedding support may be implemented as a
   later slice of this feature rather than expanding the first endpoint-backed
   chat slice into graph-mutation delivery.
+
+#### Embedding execution gate
+
+T5.0 records the implementation breakdown only. It does not add an embedding
+API, instantiate a model, advertise capability, or select a graph/RAG consumer.
+There is no current generic embedding execution seam in DAR. Before T5.2 begins,
+T5.1 must name one internal consumer and record its input, ordered-output,
+dimension, batching, malformed-result, and package-owned error contract.
+
+The later implementation must use a separate immutable runtime-owned embedding
+configuration rather than chat aliases, workflow manifests, or endpoint config.
+It may reuse existing local-path/cache/Hub-reference resolution and identity
+checks. Configuration construction and cache-only preflight perform no download,
+import, load, endpoint, or network I/O. A later lazy embedding invocation may
+use the existing explicit-Hub file/snapshot download seam on a cache miss, under
+its normal offline policy; it must never fall back to a remote embedding
+endpoint. It must not silently reuse a chat backend constructed without
+`embedding=True`, own a server, or change the executor, tool, approval,
+RAG/graph, or vector-store paths. The documented
+llama.cpp embedding collaborator (`embed` or `create_embedding`) and exact
+result normalization remain a source-inspection decision for T5.1.
 
 ### FR-4: Preserve repository-owned response normalization
 

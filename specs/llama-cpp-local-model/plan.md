@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Implementation Plan
 
-Status: active implementation record; Slices 1-3 complete, optional embedding
-follow-up unscheduled
+Status: active implementation record; Slices 1-3 and T5.0 planning complete;
+embedding execution awaits the T5.1 consumer/contract decision
 
 ## Goal
 
@@ -153,6 +153,37 @@ server:
 
 This slice must remain separate from graph-mutation delivery and server
 lifecycle ownership.
+
+### Slice 5 — Separate local embedding configuration
+
+T5.0 makes this a bounded follow-up rather than authorizing embedding runtime
+work. DAR currently has no embedding execution/consumer contract, so the next
+step is T5.1, not a config or backend implementation.
+
+1. T5.1 names one internal consumer and records a source-inspected upstream
+   method, input batching shape, normalized ordered vector result, finite and
+   dimension/ragged validation, package-owned failure taxonomy, and public vs
+   internal surface. It also decides explicit same-artifact behavior. Until
+   then, no factory/export is authorized.
+2. T5.2 writes focused fake-only RED tests for a distinct immutable embedding
+   config and resolver. It reuses `LocalModelPathConfig` precedence, offline
+   policy, and identity inputs. Config construction/cache-only preflight has no
+   I/O; later lazy execution may invoke an injected explicit-Hub downloader on
+   a cache miss. Tests distinguish local hit, offline-blocked miss, and that
+   permitted lazy download; none permits endpoint/auth discovery, chat reuse,
+   optional import, or model load before resolution.
+3. T5.3 implements the separately chosen embedding protocol/factory only after
+   T5.1. Its loader forces `embedding=True`, rejects conflicting caller kwargs,
+   and keeps chat and embedding instances distinct even for the same artifact.
+   Sync/async fake backend tests cover the selected upstream method, normalized
+   results, malformed/non-finite/ragged responses, and failure translation.
+4. T5.4 records focused/full fake-only validation and documents the exact
+   consumer boundary. A live model load or embedding is a separate
+   human-authorized manual acceptance step.
+
+No Slice 5 task may add executor routing, `ModelAdapter` chat behavior,
+tool/approval policy, workflow metadata, remote fallback, server lifecycle,
+graph mutation, RAG, or a vector store.
 
 ## Architectural Decision
 

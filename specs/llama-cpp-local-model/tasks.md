@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Task List
 
-Status: active feature record; Slices 1-3 complete, optional embedding follow-up
-unscheduled
+Status: active feature record; Slices 1-3 and T5.0 planning complete; embedding
+execution awaits T5.1's consumer/contract decision
 
 ## Prerequisites
 
@@ -348,17 +348,61 @@ unscheduled
     - `poetry run pytest tests/test_local_models.py tests/test_executor.py
       tests/test_import.py -q` — `92 passed in 0.45s`
 
-## Slice 5 — Optional embedding follow-up
+## Slice 5 — Separate Local Embedding Configuration
 
-- [ ] T5.0 [planning] Add a focused embedding task breakdown before implementing
+- [x] T5.0 [planning] Add a focused embedding task breakdown before implementing
       separate local embedding configuration.
   - Spec: FR-3
   - Plan: optional embedding follow-up
-  - Files/components: `specs/llama-cpp-local-model/tasks.md`,
-    `src/dynamic_agent_runner/local_models.py`, `tests/test_local_models.py`
+  - Files/components: `specs/llama-cpp-local-model/{spec,plan,tasks,validation}.md`
   - Depends on: Slice 3
   - Validation: spec/task review
-  - Evidence: chat and embedding configuration can remain related but distinct
+  - Evidence: chat and embedding configuration can remain related but distinct.
+    T5.0 delivered the gated T5.1–T5.4 breakdown without changing runtime code.
+  - Review: Council required a separate runtime-owned embedding boundary,
+    `embedding=True` loader gate, source-inspected method selection, fake-only
+    tests, and an explicit internal consumer/output contract. Ponytail rejected
+    an embedding API, generic provider, executor change, RAG/graph work, and
+    vector-store work while no consumer exists.
+
+- [ ] T5.1 [discovery/decision] Name one internal embedding consumer and record
+      the source-inspected embedding method and normalized contract.
+  - Decide: internal-only versus caller-visible surface; one string versus
+    bounded batch input; ordered finite vector output; dimension/ragged/empty
+    policy; package-owned error taxonomy; and whether two explicit configs for
+    the same artifact create distinct model instances (default: yes).
+  - Gate: inspect the installed/pinned `llama_cpp.Llama` API before selecting
+    `embed` or `create_embedding`; no implementation, model load, network, or
+    export occurs here. Stop for a user decision if no actual consumer is named.
+  - Validation: source inspection record plus spec/task review.
+
+- [ ] T5.2 [tests] Add focused fake-only RED configuration/resolution tests.
+  - Depends on: T5.1.
+  - Cover: separate immutable embedding config; explicit path, caller cache,
+    exact default-Hub snapshot, offline-blocked miss, identity inputs, and a
+    permitted lazy explicit-Hub download through an injected seam. Config
+    construction/cache-only preflight has zero optional import, load, download,
+    endpoint, process, or auth-discovery calls. No silent chat-config/backend
+    reuse or remote embedding fallback is allowed.
+  - Validation: `poetry run pytest tests/test_local_models.py`
+    `tests/test_import.py -q`.
+
+- [ ] T5.3 [implementation] Add the selected internal embedding protocol and
+      lazy sync/async execution path.
+  - Depends on: T5.2.
+  - Scope: force `embedding=True` at separate backend construction, reject a
+    conflicting caller value, normalize only the T5.1-selected upstream result,
+    and map malformed/backend failures through package-owned errors. Do not
+    extend `LlamaCppLocalModelAdapter`, executor routing, workflow metadata, or
+    capability reporting without a separately approved consumer requirement.
+  - Validation: focused fake backend tests plus import and formatter/lint checks.
+
+- [ ] T5.4 [validation/docs] Record consumer-boundary evidence and run final
+      fake-only regression.
+  - Depends on: T5.3.
+  - Validation: focused local-model/import tests, `poetry run pytest -q`, Ruff,
+    formatter, and targeted pre-commit. A real embedding run remains a separate
+    human-authorized manual step.
 
 ## Slice 4 — Validation and artifact completion
 
