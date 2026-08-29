@@ -39,21 +39,41 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
   - Gate: default codec remains blocked pending explicit upstream provenance,
     revision, license, and retention/update approval. No source pin was added.
 
-- [ ] T6.2.2 [tests/implementation] Add the injected versioned codec/candidate
+- [x] T6.2.2 [tests/implementation] Add the injected versioned codec/candidate
   seam and make its focused RED tests GREEN in the same slice. Cover initial
   schema rendering, text response, one call, and canonical response-scoped IDs.
   - Spec: Codec and backend boundary; FR-1, FR-2
   - Files: `src/dynamic_agent_runner/mlx_models.py`, `tests/test_mlx_models.py`
   - Gate: it must not claim default `mlx-lm` compatibility or change the stock
     backend's unsupported state.
+  - Implementation: `MLXToolCodec` renders one complete request and decodes text
+    or one `MLXToolCallCandidate`; `MLXToolCapableBackend` admits only declared
+    codec versions. Sync and async factories inject the codec. The stock
+    `_MLXLMBackend` does not implement this protocol and remains tool-disabled.
+  - Validation: focused RED failed at collection because the codec/candidate
+    contract was absent; after implementation, MLX and executor tests passed
+    (206), and the regression set passed (255). Ruff and
+    diff-whitespace checks passed.
+  - Council/Ponytail disposition: delivery review required a compatible backend
+    before model resolution and strict normalization before activation; rejected
+    registry, auto-detection, endpoint, and executor additions.
 
-- [ ] T6.2.3 [tests/implementation] Add RED then GREEN parser-boundary tests
+- [x] T6.2.3 [tests/implementation] Add RED then GREEN parser-boundary tests
   and bounded normalization for malformed JSON,
   duplicate keys, non-finite values, invalid root, unknown name, duplicate ID,
   multiple calls, trailing prose, and all documented size/depth/member limits.
   - Spec: Parse and normalization boundary; FR-2, FR-4
   - Files: `tests/test_mlx_models.py`, `src/dynamic_agent_runner/mlx_models.py`
   - Depends on: T6.2.2
+  - Implementation: arguments are duplicate-safe, finite JSON objects with
+    fixed 128 KiB response, 66 KiB candidate, 64 KiB arguments, depth-32, and
+    256-member limits, canonical serialization, and exposed-name validation.
+    The typed codec response permits one candidate;
+    text plus a candidate is rejected, so multiple calls and trailing prose have
+    no admissible normalized representation.
+  - Validation: RED tests for malformed, non-finite, duplicate-key, non-object,
+    unknown-name, and bounded candidates failed before normalization; all passed
+    after implementation in the T6.2.2 delivery slice.
 
 - [ ] T6.2.4 [tests/implementation] Add RED then GREEN sync/async continuation
   tests, proving the second codec request renders DAR's existing assistant call

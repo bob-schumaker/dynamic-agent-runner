@@ -90,6 +90,10 @@ from dynamic_agent_runner.local_models import (
 )
 from dynamic_agent_runner.mlx_models import (
     MLXLocalModelConfig,
+    MLXToolCallCandidate,
+    MLXToolCapableBackend,
+    MLXToolCodec,
+    MLXToolCodecResponse,
     create_mlx_local_adapter,
     create_mlx_local_async_adapter,
 )
@@ -274,6 +278,10 @@ __all__ = [
     "LocalModelError",
     "LocalOpenAIEndpointConfig",
     "MLXLocalModelConfig",
+    "MLXToolCallCandidate",
+    "MLXToolCapableBackend",
+    "MLXToolCodec",
+    "MLXToolCodecResponse",
     "AppleFoundationModelConfig",
     "MCPToolBinding",
     "ModelExecutionError",

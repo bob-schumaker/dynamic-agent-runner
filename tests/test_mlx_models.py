@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from dynamic_agent_runner import MLXToolCallCandidate, MLXToolCodecResponse
 from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner.openai_client import OpenAIModelRequest
 
@@ -37,6 +38,36 @@ class FakeMLXBackendWithKwargs:
         return self.content
 
 
+class FakeToolCapableMLXBackend(FakeMLXBackend):
+    tool_codec_versions = frozenset({"test-v1"})
+
+    def __init__(self, generated: str) -> None:
+        super().__init__()
+        self.generated = generated
+        self.rendered_prompts: list[str] = []
+
+    def generate_rendered(self, prompt: str, **kwargs: object) -> str:
+        self.rendered_prompts.append(prompt)
+        return self.generated
+
+
+class FakeMLXToolCodec:
+    version = "test-v1"
+
+    def __init__(self, decoded: MLXToolCodecResponse) -> None:
+        self.decoded = decoded
+        self.rendered_requests: list[OpenAIModelRequest] = []
+        self.generated: list[str] = []
+
+    def render(self, request: OpenAIModelRequest) -> str:
+        self.rendered_requests.append(request)
+        return "<tool-aware-prompt>"
+
+    def decode(self, generated: str) -> MLXToolCodecResponse:
+        self.generated.append(generated)
+        return self.decoded
+
+
 def make_request(
     *,
     tools: tuple[dict[str, object], ...] = (),
@@ -48,6 +79,369 @@ def make_request(
         tools=tools,
         response_format=response_format,
     )
+
+
+def tool_request() -> OpenAIModelRequest:
+    return make_request(
+        tools=(
+            {
+                "type": "function",
+                "function": {
+                    "name": "lookup",
+                    "description": "Look up a value.",
+                    "parameters": {"type": "object"},
+                },
+            },
+        )
+    )
+
+
+def test_mlx_adapter_uses_compatible_codec_for_tool_text_response(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    backend = FakeToolCapableMLXBackend("native text")
+    codec = FakeMLXToolCodec(MLXToolCodecResponse(content="decoded text"))
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=backend,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+
+    request = tool_request()
+    response = adapter.create_response(request)
+
+    assert adapter.capabilities["tool_calling"] is True
+    assert codec.rendered_requests == [request]
+    assert backend.rendered_prompts == ["<tool-aware-prompt>"]
+    assert codec.generated == ["native text"]
+    assert response.content == "decoded text"
+    assert response.tool_calls == ()
+    assert response.response_id is not None
+    assert response.response_id.startswith("mlx-")
+
+
+def test_mlx_adapter_normalizes_one_codec_tool_call_with_response_scoped_id(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(
+            MLXToolCodecResponse(
+                tool_call=MLXToolCallCandidate(
+                    name="lookup",
+                    arguments='{"query":"DAR"}',
+                )
+            )
+        ),
+        platform_system=lambda: "Darwin",
+    )
+
+    response = adapter.create_response(tool_request())
+
+    assert response.content is None
+    assert response.response_id is not None
+    assert response.tool_calls[0].name == "lookup"
+    assert response.tool_calls[0].arguments == '{"query":"DAR"}'
+    assert response.tool_calls[0].id == f"{response.response_id}:1"
+
+
+def test_mlx_adapter_rejects_incompatible_tool_codec_before_generation(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    backend = FakeToolCapableMLXBackend("must not generate")
+    codec = FakeMLXToolCodec(MLXToolCodecResponse(content="not used"))
+    codec.version = "unsupported-v1"
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=backend,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+
+    assert adapter.capabilities["tool_calling"] is False
+    with pytest.raises(ModelExecutionError, match="does not support tool"):
+        adapter.create_response(tool_request())
+    assert backend.rendered_prompts == []
+
+
+def test_mlx_adapter_rejects_unpaired_codec_before_model_resolution(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    dependency_loader_called = False
+
+    def dependency_loader() -> object:
+        nonlocal dependency_loader_called
+        dependency_loader_called = True
+        raise AssertionError("tool codec must be paired before model loading")
+
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=tmp_path / "missing-model",
+        ),
+        dependency_loader=dependency_loader,
+        tool_codec=FakeMLXToolCodec(MLXToolCodecResponse(content="not used")),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match="does not support tool"):
+        adapter.create_response(tool_request())
+    assert dependency_loader_called is False
+
+
+def test_async_mlx_adapter_uses_compatible_tool_codec(tmp_path: Path) -> None:
+    from dynamic_agent_runner import (
+        MLXLocalModelConfig,
+        create_mlx_local_async_adapter,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_async_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native text"),
+        tool_codec=FakeMLXToolCodec(MLXToolCodecResponse(content="decoded text")),
+        platform_system=lambda: "Darwin",
+    )
+
+    response = asyncio.run(adapter.create_response(tool_request()))
+
+    assert adapter.capabilities["tool_calling"] is True
+    assert response.content == "decoded text"
+    assert response.response_id is not None
+
+
+@pytest.mark.parametrize(
+    ("candidate", "message"),
+    [
+        (
+            MLXToolCallCandidate(name="lookup", arguments="{not json}"),
+            "valid JSON",
+        ),
+        (
+            MLXToolCallCandidate(name="lookup", arguments='{"query":NaN}'),
+            "non-finite",
+        ),
+        (
+            MLXToolCallCandidate(name="lookup", arguments='{"a":1,"a":2}'),
+            "duplicate",
+        ),
+        (MLXToolCallCandidate(name="lookup", arguments="[]"), "JSON object"),
+        (MLXToolCallCandidate(name="unknown", arguments="{}"), "unavailable"),
+    ],
+)
+def test_mlx_adapter_rejects_invalid_codec_tool_candidates(
+    tmp_path: Path,
+    candidate: MLXToolCallCandidate,
+    message: str,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(MLXToolCodecResponse(tool_call=candidate)),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match=message):
+        adapter.create_response(tool_request())
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (
+            '{"nested":' + "[" * 33 + "0" + "]" * 33 + "}",
+            "nesting limit",
+        ),
+        (
+            "{" + ",".join(f'"key{index}":{index}' for index in range(257)) + "}",
+            "member limit",
+        ),
+        ('{"query":"' + "x" * (64 * 1024) + '"}', "byte limit"),
+    ],
+)
+def test_mlx_adapter_rejects_tool_argument_bounds(
+    tmp_path: Path,
+    arguments: str,
+    message: str,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(
+            MLXToolCodecResponse(
+                tool_call=MLXToolCallCandidate(name="lookup", arguments=arguments)
+            )
+        ),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match=message):
+        adapter.create_response(tool_request())
+
+
+@pytest.mark.parametrize(
+    ("candidate", "message"),
+    [
+        (MLXToolCallCandidate(name=1, arguments="{}"), "must have a name"),  # type: ignore[arg-type]
+        (MLXToolCallCandidate(name="lookup", arguments="{}", id=1), "ID"),  # type: ignore[arg-type]
+        (MLXToolCallCandidate(name="lookup", arguments=1), "JSON object"),  # type: ignore[arg-type]
+    ],
+)
+def test_mlx_adapter_rejects_runtime_invalid_codec_candidate_types(
+    tmp_path: Path,
+    candidate: MLXToolCallCandidate,
+    message: str,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(MLXToolCodecResponse(tool_call=candidate)),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match=message):
+        adapter.create_response(tool_request())
+
+
+def test_mlx_adapter_rejects_codec_text_combined_with_tool_call(tmp_path: Path) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(
+            MLXToolCodecResponse(
+                content="trailing prose",
+                tool_call=MLXToolCallCandidate(name="lookup", arguments="{}"),
+            )
+        ),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match="text or exactly one tool call"):
+        adapter.create_response(tool_request())
+
+
+def test_mlx_adapter_rejects_runtime_invalid_codec_text(tmp_path: Path) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native text"),
+        tool_codec=FakeMLXToolCodec(MLXToolCodecResponse(content=1)),  # type: ignore[arg-type]
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match="text response must be a string"):
+        adapter.create_response(tool_request())
+
+
+def test_mlx_adapter_rejects_oversized_generated_tool_response(tmp_path: Path) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    codec = FakeMLXToolCodec(MLXToolCodecResponse(content="not decoded"))
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("x" * (128 * 1024 + 1)),
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match="response exceeds the byte limit"):
+        adapter.create_response(tool_request())
+    assert codec.generated == []
+
+
+def test_mlx_adapter_rejects_oversized_tool_call_candidate(tmp_path: Path) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(
+            MLXToolCodecResponse(
+                tool_call=MLXToolCallCandidate(
+                    name="lookup",
+                    arguments="{}",
+                    id="x" * (66 * 1024),
+                )
+            )
+        ),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match="call exceeds the byte limit"):
+        adapter.create_response(tool_request())
 
 
 def test_mlx_config_and_sync_factory_create_local_adapter(tmp_path: Path) -> None:

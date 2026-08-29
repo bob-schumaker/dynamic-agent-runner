@@ -11,7 +11,7 @@ values. Reuse the executor's existing tool loop; do not create another one.
 ## Approach
 
 1. Add a small typed codec/candidate contract in `mlx_models.py` and a
-   `tool_codec` configuration path. The backend and codec explicitly advertise
+   factory-injected `tool_codec` path. The backend and codec explicitly advertise
    compatibility; the stock `_MLXLMBackend` remains unsupported.
 2. Replace the unconditional tool rejection with capability-aware rejection.
    Text-only and structured-output behavior otherwise remains unchanged.
