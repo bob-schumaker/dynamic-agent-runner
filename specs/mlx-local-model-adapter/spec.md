@@ -153,9 +153,10 @@ This feature specification covers:
 - The public helper names for the first implementation are authoritative:
   `MLXLocalModelConfig`, `create_mlx_local_adapter(...)`, and
   `create_mlx_local_async_adapter(...)`.
-- The first implementation may use a repository-owned internal backend
-  protocol. A default backend may wrap `mlx-lm` after verifying its installed
-  API at implementation time; tests must not require `mlx-lm` or `mlx`.
+- The first implementation uses a repository-owned internal backend protocol.
+  The optional `mlx-lm` runtime remains lazy, and tests must not require
+  `mlx-lm` or `mlx`. Its selected source/version and the future Qwen3
+  tool-template contract are owned by `mlx-local-model-tool-use`.
 - MLX dependencies should be lazy imports. If dependency metadata changes are
   needed, prefer an optional Poetry dependency group or package extra rather
   than making MLX mandatory for all installs.
@@ -322,9 +323,10 @@ Acceptance criteria:
   `executor.py`.
 - Reuse local-model error types where they match; add MLX-specific subclasses
   only when caller recovery needs a distinct category.
-- Treat `mlx-lm` as the likely high-level LLM integration candidate, but verify
-  its local API during implementation. The local `mlx-examples` checkout points
-  to `mlx-lm` but does not contain it.
+- Treat `mlx-lm` as the selected high-level LLM integration. Its source/version,
+  update policy, and Qwen3 tool-template decision are recorded by
+  `mlx-local-model-tool-use`; the local `mlx-examples` checkout remains a
+  behavior reference rather than an API source.
 - Treat the older `mlx-examples/llms/*` scripts as useful behavior references,
   not as stable library APIs.
 - Keep model conversion and benchmark/performance tuning outside the first

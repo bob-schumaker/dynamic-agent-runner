@@ -324,9 +324,10 @@ resolution or dependency loading. The default in-process backend lazily imports
 ``mlx-lm``. MLX helpers validate converted model directories, explicit ``.gguf``
 files with ``model_format="gguf"``, and Hugging Face-resolved assets before
 generation. They normalize generated text into the package ``ModelResponse``
-contract and reject unsupported tool-call or structured-output requests. Use
-strict coverage for local-only execution. If a caller already exposes an MLX
-model through an OpenAI-compatible local server, use
+contract and reject unsupported tool-call or structured-output requests. Install
+the ``mlx`` extra before using the default in-process backend. Use strict
+coverage for local-only execution. If a caller already exposes an MLX model
+through an OpenAI-compatible local server, use
 ``LocalOpenAIEndpointConfig`` instead. Embeddings, multimodal IO, streaming
 public APIs, conversion, and server lifecycle helpers are separate feature
 surfaces.

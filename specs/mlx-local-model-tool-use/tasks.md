@@ -27,8 +27,9 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
 - [x] T6.2.1 [discovery] Inspect the installed/pinned `mlx-lm` tokenizer and
   chat-template API before making a default-codec claim.
   - Spec: Codec and backend boundary; FR-1, FR-2
-  - Evidence: `mlx-lm` is not installed in the Poetry environment and no pinned
-    source exists in this repository. Existing unsupported-capability tests pass.
+  - Historical evidence: before source selection, existing
+    unsupported-capability tests passed. The selected package, source, and
+    Qwen3 target are now recorded in `implementation-decision.md`.
   - Validation: `poetry run pytest`
     `tests/test_mlx_models.py::test_mlx_adapter_rejects_tool_calls`
     `tests/test_mlx_models.py::test_mlx_adapter_reports_conservative_capabilities`
@@ -36,8 +37,8 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
   - Council/Ponytail disposition: do not add an unapproved upstream subproject
     or leave a permanently RED test in the repository; keep the default path
     unsupported and move the generic codec TDD work into one GREEN slice.
-  - Gate: default codec remains blocked pending explicit upstream provenance,
-    revision, license, and retention/update approval. No source pin was added.
+  - Gate: the stock backend remains unsupported until the selected Qwen3
+    tokenizer/template and parser pass the runtime compatibility gate.
 
 - [x] T6.2.2 [tests/implementation] Add the injected versioned codec/candidate
   seam and make its focused RED tests GREEN in the same slice. Cover initial
@@ -96,8 +97,12 @@ Status: M6.1 and T6.2.1 delivered; injected-codec M6.2 is implementation-ready
   - Files: `README.md`, `docs/files/python-api.rst`, feature artifacts
   - Depends on: T6.2.5
 
-- [ ] T6.2.7 [decision/discovery] Before adding a default `mlx-lm` codec,
-  obtain explicit approval for the authoritative upstream source, immutable
-  revision, license/provenance record, retention/update policy, and inspection
-  scope. Characterize that pinned API without importing it in pytest.
-  - Depends on: T6.2.6
+- [x] T6.2.7 [decision/discovery] Record the approved `mlx-lm` upstream source,
+  immutable revision, license/provenance record, retention/update policy,
+  selected smaller Qwen3 parity artifact, and tokenizer inspection scope.
+  - Evidence: `implementation-decision.md` pins `mlx-lm` v0.31.3 source commit
+    `ed1fca4`, the Poetry lock hash, and
+    `mlx-community/Qwen3-4B-Instruct-2507-nvfp4` revision
+    `111ab717db337468c86004a79bd9df19c6e3986d`.
+  - Gate: characterize the selected tokenizer API without importing `mlx_lm` in
+    pytest; live competency remains an eligible-Mac manual step.

@@ -362,8 +362,9 @@ model resolution or dependency loading. The default in-process backend lazily
 imports `mlx-lm`, expects a caller-controlled converted MLX model directory,
 explicit `.gguf` file (`model_format="gguf"`), or explicit Hugging Face
 reference, and does not start a server or wrap MLX as hosted OpenAI. Install
-with the `huggingface` extra before using Hugging Face-backed model discovery
-or asset downloads. The in-process adapter remains plain text generation only:
+with the `mlx` extra before using the default in-process MLX backend, and with
+the `huggingface` extra before using Hugging Face-backed model discovery or
+asset downloads. The in-process adapter remains plain text generation only:
 tool calling, structured output, embeddings, multimodal IO, streaming public
 APIs, conversion, and server lifecycle helpers are separate feature surfaces.
 

@@ -29,8 +29,9 @@ values. Reuse the executor's existing tool loop; do not create another one.
 - `README.md` and `docs/files/python-api.rst` only after implementation is green
 
 No change is planned for `executor.py`, tool registries, approval code, model
-manifest schema, endpoint helpers, or package dependencies unless the M6.2
-upstream API inspection proves an optional dependency declaration is necessary.
+manifest schema, or endpoint helpers. The selected optional `mlx-lm`
+dependency, Qwen3 Instruct target, and pinned parity artifact are recorded in
+[`implementation-decision.md`](implementation-decision.md).
 
 ## TDD and Validation
 
@@ -54,9 +55,11 @@ claim of CI parity.
 
 - A tokenizer's native chat template may not support the selected codec. Inspect
   it before implementation; do not invent compatibility.
-- T6.2.1 found no installed or pinned `mlx-lm` source. Do not add a source pin
-  without explicit provenance approval; a future default-codec task is gated on
-  that decision, while the injected-codec seam remains independently executable.
+- The accepted source and artifact decision is recorded in
+  [`implementation-decision.md`](implementation-decision.md). Inspect the
+  selected Qwen3 tokenizer/template and parser interfaces before activating the
+  built-in codec; preserve a text-only capability state if they do not meet the
+  contract.
 - Model output is untrusted. Bounds and duplicate-safe parsing happen before
   `ModelToolCall` emission.
 - This slice is serial and one-call-only. Parallel tool calls are a separate

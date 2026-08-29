@@ -11,6 +11,7 @@
   - `specs/model-adapter-coverage/spec.md`
   - `specs/llama-cpp-local-model/spec.md`
   - `specs/mlx-local-model-adapter/spec.md`
+  - `specs/mlx-local-model-tool-use/spec.md`
   - `specs/apple-foundation-model-adapter/spec.md`
   - `specs/tool-invocation-coordinator/spec.md`
   - `specs/approval-interruption-resume/spec.md`
@@ -76,7 +77,7 @@ controlled fixture.
 | LiteLLM sync and async adapters | scripted completion client | not required |
 | OpenAI-compatible local endpoint sync and async adapters | recording local transport | eligible when a caller supplies a compatible server |
 | Direct llama.cpp sync and async adapters | injected llama.cpp backend | eligible with a pinned GGUF artifact |
-| In-process MLX sync and async adapters | injected `mlx_lm` backend | pending: current adapter rejects tools |
+| In-process MLX sync and async adapters | injected MLX codec/backend seam | pending: selected Qwen3 Instruct artifact; current stock adapter rejects tools |
 | Apple Foundation Models async adapter | injected SDK/bridge seam | eligible on an eligible Mac as a separate provider-family run |
 
 The model-agnostic executor-level fixture must also run with sync and async
@@ -210,11 +211,13 @@ fakes, injected backends, or a recording local transport.
 
 ### Local-model competency measurement
 
-This is optional, manually initiated, and outside CI. It uses one pinned model
-family and fixed generation settings to compare direct llama.cpp, compatible
-local endpoint, and—after its tool-capable follow-up—MLX execution. Apple
-Foundation Models is measured separately because it cannot use the same model
-weights.
+This is optional, manually initiated, and outside CI. It uses Qwen3 Instruct
+with fixed generation settings to compare direct llama.cpp, a compatible local
+endpoint, and—after its tool-capable follow-up—MLX execution. The MLX artifact
+revision is owned by
+[`mlx-local-model-tool-use/implementation-decision.md`](../mlx-local-model-tool-use/implementation-decision.md).
+Apple Foundation Models is measured separately because it cannot use the same
+model weights.
 
 For each scenario, record attempts, valid tool selections, schema-valid
 arguments, completion outcomes, artifact revision, backend version, and
@@ -275,6 +278,6 @@ human-authorized test category.
 
 - The implementation task must choose the precise fixture and comparison-record
   module locations after reviewing the nearest executor and adapter test files.
-- The implementation task must select the pinned artifact revisions and repeat
-  count for optional local-model competency measurements; those values are not
-  CI contract requirements.
+- The implementation task must select the repeat count for optional local-model
+  competency measurements; artifact provenance is already fixed by the MLX
+  implementation decision and remains outside the CI contract.

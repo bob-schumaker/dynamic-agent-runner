@@ -76,17 +76,17 @@ tool dispatcher and receives no registry, approval, handler, credential, or
 trace collaborator. A backend may advertise tool capability only when it is
 paired with the configured codec; otherwise it remains text-only.
 
-The implementation must verify the pinned `mlx-lm` and tokenizer API before
-adding a default codec. If no selected tokenizer/template can meet this
-contract, the default backend remains unsupported rather than falling back to a
-generic text prompt.
+The built-in codec target is Qwen3 Instruct with its native tool-aware chat
+template. The parity-suite artifact, upstream `mlx-lm` provenance, immutable
+revisions, package lock hashes, and update policy are recorded in
+[`implementation-decision.md`](implementation-decision.md). The implementation
+must verify the selected tokenizer API at model load before advertising tool
+capability. If the tokenizer/template cannot meet this contract, the backend
+remains text-only rather than falling back to a generic text prompt.
 
-T6.2.1 observed that this checkout has neither an installed `mlx-lm`
-distribution nor a pinned source subproject. Adding one selects upstream
-provenance, revision, license, retention, and update ownership, so it requires
-an explicit maintainer decision. It is not implied by this feature. The stock
-backend therefore remains unsupported; this does not block a generic injected
-codec seam or its fake-only tests.
+The stock `_MLXLMBackend` remains unsupported until it supplies that verified
+codec/template implementation. This does not block the generic injected codec
+seam or its fake-only tests.
 
 ### Rendered transcript
 
@@ -180,7 +180,7 @@ async adapter continues to run that blocking work through `asyncio.to_thread`.
 ## Implementation Readiness
 
 M6.1 delivered this plan and its handoff under the stated gates. M6.2 must
-first inspect the installed/pinned `mlx-lm` tokenizer/template API before
-claiming a default codec; a missing compatible upstream template is an
+first inspect the selected Qwen3 tokenizer/template API before claiming the
+built-in codec works; a missing compatible upstream template is an
 implementation result that keeps the default backend unsupported, not authority
 to weaken this contract.
