@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from copy import deepcopy
-from dataclasses import dataclass
 from pathlib import Path
 import socket
 import subprocess
@@ -96,6 +95,14 @@ from dynamic_agent_runner.registry import (
 )
 from dynamic_agent_runner.retry import RetryPolicy
 from dynamic_agent_runner.tracing import InMemoryTraceSink, WorkflowTracer
+from parity_support import (
+    ParityRecord,
+    parity_contract_projection as shared_parity_contract_projection,
+    install_parity_io_blocker,
+    parity_loop_workflow as shared_parity_loop_workflow,
+    parity_registry as shared_parity_registry,
+    parity_tool_definitions as shared_parity_tool_definitions,
+)
 
 
 class FakeResponses:
@@ -5740,21 +5747,6 @@ def test_model_interface_parity_s1_selects_only_create_record(
     assert record.completion_class == "completed"
 
 
-@dataclass(frozen=True)
-class ParityRecord:
-    interface: str
-    scenario: str
-    asynchronous: bool
-    exposed_schemas: tuple[tuple[str, Mapping[str, object]], ...]
-    normalized_calls: tuple[tuple[str, Mapping[str, object]], ...]
-    invocations: tuple[tuple[str, Mapping[str, object]], ...]
-    invocation_results: tuple[tuple[str, object], ...]
-    completion_class: str
-    error_class: str | None
-    trace_event_types: tuple[str, ...]
-    stop_reasons: tuple[str, ...]
-
-
 class _ScriptedParityAdapter:
     models = ("gpt-test",)
 
@@ -5776,18 +5768,7 @@ class _AsyncScriptedParityAdapter(_ScriptedParityAdapter):
 
 @pytest.fixture
 def parity_io_blocker(monkeypatch: pytest.MonkeyPatch) -> None:
-    def blocked(*_args: object, **_kwargs: object) -> object:
-        raise AssertionError("parity tests prohibit external I/O")
-
-    monkeypatch.setattr(socket, "create_connection", blocked)
-    monkeypatch.setattr(socket.socket, "connect", blocked)
-    monkeypatch.setattr(subprocess, "Popen", blocked)
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", blocked)
-    monkeypatch.setattr(asyncio, "create_subprocess_shell", blocked)
-    monkeypatch.setattr(local_models, "download_hub_file", blocked)
-    monkeypatch.setattr(local_models, "download_hub_snapshot", blocked)
-    monkeypatch.setattr(hugging_face_support, "download_hub_file", blocked)
-    monkeypatch.setattr(hugging_face_support, "download_hub_snapshot", blocked)
+    install_parity_io_blocker(monkeypatch)
 
 
 def test_model_interface_parity_io_blocker_rejects_every_external_seam(
@@ -5821,54 +5802,7 @@ def test_model_interface_parity_io_blocker_rejects_every_external_seam(
 
 
 def _parity_tool_definitions() -> list[dict[str, object]]:
-    return [
-        {
-            "id": "lookup_record",
-            "approval_required": "no",
-            "input_schema": {
-                "type": "object",
-                "properties": {"key": {"type": "string"}},
-                "required": ["key"],
-                "additionalProperties": False,
-            },
-        },
-        {
-            "id": "create_record",
-            "approval_required": "no",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "body": {"type": "string"},
-                },
-                "required": ["title", "body"],
-                "additionalProperties": False,
-            },
-        },
-        {
-            "id": "transform_record",
-            "approval_required": "no",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "record_id": {"type": "string"},
-                    "operation": {"enum": ["uppercase"]},
-                },
-                "required": ["record_id", "operation"],
-                "additionalProperties": False,
-            },
-        },
-        {
-            "id": "fail_controlled",
-            "approval_required": "no",
-            "input_schema": {
-                "type": "object",
-                "properties": {"code": {"type": "string"}},
-                "required": ["code"],
-                "additionalProperties": False,
-            },
-        },
-    ]
+    return shared_parity_tool_definitions()
 
 
 def _parity_registry() -> tuple[
@@ -5876,44 +5810,7 @@ def _parity_registry() -> tuple[
     list[tuple[str, Mapping[str, object]]],
     list[tuple[str, object]],
 ]:
-    invocations: list[tuple[str, Mapping[str, object]]] = []
-    results: list[tuple[str, object]] = []
-
-    def handler(tool_id: str, output: object):
-        def run(arguments: Mapping[str, object]) -> object:
-            invocations.append((tool_id, dict(arguments)))
-            results.append((tool_id, output))
-            return output
-
-        return run
-
-    definitions = _parity_tool_definitions()
-    tools = [
-        RegisteredTool(
-            ToolDefinition.from_mapping(definitions[0]),
-            handler("lookup_record", {"record_id": "record-seed", "body": "seed"}),
-        ),
-        RegisteredTool(
-            ToolDefinition.from_mapping(definitions[1]),
-            handler("create_record", {"record_id": "record-created"}),
-        ),
-        RegisteredTool(
-            ToolDefinition.from_mapping(definitions[2]),
-            handler("transform_record", {"record_id": "record-seed", "body": "SEED"}),
-        ),
-        RegisteredTool(
-            ToolDefinition.from_mapping(definitions[3]),
-            handler(
-                "fail_controlled",
-                ToolResult(
-                    tool_id="fail_controlled",
-                    success=False,
-                    error="planned controlled failure",
-                ),
-            ),
-        ),
-    ]
-    return InMemoryToolRegistry(tools), invocations, results
+    return shared_parity_registry()
 
 
 def _parity_record(
@@ -5954,14 +5851,7 @@ def _parity_record(
 
 
 def _parity_loop_workflow() -> LoadedAgentWorkflow:
-    definitions = _parity_tool_definitions()
-    return loop_tool_workflow(
-        tools=definitions,
-        available_tools=[str(tool["id"]) for tool in definitions],
-        execution_policy_extra={
-            "tool_choice_policy": {"initial": "required", "after_tool_result": "auto"}
-        },
-    )
+    return shared_parity_loop_workflow()
 
 
 def _run_parity_loop(
@@ -6094,17 +5984,7 @@ def _run_parity_no_tool(*, asynchronous: bool) -> tuple[object, ParityRecord]:
 
 
 def _parity_contract_projection(record: ParityRecord) -> tuple[object, ...]:
-    return (
-        record.interface,
-        record.exposed_schemas,
-        record.normalized_calls,
-        record.invocations,
-        record.invocation_results,
-        record.completion_class,
-        record.error_class,
-        record.trace_event_types,
-        record.stop_reasons,
-    )
+    return shared_parity_contract_projection(record)
 
 
 @pytest.mark.parametrize(

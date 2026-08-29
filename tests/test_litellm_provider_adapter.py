@@ -6,7 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
+from dynamic_agent_runner.executor import execute_workflow, execute_workflow_async
 from dynamic_agent_runner import (
     create_litellm_adapter as exported_create_litellm_adapter,
 )
@@ -16,6 +17,7 @@ from dynamic_agent_runner.openai_client import (
     build_openai_request,
 )
 from dynamic_agent_runner.openai_client import create_default_openai_provider
+from dynamic_agent_runner.tracing import InMemoryTraceSink
 from dynamic_agent_runner.litellm_client import (
     create_async_litellm_codex_adapter,
     create_async_litellm_adapter,
@@ -24,6 +26,246 @@ from dynamic_agent_runner.litellm_client import (
     create_litellm_adapter_from_provider_config,
     create_litellm_adapter,
 )
+from parity_support import (
+    install_parity_io_blocker,
+    parity_loop_workflow,
+    parity_no_tool_workflow,
+    parity_contract_projection,
+    parity_record,
+    parity_registry,
+)
+
+
+def _litellm_tool_response(name: str, arguments: str) -> dict[str, object]:
+    return {
+        "id": "chatcmpl-tool",
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {"name": name, "arguments": arguments},
+                        }
+                    ],
+                }
+            }
+        ],
+    }
+
+
+def _litellm_text_response(text: str) -> dict[str, object]:
+    return {"id": "chatcmpl-text", "choices": [{"message": {"content": text}}]}
+
+
+def _run_litellm_parity(scenario: str, responses: list[object], *, asynchronous: bool):
+    observed = []
+    scripted = list(responses)
+    calls = []
+
+    def validator(_request, response) -> None:
+        observed.extend(response.tool_calls)
+
+    def completion(**_kwargs: object) -> object:
+        calls.append(_kwargs)
+        return scripted.pop(0)
+
+    async def acompletion(**_kwargs: object) -> object:
+        calls.append(_kwargs)
+        return scripted.pop(0)
+
+    registry, invocations, results = parity_registry()
+    sink = InMemoryTraceSink()
+    error = None
+    try:
+        if asynchronous:
+            adapter = create_async_litellm_adapter(
+                acompletion=acompletion,
+                models=["gpt-test"],
+                response_validator=validator,
+            )
+            result = asyncio.run(
+                execute_workflow_async(
+                    parity_no_tool_workflow()
+                    if scenario == "S5"
+                    else parity_loop_workflow(),
+                    prompt="controlled parity",
+                    tool_registry=registry,
+                    model_adapter=adapter,
+                    trace_sink=sink,
+                )
+            )
+        else:
+            adapter = create_litellm_adapter(
+                completion=completion,
+                models=["gpt-test"],
+                response_validator=validator,
+            )
+            result = execute_workflow(
+                parity_no_tool_workflow()
+                if scenario == "S5"
+                else parity_loop_workflow(),
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=adapter,
+                trace_sink=sink,
+            )
+    except Exception as caught:
+        result = None
+        error = caught
+    return (
+        result,
+        parity_record(
+            interface="litellm_scripted_completion",
+            scenario=scenario,
+            asynchronous=asynchronous,
+            normalized_calls=tuple((call.name, call.arguments) for call in observed),
+            invocations=invocations,
+            results=results,
+            result=result,
+            error=error,
+            sink=sink,
+        ),
+        error,
+        calls,
+    )
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    ("scenario", "responses", "invoked", "fails"),
+    [
+        ("S5", [_litellm_text_response("no tool")], (), False),
+        (
+            "S1",
+            [
+                _litellm_tool_response(
+                    "create_record", '{"title":"DAR","body":"controlled"}'
+                ),
+                _litellm_text_response("created"),
+            ],
+            ("create_record",),
+            False,
+        ),
+        (
+            "S2",
+            [
+                _litellm_tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase"}',
+                ),
+                _litellm_text_response("transformed"),
+            ],
+            ("transform_record",),
+            False,
+        ),
+        (
+            "S2-invalid",
+            [_litellm_tool_response("transform_record", '{"record_id":"record-seed"}')],
+            (),
+            True,
+        ),
+        (
+            "S2-wrong-type",
+            [
+                _litellm_tool_response(
+                    "transform_record", '{"record_id":1,"operation":"uppercase"}'
+                )
+            ],
+            (),
+            True,
+        ),
+        (
+            "S2-invalid-enum",
+            [
+                _litellm_tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"lowercase"}',
+                )
+            ],
+            (),
+            True,
+        ),
+        (
+            "S2-unknown",
+            [
+                _litellm_tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase","unknown":true}',
+                )
+            ],
+            (),
+            True,
+        ),
+        (
+            "S2-malformed",
+            [_litellm_tool_response("transform_record", "not-json")],
+            (),
+            True,
+        ),
+        (
+            "S3",
+            [
+                _litellm_tool_response("lookup_record", '{"key":"seed"}'),
+                _litellm_tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase"}',
+                ),
+                _litellm_text_response("SEED"),
+            ],
+            ("lookup_record", "transform_record"),
+            False,
+        ),
+        (
+            "S4",
+            [_litellm_tool_response("fail_controlled", '{"code":"planned"}')],
+            ("fail_controlled",),
+            True,
+        ),
+        ("S6", [_litellm_tool_response("lookup_record", "not-json")], (), True),
+    ],
+)
+def test_model_interface_parity_litellm_native_scenarios(
+    scenario: str,
+    responses: list[object],
+    invoked: tuple[str, ...],
+    fails: bool,
+    asynchronous: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    result, record, error, calls = _run_litellm_parity(
+        scenario, responses, asynchronous=asynchronous
+    )
+    assert tuple(name for name, _ in record.invocations) == invoked
+    assert (error is not None) is fails
+    assert (result is None) is fails
+    if fails:
+        assert isinstance(error, WorkflowExecutionError)
+        assert record.error_class == "WorkflowExecutionError"
+    if scenario == "S4":
+        assert record.stop_reasons == ("tool_failure",)
+        assert len(calls) == 1
+        assert isinstance(error, WorkflowExecutionError)
+        assert "planned controlled failure" in str(error)
+        assert record.trace_event_types.count("model_tool_loop_tool_call") == 1
+    if scenario == "S6":
+        assert "tool_started" not in record.trace_event_types
+        assert "model_tool_loop_tool_call" not in record.trace_event_types
+        assert len(calls) == 1
+    if scenario == "S3":
+        assert len(calls) == 3
+        assert "record-seed" in str(calls[1])
+    if not asynchronous:
+        _, async_record, _, _ = _run_litellm_parity(
+            scenario, responses, asynchronous=True
+        )
+        assert parity_contract_projection(record) == parity_contract_projection(
+            async_record
+        )
 
 
 def test_litellm_codex_model_alias_preserves_public_ids() -> None:

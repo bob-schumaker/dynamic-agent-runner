@@ -8,7 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
+from dynamic_agent_runner.executor import execute_workflow, execute_workflow_async
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     OpenAIClientAdapter,
@@ -30,6 +31,15 @@ from dynamic_agent_runner.openai_client import (
 )
 from dynamic_agent_runner.registry import openai_tool_schema
 from dynamic_agent_runner.models import ToolDefinition
+from dynamic_agent_runner.tracing import InMemoryTraceSink
+from parity_support import (
+    install_parity_io_blocker,
+    parity_loop_workflow,
+    parity_no_tool_workflow,
+    parity_contract_projection,
+    parity_record,
+    parity_registry,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -50,6 +60,16 @@ class FakeResponses:
         if self.error is not None:
             raise self.error
         return self.response
+
+
+class SequencedResponses:
+    def __init__(self, responses: list[object]):
+        self.responses = list(responses)
+        self.calls: list[dict[str, object]] = []
+
+    def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.responses.pop(0)
 
 
 class FakeClient:
@@ -80,6 +100,12 @@ class FakeAsyncResponses:
         if self.error is not None:
             raise self.error
         return self.response
+
+
+class SequencedAsyncResponses(SequencedResponses):
+    async def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.responses.pop(0)
 
 
 class FakeAsyncClient:
@@ -131,6 +157,248 @@ class FakeAsyncProvider:
     def get_client(self) -> FakeAsyncClient:
         self.calls += 1
         return self.client
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_openai_s1_uses_normalized_native_call(
+    asynchronous: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    result, record, error, _ = _run_openai_parity(
+        "S1",
+        [
+            _openai_tool_response(
+                "create_record", '{"title":"DAR","body":"controlled"}'
+            ),
+            {"id": "response-text", "output_text": "created"},
+        ],
+        asynchronous=asynchronous,
+    )
+
+    assert error is None
+    assert result is not None
+    assert result.final_result == "created"
+    assert record.normalized_calls == (
+        ("create_record", '{"title":"DAR","body":"controlled"}'),
+    )
+    if not asynchronous:
+        _, async_record, _, _ = _run_openai_parity(
+            "S1",
+            [
+                _openai_tool_response(
+                    "create_record", '{"title":"DAR","body":"controlled"}'
+                ),
+                {"id": "response-text", "output_text": "created"},
+            ],
+            asynchronous=True,
+        )
+        assert parity_contract_projection(record) == parity_contract_projection(
+            async_record
+        )
+
+
+def _openai_tool_response(name: str, arguments: str) -> dict[str, object]:
+    return {
+        "id": "response-tool",
+        "output": [
+            {
+                "type": "function_call",
+                "call_id": "call-1",
+                "name": name,
+                "arguments": arguments,
+            }
+        ],
+    }
+
+
+def _run_openai_parity(
+    scenario: str, native_responses: list[object], *, asynchronous: bool
+):
+    observed = []
+
+    def record_response(_request, response) -> None:
+        observed.extend(response.tool_calls)
+
+    registry, invocations, results = parity_registry()
+    sink = InMemoryTraceSink()
+    error = None
+    try:
+        if asynchronous:
+            responses = SequencedAsyncResponses(native_responses)
+            adapter = AsyncOpenAIClientAdapter(
+                FakeAsyncClient(responses),
+                models=["gpt-test"],
+                response_validator=record_response,
+            )
+            result = asyncio.run(
+                execute_workflow_async(
+                    parity_no_tool_workflow()
+                    if scenario == "S5"
+                    else parity_loop_workflow(),
+                    prompt="controlled parity",
+                    tool_registry=registry,
+                    model_adapter=adapter,
+                    trace_sink=sink,
+                )
+            )
+        else:
+            responses = SequencedResponses(native_responses)
+            adapter = OpenAIClientAdapter(
+                FakeClient(responses),
+                models=["gpt-test"],
+                response_validator=record_response,
+            )
+            result = execute_workflow(
+                parity_no_tool_workflow()
+                if scenario == "S5"
+                else parity_loop_workflow(),
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=adapter,
+                trace_sink=sink,
+            )
+    except Exception as caught:
+        result = None
+        error = caught
+    return (
+        result,
+        parity_record(
+            interface="openai_scripted_client",
+            scenario=scenario,
+            asynchronous=asynchronous,
+            normalized_calls=tuple((call.name, call.arguments) for call in observed),
+            invocations=invocations,
+            results=results,
+            result=result,
+            error=error,
+            sink=sink,
+        ),
+        error,
+        responses.calls,
+    )
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    ("scenario", "responses", "invoked", "fails"),
+    [
+        ("S5", [{"id": "response-text", "output_text": "no tool"}], (), False),
+        (
+            "S2",
+            [
+                _openai_tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase"}',
+                ),
+                {"output_text": "transformed"},
+            ],
+            ("transform_record",),
+            False,
+        ),
+        (
+            "S2-invalid",
+            [_openai_tool_response("transform_record", '{"record_id":"record-seed"}')],
+            (),
+            True,
+        ),
+        (
+            "S2-wrong-type",
+            [
+                _openai_tool_response(
+                    "transform_record", '{"record_id":1,"operation":"uppercase"}'
+                )
+            ],
+            (),
+            True,
+        ),
+        (
+            "S2-invalid-enum",
+            [
+                _openai_tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"lowercase"}',
+                )
+            ],
+            (),
+            True,
+        ),
+        (
+            "S2-unknown",
+            [
+                _openai_tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase","unknown":true}',
+                )
+            ],
+            (),
+            True,
+        ),
+        (
+            "S2-malformed",
+            [_openai_tool_response("transform_record", "not-json")],
+            (),
+            True,
+        ),
+        (
+            "S3",
+            [
+                _openai_tool_response("lookup_record", '{"key":"seed"}'),
+                _openai_tool_response(
+                    "transform_record",
+                    '{"record_id":"record-seed","operation":"uppercase"}',
+                ),
+                {"output_text": "SEED"},
+            ],
+            ("lookup_record", "transform_record"),
+            False,
+        ),
+        (
+            "S4",
+            [_openai_tool_response("fail_controlled", '{"code":"planned"}')],
+            ("fail_controlled",),
+            True,
+        ),
+        ("S6", [_openai_tool_response("lookup_record", "not-json")], (), True),
+    ],
+)
+def test_model_interface_parity_openai_native_scenarios(
+    scenario: str,
+    responses: list[object],
+    invoked: tuple[str, ...],
+    fails: bool,
+    asynchronous: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    result, record, error, calls = _run_openai_parity(
+        scenario, responses, asynchronous=asynchronous
+    )
+    assert tuple(name for name, _ in record.invocations) == invoked
+    assert (error is not None) is fails
+    assert (result is None) is fails
+    if fails:
+        assert isinstance(error, WorkflowExecutionError)
+        assert record.error_class == "WorkflowExecutionError"
+    if scenario == "S4":
+        assert record.stop_reasons == ("tool_failure",)
+        assert len(calls) == 1
+        assert isinstance(error, WorkflowExecutionError)
+        assert "planned controlled failure" in str(error)
+        assert record.trace_event_types.count("model_tool_loop_tool_call") == 1
+    if scenario == "S6":
+        assert "tool_started" not in record.trace_event_types
+        assert "model_tool_loop_tool_call" not in record.trace_event_types
+        assert len(calls) == 1
+    if scenario == "S3":
+        assert len(calls) == 3
+        assert "record-seed" in str(calls[1])
+    if not asynchronous:
+        _, async_record, _, _ = _run_openai_parity(
+            scenario, responses, asynchronous=True
+        )
+        assert parity_contract_projection(record) == parity_contract_projection(
+            async_record
+        )
 
 
 def test_build_openai_request_includes_messages_tools_and_options() -> None:
