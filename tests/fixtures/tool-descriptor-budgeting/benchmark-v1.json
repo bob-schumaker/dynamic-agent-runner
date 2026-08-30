@@ -1,0 +1,365 @@
+{
+  "cases": [
+    {
+      "acceptable_optional_tools": [
+        "search_repo"
+      ],
+      "eligible_tools": [
+        {
+          "description_for_llm": "Read a local workspace file by path.",
+          "id": "read_file",
+          "input_schema": {
+            "properties": {
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "type": "object"
+          },
+          "label": "Read file",
+          "tool_type": "local_workspace"
+        },
+        {
+          "description_for_llm": "Search text in the local repository.",
+          "id": "search_repo",
+          "input_schema": {
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          },
+          "label": "Search repository",
+          "tool_type": "local_workspace"
+        },
+        {
+          "description_for_llm": "Search public web pages for current information.",
+          "id": "search_web",
+          "input_schema": {
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          },
+          "label": "Search web",
+          "tool_type": "external_research"
+        }
+      ],
+      "expected_required_tools": [
+        "read_file"
+      ],
+      "false_omission_checks": [
+        {
+          "rationale": "The requested local path must be read directly.",
+          "tool_id": "read_file"
+        }
+      ],
+      "id": "read_explicit_local_file",
+      "prompt": "Read the local repository file pyproject.toml and report its package name."
+    },
+    {
+      "acceptable_optional_tools": [
+        "read_file"
+      ],
+      "eligible_tools": [
+        {
+          "description_for_llm": "Search text in the local repository.",
+          "id": "search_repo",
+          "input_schema": {
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          },
+          "label": "Search repository",
+          "tool_type": "local_workspace"
+        },
+        {
+          "description_for_llm": "Read a local workspace file by path.",
+          "id": "read_file",
+          "input_schema": {
+            "properties": {
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "type": "object"
+          },
+          "label": "Read file",
+          "tool_type": "local_workspace"
+        },
+        {
+          "description_for_llm": "Search public web pages for current information.",
+          "id": "search_web",
+          "input_schema": {
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          },
+          "label": "Search web",
+          "tool_type": "external_research"
+        }
+      ],
+      "expected_required_tools": [
+        "search_repo"
+      ],
+      "false_omission_checks": [
+        {
+          "rationale": "A repository symbol lookup requires repository search.",
+          "tool_id": "search_repo"
+        }
+      ],
+      "id": "find_local_symbol",
+      "prompt": "Find the definition of ToolSelector in this repository."
+    },
+    {
+      "acceptable_optional_tools": [
+        "fetch_web_page"
+      ],
+      "eligible_tools": [
+        {
+          "description_for_llm": "Search public web pages for current information.",
+          "id": "search_web",
+          "input_schema": {
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          },
+          "label": "Search web",
+          "tool_type": "external_research"
+        },
+        {
+          "description_for_llm": "Fetch the contents of a public web page.",
+          "id": "fetch_web_page",
+          "input_schema": {
+            "properties": {
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url"
+            ],
+            "type": "object"
+          },
+          "label": "Fetch web page",
+          "tool_type": "external_research"
+        },
+        {
+          "description_for_llm": "Search text in the local repository.",
+          "id": "search_repo",
+          "input_schema": {
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          },
+          "label": "Search repository",
+          "tool_type": "local_workspace"
+        }
+      ],
+      "expected_required_tools": [
+        "search_web"
+      ],
+      "false_omission_checks": [
+        {
+          "rationale": "The requested fact is current and must come from public documentation.",
+          "tool_id": "search_web"
+        }
+      ],
+      "id": "research_current_external_fact",
+      "prompt": "Find the current Python release supported by the official Python documentation."
+    },
+    {
+      "acceptable_optional_tools": [
+        "search_repo"
+      ],
+      "eligible_tools": [
+        {
+          "description_for_llm": "Read a local workspace file by path.",
+          "id": "read_file",
+          "input_schema": {
+            "properties": {
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "type": "object"
+          },
+          "label": "Read file",
+          "tool_type": "local_workspace"
+        },
+        {
+          "description_for_llm": "Write content to a local workspace file by path.",
+          "id": "write_file",
+          "input_schema": {
+            "properties": {
+              "content": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "type": "object"
+          },
+          "label": "Write file",
+          "tool_type": "local_workspace"
+        },
+        {
+          "description_for_llm": "Search text in the local repository.",
+          "id": "search_repo",
+          "input_schema": {
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          },
+          "label": "Search repository",
+          "tool_type": "local_workspace"
+        }
+      ],
+      "expected_required_tools": [
+        "read_file",
+        "write_file"
+      ],
+      "false_omission_checks": [
+        {
+          "rationale": "The existing configuration must be inspected before it is changed.",
+          "tool_id": "read_file"
+        },
+        {
+          "rationale": "Changing the configuration requires writing the revised file.",
+          "tool_id": "write_file"
+        }
+      ],
+      "id": "inspect_then_modify_config",
+      "prompt": "Inspect the existing project configuration, then change its configured package name."
+    },
+    {
+      "acceptable_optional_tools": [
+        "search_repo"
+      ],
+      "eligible_tools": [
+        {
+          "description_for_llm": "Retrieve a structured record by its identifier, owner, or retention field.",
+          "id": "query_records",
+          "input_schema": {
+            "properties": {
+              "owner": {
+                "type": "string"
+              },
+              "record_id": {
+                "type": "string"
+              },
+              "retention_days": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "record_id"
+            ],
+            "type": "object"
+          },
+          "label": "Query records",
+          "tool_type": "structured_data"
+        },
+        {
+          "description_for_llm": "Search text in the local repository.",
+          "id": "search_repo",
+          "input_schema": {
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          },
+          "label": "Search repository",
+          "tool_type": "local_workspace"
+        },
+        {
+          "description_for_llm": "Search public web pages for current information.",
+          "id": "search_web",
+          "input_schema": {
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          },
+          "label": "Search web",
+          "tool_type": "external_research"
+        }
+      ],
+      "expected_required_tools": [
+        "query_records"
+      ],
+      "false_omission_checks": [
+        {
+          "rationale": "The requested owner and retention values are structured record fields.",
+          "tool_id": "query_records"
+        }
+      ],
+      "id": "query_structured_retention_record",
+      "prompt": "Look up record R-104 and report its owner and retention days."
+    }
+  ],
+  "format_version": "tool-descriptor-benchmark-v1"
+}
