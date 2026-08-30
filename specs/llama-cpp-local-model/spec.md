@@ -5,15 +5,12 @@
 - Feature slug: `llama-cpp-local-model`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: implemented through Slices 1-3; T5.0 embedding implementation
-  breakdown and T5.1 standalone embedding contract delivered
+- Status: implemented through Slices 1-3 and T5.5; T5.6 local embedding-tool
+  contract is implementation-ready
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model follow-up
   work
-- Next gate: T5.5 fake-only terminal `embedding_step` workflow integration, or
-  a separate
-  advisory feature such as
-  `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md`
+- Next gate: T5.6 fake-only local embedding-tool RED suite; `validation.md`
   remains the source of truth for fresh execution evidence
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
@@ -331,7 +328,7 @@ entry. DAR correlates those indexes back to the submitted IDs and rejects
 missing, extra, duplicate, out-of-range, non-finite, nested, ragged, or
 dimension-inconsistent vectors before returning a result. T5.1 fixes explicit
 batch, text-byte, total-byte, dimension, scalar-count, and output-byte bounds.
-Raw texts and vectors must not enter traces or errors.
+Raw texts and vectors must not enter external trace summaries or errors.
 
 The direct producer and terminal `embedding_step` accept at most 128 entries,
 each with an ID of at most 128 UTF-8 bytes and text of at most 64 KiB, with no
@@ -391,11 +388,33 @@ invalid because the default loader owns and forces `embedding=True`.
 
 After the shared contract is delivered, two independent consumer slices are in
 scope: an `embedding_step` terminal workflow node that consumes batch input and
-ends a one-node workflow with that result, and a model-selectable local tool
-using the same host-bound profile and schema. The latter lets a model choose
-whether to request embeddings; it does not let the model choose the embedding
-model. Each integration must use the existing workflow/tool coordination and
-approval controls rather than duplicating them.
+ends a one-node workflow with that result, and a model-selectable local tool.
+The latter is one host-only `create_local_embedding_tool(producer)` factory
+returning a `RegisteredTool` with fixed ID `local_embedding_batch`; its closure
+owns one already-configured producer, so no manifest, model call, or argument
+can select a profile, model, provider, path, alias, or mode. Its schema is the
+strict object `{items: [{id, text}]}`: `items` is required with 1--8 entries;
+root and item objects forbid additional properties; every item requires string
+`id` and string `text`. The bound handler revalidates that entire root/item
+contract before it enforces nonempty unique IDs, IDs up to 128 UTF-8 bytes,
+text up to 8 KiB UTF-8 each and 64 KiB total before one producer dispatch. It
+accepts only an `EmbeddingBatchResult`, direct or awaitable, whose nonempty
+model identity and ordered item IDs exactly match the submitted batch. It then
+revalidates the existing finite, uniform-dimension vector invariants plus
+1--2,048 dimensions, 16,384 scalars, and 256 KiB canonical UTF-8
+`{model, items: [{id, vector}]}` before returning it as `ToolResult.model_output`.
+T5.6 adds only optional
+`ToolResult.trace_output` (defaulting to the current model-facing output); this
+tool sets it to the fixed `{"status": "embedding_result_redacted"}` summary,
+so its `tool_result` event contains no vectors while model continuation receives
+the bounded structured result. Existing tool-input events retain their normal
+sensitive marking; external trace summaries redact both input text and vectors.
+The tool is
+`side_effect="read"` and
+`approval_required="no"`; it uses the existing registry, coordinator, and
+model-loop continuation without an approval bypass. Do not add a producer or
+profile registry, context binding, generic nested-schema/budget framework,
+coordinator branch, model-adapter capability, remote fallback, or vector store.
 
 T5.5 has one deliberately narrow workflow contract. An `embedding_step` is a
 terminal primitive with exactly these raw keys: `id`, `kind`, optional `label`,

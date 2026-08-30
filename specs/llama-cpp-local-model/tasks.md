@@ -1,8 +1,8 @@
 # llama.cpp Local-Model Adapter Task List
 
 Status: active feature record; Slices 1-3, T5.0 planning, T5.1 contract, T5.2
-RED tests, T5.3 standalone implementation, and T5.4 validation/docs complete;
-T5.5 terminal workflow integration is next
+RED tests, T5.3 standalone implementation, T5.4 validation/docs, and T5.5
+terminal workflow integration complete; T5.6 tool exposure is next
 
 ## Prerequisites
 
@@ -475,7 +475,7 @@ T5.5 terminal workflow integration is next
   - Validation: focused local-model/import tests, `poetry run pytest -q`, Ruff,
     formatter, and targeted pre-commit.
 
-- [ ] T5.5 [tests/implementation] Add a terminal `embedding_step` workflow node
+- [x] T5.5 [tests/implementation] Add a terminal `embedding_step` workflow node
       using the completed standalone batch producer.
   - Depends on: T5.4.
   - Contract: an `embedding_step` raw-key allowlist is `id`, `kind`, optional
@@ -502,19 +502,45 @@ T5.5 terminal workflow integration is next
     producer-error ownership, trace redaction, zero producer dispatch before
     validation, and no model/remote/network or approval interaction. Do not add
     a chat `ModelAdapter` capability or vector storage.
+  - GREEN: `poetry run pytest tests/test_artifacts.py tests/test_validation.py
+    tests/test_executor.py -q --tb=no` — 331 passed in 0.68s.
+  - Final validation: `poetry run pytest -q` — 1578 passed, 1 skipped, 6
+    deselected in 11.94s; `poetry run ruff check src tests` passed; targeted
+    `pre-commit` checks passed after formatting.
 
 - [ ] T5.6 [tests/implementation] Expose the completed standalone producer as
       a model-selectable local embedding tool.
   - Depends on: T5.4.
-  - Scope: register one exact batch schema through the existing registry and
-    coordinator as `side_effect="read"`, `approval_required="no"`. The model
-    can select whether to call it but cannot select profile, model, provider,
-    path, or alias. Reuse the completed producer and normal tool-result
-    continuation; do not create a second embedding path or approval bypass.
-  - RED/GREEN: fake-only model-loop tests cover schema/budget rejection before
-    handler/provider entry, exactly-one valid producer invocation, bounded
-    model-facing result continuation, and zero approval, remote, network, or
-    real-model calls.
+  - Scope: add only `create_local_embedding_tool(producer) -> RegisteredTool`.
+    It returns the fixed `local_embedding_batch` tool with a strict
+    `{items: [{id, text}]}` schema, `side_effect="read"`, and
+    `approval_required="no"`. The closed-over producer is the sole host-owned
+    binding; the model cannot select profile, model, provider, path, alias, or
+    mode. Reuse ordinary registry/coordinator continuation; add only optional
+    `ToolResult.trace_output` (defaulting to existing behavior) so this tool
+    emits a fixed redacted trace summary rather than text or vectors. Do not add
+    a second embedding path or approval bypass.
+  - Limits: the handler must revalidate root/item additional-property rejection,
+    required string `id` / `text`, and 1--8 items. It then requires nonempty
+    unique IDs <=128 UTF-8 bytes; text <=8 KiB UTF-8 each and <=64 KiB total
+    before producer dispatch. Accept only a direct or awaitable
+    `EmbeddingBatchResult` with the same ordered submitted IDs and a nonempty
+    model; revalidate finite uniform vectors with 1--2,048 dimensions, <=16,384
+    total scalars, and <=256 KiB canonical UTF-8 `{model, items: [{id, vector}]}`
+    before state or continuation output.
+  - RED/GREEN: fake-only model-loop tests prove strict schema rejection and
+    malformed nested structure and Unicode byte-budget rejection with zero
+    producer calls; one valid tool call reaches the producer once and supplies
+    exactly the bounded result to the second model request; the `tool_result`
+    trace contains only the fixed redacted summary, while existing input events
+    remain sensitive and external summaries redact text and vectors;
+    no approval interruption, remote, downloader, backend, network, or real
+    model call occurs. Cover foreign, duplicate, missing, reordered, or
+    dimension-inconsistent result IDs/vectors and producer errors without
+    partial output.
+  - Boundary: do not add `WorkflowExecutionContext` binding, a producer/profile
+    registry, generic nested-schema or budget framework, coordinator branch,
+    model-adapter capability, endpoint fallback, RAG, or vector storage.
 
 ## Slice 4 — Validation and artifact completion
 

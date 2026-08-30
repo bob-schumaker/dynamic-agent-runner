@@ -1,8 +1,8 @@
 # llama.cpp Local-Model Adapter Implementation Plan
 
 Status: active implementation record; Slices 1-3, T5.0 planning, T5.1
-standalone embedding contract, T5.2 RED suite, and T5.3 implementation
-complete; T5.4 validation/docs is complete; T5.5 is next
+standalone embedding contract, T5.2 RED suite, T5.3 implementation, T5.4
+validation/docs, and T5.5 terminal workflow integration complete; T5.6 is next
 
 ## Goal
 
@@ -222,12 +222,19 @@ implementation.
    producer, and batch before one dispatch, then returns the typed batch result
    as the ordinary terminal workflow output. It must not add model selection,
    remote fallback, or a separate embedding execution path.
-6. T5.6 exposes the same producer as a model-selectable zero-side-effect tool
-   after the standalone producer is complete. It uses the existing registry and
-   coordinator with the exact batch schema; model selection is limited to
-   whether to invoke the tool. It preserves normal tool validation, tracing,
-   and continuation behavior without approval bypass. Its model-facing result
-   is the bounded structured `{model, items: [{id, vector}]}` form.
+6. T5.6 adds one host-only `create_local_embedding_tool(producer)` factory that
+   returns a `RegisteredTool` with the fixed `local_embedding_batch` ID,
+   `side_effect="read"`, and `approval_required="no"`. Its strict
+   `{items: [{id, text}]}` schema is exposed through the existing registry; its
+   closed-over handler revalidates the complete root/item shape and all UTF-8
+   and aggregate input bounds before one producer call, then requires a typed
+   result with the same ordered IDs and revalidates its finite, uniform vectors
+   and tool bounds before normal coordinator continuation. Add only optional
+   `ToolResult.trace_output`,
+   defaulting to existing behavior; this tool supplies a fixed redacted trace
+   summary while continuation receives the bounded result. This uses neither
+   `WorkflowExecutionContext` nor a producer/profile registry, coordinator
+   branch, approval bypass, or generic budget framework.
 
 No Slice 5 task may add `ModelAdapter` chat behavior, remote fallback, server
 lifecycle, graph mutation, RAG, or a vector store. T5.5/T5.6 are the only

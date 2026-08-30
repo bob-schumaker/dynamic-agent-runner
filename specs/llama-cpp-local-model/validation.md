@@ -1,9 +1,8 @@
 # llama.cpp Local-Model Adapter Validation Log
 
 Status: complete through Slice 3 and T5.0 embedding planning; standalone
-embedding contract, T5.2 RED suite, and T5.3 implementation complete; T5.4
-validation/docs complete; T5.5 terminal workflow integration RED suite is
-complete and its GREEN implementation is next
+embedding contract, T5.2 RED suite, T5.3 implementation, T5.4 validation/docs,
+and T5.5 terminal workflow integration complete; T5.6 tool exposure is next
 
 ## Scope
 
@@ -464,7 +463,7 @@ complete and its GREEN implementation is next
 - Ponytail: approved the smallest complete shape—one primitive, one context
   binding, and one per-run input argument. No control plane, registry, model
   adapter, storage, or second embedding path is introduced.
-- Disposition: deliver-ready. T5.5 RED tests are next.
+- Disposition: deliver-ready. The T5.5 RED suite followed.
 
 ### T5.5 RED — terminal embedding workflow integration contract
 
@@ -491,4 +490,58 @@ complete and its GREEN implementation is next
   producer registry, second execution path, or T5.6 tool surface was added.
 - Explicit exclusions: no model or tool adapter, approval flow, registry,
   storage, network, live model, download, endpoint, or external service is
-  involved. T5.5 GREEN implementation is the next task.
+  involved. The T5.5 GREEN implementation followed.
+
+### T5.5 GREEN — terminal embedding workflow integration
+
+- Command: `poetry run pytest tests/test_artifacts.py tests/test_validation.py
+  tests/test_executor.py -q --tb=no`.
+- Result: `331 passed in 0.68s`.
+- Final validation: `poetry run pytest -q` — `1578 passed, 1 skipped, 6
+  deselected in 11.94s`; `poetry run ruff check src tests` passed; targeted
+  `pre-commit run --files ...` passed after Ruff formatting.
+- Coverage: exact manifest allowlist and terminality; immutable host profile,
+  producer, and mode binding; copied tuple batch overlay; sync/async mode
+  admission; typed result handoff; producer-error preservation; awaitable
+  closure; and trace redaction.
+- Explicit exclusions: no model adapter, registry tool, approval path, remote
+  endpoint, network, model load, vector store, or T5.6 implementation.
+
+### T5.6 readiness review — model-selectable embedding tool
+
+- Council: Torvalds, Musashi, and Feynman independently found the original
+  T5.6 statement insufficient: it lacked a fixed tool ID/schema, a host-owned
+  binding seam, and pre-continuation result/redaction rules. Their challenge
+  round agreed on one fixed `local_embedding_batch` tool and one host-only
+  factory closing over the completed producer.
+- Ponytail: approved that minimum shape. Reuse the registry, coordinator, and
+  normal model-loop continuation; permit only an optional `ToolResult`
+  trace-output facet to separate the redacted trace summary from model
+  continuation. Do not add a producer/profile registry,
+  `WorkflowExecutionContext` extension, coordinator branch, approval bypass,
+  or generic nested-schema/budget abstraction.
+- Verified seams: the existing registry exposes registered tool schemas to
+  selected LLM nodes and validates root arguments before dispatch; the existing
+  coordinator owns approval, tracing, state, and continuation. The bound
+  handler must revalidate the complete nested object shape plus UTF-8 and
+  aggregate limits before calling the producer, then prove a typed result with
+  the same ordered IDs and finite uniform vectors before continuation. The
+  `tool_result` trace payload must be the fixed redacted summary, while existing
+  input events retain their normal sensitive marking and external summaries
+  redact text/vectors. Normal model continuation receives the bounded
+  structured result.
+- Result: implementation-ready. T5.6 RED tests are next; no production or test
+  implementation was added during this review.
+
+### T5.6 delivery review
+
+- Council: approved 3--0 after correcting three delivery findings: complete
+  nested input validation belongs in the bound handler; result identity and
+  submitted-ID order must be verified before continuation; and only the
+  `tool_result` trace payload can be replaced with a redacted summary while
+  existing input events retain their normal sensitive marking.
+- Ponytail: approved one host-only factory plus an optional default-compatible
+  `ToolResult.trace_output` facet. It rejected any profile/producer registry,
+  context extension, coordinator branch, approval bypass, or generic budget
+  framework.
+- Disposition: deliver-ready. The next task is the fake-only T5.6 RED suite.
