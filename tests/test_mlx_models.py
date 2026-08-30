@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import builtins
+import sys
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -528,6 +530,122 @@ def tool_request() -> OpenAIModelRequest:
             },
         )
     )
+
+
+class FakeQwen3Tokenizer:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def apply_chat_template(
+        self,
+        conversation: list[dict[str, object]],
+        *,
+        tools: list[dict[str, object]] | None = None,
+        add_generation_prompt: bool,
+        tokenize: bool,
+    ) -> str:
+        self.calls.append(
+            {
+                "conversation": conversation,
+                "tools": tools,
+                "add_generation_prompt": add_generation_prompt,
+                "tokenize": tokenize,
+            }
+        )
+        return "<native-qwen3-prompt>"
+
+
+def test_qwen3_helper_owns_native_envelope_codec_for_pinned_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner import (
+        PINNED_QWEN3_MLX_MODEL_ID,
+        MLXLocalModelConfig,
+        create_qwen3_mlx_local_adapter,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    prompts: list[str] = []
+
+    def generate(
+        _model: object, _tokenizer: object, *, prompt: str, **_kwargs: object
+    ) -> str:
+        prompts.append(prompt)
+        return '<tool_call>{"name":"lookup","arguments":{"key":"dar"}}</tool_call>'
+
+    monkeypatch.setitem(sys.modules, "mlx_lm", SimpleNamespace(generate=generate))
+    tokenizer = FakeQwen3Tokenizer()
+    adapter = create_qwen3_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("qwen3",),
+            model_path=model_path,
+            expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+        ),
+        model=object(),
+        tokenizer=tokenizer,
+        platform_system=lambda: "Darwin",
+    )
+
+    response = adapter.create_response(tool_request())
+
+    assert adapter.capabilities["tool_calling"] is True
+    assert prompts == ["<native-qwen3-prompt>"]
+    assert tokenizer.calls == [
+        {
+            "conversation": [{"role": "user", "content": "Hello"}],
+            "tools": [dict(tool_request().tools[0])],
+            "add_generation_prompt": True,
+            "tokenize": False,
+        }
+    ]
+    assert response.tool_calls[0].name == "lookup"
+    assert response.tool_calls[0].arguments == '{"key":"dar"}'
+
+    with pytest.raises(ValueError, match="pinned Qwen3 model ID"):
+        create_qwen3_mlx_local_adapter(
+            MLXLocalModelConfig(
+                model_aliases=("other",),
+                model_path=model_path,
+                expected_model_id="other",
+            ),
+            model=object(),
+            tokenizer=tokenizer,
+        )
+
+
+@pytest.mark.parametrize(
+    ("generated", "message"),
+    [
+        (
+            '<tool_call>{"name":"lookup","name":"other","arguments":{}}</tool_call>',
+            "duplicate JSON key",
+        ),
+        (
+            'prose <tool_call>{"name":"lookup","arguments":{}}</tool_call>',
+            "cannot be mixed",
+        ),
+        (
+            '<tool_call>{"name":"lookup","arguments":{}}</tool_call> trailing',
+            "cannot be mixed",
+        ),
+        (
+            '<tool_call>{"name":"lookup","arguments":{}}</tool_call><tool_call>{"name":"lookup","arguments":{}}</tool_call>',
+            "exactly one",
+        ),
+    ],
+)
+def test_qwen3_codec_rejects_ambiguous_native_tool_envelopes(
+    generated: str,
+    message: str,
+) -> None:
+    from dynamic_agent_runner import Qwen3MLXToolCodec
+
+    codec = Qwen3MLXToolCodec(FakeQwen3Tokenizer())
+
+    with pytest.raises(ValueError, match=message):
+        codec.decode(generated)
 
 
 def test_mlx_adapter_uses_compatible_codec_for_tool_text_response(
