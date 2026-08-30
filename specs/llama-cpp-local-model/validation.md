@@ -451,3 +451,16 @@ validation/docs complete; T5.5 terminal workflow integration is next
   closed. T5.5 adds no network path; fake tests use local producers and guarded
   downloaders while preserving the standalone producer's caller-owned offline
   policy.
+
+### T5.5 delivery review
+
+- Reviewed artifact: commit `8961ad1` (`docs(llama-cpp): ready terminal
+  embedding workflow`).
+- Council: approved 3–0. The spec, plan, task, and readiness receipt agree on
+  a terminal host-bound primitive, its single permitted per-run overlay,
+  pre-dispatch validation, failure ownership, and explicit exclusion of T5.6
+  tool/approval/model-selection/network/vector-store scope.
+- Ponytail: approved the smallest complete shape—one primitive, one context
+  binding, and one per-run input argument. No control plane, registry, model
+  adapter, storage, or second embedding path is introduced.
+- Disposition: deliver-ready. T5.5 RED tests are next.
