@@ -3,7 +3,8 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: Slice L1 TDD tasks complete; upstream dependency adopted and shim retired
+- Status: Slices L1-L3.2 TDD tasks complete; upstream dependency adopted and
+  shim retired
 - Date: 2026-08-22
 - Owning spec: `specs/litellm-provider-adapter/spec.md`
 - Plan: `specs/litellm-provider-adapter/plan.md`
@@ -26,7 +27,7 @@
 - [x] L1.7 Add RED tests for public factory exports and explicit official
       OpenAI SDK compatibility factory behavior.
 - [x] L1.8 Add the portable `litellm = "^1.97.0"` runtime dependency and refresh
-      `poetry.lock` (resolved to 1.97.0).
+      `poetry.lock` (resolved to 1.98.0).
 - [x] L1.8a Verify the checked-in
       `vendor/wheels/litellm-1.92.0-py3-none-any.whl` is present, pure Python,
       and compatible with Python `<3.15`.
@@ -126,8 +127,20 @@
     Ruff passed. Final validation: `poetry run pytest -q` — 1592 passed, 1
     skipped, 6 deselected; targeted pre-commit passed. Council and Ponytail
     approved the delivered boundary.
-- [ ] L3.2 Add LiteLLM Responses API dispatch only if a caller needs
-      Responses-specific behavior outside Codex.
+- [x] L3.2 [tests/implementation] Add caller-requested LiteLLM Responses API
+      dispatch outside Codex.
+  - Scope: explicit generic `responses` / `aresponses` factory injection only.
+    The existing generic Chat Completions route remains the default.
+  - Contract: reuse the existing native Responses resource; forward ordinary
+    provider config and DAR's Responses-shaped request unchanged. A direct
+    completion/Responses callable pair is rejected before dispatch.
+  - Tests: fake-only sync/async native dispatch, generic provider-config
+    forwarding, Responses-only `parallel_tool_calls`, native normalization, and
+    conflicting direct transport callables. Existing Chat and Codex regression
+    tests remain the proof of unchanged default and Codex routes.
+  - Exclusions: global LiteLLM Responses loading, Router Responses inference,
+    Codex shaping/auth/aliases, executor changes, capability/status reporting,
+    live provider calls, and new dependencies.
 - [ ] L3.3 Add provider-specific capability/status reporting only after the
       default transport is stable.
 - [ ] L3.4 Add PyInstaller hooks only when a concrete freeze validation fails or

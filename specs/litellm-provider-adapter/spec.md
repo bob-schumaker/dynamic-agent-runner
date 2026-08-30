@@ -5,9 +5,9 @@
 - Feature slug: `litellm-provider-adapter`
 - Mode: `light`
 - Artifact type: authoritative feature specification
-- Status: Slices L1-L3.1 implemented and validated; upstream dependency adopted
+- Status: Slices L1-L3.2 implemented and validated; upstream dependency adopted
   and shim retired
-- Version: `0.6`
+- Version: `0.7`
 - Owner: repository maintainers and future implementers of model-provider
   runtime integrations
 - Date: 2026-08-22
@@ -50,7 +50,7 @@ than the full future surface described below:
   compatibility path.
 - Slice L1 must not move ChatGPT/Codex auth discovery into LiteLLM and must not
   require live LiteLLM gateway, ChatGPT OAuth, or provider calls.
-- LiteLLM is a required runtime dependency (`^1.97.0`; resolved to 1.97.0 for
+- LiteLLM is a required runtime dependency (`^1.97.0`; resolved to 1.98.0 for
   this change). The temporary `dynamic_agent_runner.litellm` fallback is
   retired. The separate checked-in OCI wheel cleanup remains follow-up work.
 - ChatGPT/Codex-on-LiteLLM is a follow-up slice because current LiteLLM docs
@@ -640,7 +640,14 @@ silently override an `OpenAIModelRequest.model`.
   selection needs it.
 - **PyInstaller:** Slice L1 records packaging implications, but new LiteLLM
   hooks are deferred unless existing package-hook validation breaks.
-- **Responses API:** general LiteLLM Responses support is deferred.
+- **L3.2 generic Responses dispatch:** callers opt in only by supplying a
+  `responses` or `aresponses` callable to the generic LiteLLM adapter factory.
+  The default remains Chat Completions; direct completion/Responses callable
+  pairs are rejected before dispatch. Generic Responses calls reuse DAR's
+  native Responses client boundary and forward only ordinary provider config.
+  They do not load a global transport, infer Router Responses support, apply
+  Codex request shaping or auth, change executor routing, or claim a provider
+  capability catalog.
 - **Codex aliases:** follow-up ChatGPT/Codex work should support both
   unprefixed repository-facing model ids and LiteLLM `chatgpt/` model ids
   through explicit alias rules.

@@ -3,14 +3,14 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: L2 opt-in Codex wrapper validated; upstream dependency adopted and
+- Status: L3.2 generic Responses opt-in validated; upstream dependency adopted and
   shim retired
 - Date: 2026-08-22
 
 ## Readiness Checks
 
 - The spec has a narrow Slice L1 boundary.
-- LiteLLM is a declared runtime dependency (`^1.97.0`, resolved to 1.97.0) with
+- LiteLLM is a declared runtime dependency (`^1.97.0`, resolved to 1.98.0) with
   Python 3.14 support.
 - Slice L1 has no blocking `NEEDS CLARIFICATION` items.
 - ChatGPT/Codex-on-LiteLLM wrapper slices are implemented; global replacement
@@ -105,3 +105,16 @@ The completed upstream-dependency and shim-retirement slice does not:
   Full validation passed: 1592 passed, 1 skipped, 6 deselected; targeted
   pre-commit passed. Council and Ponytail approved the delivered no-new-API
   boundary.
+- L3.2 readiness: Council's shipping triad independently reviewed the installed
+  LiteLLM 1.98.0 `responses(input, model, ...)` / `aresponses(...)` seam and
+  approved a caller-supplied generic native-Responses transport. Ponytail
+  required reuse of the existing native resource and ruled out a catalog, auth,
+  executor, Router Responses, or global-loading expansion. The triad's challenge
+  round chose rejection of direct completion/Responses callable pairs over a
+  silent precedence rule.
+- L3.2 delivery: fake sync/async generic native dispatch, config forwarding,
+  `parallel_tool_calls`, native normalization, and direct transport-conflict
+  rejection passed in 52 focused tests; the adjacent OpenAI-client tests brought
+  the result to 138. Full validation passed: 1596 passed, 1 skipped, 6
+  deselected; `poetry run ruff check src tests` and `git diff --check` passed.
+  Council and Ponytail approved the delivered explicit-injection boundary.
