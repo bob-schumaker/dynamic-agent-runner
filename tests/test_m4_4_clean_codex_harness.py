@@ -9,7 +9,7 @@ import sys
 
 import pytest
 
-from dynamic_agent_runner.workflow_host.m4_4_clean_codex import (
+from m4_4_clean_codex import (
     M44CleanCodexError,
     build_clean_codex_environment,
     create_marketplace,

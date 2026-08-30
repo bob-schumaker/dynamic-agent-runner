@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 from typing import Any, Sequence
 
@@ -30,12 +31,15 @@ from dynamic_agent_runner.workflow_host.host import (
     LocalWorkflowHostError,
     configure_local_host,
 )
-from dynamic_agent_runner.workflow_host.m4_4_clean_codex import (
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
+
+from m4_4_clean_codex import (  # noqa: E402 - repository test corpus import.
     M44CleanCodexError,
     build_clean_codex_environment,
     create_marketplace,
 )
-from dynamic_agent_runner.workflow_host.m4_4_scenarios import (
+from m4_4_scenarios import (  # noqa: E402 - repository test corpus import.
     M44Scenario,
     M44ScenarioError,
     load_m44_scenario,

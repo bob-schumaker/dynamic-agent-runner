@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from dynamic_agent_runner.workflow_host.m4_4_scenarios import (  # noqa: E402
+from m4_4_scenarios import (
     M44Scenario,
     M44ScenarioError,
     load_m44_scenario,
