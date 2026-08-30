@@ -6,7 +6,7 @@
 - Mode: `light`
 - Artifact type: test and acceptance specification
 - Status: deterministic matrix and wrapper-local T2 approval interaction
-  delivered; local-model competency and live/external acceptance remain separate
+  delivered; a manually gated live matrix shares its controlled catalog
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/model-adapter-coverage/spec.md`
@@ -47,8 +47,8 @@ This specification covers:
 2. a common observable result record for tool-path comparison;
 3. contract coverage for every supported sync or async model interface using
    fakes, injected backends, or local recording transports;
-4. optional, manually run local-model competency measurements using pinned
-   artifacts; and
+4. optional, manually run live and local-model competency measurements using
+   the same controlled catalog; and
 5. a separately scoped approval-interaction pass using the same controlled
    tools.
 

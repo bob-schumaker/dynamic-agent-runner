@@ -113,5 +113,13 @@ poetry run ruff format --check src tests
 | Local-model competency | not run | Manual, eligible-host Qwen3 evidence is outside pytest and CI; the generic stock MLX backend remains intentionally unsupported. |
 | Live/external acceptance | not run | Fastmail, MCP, OAuth, Apple eligible-Mac execution, and external mutations require their own authorized acceptance process and are prohibited by this suite. |
 
+The live model-interface matrix is now available as a separately authorized
+operator command. It uses the same S1--S6 tool catalog as this receipt and
+only exposes in-memory controlled tools. It is not run as part of this receipt:
+set `DAR_RUN_LIVE_MODEL_INTERFACE_MATRIX=1` and run
+`scripts/run_live_model_interface_matrix.py` with one explicit target and its
+model configuration. Existing Codex and Apple native tests are marked
+`live_matrix` supporting rows.
+
 No scoped test made a network request, authenticated, loaded/downloaded a model,
 started a provider process, or invoked an external tool.

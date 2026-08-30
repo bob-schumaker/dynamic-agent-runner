@@ -110,6 +110,7 @@ def _live_tool_request(
 
 
 @pytest.mark.apple_live
+@pytest.mark.live_matrix
 def test_live_apple_text_generation() -> None:
     _require_live_apple()
     adapter = create_apple_foundation_model_async_adapter()
@@ -125,6 +126,7 @@ def test_live_apple_text_generation() -> None:
 
 
 @pytest.mark.apple_live
+@pytest.mark.live_matrix
 def test_live_apple_structured_generation() -> None:
     _require_live_apple()
     adapter = create_apple_foundation_model_async_adapter()
@@ -153,6 +155,7 @@ def test_live_apple_structured_generation() -> None:
 
 
 @pytest.mark.apple_live
+@pytest.mark.live_matrix
 def test_live_apple_strict_coverage_workflow() -> None:
     _require_live_apple()
     workflow = LoadedAgentWorkflow(
@@ -190,6 +193,7 @@ def test_live_apple_strict_coverage_workflow() -> None:
 
 
 @pytest.mark.apple_live
+@pytest.mark.live_matrix
 def test_live_apple_tool_callback_sentinel() -> None:
     """Native callback smoke; this host requires elevated execution."""
 
@@ -229,6 +233,7 @@ def test_live_apple_tool_callback_sentinel() -> None:
 
 
 @pytest.mark.apple_live
+@pytest.mark.live_matrix
 def test_live_apple_dar_callback_sentinel() -> None:
     """Show a native callback enters DAR before a no-side-effect handler."""
 
@@ -305,6 +310,7 @@ def test_live_apple_dar_callback_sentinel() -> None:
 
 
 @pytest.mark.apple_live
+@pytest.mark.live_matrix
 def test_live_apple_dar_callback_denied_approval_skips_handler() -> None:
     """Show a native Apple callback reaches DAR approval but not its handler."""
 

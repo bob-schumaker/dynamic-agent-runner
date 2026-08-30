@@ -20,14 +20,13 @@ from dynamic_agent_runner.openai_client import (
     create_async_openai_adapter,
     create_default_async_openai_provider,
 )
+from model_interface_matrix import controlled_tool_scenarios
 
 
 LIVE_ENV = "DAR_RUN_LIVE_CODEX_PARITY"
 MODEL_ENV = "DAR_LIVE_MODEL"
-PROMPT = (
-    "Return exactly one JSON object with string field `status` equal to `ok` "
-    "and string field `value` equal to `DAR_STRUCTURED_PARITY_OK`. Do not add "
-    "markdown or an envelope."
+PROMPT = next(
+    scenario.prompt for scenario in controlled_tool_scenarios() if scenario.id == "S5"
 )
 StructuredValidator = Callable[[str], Mapping[str, Any]]
 
@@ -96,6 +95,7 @@ def test_codex_message_reads_agent_message_from_jsonl() -> None:
     os.environ.get(LIVE_ENV) != "1",
     reason=f"set {LIVE_ENV}=1 to run live ChatGPT/Codex parity coverage",
 )
+@pytest.mark.live_matrix
 def test_live_dar_and_codex_cli_complete_same_probe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

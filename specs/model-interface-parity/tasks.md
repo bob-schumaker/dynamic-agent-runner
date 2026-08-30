@@ -1,7 +1,7 @@
 # Model Interface Tool-Parity Tasks
 
 Status: T1.1–T1.6 deterministic matrix and T2 approval-interaction gate
-delivered; local-model competency and live/external acceptance remain separate
+delivered; T3 manually gated live matrix shares the controlled catalog
 
 ## Scope Rule
 
@@ -10,6 +10,28 @@ defined in `spec.md`. T1 does not run Fastmail, a live MCP connection, OAuth, a
 model server, a downloaded model, Metal, or an approval interaction. T2 is the
 sole separate, wrapper-local approval exception; optional local-model competency
 remains separate work.
+
+## T3 — Manually Gated Live Matrix
+
+- [x] T3.1 [implementation/tests] Extract the harmless controlled tool schemas,
+      S1--S6 prompts, expected calls, and outcomes into one package-owned
+      catalog consumed by both the deterministic fixtures and a manual runner.
+  - Files/components: `src/dynamic_agent_runner/model_interface_matrix.py`,
+    `tests/parity_support.py`, `scripts/run_live_model_interface_matrix.py`,
+    `tests/test_model_interface_matrix.py`.
+  - Gate: normal pytest remains offline. The runner requires
+    `DAR_RUN_LIVE_MODEL_INTERFACE_MATRIX=1`, one explicit target, and only
+    installs in-memory controlled handlers.
+  - Targets: `codex`, `openai`, `litellm`, `endpoint`, `llama_cpp`,
+    `mlx_qwen3`, and `apple`; each runs selected S1--S6 rows in sync, async, or
+    both modes where the adapter supports them.
+  - Delivery: existing Codex CLI/DAR structured S5 probe and Apple native
+    diagnostics are marked `live_matrix` supporting rows. They remain separate
+    eligibility-gated probes because Codex auth and Apple availability are host
+    prerequisites, not runner configuration.
+  - Validation: focused catalog/runner tests and the affected deterministic
+    parity modules; live execution is intentionally operator-authorized and is
+    not recorded as CI evidence.
 
 ## Authoritative Contract Cells
 

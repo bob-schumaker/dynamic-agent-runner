@@ -796,6 +796,24 @@ DAR_RUN_LIVE_CODEX_PARITY=1 poetry run pytest \
 It uses an isolated temporary Codex home and is not part of the normal unit
 suite.
 
+The same controlled S1--S6 tool catalog used by the offline parity suite also
+drives a manually gated live matrix. It exposes only in-memory record tools,
+but it calls the selected real model or local server:
+
+```bash
+DAR_RUN_LIVE_MODEL_INTERFACE_MATRIX=1 poetry run python \
+  scripts/run_live_model_interface_matrix.py \
+  --target endpoint --model qwen3-local \
+  --base-url http://127.0.0.1:8000/v1
+```
+
+Targets are `codex`, `openai`, `litellm`, `endpoint`, `llama_cpp`,
+`mlx_qwen3`, and `apple`. `endpoint` requires `--base-url`; direct llama.cpp
+and MLX require `--model-path`; MLX uses the pinned package-owned Qwen3 codec.
+Use `--scenario S1` or `--mode sync` to narrow a deliberately manual run.
+The legacy Codex comparison and Apple native probes are marked `live_matrix`
+supporting rows and remain opt-in.
+
 ## Graphify Navigation
 
 This repository is initialized for Graphify. Generated graph state lives under
