@@ -340,6 +340,16 @@ Promotion criteria:
   runtime.
 - Failure modes must degrade to the no-dependency scorer.
 
+## T2.4 Promotion Decision
+
+T2.3 did not meet the promotion criterion: the deterministic and NLTK scorers
+both achieved 4/6 required-tool recall, two false omissions, and 45.90%
+descriptor-token reduction. NLTK also added an incremental 7,531,654-byte
+test-only dependency surface and slower local scoring. Therefore no optional
+parser strategy is promoted; `deterministic_metadata` remains the only runtime
+strategy. Any future candidate must define its quality and cost threshold before
+another promotion evaluation.
+
 ## Validation Checklist
 
 - Inspect existing registry and executor boundaries before implementation.

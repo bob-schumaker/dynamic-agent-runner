@@ -68,8 +68,9 @@
       omissions, runtime overhead, dependency size, and setup friction. The
       evaluator-only measurement is locked by
       `tests/test_tool_descriptor_benchmark_measurements.py`.
-- [ ] T2.4 Promote an optional parser strategy only if benchmark evidence beats
-      the deterministic baseline enough to justify the dependency surface.
+- [x] T2.4 Evaluate promotion of an optional parser strategy only if benchmark
+      evidence beats the deterministic baseline enough to justify the dependency
+      surface. Decision: no promotion; T2.3 showed no quality gain.
 
 ## Deferred Follow-Up: Policy Polish
 

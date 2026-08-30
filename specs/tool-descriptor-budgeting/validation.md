@@ -125,6 +125,16 @@ poetry run pytest tests/test_tool_descriptor_benchmark_measurements.py \
 # 11 passed
 ```
 
+## T2.4 Promotion Gate
+
+No optional parser strategy was promoted. T2.3 found equal recall, false
+omissions, and descriptor-token reduction for both scorers, while the NLTK path
+was slower and added a measured test-only dependency surface. The runtime stays
+with `deterministic_metadata`; no parser implementation, runtime import,
+dependency, policy value, or fallback path was added. A future candidate must
+define its expected quality improvement and acceptable cost before re-opening
+this gate.
+
 ## Out-of-Scope Confirmation
 
 Slice T1 does not:
