@@ -590,6 +590,115 @@ def test_async_litellm_codex_adapter_uses_native_responses_transport() -> None:
     assert result.response_id == "resp_async"
 
 
+def test_litellm_adapter_uses_supplied_native_responses_transport() -> None:
+    calls: list[dict[str, object]] = []
+
+    def responses(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {
+            "id": "resp_generic",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "native"}],
+                }
+            ],
+        }
+
+    tool = {
+        "type": "function",
+        "name": "search_repo",
+        "description": "Search repository files.",
+        "parameters": {"type": "object", "properties": {}},
+    }
+    adapter = create_litellm_adapter(
+        responses=responses,
+        config=OpenAIProviderConfig(
+            api_key="provider-key",
+            base_url="https://provider.example/v1",
+            provider_name="openai",
+        ),
+    )
+
+    result = adapter.create_response(
+        build_openai_request(
+            model="openai/gpt-test",
+            messages=[OpenAIMessage("user", "Search")],
+            tools=[tool],
+            parallel_tool_calls=True,
+        )
+    )
+
+    assert calls[0]["api_key"] == "provider-key"
+    assert calls[0]["api_base"] == "https://provider.example/v1"
+    assert calls[0]["custom_llm_provider"] == "openai"
+    assert calls[0]["model"] == "openai/gpt-test"
+    assert calls[0]["input"] == [{"role": "user", "content": "Search"}]
+    assert calls[0]["tools"] == [tool]
+    assert calls[0]["parallel_tool_calls"] is True
+    assert result.content == "native"
+    assert result.response_id == "resp_generic"
+
+
+def test_async_litellm_adapter_uses_supplied_native_responses_transport() -> None:
+    calls: list[dict[str, object]] = []
+
+    async def aresponses(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"id": "resp_async_generic", "output": []}
+
+    adapter = create_async_litellm_adapter(aresponses=aresponses)
+    result = asyncio.run(
+        adapter.create_response(
+            build_openai_request(
+                model="openai/gpt-test",
+                messages=[OpenAIMessage("user", "Hello")],
+                parallel_tool_calls=True,
+            )
+        )
+    )
+
+    assert calls[0]["model"] == "openai/gpt-test"
+    assert calls[0]["input"] == [{"role": "user", "content": "Hello"}]
+    assert calls[0]["parallel_tool_calls"] is True
+    assert result.response_id == "resp_async_generic"
+
+
+def test_litellm_adapter_rejects_conflicting_transport_callables() -> None:
+    with pytest.raises(ValueError, match="only one LiteLLM transport"):
+        create_litellm_adapter(
+            completion=lambda **kwargs: {},
+            responses=lambda **kwargs: {},
+        )
+
+    with pytest.raises(ValueError, match="only one LiteLLM transport"):
+        create_async_litellm_adapter(
+            acompletion=lambda **kwargs: None,
+            aresponses=lambda **kwargs: None,
+        )
+
+
+def test_litellm_provider_config_factory_forwards_native_responses() -> None:
+    calls: list[dict[str, object]] = []
+
+    def responses(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return {"id": "provider-config", "output": []}
+
+    adapter = create_litellm_adapter_from_provider_config(
+        OpenAIProviderConfig(api_key="provider-key"),
+        responses=responses,
+    )
+    adapter.create_response(
+        build_openai_request(
+            model="openai/gpt-test",
+            messages=[OpenAIMessage("user", "Hello")],
+        )
+    )
+
+    assert calls[0]["api_key"] == "provider-key"
+
+
 def test_async_litellm_adapter_translates_and_normalizes_response() -> None:
     calls: list[dict[str, object]] = []
 
