@@ -47,6 +47,7 @@ from dynamic_agent_runner.hooks import (
     WorkflowLifecycleHooks,
     invoke_lifecycle_hook_async,
 )
+from dynamic_agent_runner.local_models import EmbeddingBatchResult, EmbeddingInputItem
 from dynamic_agent_runner.models import (
     CompiledAgentWorkflow,
     ExecutionPlan,
@@ -297,11 +298,19 @@ async def execute_workflow_async(
     context_selector: ContextSelector | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
     initial_node_outputs: Mapping[str, Any] | None = None,
+    embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None = None,
+    _sync_execution: bool = False,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt asynchronously."""
 
     if not prompt:
         raise WorkflowExecutionError("workflow execution requires a non-empty prompt")
+    if embedding_inputs is not None and not isinstance(
+        workflow, WorkflowExecutionContext
+    ):
+        raise WorkflowExecutionError(
+            "embedding inputs require a workflow execution context"
+        )
     context = _normalize_execution_context(
         workflow,
         tool_registry=tool_registry,
@@ -389,6 +398,11 @@ async def execute_workflow_async(
                     context_summarizer,
                     context.context_selector,
                     context.provider_context_compactor,
+                    context.embedding_profile_id,
+                    context.embedding_producer,
+                    context.embedding_producer_mode,
+                    embedding_inputs,
+                    _sync_execution,
                 )
             except Exception as exc:
                 tracer.emit(
@@ -464,6 +478,7 @@ def execute_workflow(
     context_selector: ContextSelector | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
     initial_node_outputs: Mapping[str, Any] | None = None,
+    embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -486,6 +501,8 @@ def execute_workflow(
             context_selector=context_selector,
             session_messages=session_messages,
             initial_node_outputs=initial_node_outputs,
+            embedding_inputs=embedding_inputs,
+            _sync_execution=True,
         )
     )
 
@@ -694,6 +711,11 @@ async def _execute_node_async(
     context_summarizer: ContextSummarizer | None,
     context_selector: ContextSelector | None,
     provider_context_compactor: ProviderContextCompactor | None,
+    embedding_profile_id: str | None,
+    embedding_producer: object | None,
+    embedding_producer_mode: str | None,
+    embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None,
+    sync_execution: bool,
 ) -> Any:
     if node.kind == "llm_step":
         return await _execute_llm_step_async(
@@ -718,7 +740,66 @@ async def _execute_node_async(
         )
     if node.kind == "decision_step":
         return _execute_decision_step(node, state, tracer)
+    if node.kind == "embedding_step":
+        return await _execute_embedding_step_async(
+            node,
+            embedding_profile_id,
+            embedding_producer,
+            embedding_producer_mode,
+            embedding_inputs,
+            sync_execution,
+        )
     raise WorkflowExecutionError(f"unsupported node kind {node.kind!r}")
+
+
+async def _execute_embedding_step_async(
+    node: PreparedNode,
+    embedding_profile_id: str | None,
+    embedding_producer: object | None,
+    embedding_producer_mode: str | None,
+    embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None,
+    sync_execution: bool,
+) -> EmbeddingBatchResult:
+    """Execute one host-bound embedding batch without exposing its contents."""
+
+    profile = node.raw.get("embedding_profile")
+    input_key = node.raw.get("embedding_input_from")
+    if (
+        not isinstance(profile, str)
+        or profile != embedding_profile_id
+        or not isinstance(input_key, str)
+        or embedding_producer_mode not in {"sync", "async"}
+        or embedding_producer_mode != ("sync" if sync_execution else "async")
+        or embedding_producer is None
+    ):
+        raise WorkflowExecutionError("embedding step has an invalid host binding")
+    if embedding_inputs is None or set(embedding_inputs) != {input_key}:
+        raise WorkflowExecutionError("embedding step has invalid host inputs")
+    batch = embedding_inputs.get(input_key)
+    if (
+        not isinstance(batch, tuple)
+        or not batch
+        or any(not isinstance(item, EmbeddingInputItem) for item in batch)
+    ):
+        raise WorkflowExecutionError("embedding step has an invalid host batch")
+    producer = getattr(embedding_producer, "embed", None)
+    if not callable(producer):
+        raise WorkflowExecutionError("embedding step has an invalid host producer")
+    result = producer(tuple(batch))
+    if embedding_producer_mode == "sync" and inspect.isawaitable(result):
+        close = getattr(result, "close", None)
+        if callable(close):
+            close()
+        raise WorkflowExecutionError(
+            "embedding step sync producer returned an awaitable"
+        )
+    if embedding_producer_mode == "async" and inspect.isawaitable(result):
+        result = await result
+    if not isinstance(result, EmbeddingBatchResult):
+        raise WorkflowExecutionError(
+            "embedding step producer returned an invalid result"
+        )
+    return result
 
 
 def _new_run_id() -> str:

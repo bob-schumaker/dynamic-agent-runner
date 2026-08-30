@@ -43,6 +43,9 @@ class WorkflowExecutionContext:
     model_adapter_coverage: str = "augmented"
     context_selector: ContextSelector | None = None
     provider_context_compactor: ProviderContextCompactor | None = None
+    embedding_profile_id: str | None = None
+    embedding_producer: object | None = None
+    embedding_producer_mode: str | None = None
 
 
 RunContext = WorkflowExecutionContext

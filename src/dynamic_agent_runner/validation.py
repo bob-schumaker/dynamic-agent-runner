@@ -480,6 +480,7 @@ def validate_runtime_manifest(
     _extend(errors, _tool_definition_errors(manifest.tools, "runtime manifest tool"))
     _extend(errors, _tool_reference_errors(manifest, tool_index, tool_registry))
     _extend(errors, _llm_prompt_errors(manifest.nodes))
+    _extend(errors, _embedding_step_errors(manifest))
     _extend(errors, _context_pipeline_attachment_errors(manifest.nodes))
     _extend(errors, _model_requirements_errors(manifest))
     _extend(errors, _memory_pipeline_errors(manifest))
@@ -1156,6 +1157,32 @@ def _llm_prompt_errors(nodes: Iterable[RuntimeNode]) -> list[str]:
             errors.append(
                 f"llm_step node {node.id!r} must define prompt or prompt_source"
             )
+    return errors
+
+
+def _embedding_step_errors(manifest: RuntimeManifest) -> list[str]:
+    errors: list[str] = []
+    allowed_keys = {
+        "id",
+        "kind",
+        "label",
+        "embedding_profile",
+        "embedding_input_from",
+    }
+    for node in manifest.nodes:
+        if node.kind != "embedding_step":
+            continue
+        for key in node.raw:
+            if key not in allowed_keys:
+                errors.append(
+                    f"embedding_step node {node.id!r} has unsupported field {key!r}"
+                )
+        for key in ("embedding_profile", "embedding_input_from"):
+            value = node.raw.get(key)
+            if not isinstance(value, str) or not value:
+                errors.append(f"embedding_step node {node.id!r} requires {key}")
+        if any(edge.source == node.id for edge in manifest.edges):
+            errors.append(f"embedding_step node {node.id!r} must be terminal")
     return errors
 
 

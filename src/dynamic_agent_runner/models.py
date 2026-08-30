@@ -27,7 +27,7 @@ SUPPORTED_AGENT_PATTERNS = (
     "multi-agent-collaboration",
 )
 
-PRIMITIVE_NODE_KINDS = ("llm_step", "tool_use_step", "decision_step")
+PRIMITIVE_NODE_KINDS = ("llm_step", "tool_use_step", "decision_step", "embedding_step")
 
 LEGACY_RUNTIME_ROOT_FIELDS = (
     "execution_policy",
