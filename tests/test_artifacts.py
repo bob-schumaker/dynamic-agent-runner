@@ -139,7 +139,12 @@ def test_load_runtime_manifest_from_raw_yaml_preserves_pattern_metadata() -> Non
         "memory-augmented-agent",
     )
     assert "multi-agent-collaboration" in SUPPORTED_AGENT_PATTERNS
-    assert PRIMITIVE_NODE_KINDS == ("llm_step", "tool_use_step", "decision_step")
+    assert PRIMITIVE_NODE_KINDS == (
+        "llm_step",
+        "tool_use_step",
+        "decision_step",
+        "embedding_step",
+    )
     assert manifest.participant_groups[0].id == "review_panel"
     assert manifest.modes[0].id == "quick_review"
     assert manifest.phases[0].id == "fanout"

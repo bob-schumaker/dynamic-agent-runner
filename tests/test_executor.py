@@ -27,7 +27,11 @@ from dynamic_agent_runner.context_selection import (
     ContextSelectionCandidate,
 )
 from dynamic_agent_runner.errors import (
+    EmbeddingResultError,
     GuardrailExecutionError,
+    LocalModelIdentityMismatchError,
+    LocalModelOfflinePolicyError,
+    LocalModelResolutionError,
     ModelExecutionError,
     WorkflowExecutionError,
 )
@@ -48,7 +52,11 @@ from dynamic_agent_runner.guardrails import (
     InMemoryGuardrailRegistry,
 )
 from dynamic_agent_runner.hooks import NodeHookContext, WorkflowLifecycleHooks
+from dynamic_agent_runner.host_integration import summarize_trace_events
 from dynamic_agent_runner.local_models import (
+    EmbeddingBatchResult,
+    EmbeddingInputItem,
+    EmbeddingVectorItem,
     LlamaCppLocalModelConfig,
     create_llama_cpp_local_adapter,
 )
@@ -355,6 +363,526 @@ def make_async_tool(
 
 def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
     return LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
+
+
+class _RecordingEmbeddingProducer:
+    def __init__(self, result: object) -> None:
+        self.result = result
+        self.calls: list[tuple[EmbeddingInputItem, ...]] = []
+
+    def embed(self, items: tuple[EmbeddingInputItem, ...]) -> object:
+        self.calls.append(items)
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+class _AsyncRecordingEmbeddingProducer(_RecordingEmbeddingProducer):
+    async def embed(self, items: tuple[EmbeddingInputItem, ...]) -> object:
+        self.calls.append(items)
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+class _BlockingAsyncEmbeddingProducer(_AsyncRecordingEmbeddingProducer):
+    def __init__(self, result: object) -> None:
+        super().__init__(result)
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def embed(self, items: tuple[EmbeddingInputItem, ...]) -> object:
+        self.calls.append(items)
+        self.started.set()
+        await self.release.wait()
+        return self.result
+
+
+class _ClosableEmbeddingAwaitable:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def __await__(self):
+        if False:
+            yield None
+        return embedding_result()
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def embedding_step_workflow(
+    *,
+    profile: str = "host-embedding",
+    input_key: str = "documents",
+) -> LoadedAgentWorkflow:
+    """Return one terminal embedding step for T5.5 execution coverage."""
+
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "embedding-step-agent",
+            "entrypoint": "embed",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "embed",
+                    "kind": "embedding_step",
+                    "embedding_profile": profile,
+                    "embedding_input_from": input_key,
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+
+def embedding_items() -> tuple[EmbeddingInputItem, ...]:
+    """Return one bounded test-only embedding batch."""
+
+    return (EmbeddingInputItem(id="entry-1", text="private embedding text"),)
+
+
+def embedding_result() -> EmbeddingBatchResult:
+    """Return the typed result paired with ``embedding_items``."""
+
+    return EmbeddingBatchResult(
+        model="embedding-test",
+        items=(EmbeddingVectorItem(id="entry-1", vector=(0.25, 0.75)),),
+    )
+
+
+def test_embedding_step_sync_returns_typed_terminal_result_once() -> None:
+    """A host-bound sync producer supplies the ordinary terminal result."""
+
+    batch = embedding_items()
+    expected = embedding_result()
+    producer = _RecordingEmbeddingProducer(expected)
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    result = execute_workflow(
+        context,
+        prompt="Embed the controlled batch",
+        embedding_inputs={"documents": batch},
+    )
+
+    assert result.final_result is expected
+    assert result.state.node_outputs["embed"] is expected
+    assert result.state.executions[0].output is expected
+    assert producer.calls == [batch]
+
+
+def test_embedding_step_async_accepts_async_producer_once() -> None:
+    """The async executor awaits one host-bound async producer."""
+
+    batch = embedding_items()
+    expected = embedding_result()
+    producer = _AsyncRecordingEmbeddingProducer(expected)
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="async",
+    )
+
+    result = asyncio.run(
+        execute_workflow_async(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": batch},
+        )
+    )
+
+    assert result.final_result is expected
+    assert producer.calls == [batch]
+
+
+def test_embedding_step_async_accepts_direct_producer_result_once() -> None:
+    """Async execution also accepts the host's direct producer result."""
+
+    batch = embedding_items()
+    expected = embedding_result()
+    producer = _RecordingEmbeddingProducer(expected)
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="async",
+    )
+
+    result = asyncio.run(
+        execute_workflow_async(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": batch},
+        )
+    )
+
+    assert result.final_result is expected
+    assert producer.calls == [batch]
+
+
+def test_embedding_step_sync_rejects_async_binding_before_producer_dispatch() -> None:
+    """The sync executor refuses an async binding before calling its producer."""
+
+    producer = _AsyncRecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="async",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert producer.calls == []
+
+
+def test_embedding_step_rejects_unbound_profile_before_producer_dispatch() -> None:
+    """The manifest cannot retarget the single host-bound embedding profile."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(profile="other-profile"),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert producer.calls == []
+
+
+def test_embedding_step_rejects_invalid_batch_before_producer_dispatch() -> None:
+    """Host input values must be tuple-backed embedding batches."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding") as raised:
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={
+                "documents": [EmbeddingInputItem("entry-1", "sentinel-host-text")]
+            },
+        )
+
+    assert producer.calls == []
+    assert "sentinel-host-text" not in str(raised.value)
+
+
+def test_embedding_step_rejects_unsupported_producer_before_dispatch() -> None:
+    """A context binding must expose the one standalone producer operation."""
+
+    sink = InMemoryTraceSink()
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=object(),
+        embedding_producer_mode="sync",
+        trace_sink=sink,
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert not any(event.event_type == "node_completed" for event in sink.events)
+
+
+@pytest.mark.parametrize(
+    "inputs",
+    [
+        {},
+        {"other": embedding_items()},
+        {"documents": (object(),)},
+        {"": embedding_items(), "documents": embedding_items()},
+    ],
+)
+def test_embedding_step_rejects_missing_or_unknown_input_before_producer_dispatch(
+    inputs: dict[str, object],
+) -> None:
+    """The declared input key must resolve to one host-supplied batch."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            context, prompt="Embed the controlled batch", embedding_inputs=inputs
+        )
+
+    assert producer.calls == []
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_embedding_step_rejects_invalid_producer_mode_before_dispatch(
+    asynchronous: bool,
+) -> None:
+    """Only the two declared host producer modes may reach an embedding call."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="invalid",
+    )
+
+    if asynchronous:
+        invocation = execute_workflow_async(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+        with pytest.raises(WorkflowExecutionError, match="embedding"):
+            asyncio.run(invocation)
+    else:
+        with pytest.raises(WorkflowExecutionError, match="embedding"):
+            execute_workflow(
+                context,
+                prompt="Embed the controlled batch",
+                embedding_inputs={"documents": embedding_items()},
+            )
+
+    assert producer.calls == []
+
+
+def test_embedding_step_rejects_non_typed_producer_result_before_output() -> None:
+    """A producer cannot install an untyped terminal result."""
+
+    producer = _RecordingEmbeddingProducer(
+        {
+            "model": "embedding-test",
+            "text": "sentinel-producer-text",
+            "vector": [0.375],
+        }
+    )
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding") as raised:
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert producer.calls == [embedding_items()]
+    assert "sentinel-producer-text" not in str(raised.value)
+    assert "0.375" not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("error", "error_type"),
+    [
+        (EmbeddingResultError("embedding result is invalid"), EmbeddingResultError),
+        (
+            LocalModelResolutionError("model resolution failed"),
+            LocalModelResolutionError,
+        ),
+        (
+            LocalModelOfflinePolicyError("offline policy rejected resolution"),
+            LocalModelOfflinePolicyError,
+        ),
+        (
+            LocalModelIdentityMismatchError("model identity differs"),
+            LocalModelIdentityMismatchError,
+        ),
+    ],
+)
+def test_embedding_step_preserves_producer_error_without_partial_output(
+    error: Exception, error_type: type[Exception]
+) -> None:
+    """Existing embedding, resolution, offline, and identity errors pass through."""
+
+    producer = _RecordingEmbeddingProducer(error)
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(error_type) as raised:
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert raised.value is error
+    assert producer.calls == [embedding_items()]
+
+
+def test_embedding_step_closes_unexpected_sync_awaitable_before_error() -> None:
+    """A sync binding cannot leak an awaitable result after dispatch."""
+
+    awaitable = _ClosableEmbeddingAwaitable()
+    producer = _RecordingEmbeddingProducer(awaitable)
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert producer.calls == [embedding_items()]
+    assert awaitable.closed is True
+
+
+def test_embedding_step_marks_batch_output_sensitive_in_external_trace() -> None:
+    """The public trace summary never exposes embedding text or vectors."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    sink = InMemoryTraceSink()
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+        trace_sink=sink,
+    )
+
+    execute_workflow(
+        context,
+        prompt="Embed the controlled batch",
+        embedding_inputs={"documents": embedding_items()},
+    )
+
+    completed = next(
+        event for event in sink.events if event.event_type == "node_completed"
+    )
+    assert completed.sensitive_fields == ("output",)
+    summary = str(summarize_trace_events(sink.events))
+    assert "private embedding text" not in summary
+    assert "0.25" not in summary
+
+
+def test_embedding_step_overlay_requires_host_execution_context() -> None:
+    """A bare workflow cannot inject a host-owned embedding batch."""
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            embedding_step_workflow(),
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+
+def test_embedding_step_rejects_other_context_overlay_before_producer_dispatch() -> (
+    None
+):
+    """Embedding inputs are the context's only permitted per-run overlay."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="cannot be combined"):
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+            model_adapter=make_adapter([]),
+        )
+
+    assert producer.calls == []
+
+
+def test_embedding_step_context_binding_is_immutable() -> None:
+    """The host profile cannot be reassigned after execution context creation."""
+
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=_RecordingEmbeddingProducer(embedding_result()),
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(AttributeError):
+        context.embedding_profile_id = "other-profile"  # type: ignore[misc]
+
+
+def test_embedding_step_copies_batch_before_async_producer_completion() -> None:
+    """Mutating caller input after dispatch cannot change the selected batch."""
+
+    async def invoke() -> tuple[
+        object, _BlockingAsyncEmbeddingProducer, EmbeddingBatchResult
+    ]:
+        original = embedding_items()
+        replacement = (EmbeddingInputItem(id="entry-2", text="replacement"),)
+        inputs = {"documents": original}
+        expected = embedding_result()
+        producer = _BlockingAsyncEmbeddingProducer(expected)
+        context = WorkflowExecutionContext(
+            workflow=embedding_step_workflow(),
+            embedding_profile_id="host-embedding",
+            embedding_producer=producer,
+            embedding_producer_mode="async",
+        )
+        task = asyncio.create_task(
+            execute_workflow_async(
+                context,
+                prompt="Embed the controlled batch",
+                embedding_inputs=inputs,
+            )
+        )
+        await producer.started.wait()
+        inputs["documents"] = replacement
+        producer.release.set()
+        return await task, producer, expected
+
+    result, producer, expected = asyncio.run(invoke())
+
+    assert result.final_result is expected
+    assert producer.calls == [embedding_items()]
 
 
 def provider_compaction_workflow(
