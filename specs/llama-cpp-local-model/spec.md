@@ -318,18 +318,39 @@ scope. Before T5.2 begins, T5.1 must specify the caller-visible input,
 ordered-output, dimension, batching, malformed-result, and package-owned error
 contract.
 
+That contract is batch-only: callers provide ordered `{id, text}` entries and
+receive same-order `{id, vectors, model}` entries. IDs are opaque, nonempty,
+and unique within the batch. The configured embedding profile, resolved asset,
+and reported model identity are host-bound; a caller or model may never choose a
+model path, alias, or provider. The selected `create_embedding(...)` upstream
+response must contain exactly one valid indexed result for every submitted
+entry. DAR correlates those indexes back to the submitted IDs and rejects
+missing, extra, duplicate, out-of-range, non-finite, nested, ragged, or
+dimension-inconsistent vectors before returning a result. T5.1 fixes explicit
+batch, text-byte, total-byte, dimension, scalar-count, and output-byte bounds.
+Raw texts and vectors must not enter traces or errors.
+
+After the shared contract is delivered, two independent consumer slices are in
+scope: an `embedding_step` terminal workflow node that consumes batch input and
+ends a one-node workflow with that result, and a model-selectable local tool
+using the same host-bound profile and schema. The latter lets a model choose
+whether to request embeddings; it does not let the model choose the embedding
+model. Each integration must use the existing workflow/tool coordination and
+approval controls rather than duplicating them.
+
 The later implementation must use a separate immutable runtime-owned embedding
-configuration rather than chat aliases, workflow manifests, or endpoint config.
+configuration rather than chat aliases or endpoint config.
 It may reuse existing local-path/cache/Hub-reference resolution and identity
 checks. Configuration construction and cache-only preflight perform no download,
 import, load, endpoint, or network I/O. A later lazy embedding invocation may
 use the existing explicit-Hub file/snapshot download seam on a cache miss, under
 its normal offline policy; it must never fall back to a remote embedding
 endpoint. It must not silently reuse a chat backend constructed without
-`embedding=True`, own a server, or change the executor, tool, approval,
-RAG/graph, or vector-store paths. The documented
-llama.cpp embedding collaborator (`embed` or `create_embedding`) and exact
-result normalization remain a source-inspection decision for T5.1.
+`embedding=True`, own a server, or change RAG/graph or vector-store paths.
+`embedding_step` and the model-selectable local tool are instead separately
+gated by T5.5 and T5.6; they must not change approval semantics. The documented
+llama.cpp `create_embedding` collaborator and exact result normalization remain
+a source-inspection decision for T5.1.
 
 ### FR-4: Preserve repository-owned response normalization
 

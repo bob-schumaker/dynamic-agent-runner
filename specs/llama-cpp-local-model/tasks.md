@@ -374,11 +374,18 @@ standalone embedding execution awaits T5.1's contract decision
     ordered finite vector output; dimension/ragged/empty policy; package-owned
     error taxonomy; and whether two explicit configs for the same artifact
     create distinct model instances (default: yes).
+  - Contract direction: batch-only ordered `{id, text}` input and same-order
+    `{id, vectors, model}` output. IDs are opaque, nonempty, and unique. The
+    model selects only whether to invoke a later embedding tool; the host binds
+    the embedding profile, model identity, and asset.
   - Gate: inspect the installed/pinned `llama_cpp.Llama` API before selecting
     `embed` or `create_embedding`; no implementation, model load, network, or
-    export occurs here. Keep this a standalone producer surface: no chat-adapter
-    reuse, executor routing, workflow capability, graph/RAG, or vector-store
-    behavior is authorized.
+    export occurs here. `create_embedding` must have exactly one indexed result
+    per submitted entry; normalize its indexes to submitted IDs and reject
+    missing, extra, duplicate, out-of-range, non-finite, nested, ragged, or
+    dimension-inconsistent vectors. Fix bounds for IDs, batch cardinality, text
+    and aggregate bytes, dimensions, scalar count, and output bytes. Raw texts
+    and vectors are excluded from traces and errors.
   - Validation: source inspection record plus spec/task review. T5.2 remains
     blocked until this contract is implementation-ready.
 
@@ -409,6 +416,32 @@ standalone embedding execution awaits T5.1's contract decision
   - Validation: focused local-model/import tests, `poetry run pytest -q`, Ruff,
     formatter, and targeted pre-commit. A real embedding run remains a separate
     human-authorized manual step.
+
+- [ ] T5.5 [tests/implementation] Add a terminal `embedding_step` workflow node
+      using the completed standalone batch producer.
+  - Depends on: T5.4.
+  - Scope: validate a host-bound embedding profile and declared batch-input
+    binding; execute the producer exactly once; return its typed batch output;
+    and let a one-node workflow end normally. Add only the manifest validation
+    and executor dispatch required for this node kind.
+  - RED/GREEN: fake-only sync/async tests cover accepted terminal output,
+    malformed or missing input, unavailable profile, invalid producer result,
+    zero provider dispatch before validation, and no model/remote/network or
+    approval interaction. Do not add a chat `ModelAdapter` capability or vector
+    storage.
+
+- [ ] T5.6 [tests/implementation] Expose the completed standalone producer as
+      a model-selectable local embedding tool.
+  - Depends on: T5.4.
+  - Scope: register one exact batch schema through the existing registry and
+    coordinator as `side_effect="read"`, `approval_required="no"`. The model
+    can select whether to call it but cannot select profile, model, provider,
+    path, or alias. Reuse the completed producer and normal tool-result
+    continuation; do not create a second embedding path or approval bypass.
+  - RED/GREEN: fake-only model-loop tests cover schema/budget rejection before
+    handler/provider entry, exactly-one valid producer invocation, bounded
+    model-facing result continuation, and zero approval, remote, network, or
+    real-model calls.
 
 ## Slice 4 — Validation and artifact completion
 

@@ -293,7 +293,9 @@ embedding execution awaits T5.1's contract decision
 - Source inspection: installed `llama-cpp-python` is `0.3.35`.
   `llama_cpp.Llama.embed(input, normalize=False, truncate=True,
   return_count=False)` and `create_embedding(input, model=None)` are both
-  available upstream candidates.
+  available upstream candidates. `create_embedding` delegates to batched
+  `embed`, returns indexed entries plus a model field, and is selected for the
+  standalone contract's exact ID correlation.
 - Consumer discovery: current DAR source has no `.embed(...)` or
   `.create_embedding(...)` runtime caller and no local embedding protocol.
   Context preparation keeps semantic/vector retrieval behind an injected
@@ -308,3 +310,14 @@ embedding execution awaits T5.1's contract decision
   T5.2--T5.4, model loading, networking, and public exports remain unauthorized
   until then. Graph/RAG, vector-store, executor, and chat-adapter work remain
   excluded from this authorization.
+- Contract direction: the user requires batch-only `{id, string}` input and
+  `{id, vectors, model}` output, including a terminal one-node workflow use and
+  an optional model-selectable tool use. These are two later consumers, not one
+  shared implementation path: T5.5 owns the new terminal workflow node and
+  T5.6 owns the existing-registry tool exposure. The model selects invocation,
+  never embedding-model identity.
+- Council/Ponytail: both integrations require separate manifest/executor and
+  registry/coordinator contracts. Reuse one host-bound batch producer; do not
+  add a second embedding path, remote fallback, model-selected profile, or
+  approval bypass. T5.1 remains the gate for fixed resource bounds and typed
+  error/result contracts.

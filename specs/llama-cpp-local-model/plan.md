@@ -164,8 +164,11 @@ implementation.
 1. T5.1 specifies the standalone caller-visible surface and records a
    source-inspected upstream method, input batching shape, normalized ordered
    vector result, finite and dimension/ragged validation, package-owned failure
-   taxonomy, and explicit same-artifact behavior. Until then, no factory/export
-   is authorized.
+   taxonomy, bounded raw-data handling, and explicit same-artifact behavior.
+   It uses batch-only `{id, text}` input and same-order `{id, vectors, model}`
+   output. `create_embedding(...)` is selected because its indexed response and
+   model field support exact correlation; profile/model selection remains
+   host-bound. Until then, no factory/export is authorized.
 2. T5.2 writes focused fake-only RED tests for a distinct immutable embedding
    config and resolver. It reuses `LocalModelPathConfig` precedence, offline
    policy, and identity inputs. Config construction/cache-only preflight has no
@@ -179,12 +182,22 @@ implementation.
    Sync/async fake backend tests cover the selected upstream method, normalized
    results, malformed/non-finite/ragged responses, and failure translation.
 4. T5.4 records focused/full fake-only validation and documents the exact
-   consumer boundary. A live model load or embedding is a separate
+   producer boundary. A live model load or embedding is a separate
    human-authorized manual acceptance step.
+5. T5.5 adds the terminal `embedding_step` workflow node after the standalone
+   producer is complete. It validates a declared host-bound profile and batch
+   input binding, dispatches once through that producer, and returns the typed
+   batch result as a terminal workflow output. It must not add model selection,
+   remote fallback, or a separate embedding execution path.
+6. T5.6 exposes the same producer as a model-selectable zero-side-effect tool
+   after the standalone producer is complete. It uses the existing registry and
+   coordinator with the exact batch schema; model selection is limited to
+   whether to invoke the tool. It preserves normal tool validation, tracing,
+   and continuation behavior without approval bypass.
 
-No Slice 5 task may add executor routing, `ModelAdapter` chat behavior,
-tool/approval policy, workflow metadata, remote fallback, server lifecycle,
-graph mutation, RAG, or a vector store.
+No Slice 5 task may add `ModelAdapter` chat behavior, remote fallback, server
+lifecycle, graph mutation, RAG, or a vector store. T5.5/T5.6 are the only
+authorized workflow/tool integration slices; neither may alter approval policy.
 
 ## Architectural Decision
 
