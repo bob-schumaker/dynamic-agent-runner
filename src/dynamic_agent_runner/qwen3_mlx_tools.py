@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from dynamic_agent_runner.mlx_models import (
+    AsyncMLXLocalModelAdapter,
     MLXLocalBackend,
     MLXLocalModelAdapter,
     MLXLocalModelConfig,
@@ -20,6 +21,7 @@ from dynamic_agent_runner.mlx_models import (
     MLXToolCodecResponse,
     PlatformSystemCallable,
     create_mlx_local_adapter,
+    create_mlx_local_async_adapter,
 )
 from dynamic_agent_runner.openai_client import OpenAIModelRequest
 
@@ -157,11 +159,7 @@ def create_qwen3_mlx_local_adapter(
     this convenience helper from treating a model-family name as compatibility.
     """
 
-    if config.expected_model_id != PINNED_QWEN3_MLX_MODEL_ID:
-        raise ValueError(
-            "Qwen3 MLX tool calling requires the pinned Qwen3 model ID as "
-            "MLXLocalModelConfig.expected_model_id"
-        )
+    _validate_pinned_model_id(config)
     backend: MLXLocalBackend = Qwen3MLXBackend(model=model, tokenizer=tokenizer)
     return create_mlx_local_adapter(
         config,
@@ -169,3 +167,30 @@ def create_qwen3_mlx_local_adapter(
         platform_system=platform_system,
         tool_codec=Qwen3MLXToolCodec(tokenizer=tokenizer),
     )
+
+
+def create_qwen3_mlx_local_async_adapter(
+    config: MLXLocalModelConfig,
+    *,
+    model: object,
+    tokenizer: Qwen3ChatTemplateTokenizer,
+    platform_system: PlatformSystemCallable | None = None,
+) -> AsyncMLXLocalModelAdapter:
+    """Create the async form of :func:`create_qwen3_mlx_local_adapter`."""
+
+    _validate_pinned_model_id(config)
+    backend: MLXLocalBackend = Qwen3MLXBackend(model=model, tokenizer=tokenizer)
+    return create_mlx_local_async_adapter(
+        config,
+        backend=backend,
+        platform_system=platform_system,
+        tool_codec=Qwen3MLXToolCodec(tokenizer=tokenizer),
+    )
+
+
+def _validate_pinned_model_id(config: MLXLocalModelConfig) -> None:
+    if config.expected_model_id != PINNED_QWEN3_MLX_MODEL_ID:
+        raise ValueError(
+            "Qwen3 MLX tool calling requires the pinned Qwen3 model ID as "
+            "MLXLocalModelConfig.expected_model_id"
+        )

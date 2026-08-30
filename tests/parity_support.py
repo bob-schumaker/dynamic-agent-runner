@@ -138,8 +138,24 @@ def parity_registry() -> tuple[
     return InMemoryToolRegistry(tools), invocations, results
 
 
-def parity_loop_workflow() -> LoadedAgentWorkflow:
+def parity_loop_workflow(
+    *,
+    include_tool_choice_policy: bool = True,
+) -> LoadedAgentWorkflow:
     definitions = parity_tool_definitions()
+    execution_policy: dict[str, object] = {
+        "model": "gpt-test",
+        "tool_use_completion": {
+            "run_again": "required",
+            "stop_on_tool": "disabled",
+            "final_output": "default",
+        },
+    }
+    if include_tool_choice_policy:
+        execution_policy["tool_choice_policy"] = {
+            "initial": "required",
+            "after_tool_result": "auto",
+        }
     return LoadedAgentWorkflow(
         runtime_manifest=load_runtime_manifest(
             {
@@ -148,20 +164,7 @@ def parity_loop_workflow() -> LoadedAgentWorkflow:
                 "package_id": "loop-tool-agent",
                 "entrypoint": "analyze",
                 "packaging": {"mode": "hybrid_bundle"},
-                "runtime": {
-                    "execution_policy": {
-                        "model": "gpt-test",
-                        "tool_use_completion": {
-                            "run_again": "required",
-                            "stop_on_tool": "disabled",
-                            "final_output": "default",
-                        },
-                        "tool_choice_policy": {
-                            "initial": "required",
-                            "after_tool_result": "auto",
-                        },
-                    }
-                },
+                "runtime": {"execution_policy": execution_policy},
                 "nodes": [
                     {
                         "id": "analyze",

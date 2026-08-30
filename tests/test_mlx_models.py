@@ -132,65 +132,39 @@ class _AsyncRecordingMLXAdapter:
         return response
 
 
-def _mlx_parity_responses(scenario: str) -> list[MLXToolCodecResponse]:
-    call = MLXToolCallCandidate
-    text = MLXToolCodecResponse
+def _mlx_parity_generations(scenario: str) -> list[str]:
     scenarios = {
         "S1": [
-            text(
-                tool_call=call("create_record", '{"title":"DAR","body":"controlled"}')
-            ),
-            text(content="created"),
+            '<tool_call>{"name":"create_record","arguments":{"title":"DAR","body":"controlled"}}</tool_call>',
+            "created",
         ],
         "S2": [
-            text(
-                tool_call=call(
-                    "transform_record",
-                    '{"record_id":"record-seed","operation":"uppercase"}',
-                )
-            ),
-            text(content="transformed"),
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":"record-seed","operation":"uppercase"}}</tool_call>',
+            "transformed",
         ],
         "S2-invalid": [
-            text(tool_call=call("transform_record", '{"record_id":"record-seed"}'))
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":"record-seed"}}</tool_call>'
         ],
         "S2-wrong-type": [
-            text(
-                tool_call=call(
-                    "transform_record", '{"record_id":1,"operation":"uppercase"}'
-                )
-            )
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":1,"operation":"uppercase"}}</tool_call>'
         ],
         "S2-invalid-enum": [
-            text(
-                tool_call=call(
-                    "transform_record",
-                    '{"record_id":"record-seed","operation":"lowercase"}',
-                )
-            )
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":"record-seed","operation":"lowercase"}}</tool_call>'
         ],
         "S2-unknown": [
-            text(
-                tool_call=call(
-                    "transform_record",
-                    '{"record_id":"record-seed","operation":"uppercase","unknown":true}',
-                )
-            )
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":"record-seed","operation":"uppercase","unknown":true}}</tool_call>'
         ],
-        "S2-malformed": [text(tool_call=call("transform_record", "not-json"))],
+        "S2-malformed": ["<tool_call>not-json</tool_call>"],
         "S3": [
-            text(tool_call=call("lookup_record", '{"key":"seed"}')),
-            text(
-                tool_call=call(
-                    "transform_record",
-                    '{"record_id":"record-seed","operation":"uppercase"}',
-                )
-            ),
-            text(content="SEED"),
+            '<tool_call>{"name":"lookup_record","arguments":{"key":"seed"}}</tool_call>',
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":"record-seed","operation":"uppercase"}}</tool_call>',
+            "SEED",
         ],
-        "S4": [text(tool_call=call("fail_controlled", '{"code":"planned"}'))],
-        "S5": [text(content="no tool")],
-        "S6": [text(tool_call=call("lookup_record", "not-json"))],
+        "S4": [
+            '<tool_call>{"name":"fail_controlled","arguments":{"code":"planned"}}</tool_call>'
+        ],
+        "S5": ["no tool"],
+        "S6": ["<tool_call>not-json</tool_call>"],
     }
     return scenarios[scenario]
 
@@ -203,9 +177,10 @@ def _run_mlx_parity(
     monkeypatch: pytest.MonkeyPatch,
 ):
     from dynamic_agent_runner import (
+        PINNED_QWEN3_MLX_MODEL_ID,
         MLXLocalModelConfig,
-        create_mlx_local_adapter,
-        create_mlx_local_async_adapter,
+        create_qwen3_mlx_local_adapter,
+        create_qwen3_mlx_local_async_adapter,
     )
     import dynamic_agent_runner.mlx_models as mlx_models
 
@@ -217,36 +192,35 @@ def _run_mlx_parity(
         forbidden_calls.append((args, kwargs))
         raise AssertionError("parity tests must not load or download MLX")
 
-    real_import = builtins.__import__
-
-    def forbid_mlx_import(
-        name: str,
-        globals_: object | None = None,
-        locals_: object | None = None,
-        fromlist: tuple[str, ...] = (),
-        level: int = 0,
-    ) -> object:
-        if name == "mlx_lm":
-            raise AssertionError("parity tests must not import mlx_lm")
-        return real_import(name, globals_, locals_, fromlist, level)
-
-    monkeypatch.setattr(builtins, "__import__", forbid_mlx_import)
     monkeypatch.setattr(mlx_models, "_load_default_mlx_lm_backend", forbidden)
-    responses = _mlx_parity_responses(scenario)
-    backend = SequencedToolCapableMLXBackend(
-        [f"native-{index}" for index in range(len(responses))]
-    )
-    codec = FakeMLXToolCodec(*responses)
+    generations = _mlx_parity_generations(scenario)
+    rendered_prompts: list[str] = []
+
+    def generate(
+        _model: object,
+        _tokenizer: object,
+        *,
+        prompt: str,
+        **_kwargs: object,
+    ) -> str:
+        rendered_prompts.append(prompt)
+        return generations.pop(0)
+
+    monkeypatch.setitem(sys.modules, "mlx_lm", SimpleNamespace(generate=generate))
+    tokenizer = FakeQwen3Tokenizer()
     factory = (
-        create_mlx_local_async_adapter if asynchronous else create_mlx_local_adapter
+        create_qwen3_mlx_local_async_adapter
+        if asynchronous
+        else create_qwen3_mlx_local_adapter
     )
     adapter = factory(
-        MLXLocalModelConfig(model_aliases=("gpt-test",), model_path=model_path),
-        backend=backend,
-        dependency_loader=forbidden,
-        download_file=forbidden,
-        download_snapshot=forbidden,
-        tool_codec=codec,
+        MLXLocalModelConfig(
+            model_aliases=("gpt-test",),
+            model_path=model_path,
+            expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+        ),
+        model=object(),
+        tokenizer=tokenizer,
         platform_system=lambda: "Darwin",
     )
     observed: list[object] = []
@@ -261,7 +235,9 @@ def _run_mlx_parity(
     result = None
     try:
         workflow = (
-            parity_no_tool_workflow() if scenario == "S5" else parity_loop_workflow()
+            parity_no_tool_workflow()
+            if scenario == "S5"
+            else parity_loop_workflow(include_tool_choice_policy=False)
         )
         if asynchronous:
             result = asyncio.run(
@@ -284,11 +260,11 @@ def _run_mlx_parity(
     except Exception as caught:
         error = caught
     assert forbidden_calls == []
-    assert backend.requests == []
+    assert generations == []
     return (
         result,
         parity_record(
-            interface="mlx_injected_codec_backend",
+            interface="mlx_qwen3_owned_codec",
             scenario=scenario,
             asynchronous=asynchronous,
             normalized_calls=tuple((call.name, call.arguments) for call in observed),
@@ -300,8 +276,8 @@ def _run_mlx_parity(
             sink=sink,
         ),
         error,
-        codec,
-        backend,
+        tokenizer,
+        rendered_prompts,
     )
 
 
@@ -313,9 +289,10 @@ def _assert_mlx_parity_scenario(
     result: object | None,
     record: object,
     error: Exception | None,
-    codec: FakeMLXToolCodec,
-    backend: SequencedToolCapableMLXBackend,
+    tokenizer: FakeQwen3Tokenizer,
+    rendered_prompts: list[str],
 ) -> None:
+    assert record.interface == "mlx_qwen3_owned_codec"
     assert tuple(name for name, _ in record.invocations) == invoked
     assert (error is not None) is fails
     assert (result is None) is fails
@@ -342,16 +319,16 @@ def _assert_mlx_parity_scenario(
             ("create_record", '{"body":"controlled","title":"DAR"}'),
         )
     if scenario == "S3":
-        assert len(codec.rendered_requests) == len(backend.rendered_prompts) == 3
-        assert "record-seed" in str(codec.rendered_requests[1])
+        assert len(tokenizer.calls) == len(rendered_prompts) == 3
+        assert "record-seed" in str(tokenizer.calls[1]["conversation"])
     if scenario == "S4":
-        assert len(codec.rendered_requests) == len(backend.rendered_prompts) == 1
+        assert len(tokenizer.calls) == len(rendered_prompts) == 1
         assert record.stop_reasons == ("tool_failure",)
         assert isinstance(error, WorkflowExecutionError)
         assert "planned controlled failure" in str(error)
         assert record.trace_event_types.count("model_tool_loop_tool_call") == 1
     if scenario == "S6":
-        assert len(codec.rendered_requests) == len(backend.rendered_prompts) == 1
+        assert len(tokenizer.calls) == len(rendered_prompts) == 1
         assert "tool_started" not in record.trace_event_types
         assert "model_tool_loop_tool_call" not in record.trace_event_types
 
@@ -373,7 +350,7 @@ def _assert_mlx_parity_scenario(
         ("S6", (), True),
     ],
 )
-def test_model_interface_parity_mlx_injected_pair_native_scenarios(
+def test_model_interface_parity_mlx_qwen3_owned_codec_native_scenarios(
     scenario: str,
     invoked: tuple[str, ...],
     fails: bool,
@@ -382,7 +359,7 @@ def test_model_interface_parity_mlx_injected_pair_native_scenarios(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_parity_io_blocker(monkeypatch)
-    result, record, error, codec, backend = _run_mlx_parity(
+    result, record, error, tokenizer, rendered_prompts = _run_mlx_parity(
         scenario,
         asynchronous=asynchronous,
         tmp_path=tmp_path,
@@ -395,8 +372,8 @@ def test_model_interface_parity_mlx_injected_pair_native_scenarios(
         result=result,
         record=record,
         error=error,
-        codec=codec,
-        backend=backend,
+        tokenizer=tokenizer,
+        rendered_prompts=rendered_prompts,
     )
     if not asynchronous:
         _, async_record, _, _, _ = _run_mlx_parity(
@@ -613,6 +590,43 @@ def test_qwen3_helper_owns_native_envelope_codec_for_pinned_model(
             model=object(),
             tokenizer=tokenizer,
         )
+
+
+def test_qwen3_async_helper_owns_native_envelope_codec_for_pinned_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner import (
+        PINNED_QWEN3_MLX_MODEL_ID,
+        MLXLocalModelConfig,
+        create_qwen3_mlx_local_async_adapter,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+
+    def generate(
+        _model: object, _tokenizer: object, *, prompt: str, **_kwargs: object
+    ) -> str:
+        assert prompt == "<native-qwen3-prompt>"
+        return '<tool_call>{"name":"lookup","arguments":{"key":"dar"}}</tool_call>'
+
+    monkeypatch.setitem(sys.modules, "mlx_lm", SimpleNamespace(generate=generate))
+    adapter = create_qwen3_mlx_local_async_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("qwen3",),
+            model_path=model_path,
+            expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+        ),
+        model=object(),
+        tokenizer=FakeQwen3Tokenizer(),
+        platform_system=lambda: "Darwin",
+    )
+
+    response = asyncio.run(adapter.create_response(tool_request()))
+
+    assert adapter.capabilities["tool_calling"] is True
+    assert response.tool_calls[0].name == "lookup"
 
 
 @pytest.mark.parametrize(

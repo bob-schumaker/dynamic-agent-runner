@@ -111,6 +111,7 @@ from dynamic_agent_runner.qwen3_mlx_tools import (
     Qwen3MLXBackend,
     Qwen3MLXToolCodec,
     create_qwen3_mlx_local_adapter,
+    create_qwen3_mlx_local_async_adapter,
 )
 from dynamic_agent_runner.apple_foundation_models import (
     AppleFoundationModelConfig,
@@ -345,6 +346,7 @@ __all__ = [
     "create_mlx_local_adapter",
     "create_mlx_local_async_adapter",
     "create_qwen3_mlx_local_adapter",
+    "create_qwen3_mlx_local_async_adapter",
     "create_apple_foundation_model_async_adapter",
     "preflight_apple_foundation_models",
     "create_mcp_registry",
