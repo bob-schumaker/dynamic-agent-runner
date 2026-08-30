@@ -5,13 +5,13 @@
 - Feature slug: `litellm-provider-adapter`
 - Mode: `light`
 - Artifact type: authoritative feature specification
-- Status: Slice L1 implemented and validated; upstream dependency adopted and
-  shim retired
+- Status: Slices L1-L3.1 implemented and validated; upstream dependency adopted
+  and shim retired
 - Version: `0.6`
 - Owner: repository maintainers and future implementers of model-provider
   runtime integrations
 - Date: 2026-08-22
-- Next gate: deferred Codex follow-up slices and OCI wheel cleanup
+- Next gate: deferred provider-breadth follow-ups and OCI wheel cleanup
 - Related artifacts:
   - `specs/dynamic-agent-runner/spec.md`
   - `specs/openai-compatible-provider-wrapper/spec.md`
@@ -647,6 +647,18 @@ silently override an `OpenAIModelRequest.model`.
 - **Temporary packaging boundary:** the shim is retired now that LiteLLM is a
   portable runtime dependency. The checked-in OCI wheel, copy step, and trigger
   remain separately tracked cleanup work.
+- **L3.1 router listing:** the requested caller need is bounded to a supplied
+  `litellm.Router`. Its installed `get_model_list(model_name=None, team_id=None)`
+  method is the only native discovery seam. The generic sync/async factories
+  expose no new top-level listing API: their existing adapters continue to use
+  `list_supported_models()` and `default_model()`. A supplied router contributes
+  only nonblank deployment `model_name` values; the adapter keeps its existing
+  caching, refresh, deduplication, and version-ordering behavior. Explicit
+  `models` metadata remains authoritative until a caller requests refresh.
+  Missing router discovery fails through the existing unavailable-listing error;
+  router exceptions use the existing listing-failure error. L3.1 excludes
+  gateway or network discovery, direct LiteLLM global catalogs, Codex listing,
+  auth, aliases, executor routing, and capability/status reporting.
 
 ## Validation Checklist
 

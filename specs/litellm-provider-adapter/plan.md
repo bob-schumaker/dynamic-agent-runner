@@ -103,6 +103,11 @@ update the spec before finalizing docs.
   validation.
 - Unit tests must use fake LiteLLM callables, fake routers, or monkeypatched
   modules; no live provider, gateway, OAuth, or network calls.
+- L3.1 uses only a caller-supplied `litellm.Router.get_model_list()` through
+  the existing adapter `.models.list()` bridge. Convert its deployment
+  `model_name` values to the existing OpenAI-compatible `{"data": [{"id": ...}]}`
+  shape, so `OpenAIClientAdapter` and its async counterpart retain all catalog
+  normalization, caching, refresh, and default-model ownership.
 - OCI packaging must run under Python 3.13 or newer. The legacy vendored-wheel
   cleanup remains separate from the completed runtime dependency change.
 

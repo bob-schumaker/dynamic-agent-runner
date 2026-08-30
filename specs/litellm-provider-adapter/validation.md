@@ -93,3 +93,15 @@ The completed upstream-dependency and shim-retirement slice does not:
   existing OpenAI/Codex auth boundary and used RED/GREEN tests.
 - L1.8 is complete. The vendored wheelhouse path is legacy packaging cleanup,
   not the current runtime distribution boundary.
+- L3.1 readiness: Council's shipping triad and Ponytail accepted the smallest
+  verified path after source inspection of the installed LiteLLM Router:
+  `get_model_list(model_name=None, team_id=None)` returns deployment records.
+  The ready slice reuses existing adapter discovery and catalog normalization,
+  adds no new public API or external call, and is fake-test-only. The governing
+  artifacts above are the authoritative record of this durable scope decision.
+- L3.1 delivery: fake sync/async router discovery, cache/refresh, explicit-model
+  bypass, empty/missing listings, and normalized router failure passed in 48
+  focused tests; the nearby OpenAI-client suite brought the result to 134.
+  Full validation passed: 1592 passed, 1 skipped, 6 deselected; targeted
+  pre-commit passed. Council and Ponytail approved the delivered no-new-API
+  boundary.

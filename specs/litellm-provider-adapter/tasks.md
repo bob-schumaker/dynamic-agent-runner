@@ -99,7 +99,33 @@
 
 ## Deferred Follow-Up: Provider Breadth Polish
 
-- [ ] L3.1 Add live-router model listing only if a caller needs it.
+- [x] L3.1 [tests/implementation] Add caller-requested live-router model
+      listing through the existing adapter discovery API.
+  - Scope: only `litellm.Router.get_model_list(model_name=None, team_id=None)`
+    on an explicitly supplied router. Convert nonblank deployment `model_name`
+    values to the existing OpenAI-compatible catalog bridge; do not add a new
+    public listing API or a generic provider catalog.
+  - Files/components: `src/dynamic_agent_runner/litellm_client.py`,
+    `tests/test_litellm_provider_adapter.py`, and these artifacts.
+  - Contract: sync and async `create_*_litellm_adapter(..., router=...)`
+    continue to expose listing only via `list_supported_models()` /
+    `default_model()`. Explicit adapter `models` metadata remains authoritative
+    except on `refresh=True`; discovery is lazy, cached, refreshable, deduped,
+    and version-sorted by existing adapter behavior. An absent router method
+    uses the existing unavailable-listing error; router exceptions use the
+    existing listing-failure error.
+  - Tests: fake-only sync/async router list success, cache and refresh,
+    explicit-model bypass, malformed/empty values, missing method, and raised
+    listing failure. No LiteLLM import, gateway, OAuth, network, or live model.
+  - Exclusions: direct LiteLLM global or gateway catalogs, Codex listing/auth,
+    aliases, executor routing, capability/status reporting, and manifest work.
+  - Readiness: implementation-ready. This plan is ready to execute under its
+    stated gates.
+  - GREEN: `poetry run pytest tests/test_litellm_provider_adapter.py -q` — 48
+    passed; combined with `tests/test_openai_client.py` — 134 passed; scoped
+    Ruff passed. Final validation: `poetry run pytest -q` — 1592 passed, 1
+    skipped, 6 deselected; targeted pre-commit passed. Council and Ponytail
+    approved the delivered boundary.
 - [ ] L3.2 Add LiteLLM Responses API dispatch only if a caller needs
       Responses-specific behavior outside Codex.
 - [ ] L3.3 Add provider-specific capability/status reporting only after the
