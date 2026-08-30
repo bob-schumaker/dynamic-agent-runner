@@ -87,13 +87,25 @@ class _LiteLLMNativeAsyncResponsesResource:
 
 
 class _LiteLLMClient(OpenAIClientProtocol):
-    def __init__(self, completion: LiteLLMCompletion) -> None:
+    def __init__(
+        self,
+        completion: LiteLLMCompletion,
+        models: LiteLLMModelList | None = None,
+    ) -> None:
         self.responses = _LiteLLMResponsesResource(completion)
+        if models is not None:
+            self.models = _LiteLLMModelsResource(models)
 
 
 class _LiteLLMAsyncClient(AsyncOpenAIClientProtocol):
-    def __init__(self, completion: LiteLLMAsyncCompletion) -> None:
+    def __init__(
+        self,
+        completion: LiteLLMAsyncCompletion,
+        models: LiteLLMModelList | None = None,
+    ) -> None:
         self.responses = _LiteLLMAsyncResponsesResource(completion)
+        if models is not None:
+            self.models = _LiteLLMModelsResource(models)
 
 
 class _LiteLLMNativeClient(OpenAIClientProtocol):
@@ -143,7 +155,8 @@ class LiteLLMClientProvider(OpenAIClientProvider):
             _bind_litellm_kwargs(
                 completion,
                 _provider_litellm_kwargs(self.config, self.litellm_kwargs),
-            )
+            ),
+            _router_model_list(self.router),
         )
 
 
@@ -164,7 +177,8 @@ class AsyncLiteLLMClientProvider(AsyncOpenAIClientProvider):
             _bind_async_litellm_kwargs(
                 acompletion,
                 _provider_litellm_kwargs(self.config, self.litellm_kwargs),
-            )
+            ),
+            _router_model_list(self.router),
         )
 
 
@@ -595,6 +609,26 @@ def _router_callable(router: object | None, name: str) -> Callable[..., Any] | N
     if not callable(candidate):
         raise ModelExecutionError(f"LiteLLM router does not expose {name}")
     return candidate
+
+
+def _router_model_list(router: object | None) -> LiteLLMModelList | None:
+    if router is None:
+        return None
+    get_model_list = getattr(router, "get_model_list", None)
+    if not callable(get_model_list):
+        return None
+
+    def model_list(**_kwargs: Any) -> dict[str, list[dict[str, str]]]:
+        return {
+            "data": [
+                {"id": model_name}
+                for deployment in get_model_list() or ()
+                if isinstance((model_name := _read(deployment, "model_name")), str)
+                and model_name.strip()
+            ]
+        }
+
+    return model_list
 
 
 def _provider_litellm_kwargs(

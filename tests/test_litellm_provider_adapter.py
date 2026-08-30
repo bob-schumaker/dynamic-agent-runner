@@ -801,6 +801,100 @@ def test_litellm_adapter_accepts_router_and_provider_config() -> None:
     assert adapter._provider.config.api_key == "router-key"
 
 
+def test_litellm_router_lists_models_through_existing_adapter_cache() -> None:
+    calls: list[object] = []
+
+    def completion(**kwargs: object) -> object:
+        return {"id": "router_response", "choices": [{"message": {"content": "ok"}}]}
+
+    def get_model_list() -> object:
+        calls.append(object())
+        return [
+            {"model_name": "gpt-5.5"},
+            {"model_name": "gpt-5.4"},
+            {"model_name": "gpt-5.5"},
+            {"model_name": ""},
+        ]
+
+    adapter = create_litellm_adapter(
+        router=SimpleNamespace(completion=completion, get_model_list=get_model_list)
+    )
+
+    assert adapter.list_supported_models() == ("gpt-5.4", "gpt-5.5")
+    assert adapter.default_model() == "gpt-5.4"
+    assert adapter.list_supported_models(refresh=True) == ("gpt-5.4", "gpt-5.5")
+    assert len(calls) == 2
+
+
+def test_async_litellm_router_lists_models_through_existing_adapter_cache() -> None:
+    calls: list[object] = []
+
+    async def acompletion(**kwargs: object) -> object:
+        return {"id": "router_response", "choices": [{"message": {"content": "ok"}}]}
+
+    def get_model_list() -> object:
+        calls.append(object())
+        return [{"model_name": "gpt-5.5"}, {"model_name": "gpt-5.4"}]
+
+    adapter = create_async_litellm_adapter(
+        router=SimpleNamespace(acompletion=acompletion, get_model_list=get_model_list)
+    )
+
+    assert asyncio.run(adapter.list_supported_models()) == ("gpt-5.4", "gpt-5.5")
+    assert asyncio.run(adapter.list_supported_models(refresh=True)) == (
+        "gpt-5.4",
+        "gpt-5.5",
+    )
+    assert len(calls) == 2
+
+
+def test_litellm_router_listing_respects_explicit_models_metadata() -> None:
+    calls: list[object] = []
+    router = SimpleNamespace(
+        completion=lambda **kwargs: {"choices": []},
+        get_model_list=lambda: calls.append(object()),
+    )
+
+    adapter = create_litellm_adapter(router=router, models=["configured-model"])
+
+    assert adapter.list_supported_models() == ("configured-model",)
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "router",
+    [
+        SimpleNamespace(completion=lambda **kwargs: {"choices": []}),
+        SimpleNamespace(
+            completion=lambda **kwargs: {"choices": []},
+            get_model_list=lambda: [{"model_name": ""}, {}],
+        ),
+    ],
+)
+def test_litellm_router_listing_reports_unavailable_models(router: object) -> None:
+    adapter = create_litellm_adapter(router=router)
+
+    with pytest.raises(ModelExecutionError):
+        adapter.default_model()
+
+
+def test_litellm_router_listing_normalizes_router_failure() -> None:
+    def get_model_list() -> object:
+        raise RuntimeError("router unavailable")
+
+    adapter = create_litellm_adapter(
+        router=SimpleNamespace(
+            completion=lambda **kwargs: {"choices": []},
+            get_model_list=get_model_list,
+        )
+    )
+
+    with pytest.raises(
+        ModelExecutionError, match="OpenAI available model listing failed"
+    ):
+        adapter.list_supported_models()
+
+
 def test_litellm_adapter_forwards_provider_credentials_and_base_url() -> None:
     calls: list[dict[str, object]] = []
 
