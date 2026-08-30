@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Implementation Plan
 
 Status: active implementation record; Slices 1-3 and T5.0 planning complete;
-standalone embedding execution awaits the T5.1 contract decision
+T5.1 standalone embedding contract complete; T5.2 tests are next
 
 ## Goal
 
@@ -165,14 +165,23 @@ implementation.
    source-inspected upstream method, input batching shape, normalized ordered
    vector result, finite and dimension/ragged validation, package-owned failure
    taxonomy, bounded raw-data handling, and explicit same-artifact behavior.
-   It uses batch-only `{id, text}` input and same-order `{id, vectors, model}`
-   output. `create_embedding(...)` is selected because its indexed response and
-   model field support exact correlation; profile/model selection remains
-   host-bound. The direct/node limits are 128 entries, 128-byte IDs, 64 KiB per
+   It uses batch-only `{id, text}` input and `EmbeddingBatchResult(model,
+   items)` output, where items are same-order `{id, vector}` values.
+   `create_embedding(...)` is selected because its indexed response and model
+   field support exact correlation; DAR passes and requires the resolved
+   host-bound model identity. The direct/node limits are 128 entries, 128-byte
+   IDs, 64 KiB per
    text, 1 MiB aggregate text, 8,192 dimensions, 1,048,576 scalars, and 16 MiB
    output. The model tool limits are eight entries, 8 KiB per text, 64 KiB
-   aggregate text, 2,048 dimensions, 16,384 scalars, and 256 KiB output. Until
-   then, no factory/export is authorized.
+   aggregate text, 2,048 dimensions, 16,384 scalars, and 256 KiB output. Error
+   ownership is `EmbeddingError(LocalModelError)` with input, result, and
+   execution subclasses; existing local resolution/offline/identity errors are
+   preserved. The public surface is frozen `EmbeddingInputItem` and
+   `EmbeddingVectorItem` types, `EmbeddingBatchResult`, dedicated sync/async
+   `LlamaCppLocalEmbeddingAdapter` classes, and
+   `create_llama_cpp_local_embedding_adapter` /
+   `create_llama_cpp_local_async_embedding_adapter` factories. Until then, no
+   factory/export is authorized.
 2. T5.2 writes focused fake-only RED tests for a distinct immutable embedding
    config and resolver. It reuses `LocalModelPathConfig` precedence, offline
    policy, and identity inputs. Config construction/cache-only preflight has no
@@ -198,7 +207,7 @@ implementation.
    coordinator with the exact batch schema; model selection is limited to
    whether to invoke the tool. It preserves normal tool validation, tracing,
    and continuation behavior without approval bypass. Its model-facing result
-   is the bounded structured `{model, items: [{id, vectors}]}` form.
+   is the bounded structured `{model, items: [{id, vector}]}` form.
 
 No Slice 5 task may add `ModelAdapter` chat behavior, remote fallback, server
 lifecycle, graph mutation, RAG, or a vector store. T5.5/T5.6 are the only

@@ -6,12 +6,13 @@
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
 - Status: implemented through Slices 1-3; T5.0 embedding implementation
-  breakdown delivered, with standalone embedding execution gated on its contract
+  breakdown and T5.1 standalone embedding contract delivered
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model follow-up
   work
-- Next gate: T5.1 standalone embedding-surface contract decision or a separate advisory
-  feature such as `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md`
+- Next gate: T5.2 fake-only standalone embedding configuration tests or a
+  separate advisory feature such as
+  `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md`
   remains the source of truth for fresh execution evidence
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
@@ -319,7 +320,8 @@ ordered-output, dimension, batching, malformed-result, and package-owned error
 contract.
 
 That contract is batch-only: callers provide ordered `{id, text}` entries and
-receive same-order `{id, vectors, model}` entries. IDs are opaque, nonempty,
+receive `EmbeddingBatchResult(model, items)` with same-order `{id, vector}`
+items. IDs are opaque, nonempty,
 and unique within the batch. The configured embedding profile, resolved asset,
 and reported model identity are host-bound; a caller or model may never choose a
 model path, alias, or provider. The selected `create_embedding(...)` upstream
@@ -337,8 +339,33 @@ more than 1 MiB of total text. They accept at most 8,192 dimensions and
 result data. The model-selectable tool uses the same shape but admits at most
 eight entries, 8 KiB text per entry, 64 KiB total text, 2,048 dimensions,
 16,384 total scalars, and 256 KiB encoded result data. Its structured result is
-`{model, items: [{id, vectors}]}`; it contains every requested ID/vector and
-the one host-bound model identity without repeating the model for every item.
+`{model, items: [{id, vector}]}`; each `vector` is one ordered finite numeric
+array, represented as `tuple[float, ...]` in Python and a JSON number array on
+the tool boundary. It contains every requested ID/vector and the one host-bound
+model identity without repeating the model for every item.
+
+DAR passes the resolved host-bound model identity to `create_embedding(...)`.
+The returned `model` must equal that identity; a mismatch raises the existing
+`LocalModelIdentityMismatchError` before a batch result is returned.
+
+The package exposes `EmbeddingError` under `LocalModelError`, with
+`EmbeddingInputError` for invalid caller data or declared bounds,
+`EmbeddingResultError` for an invalid upstream batch/result, and
+`EmbeddingExecutionError` for an otherwise failed embedding invocation. Existing
+`LocalModelResolutionError`, `LocalModelOfflinePolicyError`, and
+`LocalModelIdentityMismatchError` remain their established more-specific
+failures. A failed batch returns no partial result.
+
+The caller-visible producer surface is
+`LlamaCppLocalEmbeddingConfig`, `EmbeddingInputItem(id, text)`,
+`EmbeddingVectorItem(id, vector)`, and `EmbeddingBatchResult(model, items)`.
+Both item types are frozen dataclasses. The synchronous
+`LlamaCppLocalEmbeddingAdapter.embed(items)` and asynchronous
+`AsyncLlamaCppLocalEmbeddingAdapter.embed(items)` return
+`EmbeddingBatchResult`; factories are `create_llama_cpp_local_embedding_adapter`
+and `create_llama_cpp_local_async_embedding_adapter`. The embedding config is
+independent from `LlamaCppLocalModelConfig` and has no chat aliases or
+`ModelAdapter` contract.
 
 After the shared contract is delivered, two independent consumer slices are in
 scope: an `embedding_step` terminal workflow node that consumes batch input and
@@ -360,7 +387,7 @@ endpoint. It must not silently reuse a chat backend constructed without
 `embedding_step` and the model-selectable local tool are instead separately
 gated by T5.5 and T5.6; they must not change approval semantics. The documented
 llama.cpp `create_embedding` collaborator and exact result normalization remain
-a source-inspection decision for T5.1.
+the recorded T5.1 decision.
 
 ### FR-4: Preserve repository-owned response normalization
 

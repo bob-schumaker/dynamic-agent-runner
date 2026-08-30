@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Validation Log
 
 Status: complete through Slice 3 and T5.0 embedding planning; standalone
-embedding execution awaits T5.1's contract decision
+embedding contract complete through T5.1; T5.2 tests are next
 
 ## Scope
 
@@ -311,7 +311,8 @@ embedding execution awaits T5.1's contract decision
   until then. Graph/RAG, vector-store, executor, and chat-adapter work remain
   excluded from this authorization.
 - Contract direction: the user requires batch-only `{id, string}` input and
-  `{id, vectors, model}` output, including a terminal one-node workflow use and
+  `EmbeddingBatchResult(model, items)` output with `{id, vector}` items,
+  including a terminal one-node workflow use and
   an optional model-selectable tool use. These are two later consumers, not one
   shared implementation path: T5.5 owns the new terminal workflow node and
   T5.6 owns the existing-registry tool exposure. The model selects invocation,
@@ -320,7 +321,26 @@ embedding execution awaits T5.1's contract decision
   terminal node admit 128 entries / 64 KiB each / 1 MiB total / 8,192
   dimensions / 1,048,576 scalars / 16 MiB output. The model tool admits eight
   entries / 8 KiB each / 64 KiB total / 2,048 dimensions / 16,384 scalars /
-  256 KiB output. Its structured result is `{model, items: [{id, vectors}]}`.
+  256 KiB output. Its structured result is `{model, items: [{id, vector}]}`.
+- Model identity decision: DAR supplies the resolved host-bound identity to
+  `create_embedding`; a returned model mismatch raises the existing
+  `LocalModelIdentityMismatchError` before output.
+- Error decision: the user approved `EmbeddingError(LocalModelError)` with
+  `EmbeddingInputError`, `EmbeddingResultError`, and
+  `EmbeddingExecutionError`; existing local resolution, offline, and identity
+  errors retain their current meanings. A failed batch has no partial result.
+- Public API decision: use frozen `EmbeddingInputItem` and
+  `EmbeddingVectorItem` dataclasses, `EmbeddingBatchResult`, dedicated
+  `LlamaCppLocalEmbeddingConfig` and sync/async embedding adapters with
+  `.embed(items)`, plus
+  `create_llama_cpp_local_embedding_adapter` /
+  `create_llama_cpp_local_async_embedding_adapter` factories. This is separate
+  from chat configuration and `ModelAdapter`.
+- Delivery review: Council unanimously approved the completed contract after
+  its result-shape, host-identity, and exact public-entry-point corrections.
+  Ponytail confirms one shared producer plus the existing coordinator is the
+  smallest design. T5.1 is implementation-ready and delivered as a
+  documentation-only decision slice; T5.2 is the next executable task.
 - Council/Ponytail: both integrations require separate manifest/executor and
   registry/coordinator contracts. Reuse one host-bound batch producer; do not
   add a second embedding path, remote fallback, model-selected profile, or

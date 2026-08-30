@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Task List
 
 Status: active feature record; Slices 1-3 and T5.0 planning complete;
-standalone embedding execution awaits T5.1's contract decision
+T5.1 standalone embedding contract complete; T5.2 tests are next
 
 ## Prerequisites
 
@@ -365,7 +365,7 @@ standalone embedding execution awaits T5.1's contract decision
     an embedding API, generic provider, executor change, RAG/graph work, and
     vector-store work while no consumer exists.
 
-- [ ] T5.1 [discovery/decision] Specify the authorized standalone embedding
+- [x] T5.1 [discovery/decision] Specify the authorized standalone embedding
       surface and record the source-inspected embedding method and normalized
       contract.
   - Authorization: a standalone embedding surface is approved as new scope;
@@ -374,8 +374,13 @@ standalone embedding execution awaits T5.1's contract decision
     ordered finite vector output; dimension/ragged/empty policy; package-owned
     error taxonomy; and whether two explicit configs for the same artifact
     create distinct model instances (default: yes).
-  - Contract direction: batch-only ordered `{id, text}` input and same-order
-    `{id, vectors, model}` output. IDs are opaque, nonempty, and unique. The
+  - Contract direction: batch-only ordered `{id, text}` input and
+    `EmbeddingBatchResult(model, items)` output, with same-order `{id, vector}`
+    items. IDs are opaque, nonempty, and unique. Each `vector` is one finite
+    ordered numeric vector, represented as `tuple[float, ...]` in Python and a
+    JSON number array at the tool boundary. `create_embedding` receives and
+    must return the resolved host-bound model identity; mismatch raises
+    `LocalModelIdentityMismatchError`. The
     model selects only whether to invoke a later embedding tool; the host binds
     the embedding profile, model identity, and asset.
   - Gate: inspect the installed/pinned `llama_cpp.Llama` API before selecting
@@ -387,10 +392,22 @@ standalone embedding execution awaits T5.1's contract decision
     IDs, 64 KiB per text, 1 MiB total text, 8,192 dimensions, 1,048,576
     scalars, and 16 MiB output. Tool limits: eight entries, 8 KiB per text,
     64 KiB total text, 2,048 dimensions, 16,384 scalars, and 256 KiB output.
-    Tool results use `{model, items: [{id, vectors}]}`. Raw texts and vectors
+    Tool results serialize `EmbeddingBatchResult` as `{model, items: [{id,
+    vector}]}`. Raw texts and vectors
     are excluded from traces and errors.
-  - Validation: source inspection record plus spec/task review. T5.2 remains
-    blocked until this contract is implementation-ready.
+  - Error contract: add `EmbeddingError(LocalModelError)` with
+    `EmbeddingInputError`, `EmbeddingResultError`, and
+    `EmbeddingExecutionError`. Preserve the existing local resolution, offline,
+    and identity exceptions. A failing batch returns no partial result.
+  - Public surface: frozen `EmbeddingInputItem(id, text)` and
+    `EmbeddingVectorItem(id, vector)` values; `EmbeddingBatchResult(model,
+    items)`; `LlamaCppLocalEmbeddingConfig`; sync/async
+    `LlamaCppLocalEmbeddingAdapter.embed(items)`; and matching
+    `create_llama_cpp_local_embedding_adapter` /
+    `create_llama_cpp_local_async_embedding_adapter` factories. This config is
+    separate from the chat config and is not a `ModelAdapter`.
+  - Validation: source inspection record plus spec/task review. Completed:
+    the standalone public contract is implementation-ready; T5.2 is next.
 
 - [ ] T5.2 [tests] Add focused fake-only RED configuration/resolution tests.
   - Depends on: T5.1.
@@ -403,7 +420,7 @@ standalone embedding execution awaits T5.1's contract decision
   - Validation: `poetry run pytest tests/test_local_models.py`
     `tests/test_import.py -q`.
 
-- [ ] T5.3 [implementation] Add the selected internal embedding protocol and
+- [ ] T5.3 [implementation] Add the selected standalone embedding protocol and
       lazy sync/async execution path.
   - Depends on: T5.2.
   - Scope: force `embedding=True` at separate backend construction, reject a
