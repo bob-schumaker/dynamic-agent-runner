@@ -11,13 +11,15 @@ from dataclasses import dataclass
 
 import dynamic_agent_runner.hugging_face_support as hugging_face_support
 import dynamic_agent_runner.local_models as local_models
-from dynamic_agent_runner.artifacts import load_runtime_manifest
-from dynamic_agent_runner.models import LoadedAgentWorkflow, ToolDefinition
-from dynamic_agent_runner.registry import (
-    InMemoryToolRegistry,
-    RegisteredTool,
-    ToolResult,
+from model_interface_matrix import (
+    ControlledToolScenario,
+    controlled_tool_definitions as matrix_tool_definitions,
+    controlled_tool_registry,
+    controlled_tool_scenarios,
+    controlled_tool_workflow,
 )
+from dynamic_agent_runner.models import LoadedAgentWorkflow
+from dynamic_agent_runner.registry import InMemoryToolRegistry, ToolResult
 from dynamic_agent_runner.tracing import InMemoryTraceSink
 
 
@@ -56,51 +58,14 @@ def install_parity_io_blocker(monkeypatch: object) -> None:
 
 
 def parity_tool_definitions() -> list[dict[str, object]]:
-    return [
-        {
-            "id": "lookup_record",
-            "approval_required": "no",
-            "input_schema": {
-                "type": "object",
-                "properties": {"key": {"type": "string"}},
-                "required": ["key"],
-                "additionalProperties": False,
-            },
-        },
-        {
-            "id": "create_record",
-            "approval_required": "no",
-            "input_schema": {
-                "type": "object",
-                "properties": {"title": {"type": "string"}, "body": {"type": "string"}},
-                "required": ["title", "body"],
-                "additionalProperties": False,
-            },
-        },
-        {
-            "id": "transform_record",
-            "approval_required": "no",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "record_id": {"type": "string"},
-                    "operation": {"type": "string", "enum": ["uppercase"]},
-                },
-                "required": ["record_id", "operation"],
-                "additionalProperties": False,
-            },
-        },
-        {
-            "id": "fail_controlled",
-            "approval_required": "no",
-            "input_schema": {
-                "type": "object",
-                "properties": {"code": {"type": "string"}},
-                "required": ["code"],
-                "additionalProperties": False,
-            },
-        },
-    ]
+    return [dict(definition) for definition in matrix_tool_definitions()]
+
+
+def _scenario(identifier: str) -> ControlledToolScenario:
+    for scenario in controlled_tool_scenarios():
+        if scenario.id == identifier:
+            return scenario
+    raise AssertionError(f"unknown parity scenario {identifier!r}")
 
 
 def parity_registry() -> tuple[
@@ -108,104 +73,22 @@ def parity_registry() -> tuple[
     list[tuple[str, Mapping[str, object]]],
     list[tuple[str, object]],
 ]:
-    invocations: list[tuple[str, Mapping[str, object]]] = []
-    results: list[tuple[str, object]] = []
-
-    def handler(tool_id: str, output: object):
-        def run(arguments: Mapping[str, object]) -> object:
-            invocations.append((tool_id, dict(arguments)))
-            results.append((tool_id, output))
-            return output
-
-        return run
-
-    definitions = parity_tool_definitions()
-    outputs = (
-        {"record_id": "record-seed", "body": "seed"},
-        {"record_id": "record-created"},
-        {"record_id": "record-seed", "body": "SEED"},
-        ToolResult(
-            tool_id="fail_controlled", success=False, error="planned controlled failure"
-        ),
-    )
-    tools = [
-        RegisteredTool(
-            ToolDefinition.from_mapping(definition),
-            handler(str(definition["id"]), output),
-        )
-        for definition, output in zip(definitions, outputs, strict=True)
-    ]
-    return InMemoryToolRegistry(tools), invocations, results
+    return controlled_tool_registry()
 
 
 def parity_loop_workflow(
     *,
     include_tool_choice_policy: bool = True,
 ) -> LoadedAgentWorkflow:
-    definitions = parity_tool_definitions()
-    execution_policy: dict[str, object] = {
-        "model": "gpt-test",
-        "tool_use_completion": {
-            "run_again": "required",
-            "stop_on_tool": "disabled",
-            "final_output": "default",
-        },
-    }
-    if include_tool_choice_policy:
-        execution_policy["tool_choice_policy"] = {
-            "initial": "required",
-            "after_tool_result": "auto",
-        }
-    return LoadedAgentWorkflow(
-        runtime_manifest=load_runtime_manifest(
-            {
-                "format_version": 1,
-                "package_type": "dynamic_agent_design",
-                "package_id": "loop-tool-agent",
-                "entrypoint": "analyze",
-                "packaging": {"mode": "hybrid_bundle"},
-                "runtime": {"execution_policy": execution_policy},
-                "nodes": [
-                    {
-                        "id": "analyze",
-                        "kind": "llm_step",
-                        "prompt": {"user_template": "Question: {prompt}"},
-                        "available_tools": [str(tool["id"]) for tool in definitions],
-                    }
-                ],
-                "edges": [],
-                "tools": definitions,
-            }
-        )
+    return controlled_tool_workflow(
+        _scenario("S1"), include_tool_choice_policy=include_tool_choice_policy
     )
 
 
 def parity_no_tool_workflow() -> LoadedAgentWorkflow:
     """Return the S5 no-loop workflow with the same exposed tools."""
 
-    definitions = parity_tool_definitions()
-    return LoadedAgentWorkflow(
-        runtime_manifest=load_runtime_manifest(
-            {
-                "format_version": 1,
-                "package_type": "dynamic_agent_design",
-                "package_id": "parity-no-tool",
-                "entrypoint": "answer",
-                "packaging": {"mode": "hybrid_bundle"},
-                "runtime": {"execution_policy": {"model": "gpt-test"}},
-                "nodes": [
-                    {
-                        "id": "answer",
-                        "kind": "llm_step",
-                        "prompt": {"user_template": "{prompt}"},
-                        "available_tools": [str(tool["id"]) for tool in definitions],
-                    }
-                ],
-                "edges": [],
-                "tools": definitions,
-            }
-        )
-    )
+    return controlled_tool_workflow(_scenario("S5"))
 
 
 def parity_contract_projection(record: ParityRecord) -> tuple[object, ...]:
@@ -270,6 +153,7 @@ def parity_semantic_projection(record: ParityRecord) -> tuple[object, ...]:
 
 def _parity_semantic_baseline(scenario: str) -> tuple[object, ...]:
     scenario = _parity_scenario_name(scenario)
+    descriptor = _scenario(scenario)
     schemas = tuple(
         (str(definition["id"]), definition["input_schema"])
         for definition in parity_tool_definitions()
@@ -280,40 +164,29 @@ def _parity_semantic_baseline(scenario: str) -> tuple[object, ...]:
     completion = "completed"
     error_category = "none"
     if scenario == "S1":
-        calls = (("create_record", {"title": "DAR", "body": "controlled"}),)
+        calls = descriptor.expected_calls
         invocations = calls
         results = (("create_record", {"record_id": "record-created"}),)
     elif scenario == "S2":
-        calls = (
-            (
-                "transform_record",
-                {"record_id": "record-seed", "operation": "uppercase"},
-            ),
-        )
+        calls = descriptor.expected_calls
         invocations = calls
         results = (("transform_record", {"record_id": "record-seed", "body": "SEED"}),)
     elif scenario in {"S2-invalid", "S2-wrong-type", "S2-invalid-enum", "S2-unknown"}:
-        calls = _parity_invalid_calls(scenario)
+        calls = descriptor.expected_calls
         completion = "error"
         error_category = "validation_error"
     elif scenario in {"S2-malformed", "S6"}:
         completion = "error"
         error_category = "normalization_error"
     elif scenario == "S3":
-        calls = (
-            ("lookup_record", {"key": "seed"}),
-            (
-                "transform_record",
-                {"record_id": "record-seed", "operation": "uppercase"},
-            ),
-        )
+        calls = descriptor.expected_calls
         invocations = calls
         results = (
             ("lookup_record", {"record_id": "record-seed", "body": "seed"}),
             ("transform_record", {"record_id": "record-seed", "body": "SEED"}),
         )
     elif scenario == "S4":
-        calls = (("fail_controlled", {"code": "planned"}),)
+        calls = descriptor.expected_calls
         invocations = calls
         results = (
             (
@@ -360,20 +233,6 @@ def _parity_error_category(record: ParityRecord) -> str:
         assert record.error_class == "WorkflowExecutionError"
         return "tool_failure"
     raise AssertionError(f"unexpected parity error for {scenario!r}")
-
-
-def _parity_invalid_calls(scenario: str) -> tuple[tuple[str, object], ...]:
-    arguments = {
-        "S2-invalid": {"record_id": "record-seed"},
-        "S2-wrong-type": {"record_id": 1, "operation": "uppercase"},
-        "S2-invalid-enum": {"record_id": "record-seed", "operation": "lowercase"},
-        "S2-unknown": {
-            "record_id": "record-seed",
-            "operation": "uppercase",
-            "unknown": True,
-        },
-    }
-    return (("transform_record", arguments[scenario]),)
 
 
 def _canonical_parity_value(value: object) -> object:
