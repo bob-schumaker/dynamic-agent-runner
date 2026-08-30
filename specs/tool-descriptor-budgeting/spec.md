@@ -325,6 +325,13 @@ T2.2 keeps its corpus-free NLTK comparison in the `test` Poetry dependency
 group and `tests/tool_descriptor_benchmark.py`; it does not introduce a
 runtime strategy or import NLTK from `src/`.
 
+T2.3 measures the fixed corpus with canonical OpenAI function-descriptor
+serialization and `estimate_text_tokens(..., model="gpt-4o-mini")`. It records
+estimator encoding/fallback metadata, selected-tool recall, false-omission IDs,
+median local scorer time, and direct, full-closure, and incremental NLTK
+installed bytes. These measurements are observational evidence, not performance
+gates.
+
 Promotion criteria:
 
 - NLTK must improve relevant-tool recall or reduce false omissions enough to

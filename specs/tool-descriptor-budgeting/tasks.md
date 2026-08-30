@@ -64,8 +64,10 @@
 - [x] T2.2 Compare the no-dependency deterministic scorer against an optional
       NLTK-backed lexical scorer without adding NLTK to runtime dependencies.
       The test-only comparison uses corpus-free tokenization and stemming.
-- [ ] T2.3 Measure descriptor token reduction, selected-tool recall, false
-      omissions, runtime overhead, dependency size, and setup friction.
+- [x] T2.3 Measure descriptor token reduction, selected-tool recall, false
+      omissions, runtime overhead, dependency size, and setup friction. The
+      evaluator-only measurement is locked by
+      `tests/test_tool_descriptor_benchmark_measurements.py`.
 - [ ] T2.4 Promote an optional parser strategy only if benchmark evidence beats
       the deterministic baseline enough to justify the dependency surface.
 

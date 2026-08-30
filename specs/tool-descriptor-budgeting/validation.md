@@ -95,6 +95,36 @@ poetry run ruff check tests/tool_descriptor_benchmark.py \
 # All checks passed
 ```
 
+## T2.3 Measurement Evidence
+
+The fixed-corpus measurement uses canonical OpenAI function descriptors with
+`estimate_text_tokens(..., model="gpt-4o-mini")`, NLTK 3.10.3, and no tokenizer
+fallback (`o200k_base`). Timings are one local observation over 20 warmed
+full-corpus iterations, not a performance gate.
+
+| Metric | Deterministic | NLTK lexical |
+| --- | ---: | ---: |
+| Required-tool recall | 4 / 6 | 4 / 6 |
+| False omissions | 2 | 2 |
+| Descriptor-token reduction | 45.90% | 45.90% |
+| Median full-corpus scorer time | 171,854 ns | 2,017,395 ns |
+
+Both scorers miss `read_file` and `write_file` for
+`inspect_then_modify_config`; this is reported evidence, not a corpus or scorer
+tuning target. NLTK direct installed bytes were 6,529,742. Its resolved core
+closure was `click`, `defusedxml`, `joblib`, `nltk`, `regex`, and `tqdm`
+(9,464,109 installed bytes). Its incremental test-only surface was
+`defusedxml`, `joblib`, and `nltk` (7,531,654 installed bytes). Setup requires
+only `poetry install --with test`; there are no runtime NLTK imports and no
+corpus downloads.
+
+```bash
+poetry run pytest tests/test_tool_descriptor_benchmark_measurements.py \
+  tests/test_tool_descriptor_benchmark_comparison.py \
+  tests/test_tool_descriptor_benchmark_fixtures.py -q
+# 11 passed
+```
+
 ## Out-of-Scope Confirmation
 
 Slice T1 does not:
