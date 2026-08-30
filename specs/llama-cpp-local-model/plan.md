@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Implementation Plan
 
-Status: active implementation record; Slices 1-3 and T5.0 planning complete;
-T5.1 standalone embedding contract complete; T5.2 tests are next
+Status: active implementation record; Slices 1-3, T5.0 planning, T5.1
+standalone embedding contract, and T5.2 RED suite complete; T5.3 is next
 
 ## Goal
 
@@ -176,19 +176,23 @@ implementation.
    aggregate text, 2,048 dimensions, 16,384 scalars, and 256 KiB output. Error
    ownership is `EmbeddingError(LocalModelError)` with input, result, and
    execution subclasses; existing local resolution/offline/identity errors are
-   preserved. The public surface is frozen `EmbeddingInputItem` and
-   `EmbeddingVectorItem` types, `EmbeddingBatchResult`, dedicated sync/async
-   `LlamaCppLocalEmbeddingAdapter` classes, and
+   preserved. The public surface is four frozen value/config dataclasses:
+   `EmbeddingInputItem`, `EmbeddingVectorItem`, `EmbeddingBatchResult` with
+   tuple-backed items, and `LlamaCppLocalEmbeddingConfig`; dedicated sync/async
+   `LlamaCppLocalEmbeddingAdapter` classes; and
    `create_llama_cpp_local_embedding_adapter` /
    `create_llama_cpp_local_async_embedding_adapter` factories. Until then, no
    factory/export is authorized.
-2. T5.2 writes focused fake-only RED tests for a distinct immutable embedding
-   config and resolver. It reuses `LocalModelPathConfig` precedence, offline
-   policy, and identity inputs. Config construction/cache-only preflight has no
-   I/O; later lazy execution may invoke an injected explicit-Hub downloader on
-   a cache miss. Tests distinguish local hit, offline-blocked miss, and that
-   permitted lazy download; none permits endpoint/auth discovery, chat reuse,
-   optional import, or model load before resolution.
+2. T5.2 writes the complete focused fake-only RED suite against the distinct
+   immutable embedding config, its injected embedding-only backend/loader seam,
+   and resolver. `allow_network` is caller-owned config state. Test exact path,
+   caller-cache, and default-Hub precedence with fail-on-call downloaders;
+   offline misses fail before download, while one permitted miss uses only an
+   injected downloader. Assert zero optional import, model load, endpoint,
+   process, socket, auth discovery, chat-backend, or approval interaction at
+   construction/cache-only preflight. The RED suite also covers the selected
+   indexed response correlation, identity, bounds, malformed results, provider
+   exceptions, and sync/async parity; T5.3 makes it GREEN.
 3. T5.3 implements the separately chosen embedding protocol/factory only after
    T5.1. Its loader forces `embedding=True`, rejects conflicting caller kwargs,
    and keeps chat and embedding instances distinct even for the same artifact.

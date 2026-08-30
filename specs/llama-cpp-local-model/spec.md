@@ -10,8 +10,8 @@
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model follow-up
   work
-- Next gate: T5.2 fake-only standalone embedding configuration tests or a
-  separate advisory feature such as
+- Next gate: T5.3 fake-only standalone embedding implementation, or a separate
+  advisory feature such as
   `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md`
   remains the source of truth for fresh execution evidence
 - Approval state: user-directed refresh to make this file the authoritative SDD
@@ -359,13 +359,25 @@ failures. A failed batch returns no partial result.
 The caller-visible producer surface is
 `LlamaCppLocalEmbeddingConfig`, `EmbeddingInputItem(id, text)`,
 `EmbeddingVectorItem(id, vector)`, and `EmbeddingBatchResult(model, items)`.
-Both item types are frozen dataclasses. The synchronous
+All four public dataclasses, including `LlamaCppLocalEmbeddingConfig`, are
+frozen dataclasses; `EmbeddingBatchResult.items` is a tuple of
+`EmbeddingVectorItem`. The synchronous
 `LlamaCppLocalEmbeddingAdapter.embed(items)` and asynchronous
 `AsyncLlamaCppLocalEmbeddingAdapter.embed(items)` return
 `EmbeddingBatchResult`; factories are `create_llama_cpp_local_embedding_adapter`
 and `create_llama_cpp_local_async_embedding_adapter`. The embedding config is
 independent from `LlamaCppLocalModelConfig` and has no chat aliases or
 `ModelAdapter` contract.
+
+`LlamaCppLocalEmbeddingConfig.allow_network` is caller-owned and defaults to
+`True`; it is the only offline-policy control passed to local-path resolution.
+The adapter accepts an injected embedding-only backend/loader seam for tests,
+separate from the chat backend seam. Configuration and factory construction do
+not invoke it. An explicit local path wins a caller cache root, which wins an
+exact default-Hub snapshot; each hit invokes neither download helper. A missing
+Hub reference with `allow_network=False` raises
+`LocalModelOfflinePolicyError` before any download attempt. A permitted miss
+uses only the injected download helper.
 
 After the shared contract is delivered, two independent consumer slices are in
 scope: an `embedding_step` terminal workflow node that consumes batch input and

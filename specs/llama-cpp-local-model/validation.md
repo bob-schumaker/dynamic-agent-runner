@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Validation Log
 
 Status: complete through Slice 3 and T5.0 embedding planning; standalone
-embedding contract complete through T5.1; T5.2 tests are next
+embedding contract and T5.2 RED suite complete; T5.3 implementation is next
 
 ## Scope
 
@@ -346,3 +346,21 @@ embedding contract complete through T5.1; T5.2 tests are next
   add a second embedding path, remote fallback, model-selected profile, or
   approval bypass. T5.1 remains the gate for fixed resource bounds and typed
   error/result contracts.
+
+### T5.2 RED — standalone embedding configuration and execution contract
+
+- Date: 2026-08-29
+- Command: `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+- Observed result: `30 failed, 106 passed`; every failure is the intentionally
+  absent T5.3 embedding public API or error taxonomy.
+- Lint: `poetry run ruff check tests/test_local_models.py tests/test_import.py`
+  passed.
+- Coverage: immutable public values; sync/async factories; zero-I/O preflight;
+  explicit/caller-cache/default-Hub/download resolution order; offline policy;
+  UTF-8 and batch bounds; indexed response normalization; result/input/provider
+  errors; no partial output; and raw text/vector redaction.
+- Council/Ponytail: Council approved after checking resolver-path observation,
+  offline/download ordering, byte boundaries, and malformed-result coverage.
+  Ponytail retained the deliberately small test-local embedding fake and no
+  production-only test protocol. T5.3 is now the sole GREEN implementation
+  boundary.

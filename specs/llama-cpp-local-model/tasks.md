@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Task List
 
-Status: active feature record; Slices 1-3 and T5.0 planning complete;
-T5.1 standalone embedding contract complete; T5.2 tests are next
+Status: active feature record; Slices 1-3, T5.0 planning, T5.1 contract, and
+T5.2 RED tests complete; T5.3 implementation is next
 
 ## Prerequisites
 
@@ -401,7 +401,8 @@ T5.1 standalone embedding contract complete; T5.2 tests are next
     and identity exceptions. A failing batch returns no partial result.
   - Public surface: frozen `EmbeddingInputItem(id, text)` and
     `EmbeddingVectorItem(id, vector)` values; `EmbeddingBatchResult(model,
-    items)`; `LlamaCppLocalEmbeddingConfig`; sync/async
+    items: tuple[EmbeddingVectorItem, ...])`; frozen
+    `LlamaCppLocalEmbeddingConfig`; sync/async
     `LlamaCppLocalEmbeddingAdapter.embed(items)`; and matching
     `create_llama_cpp_local_embedding_adapter` /
     `create_llama_cpp_local_async_embedding_adapter` factories. This config is
@@ -409,16 +410,36 @@ T5.1 standalone embedding contract complete; T5.2 tests are next
   - Validation: source inspection record plus spec/task review. Completed:
     the standalone public contract is implementation-ready; T5.2 is next.
 
-- [ ] T5.2 [tests] Add focused fake-only RED configuration/resolution tests.
+- [x] T5.2 [tests] Add focused fake-only RED configuration/resolution tests.
   - Depends on: T5.1.
-  - Cover: separate immutable embedding config; explicit path, caller cache,
-    exact default-Hub snapshot, offline-blocked miss, identity inputs, and a
-    permitted lazy explicit-Hub download through an injected seam. Config
-    construction/cache-only preflight has zero optional import, load, download,
-    endpoint, process, or auth-discovery calls. No silent chat-config/backend
-    reuse or remote embedding fallback is allowed.
+  - Seams: use a test-local fake embedding backend/loader with only
+    `create_embedding`; do not reuse the chat backend fake or add a production
+    protocol solely for tests. `LlamaCppLocalEmbeddingConfig.allow_network`
+    controls its resolver's offline policy and defaults to `True`.
+  - Config/preflight RED: public imports and exact sync/async factory
+    signatures; frozen input/result/config values; distinct chat and embedding
+    configs/backends for one artifact; invalid/ambiguous config negatives; and
+    construction/cache-only preflight with zero optional import, loader,
+    download, endpoint, socket, process, or auth-discovery calls.
+  - Resolution RED: explicit path wins caller cache, caller cache wins exact
+    default-Hub snapshot, and each hit leaves fail-on-call downloaders untouched.
+    An offline Hub miss raises `LocalModelOfflinePolicyError` before download;
+    the one allowed online miss invokes only its injected downloader. No remote
+    embedding fallback or silent chat-config/backend reuse is allowed.
+  - Invocation/result RED: sync and async use the fake's `create_embedding`
+    once only after valid resolution. Cover input IDs/text and every declared
+    bound; exact shuffled-index reordering; host-model mismatch; missing, extra,
+    duplicate, or out-of-range upstream indexes; missing model; non-finite,
+    nested, ragged, dimension/scalar/output-limit vector failures; provider
+    exception; and no partial result. Every rejection before provider entry
+    asserts zero loader/backend/downloader calls and sentinel text/vector data
+    absent from errors or traces.
   - Validation: `poetry run pytest tests/test_local_models.py`
-    `tests/test_import.py -q`.
+    `tests/test_import.py -q` must fail before T5.3 implementation with the
+    missing public API, then pass only in T5.3. Completed: 30 focused RED
+    failures and 106 existing passes; Ruff passed. Council approved the full
+    fake-only matrix; Ponytail retained a test-local fake seam rather than a
+    production abstraction.
 
 - [ ] T5.3 [implementation] Add the selected standalone embedding protocol and
       lazy sync/async execution path.
