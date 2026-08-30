@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import math
 import re
@@ -39,6 +40,8 @@ from dynamic_agent_runner.openai_client import (
     create_async_openai_adapter_from_provider_config,
     create_openai_adapter_from_provider_config,
 )
+from dynamic_agent_runner.models import ToolDefinition
+from dynamic_agent_runner.registry import RegisteredTool, ToolResult
 
 
 DownloadFileCallable = Callable[["HuggingFaceModelFileReference", Path], Path]
@@ -362,6 +365,67 @@ class EmbeddingBatchResult:
 
     model: str
     items: tuple[EmbeddingVectorItem, ...]
+
+
+def create_local_embedding_tool(producer: object) -> RegisteredTool:
+    """Create the fixed host-bound model tool for one embedding producer."""
+
+    async def embed(arguments: Mapping[str, object]) -> ToolResult:
+        items = _validate_tool_embedding_input(arguments)
+        operation = getattr(producer, "embed", None)
+        if not callable(operation):
+            raise EmbeddingExecutionError("embedding tool has an invalid producer")
+        result = operation(items)
+        if inspect.isawaitable(result):
+            result = await result
+        normalized = _validate_tool_embedding_result(result, items)
+        output = {
+            "model": normalized.model,
+            "items": [
+                {"id": item.id, "vector": list(item.vector)}
+                for item in normalized.items
+            ],
+        }
+        return ToolResult(
+            tool_id="local_embedding_batch",
+            success=True,
+            output=output,
+            model_output=output,
+            trace_output={"status": "embedding_result_redacted"},
+        )
+
+    return RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "local_embedding_batch",
+                "description_for_llm": "Embed a bounded batch of text locally.",
+                "side_effect": "read",
+                "approval_required": "no",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "items": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 8,
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {"type": "string"},
+                                    "text": {"type": "string"},
+                                },
+                                "required": ["id", "text"],
+                                "additionalProperties": False,
+                            },
+                        }
+                    },
+                    "required": ["items"],
+                    "additionalProperties": False,
+                },
+            }
+        ),
+        embed,
+    )
 
 
 @dataclass(frozen=True)
@@ -1400,6 +1464,80 @@ def _validate_embedding_input(
             raise EmbeddingInputError("embedding batch text exceeds the batch limit")
         seen_ids.add(item.id)
     return normalized_items
+
+
+def _validate_tool_embedding_input(
+    arguments: Mapping[str, object],
+) -> tuple[EmbeddingInputItem, ...]:
+    if set(arguments) != {"items"}:
+        raise EmbeddingInputError("embedding tool has invalid input")
+    raw_items = arguments.get("items")
+    if not isinstance(raw_items, list) or not 1 <= len(raw_items) <= 8:
+        raise EmbeddingInputError("embedding tool has invalid input")
+    items: list[EmbeddingInputItem] = []
+    for raw_item in raw_items:
+        if not isinstance(raw_item, Mapping) or set(raw_item) != {"id", "text"}:
+            raise EmbeddingInputError("embedding tool has invalid input")
+        item_id = raw_item.get("id")
+        text = raw_item.get("text")
+        if not isinstance(item_id, str) or not isinstance(text, str):
+            raise EmbeddingInputError("embedding tool has invalid input")
+        items.append(EmbeddingInputItem(id=item_id, text=text))
+    normalized = _validate_embedding_input(items)
+    if any(len(item.text.encode("utf-8")) > 8 * 1024 for item in normalized):
+        raise EmbeddingInputError("embedding tool has oversized text")
+    if sum(len(item.text.encode("utf-8")) for item in normalized) > 64 * 1024:
+        raise EmbeddingInputError("embedding tool input exceeds the batch limit")
+    return normalized
+
+
+def _validate_tool_embedding_result(
+    result: object, items: tuple[EmbeddingInputItem, ...]
+) -> EmbeddingBatchResult:
+    if not isinstance(result, EmbeddingBatchResult) or not result.model:
+        raise EmbeddingResultError("embedding tool returned an invalid result")
+    if not isinstance(result.model, str) or not isinstance(result.items, tuple):
+        raise EmbeddingResultError("embedding tool returned an invalid result")
+    if tuple(item.id for item in result.items) != tuple(item.id for item in items):
+        raise EmbeddingResultError("embedding tool returned an invalid result")
+    dimension: int | None = None
+    scalar_count = 0
+    for item in result.items:
+        item_dimension = _validate_tool_embedding_vector(item)
+        if dimension is None:
+            dimension = item_dimension
+        elif item_dimension != dimension:
+            raise EmbeddingResultError("embedding tool returned an invalid result")
+        scalar_count += item_dimension
+    if scalar_count > 16_384:
+        raise EmbeddingResultError("embedding tool returned an invalid result")
+    encoded = json.dumps(
+        {
+            "model": result.model,
+            "items": [{"id": item.id, "vector": item.vector} for item in result.items],
+        },
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    if len(encoded) > 256 * 1024:
+        raise EmbeddingResultError("embedding tool returned an invalid result")
+    return result
+
+
+def _validate_tool_embedding_vector(item: object) -> int:
+    if not isinstance(item, EmbeddingVectorItem) or not isinstance(item.vector, tuple):
+        raise EmbeddingResultError("embedding tool returned an invalid result")
+    if not 1 <= len(item.vector) <= 2048:
+        raise EmbeddingResultError("embedding tool returned an invalid result")
+    if any(
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or not math.isfinite(float(value))
+        for value in item.vector
+    ):
+        raise EmbeddingResultError("embedding tool returned an invalid result")
+    return len(item.vector)
 
 
 def _normalize_llama_cpp_embedding_response(

@@ -85,6 +85,7 @@ class ToolResult:
     raw_output: Any | None = None
     log_preview: str | None = None
     event_payload: Mapping[str, Any] | None = None
+    trace_output: Any | None = None
     sensitive_fields: tuple[str, ...] = ()
 
     @property
@@ -100,7 +101,11 @@ class ToolResult:
             "tool_id": self.tool_id,
             "success": self.success,
             "error": self.error,
-            "output": self.model_facing_output,
+            "output": (
+                self.model_facing_output
+                if self.trace_output is None
+                else self.trace_output
+            ),
         }
         if self.raw_output is not None:
             payload["raw_output"] = self.raw_output

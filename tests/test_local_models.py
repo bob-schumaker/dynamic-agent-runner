@@ -24,6 +24,142 @@ from parity_support import (
 )
 
 
+class _RecordingToolEmbeddingProducer:
+    def __init__(self, result: object) -> None:
+        self.result = result
+        self.calls: list[tuple[object, ...]] = []
+
+    def embed(self, items: tuple[object, ...]) -> object:
+        self.calls.append(items)
+        return self.result
+
+
+class _AsyncRecordingToolEmbeddingProducer(_RecordingToolEmbeddingProducer):
+    async def embed(self, items: tuple[object, ...]) -> object:
+        self.calls.append(items)
+        return self.result
+
+
+def _tool_embedding_result() -> object:
+    from dynamic_agent_runner.local_models import (
+        EmbeddingBatchResult,
+        EmbeddingVectorItem,
+    )
+
+    return EmbeddingBatchResult(
+        model="embedding-test",
+        items=(EmbeddingVectorItem(id="entry-1", vector=(0.25, 0.75)),),
+    )
+
+
+def test_local_embedding_tool_has_fixed_schema_and_redacted_trace_output() -> None:
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_local_embedding_tool,
+    )
+
+    producer = _RecordingToolEmbeddingProducer(_tool_embedding_result())
+    tool = create_local_embedding_tool(producer)
+
+    assert tool.id == "local_embedding_batch"
+    assert tool.definition.side_effect == "read"
+    assert tool.definition.approval_required == "no"
+    assert tool.definition.raw["input_schema"] == {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "text": {"type": "string"},
+                    },
+                    "required": ["id", "text"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["items"],
+        "additionalProperties": False,
+    }
+
+    result = asyncio.run(
+        tool.handler({"items": [{"id": "entry-1", "text": "private text"}]})
+    )
+
+    assert producer.calls == [(EmbeddingInputItem(id="entry-1", text="private text"),)]
+    assert result.model_facing_output == {
+        "model": "embedding-test",
+        "items": [{"id": "entry-1", "vector": [0.25, 0.75]}],
+    }
+    assert result.trace_payload()["output"] == {"status": "embedding_result_redacted"}
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"items": {"id": "entry-1", "text": "private text"}},
+        {"items": [{"id": "entry-1"}]},
+        {"items": [{"id": "entry-1", "text": "private text", "profile": "x"}]},
+        {"items": [{"id": "entry-1", "text": "€" * 3_000}]},
+    ],
+)
+def test_local_embedding_tool_rejects_nested_invalid_input_before_producer(
+    arguments: dict[str, object],
+) -> None:
+    from dynamic_agent_runner.errors import EmbeddingInputError
+    from dynamic_agent_runner.local_models import create_local_embedding_tool
+
+    producer = _RecordingToolEmbeddingProducer(_tool_embedding_result())
+    tool = create_local_embedding_tool(producer)
+
+    with pytest.raises(EmbeddingInputError):
+        asyncio.run(tool.handler(arguments))
+
+    assert producer.calls == []
+
+
+def test_local_embedding_tool_rejects_result_with_unmatched_ids() -> None:
+    from dynamic_agent_runner.errors import EmbeddingResultError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingBatchResult,
+        EmbeddingVectorItem,
+        create_local_embedding_tool,
+    )
+
+    producer = _RecordingToolEmbeddingProducer(
+        EmbeddingBatchResult(
+            model="embedding-test",
+            items=(EmbeddingVectorItem(id="foreign", vector=(0.25, 0.75)),),
+        )
+    )
+    tool = create_local_embedding_tool(producer)
+
+    with pytest.raises(EmbeddingResultError):
+        asyncio.run(
+            tool.handler({"items": [{"id": "entry-1", "text": "private text"}]})
+        )
+
+    assert len(producer.calls) == 1
+
+
+def test_local_embedding_tool_accepts_async_producer() -> None:
+    from dynamic_agent_runner.local_models import create_local_embedding_tool
+
+    producer = _AsyncRecordingToolEmbeddingProducer(_tool_embedding_result())
+    tool = create_local_embedding_tool(producer)
+
+    result = asyncio.run(
+        tool.handler({"items": [{"id": "entry-1", "text": "private text"}]})
+    )
+
+    assert result.success is True
+    assert len(producer.calls) == 1
+
+
 def _default_cache_root(home_dir: Path) -> Path:
     return home_dir / ".cache" / "huggingface" / "hub"
 

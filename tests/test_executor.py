@@ -58,6 +58,7 @@ from dynamic_agent_runner.local_models import (
     EmbeddingInputItem,
     EmbeddingVectorItem,
     LlamaCppLocalModelConfig,
+    create_local_embedding_tool,
     create_llama_cpp_local_adapter,
 )
 import dynamic_agent_runner.hugging_face_support as hugging_face_support
@@ -883,6 +884,57 @@ def test_embedding_step_copies_batch_before_async_producer_completion() -> None:
 
     assert result.final_result is expected
     assert producer.calls == [embedding_items()]
+
+
+def test_local_embedding_tool_continues_model_loop_with_bounded_result() -> None:
+    """One model-selected embedding call continues through the normal tool loop."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    registry = InMemoryToolRegistry([create_local_embedding_tool(producer)])
+    adapter = _ScriptedParityAdapter(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall(
+                        "embed-1",
+                        "local_embedding_batch",
+                        {
+                            "items": [
+                                {"id": "entry-1", "text": "private embedding text"}
+                            ]
+                        },
+                    ),
+                ),
+            ),
+            ModelResponse(content="embedded"),
+        ]
+    )
+
+    result = asyncio.run(
+        execute_workflow_async(
+            loop_tool_workflow(
+                tools=[{"id": "local_embedding_batch"}],
+                available_tools=["local_embedding_batch"],
+            ),
+            prompt="Embed the controlled batch",
+            tool_registry=registry,
+            model_adapter=adapter,
+        )
+    )
+
+    assert result.final_result == "embedded"
+    assert producer.calls == [embedding_items()]
+    assert len(adapter.requests) == 2
+    tool_result = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "tool_result"
+    )
+    assert tool_result.payload["output"] == {"status": "embedding_result_redacted"}
+    assert not any(
+        event.event_type == "approval_requested" for event in result.state.trace_events
+    )
 
 
 def provider_compaction_workflow(
