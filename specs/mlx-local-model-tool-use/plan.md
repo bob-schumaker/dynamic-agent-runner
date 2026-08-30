@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Implementation Plan
 
-Status: M6.1, M6.2, and M6.3 delivered
+Status: M6.1, M6.2, and M6.3 delivered; M6.4 planned
 
 ## Goal
 
@@ -110,3 +110,73 @@ pre-commit run --files <changed files>
   compatibility. A real load/generation remains separately human-authorized.
 - Capability metadata changes only when the concrete configured pair passes the
   fake contract tests; the default backend remains false.
+
+## M6.4 Approach — Built-in Qwen3 MLX Codec
+
+1. Characterize the pinned Qwen3 artifact against the installed `mlx-lm`
+   public APIs on an eligible Apple Silicon host. Record the tokenizer template
+   call shape, tool-call result/parser shape, continuation representation, and
+   exact generation controls before committing to a production parser. Do not
+   infer syntax from a model card, raw completion text, or a different Qwen
+   release.
+   This is a binary compatibility spike: it creates a dated checked-in profile
+   with a canonical Hub-relative snapshot locator, an ordered SHA-256 manifest,
+   public symbols/signatures, parser input/result mapping, and supported
+   `tool_choice` values. It captures only synthetic structural evidence and
+   redacted digests, never host transcript or handler data. An unqualified
+   result closes M6.4 text-only; it does not authorize an invented parser or
+   subsequent implementation work.
+2. Add test-local tokenizer/parser/backend doubles that express the discovered
+   public API contract. Start with RED cases for initial rendering, assistant
+   call plus tool-result continuation, valid one-call decoding, text decoding,
+   and every incompatibility gate. These tests must not import `mlx_lm`, load a
+   model, use Metal, or access the network.
+3. Implement one private built-in Qwen3 codec and explicit preflighted sync and
+   async Qwen-only factories in `mlx_models.py`. Reuse `MLXToolCodec`,
+   `_MLXLMBackend`, existing bounded normalization, and the existing generic
+   factories. The Qwen factories admit only the profile's exact default-Hub
+   snapshot and may advertise the codec version only after local preflight
+   verifies the relocated-cache manifest, template, parser, and supported
+   `tool_choice` mapping.
+   Generic factories and capability access remain side-effect-free and
+   text-only. Serialize generation with one per-adapter lock.
+4. Add adapter/executor integration tests proving the real built-in selection
+   path enters the ordinary DAR tool validation and continuation flow; retain
+   the injected-pair tests as the generic extension contract. Do not add a
+   second loop, endpoint, registry branch, or approval behavior.
+5. Run a separately initiated live local competency pass after deterministic
+   tests are green. Use only bounded recording tools, fixed generation
+   settings, and the exact selected artifact. Record attempts and outcomes;
+   never make it a pytest, CI, release, or arbitrary-model guarantee.
+6. Update the existing README/Python API wording to distinguish the built-in
+   pinned Qwen3 capability from the default text-only behavior for every other
+   MLX model.
+
+## M6.4 Affected Surfaces
+
+- `src/dynamic_agent_runner/mlx_models.py`
+- `src/dynamic_agent_runner/__init__.py`
+- `tests/test_mlx_models.py`
+- `tests/test_executor.py`
+- `README.md`
+- `docs/files/python-api.rst`
+- `specs/mlx-local-model-tool-use/{spec,plan,tasks}.md`
+- `specs/mlx-local-model-tool-use/m6.4-compatibility-profile.md`
+- `specs/mlx-local-model-tool-use/validation.md`
+
+## M6.4 Validation
+
+```bash
+poetry run pytest -q tests/test_mlx_models.py tests/test_executor.py
+poetry run pytest -q tests/test_import.py tests/test_local_models.py \
+  tests/test_mlx_models.py tests/test_executor.py
+poetry run pytest -q
+poetry run ruff check src tests
+poetry run ruff format --check src tests
+pre-commit run --files <changed files>
+poetry run make -C docs html
+```
+
+The live competency command is deliberately discovered and recorded in M6.4.1;
+it may use a local cached artifact but must not download, contact an endpoint,
+or invoke an external tool.

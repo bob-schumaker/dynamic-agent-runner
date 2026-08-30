@@ -5,7 +5,7 @@
 - Feature slug: `mlx-local-model-tool-use`
 - Mode: guided
 - Artifact type: authoritative SDD follow-up specification
-- Status: M6.1, M6.2, and M6.3 delivered
+- Status: M6.1, M6.2, and M6.3 delivered; M6.4 planned
 - Parent feature: `specs/mlx-local-model-adapter/spec.md`
 - Related feature specs:
   - `specs/model-interface-parity/spec.md`
@@ -47,14 +47,19 @@ This follow-up covers:
    and the existing executor loop.
 6. structural recognition of native MLX safetensors snapshots for local
    resolution, availability, and scoped inventory.
+7. one built-in, pinned Qwen3 Instruct codec/backend pair that remains
+   text-only unless its runtime tokenizer/template/parser compatibility gate
+   succeeds.
 
 ## Non-Goals
 
 - No MLX server, OpenAI-compatible endpoint, process lifecycle, or scheduler.
 - No executor branch, second tool loop, direct handler invocation, approval
   policy, trace policy, or tool-schema policy.
-- No tool support for the current stock `_MLXLMBackend` until it explicitly
-  supplies a compatible codec/template implementation.
+- No tool support for arbitrary `mlx-lm` models or tokenizers. M6.4 may enable
+  the selected pinned Qwen3 Instruct pair only after its compatible
+  codec/template/parser implementation passes the runtime gate; every other
+  stock `_MLXLMBackend` use remains text-only.
 - No live MLX model, Metal, Hugging Face, network, or external-tool call in
   pytest.
 - No multi-call/parallel-call support in the first codec slice.
@@ -91,6 +96,83 @@ remains text-only rather than falling back to a generic text prompt.
 The stock `_MLXLMBackend` remains unsupported until it supplies that verified
 codec/template implementation. This does not block the generic injected codec
 seam or its fake-only tests.
+
+### Built-in Qwen3 activation
+
+M6.4 promotes only the selected Qwen3 Instruct artifact to a built-in pair. It
+must use `mlx_lm`'s public tokenizer/template and generation interfaces without
+vendoring or copying an upstream template or parser. It must expose explicit
+sync and async Qwen-only factories:
+
+```python
+create_builtin_qwen3_mlx_local_adapter(
+    *, model_cache_root: str | Path | None = None,
+    generation_kwargs: Mapping[str, object] | None = None,
+) -> MLXLocalModelAdapter
+
+create_builtin_qwen3_mlx_local_async_adapter(
+    *, model_cache_root: str | Path | None = None,
+    generation_kwargs: Mapping[str, object] | None = None,
+) -> AsyncMLXLocalModelAdapter
+```
+
+They construct the pinned repository/revision internally and accept no explicit
+model directory, model ID, revision, codec, parser, or backend override.
+`model_cache_root` may select the caller's current Hub cache root only; it may
+not redirect the built-in path to an arbitrary model directory. Both perform
+local, no-network preflight at construction; generic MLX factories remain
+text-only. Capability access itself must be side-effect free. A successful
+factory result may report `tool_calling=True`; a missing, mismatched, or
+incompatible snapshot/profile raises `ModelExecutionError` and returns no
+tool-capable adapter.
+
+Preflight admits only an exact default-Hub snapshot for the model repository and
+immutable revision in the implementation decision. The checked-in profile names
+that snapshot with a canonical Hub-relative locator; preflight joins it to the
+caller-selected or default cache root, then verifies containment and the
+checked-in manifest of config, tokenizer, and weight filenames with their
+SHA-256 digests. An explicit local directory, a lookalike model ID, a different
+snapshot revision, or a mutable alias is ineligible for the built-in path. The
+preflight must verify all of the following before it advertises or attempts tool
+calling:
+
+1. the resolved model identity and immutable artifact revision match the
+   implementation decision;
+2. the tokenizer exposes a native chat-template API that can render the full
+   DAR transcript with supplied tools and a generation prompt;
+3. the selected template explicitly supports assistant tool calls and matching
+   tool-result continuation messages; and
+4. the selected `mlx-lm` release exposes a compatible public parser or
+   structured generation result for one Qwen3 tool call.
+
+M6.4.1 is discovery-only. It must create a dated compatibility profile naming
+the public symbols and signatures used, the exact parser input/result mapping,
+the supported subset of DAR `tool_choice` values, and the provenance manifest.
+It must use fixed synthetic fixtures and record only structural render/result
+shapes plus hashes or redacted excerpts; it must not preserve host prompts,
+credentials, handler payloads, or an unredacted rendered transcript. Its only
+outcomes are `qualified`, `ineligible_provenance`, `incompatible_runtime`,
+`incompatible_template`, `incompatible_tool_choice`, or `incompatible_parser`.
+`incompatible_runtime` covers an unavailable or wrong `mlx-lm` distribution or
+public generation API. Only `qualified` unlocks T6.4.2–T6.4.6; every other
+outcome closes M6.4 as text-only without a custom parser or another Qwen
+artifact.
+
+The built-in pair supports only the `tool_choice` values explicitly recorded as
+faithfully rendered by that profile. It rejects every other value before
+generation; it must not collapse `none`, `auto`, `required`, or a named tool
+into a different choice. Generation is serialized by one adapter-local lock so
+sync and async callers cannot interleave model generation or duplicate a load.
+
+Failure of any activation gate must raise the existing package-owned
+unsupported/tool-execution error before a tool-bearing generation or dispatch
+can occur. The gate must not download, mutate a model cache, fall back to a
+generic prompt, infer a parser from model text, or enable a different Qwen
+revision merely because its name is similar.
+
+The built-in codec must use the existing `MLXToolCodec` boundary and the
+adapter's existing bounded normalization. It may not gain registry, approval,
+handler, trace, tool-loop, endpoint, or external-service responsibilities.
 
 ### Rendered transcript
 
@@ -223,6 +305,32 @@ tool capability.
 - Parser tests cover valid text, one valid call, invalid JSON, duplicate keys,
   non-finite values, invalid root, unavailable names, duplicate IDs, multiple
   calls, trailing prose, and each bound.
+
+### M6.4 built-in Qwen3 acceptance
+
+- Given the pinned artifact and a compatible fake tokenizer/parser result, when
+  a tool-bearing initial or continuation request reaches the built-in path,
+  then the codec calls the native template API with only DAR's supplied tools,
+  preserves the complete ordered transcript, and emits the existing canonical
+  one-call `ModelToolCall` representation.
+- Given a missing, incompatible, or unexpected tokenizer/template/parser/model
+  identity, when the same request is made, then capability remains false and
+  the request fails before model generation or tool dispatch.
+- Given a text-only request, when the built-in runtime gate is unavailable,
+  then existing text generation behavior remains unchanged.
+- Given a generic MLX factory or a capability property access, when no explicit
+  Qwen preflight factory is invoked, then no model is loaded and
+  `tool_calling=False` remains unchanged.
+- Given an exact pinned snapshot whose compatibility profile supports a subset
+  of `tool_choice` values, when another choice is requested, then the adapter
+  rejects it before generation or dispatch rather than coercing it.
+- Given a compatible live eligible Apple Silicon host and the pinned local
+  artifact, when the manual competency protocol is initiated, then it records
+  the exact DAR revision, host class, artifact revision and digest, `mlx-lm`
+  version, codec version, generation settings, and bounded controlled-tool
+  outcomes for initial selection and continuation. This evidence is manual,
+  local-only, outside pytest and CI, and does not make any claim about arbitrary
+  MLX models.
 - Sync and async tests prove identical normalization, capability reporting, and
   zero backend call on rejected requests.
 - An executor integration test proves one fake MLX call reaches the existing

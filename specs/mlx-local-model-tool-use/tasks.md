@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Tasks
 
-Status: M6.1, M6.2, and M6.3 delivered
+Status: M6.1, M6.2, and M6.3 delivered; M6.4 planned
 
 ## M6.1 — Contract and Delivery Readiness
 
@@ -300,3 +300,132 @@ Status: M6.1, M6.2, and M6.3 delivered
     resolution, oversized-index pre-read bounds, adapter fail-closed, and
     invalid-inventory-omission evidence. Ponytail confirmed the shared private
     validator is the smallest complete delivery.
+
+## M6.4 — Built-in Qwen3 MLX Tool Codec
+
+- [x] T6.4.1 [discovery/compatibility] Characterize the pinned Qwen3 Instruct
+      artifact against `mlx-lm` v0.31.3's public tokenizer, template,
+      generation, and tool-parser interfaces on an eligible Apple Silicon host.
+  - Spec: Built-in Qwen3 activation; M6.4 built-in Qwen3 acceptance.
+  - Files: `specs/mlx-local-model-tool-use/m6.4-compatibility-profile.md`
+    (create), `implementation-decision.md`, `tasks.md`.
+  - Record: the canonical Hub-relative locator
+    `models--mlx-community--Qwen3-4B-Instruct-2507-nvfp4/snapshots/<revision>`
+    for the selected repository and revision, an ordered SHA-256 manifest for
+    config/tokenizer/weight files, installed `mlx-lm` version, public
+    tokenizer/template/generation/parser symbols and signatures, initial and
+    continuation render/result shapes, and each faithfully supported
+    `tool_choice` mapping. Use fixed synthetic fixtures and record only
+    structural shapes plus hashes or redacted excerpts: never host prompts,
+    credentials, handler payloads, or an unredacted rendered transcript. The
+    profile must not contain an author-machine absolute cache path. Use a local
+    cached artifact only; do not download, invoke a tool, or contact an
+    endpoint.
+  - Exit: record exactly one of `qualified`, `ineligible_provenance`,
+    `incompatible_runtime`, `incompatible_template`,
+    `incompatible_tool_choice`, or `incompatible_parser`.
+    `incompatible_runtime` covers an unavailable or wrong `mlx-lm`
+    distribution or public generation API. Only `qualified` unlocks
+    T6.4.2–T6.4.6. Every other outcome closes M6.4 text-only; do not add a
+    parser, use an explicit local directory, or substitute another Qwen
+    artifact.
+  - Readiness: implementation-ready. This plan is ready to execute under its
+    stated gates.
+  - Delivery: qualified in `m6.4-compatibility-profile.md`. Native synthetic
+    initial/continuation rendering and `json_tools.parse_tool_call` were
+    characterized without model inference or tool dispatch. Only an omitted
+    DAR `tool_choice` is supported; every explicit choice is rejected.
+  - Delivery review: Council found and resolved cache-root portability, total
+    runtime-exit, and de-secreted-evidence gaps. Ponytail confirmed the profile,
+    Hub-relative locator, and explicit rejection boundary are the smallest
+    complete delivery; no runtime mechanism was added.
+
+- [ ] T6.4.2 [tests] Add focused RED tests for the discovered built-in Qwen3
+      template and parser contract.
+  - Spec: Rendered transcript; Parse and normalization boundary; M6.4 built-in
+    Qwen3 acceptance.
+  - Files: `tests/test_mlx_models.py`, `tests/test_executor.py`.
+  - Depends on: T6.4.1 (`qualified`).
+  - RED: test-local tokenizer/parser/backend doubles must prove initial
+    rendering contains only the request's exposed schemas, ordered
+    assistant-call/tool-result continuation rendering, one valid call, text,
+    malformed/ambiguous output, wrong artifact identity, absent tool template,
+    absent parser, every unsupported `tool_choice`, and unchanged generic
+    text-only behavior. Assert capability access causes zero optional MLX
+    import/model load and failed preflight causes zero generation, handler, or
+    endpoint call. Include a relocated cache-root preflight case proving the
+    factory derives the snapshot from the profile's Hub-relative locator.
+  - Validation: `poetry run pytest -q tests/test_mlx_models.py
+    tests/test_executor.py` must fail for the missing built-in path.
+
+- [ ] T6.4.3 [implementation] Add one private Qwen3 codec and explicit
+      preflighted factories to the existing MLX adapter.
+  - Spec: Codec and backend boundary; Built-in Qwen3 activation; FR-1–FR-4.
+  - Depends on: T6.4.1 (`qualified`), T6.4.2.
+  - Files: `src/dynamic_agent_runner/mlx_models.py`,
+    `src/dynamic_agent_runner/__init__.py`.
+  - GREEN: export `create_builtin_qwen3_mlx_local_adapter` and
+    `create_builtin_qwen3_mlx_local_async_adapter` with only optional
+    `model_cache_root` and `generation_kwargs` keyword arguments. They construct
+    the pinned repository/revision internally, accept no path/backend/parser
+    override, and raise `ModelExecutionError` on missing/mismatched/incompatible
+    preflight. Use only public `mlx_lm` APIs captured in T6.4.1. Admit only the
+    profile's exact default-Hub snapshot by joining its Hub-relative locator to
+    `model_cache_root` (or the default cache root) and verifying the manifest;
+    reuse `MLXToolCodec`,
+    `_MLXLMBackend`, bounds, canonical normalization, and the existing generic
+    factories. Generic factories remain text-only. Capability access is
+    side-effect-free; a successful preflight factory alone reports tool
+    capability. Reject every unsupported `tool_choice` before generation and
+    serialize generation with one adapter-local lock. Do not add an executor
+    loop, registry/approval path, endpoint, generic Qwen matching, or fallback
+    prompt/parser.
+  - Validation: T6.4.2 becomes GREEN and existing injected-pair/stock-negative
+    tests retain their current contract.
+
+- [ ] T6.4.4 [tests/integration] Prove the built-in Qwen3 pair uses DAR's
+      ordinary sync and async tool/continuation flow.
+  - Spec: FR-2, FR-3; M6.4 built-in Qwen3 acceptance.
+  - Files: `tests/test_mlx_models.py`, `tests/test_executor.py`.
+  - Depends on: T6.4.3.
+  - Acceptance: after one normalized `create_record` candidate, the executor
+    validates and invokes the controlled handler once, appends the canonical
+    assistant call and matching result, and receives a text completion on the
+    second request. Invalid capability gates and malformed output dispatch zero
+    handlers. Test every profile-supported `tool_choice`, rejection of every
+    other choice, and concurrent sync/async calls serialize generation. This
+    remains fake-only and does not make the live model a pytest dependency.
+  - Validation: `poetry run pytest -q tests/test_mlx_models.py
+    tests/test_executor.py`.
+
+- [ ] T6.4.5 [manual acceptance] Run and record the pinned local Qwen3 MLX
+      competency protocol after deterministic tests pass.
+  - Spec: M6.4 built-in Qwen3 acceptance.
+  - Files: `specs/mlx-local-model-tool-use/validation.md` (create only for the
+    dated evidence), `specs/mlx-local-model-tool-use/tasks.md`.
+  - Depends on: T6.4.4.
+  - Procedure: on an eligible Apple Silicon host, run at least three bounded
+    recording-tool initial-selection/continuation pairs using one
+    profile-supported `tool_choice`, fixed prompt fixture, seed, temperature,
+    max tokens, and timeout from T6.4.1. A successful pair has exactly one
+    allowed schema-valid `create_record` call followed by the recorded text
+    completion; record all outcome categories, failures, host/DAR/artifact/
+    `mlx-lm`/codec provenance, and redacted raw-output digests.
+  - Boundary: manual local evidence only; no external tool, account, endpoint,
+    download, pytest, CI, or release claim. Model variation is reported as a
+    rate/outcome, not a deterministic contract failure.
+
+- [ ] T6.4.6 [docs/validation] Document the exact built-in capability boundary
+      and run the final regression suite.
+  - Spec: Capability truthfulness; M6.4 built-in Qwen3 acceptance.
+  - Depends on: T6.4.5.
+  - Files: `README.md`, `docs/files/python-api.rst`,
+    `specs/mlx-local-model-tool-use/{spec,plan,tasks,validation}.md`.
+  - Acceptance: documentation names only the pinned Qwen3 pair as built-in;
+    arbitrary MLX artifacts, unsupported parser/template states, streaming,
+    structured output, embeddings, multimodal, and parallel calls remain
+    unsupported. The manual receipt is separate from CI claims.
+  - Validation: `poetry run pytest -q`; `poetry run ruff check src tests`;
+    `poetry run ruff format --check src tests`; `pre-commit run --files
+    <changed files>`; regenerate and review documentation without editing
+    `docs/source/*.rst` directly.
