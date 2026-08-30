@@ -316,6 +316,11 @@ embedding execution awaits T5.1's contract decision
   shared implementation path: T5.5 owns the new terminal workflow node and
   T5.6 owns the existing-registry tool exposure. The model selects invocation,
   never embedding-model identity.
+- Limits decision: the user selected split transport limits. The producer and
+  terminal node admit 128 entries / 64 KiB each / 1 MiB total / 8,192
+  dimensions / 1,048,576 scalars / 16 MiB output. The model tool admits eight
+  entries / 8 KiB each / 64 KiB total / 2,048 dimensions / 16,384 scalars /
+  256 KiB output. Its structured result is `{model, items: [{id, vectors}]}`.
 - Council/Ponytail: both integrations require separate manifest/executor and
   registry/coordinator contracts. Reuse one host-bound batch producer; do not
   add a second embedding path, remote fallback, model-selected profile, or

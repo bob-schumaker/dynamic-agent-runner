@@ -383,9 +383,12 @@ standalone embedding execution awaits T5.1's contract decision
     export occurs here. `create_embedding` must have exactly one indexed result
     per submitted entry; normalize its indexes to submitted IDs and reject
     missing, extra, duplicate, out-of-range, non-finite, nested, ragged, or
-    dimension-inconsistent vectors. Fix bounds for IDs, batch cardinality, text
-    and aggregate bytes, dimensions, scalar count, and output bytes. Raw texts
-    and vectors are excluded from traces and errors.
+    dimension-inconsistent vectors. Direct/node limits: 128 entries, 128-byte
+    IDs, 64 KiB per text, 1 MiB total text, 8,192 dimensions, 1,048,576
+    scalars, and 16 MiB output. Tool limits: eight entries, 8 KiB per text,
+    64 KiB total text, 2,048 dimensions, 16,384 scalars, and 256 KiB output.
+    Tool results use `{model, items: [{id, vectors}]}`. Raw texts and vectors
+    are excluded from traces and errors.
   - Validation: source inspection record plus spec/task review. T5.2 remains
     blocked until this contract is implementation-ready.
 

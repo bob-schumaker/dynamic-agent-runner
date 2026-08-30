@@ -168,7 +168,11 @@ implementation.
    It uses batch-only `{id, text}` input and same-order `{id, vectors, model}`
    output. `create_embedding(...)` is selected because its indexed response and
    model field support exact correlation; profile/model selection remains
-   host-bound. Until then, no factory/export is authorized.
+   host-bound. The direct/node limits are 128 entries, 128-byte IDs, 64 KiB per
+   text, 1 MiB aggregate text, 8,192 dimensions, 1,048,576 scalars, and 16 MiB
+   output. The model tool limits are eight entries, 8 KiB per text, 64 KiB
+   aggregate text, 2,048 dimensions, 16,384 scalars, and 256 KiB output. Until
+   then, no factory/export is authorized.
 2. T5.2 writes focused fake-only RED tests for a distinct immutable embedding
    config and resolver. It reuses `LocalModelPathConfig` precedence, offline
    policy, and identity inputs. Config construction/cache-only preflight has no
@@ -193,7 +197,8 @@ implementation.
    after the standalone producer is complete. It uses the existing registry and
    coordinator with the exact batch schema; model selection is limited to
    whether to invoke the tool. It preserves normal tool validation, tracing,
-   and continuation behavior without approval bypass.
+   and continuation behavior without approval bypass. Its model-facing result
+   is the bounded structured `{model, items: [{id, vectors}]}` form.
 
 No Slice 5 task may add `ModelAdapter` chat behavior, remote fallback, server
 lifecycle, graph mutation, RAG, or a vector store. T5.5/T5.6 are the only

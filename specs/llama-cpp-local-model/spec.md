@@ -330,6 +330,16 @@ dimension-inconsistent vectors before returning a result. T5.1 fixes explicit
 batch, text-byte, total-byte, dimension, scalar-count, and output-byte bounds.
 Raw texts and vectors must not enter traces or errors.
 
+The direct producer and terminal `embedding_step` accept at most 128 entries,
+each with an ID of at most 128 UTF-8 bytes and text of at most 64 KiB, with no
+more than 1 MiB of total text. They accept at most 8,192 dimensions and
+1,048,576 total finite scalar values, and return at most 16 MiB of encoded
+result data. The model-selectable tool uses the same shape but admits at most
+eight entries, 8 KiB text per entry, 64 KiB total text, 2,048 dimensions,
+16,384 total scalars, and 256 KiB encoded result data. Its structured result is
+`{model, items: [{id, vectors}]}`; it contains every requested ID/vector and
+the one host-bound model identity without repeating the model for every item.
+
 After the shared contract is delivered, two independent consumer slices are in
 scope: an `embedding_step` terminal workflow node that consumes batch input and
 ends a one-node workflow with that result, and a model-selectable local tool
