@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Implementation Plan
 
 Status: active implementation record; Slices 1-3 and T5.0 planning complete;
-embedding execution awaits the T5.1 consumer/contract decision
+standalone embedding execution awaits the T5.1 contract decision
 
 ## Goal
 
@@ -157,14 +157,15 @@ lifecycle ownership.
 ### Slice 5 — Separate local embedding configuration
 
 T5.0 makes this a bounded follow-up rather than authorizing embedding runtime
-work. DAR currently has no embedding execution/consumer contract, so the next
-step is T5.1, not a config or backend implementation.
+work. A standalone embedding surface is now authorized, but DAR has no approved
+embedding execution contract, so the next step is T5.1, not a config or backend
+implementation.
 
-1. T5.1 names one internal consumer and records a source-inspected upstream
-   method, input batching shape, normalized ordered vector result, finite and
-   dimension/ragged validation, package-owned failure taxonomy, and public vs
-   internal surface. It also decides explicit same-artifact behavior. Until
-   then, no factory/export is authorized.
+1. T5.1 specifies the standalone caller-visible surface and records a
+   source-inspected upstream method, input batching shape, normalized ordered
+   vector result, finite and dimension/ragged validation, package-owned failure
+   taxonomy, and explicit same-artifact behavior. Until then, no factory/export
+   is authorized.
 2. T5.2 writes focused fake-only RED tests for a distinct immutable embedding
    config and resolver. It reuses `LocalModelPathConfig` precedence, offline
    policy, and identity inputs. Config construction/cache-only preflight has no

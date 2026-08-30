@@ -6,11 +6,11 @@
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
 - Status: implemented through Slices 1-3; T5.0 embedding implementation
-  breakdown delivered, with embedding execution gated on a named consumer
+  breakdown delivered, with standalone embedding execution gated on its contract
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model follow-up
   work
-- Next gate: T5.1 embedding consumer/contract decision or a separate advisory
+- Next gate: T5.1 standalone embedding-surface contract decision or a separate advisory
   feature such as `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md`
   remains the source of truth for fresh execution evidence
 - Approval state: user-directed refresh to make this file the authoritative SDD
@@ -312,10 +312,11 @@ Acceptance criteria:
 #### Embedding execution gate
 
 T5.0 records the implementation breakdown only. It does not add an embedding
-API, instantiate a model, advertise capability, or select a graph/RAG consumer.
-There is no current generic embedding execution seam in DAR. Before T5.2 begins,
-T5.1 must name one internal consumer and record its input, ordered-output,
-dimension, batching, malformed-result, and package-owned error contract.
+API, instantiate a model, or advertise capability. A standalone embedding
+surface is authorized as a new scope, while graph/RAG consumers remain out of
+scope. Before T5.2 begins, T5.1 must specify the caller-visible input,
+ordered-output, dimension, batching, malformed-result, and package-owned error
+contract.
 
 The later implementation must use a separate immutable runtime-owned embedding
 configuration rather than chat aliases, workflow manifests, or endpoint config.

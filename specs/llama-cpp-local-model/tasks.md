@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Task List
 
-Status: active feature record; Slices 1-3 and T5.0 planning complete; embedding
-execution awaits T5.1's consumer/contract decision
+Status: active feature record; Slices 1-3 and T5.0 planning complete;
+standalone embedding execution awaits T5.1's contract decision
 
 ## Prerequisites
 
@@ -365,16 +365,22 @@ execution awaits T5.1's consumer/contract decision
     an embedding API, generic provider, executor change, RAG/graph work, and
     vector-store work while no consumer exists.
 
-- [ ] T5.1 [discovery/decision] Name one internal embedding consumer and record
-      the source-inspected embedding method and normalized contract.
-  - Decide: internal-only versus caller-visible surface; one string versus
-    bounded batch input; ordered finite vector output; dimension/ragged/empty
-    policy; package-owned error taxonomy; and whether two explicit configs for
-    the same artifact create distinct model instances (default: yes).
+- [ ] T5.1 [discovery/decision] Specify the authorized standalone embedding
+      surface and record the source-inspected embedding method and normalized
+      contract.
+  - Authorization: a standalone embedding surface is approved as new scope;
+    it replaces the former requirement to name an internal consumer.
+  - Decide: caller-visible API shape; one string versus bounded batch input;
+    ordered finite vector output; dimension/ragged/empty policy; package-owned
+    error taxonomy; and whether two explicit configs for the same artifact
+    create distinct model instances (default: yes).
   - Gate: inspect the installed/pinned `llama_cpp.Llama` API before selecting
     `embed` or `create_embedding`; no implementation, model load, network, or
-    export occurs here. Stop for a user decision if no actual consumer is named.
-  - Validation: source inspection record plus spec/task review.
+    export occurs here. Keep this a standalone producer surface: no chat-adapter
+    reuse, executor routing, workflow capability, graph/RAG, or vector-store
+    behavior is authorized.
+  - Validation: source inspection record plus spec/task review. T5.2 remains
+    blocked until this contract is implementation-ready.
 
 - [ ] T5.2 [tests] Add focused fake-only RED configuration/resolution tests.
   - Depends on: T5.1.

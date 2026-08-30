@@ -1,7 +1,7 @@
 # llama.cpp Local-Model Adapter Validation Log
 
-Status: complete through Slice 3 and T5.0 embedding planning; embedding
-execution awaits T5.1's consumer/contract decision
+Status: complete through Slice 3 and T5.0 embedding planning; standalone
+embedding execution awaits T5.1's contract decision
 
 ## Scope
 
@@ -287,7 +287,7 @@ execution awaits T5.1's consumer/contract decision
 - Next gate: T5.1 must resolve the consumer/output contract; it may stop for a
   user decision when no consumer is available.
 
-### T5.1 — Consumer and contract readiness review
+### T5.1 — Standalone surface and contract readiness review
 
 - Date: 2026-08-29
 - Source inspection: installed `llama-cpp-python` is `0.3.35`.
@@ -303,7 +303,8 @@ execution awaits T5.1's consumer/contract decision
 - Review: Council unanimously found no legitimate internal consumer. Ponytail
   agrees that adding a generic embedding configuration or choosing an upstream
   method now would be speculative package surface.
-- Disposition: blocked pending a user-named internal consumer and its output
-  contract. T5.1 remains unchecked; T5.2--T5.4, model loading, networking, and
-  public exports remain unauthorized. Re-enter T5.1 by naming the consumer, or
-  by explicitly authorizing a standalone embedding surface as new scope.
+- Scope decision: the user authorized a standalone embedding surface as new
+  scope. T5.1 remains unchecked until it specifies the caller-visible contract;
+  T5.2--T5.4, model loading, networking, and public exports remain unauthorized
+  until then. Graph/RAG, vector-store, executor, and chat-adapter work remain
+  excluded from this authorization.
