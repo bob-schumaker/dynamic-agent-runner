@@ -1,7 +1,8 @@
 # llama.cpp Local-Model Adapter Task List
 
-Status: active feature record; Slices 1-3, T5.0 planning, T5.1 contract, and
-T5.2 RED tests complete; T5.3 implementation is next
+Status: active feature record; Slices 1-3, T5.0 planning, T5.1 contract, T5.2
+RED tests, and T5.3 standalone implementation complete; T5.4 validation/docs
+is next
 
 ## Prerequisites
 
@@ -441,15 +442,20 @@ T5.2 RED tests complete; T5.3 implementation is next
     fake-only matrix; Ponytail retained a test-local fake seam rather than a
     production abstraction.
 
-- [ ] T5.3 [implementation] Add the selected standalone embedding protocol and
+- [x] T5.3 [implementation] Add the selected standalone embedding protocol and
       lazy sync/async execution path.
   - Depends on: T5.2.
   - Scope: force `embedding=True` at separate backend construction, reject a
-    conflicting caller value, normalize only the T5.1-selected upstream result,
+    conflicting caller value, require a nonempty host-bound expected identity,
+    keep loader kwargs immutable, normalize only the T5.1-selected upstream result,
     and map malformed/backend failures through package-owned errors. Do not
     extend `LlamaCppLocalModelAdapter`, executor routing, workflow metadata, or
     capability reporting without a separately approved consumer requirement.
-  - Validation: focused fake backend tests plus import and formatter/lint checks.
+  - Validation: focused fake backend/import tests and the full suite pass;
+    formatter/lint checks pass. Council approved the isolated producer,
+    including strict malformed-result and Unicode-input boundaries. Ponytail
+    confirmed the parallel adapter reuses existing resolution and adds no
+    generic provider, workflow, or tool abstraction.
 
 - [ ] T5.4 [validation/docs] Record consumer-boundary evidence and run final
       fake-only regression.

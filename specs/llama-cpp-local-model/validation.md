@@ -1,7 +1,8 @@
 # llama.cpp Local-Model Adapter Validation Log
 
 Status: complete through Slice 3 and T5.0 embedding planning; standalone
-embedding contract and T5.2 RED suite complete; T5.3 implementation is next
+embedding contract, T5.2 RED suite, and T5.3 implementation complete; T5.4
+validation/docs is next
 
 ## Scope
 
@@ -364,3 +365,23 @@ embedding contract and T5.2 RED suite complete; T5.3 implementation is next
   Ponytail retained the deliberately small test-local embedding fake and no
   production-only test protocol. T5.3 is now the sole GREEN implementation
   boundary.
+
+### T5.3 GREEN — standalone llama.cpp embedding producer
+
+- Date: 2026-08-29
+- Commands:
+  - `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+  - `poetry run pytest -q`
+- Observed result: `141 passed` for the focused local-model/import suite and
+  `1534 passed, 1 skipped, 6 deselected` for the full suite.
+- Scope: a distinct immutable embedding config and typed result/input values;
+  sync/async standalone adapters; lazy caller-controlled resolution and
+  embedding-only backend construction; strict bounded indexed-result
+  normalization; package-owned embedding errors; and package-root exports.
+- Boundaries: no chat adapter change, executor routing, workflow node, tool,
+  endpoint, capability, network, or live model use. Raw input/vector data is
+  excluded from errors, including malformed Unicode and oversized numeric cases.
+- Council/Ponytail: Council approved the final forced-loader, byte-vector,
+  huge-integer, and Unicode validation corrections. Ponytail confirms reuse of
+  the existing resolver and a private normalizer without a generic provider or
+  consumer abstraction. T5.4 is the next validation/docs checkpoint.

@@ -1,7 +1,8 @@
 # llama.cpp Local-Model Adapter Implementation Plan
 
 Status: active implementation record; Slices 1-3, T5.0 planning, T5.1
-standalone embedding contract, and T5.2 RED suite complete; T5.3 is next
+standalone embedding contract, T5.2 RED suite, and T5.3 implementation
+complete; T5.4 is next
 
 ## Goal
 
@@ -196,6 +197,10 @@ implementation.
 3. T5.3 implements the separately chosen embedding protocol/factory only after
    T5.1. Its loader forces `embedding=True`, rejects conflicting caller kwargs,
    and keeps chat and embedding instances distinct even for the same artifact.
+   The embedding config requires a nonempty host-bound expected model identity;
+   its loader kwargs are immutable. A response vector has one or more finite
+   scalar values, and the 16 MiB output bound measures compact UTF-8 JSON of
+   `{model,items:[{id,vector}]}` with `ensure_ascii=False` and `allow_nan=False`.
    Sync/async fake backend tests cover the selected upstream method, normalized
    results, malformed/non-finite/ragged responses, and failure translation.
 4. T5.4 records focused/full fake-only validation and documents the exact

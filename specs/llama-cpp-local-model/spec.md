@@ -10,7 +10,7 @@
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model follow-up
   work
-- Next gate: T5.3 fake-only standalone embedding implementation, or a separate
+- Next gate: T5.4 fake-only standalone embedding validation/docs, or a separate
   advisory feature such as
   `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md`
   remains the source of truth for fresh execution evidence
@@ -334,8 +334,9 @@ Raw texts and vectors must not enter traces or errors.
 
 The direct producer and terminal `embedding_step` accept at most 128 entries,
 each with an ID of at most 128 UTF-8 bytes and text of at most 64 KiB, with no
-more than 1 MiB of total text. They accept at most 8,192 dimensions and
-1,048,576 total finite scalar values, and return at most 16 MiB of encoded
+more than 1 MiB of total text. They accept at least one and at most 8,192
+dimensions and 1,048,576 total finite scalar values, and return at most 16 MiB
+of encoded
 result data. The model-selectable tool uses the same shape but admits at most
 eight entries, 8 KiB text per entry, 64 KiB total text, 2,048 dimensions,
 16,384 total scalars, and 256 KiB encoded result data. Its structured result is
@@ -344,7 +345,8 @@ array, represented as `tuple[float, ...]` in Python and a JSON number array on
 the tool boundary. It contains every requested ID/vector and the one host-bound
 model identity without repeating the model for every item.
 
-DAR passes the resolved host-bound model identity to `create_embedding(...)`.
+`LlamaCppLocalEmbeddingConfig.expected_model_id` is a required nonempty
+host-bound identity. DAR passes it to `create_embedding(...)`.
 The returned `model` must equal that identity; a mismatch raises the existing
 `LocalModelIdentityMismatchError` before a batch result is returned.
 
@@ -378,6 +380,13 @@ exact default-Hub snapshot; each hit invokes neither download helper. A missing
 Hub reference with `allow_network=False` raises
 `LocalModelOfflinePolicyError` before any download attempt. A permitted miss
 uses only the injected download helper.
+
+The 16 MiB producer output limit is the UTF-8 byte length of the canonical
+JSON object `{model,items:[{id,vector}]}`, encoded with `ensure_ascii=False`,
+`allow_nan=False`, and compact `(",", ":")` separators. Empty vectors are
+invalid upstream results. Embedding loader keyword arguments, when supplied,
+are copied into an immutable mapping; a caller-supplied `embedding` argument is
+invalid because the default loader owns and forces `embedding=True`.
 
 After the shared contract is delivered, two independent consumer slices are in
 scope: an `embedding_step` terminal workflow node that consumes batch input and
