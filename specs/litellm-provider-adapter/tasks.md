@@ -143,5 +143,15 @@
     live provider calls, and new dependencies.
 - [ ] L3.3 Add provider-specific capability/status reporting only after the
       default transport is stable.
+  - Readiness: deferred. The generic OpenAI adapters expose only baseline
+    `text_generation`; existing capability preflight consumes model coverage,
+    not adapter capability metadata, and no host currently consumes a LiteLLM
+    provider-status value.
+  - Reopen only when a host names one admission, preflight, or execution
+    decision; supplies the closed fields/states and their authority; and defines
+    unknown, stale, failure, precedence, and no-network behavior. Prove that
+    consumer outcome with fake sync/async inputs before adding adapter metadata.
+  - Exclusions while deferred: static provider/transport labels, LiteLLM probes
+    or catalogs, Router Responses inference, and a new generic status registry.
 - [ ] L3.4 Add PyInstaller hooks only when a concrete freeze validation fails or
       a downstream frozen client requires them.

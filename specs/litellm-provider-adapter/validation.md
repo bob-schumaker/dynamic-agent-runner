@@ -118,3 +118,10 @@ The completed upstream-dependency and shim-retirement slice does not:
   the result to 138. Full validation passed: 1596 passed, 1 skipped, 6
   deselected; `poetry run ruff check src tests` and `git diff --check` passed.
   Council and Ponytail approved the delivered explicit-injection boundary.
+- L3.3 readiness: Council's shipping triad and Ponytail deferred the slice. The
+  current generic adapter exposes only `text_generation`; no capability-status
+  report or host consumer reads provider-specific adapter metadata. Static
+  LiteLLM provenance or transport labels would be configuration introspection,
+  not actionable capability/status reporting. Reopen only with a named host
+  decision, closed fields/states, authority and freshness rules, and fake
+  sync/async tests proving the consumer outcome without a network probe.
