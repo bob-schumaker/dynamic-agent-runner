@@ -2,7 +2,8 @@
 
 Status: complete through Slice 3 and T5.0 embedding planning; standalone
 embedding contract, T5.2 RED suite, and T5.3 implementation complete; T5.4
-validation/docs complete; T5.5 terminal workflow integration is next
+validation/docs complete; T5.5 terminal workflow integration RED suite is
+complete and its GREEN implementation is next
 
 ## Scope
 
@@ -464,3 +465,30 @@ validation/docs complete; T5.5 terminal workflow integration is next
   binding, and one per-run input argument. No control plane, registry, model
   adapter, storage, or second embedding path is introduced.
 - Disposition: deliver-ready. T5.5 RED tests are next.
+
+### T5.5 RED — terminal embedding workflow integration contract
+
+- Reviewed artifact: commit `b2e3d0c` (`test(llama-cpp): add embedding step
+  RED coverage`).
+- Command: `poetry run pytest tests/test_artifacts.py tests/test_validation.py
+  tests/test_executor.py -q --tb=no`.
+- Observed result: `44 failed, 287 passed in 0.71s`. Every failure is at the
+  intentionally absent `embedding_step` primitive or its corresponding
+  manifest/context/executor entry point. The suite introduces no production
+  code.
+- Checks: `poetry run ruff check tests/test_artifacts.py
+  tests/test_validation.py tests/test_executor.py` and `poetry run pre-commit
+  run --files tests/test_artifacts.py tests/test_validation.py
+  tests/test_executor.py` passed.
+- Coverage: exact terminal manifest allowlist and no outgoing edges; typed
+  sync/async result handoff; host-bound profile and mode validation before
+  dispatch; bounded copied batch input; rejection of malformed bindings and
+  results; preservation of package-owned producer errors; safe closure of an
+  unexpected sync awaitable; immutable context bindings; and trace/error
+  redaction of input text and vectors.
+- Council/Ponytail: Council approved the completed RED boundary 3–0. Ponytail
+  confirms the tests use only local fakes and existing test seams: no generic
+  producer registry, second execution path, or T5.6 tool surface was added.
+- Explicit exclusions: no model or tool adapter, approval flow, registry,
+  storage, network, live model, download, endpoint, or external service is
+  involved. T5.5 GREEN implementation is the next task.
