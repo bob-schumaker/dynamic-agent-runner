@@ -27,6 +27,7 @@ class ControlledToolScenario:
     prompt: str
     expected_calls: tuple[tuple[str, Mapping[str, object]], ...]
     expected_error: str | None = None
+    after_tool_result_tool_choice: str = "auto"
 
 
 def controlled_tool_definitions() -> tuple[Mapping[str, object], ...]:
@@ -152,6 +153,7 @@ def controlled_tool_scenarios() -> tuple[ControlledToolScenario, ...]:
                     {"record_id": "record-seed", "operation": "uppercase"},
                 ),
             ),
+            after_tool_result_tool_choice="required",
         ),
         ControlledToolScenario(
             "S4",
@@ -192,7 +194,7 @@ def controlled_tool_workflow(
         if include_tool_choice_policy:
             policy["tool_choice_policy"] = {
                 "initial": "required",
-                "after_tool_result": "auto",
+                "after_tool_result": scenario.after_tool_result_tool_choice,
             }
     return LoadedAgentWorkflow(
         runtime_manifest=load_runtime_manifest(

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from dynamic_agent_runner.openai_client import ModelToolCall
 from model_interface_matrix import (
     controlled_tool_registry,
     controlled_tool_scenarios,
@@ -200,13 +201,47 @@ def test_live_runner_continues_after_row_local_adapter_errors(
     assert "credential=should-not-appear" not in repr(receipt)
 
 
+def test_live_runner_classifies_missing_required_tool_call_as_behavioral_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.errors import WorkflowExecutionError
+
+    module = _runner_module()
+    scenario = next(
+        candidate for candidate in controlled_tool_scenarios() if candidate.id == "S1"
+    )
+    monkeypatch.setattr(module, "_adapter", lambda *_args, **_kwargs: object())
+
+    def missing_required_tool_call(*_args: object, **_kwargs: object) -> object:
+        raise WorkflowExecutionError(
+            "llm_step node 'answer' completed without a required tool call"
+        )
+
+    monkeypatch.setattr(module, "execute_workflow", missing_required_tool_call)
+
+    row = module._run_scenario(
+        SimpleNamespace(
+            target="openai",
+            model="test-model",
+            base_url=None,
+            model_path=None,
+            expected_model_id=None,
+        ),
+        scenario,
+        asynchronous=False,
+    )
+
+    assert row["status"] == "behavioral_mismatch"
+    assert row["reason"] == "required_tool_call_missing"
+    assert row["failure_locus"] == "model_behavior"
+
+
 def test_live_runner_receipt_redacts_free_form_and_secret_values() -> None:
     module = _runner_module()
 
     projected = module._safe_value(
         {"api_key": "secret", "message": "operator supplied free-form text"}
     )
-
     assert projected["api_key"] == "redacted"
     assert projected["message"] == {
         "type": "string",
@@ -222,6 +257,44 @@ def test_live_runner_receipt_redacts_free_form_and_secret_values() -> None:
             "unavailable": 0,
             "skipped": 0,
         },
+    )
+
+
+def test_live_runner_normalized_call_classifier_accepts_json_string_arguments() -> None:
+    module = _runner_module()
+    scenario = next(
+        candidate for candidate in controlled_tool_scenarios() if candidate.id == "S4"
+    )
+    facts = [
+        {
+            "calls": (
+                ModelToolCall(
+                    id="call-1",
+                    name="fail_controlled",
+                    arguments='{"code":"planned"}',
+                ),
+            )
+        }
+    ]
+
+    assert module._normalized_calls_outcome(scenario, facts) == "matches"
+    assert module._normalized_calls_outcome(scenario, [{"calls": ()}]) == "mismatch"
+    assert (
+        module._normalized_calls_outcome(
+            scenario,
+            [
+                {
+                    "calls": (
+                        ModelToolCall(
+                            id="call-1",
+                            name="fail_controlled",
+                            arguments="not-json",
+                        ),
+                    )
+                }
+            ],
+        )
+        == "malformed"
     )
 
 

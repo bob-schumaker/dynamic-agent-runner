@@ -350,9 +350,9 @@ def _tool_schemas(tools: Sequence[object]) -> dict[str, object]:
     return schemas
 
 
-def _normalized_calls_match(
+def _normalized_calls_outcome(
     scenario: ControlledToolScenario, facts: Sequence[Mapping[str, object]]
-) -> bool:
+) -> str:
     expected_calls = tuple(
         (name, dict(arguments)) for name, arguments in scenario.expected_calls
     )
@@ -361,15 +361,20 @@ def _normalized_calls_match(
         for fact in facts
         for call in fact["calls"]  # type: ignore[union-attr]
     )
-    if any(
-        not isinstance(getattr(call, "name", None), str)
-        or not isinstance(getattr(call, "arguments", None), Mapping)
-        for call in all_calls
-    ):
-        return False
-    return (
-        tuple((call.name, dict(call.arguments)) for call in all_calls) == expected_calls
-    )
+    if any(not isinstance(getattr(call, "name", None), str) for call in all_calls):
+        return "malformed"
+    observed_calls: list[tuple[str, dict[str, object]]] = []
+    for call in all_calls:
+        arguments = call.arguments
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                return "malformed"
+        if not isinstance(arguments, Mapping):
+            return "malformed"
+        observed_calls.append((call.name, dict(arguments)))
+    return "matches" if tuple(observed_calls) == expected_calls else "mismatch"
 
 
 def _adapter_contract_matches(
@@ -402,18 +407,19 @@ def _adapter_contract_matches(
         and facts[0]["tool_choice"] != "required"
     ):
         return False
-    if scenario.id == "S3":
-        if len(facts) < 2:
-            return False
+    if scenario.id == "S3" and len(facts) >= 2:
         if not any(
             isinstance(message, Mapping) and message.get("role") == "tool"
             for message in facts[1]["messages"]  # type: ignore[union-attr]
         ):
             return False
-        if includes_tool_choice_policy and facts[1]["tool_choice"] != "auto":
+        expected_after_tool_choice = scenario.after_tool_result_tool_choice
+        if includes_tool_choice_policy and (
+            facts[1]["tool_choice"] != expected_after_tool_choice
+            if expected_after_tool_choice != "auto"
+            else facts[1]["tool_choice"] not in {None, "auto"}
+        ):
             return False
-    if not _normalized_calls_match(scenario, facts):
-        return False
     return True
 
 
@@ -444,6 +450,7 @@ def _adapter(arguments: argparse.Namespace, *, asynchronous: bool) -> object:
             model_aliases=(model,),
             model_path=Path(arguments.model_path),
             expected_model_id=arguments.expected_model_id,
+            model_kwargs={"chat_format": "chatml-function-calling", "verbose": False},
         )
         return (
             create_llama_cpp_local_async_adapter(config)
@@ -552,20 +559,34 @@ def _run_scenario(
         facts,
         includes_tool_choice_policy=arguments.target != "mlx_qwen3",
     )
+    normalized_calls_outcome = _normalized_calls_outcome(scenario, facts)
     completed = error is None and normal_text
+    missing_required_tool_call = isinstance(
+        error, WorkflowExecutionError
+    ) and "completed without a required tool call" in str(error)
     passed = (
         controlled_failure
         and observed_calls == expected_calls
         and len(facts) == 1
         and contract_matches
+        and normalized_calls_outcome == "matches"
         if expected_failure
-        else completed and observed_calls == expected_calls and contract_matches
+        else (
+            completed
+            and observed_calls == expected_calls
+            and contract_matches
+            and normalized_calls_outcome == "matches"
+        )
     )
-    adapter_error = not contract_matches
+    adapter_error = not contract_matches or normalized_calls_outcome == "malformed"
     status = (
         "passed"
         if passed
-        else ("adapter_error" if adapter_error or error else "behavioral_mismatch")
+        else (
+            "adapter_error"
+            if adapter_error or (error and not missing_required_tool_call)
+            else "behavioral_mismatch"
+        )
     )
     row = _row_base(
         arguments,
@@ -577,12 +598,20 @@ def _run_scenario(
             "status": status,
             "reason": "completed"
             if passed
-            else ("operational_error" if error else "positive_invariant_failed"),
+            else (
+                "required_tool_call_missing"
+                if missing_required_tool_call
+                else "operational_error"
+                if error
+                else "positive_invariant_failed"
+            ),
             "failure_locus": "not_applicable"
             if passed
             else (
                 "adapter_interface"
                 if adapter_error
+                else "model_behavior"
+                if missing_required_tool_call
                 else "indeterminate"
                 if error
                 else "model_behavior"
