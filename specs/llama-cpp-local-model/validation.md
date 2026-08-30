@@ -286,3 +286,24 @@ execution awaits T5.1's consumer/contract decision
   smallest outcome: do not add a generic embedding API before a consumer exists.
 - Next gate: T5.1 must resolve the consumer/output contract; it may stop for a
   user decision when no consumer is available.
+
+### T5.1 — Consumer and contract readiness review
+
+- Date: 2026-08-29
+- Source inspection: installed `llama-cpp-python` is `0.3.35`.
+  `llama_cpp.Llama.embed(input, normalize=False, truncate=True,
+  return_count=False)` and `create_embedding(input, model=None)` are both
+  available upstream candidates.
+- Consumer discovery: current DAR source has no `.embed(...)` or
+  `.create_embedding(...)` runtime caller and no local embedding protocol.
+  Context preparation keeps semantic/vector retrieval behind an injected
+  selector boundary; the RAG contract keeps embedding generation and retrieval
+  infrastructure caller-owned; graph-mutation explicitly defers local-embedding
+  transport.
+- Review: Council unanimously found no legitimate internal consumer. Ponytail
+  agrees that adding a generic embedding configuration or choosing an upstream
+  method now would be speculative package surface.
+- Disposition: blocked pending a user-named internal consumer and its output
+  contract. T5.1 remains unchecked; T5.2--T5.4, model loading, networking, and
+  public exports remain unauthorized. Re-enter T5.1 by naming the consumer, or
+  by explicitly authorizing a standalone embedding surface as new scope.
