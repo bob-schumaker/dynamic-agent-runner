@@ -106,12 +106,14 @@ the narrow envelope parser in
 [`qwen3_mlx_tools.py`](../../src/dynamic_agent_runner/qwen3_mlx_tools.py) rather
 than relying on that incomplete upstream parser.
 
-`create_qwen3_mlx_local_adapter()` is opt-in and requires both a caller-loaded
-model/tokenizer pair and `MLXLocalModelConfig.expected_model_id` equal to the
-pinned artifact identity. It supports only omitted DAR `tool_choice`, one pure
-native envelope, and one JSON-object argument payload. Generic MLX factories
-remain text-only, and no model-family-name detection, profile registry, tool
-dispatch, approval behavior, or alternate artifact is added.
+`create_qwen3_mlx_local_adapter()` and
+`create_qwen3_mlx_local_async_adapter()` are opt-in and require both a
+caller-loaded model/tokenizer pair and `MLXLocalModelConfig.expected_model_id`
+equal to the pinned artifact identity. They support only omitted DAR
+`tool_choice`, one pure native envelope, and one JSON-object argument payload.
+Generic MLX factories remain text-only, and no model-family-name detection,
+profile registry, tool dispatch, approval behavior, or alternate artifact is
+added.
 
 ### Superseded upstream-parser-only codec-profile activation
 

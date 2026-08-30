@@ -356,10 +356,10 @@ the pinned configured model ID, and leaves generic MLX factories text-only.
       explicit helper.
   - Files: `src/dynamic_agent_runner/qwen3_mlx_tools.py`,
     `src/dynamic_agent_runner/__init__.py`.
-  - Delivery: `create_qwen3_mlx_local_adapter()` accepts a caller-loaded model
-    and tokenizer, pairs an owned strict codec with a compatible backend, and
-    requires the pinned configured model identity. It does not change generic
-    MLX factories, add model-family detection, or add an executor/approval path.
+  - Delivery: sync and async Qwen3 helpers accept a caller-loaded model and
+    tokenizer, pair an owned strict codec with a compatible backend, and require
+    the pinned configured model identity. They do not change generic MLX
+    factories, add model-family detection, or add an executor/approval path.
 
 - [ ] T6.4.4 [tests/integration] Prove the built-in Qwen3 pair uses DAR's
       ordinary sync and async tool/continuation flow.

@@ -25,7 +25,7 @@ response parsing contract in
 [`m6.4-compatibility-profile.md`](m6.4-compatibility-profile.md): the installed
 parser accepts extracted JSON but rejects the template's delimiter-wrapped tool
 response. DAR now owns that narrow, strict envelope parser in
-`qwen3_mlx_tools.py`, together with `create_qwen3_mlx_local_adapter()`.
+`qwen3_mlx_tools.py`, together with sync and async Qwen3 helper factories.
 
 The helper is explicit rather than selected by a model-family name. It requires
 the caller to provide the loaded MLX `(model, tokenizer)` pair and to configure

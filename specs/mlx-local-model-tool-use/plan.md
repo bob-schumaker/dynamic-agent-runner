@@ -115,11 +115,11 @@ pre-commit run --files <changed files>
 
 T6.4.1 found that the selected `mlx_lm` parser accepts extracted JSON but not
 the pinned Qwen3 template's delimiter-wrapped native response. DAR now owns one
-strict parser and `create_qwen3_mlx_local_adapter()` in a separate source
-module. The helper requires a caller-loaded model/tokenizer pair and the pinned
-configured model identity; it supports only omitted `tool_choice` and leaves
-generic MLX factories text-only. Manual model competency remains separate from
-the fake-only source contract tests.
+strict parser and sync/async Qwen3 helpers in a separate source module. The
+helpers require a caller-loaded model/tokenizer pair and the pinned configured
+model identity; they support only omitted `tool_choice` and leave generic MLX
+factories text-only. Manual model competency remains separate from the fake-only
+source contract tests.
 
 ## Superseded M6.4 Approach — Built-in Qwen3 MLX Codec
 

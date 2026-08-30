@@ -338,9 +338,10 @@ Structured output, embeddings, multimodal IO, streaming public APIs,
 conversion, and server lifecycle helpers remain unsupported feature surfaces.
 
 For the pinned ``mlx-community/Qwen3-4B-Instruct-2507-nvfp4`` artifact,
-``create_qwen3_mlx_local_adapter(...)`` packages a strict native-envelope codec
-with a compatible backend. The caller loads the exact local model and passes its
-``(model, tokenizer)`` pair; ``expected_model_id`` must be
+``create_qwen3_mlx_local_adapter(...)`` and
+``create_qwen3_mlx_local_async_adapter(...)`` package a strict native-envelope
+codec with a compatible backend. The caller loads the exact local model and
+passes its ``(model, tokenizer)`` pair; ``expected_model_id`` must be
 ``PINNED_QWEN3_MLX_MODEL_ID``:
 
 .. code-block:: python
@@ -351,15 +352,23 @@ with a compatible backend. The caller loads the exact local model and passes its
        PINNED_QWEN3_MLX_MODEL_ID,
        MLXLocalModelConfig,
        create_qwen3_mlx_local_adapter,
+       create_qwen3_mlx_local_async_adapter,
    )
 
    model, tokenizer = load("path/to/Qwen3-4B-Instruct-2507-nvfp4")
+   qwen3_config = MLXLocalModelConfig(
+       model_aliases=("qwen3-local",),
+       model_path="path/to/Qwen3-4B-Instruct-2507-nvfp4",
+       expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+   )
    adapter = create_qwen3_mlx_local_adapter(
-       MLXLocalModelConfig(
-           model_aliases=("qwen3-local",),
-           model_path="path/to/Qwen3-4B-Instruct-2507-nvfp4",
-           expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
-       ),
+       qwen3_config,
+       model=model,
+       tokenizer=tokenizer,
+   )
+
+   async_adapter = create_qwen3_mlx_local_async_adapter(
+       qwen3_config,
        model=model,
        tokenizer=tokenizer,
    )

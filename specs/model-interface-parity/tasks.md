@@ -25,7 +25,7 @@ may substitute an adapter-only assertion for coordinator dispatch.
 | LiteLLM scripted completion | sync, async | S1-S6 |
 | recording local endpoint transport | sync, async | S1-S6 |
 | injected llama.cpp backend | sync, async | S1-S6 |
-| compatible injected MLX pair | sync, async | S1-S6 |
+| owned Qwen3 MLX helper | sync, async | S1-S6 |
 | Apple injected SDK/bridge | async | S1-S6 |
 
 The stock MLX sync and async factories are separate expected-negative cells:
@@ -165,24 +165,23 @@ timestamps, and token usage remain diagnostic only.
     S3 continuation, S4 stop/no-continuation, S6 pre-dispatch rejection, and
     equal normalized projections.
 
-- [x] T1.4 [tests] Add injected-pair MLX contract coverage and an explicit
+- [x] T1.4 [tests] Add owned-Qwen3 MLX contract coverage and an explicit
       stock-backend unsupported regression.
   - Spec: Interface Matrix; FR-3; Validation Checklist
   - Files/components: `tests/test_mlx_models.py`, `tests/test_executor.py`, and
     the T1.1 fixture helpers.
-    Reuse only the existing compatible fake codec/backend seam with a
-    test-local sequence backend and a small sync/async delegating response
-    recorder; derive `ParityRecord.normalized_calls` from returned adapter
-    responses, never expected codec candidates. A minimal converted-layout
-    `tmp_path` directory may satisfy the adapter's local-path validation, but
-    is inert metadata, not an MLX artifact. Inject fail-on-call dependency,
-    download, default-loader, and `mlx_lm` import guards and prove the backend
-    is the sole generation route. Execute full S1–S6 in sync and async,
+    Use the public owned-Qwen3 sync/async helpers with a test-local tokenizer
+    and fake `mlx_lm.generate`; derive `ParityRecord.normalized_calls` from
+    returned adapter responses, never expected candidates. A minimal
+    converted-layout `tmp_path` directory may satisfy the adapter's local-path
+    validation, but is inert metadata, not an MLX artifact. Inject fail-on-call
+    default-loader guards and prove the fake native generation function is the
+    sole generation route. Execute full S1–S6 in sync and async,
     including every S2-invalid variant: missing, wrong-type, enum, and unknown
     arguments must reach normal loop validation, while malformed JSON is
     rejected by the MLX codec-normalization boundary before a normalized call.
     Assert S3's three renders with `record-seed` in the continuation, S4's one
-    render/`tool_failure`/no continuation, S6's malformed codec candidate
+    render/`tool_failure`/no continuation, S6's malformed native envelope
     before coordinator or handler dispatch, and equal sync/async record
     projections. For each public stock factory,
     inject `_MLXLMBackend` with opaque model/tokenizer spies and an otherwise
@@ -190,28 +189,27 @@ timestamps, and token usage remain diagnostic only.
     executor/registry. Assert `tool_calling=False`, package-owned rejection
     before resolution, codec render/decode or backend generation, loader or
     download, and coordinator or handler dispatch.
-  - Acceptance: the compatible injected pair executes S1-S6 in sync and async
-    form with the shared record and T1.1 blocker, through the public
+  - Acceptance: the owned Qwen3 helper executes S1-S6 in sync and async form
+    with the shared record and T1.1 blocker, through the public
     executor/coordinator. S2-invalid reaches validation but has zero handler
     dispatches, while S6 has zero coordinator and handler dispatches. The stock
     `_MLXLMBackend` sync and async factories reject a
     tool-bearing request before generation and cannot be counted as
     parity-capable.
-  - Expected RED: the compatible pair does not yet satisfy each named record;
+  - Expected RED: the owned helper does not yet satisfy each named record;
     the stock-negative test is GREEN only on rejection before dispatch.
-  - Gate: no default codec claim, `mlx_lm` import, model load, or live Qwen run.
+  - Gate: no model load or live Qwen run; the test injects a fake `mlx_lm`
+    module only at its public generation import seam.
   - Validation: `poetry run pytest tests/test_mlx_models.py
     tests/test_executor.py -q`.
-  - Delivered: `tests/test_mlx_models.py` drives the existing compatible fake
-    codec/backend pair through S1–S6 using real injected adapter responses and
-    a test-local recorder, for both public factories. The inert converted
-    layout is only adapter metadata; import, default-loader, dependency, and
-    download guards remain untouched. Missing, wrong-type, enum, and unknown
-    S2 arguments reach normal loop validation, while malformed JSON is
-    correctly rejected by the codec-normalization boundary before a normalized
-    call. Each public stock factory is exercised through the executor with an
-    injected `_MLXLMBackend` and compatible codec; it reports no tool capability
-    and rejects before path resolution, codec activity, generation, or dispatch.
+  - Delivered: `tests/test_mlx_models.py` drives the public owned-Qwen3 sync
+    and async helpers through S1–S6 with fake native envelope output. The inert
+    converted layout is only adapter metadata; the default loader remains
+    untouched. Missing, wrong-type, enum, and unknown S2 arguments reach normal
+    loop validation, while malformed envelopes are rejected before a normalized
+    call. Each public stock factory remains an expected negative through the
+    executor: it reports no tool capability and rejects before path resolution,
+    codec activity, generation, or dispatch.
 
 - [x] T1.5 [tests] Add Apple Foundation Models injected SDK/bridge contract
       coverage for its asynchronous callback path.
@@ -299,7 +297,7 @@ timestamps, and token usage remain diagnostic only.
       tests/test_litellm_provider_adapter.py::test_model_interface_parity_litellm_native_scenarios \
       tests/test_local_models.py::test_model_interface_parity_local_endpoint_native_scenarios \
       tests/test_local_models.py::test_model_interface_parity_llama_cpp_native_scenarios \
-      tests/test_mlx_models.py::test_model_interface_parity_mlx_injected_pair_native_scenarios \
+      tests/test_mlx_models.py::test_model_interface_parity_mlx_qwen3_owned_codec_native_scenarios \
       tests/test_mlx_models.py::test_model_interface_parity_stock_mlx_rejects_tools_before_dispatch \
       tests/test_apple_foundation_models.py::test_model_interface_parity_apple_callback_native_scenarios
     ```

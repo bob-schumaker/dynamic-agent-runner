@@ -376,8 +376,9 @@ streaming public APIs, conversion, and server lifecycle helpers remain separate
 unsupported feature surfaces.
 
 For the pinned `mlx-community/Qwen3-4B-Instruct-2507-nvfp4` artifact, DAR also
-ships an explicit convenience helper. Load that exact local model first, then
-pass its pair to `create_qwen3_mlx_local_adapter`; the configuration must use
+ships explicit sync and async convenience helpers. Load that exact local model
+first, then pass its pair to `create_qwen3_mlx_local_adapter` or
+`create_qwen3_mlx_local_async_adapter`; the configuration must use
 `PINNED_QWEN3_MLX_MODEL_ID` as `expected_model_id`:
 
 ```python
@@ -387,15 +388,23 @@ from dynamic_agent_runner import (
     PINNED_QWEN3_MLX_MODEL_ID,
     MLXLocalModelConfig,
     create_qwen3_mlx_local_adapter,
+    create_qwen3_mlx_local_async_adapter,
 )
 
 model, tokenizer = load("path/to/Qwen3-4B-Instruct-2507-nvfp4")
+qwen3_config = MLXLocalModelConfig(
+    model_aliases=("qwen3-local",),
+    model_path="path/to/Qwen3-4B-Instruct-2507-nvfp4",
+    expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+)
 qwen3_adapter = create_qwen3_mlx_local_adapter(
-    MLXLocalModelConfig(
-        model_aliases=("qwen3-local",),
-        model_path="path/to/Qwen3-4B-Instruct-2507-nvfp4",
-        expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
-    ),
+    qwen3_config,
+    model=model,
+    tokenizer=tokenizer,
+)
+
+qwen3_async_adapter = create_qwen3_mlx_local_async_adapter(
+    qwen3_config,
     model=model,
     tokenizer=tokenizer,
 )

@@ -1,6 +1,6 @@
 # Model Interface Tool-Parity Validation Receipt
 
-Date: 2026-08-29
+Date: 2026-08-30
 
 ## Deterministic Closure Ledger
 
@@ -35,7 +35,7 @@ endpoint_nodes: &endpoint_nodes
 llama_nodes: &llama_nodes
   - tests/test_local_models.py::test_model_interface_parity_llama_cpp_native_scenarios
 mlx_nodes: &mlx_nodes
-  - tests/test_mlx_models.py::test_model_interface_parity_mlx_injected_pair_native_scenarios
+  - tests/test_mlx_models.py::test_model_interface_parity_mlx_qwen3_owned_codec_native_scenarios
 apple_nodes: &apple_nodes
   - tests/test_apple_foundation_models.py::test_model_interface_parity_apple_callback_native_scenarios
 positive_rows:
@@ -49,8 +49,8 @@ positive_rows:
   - {interface: local_endpoint_recording_transport, mode: async, nodes: *endpoint_nodes, result: passed}
   - {interface: llama_cpp_injected_backend, mode: sync, nodes: *llama_nodes, result: passed}
   - {interface: llama_cpp_injected_backend, mode: async, nodes: *llama_nodes, result: passed}
-  - {interface: mlx_injected_compatible_pair, mode: sync, nodes: *mlx_nodes, result: passed}
-  - {interface: mlx_injected_compatible_pair, mode: async, nodes: *mlx_nodes, result: passed}
+  - {interface: mlx_qwen3_owned_codec, mode: sync, nodes: *mlx_nodes, result: passed}
+  - {interface: mlx_qwen3_owned_codec, mode: async, nodes: *mlx_nodes, result: passed}
   - {interface: apple_injected_callback_bridge, mode: async, nodes: *apple_nodes, result: passed}
 negative_rows:
   - {interface: mlx_stock_backend, mode: sync, node: tests/test_mlx_models.py::test_model_interface_parity_stock_mlx_rejects_tools_before_dispatch, result: passed}
@@ -87,16 +87,16 @@ poetry run pytest -q \
   tests/test_litellm_provider_adapter.py::test_model_interface_parity_litellm_native_scenarios \
   tests/test_local_models.py::test_model_interface_parity_local_endpoint_native_scenarios \
   tests/test_local_models.py::test_model_interface_parity_llama_cpp_native_scenarios \
-  tests/test_mlx_models.py::test_model_interface_parity_mlx_injected_pair_native_scenarios \
+  tests/test_mlx_models.py::test_model_interface_parity_mlx_qwen3_owned_codec_native_scenarios \
   tests/test_mlx_models.py::test_model_interface_parity_stock_mlx_rejects_tools_before_dispatch \
   tests/test_apple_foundation_models.py::test_model_interface_parity_apple_callback_native_scenarios
 # 143 passed
 
 poetry run pytest -q tests/test_executor.py tests/test_openai_client.py tests/test_litellm_provider_adapter.py tests/test_local_models.py tests/test_mlx_models.py tests/test_apple_foundation_models.py
-# 578 passed
+# 695 passed
 
 poetry run pytest -q
-# 1451 passed, 1 skipped, 6 deselected
+# 1613 passed, 1 skipped, 6 deselected
 
 poetry run ruff check src tests
 poetry run ruff format --check src tests
@@ -110,7 +110,7 @@ poetry run ruff format --check src tests
 | Gate | Status | Reason and owner |
 | --- | --- | --- |
 | Approval interaction | not run | A separate deterministic coordinator/executor pass must cover deny, approve once, and approve for this run with `create_record`; it is not a no-approval interface-parity prerequisite. |
-| Local-model competency | not run | Manual, eligible-host Qwen3 evidence is outside pytest and CI; the stock MLX backend remains intentionally unsupported. |
+| Local-model competency | not run | Manual, eligible-host Qwen3 evidence is outside pytest and CI; the generic stock MLX backend remains intentionally unsupported. |
 | Live/external acceptance | not run | Fastmail, MCP, OAuth, Apple eligible-Mac execution, and external mutations require their own authorized acceptance process and are prohibited by this suite. |
 
 No scoped test made a network request, authenticated, loaded/downloaded a model,

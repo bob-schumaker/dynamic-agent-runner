@@ -78,7 +78,7 @@ controlled fixture.
 | LiteLLM sync and async adapters | scripted completion client | not required |
 | OpenAI-compatible local endpoint sync and async adapters | recording local transport | eligible when a caller supplies a compatible server |
 | Direct llama.cpp sync and async adapters | injected llama.cpp backend | eligible with a pinned GGUF artifact |
-| In-process MLX sync and async adapters | injected compatible MLX codec/backend seam | contract-eligible through the injected pair; the stock backend remains unsupported |
+| In-process MLX sync and async adapters | owned Qwen3 MLX helper with fake native generation | deterministic matrix complete; the stock backend remains unsupported |
 | Apple Foundation Models async adapter | injected SDK/bridge seam | eligible on an eligible Mac as a separate provider-family run |
 
 The model-agnostic executor-level fixture must also run with sync and async
@@ -231,7 +231,7 @@ fakes, injected backends, or a recording local transport.
 
 This is optional, manually initiated, and outside CI. It uses Qwen3 Instruct
 with fixed generation settings to compare direct llama.cpp, a compatible local
-endpoint, and an explicitly compatible MLX codec/backend pair. The stock MLX
+endpoint, and the explicit Qwen3 MLX helper. The stock MLX
 backend remains outside this measurement because it rejects tool-bearing
 requests. The MLX artifact revision is owned by
 [`mlx-local-model-tool-use/implementation-decision.md`](../mlx-local-model-tool-use/implementation-decision.md).
@@ -272,7 +272,7 @@ state, or network resources.
 
 Tests must not mark an adapter as tool-parity capable merely because a fake
 backend can return a tool call. Capability metadata and public behavior must
-agree. The MLX injected compatible codec/backend pair is tool-capable, while
+agree. The explicit Qwen3 MLX helper is tool-capable, while
 the stock MLX backend remains an expected unsupported case.
 
 ### FR-4: Separation of concerns
