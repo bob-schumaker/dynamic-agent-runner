@@ -35,3 +35,22 @@ invalid payload. The endpoint, MLX, llama.cpp, and LiteLLM S1 outcomes require
 compatibility evidence before a runtime change is specified. The Apple failure
 occurs while DAR constructs the SDK bridge wrapper, before model behavior is
 measured, and is therefore tracked as a bug task.
+
+## T4.2 Authorized Live Receipt — 2026-08-30
+
+Authorization scope: cached local artifacts only; endpoint, `mlx_qwen3`, and
+`llama_cpp`; sync and async; S1--S5; vLLM lifecycle started and stopped in the
+temporary Herdr workspace `dar-live-vllm-t4-2`; opaque authorization reference
+provided as `matrix-20260830` and retained by each receipt only as a digest.
+
+| Target | Artifact | Receipt status | Row counts | Lifecycle result |
+| --- | --- | --- | --- | --- |
+| endpoint | `mlx-community/Qwen3-4B-Instruct-2507-nvfp4` revision `111ab717db337468c86004a79bd9df19c6e3986d`, local vLLM with `qwen3_xml` | `adapter_error` | 10 adapter errors | vLLM started by `vllm-metalctl` in Herdr and stopped afterward |
+| `mlx_qwen3` | same pinned Qwen3 MLX artifact | `adapter_error` | 2 passed (S5 sync/async), 8 adapter errors (S1--S4 sync/async) | in-process only |
+| `llama_cpp` | cached `Qwen2.5-3B-Instruct` Q4_K_M GGUF with llama.cpp `chatml-function-calling` | `passed` | 10 passed (S1--S5 sync/async) | in-process only |
+
+These are classified observations, not evidence that any model artifact alone
+is defective. The final llama.cpp rerun uses the handler's native function-call
+grammar, adapts DAR's flat tool schema at the handler boundary, and renders
+tool results in the handler's supported message form. Its v5 receipt records
+all ten rows as passed.

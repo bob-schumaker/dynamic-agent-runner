@@ -5,7 +5,7 @@
 - Feature slug: `live-model-interface-acceptance`
 - Mode: `guided`
 - Artifact type: manually gated acceptance contract
-- Status: automated delivery complete; manual evidence gate pending
+- Status: manual acceptance evidence recorded
 - Owner: `specs/model-interface-parity/spec.md`
 - Related specs:
   - `specs/model-interface-parity/spec.md`

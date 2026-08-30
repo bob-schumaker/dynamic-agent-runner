@@ -2,8 +2,7 @@
 
 ## Metadata
 
-- Status: automated delivery complete under `tasks.md`; manual evidence remains
-  a delivery-time gate
+- Status: delivery complete; manual evidence recorded in `validation.md`
 - Governing spec: `spec.md`
 - Parent deterministic contract: `../model-interface-parity/spec.md`
 - Delivery target: this repository's working tree at

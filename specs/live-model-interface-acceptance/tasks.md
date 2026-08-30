@@ -91,7 +91,7 @@ Status: implementation-ready; execute T1 through T4 in order
       commands in `plan.md`.
   - Acceptance: all automated checks pass without live provider, model download,
     server, or external tool activity.
-- [ ] T4.2 [manual gate] With an explicit current authorization and
+- [x] T4.2 [manual gate] With an explicit current authorization and
       `DAR_RUN_LIVE_MODEL_INTERFACE_MATRIX=1`, run one configured target at a
       time. The authorization must name target, model/configuration, modes,
       scenarios, and any local-server lifecycle. The operator owns server
