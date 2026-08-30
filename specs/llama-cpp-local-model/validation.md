@@ -2,7 +2,7 @@
 
 Status: complete through Slice 3 and T5.0 embedding planning; standalone
 embedding contract, T5.2 RED suite, T5.3 implementation, T5.4 validation/docs,
-and T5.5 terminal workflow integration complete; T5.6 tool exposure is next
+T5.5 terminal workflow integration, and T5.6 tool exposure complete
 
 ## Scope
 
@@ -18,8 +18,10 @@ and T5.5 terminal workflow integration complete; T5.6 tool exposure is next
   endpoint-failure translation is now implemented in `f4bcb0e`, T2.5 default
   Hub download wiring is now implemented in `d5857dd`, T2.6 authoritative
   model-identity preservation is now implemented in `9b7078f`, and Slice 3
-  direct in-process llama.cpp chat is implemented in `58136d9`; the feature is
-  complete through T3.5 and T4.5, with optional embedding follow-up unscheduled
+  direct in-process llama.cpp chat is implemented in `58136d9`; the standalone
+  embedding producer and terminal workflow are implemented in `27826d8` and
+  `52c4ace`, and model-selectable tool exposure is implemented in `29090bc`.
+  The feature is complete through T5.6.
 
 ## Executed Checks
 

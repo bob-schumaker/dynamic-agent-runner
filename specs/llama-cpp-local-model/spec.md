@@ -761,22 +761,23 @@ this specification.
 ### Assumptions
 
 - The repository now has local endpoint helpers, local model asset resolution,
-  and direct in-process llama.cpp chat adapters. Broader llama.cpp follow-up
-  work still requires fresh validation as each slice lands.
+  direct in-process llama.cpp chat adapters, standalone embeddings, and both
+  authorized embedding integrations. Broader llama.cpp follow-up work still
+  requires fresh validation as each slice lands.
 - Direct llama.cpp execution should use the installed `llama-cpp-python`
   dependency without the `server` extra.
 - The caller or deployer can own endpoint provisioning, credentials, readiness,
   and lifecycle when choosing the server-backed wrapper path.
-- Local embedding support may be deferred, but the contract defined in this spec
-  must remain stable enough for later planning and implementation to build on it.
+- The completed embedding contract must remain stable enough for future
+  follow-up work to build on it.
 
 ## Open Questions and Next Planning Decisions
 
-- No blocking `NEEDS CLARIFICATION` items remain for completed Slices 1-3.
-- The next SDD gate may plan the optional embedding follow-up or a separate
-  advisory feature such as llama.cpp memory-fit profiling.
-- `tasks.md` should keep optional embedding or advisory profiling work separate
-  from completed direct in-process local chat.
+- No blocking `NEEDS CLARIFICATION` items remain for the completed feature.
+- Any next SDD gate must define a separate advisory feature, such as llama.cpp
+  memory-fit profiling.
+- `tasks.md` should keep any future advisory profiling work separate from
+  completed local chat and embedding integrations.
 
 ## Design Constraints
 

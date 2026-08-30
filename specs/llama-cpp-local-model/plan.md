@@ -2,7 +2,8 @@
 
 Status: active implementation record; Slices 1-3, T5.0 planning, T5.1
 standalone embedding contract, T5.2 RED suite, T5.3 implementation, T5.4
-validation/docs, and T5.5 terminal workflow integration complete; T5.6 is next
+validation/docs, T5.5 terminal workflow integration, and T5.6 tool exposure
+complete
 
 ## Goal
 
@@ -35,8 +36,8 @@ the existing OpenAI-compatible endpoint path when callers already provide one.
   overloading `executor.py` with provider-specific behavior.
 - Runtime-managed server launch, supervision, readiness, and shutdown remain
   out of scope.
-- Optional embedding follow-up should be planned as a later slice that extends
-  the same local-model helper surface without changing the core executor path.
+- Completed embedding work extends the same local-model helper surface without
+  changing the core executor path.
 
 ## Source Artifacts
 
@@ -157,10 +158,9 @@ lifecycle ownership.
 
 ### Slice 5 — Separate local embedding configuration
 
-T5.0 makes this a bounded follow-up rather than authorizing embedding runtime
-work. A standalone embedding surface is now authorized, but DAR has no approved
-embedding execution contract, so the next step is T5.1, not a config or backend
-implementation.
+T5.0 made this a bounded follow-up rather than authorizing embedding runtime
+work. T5.1-T5.6 now complete the standalone embedding surface plus its terminal
+workflow and model-selectable tool integrations.
 
 1. T5.1 specifies the standalone caller-visible surface and records a
    source-inspected upstream method, input batching shape, normalized ordered
@@ -253,8 +253,8 @@ direct `llama_cpp.Llama` adapter for in-process execution.
 
 - It preserves the current executor contract and adapter coverage behavior.
 - It keeps provider-specific configuration out of `executor.py`.
-- It creates one place to evolve local endpoint config, model references,
-  resolution helpers, direct llama.cpp adapters, and optional embeddings.
+- It creates one place for local endpoint config, model references, resolution
+  helpers, direct llama.cpp adapters, and embeddings.
 - It keeps response normalization and request shaping under current repository
   ownership.
 
@@ -536,5 +536,5 @@ Initial recorded evidence:
   `58136d9`. Slices 1-3 are now complete through endpoint helpers, model asset
   resolution, failure taxonomy, default Hub download wiring, authoritative
   mismatch-identity preservation, and direct in-process llama.cpp sync/async
-  adapters. Any next work is optional embedding or advisory profiling follow-up
-  rather than an unfinished direct-chat gate.
+  adapters. Future work requires a separately scoped advisory follow-up rather
+  than an unfinished direct-chat or embedding gate.

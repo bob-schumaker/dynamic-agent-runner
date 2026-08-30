@@ -37,11 +37,10 @@ terminal workflow integration and T5.6 tool exposure complete
   (`feat(local-models): preserve authoritative model identity`); the Slice 2
   validation checkpoint is complete through T4.4 and the first validation pass
   remains complete through T4.5
-- Current execution gate: direct in-process llama.cpp chat is implemented
-  through T3.5; optional embedding follow-up remains unscheduled
-- Scope rule: keep completed endpoint-wrapper work separate from the next direct
-  in-process llama.cpp chat slice; do not merge graph-mutation or
-  runtime-managed server work into these tasks
+- Current execution gate: no remaining planned task; direct in-process
+  llama.cpp chat and all authorized embedding work are complete through T5.6
+- Scope rule: keep completed endpoint-wrapper, direct-chat, and embedding work
+  separate from any future graph-mutation or runtime-managed server slice
 
 ## Slice 1 — Endpoint-backed local chat through the existing provider seam
 
@@ -354,7 +353,7 @@ terminal workflow integration and T5.6 tool exposure complete
 - [x] T5.0 [planning] Add a focused embedding task breakdown before implementing
       separate local embedding configuration.
   - Spec: FR-3
-  - Plan: optional embedding follow-up
+  - Plan: Slice 5 — Separate Local Embedding Configuration
   - Files/components: `specs/llama-cpp-local-model/{spec,plan,tasks,validation}.md`
   - Depends on: Slice 3
   - Validation: spec/task review
@@ -638,7 +637,7 @@ terminal workflow integration and T5.6 tool exposure complete
 - Slice 2 should not begin until the endpoint-backed local chat checkpoint is
   stable.
 - Slice 3 direct in-process llama.cpp chat is complete through T3.5.
-- Slice 5 embedding follow-up remains optional and should not block direct local
+- Slice 5 embedding work is complete and remains separate from direct local
   chat delivery.
 
 ## Checkpoints
@@ -649,8 +648,8 @@ terminal workflow integration and T5.6 tool exposure complete
   work without taking ownership of server lifecycle.
 - Checkpoint 3 — direct in-process llama.cpp chat works without requiring a
   server.
-- Checkpoint 4 — optional embedding follow-up remains separate from
-  graph-mutation delivery.
+- Checkpoint 4 — completed embedding work remains separate from graph-mutation
+  delivery.
 
 ## Validation Commands
 
