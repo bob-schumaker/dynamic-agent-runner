@@ -80,3 +80,23 @@
       hosts need preflight visibility.
 - [ ] T3.3 Add descriptor compression or summarization only as a separate spec
       after selection/packing behavior is stable.
+
+### T3 Readiness Receipt (2026-08-30)
+
+Council shipping-triad and Ponytail reviews found no deliverable runtime change
+for these conditional follow-ups; all three checkboxes remain open.
+
+- **T3.1:** the Slice T1 trace covers an intentional `max_tools` omission, not
+  a fallback failure. T2.3's false omissions are evaluator-only evidence, not a
+  scorer-tuning target. Reopen with a redacted runtime trace showing a concrete
+  unsafe omission or low-confidence outcome, then name the fallback behavior
+  and add a focused RED/GREEN test.
+- **T3.2:** no current host capability/preflight consumer reads descriptor
+  budgeting. Static policy reporting would duplicate manifest metadata, while
+  selected tools and fit depend on the prepared prompt and exposed registry.
+  Reopen when a host names its pre-execution decision and the required input and
+  bounded report contract.
+- **T3.3:** the T1/T2 selection and packing boundary is stable, but no measured
+  descriptor-payload pressure case is recorded after packing. Reopen with a
+  measured case that selection cannot solve, a chosen transformation class, and
+  schema-preservation, provider-compatibility, and fake-test acceptance gates.
