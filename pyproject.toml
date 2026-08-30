@@ -71,6 +71,7 @@ werner = {extras = ["login"], version = "^0.4.216"}
 [tool.poetry.group.test.dependencies]
 pytest-cov = "^7.1.0"
 pytest-parallel = "^0.1.1"
+nltk = "^3.9.3"
 
 [[tool.poetry.source]]
 name = 'global-release-pypi'
