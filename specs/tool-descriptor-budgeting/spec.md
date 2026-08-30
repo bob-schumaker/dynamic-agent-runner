@@ -314,6 +314,13 @@ Experiment constraints:
   runtime overhead, package size, and setup friction
 - use fixed local fixtures and no live model or external service calls
 
+The fixture corpus is an evaluator-only contract at
+`tests/fixtures/tool-descriptor-budgeting/benchmark-v1.json`. Each case records
+a prompt, self-contained eligible tool descriptors, expected required tools,
+acceptable optional tools, and explicit false-omission checks. The fixture
+contract must not execute or encode the behavior of `ToolSelector`; T2.2 owns
+applying competing scorers to it and T2.3 owns measurements.
+
 Promotion criteria:
 
 - NLTK must improve relevant-tool recall or reduce false omissions enough to

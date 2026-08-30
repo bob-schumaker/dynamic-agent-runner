@@ -3,7 +3,7 @@
 ## Metadata
 
 - Feature slug: `tool-descriptor-budgeting`
-- Status: Slice T1 implementation validation complete
+- Status: Slice T1 implementation validation complete; T2.1 fixture corpus complete
 - Date: 2026-06-22
 
 ## Readiness Checks
@@ -55,6 +55,27 @@ pre-commit run --files \
 Implementation commit:
 
 - `fd1b54c feat(registry): add tool descriptor budgeting`
+
+## T2.1 Fixture-Corpus Validation
+
+- `tests/fixtures/tool-descriptor-budgeting/benchmark-v1.json` contains five
+  fixed, local, self-contained evaluator cases.
+- `tests/test_tool_descriptor_benchmark_fixtures.py` validates the versioned
+  fixture shape, eligible-tool descriptors, required/optional membership,
+  false-omission checks, distractors, and the planned case identities.
+- The fixture test does not invoke `ToolSelector`, so it remains a scorer-neutral
+  oracle for T2.2 and T2.3.
+
+Focused RED/GREEN validation:
+
+```bash
+poetry run pytest tests/test_tool_descriptor_benchmark_fixtures.py -q
+# RED: FileNotFoundError for the intentionally absent fixture
+# GREEN: 1 passed
+
+poetry run ruff check tests/test_tool_descriptor_benchmark_fixtures.py
+# All checks passed
+```
 
 ## Out-of-Scope Confirmation
 

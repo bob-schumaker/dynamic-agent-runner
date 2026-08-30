@@ -57,9 +57,10 @@
 
 ## Deferred Follow-Up: Scoring Quality Experiments
 
-- [ ] T2.1 Build a local benchmark fixture set with prompts, eligible tools,
+- [x] T2.1 Build a local benchmark fixture set with prompts, eligible tools,
       expected required tools, acceptable optional tools, and false-omission
-      checks.
+      checks. The evaluator-only contract is validated by
+      `tests/test_tool_descriptor_benchmark_fixtures.py`.
 - [ ] T2.2 Compare the no-dependency deterministic scorer against an optional
       NLTK-backed lexical scorer without adding NLTK to runtime dependencies.
 - [ ] T2.3 Measure descriptor token reduction, selected-tool recall, false
