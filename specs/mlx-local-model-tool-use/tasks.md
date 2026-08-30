@@ -306,7 +306,7 @@ Status: M6.1, M6.2, and M6.3 delivered; M6.4 planned
 - [x] T6.4.1 [discovery/compatibility] Characterize the pinned Qwen3 Instruct
       artifact against `mlx-lm` v0.31.3's public tokenizer, template,
       generation, and tool-parser interfaces on an eligible Apple Silicon host.
-  - Spec: Built-in Qwen3 activation; M6.4 built-in Qwen3 acceptance.
+  - Spec: Built-in codec-profile activation; M6.4 built-in Qwen3 acceptance.
   - Files: `specs/mlx-local-model-tool-use/m6.4-compatibility-profile.md`
     (create), `implementation-decision.md`, `tasks.md`.
   - Record: the canonical Hub-relative locator
@@ -354,31 +354,34 @@ Status: M6.1, M6.2, and M6.3 delivered; M6.4 planned
     text-only behavior. Assert capability access causes zero optional MLX
     import/model load and failed preflight causes zero generation, handler, or
     endpoint call. Include a relocated cache-root preflight case proving the
-    factory derives the snapshot from the profile's Hub-relative locator.
+    factory derives the snapshot from the profile's Hub-relative locator. Cover
+    default-disabled text-only behavior, opt-in selection of the exact profile,
+    opt-in mismatch remaining text-only, and caller-supplied codec/backend
+    bypassing built-in selection.
   - Validation: `poetry run pytest -q tests/test_mlx_models.py
     tests/test_executor.py` must fail for the missing built-in path.
 
-- [ ] T6.4.3 [implementation] Add one private Qwen3 codec and explicit
-      preflighted factories to the existing MLX adapter.
-  - Spec: Codec and backend boundary; Built-in Qwen3 activation; FR-1–FR-4.
+- [ ] T6.4.3 [implementation] Add one private Qwen3 codec and opt-in built-in
+      profile selection to the existing MLX adapter.
+  - Spec: Codec and backend boundary; Built-in codec-profile activation;
+    FR-1–FR-4.
   - Depends on: T6.4.1 (`qualified`), T6.4.2.
   - Files: `src/dynamic_agent_runner/mlx_models.py`,
     `src/dynamic_agent_runner/__init__.py`.
-  - GREEN: export `create_builtin_qwen3_mlx_local_adapter` and
-    `create_builtin_qwen3_mlx_local_async_adapter` with only optional
-    `model_cache_root` and `generation_kwargs` keyword arguments. They construct
-    the pinned repository/revision internally, accept no path/backend/parser
-    override, and raise `ModelExecutionError` on missing/mismatched/incompatible
-    preflight. Use only public `mlx_lm` APIs captured in T6.4.1. Admit only the
-    profile's exact default-Hub snapshot by joining its Hub-relative locator to
-    `model_cache_root` (or the default cache root) and verifying the manifest;
-    reuse `MLXToolCodec`,
-    `_MLXLMBackend`, bounds, canonical normalization, and the existing generic
-    factories. Generic factories remain text-only. Capability access is
-    side-effect-free; a successful preflight factory alone reports tool
-    capability. Reject every unsupported `tool_choice` before generation and
-    serialize generation with one adapter-local lock. Do not add an executor
-    loop, registry/approval path, endpoint, generic Qwen matching, or fallback
+  - GREEN: add `enable_builtin_codecs: bool = False` to
+    `create_mlx_local_adapter` and `create_mlx_local_async_adapter`. With
+    `False`, existing generic behavior remains text-only. With `True`, select
+    only a private package-owned qualified profile matching the exact default-Hub
+    snapshot by joining its Hub-relative locator to `model_cache_root` (or the
+    default cache root) and verifying the manifest; a mismatch returns the
+    ordinary text-only adapter. Reuse `MLXToolCodec`, `_MLXLMBackend`, bounds,
+    and canonical normalization. A caller-supplied codec or backend bypasses
+    built-in selection; tool capability still requires the existing explicit
+    compatible pair. Capability access is side-effect-free; a selected profile
+    alone reports tool capability. Reject
+    every unsupported `tool_choice` before generation and serialize generation
+    with one adapter-local lock. Do not add an executor loop, public profile
+    registry, approval path, endpoint, generic Qwen-name matching, or fallback
     prompt/parser.
   - Validation: T6.4.2 becomes GREEN and existing injected-pair/stock-negative
     tests retain their current contract.

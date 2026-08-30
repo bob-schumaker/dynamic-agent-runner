@@ -97,37 +97,56 @@ The stock `_MLXLMBackend` remains unsupported until it supplies that verified
 codec/template implementation. This does not block the generic injected codec
 seam or its fake-only tests.
 
-### Built-in Qwen3 activation
+### Built-in codec-profile activation
 
-M6.4 promotes only the selected Qwen3 Instruct artifact to a built-in pair. It
-must use `mlx_lm`'s public tokenizer/template and generation interfaces without
-vendoring or copying an upstream template or parser. It must expose explicit
-sync and async Qwen-only factories:
+M6.4 promotes only profiles that DAR owns and has qualified. The first profile
+is the selected Qwen3 Instruct artifact. It must use `mlx_lm`'s public
+tokenizer/template and generation interfaces without vendoring or copying an
+upstream template or parser. The existing generic factories gain this additive
+opt-in:
 
 ```python
-create_builtin_qwen3_mlx_local_adapter(
-    *, model_cache_root: str | Path | None = None,
-    generation_kwargs: Mapping[str, object] | None = None,
+create_mlx_local_adapter(
+    config: MLXLocalModelConfig,
+    *,
+    backend: MLXLocalBackend | None = None,
+    dependency_loader: DependencyLoaderCallable | None = None,
+    platform_system: PlatformSystemCallable | None = None,
+    download_file: DownloadFileCallable | None = None,
+    download_snapshot: DownloadSnapshotCallable | None = None,
+    tool_codec: MLXToolCodec | None = None,
+    enable_builtin_codecs: bool = False,
 ) -> MLXLocalModelAdapter
 
-create_builtin_qwen3_mlx_local_async_adapter(
-    *, model_cache_root: str | Path | None = None,
-    generation_kwargs: Mapping[str, object] | None = None,
+create_mlx_local_async_adapter(
+    config: MLXLocalModelConfig,
+    *,
+    backend: MLXLocalBackend | None = None,
+    dependency_loader: DependencyLoaderCallable | None = None,
+    platform_system: PlatformSystemCallable | None = None,
+    download_file: DownloadFileCallable | None = None,
+    download_snapshot: DownloadSnapshotCallable | None = None,
+    tool_codec: MLXToolCodec | None = None,
+    enable_builtin_codecs: bool = False,
 ) -> AsyncMLXLocalModelAdapter
 ```
 
-They construct the pinned repository/revision internally and accept no explicit
-model directory, model ID, revision, codec, parser, or backend override.
-`model_cache_root` may select the caller's current Hub cache root only; it may
-not redirect the built-in path to an arbitrary model directory. Both perform
-local, no-network preflight at construction; generic MLX factories remain
-text-only. Capability access itself must be side-effect free. A successful
-factory result may report `tool_calling=True`; a missing, mismatched, or
-incompatible snapshot/profile raises `ModelExecutionError` and returns no
-tool-capable adapter.
+`enable_builtin_codecs` defaults to `False`, preserving existing text-only
+behavior. When it is `True`, the factory performs a local, no-network profile
+selection and preflight at construction. An exact qualified profile configures
+the built-in codec and may report `tool_calling=True`; an absent, mismatched, or
+incompatible profile returns the normal text-only adapter without a fallback
+prompt or parser. Capability access itself remains side-effect free.
+
+Caller-supplied `tool_codec` and compatible `backend` remain the explicit
+extension seam for models DAR does not natively support. The factory must not
+select a built-in profile when a caller supplies either. That caller-owned path
+still requires the existing compatible codec/backend pair before it can report
+tool capability. DAR must not expose a public profile-registration API or use a
+model-family name as evidence of compatibility.
 
 Preflight admits only an exact default-Hub snapshot for the model repository and
-immutable revision in the implementation decision. The checked-in profile names
+immutable revision in a checked-in qualified profile. The profile names
 that snapshot with a canonical Hub-relative locator; preflight joins it to the
 caller-selected or default cache root, then verifies containment and the
 checked-in manifest of config, tokenizer, and weight filenames with their
@@ -158,11 +177,12 @@ public generation API. Only `qualified` unlocks T6.4.2–T6.4.6; every other
 outcome closes M6.4 as text-only without a custom parser or another Qwen
 artifact.
 
-The built-in pair supports only the `tool_choice` values explicitly recorded as
-faithfully rendered by that profile. It rejects every other value before
-generation; it must not collapse `none`, `auto`, `required`, or a named tool
-into a different choice. Generation is serialized by one adapter-local lock so
-sync and async callers cannot interleave model generation or duplicate a load.
+The selected built-in profile supports only the `tool_choice` values explicitly
+recorded as faithfully rendered by that profile. It rejects every other value
+before generation; it must not collapse `none`, `auto`, `required`, or a named
+tool into a different choice. Generation is serialized by one adapter-local
+lock so sync and async callers cannot interleave model generation or duplicate
+a load.
 
 Failure of any activation gate must raise the existing package-owned
 unsupported/tool-execution error before a tool-bearing generation or dispatch
@@ -318,9 +338,16 @@ tool capability.
   the request fails before model generation or tool dispatch.
 - Given a text-only request, when the built-in runtime gate is unavailable,
   then existing text generation behavior remains unchanged.
-- Given a generic MLX factory or a capability property access, when no explicit
-  Qwen preflight factory is invoked, then no model is loaded and
+- Given a generic MLX factory with `enable_builtin_codecs=False` or a capability
+  property access, when no caller supplies a codec, then no model is loaded and
   `tool_calling=False` remains unchanged.
+- Given a generic MLX factory with `enable_builtin_codecs=True`, when its
+  resolved cache artifact matches one checked-in qualified profile, then it
+  selects that codec; when it does not, then it remains text-only without a
+  fallback parser or erroring the otherwise valid text adapter.
+- Given a caller-supplied codec or backend, when `enable_builtin_codecs=True`,
+  then no built-in profile is selected; only an explicit compatible pair may
+  report tool capability.
 - Given an exact pinned snapshot whose compatibility profile supports a subset
   of `tool_choice` values, when another choice is requested, then the adapter
   rejects it before generation or dispatch rather than coercing it.

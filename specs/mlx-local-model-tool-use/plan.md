@@ -131,15 +131,17 @@ pre-commit run --files <changed files>
    call plus tool-result continuation, valid one-call decoding, text decoding,
    and every incompatibility gate. These tests must not import `mlx_lm`, load a
    model, use Metal, or access the network.
-3. Implement one private built-in Qwen3 codec and explicit preflighted sync and
-   async Qwen-only factories in `mlx_models.py`. Reuse `MLXToolCodec`,
-   `_MLXLMBackend`, existing bounded normalization, and the existing generic
-   factories. The Qwen factories admit only the profile's exact default-Hub
-   snapshot and may advertise the codec version only after local preflight
-   verifies the relocated-cache manifest, template, parser, and supported
-   `tool_choice` mapping.
-   Generic factories and capability access remain side-effect-free and
-   text-only. Serialize generation with one per-adapter lock.
+3. Implement one private built-in Qwen3 codec and one private package-owned
+   profile selector in `mlx_models.py`. Add `enable_builtin_codecs=False` to
+   the existing sync and async generic factories. With opt-in enabled, select a
+   codec only when the resolved artifact matches a qualified profile's exact
+   default-Hub locator, manifest, template, parser, and supported `tool_choice`
+   mapping; otherwise return the ordinary text-only adapter. Reuse
+   `MLXToolCodec`, `_MLXLMBackend`, and existing bounded normalization. A
+   caller-supplied codec or backend bypasses built-in selection; tool capability
+   still requires the existing explicit compatible pair. Do not add public
+   profile registration, broad Qwen-name matching,
+   or a second registry. Serialize generation with one per-adapter lock.
 4. Add adapter/executor integration tests proving the real built-in selection
    path enters the ordinary DAR tool validation and continuation flow; retain
    the injected-pair tests as the generic extension contract. Do not add a
@@ -148,9 +150,10 @@ pre-commit run --files <changed files>
    tests are green. Use only bounded recording tools, fixed generation
    settings, and the exact selected artifact. Record attempts and outcomes;
    never make it a pytest, CI, release, or arbitrary-model guarantee.
-6. Update the existing README/Python API wording to distinguish the built-in
-   pinned Qwen3 capability from the default text-only behavior for every other
-   MLX model.
+6. Update the existing README/Python API wording: default MLX remains text-only;
+   `enable_builtin_codecs=True` selects only qualified built-in profiles, with
+   the pinned Qwen3 profile initially the sole candidate; caller codecs remain
+   the path for every other MLX model.
 
 ## M6.4 Affected Surfaces
 

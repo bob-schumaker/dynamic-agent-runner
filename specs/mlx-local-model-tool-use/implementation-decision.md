@@ -23,7 +23,10 @@ DAR does not vendor an upstream source subproject.
 T6.4.1 qualified the pinned artifact's local tokenizer/template/parser contract
 in [`m6.4-compatibility-profile.md`](m6.4-compatibility-profile.md). The
 profile admits only an omitted DAR `tool_choice`; the implementation must reject
-every explicit choice before generation.
+every explicit choice before generation. M6.4 exposes that profile only through
+the generic MLX factories' opt-in `enable_builtin_codecs` selection; it does
+not treat a Qwen name as compatibility evidence or replace caller-provided
+codecs.
 
 ## Compatibility Contract
 
