@@ -1,4 +1,8 @@
-"""Bounded, fake-testable OAuth metadata discovery for configured HTTPS MCP."""
+"""Operational bounded OAuth metadata discovery for configured HTTPS MCP.
+
+The injectable transport lets hosts control network policy and lets tests verify
+the same production boundary without making an outbound request.
+"""
 
 from __future__ import annotations
 

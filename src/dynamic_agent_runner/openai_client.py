@@ -45,7 +45,7 @@ class OpenAIResponsesResource(Protocol):
 
 
 class OpenAIClientProtocol(Protocol):
-    """Protocol-compatible OpenAI client for default and fake clients."""
+    """Operational OpenAI client boundary with injectable implementations."""
 
     responses: OpenAIResponsesResource
 
@@ -58,7 +58,7 @@ class AsyncOpenAIResponsesResource(Protocol):
 
 
 class AsyncOpenAIClientProtocol(Protocol):
-    """Protocol-compatible async OpenAI client for default and fake clients."""
+    """Operational async OpenAI client boundary with injectable implementations."""
 
     responses: AsyncOpenAIResponsesResource
 
