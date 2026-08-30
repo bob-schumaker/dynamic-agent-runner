@@ -5,7 +5,7 @@
 - Feature slug: `mlx-local-model-tool-use`
 - Mode: guided
 - Artifact type: authoritative SDD follow-up specification
-- Status: M6.1, M6.2, and M6.3 delivered; M6.4 planned
+- Status: M6.1–M6.3 delivered; M6.4 owned-codec source delivery in progress
 - Parent feature: `specs/mlx-local-model-adapter/spec.md`
 - Related feature specs:
   - `specs/model-interface-parity/spec.md`
@@ -47,9 +47,8 @@ This follow-up covers:
    and the existing executor loop.
 6. structural recognition of native MLX safetensors snapshots for local
    resolution, availability, and scoped inventory.
-7. one built-in, pinned Qwen3 Instruct codec/backend pair that remains
-   text-only unless its runtime tokenizer/template/parser compatibility gate
-   succeeds.
+7. an opt-in, package-owned Qwen3 MLX codec/backend helper for the pinned
+   Qwen3 Instruct artifact.
 
 ## Non-Goals
 
@@ -97,7 +96,24 @@ The stock `_MLXLMBackend` remains unsupported until it supplies that verified
 codec/template implementation. This does not block the generic injected codec
 seam or its fake-only tests.
 
-### Built-in codec-profile activation
+### M6.4 owned codec
+
+T6.4.1 recorded `incompatible_parser`. The pinned Qwen3 template emits a
+delimiter-wrapped `<tool_call>…</tool_call>` response, while the installed
+`mlx_lm` wrapper-selected `json_tools.parse_tool_call` accepts only extracted
+JSON and raises `JSONDecodeError` for that native envelope. DAR explicitly owns
+the narrow envelope parser in
+[`qwen3_mlx_tools.py`](../../src/dynamic_agent_runner/qwen3_mlx_tools.py) rather
+than relying on that incomplete upstream parser.
+
+`create_qwen3_mlx_local_adapter()` is opt-in and requires both a caller-loaded
+model/tokenizer pair and `MLXLocalModelConfig.expected_model_id` equal to the
+pinned artifact identity. It supports only omitted DAR `tool_choice`, one pure
+native envelope, and one JSON-object argument payload. Generic MLX factories
+remain text-only, and no model-family-name detection, profile registry, tool
+dispatch, approval behavior, or alternate artifact is added.
+
+### Superseded upstream-parser-only codec-profile activation
 
 M6.4 promotes only profiles that DAR owns and has qualified. The first profile
 is the selected Qwen3 Instruct artifact. It must use `mlx_lm`'s public
@@ -326,7 +342,7 @@ tool capability.
   non-finite values, invalid root, unavailable names, duplicate IDs, multiple
   calls, trailing prose, and each bound.
 
-### M6.4 built-in Qwen3 acceptance
+### Superseded M6.4 built-in Qwen3 acceptance
 
 - Given the pinned artifact and a compatible fake tokenizer/parser result, when
   a tool-bearing initial or continuation request reaches the built-in path,

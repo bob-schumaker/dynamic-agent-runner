@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Implementation Plan
 
-Status: M6.1, M6.2, and M6.3 delivered; M6.4 planned
+Status: M6.1–M6.3 delivered; M6.4 owned-codec source delivery in progress
 
 ## Goal
 
@@ -111,7 +111,17 @@ pre-commit run --files <changed files>
 - Capability metadata changes only when the concrete configured pair passes the
   fake contract tests; the default backend remains false.
 
-## M6.4 Approach — Built-in Qwen3 MLX Codec
+## M6.4 Owned Codec
+
+T6.4.1 found that the selected `mlx_lm` parser accepts extracted JSON but not
+the pinned Qwen3 template's delimiter-wrapped native response. DAR now owns one
+strict parser and `create_qwen3_mlx_local_adapter()` in a separate source
+module. The helper requires a caller-loaded model/tokenizer pair and the pinned
+configured model identity; it supports only omitted `tool_choice` and leaves
+generic MLX factories text-only. Manual model competency remains separate from
+the fake-only source contract tests.
+
+## Superseded M6.4 Approach — Built-in Qwen3 MLX Codec
 
 1. Characterize the pinned Qwen3 artifact against the installed `mlx-lm`
    public APIs on an eligible Apple Silicon host. Record the tokenizer template
@@ -155,7 +165,7 @@ pre-commit run --files <changed files>
    the pinned Qwen3 profile initially the sole candidate; caller codecs remain
    the path for every other MLX model.
 
-## M6.4 Affected Surfaces
+## Superseded M6.4 Affected Surfaces
 
 - `src/dynamic_agent_runner/mlx_models.py`
 - `src/dynamic_agent_runner/__init__.py`
@@ -167,7 +177,7 @@ pre-commit run --files <changed files>
 - `specs/mlx-local-model-tool-use/m6.4-compatibility-profile.md`
 - `specs/mlx-local-model-tool-use/validation.md`
 
-## M6.4 Validation
+## Superseded M6.4 Validation
 
 ```bash
 poetry run pytest -q tests/test_mlx_models.py tests/test_executor.py

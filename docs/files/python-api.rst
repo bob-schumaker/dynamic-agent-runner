@@ -337,6 +337,39 @@ OpenAI-compatible local server, use ``LocalOpenAIEndpointConfig`` instead.
 Structured output, embeddings, multimodal IO, streaming public APIs,
 conversion, and server lifecycle helpers remain unsupported feature surfaces.
 
+For the pinned ``mlx-community/Qwen3-4B-Instruct-2507-nvfp4`` artifact,
+``create_qwen3_mlx_local_adapter(...)`` packages a strict native-envelope codec
+with a compatible backend. The caller loads the exact local model and passes its
+``(model, tokenizer)`` pair; ``expected_model_id`` must be
+``PINNED_QWEN3_MLX_MODEL_ID``:
+
+.. code-block:: python
+
+   from mlx_lm import load
+
+   from dynamic_agent_runner import (
+       PINNED_QWEN3_MLX_MODEL_ID,
+       MLXLocalModelConfig,
+       create_qwen3_mlx_local_adapter,
+   )
+
+   model, tokenizer = load("path/to/Qwen3-4B-Instruct-2507-nvfp4")
+   adapter = create_qwen3_mlx_local_adapter(
+       MLXLocalModelConfig(
+           model_aliases=("qwen3-local",),
+           model_path="path/to/Qwen3-4B-Instruct-2507-nvfp4",
+           expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+       ),
+       model=model,
+       tokenizer=tokenizer,
+   )
+
+It accepts only an omitted ``tool_choice`` and exactly one pure native
+``<tool_call>…</tool_call>`` envelope. Mixed prose, malformed envelopes,
+duplicate JSON keys, and non-object arguments fail before tool dispatch. This
+is explicit opt-in, not Qwen-family detection; the generic MLX helpers remain
+text-only unless a caller supplies their own compatible codec/backend pair.
+
 .. header2:: Apple Foundation Models
 
 Use ``AppleFoundationModelConfig`` with

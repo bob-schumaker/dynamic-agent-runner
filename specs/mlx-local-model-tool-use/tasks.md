@@ -1,6 +1,6 @@
 # MLX Local-Model Tool-Use Tasks
 
-Status: M6.1, M6.2, and M6.3 delivered; M6.4 planned
+Status: M6.1–M6.3 delivered; M6.4 owned-codec source delivery in progress
 
 ## M6.1 — Contract and Delivery Readiness
 
@@ -326,65 +326,40 @@ Status: M6.1, M6.2, and M6.3 delivered; M6.4 planned
     `incompatible_tool_choice`, or `incompatible_parser`.
     `incompatible_runtime` covers an unavailable or wrong `mlx-lm`
     distribution or public generation API. Only `qualified` unlocks
-    T6.4.2–T6.4.6. Every other outcome closes M6.4 text-only; do not add a
-    parser, use an explicit local directory, or substitute another Qwen
-    artifact.
-  - Readiness: implementation-ready. This plan is ready to execute under its
-    stated gates.
-  - Delivery: qualified in `m6.4-compatibility-profile.md`. Native synthetic
-    initial/continuation rendering and `json_tools.parse_tool_call` were
-    characterized without model inference or tool dispatch. Only an omitted
-    DAR `tool_choice` is supported; every explicit choice is rejected.
+    T6.4.2–T6.4.6. Every other outcome requires an explicit implementation
+    decision before DAR owns a parser or accepts another Qwen artifact.
+  - Readiness: implementation authorized by the owned-codec decision.
+  - Delivery: `incompatible_parser` in
+    `m6.4-compatibility-profile.md`. Native synthetic initial/continuation
+    rendering and `json_tools.parse_tool_call` were characterized without model
+    inference or tool dispatch. The parser accepts extracted JSON but rejects
+    the template's delimiter-wrapped native response; DAR explicitly owns the
+    narrow parser required for that envelope.
   - Delivery review: Council found and resolved cache-root portability, total
     runtime-exit, and de-secreted-evidence gaps. Ponytail confirmed the profile,
-    Hub-relative locator, and explicit rejection boundary are the smallest
-    complete delivery; no runtime mechanism was added.
+    Hub-relative locator, and a strict owned envelope parser are the smallest
+    complete delivery; no generic runtime mechanism was added.
 
-- [ ] T6.4.2 [tests] Add focused RED tests for the discovered built-in Qwen3
-      template and parser contract.
-  - Spec: Rendered transcript; Parse and normalization boundary; M6.4 built-in
-    Qwen3 acceptance.
-  - Files: `tests/test_mlx_models.py`, `tests/test_executor.py`.
-  - Depends on: T6.4.1 (`qualified`).
-  - RED: test-local tokenizer/parser/backend doubles must prove initial
-    rendering contains only the request's exposed schemas, ordered
-    assistant-call/tool-result continuation rendering, one valid call, text,
-    malformed/ambiguous output, wrong artifact identity, absent tool template,
-    absent parser, every unsupported `tool_choice`, and unchanged generic
-    text-only behavior. Assert capability access causes zero optional MLX
-    import/model load and failed preflight causes zero generation, handler, or
-    endpoint call. Include a relocated cache-root preflight case proving the
-    factory derives the snapshot from the profile's Hub-relative locator. Cover
-    default-disabled text-only behavior, opt-in selection of the exact profile,
-    opt-in mismatch remaining text-only, and caller-supplied codec/backend
-    bypassing built-in selection.
-  - Validation: `poetry run pytest -q tests/test_mlx_models.py
-    tests/test_executor.py` must fail for the missing built-in path.
+The package-owned implementation is in
+`src/dynamic_agent_runner/qwen3_mlx_tools.py`. It is explicit opt-in, binds only
+the pinned configured model ID, and leaves generic MLX factories text-only.
 
-- [ ] T6.4.3 [implementation] Add one private Qwen3 codec and opt-in built-in
-      profile selection to the existing MLX adapter.
-  - Spec: Codec and backend boundary; Built-in codec-profile activation;
-    FR-1–FR-4.
-  - Depends on: T6.4.1 (`qualified`), T6.4.2.
-  - Files: `src/dynamic_agent_runner/mlx_models.py`,
+- [x] T6.4.2 [tests] Add fake-only tests for the owned Qwen3 template and
+      envelope-parser contract.
+  - Files: `tests/test_mlx_models.py`.
+  - RED: the public helper and pinned identity export were absent.
+  - GREEN: a fake tokenizer and fake `mlx_lm` generation module prove one
+    wrapped call is normalized; malformed/mixed/duplicate-key envelopes and a
+    mismatched configured model identity fail before tool dispatch.
+
+- [x] T6.4.3 [implementation] Add a separate public Qwen3 source module and
+      explicit helper.
+  - Files: `src/dynamic_agent_runner/qwen3_mlx_tools.py`,
     `src/dynamic_agent_runner/__init__.py`.
-  - GREEN: add `enable_builtin_codecs: bool = False` to
-    `create_mlx_local_adapter` and `create_mlx_local_async_adapter`. With
-    `False`, existing generic behavior remains text-only. With `True`, select
-    only a private package-owned qualified profile matching the exact default-Hub
-    snapshot by joining its Hub-relative locator to `model_cache_root` (or the
-    default cache root) and verifying the manifest; a mismatch returns the
-    ordinary text-only adapter. Reuse `MLXToolCodec`, `_MLXLMBackend`, bounds,
-    and canonical normalization. A caller-supplied codec or backend bypasses
-    built-in selection; tool capability still requires the existing explicit
-    compatible pair. Capability access is side-effect-free; a selected profile
-    alone reports tool capability. Reject
-    every unsupported `tool_choice` before generation and serialize generation
-    with one adapter-local lock. Do not add an executor loop, public profile
-    registry, approval path, endpoint, generic Qwen-name matching, or fallback
-    prompt/parser.
-  - Validation: T6.4.2 becomes GREEN and existing injected-pair/stock-negative
-    tests retain their current contract.
+  - Delivery: `create_qwen3_mlx_local_adapter()` accepts a caller-loaded model
+    and tokenizer, pairs an owned strict codec with a compatible backend, and
+    requires the pinned configured model identity. It does not change generic
+    MLX factories, add model-family detection, or add an executor/approval path.
 
 - [ ] T6.4.4 [tests/integration] Prove the built-in Qwen3 pair uses DAR's
       ordinary sync and async tool/continuation flow.

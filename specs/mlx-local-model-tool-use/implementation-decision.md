@@ -1,6 +1,6 @@
 # MLX Tool Codec Implementation Decision
 
-Status: accepted; implementation pending M6.4
+Status: M6.4 owned-codec source delivery in progress
 Date: 2026-08-28
 
 ## Decision
@@ -20,15 +20,20 @@ The locked distribution is `mlx_lm-0.31.3-py3-none-any.whl` with SHA-256
 `758cfddf1180053b7613db76fad3d246a331a2a905808e1164a275621fc983b8`.
 DAR does not vendor an upstream source subproject.
 
-T6.4.1 qualified the pinned artifact's local tokenizer/template/parser contract
-in [`m6.4-compatibility-profile.md`](m6.4-compatibility-profile.md). The
-profile admits only an omitted DAR `tool_choice`; the implementation must reject
-every explicit choice before generation. M6.4 exposes that profile only through
-the generic MLX factories' opt-in `enable_builtin_codecs` selection; it does
-not treat a Qwen name as compatibility evidence or replace caller-provided
-codecs.
+T6.4.1 found the pinned artifact incompatible with the required complete native
+response parsing contract in
+[`m6.4-compatibility-profile.md`](m6.4-compatibility-profile.md): the installed
+parser accepts extracted JSON but rejects the template's delimiter-wrapped tool
+response. DAR now owns that narrow, strict envelope parser in
+`qwen3_mlx_tools.py`, together with `create_qwen3_mlx_local_adapter()`.
 
-## Compatibility Contract
+The helper is explicit rather than selected by a model-family name. It requires
+the caller to provide the loaded MLX `(model, tokenizer)` pair and to configure
+`expected_model_id` as the pinned artifact identity. It rejects explicit
+`tool_choice` because the observed template does not faithfully distinguish
+those values. Generic MLX factories remain text-only.
+
+## Superseded Upstream-Parser-Only Compatibility Contract
 
 At model load, the M6.4 built-in codec must use the tokenizer's native
 `apply_chat_template(messages, tools=..., add_generation_prompt=True)` path.
