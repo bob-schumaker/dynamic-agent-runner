@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import builtins
 from collections.abc import Callable
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
@@ -409,6 +410,661 @@ class _SequencedLlamaCppBackend:
     def create_chat_completion(self, **kwargs: object) -> object:
         self.calls.append(kwargs)
         return self.responses.pop(0)
+
+
+class _FakeLlamaCppEmbeddingBackend:
+    """Test-local embedding seam; it deliberately has no chat operation."""
+
+    model_id = "embedding-test"
+
+    def __init__(self, response: object) -> None:
+        self.response = response
+        self.calls: list[dict[str, object]] = []
+
+    def create_embedding(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.response
+
+
+def _embedding_config(
+    model_path: Path,
+    *,
+    allow_network: bool = True,
+    **kwargs: object,
+):
+    from dynamic_agent_runner.local_models import LlamaCppLocalEmbeddingConfig
+
+    return LlamaCppLocalEmbeddingConfig(
+        model_path=model_path,
+        model_filename="embedding.gguf",
+        expected_model_id="embedding-test",
+        allow_network=allow_network,
+        **kwargs,
+    )
+
+
+def test_llama_cpp_embedding_public_values_are_frozen_and_tuple_backed(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        EmbeddingBatchResult,
+        EmbeddingInputItem,
+        EmbeddingVectorItem,
+    )
+
+    item = EmbeddingInputItem(id="entry-1", text="controlled input")
+    vector = EmbeddingVectorItem(id="entry-1", vector=(0.25, -0.5))
+    result = EmbeddingBatchResult(model="embedding-test", items=(vector,))
+    config = _embedding_config(tmp_path / "embedding.gguf")
+
+    assert result.items == (vector,)
+    with pytest.raises(FrozenInstanceError):
+        item.text = "mutated"  # type: ignore[misc]
+    with pytest.raises(FrozenInstanceError):
+        vector.vector = (1.0,)  # type: ignore[misc]
+    with pytest.raises(FrozenInstanceError):
+        result.model = "mutated"  # type: ignore[misc]
+    with pytest.raises(FrozenInstanceError):
+        config.allow_network = False  # type: ignore[misc]
+
+
+def test_llama_cpp_embedding_sync_resolves_before_one_indexed_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import dynamic_agent_runner.local_models as local_models
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    model_path = tmp_path / "embedding.gguf"
+    model_path.touch()
+    backend = _FakeLlamaCppEmbeddingBackend(
+        {
+            "model": "embedding-test",
+            "data": [
+                {"index": 1, "embedding": [0.0, 1.0]},
+                {"index": 0, "embedding": [1.0, 0.0]},
+            ],
+        }
+    )
+    forbidden_calls: list[object] = []
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        forbidden_calls.append((args, kwargs))
+        raise AssertionError(
+            "embedding adapter must not load or download on a local hit"
+        )
+
+    monkeypatch.setattr(local_models, "_load_default_llama_cpp_backend", forbidden)
+    adapter = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(model_path),
+        backend=backend,
+        dependency_loader=forbidden,
+        download_file=forbidden,
+        download_snapshot=forbidden,
+    )
+
+    result = adapter.embed(
+        (
+            EmbeddingInputItem(id="first", text="controlled first"),
+            EmbeddingInputItem(id="second", text="controlled second"),
+        )
+    )
+
+    assert result.model == "embedding-test"
+    assert tuple(item.id for item in result.items) == ("first", "second")
+    assert tuple(item.vector for item in result.items) == ((1.0, 0.0), (0.0, 1.0))
+    assert backend.calls == [
+        {
+            "input": ["controlled first", "controlled second"],
+            "model": "embedding-test",
+        }
+    ]
+    assert forbidden_calls == []
+
+
+def test_llama_cpp_embedding_async_matches_sync_contract(tmp_path: Path) -> None:
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_async_embedding_adapter,
+    )
+
+    model_path = tmp_path / "embedding.gguf"
+    model_path.touch()
+    backend = _FakeLlamaCppEmbeddingBackend(
+        {
+            "model": "embedding-test",
+            "data": [{"index": 0, "embedding": [0.125, 0.875]}],
+        }
+    )
+    adapter = create_llama_cpp_local_async_embedding_adapter(
+        _embedding_config(model_path), backend=backend
+    )
+
+    result = asyncio.run(
+        adapter.embed((EmbeddingInputItem(id="entry-1", text="controlled"),))
+    )
+
+    assert result.model == "embedding-test"
+    assert result.items[0].id == "entry-1"
+    assert result.items[0].vector == (0.125, 0.875)
+    assert len(backend.calls) == 1
+
+
+def test_llama_cpp_embedding_accepts_exact_utf8_input_limits(tmp_path: Path) -> None:
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    model_path = tmp_path / "embedding.gguf"
+    model_path.touch()
+    item = EmbeddingInputItem(
+        id=("€" * 42) + "ab",
+        text=("€" * 21_845) + "a",
+    )
+    backend = _FakeLlamaCppEmbeddingBackend(
+        {"model": "embedding-test", "data": [{"index": 0, "embedding": [1.0]}]}
+    )
+    adapter = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(model_path), backend=backend
+    )
+
+    result = adapter.embed((item,))
+
+    assert result.items[0].id == item.id
+    assert len(backend.calls) == 1
+
+
+@pytest.mark.parametrize(
+    "raw_response",
+    [
+        {"model": "embedding-test", "data": []},
+        (
+            {
+                "model": "embedding-test",
+                "data": [{"index": 1, "embedding": [0.0]}],
+            }
+        ),
+        (
+            {
+                "model": "embedding-test",
+                "data": [{"index": 0, "embedding": [float("nan")]}],
+            }
+        ),
+    ],
+)
+def test_llama_cpp_embedding_rejects_malformed_results_without_partial_output(
+    tmp_path: Path,
+    raw_response: object,
+) -> None:
+    from dynamic_agent_runner.errors import EmbeddingResultError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    model_path = tmp_path / "embedding.gguf"
+    model_path.touch()
+    backend = _FakeLlamaCppEmbeddingBackend(raw_response)
+    adapter = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(model_path), backend=backend
+    )
+
+    with pytest.raises(EmbeddingResultError):
+        adapter.embed((EmbeddingInputItem(id="entry-1", text="secret input"),))
+
+    assert len(backend.calls) == 1
+
+
+def test_llama_cpp_embedding_rejects_invalid_input_before_backend(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import EmbeddingInputError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    backend = _FakeLlamaCppEmbeddingBackend({"model": "embedding-test", "data": []})
+    adapter = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(tmp_path / "missing.gguf"), backend=backend
+    )
+
+    with pytest.raises(EmbeddingInputError) as raised:
+        adapter.embed((EmbeddingInputItem(id="", text="secret input"),))
+
+    assert "secret input" not in str(raised.value)
+    assert backend.calls == []
+
+
+def test_llama_cpp_embedding_factory_and_preflight_perform_no_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import socket
+    import subprocess
+
+    import dynamic_agent_runner.local_models as local_models
+    import dynamic_agent_runner.openai_client as openai_client
+    from dynamic_agent_runner.local_models import (
+        create_llama_cpp_local_embedding_adapter,
+        create_llama_cpp_local_async_embedding_adapter,
+    )
+
+    calls: list[object] = []
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        calls.append((args, kwargs))
+        raise AssertionError("factory/preflight must not perform I/O")
+
+    monkeypatch.setattr(local_models, "_load_default_llama_cpp_backend", forbidden)
+    monkeypatch.setattr(socket, "create_connection", forbidden)
+    monkeypatch.setattr(subprocess, "Popen", forbidden)
+    monkeypatch.setattr(local_models, "download_hub_file", forbidden)
+    monkeypatch.setattr(local_models, "download_hub_snapshot", forbidden)
+    monkeypatch.setattr(
+        local_models, "create_openai_adapter_from_provider_config", forbidden
+    )
+    monkeypatch.setattr(openai_client, "_read_codex_auth_defaults", forbidden)
+    original_import = builtins.__import__
+
+    def guarded_import(name: str, *args: object, **kwargs: object) -> object:
+        if name.partition(".")[0] in {"llama_cpp", "huggingface_hub"}:
+            return forbidden(name, *args, **kwargs)
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    config = _embedding_config(tmp_path / "unresolved.gguf")
+
+    create_llama_cpp_local_embedding_adapter(
+        config,
+        dependency_loader=forbidden,
+        download_file=forbidden,
+        download_snapshot=forbidden,
+    )
+    create_llama_cpp_local_async_embedding_adapter(
+        config,
+        dependency_loader=forbidden,
+        download_file=forbidden,
+        download_snapshot=forbidden,
+    )
+
+    assert calls == []
+
+
+def test_llama_cpp_embedding_rejects_ambiguous_config(tmp_path: Path) -> None:
+    from dynamic_agent_runner.local_models import (
+        HuggingFaceModelFileReference,
+        HuggingFaceSnapshotReference,
+    )
+
+    with pytest.raises(ValueError):
+        _embedding_config(
+            tmp_path / "embedding.gguf",
+            huggingface_file=HuggingFaceModelFileReference(
+                repo_id="org/embedding", filename="embedding.gguf"
+            ),
+            huggingface_snapshot=HuggingFaceSnapshotReference(repo_id="org/embedding"),
+        )
+
+
+def test_llama_cpp_embedding_resolver_precedence_and_offline_download_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner.errors import LocalModelOfflinePolicyError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        HuggingFaceModelFileReference,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    hub_reference = HuggingFaceModelFileReference(
+        repo_id="org/embedding", filename="embedding.gguf", revision="commit-123"
+    )
+    explicit_path = tmp_path / "explicit.gguf"
+    explicit_path.touch()
+    caller_cache = tmp_path / "caller-cache"
+    caller_cache.mkdir()
+    caller_hit = caller_cache / "embedding.gguf"
+    caller_hit.touch()
+    hub_hit = (
+        _hub_snapshot_root(home_dir, "org/embedding", "commit-123") / "embedding.gguf"
+    )
+    hub_hit.parent.mkdir(parents=True)
+    hub_hit.touch()
+    backend = _FakeLlamaCppEmbeddingBackend(
+        {"model": "embedding-test", "data": [{"index": 0, "embedding": [1.0]}]}
+    )
+    download_calls: list[object] = []
+
+    def download(*args: object, **kwargs: object) -> Path:
+        download_calls.append((args, kwargs))
+        return tmp_path / "downloaded.gguf"
+
+    loaded_paths: list[Path] = []
+
+    def load_embedding(model_path: Path, _: object) -> _FakeLlamaCppEmbeddingBackend:
+        loaded_paths.append(model_path)
+        return backend
+
+    explicit = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(
+            explicit_path,
+            model_cache_root=caller_cache,
+            huggingface_file=hub_reference,
+        ),
+        dependency_loader=load_embedding,
+        download_file=download,
+    )
+    explicit.embed((EmbeddingInputItem(id="entry", text="controlled"),))
+    assert download_calls == []
+    assert loaded_paths == [explicit_path]
+
+    caller = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(
+            tmp_path / "missing.gguf",
+            model_cache_root=caller_cache,
+            huggingface_file=hub_reference,
+        ),
+        dependency_loader=load_embedding,
+        download_file=download,
+    )
+    caller.embed((EmbeddingInputItem(id="entry", text="controlled"),))
+    assert download_calls == []
+    assert loaded_paths == [explicit_path, caller_hit]
+
+    caller_hit.unlink()
+    hub = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(tmp_path / "missing.gguf", huggingface_file=hub_reference),
+        dependency_loader=load_embedding,
+        download_file=download,
+    )
+    hub.embed((EmbeddingInputItem(id="entry", text="controlled"),))
+    assert download_calls == []
+    assert loaded_paths == [explicit_path, caller_hit, hub_hit]
+
+    hub_hit.unlink()
+    offline = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(
+            tmp_path / "missing.gguf",
+            huggingface_file=hub_reference,
+            allow_network=False,
+        ),
+        dependency_loader=load_embedding,
+        download_file=download,
+    )
+    with pytest.raises(LocalModelOfflinePolicyError):
+        offline.embed((EmbeddingInputItem(id="entry", text="controlled"),))
+    assert download_calls == []
+    assert loaded_paths == [explicit_path, caller_hit, hub_hit]
+
+    downloaded = tmp_path / "downloaded.gguf"
+    downloaded.touch()
+    online = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(tmp_path / "missing.gguf", huggingface_file=hub_reference),
+        dependency_loader=load_embedding,
+        download_file=download,
+    )
+    online.embed((EmbeddingInputItem(id="entry", text="controlled"),))
+    assert len(download_calls) == 1
+    assert loaded_paths == [explicit_path, caller_hit, hub_hit, downloaded]
+
+
+@pytest.mark.parametrize(
+    "items",
+    [
+        (),
+        (("", "controlled"),),
+        (("duplicate", "controlled"), ("duplicate", "controlled")),
+        (("x" * 129, "controlled"),),
+        (("€" * 43, "controlled"),),
+        (("entry", "x" * 65_537),),
+        (("entry", "€" * 21_846),),
+        tuple((str(index), "controlled") for index in range(129)),
+        tuple((str(index), "x" * 65_536) for index in range(17)),
+    ],
+)
+def test_llama_cpp_embedding_rejects_declared_input_bounds_before_resolution(
+    tmp_path: Path,
+    items: tuple[tuple[str, str], ...],
+) -> None:
+    from dynamic_agent_runner.errors import EmbeddingInputError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    normalized_items = tuple(
+        EmbeddingInputItem(id=item_id, text=text) for item_id, text in items
+    )
+    backend = _FakeLlamaCppEmbeddingBackend({"model": "embedding-test", "data": []})
+    forbidden_calls: list[object] = []
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        forbidden_calls.append((args, kwargs))
+        raise AssertionError("invalid input must not resolve, load, or download")
+
+    adapter = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(tmp_path / "missing.gguf"),
+        backend=backend,
+        dependency_loader=forbidden,
+        download_file=forbidden,
+        download_snapshot=forbidden,
+    )
+
+    with pytest.raises(EmbeddingInputError) as raised:
+        adapter.embed(normalized_items)
+
+    assert backend.calls == []
+    assert forbidden_calls == []
+    assert all(text not in str(raised.value) for _, text in items)
+
+
+@pytest.mark.parametrize(
+    "raw_response",
+    [
+        {"data": [{"index": 0, "embedding": [1.0]}]},
+        {"model": "embedding-test", "data": [{"index": 0, "embedding": [[1.0]]}]},
+        {"model": "embedding-test", "data": [{"index": 0, "embedding": [1.0] * 8193}]},
+        {
+            "model": "embedding-test",
+            "data": [
+                {"index": 0, "embedding": [1.0]},
+                {"index": 0, "embedding": [2.0]},
+            ],
+        },
+        {"model": "wrong-model", "data": [{"index": 0, "embedding": [1.0]}]},
+    ],
+)
+def test_llama_cpp_embedding_rejects_remaining_malformed_or_mismatched_results(
+    tmp_path: Path,
+    raw_response: object,
+) -> None:
+    from dynamic_agent_runner.errors import (
+        EmbeddingResultError,
+        LocalModelIdentityMismatchError,
+    )
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    model_path = tmp_path / "embedding.gguf"
+    model_path.touch()
+    backend = _FakeLlamaCppEmbeddingBackend(raw_response)
+    adapter = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(model_path), backend=backend
+    )
+
+    with pytest.raises(
+        (EmbeddingResultError, LocalModelIdentityMismatchError)
+    ) as raised:
+        adapter.embed((EmbeddingInputItem(id="entry", text="secret input"),))
+
+    assert "secret input" not in str(raised.value)
+    assert backend.calls
+
+
+def test_llama_cpp_embedding_wraps_provider_failure_without_raw_input(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import EmbeddingExecutionError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    class FailingBackend(_FakeLlamaCppEmbeddingBackend):
+        def create_embedding(self, **kwargs: object) -> object:
+            self.calls.append(kwargs)
+            raise RuntimeError("provider received secret input")
+
+    model_path = tmp_path / "embedding.gguf"
+    model_path.touch()
+    backend = FailingBackend({})
+    adapter = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(model_path), backend=backend
+    )
+
+    with pytest.raises(EmbeddingExecutionError) as raised:
+        adapter.embed((EmbeddingInputItem(id="entry", text="secret input"),))
+
+    assert "secret input" not in str(raised.value)
+    assert len(backend.calls) == 1
+
+
+def test_llama_cpp_embedding_rejects_ragged_and_scalar_vectors_without_raw_data(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import EmbeddingResultError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    model_path = tmp_path / "embedding.gguf"
+    model_path.touch()
+    for raw_response, items in (
+        (
+            {
+                "model": "embedding-test",
+                "data": [
+                    {"index": 0, "embedding": [1.0]},
+                    {"index": 1, "embedding": [1.0, 2.0]},
+                ],
+            },
+            (
+                EmbeddingInputItem(id="first", text="controlled"),
+                EmbeddingInputItem(id="second", text="controlled"),
+            ),
+        ),
+        (
+            {
+                "model": "embedding-test",
+                "data": [
+                    {"index": 0, "embedding": [1.0]},
+                    {"index": 1, "embedding": ["secret-vector"]},
+                ],
+            },
+            (
+                EmbeddingInputItem(id="first", text="controlled"),
+                EmbeddingInputItem(id="second", text="controlled"),
+            ),
+        ),
+        (
+            {
+                "model": "embedding-test",
+                "data": [
+                    {"index": 0, "embedding": 1.0},
+                    {"index": 1, "embedding": [1.0]},
+                ],
+            },
+            (
+                EmbeddingInputItem(id="first", text="controlled"),
+                EmbeddingInputItem(id="second", text="controlled"),
+            ),
+        ),
+    ):
+        backend = _FakeLlamaCppEmbeddingBackend(raw_response)
+        adapter = create_llama_cpp_local_embedding_adapter(
+            _embedding_config(model_path), backend=backend
+        )
+
+        with pytest.raises(EmbeddingResultError) as raised:
+            adapter.embed(items)
+
+        assert "secret-vector" not in str(raised.value)
+        assert len(backend.calls) == 1
+
+
+def test_llama_cpp_embedding_rejects_encoded_output_limit(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import EmbeddingResultError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    model_path = tmp_path / "embedding.gguf"
+    model_path.touch()
+    items = tuple(
+        EmbeddingInputItem(id=str(index), text="controlled") for index in range(128)
+    )
+    raw_response = {
+        "model": "embedding-test",
+        "data": [
+            {"index": index, "embedding": [1.7976931348623157e308] * 8192}
+            for index in range(128)
+        ],
+    }
+    backend = _FakeLlamaCppEmbeddingBackend(raw_response)
+    adapter = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(model_path), backend=backend
+    )
+
+    with pytest.raises(EmbeddingResultError) as raised:
+        adapter.embed(items)
+
+    assert "1.7976931348623157e308" not in str(raised.value)
+    assert len(backend.calls) == 1
+
+
+def test_llama_cpp_embedding_async_rejects_invalid_input_before_backend(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import EmbeddingInputError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_async_embedding_adapter,
+    )
+
+    backend = _FakeLlamaCppEmbeddingBackend({"model": "embedding-test", "data": []})
+    forbidden_calls: list[object] = []
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        forbidden_calls.append((args, kwargs))
+        raise AssertionError("invalid input must not resolve, load, or download")
+
+    adapter = create_llama_cpp_local_async_embedding_adapter(
+        _embedding_config(tmp_path / "missing.gguf"),
+        backend=backend,
+        dependency_loader=forbidden,
+        download_file=forbidden,
+        download_snapshot=forbidden,
+    )
+
+    with pytest.raises(EmbeddingInputError):
+        asyncio.run(adapter.embed((EmbeddingInputItem(id="", text="secret input"),)))
+
+    assert backend.calls == []
+    assert forbidden_calls == []
 
 
 def _run_llama_cpp_parity(
