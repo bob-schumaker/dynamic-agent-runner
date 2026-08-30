@@ -397,6 +397,40 @@ whether to request embeddings; it does not let the model choose the embedding
 model. Each integration must use the existing workflow/tool coordination and
 approval controls rather than duplicating them.
 
+T5.5 has one deliberately narrow workflow contract. An `embedding_step` is a
+terminal primitive with exactly these raw keys: `id`, `kind`, optional `label`,
+nonempty opaque `embedding_profile`, and nonempty `embedding_input_from`. The
+manifest contains neither a model identity, path, alias, provider, cache
+reference, backend option, nor literal embedding text. It has no outgoing
+control edge and rejects every other raw key, including generic inputs/outputs,
+model, tool, approval, retry, fallback, and output-schema metadata.
+
+The host binds exactly one immutable embedding profile to a
+`WorkflowExecutionContext`: its opaque identifier, an already-configured
+standalone producer, and an explicit producer mode (`sync` or `async`). The
+manifest identifier must equal that host binding; it cannot select among
+multiple profiles. Each public execution call accepts `embedding_inputs` as its
+sole permitted per-run overlay when passed an execution context; a bare workflow
+cannot accept that overlay because it has no host profile. All other
+context-plus-keyword combinations retain their current rejection. The mapping's
+nonempty string keys identify tuple-backed ordered `EmbeddingInputItem` batches.
+
+The executor copies and validates that mapping, the primitive shape and
+terminality, binding match, declared producer mode, producer `.embed`
+capability, and resolved batch before calling the producer once. A mode mismatch
+raises `WorkflowExecutionError` with zero producer calls. Async execution may
+then accept a direct result or await an awaitable one. Validation rejects an
+invalid manifest/edges/raw keys with `WorkflowValidationError`; missing or
+malformed binding/input, an unsupported producer, and a non-
+`EmbeddingBatchResult` result raise `WorkflowExecutionError` before output is
+recorded. Producer-raised package embedding, resolution, offline, and identity
+errors retain their established types. The sync path never admits an async
+producer; its defensive awaitable-result rejection closes the awaitable before
+raising. The typed `EmbeddingBatchResult` is the ordinary one-node workflow
+result. Raw batch texts and vectors remain sensitive trace values and never
+appear in errors. T5.5 adds no network path; a host-bound producer retains its
+existing caller-owned local-resolution and offline policy.
+
 The later implementation must use a separate immutable runtime-owned embedding
 configuration rather than chat aliases or endpoint config.
 It may reuse existing local-path/cache/Hub-reference resolution and identity

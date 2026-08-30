@@ -478,15 +478,30 @@ T5.5 terminal workflow integration is next
 - [ ] T5.5 [tests/implementation] Add a terminal `embedding_step` workflow node
       using the completed standalone batch producer.
   - Depends on: T5.4.
-  - Scope: validate a host-bound embedding profile and declared batch-input
-    binding; execute the producer exactly once; return its typed batch output;
-    and let a one-node workflow end normally. Add only the manifest validation
-    and executor dispatch required for this node kind.
+  - Contract: an `embedding_step` raw-key allowlist is `id`, `kind`, optional
+    `label`, nonempty opaque `embedding_profile`, and
+    `embedding_input_from`. It is terminal and rejects every other raw key,
+    including generic inputs/outputs plus model/tool/approval/retry/fallback/
+    output-schema metadata, literal embedding text, and profile configuration.
+    `WorkflowExecutionContext` owns one immutable profile-ID/producer/mode
+    binding. Each public execute call accepts copied `embedding_inputs` as its
+    sole permitted context overlay; a bare workflow rejects it. Its keys are
+    nonempty strings and its values are tuple-backed ordered
+    `EmbeddingInputItem` batches. The manifest ID must match that one binding.
+    The executor must validate primitive, terminality, producer mode, producer,
+    and resolved batch before dispatch. A mode mismatch has zero producer calls;
+    async supports direct or awaitable results, while defensive sync rejection
+    closes any awaitable before raising.
+  - Scope: execute the selected producer exactly once; return its typed batch
+    output; and let a one-node workflow end normally. Add only the manifest
+    validation and executor dispatch required for this node kind.
   - RED/GREEN: fake-only sync/async tests cover accepted terminal output,
     malformed or missing input, unavailable profile, invalid producer result,
-    zero provider dispatch before validation, and no model/remote/network or
-    approval interaction. Do not add a chat `ModelAdapter` capability or vector
-    storage.
+    terminality and forbidden metadata, immutable host binding, malformed
+    per-run inputs, sync/async producer admission, exact validation/execution/
+    producer-error ownership, trace redaction, zero producer dispatch before
+    validation, and no model/remote/network or approval interaction. Do not add
+    a chat `ModelAdapter` capability or vector storage.
 
 - [ ] T5.6 [tests/implementation] Expose the completed standalone producer as
       a model-selectable local embedding tool.

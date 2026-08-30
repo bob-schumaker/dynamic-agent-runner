@@ -419,3 +419,35 @@ validation/docs complete; T5.5 terminal workflow integration is next
   llama.cpp/Hugging Face/model/network/server, Fastmail, OAuth, or manual
   acceptance ran. T5.5 and T5.6 remain separate; a live embedding is a
   separately human-authorized manual step.
+
+### T5.5 readiness review — terminal embedding workflow contract
+
+- Date: 2026-08-29
+- Council finding: T5.5 was not executable as written because neither the
+  host-profile collaborator nor the exact batch-input binding was specified.
+  The existing `WorkflowExecutionContext` has only chat model collaborators,
+  and generic `inputs_from` cannot safely identify a one-node batch input.
+- Approved minimal contract: the complete manifest allowlist is `id`, `kind`,
+  optional `label`, opaque `embedding_profile`, and `embedding_input_from`.
+  The reusable execution context binds one immutable profile ID/producer/mode;
+  per-run batch input is the sole permitted public context overlay. The declared
+  ID must equal that one binding, so a package cannot select among profiles. A
+  workflow/model never supplies model/provider/path configuration or raw text in
+  its manifest. `embedding_step` is terminal; profile, producer mode, and batch
+  validation occur before the one allowed producer call. Sync/async mismatch
+  has zero dispatch; async accepts either direct or awaitable output.
+- Council/Ponytail: Council requires terminality and all pre-dispatch rejection
+  paths be tested in both sync and async execution. Ponytail accepts one new
+  primitive, one context binding, and one per-run input argument, reusing
+  normal workflow completion, tracing, and typed producer output; no tool,
+  registry, adapter, or profile control-plane abstraction is authorized.
+- Result: T5.5 is implementation-ready. Its RED suite must prove valid typed
+  terminal output, invalid manifest/profile/batch zero-dispatch behavior,
+  immutable host binding, malformed producer results, raw-data trace/error
+  redaction, and absence of model/tool/approval/remote interaction. Tests also
+  prove invalid manifests are `WorkflowValidationError`, invalid host values and
+  result types are pre-output `WorkflowExecutionError`, existing producer
+  exceptions retain their package-owned type, and rejected sync awaitables are
+  closed. T5.5 adds no network path; fake tests use local producers and guarded
+  downloaders while preserving the standalone producer's caller-owned offline
+  policy.

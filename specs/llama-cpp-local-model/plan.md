@@ -211,9 +211,16 @@ implementation.
    path, live model load, network, and external authorization. A live model
    load or embedding is a separate human-authorized manual acceptance step.
 5. T5.5 adds the terminal `embedding_step` workflow node after the standalone
-   producer is complete. It validates a declared host-bound profile and batch
-   input binding, dispatches once through that producer, and returns the typed
-   batch result as a terminal workflow output. It must not add model selection,
+   producer is complete. Its raw-key allowlist is `id`, `kind`, optional
+   `label`, opaque `embedding_profile`, and `embedding_input_from`; it cannot
+   carry literal text or model/provider/path configuration. A
+   `WorkflowExecutionContext` binds one immutable profile ID, producer, and
+   `sync`/`async` mode. Each public execution call accepts copied per-run
+   `embedding_inputs` as the only context overlay; bare workflows reject it.
+   The declared ID must match the one binding, preventing package profile
+   selection. The executor validates primitive terminality, mode, profile,
+   producer, and batch before one dispatch, then returns the typed batch result
+   as the ordinary terminal workflow output. It must not add model selection,
    remote fallback, or a separate embedding execution path.
 6. T5.6 exposes the same producer as a model-selectable zero-side-effect tool
    after the standalone producer is complete. It uses the existing registry and
