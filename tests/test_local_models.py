@@ -3345,6 +3345,7 @@ def test_llama_cpp_local_adapter_resolves_model_and_normalizes_chat_response(
         build_openai_request(
             model="llama-local-chat",
             messages=[OpenAIMessage("user", "Hello")],
+            tool_choice="required",
         )
     )
 
@@ -3354,9 +3355,116 @@ def test_llama_cpp_local_adapter_resolves_model_and_normalizes_chat_response(
         {
             "messages": [{"role": "user", "content": "Hello"}],
             "tools": None,
+            "tool_choice": "required",
             "response_format": None,
         }
     ]
+
+
+def test_llama_cpp_chatml_function_adapter_maps_required_tool_choice_to_auto(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.local_models import (
+        LlamaCppLocalModelConfig,
+        create_llama_cpp_local_adapter,
+    )
+    from dynamic_agent_runner.openai_client import (
+        OpenAIMessage,
+        OpenAIModelRequest,
+        build_openai_request,
+    )
+
+    model_path = tmp_path / "model.gguf"
+    model_path.write_text("fake gguf", encoding="utf-8")
+    backend = _FakeLlamaCppBackend()
+    adapter = create_llama_cpp_local_adapter(
+        LlamaCppLocalModelConfig(
+            model_aliases=("llama-local-chat",),
+            model_path=model_path,
+            expected_model_id="Qwen/Qwen3-4B-Instruct-2507",
+            model_kwargs={"chat_format": "chatml-function-calling"},
+        ),
+        backend=backend,
+    )
+
+    adapter.create_response(
+        build_openai_request(
+            model="llama-local-chat",
+            messages=[OpenAIMessage("user", "Hello")],
+            tools=[
+                {
+                    "type": "function",
+                    "name": "create_record",
+                    "description": "Create a record.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"title": {"type": "string"}},
+                        "required": ["title"],
+                    },
+                }
+            ],
+            tool_choice="required",
+        )
+    )
+
+    assert backend.calls[0]["tool_choice"] == "auto"
+    assert backend.calls[0]["tools"] == [
+        {
+            "type": "function",
+            "function": {
+                "name": "create_record",
+                "description": "Create a record.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"title": {"type": "string"}},
+                    "required": ["title"],
+                },
+            },
+        }
+    ]
+
+    adapter.create_response(
+        OpenAIModelRequest(
+            model="llama-local-chat",
+            messages=(
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {
+                                "name": "lookup_record",
+                                "arguments": '{"key":"seed"}',
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call-1",
+                    "name": "lookup_record",
+                    "content": '{"record_id":"record-seed"}',
+                },
+            ),
+            tools=(
+                {
+                    "type": "function",
+                    "name": "transform_record",
+                    "description": "Transform a record.",
+                    "parameters": {"type": "object"},
+                },
+            ),
+            tool_choice="required",
+        )
+    )
+
+    assert backend.calls[1]["tool_choice"] == "auto"
+    assert backend.calls[1]["messages"][-1] == {
+        "role": "user",
+        "content": 'Tool result from lookup_record:\n{"record_id":"record-seed"}',
+    }
 
 
 def test_llama_cpp_local_adapter_translates_missing_dependency(

@@ -795,9 +795,30 @@ class LlamaCppLocalModelAdapter:
             huggingface_snapshot=self._config.huggingface_snapshot,
         )
         try:
+            uses_chatml_function_calling = (self._config.model_kwargs or {}).get(
+                "chat_format"
+            ) == "chatml-function-calling"
             raw_response = backend.create_chat_completion(
-                messages=[dict(message) for message in request.messages],
-                tools=[dict(tool) for tool in request.tools] or None,
+                messages=(
+                    _llama_cpp_chatml_messages(request.messages)
+                    if uses_chatml_function_calling
+                    else [dict(message) for message in request.messages]
+                ),
+                tools=(
+                    _llama_cpp_chatml_tools(request.tools)
+                    if uses_chatml_function_calling
+                    else [dict(tool) for tool in request.tools]
+                )
+                or None,
+                tool_choice=(
+                    "auto"
+                    if (
+                        request.tool_choice == "required"
+                        and request.tools
+                        and uses_chatml_function_calling
+                    )
+                    else request.tool_choice
+                ),
                 response_format=(
                     dict(request.response_format)
                     if request.response_format is not None
@@ -1312,6 +1333,50 @@ def _read_backend_model_id(backend: LlamaCppLocalBackend) -> str | None:
         if model_id is not None:
             return str(model_id)
     return None
+
+
+def _llama_cpp_chatml_tools(
+    tools: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    """Adapt DAR's flat tool shape to llama.cpp's chatml handler contract."""
+
+    adapted: list[dict[str, object]] = []
+    for tool in tools:
+        function = tool.get("function")
+        if isinstance(function, Mapping):
+            adapted.append(dict(tool))
+            continue
+        adapted.append(
+            {
+                "type": tool.get("type", "function"),
+                "function": {
+                    key: tool[key]
+                    for key in ("name", "description", "parameters")
+                    if key in tool
+                },
+            }
+        )
+    return adapted
+
+
+def _llama_cpp_chatml_messages(
+    messages: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    """Render tool results in the user role understood by llama.cpp's handler."""
+
+    adapted: list[dict[str, object]] = []
+    for message in messages:
+        if message.get("role") != "tool":
+            adapted.append(dict(message))
+            continue
+        tool_name = str(message.get("name") or "tool")
+        adapted.append(
+            {
+                "role": "user",
+                "content": f"Tool result from {tool_name}:\n{message.get('content', '')}",
+            }
+        )
+    return adapted
 
 
 def _normalize_llama_cpp_chat_response(raw_response: object) -> ModelResponse:
