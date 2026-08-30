@@ -468,6 +468,32 @@ def test_llama_cpp_embedding_public_values_are_frozen_and_tuple_backed(
         config.allow_network = False  # type: ignore[misc]
 
 
+def test_llama_cpp_embedding_config_requires_bound_identity_and_rejects_empty_vectors(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import EmbeddingResultError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        LlamaCppLocalEmbeddingConfig,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    with pytest.raises(ValueError):
+        LlamaCppLocalEmbeddingConfig(model_path=tmp_path / "embedding.gguf")
+
+    model_path = tmp_path / "embedding.gguf"
+    model_path.touch()
+    backend = _FakeLlamaCppEmbeddingBackend(
+        {"model": "embedding-test", "data": [{"index": 0, "embedding": []}]}
+    )
+    adapter = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(model_path), backend=backend
+    )
+
+    with pytest.raises(EmbeddingResultError):
+        adapter.embed((EmbeddingInputItem(id="entry", text="controlled"),))
+
+
 def test_llama_cpp_embedding_sync_resolves_before_one_indexed_call(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -638,6 +664,39 @@ def test_llama_cpp_embedding_rejects_invalid_input_before_backend(
 
     assert "secret input" not in str(raised.value)
     assert backend.calls == []
+
+
+def test_llama_cpp_embedding_rejects_invalid_unicode_before_backend(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner.errors import EmbeddingInputError
+    from dynamic_agent_runner.local_models import (
+        EmbeddingInputItem,
+        create_llama_cpp_local_embedding_adapter,
+    )
+
+    backend = _FakeLlamaCppEmbeddingBackend({"model": "embedding-test", "data": []})
+    forbidden_calls: list[object] = []
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        forbidden_calls.append((args, kwargs))
+        raise AssertionError("invalid input must not resolve, load, or download")
+
+    adapter = create_llama_cpp_local_embedding_adapter(
+        _embedding_config(tmp_path / "missing.gguf"),
+        backend=backend,
+        dependency_loader=forbidden,
+        download_file=forbidden,
+        download_snapshot=forbidden,
+    )
+    sentinel = chr(0xD800) + "secret-input"
+
+    with pytest.raises(EmbeddingInputError) as raised:
+        adapter.embed((EmbeddingInputItem(id="entry", text=sentinel),))
+
+    assert "secret-input" not in str(raised.value)
+    assert backend.calls == []
+    assert forbidden_calls == []
 
 
 def test_llama_cpp_embedding_factory_and_preflight_perform_no_io(
@@ -871,6 +930,8 @@ def test_llama_cpp_embedding_rejects_declared_input_bounds_before_resolution(
     [
         {"data": [{"index": 0, "embedding": [1.0]}]},
         {"model": "embedding-test", "data": [{"index": 0, "embedding": [[1.0]]}]},
+        {"model": "embedding-test", "data": [{"index": 0, "embedding": b"\x01"}]},
+        {"model": "embedding-test", "data": [{"index": 0, "embedding": [10**100_000]}]},
         {"model": "embedding-test", "data": [{"index": 0, "embedding": [1.0] * 8193}]},
         {
             "model": "embedding-test",
@@ -937,6 +998,42 @@ def test_llama_cpp_embedding_wraps_provider_failure_without_raw_input(
 
     assert "secret input" not in str(raised.value)
     assert len(backend.calls) == 1
+
+
+def test_default_llama_cpp_embedding_loader_forces_embedding_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sys
+    from types import SimpleNamespace
+
+    import dynamic_agent_runner.local_models as local_models
+
+    calls: list[dict[str, object]] = []
+
+    class FakeLlama:
+        def __init__(self, **kwargs: object) -> None:
+            calls.append(kwargs)
+
+    monkeypatch.setitem(sys.modules, "llama_cpp", SimpleNamespace(Llama=FakeLlama))
+    config = _embedding_config(tmp_path / "embedding.gguf", model_kwargs={"n_ctx": 512})
+
+    backend = local_models._load_default_llama_cpp_embedding_backend(
+        tmp_path / "embedding.gguf", config
+    )
+
+    assert isinstance(backend, FakeLlama)
+    assert calls == [
+        {
+            "model_path": str(tmp_path / "embedding.gguf"),
+            "embedding": True,
+            "n_ctx": 512,
+        }
+    ]
+    with pytest.raises(ValueError):
+        _embedding_config(
+            tmp_path / "embedding.gguf", model_kwargs={"embedding": False}
+        )
 
 
 def test_llama_cpp_embedding_rejects_ragged_and_scalar_vectors_without_raw_data(

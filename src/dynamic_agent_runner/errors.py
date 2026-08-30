@@ -49,6 +49,22 @@ class LocalModelIdentityMismatchError(LocalModelError):
     """Raised when the resolved or observed model identity does not match."""
 
 
+class EmbeddingError(LocalModelError):
+    """Base exception for standalone local embedding failures."""
+
+
+class EmbeddingInputError(EmbeddingError):
+    """Raised when a caller-supplied embedding batch is invalid."""
+
+
+class EmbeddingResultError(EmbeddingError):
+    """Raised when an embedding backend returns an invalid batch."""
+
+
+class EmbeddingExecutionError(EmbeddingError):
+    """Raised when standalone embedding execution cannot complete."""
+
+
 class LlamaCppMemoryFitProfileError(LocalModelError):
     """Raised when strict llama.cpp memory-fit profiling cannot continue."""
 

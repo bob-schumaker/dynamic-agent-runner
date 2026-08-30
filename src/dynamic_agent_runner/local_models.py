@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from types import MappingProxyType
 from typing import Protocol, runtime_checkable
 
 from dynamic_agent_runner.errors import (
     LocalModelEndpointConnectivityError,
     LocalModelEndpointProtocolError,
     LocalModelIdentityMismatchError,
+    EmbeddingExecutionError,
+    EmbeddingInputError,
+    EmbeddingResultError,
     LlamaCppMemoryFitProfileError,
     LocalModelOfflinePolicyError,
     LocalModelResolutionError,
@@ -39,6 +44,9 @@ from dynamic_agent_runner.openai_client import (
 DownloadFileCallable = Callable[["HuggingFaceModelFileReference", Path], Path]
 DownloadSnapshotCallable = Callable[["HuggingFaceSnapshotReference", Path], Path]
 LlamaCppDependencyLoaderCallable = Callable[[Path, "LlamaCppLocalModelConfig"], object]
+LlamaCppEmbeddingDependencyLoaderCallable = Callable[
+    [Path, "LlamaCppLocalEmbeddingConfig"], object
+]
 RemoteMetadataLookupCallable = Callable[
     ["LocalModelAssetReference"],
     "LocalModelRemoteMetadata",
@@ -110,6 +118,14 @@ class LlamaCppLocalBackend(Protocol):
 
     def create_chat_completion(self, **kwargs: object) -> object:
         """Create a llama.cpp chat completion response."""
+
+
+@runtime_checkable
+class LlamaCppLocalEmbeddingBackend(Protocol):
+    """Minimal backend interface for in-process llama.cpp embeddings."""
+
+    def create_embedding(self, **kwargs: object) -> object:
+        """Create a batch embedding response."""
 
 
 @dataclass(frozen=True)
@@ -321,6 +337,85 @@ class LlamaCppLocalModelConfig:
             self,
             "model_kwargs",
             dict(model_kwargs) if model_kwargs is not None else None,
+        )
+
+
+@dataclass(frozen=True)
+class EmbeddingInputItem:
+    """One caller-supplied text entry for a standalone embedding batch."""
+
+    id: str
+    text: str
+
+
+@dataclass(frozen=True)
+class EmbeddingVectorItem:
+    """One normalized vector in a standalone embedding batch result."""
+
+    id: str
+    vector: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class EmbeddingBatchResult:
+    """Normalized ordered result from one standalone embedding batch."""
+
+    model: str
+    items: tuple[EmbeddingVectorItem, ...]
+
+
+@dataclass(frozen=True)
+class LlamaCppLocalEmbeddingConfig:
+    """Configuration for a caller-owned direct llama.cpp embedding model."""
+
+    model_path: Path
+    model_filename: str
+    expected_model_id: str
+    model_cache_root: Path | None = None
+    huggingface_file: HuggingFaceModelFileReference | None = None
+    huggingface_snapshot: HuggingFaceSnapshotReference | None = None
+    allow_network: bool = True
+    model_kwargs: Mapping[str, object] | None = None
+
+    def __init__(
+        self,
+        *,
+        model_path: str | Path,
+        expected_model_id: str | None = None,
+        model_filename: str | None = None,
+        model_cache_root: str | Path | None = None,
+        huggingface_file: HuggingFaceModelFileReference | None = None,
+        huggingface_snapshot: HuggingFaceSnapshotReference | None = None,
+        allow_network: bool = True,
+        model_kwargs: Mapping[str, object] | None = None,
+    ) -> None:
+        if not isinstance(expected_model_id, str) or not expected_model_id.strip():
+            raise ValueError("expected_model_id must be a nonempty string")
+        if huggingface_file is not None and huggingface_snapshot is not None:
+            raise ValueError("only one Hugging Face embedding reference is allowed")
+        if model_kwargs is not None and "embedding" in model_kwargs:
+            raise ValueError("embedding model_kwargs is owned by the embedding adapter")
+        resolved_model_path = Path(model_path)
+        resolved_model_filename = model_filename or (
+            huggingface_file.filename
+            if huggingface_file is not None
+            else resolved_model_path.name
+        )
+        object.__setattr__(self, "model_path", resolved_model_path)
+        object.__setattr__(self, "model_filename", resolved_model_filename)
+        object.__setattr__(self, "expected_model_id", expected_model_id)
+        object.__setattr__(
+            self,
+            "model_cache_root",
+            Path(model_cache_root) if model_cache_root is not None else None,
+        )
+        object.__setattr__(self, "huggingface_file", huggingface_file)
+        object.__setattr__(self, "huggingface_snapshot", huggingface_snapshot)
+        object.__setattr__(self, "allow_network", bool(allow_network))
+        object.__setattr__(
+            self,
+            "model_kwargs",
+            MappingProxyType(dict(model_kwargs)) if model_kwargs is not None else None,
         )
 
 
@@ -741,6 +836,110 @@ class AsyncLlamaCppLocalModelAdapter:
         return True
 
 
+class LlamaCppLocalEmbeddingAdapter:
+    """Sync adapter for direct in-process llama.cpp embeddings."""
+
+    def __init__(
+        self,
+        config: LlamaCppLocalEmbeddingConfig,
+        *,
+        backend: LlamaCppLocalEmbeddingBackend | None = None,
+        dependency_loader: LlamaCppEmbeddingDependencyLoaderCallable | None = None,
+        download_file: DownloadFileCallable | None = None,
+        download_snapshot: DownloadSnapshotCallable | None = None,
+    ) -> None:
+        self._config = config
+        self._backend = backend
+        self._dependency_loader = dependency_loader
+        self._download_file = download_file
+        self._download_snapshot = download_snapshot
+        self._resolved_model_path: Path | None = None
+
+    def embed(self, items: Sequence[EmbeddingInputItem]) -> EmbeddingBatchResult:
+        """Embed one validated batch and return ordered caller IDs with vectors."""
+
+        normalized_items = _validate_embedding_input(items)
+        model_path = self._resolve_model_path()
+        backend = self._get_backend(model_path)
+        try:
+            raw_response = backend.create_embedding(
+                input=[item.text for item in normalized_items],
+                model=self._config.expected_model_id,
+            )
+        except Exception as exc:  # noqa: BLE001 - backend errors vary.
+            raise EmbeddingExecutionError(
+                "llama.cpp embedding execution failed"
+            ) from exc
+        return _normalize_llama_cpp_embedding_response(
+            raw_response,
+            items=normalized_items,
+            expected_model_id=self._config.expected_model_id,
+        )
+
+    def _resolve_model_path(self) -> Path:
+        if self._resolved_model_path is None:
+            self._resolved_model_path = resolve_local_model_path(
+                LocalModelPathConfig(
+                    model_filename=self._config.model_filename,
+                    explicit_model_path=self._config.model_path,
+                    model_cache_root=self._config.model_cache_root,
+                    huggingface_file=self._config.huggingface_file,
+                    huggingface_snapshot=self._config.huggingface_snapshot,
+                ),
+                allow_network=self._config.allow_network,
+                download_file=self._download_file,
+                download_snapshot=self._download_snapshot,
+            )
+        return self._resolved_model_path
+
+    def _get_backend(self, model_path: Path) -> LlamaCppLocalEmbeddingBackend:
+        if self._backend is None:
+            try:
+                loaded = (
+                    self._dependency_loader(model_path, self._config)
+                    if self._dependency_loader is not None
+                    else _load_default_llama_cpp_embedding_backend(
+                        model_path, self._config
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - loaders vary.
+                raise EmbeddingExecutionError(
+                    "llama.cpp embedding backend could not be loaded"
+                ) from exc
+            if not isinstance(loaded, LlamaCppLocalEmbeddingBackend):
+                raise EmbeddingExecutionError(
+                    "llama.cpp embedding dependency loader returned an invalid backend"
+                )
+            self._backend = loaded
+        return self._backend
+
+
+class AsyncLlamaCppLocalEmbeddingAdapter:
+    """Async wrapper for direct in-process llama.cpp embeddings."""
+
+    def __init__(
+        self,
+        config: LlamaCppLocalEmbeddingConfig,
+        *,
+        backend: LlamaCppLocalEmbeddingBackend | None = None,
+        dependency_loader: LlamaCppEmbeddingDependencyLoaderCallable | None = None,
+        download_file: DownloadFileCallable | None = None,
+        download_snapshot: DownloadSnapshotCallable | None = None,
+    ) -> None:
+        self._sync_adapter = LlamaCppLocalEmbeddingAdapter(
+            config,
+            backend=backend,
+            dependency_loader=dependency_loader,
+            download_file=download_file,
+            download_snapshot=download_snapshot,
+        )
+
+    async def embed(self, items: Sequence[EmbeddingInputItem]) -> EmbeddingBatchResult:
+        """Embed a batch without blocking the event loop directly."""
+
+        return await asyncio.to_thread(self._sync_adapter.embed, items)
+
+
 def create_local_openai_adapter(
     config: LocalOpenAIEndpointConfig,
 ) -> OpenAIClientAdapter:
@@ -811,6 +1010,44 @@ def create_llama_cpp_local_async_adapter(
     """Build an async direct llama.cpp local adapter."""
 
     return AsyncLlamaCppLocalModelAdapter(
+        config,
+        backend=backend,
+        dependency_loader=dependency_loader,
+        download_file=download_file,
+        download_snapshot=download_snapshot,
+    )
+
+
+def create_llama_cpp_local_embedding_adapter(
+    config: LlamaCppLocalEmbeddingConfig,
+    *,
+    backend: LlamaCppLocalEmbeddingBackend | None = None,
+    dependency_loader: LlamaCppEmbeddingDependencyLoaderCallable | None = None,
+    download_file: DownloadFileCallable | None = None,
+    download_snapshot: DownloadSnapshotCallable | None = None,
+) -> LlamaCppLocalEmbeddingAdapter:
+    """Build a sync direct llama.cpp embedding adapter."""
+
+    return LlamaCppLocalEmbeddingAdapter(
+        config,
+        backend=backend,
+        dependency_loader=dependency_loader,
+        download_file=download_file,
+        download_snapshot=download_snapshot,
+    )
+
+
+def create_llama_cpp_local_async_embedding_adapter(
+    config: LlamaCppLocalEmbeddingConfig,
+    *,
+    backend: LlamaCppLocalEmbeddingBackend | None = None,
+    dependency_loader: LlamaCppEmbeddingDependencyLoaderCallable | None = None,
+    download_file: DownloadFileCallable | None = None,
+    download_snapshot: DownloadSnapshotCallable | None = None,
+) -> AsyncLlamaCppLocalEmbeddingAdapter:
+    """Build an async direct llama.cpp embedding adapter."""
+
+    return AsyncLlamaCppLocalEmbeddingAdapter(
         config,
         backend=backend,
         dependency_loader=dependency_loader,
@@ -1112,6 +1349,168 @@ def _load_default_llama_cpp_backend(
         raise ModelExecutionError(
             f"llama.cpp local model load failed for {model_path!s}: {exc}"
         ) from exc
+
+
+def _load_default_llama_cpp_embedding_backend(
+    model_path: Path,
+    config: LlamaCppLocalEmbeddingConfig,
+) -> object:
+    try:
+        from llama_cpp import Llama
+    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+        raise EmbeddingExecutionError(
+            "llama.cpp dependency unavailable for local embedding execution"
+        ) from exc
+    try:
+        return Llama(
+            model_path=str(model_path),
+            embedding=True,
+            **dict(config.model_kwargs or {}),
+        )
+    except Exception as exc:  # noqa: BLE001 - llama.cpp load errors vary.
+        raise EmbeddingExecutionError("llama.cpp embedding model load failed") from exc
+
+
+def _validate_embedding_input(
+    items: Sequence[EmbeddingInputItem],
+) -> tuple[EmbeddingInputItem, ...]:
+    normalized_items = tuple(items)
+    if not normalized_items or len(normalized_items) > 128:
+        raise EmbeddingInputError("embedding batch has an invalid entry count")
+    seen_ids: set[str] = set()
+    total_text_bytes = 0
+    for item in normalized_items:
+        if not isinstance(item, EmbeddingInputItem):
+            raise EmbeddingInputError("embedding batch contains an invalid entry")
+        if not item.id or not isinstance(item.id, str) or item.id in seen_ids:
+            raise EmbeddingInputError("embedding batch contains an invalid entry ID")
+        if not isinstance(item.text, str):
+            raise EmbeddingInputError("embedding batch contains invalid text")
+        try:
+            id_bytes = len(item.id.encode("utf-8"))
+            text_bytes = len(item.text.encode("utf-8"))
+        except UnicodeError as exc:
+            raise EmbeddingInputError("embedding batch contains invalid text") from exc
+        if id_bytes > 128:
+            raise EmbeddingInputError("embedding batch contains an oversized entry ID")
+        if text_bytes > 64 * 1024:
+            raise EmbeddingInputError("embedding batch contains oversized text")
+        total_text_bytes += text_bytes
+        if total_text_bytes > 1024 * 1024:
+            raise EmbeddingInputError("embedding batch text exceeds the batch limit")
+        seen_ids.add(item.id)
+    return normalized_items
+
+
+def _normalize_llama_cpp_embedding_response(
+    raw_response: object,
+    *,
+    items: tuple[EmbeddingInputItem, ...],
+    expected_model_id: str,
+) -> EmbeddingBatchResult:
+    if not isinstance(raw_response, Mapping):
+        raise EmbeddingResultError("llama.cpp returned an invalid embedding result")
+    observed_model_id = raw_response.get("model")
+    if not isinstance(observed_model_id, str) or not observed_model_id:
+        raise EmbeddingResultError("llama.cpp embedding result has no model identity")
+    validate_local_model_identity(
+        requested_model=expected_model_id,
+        expected_model_id=expected_model_id,
+        observed_model_id=observed_model_id,
+    )
+    raw_data = raw_response.get("data")
+    if not isinstance(raw_data, Sequence) or isinstance(raw_data, str):
+        raise EmbeddingResultError("llama.cpp returned an invalid embedding result")
+    if len(raw_data) != len(items):
+        raise EmbeddingResultError("llama.cpp returned an invalid embedding result")
+
+    vectors_by_index = _normalize_embedding_rows(raw_data, entry_count=len(items))
+
+    if len(vectors_by_index) != len(items):
+        raise EmbeddingResultError("llama.cpp returned an invalid embedding result")
+    result_items = tuple(
+        EmbeddingVectorItem(id=item.id, vector=vectors_by_index[index])
+        for index, item in enumerate(items)
+    )
+    result = EmbeddingBatchResult(model=observed_model_id, items=result_items)
+    encoded_result = json.dumps(
+        {
+            "model": result.model,
+            "items": [{"id": item.id, "vector": item.vector} for item in result.items],
+        },
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    if len(encoded_result) > 16 * 1024 * 1024:
+        raise EmbeddingResultError("llama.cpp returned an oversized embedding result")
+    return result
+
+
+def _normalize_embedding_rows(
+    raw_data: Sequence[object], *, entry_count: int
+) -> dict[int, tuple[float, ...]]:
+    vectors_by_index: dict[int, tuple[float, ...]] = {}
+    expected_dimension: int | None = None
+    scalar_count = 0
+    for raw_entry in raw_data:
+        index, vector = _normalize_embedding_row(
+            raw_entry,
+            entry_count=entry_count,
+            seen_indexes=vectors_by_index,
+        )
+        if expected_dimension is None:
+            expected_dimension = len(vector)
+        elif len(vector) != expected_dimension:
+            raise EmbeddingResultError("llama.cpp returned ragged embeddings")
+        scalar_count += len(vector)
+        if scalar_count > 1_048_576:
+            raise EmbeddingResultError("llama.cpp returned oversized embeddings")
+        vectors_by_index[index] = vector
+    return vectors_by_index
+
+
+def _normalize_embedding_row(
+    raw_entry: object,
+    *,
+    entry_count: int,
+    seen_indexes: Mapping[int, tuple[float, ...]],
+) -> tuple[int, tuple[float, ...]]:
+    if not isinstance(raw_entry, Mapping):
+        raise EmbeddingResultError("llama.cpp returned an invalid embedding result")
+    index = raw_entry.get("index")
+    raw_vector = raw_entry.get("embedding")
+    if (
+        isinstance(index, bool)
+        or not isinstance(index, int)
+        or index < 0
+        or index >= entry_count
+        or index in seen_indexes
+        or not isinstance(raw_vector, list | tuple)
+        or not raw_vector
+    ):
+        raise EmbeddingResultError("llama.cpp returned an invalid embedding result")
+    vector = _normalize_embedding_vector(raw_vector)
+    if len(vector) > 8192:
+        raise EmbeddingResultError("llama.cpp returned an oversized embedding")
+    return index, vector
+
+
+def _normalize_embedding_vector(raw_vector: Sequence[object]) -> tuple[float, ...]:
+    vector: list[float] = []
+    for raw_scalar in raw_vector:
+        if isinstance(raw_scalar, bool) or not isinstance(raw_scalar, int | float):
+            raise EmbeddingResultError("llama.cpp returned an invalid embedding result")
+        try:
+            scalar = float(raw_scalar)
+        except OverflowError as exc:
+            raise EmbeddingResultError(
+                "llama.cpp returned an invalid embedding result"
+            ) from exc
+        if not math.isfinite(scalar):
+            raise EmbeddingResultError("llama.cpp returned an invalid embedding result")
+        vector.append(scalar)
+    return tuple(vector)
 
 
 def _default_local_model_cache_root() -> Path:
