@@ -544,4 +544,19 @@ and T5.5 terminal workflow integration complete; T5.6 tool exposure is next
   `ToolResult.trace_output` facet. It rejected any profile/producer registry,
   context extension, coordinator branch, approval bypass, or generic budget
   framework.
-- Disposition: deliver-ready. The next task is the fake-only T5.6 RED suite.
+- Disposition: deliver-ready. The T5.6 RED suite followed.
+
+### T5.6 GREEN — model-selectable embedding tool
+
+- Focused validation: `poetry run pytest tests/test_local_models.py
+  tests/test_executor.py tests/test_registry.py tests/test_tool_invocation.py -q
+  --tb=no` — 427 passed in 3.06s.
+- Final validation: `poetry run pytest -q` — 1586 passed, 1 skipped, 6
+  deselected in 11.89s; `poetry run ruff check src tests` passed.
+- Coverage: fixed schema and metadata; private nested input and UTF-8 budget
+  validation before producer dispatch; sync/async producer handling; typed,
+  ordered result correlation; bounded normal model-loop continuation; redacted
+  `tool_result` traces; and no approval interruption.
+- Explicit exclusions: no producer/profile registry, context binding,
+  coordinator branch, approval bypass, remote fallback, endpoint, live model,
+  network, RAG, or vector store.

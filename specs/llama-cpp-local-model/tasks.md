@@ -2,7 +2,7 @@
 
 Status: active feature record; Slices 1-3, T5.0 planning, T5.1 contract, T5.2
 RED tests, T5.3 standalone implementation, T5.4 validation/docs, and T5.5
-terminal workflow integration complete; T5.6 tool exposure is next
+terminal workflow integration and T5.6 tool exposure complete
 
 ## Prerequisites
 
@@ -508,7 +508,7 @@ terminal workflow integration complete; T5.6 tool exposure is next
     deselected in 11.94s; `poetry run ruff check src tests` passed; targeted
     `pre-commit` checks passed after formatting.
 
-- [ ] T5.6 [tests/implementation] Expose the completed standalone producer as
+- [x] T5.6 [tests/implementation] Expose the completed standalone producer as
       a model-selectable local embedding tool.
   - Depends on: T5.4.
   - Scope: add only `create_local_embedding_tool(producer) -> RegisteredTool`.
@@ -541,6 +541,11 @@ terminal workflow integration complete; T5.6 tool exposure is next
   - Boundary: do not add `WorkflowExecutionContext` binding, a producer/profile
     registry, generic nested-schema or budget framework, coordinator branch,
     model-adapter capability, endpoint fallback, RAG, or vector storage.
+  - GREEN: `poetry run pytest tests/test_local_models.py tests/test_executor.py
+    tests/test_registry.py tests/test_tool_invocation.py -q --tb=no` — 427
+    passed in 3.06s.
+  - Final validation: `poetry run pytest -q` — 1586 passed, 1 skipped, 6
+    deselected in 11.89s; `poetry run ruff check src tests` passed.
 
 ## Slice 4 — Validation and artifact completion
 

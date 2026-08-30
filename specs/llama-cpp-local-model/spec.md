@@ -5,13 +5,13 @@
 - Feature slug: `llama-cpp-local-model`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: implemented through Slices 1-3 and T5.5; T5.6 local embedding-tool
-  contract is implementation-ready
+- Status: implemented through Slices 1-3 and T5.6 local embedding-tool
+  integration
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model follow-up
   work
-- Next gate: T5.6 fake-only local embedding-tool RED suite; `validation.md`
-  remains the source of truth for fresh execution evidence
+- Next gate: no remaining planned task; `validation.md` remains the source of
+  truth for fresh execution evidence
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
   - first-slice local endpoint helper implementation landed in commit `6d269ad`
