@@ -77,6 +77,24 @@ poetry run ruff check tests/test_tool_descriptor_benchmark_fixtures.py
 # All checks passed
 ```
 
+## T2.2 Scorer-Comparison Validation
+
+- `nltk` is declared only in the Poetry `test` group; production dependencies
+  and `src/dynamic_agent_runner/` remain NLTK-free.
+- `tests/tool_descriptor_benchmark.py` compares stable, fixture-local rankings
+  from the stdlib deterministic scorer and an NLTK Porter-stemming scorer.
+- The NLTK scorer uses `wordpunct_tokenize` and `PorterStemmer`, with no corpus
+  download or network path.
+
+```bash
+poetry run pytest tests/test_tool_descriptor_benchmark_comparison.py -q
+# 4 passed
+
+poetry run ruff check tests/tool_descriptor_benchmark.py \
+  tests/test_tool_descriptor_benchmark_comparison.py
+# All checks passed
+```
+
 ## Out-of-Scope Confirmation
 
 Slice T1 does not:

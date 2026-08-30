@@ -61,8 +61,9 @@
       expected required tools, acceptable optional tools, and false-omission
       checks. The evaluator-only contract is validated by
       `tests/test_tool_descriptor_benchmark_fixtures.py`.
-- [ ] T2.2 Compare the no-dependency deterministic scorer against an optional
+- [x] T2.2 Compare the no-dependency deterministic scorer against an optional
       NLTK-backed lexical scorer without adding NLTK to runtime dependencies.
+      The test-only comparison uses corpus-free tokenization and stemming.
 - [ ] T2.3 Measure descriptor token reduction, selected-tool recall, false
       omissions, runtime overhead, dependency size, and setup friction.
 - [ ] T2.4 Promote an optional parser strategy only if benchmark evidence beats

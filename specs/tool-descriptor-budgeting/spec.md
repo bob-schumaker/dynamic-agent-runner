@@ -321,6 +321,10 @@ acceptable optional tools, and explicit false-omission checks. The fixture
 contract must not execute or encode the behavior of `ToolSelector`; T2.2 owns
 applying competing scorers to it and T2.3 owns measurements.
 
+T2.2 keeps its corpus-free NLTK comparison in the `test` Poetry dependency
+group and `tests/tool_descriptor_benchmark.py`; it does not introduce a
+runtime strategy or import NLTK from `src/`.
+
 Promotion criteria:
 
 - NLTK must improve relevant-tool recall or reduce false omissions enough to
