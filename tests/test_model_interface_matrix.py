@@ -77,8 +77,152 @@ def test_live_runner_selects_shared_catalog_by_identifier() -> None:
         "S3",
         "S5",
     ]
-    with pytest.raises(module.LiveMatrixError, match="unknown matrix scenario"):
-        module._selected_scenarios(["not-a-scenario"])
+    for identifiers in (["not-a-scenario"], ["S2-invalid"], ["S1", "S1"], []):
+        with pytest.raises(module.LiveMatrixError):
+            module._selected_scenarios(identifiers)
+
+
+def test_live_runner_preflight_rejects_unsafe_endpoint_without_constructing_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _runner_module()
+    monkeypatch.setenv(module.LIVE_ENV, "1")
+    calls = 0
+
+    def unexpected_adapter(*_args: object, **_kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        return object()
+
+    monkeypatch.setattr(module, "_adapter", unexpected_adapter)
+    receipt = module.run_live_matrix(
+        SimpleNamespace(
+            target="endpoint",
+            model="test-model",
+            mode="sync",
+            scenarios=["S5"],
+            base_url="https://user:pass@example.test/v1?token=secret",
+            model_path=None,
+            expected_model_id=None,
+            authorization_reference="matrix-20260830",
+        )
+    )
+
+    assert calls == 0
+    assert receipt["rows"][0]["status"] == "unavailable"
+    assert receipt["rows"][0]["reason"] == "invalid_base_url"
+
+
+def test_live_runner_preflight_rejects_secret_like_authorization_reference(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _runner_module()
+    monkeypatch.setenv(module.LIVE_ENV, "1")
+    monkeypatch.setattr(
+        module,
+        "_adapter",
+        lambda *_args, **_kwargs: pytest.fail("adapter must not be constructed"),
+    )
+
+    receipt = module.run_live_matrix(
+        SimpleNamespace(
+            target="openai",
+            model="test-model",
+            mode="sync",
+            scenarios=["S5"],
+            base_url=None,
+            model_path=None,
+            expected_model_id=None,
+            authorization_reference="token-123",
+        )
+    )
+
+    assert receipt["rows"][0]["reason"] == "invalid_authorization_reference"
+
+
+def test_live_runner_plans_apple_both_with_per_scenario_sync_skip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _runner_module()
+    monkeypatch.setenv(module.LIVE_ENV, "1")
+    monkeypatch.setattr(module, "_adapter", lambda *_args, **_kwargs: object())
+
+    async def execute(*_args: object, **_kwargs: object) -> object:
+        return SimpleNamespace(final_result="ok")
+
+    monkeypatch.setattr(module, "execute_workflow_async", execute)
+    receipt = module.run_live_matrix(
+        SimpleNamespace(
+            target="apple",
+            model=None,
+            mode="both",
+            scenarios=["S5"],
+            base_url=None,
+            model_path=None,
+            expected_model_id=None,
+            authorization_reference="matrix-20260830",
+        )
+    )
+
+    assert [(row["mode"], row["status"]) for row in receipt["rows"]] == [
+        ("sync", "skipped"),
+        ("async", "passed"),
+    ]
+
+
+def test_live_runner_continues_after_row_local_adapter_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _runner_module()
+    monkeypatch.setenv(module.LIVE_ENV, "1")
+
+    def unavailable_adapter(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("credential=should-not-appear")
+
+    monkeypatch.setattr(module, "_adapter", unavailable_adapter)
+    receipt = module.run_live_matrix(
+        SimpleNamespace(
+            target="openai",
+            model="test-model",
+            mode="sync",
+            scenarios=["S1", "S5"],
+            base_url=None,
+            model_path=None,
+            expected_model_id=None,
+            authorization_reference="matrix-20260830",
+        )
+    )
+
+    assert [row["status"] for row in receipt["rows"]] == [
+        "adapter_error",
+        "adapter_error",
+    ]
+    assert "credential=should-not-appear" not in repr(receipt)
+
+
+def test_live_runner_receipt_redacts_free_form_and_secret_values() -> None:
+    module = _runner_module()
+
+    projected = module._safe_value(
+        {"api_key": "secret", "message": "operator supplied free-form text"}
+    )
+
+    assert projected["api_key"] == "redacted"
+    assert projected["message"] == {
+        "type": "string",
+        "length": 32,
+        "digest": module._digest("operator supplied free-form text"),
+    }
+    assert module._summary([{"status": "passed"}, {"status": "adapter_error"}]) == (
+        "adapter_error",
+        {
+            "passed": 1,
+            "behavioral_mismatch": 0,
+            "adapter_error": 1,
+            "unavailable": 0,
+            "skipped": 0,
+        },
+    )
 
 
 def test_live_runner_executes_a_selected_shared_row_without_exposing_real_tools(
@@ -87,15 +231,27 @@ def test_live_runner_executes_a_selected_shared_row_without_exposing_real_tools(
     module = _runner_module()
     monkeypatch.setenv(module.LIVE_ENV, "1")
     monkeypatch.setattr(module, "_adapter", lambda *_args, **_kwargs: object())
-    monkeypatch.setattr(module, "execute_workflow", lambda *_args, **_kwargs: object())
+
+    async def execute(*_args: object, **_kwargs: object) -> object:
+        return SimpleNamespace(final_result="ok")
+
+    monkeypatch.setattr(module, "execute_workflow_async", execute)
 
     receipt = module.run_live_matrix(
-        SimpleNamespace(target="apple", mode="sync", scenarios=["S5"])
+        SimpleNamespace(
+            target="apple",
+            model=None,
+            mode="async",
+            scenarios=["S5"],
+            base_url=None,
+            model_path=None,
+            expected_model_id=None,
+            authorization_reference="matrix-20260830",
+        )
     )
 
-    assert receipt == {
-        "format_version": 1,
-        "rows": [{"mode": "sync", "scenario": "S5", "status": "passed"}],
-        "status": "passed",
-        "target": "apple",
-    }
+    assert receipt["format_version"] == 2
+    assert receipt["status"] == "passed"
+    assert receipt["rows"][0]["status"] == "passed"
+    assert receipt["manual_authorization"]["reference_digest"]
+    assert "matrix-20260830" not in repr(receipt)
