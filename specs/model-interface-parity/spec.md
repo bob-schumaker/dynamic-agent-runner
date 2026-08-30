@@ -6,7 +6,8 @@
 - Mode: `light`
 - Artifact type: test and acceptance specification
 - Status: deterministic matrix and wrapper-local T2 approval interaction
-  delivered; a manually gated live matrix shares its controlled catalog
+  delivered; a manually gated live runner shares its controlled catalog; the
+  follow-on live acceptance contract is open
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related feature specs:
   - `specs/model-adapter-coverage/spec.md`
@@ -16,6 +17,7 @@
   - `specs/apple-foundation-model-adapter/spec.md`
   - `specs/tool-invocation-coordinator/spec.md`
   - `specs/approval-interruption-resume/spec.md`
+  - `specs/live-model-interface-acceptance/spec.md`
 
 ## Objective
 

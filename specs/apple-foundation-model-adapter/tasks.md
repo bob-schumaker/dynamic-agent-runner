@@ -3,7 +3,7 @@
 
 Status: A1–A4 implementation complete; A3 C4 eligible-Mac Fastmail read-only
 acceptance complete; standalone direct release gate established; full test suite
-green
+green; Apple bridged-wrapper annotation regression tracked as A2 B5
 
 ## Prerequisites
 
@@ -92,6 +92,11 @@ green
 Apple `Tool` wrappers, provider ingress, callback lifecycle tracing, and live
 callback tests are governed by the approved `a2-plan.md` and `a2-tasks.md`.
 Durable approval pause/resume remains outside A2 scope.
+
+The live interface matrix discovered a bridge construction failure before Apple
+model generation: `DarTool2Arguments contains undefined references:
+[Annotated]`. Canonical bug task B5.1 in `a2-tasks.md` owns its reproduction,
+fix, and eligible-Mac regression proof.
 
 ## A3 handoff
 

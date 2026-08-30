@@ -1,7 +1,8 @@
 # Model Interface Tool-Parity Tasks
 
 Status: T1.1–T1.6 deterministic matrix and T2 approval-interaction gate
-delivered; T3 manually gated live matrix shares the controlled catalog
+delivered; T3 manually gated live runner shares the controlled catalog; live
+acceptance semantics are owned by `../live-model-interface-acceptance/spec.md`
 
 ## Scope Rule
 
@@ -23,15 +24,18 @@ remains separate work.
     `DAR_RUN_LIVE_MODEL_INTERFACE_MATRIX=1`, one explicit target, and only
     installs in-memory controlled handlers.
   - Targets: `codex`, `openai`, `litellm`, `endpoint`, `llama_cpp`,
-    `mlx_qwen3`, and `apple`; each runs selected S1--S6 rows in sync, async, or
-    both modes where the adapter supports them.
+    `mlx_qwen3`, and `apple`; the delivered initial runner exposes selected
+    S1--S6 catalog rows in sync, async, or both modes where the adapter
+    supports them. The follow-on live acceptance contract restricts its
+    acceptance selector to positive S1--S5 rows and defines target eligibility.
   - Delivery: existing Codex CLI/DAR structured S5 probe and Apple native
     diagnostics are marked `live_matrix` supporting rows. They remain separate
     eligibility-gated probes because Codex auth and Apple availability are host
     prerequisites, not runner configuration.
   - Validation: focused catalog/runner tests and the affected deterministic
     parity modules; live execution is intentionally operator-authorized and is
-    not recorded as CI evidence.
+    not recorded as CI evidence. Positive-only live acceptance and receipt
+    requirements are owned by `../live-model-interface-acceptance/spec.md`.
 
 ## Authoritative Contract Cells
 
