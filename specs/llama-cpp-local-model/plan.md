@@ -2,7 +2,7 @@
 
 Status: active implementation record; Slices 1-3, T5.0 planning, T5.1
 standalone embedding contract, T5.2 RED suite, and T5.3 implementation
-complete; T5.4 is next
+complete; T5.4 validation/docs is complete; T5.5 is next
 
 ## Goal
 
@@ -204,8 +204,12 @@ implementation.
    Sync/async fake backend tests cover the selected upstream method, normalized
    results, malformed/non-finite/ragged responses, and failure translation.
 4. T5.4 records focused/full fake-only validation and documents the exact
-   producer boundary. A live model load or embedding is a separate
-   human-authorized manual acceptance step.
+   producer boundary. Its receipt names commit `27826d8`, the producer public
+   surface, focused/full test and formatter/lint/pre-commit results, and proves
+   no-I/O setup, resolution order, separate forced embedding mode, bounded
+   normalized results, and redaction. It explicitly excludes every consumer
+   path, live model load, network, and external authorization. A live model
+   load or embedding is a separate human-authorized manual acceptance step.
 5. T5.5 adds the terminal `embedding_step` workflow node after the standalone
    producer is complete. It validates a declared host-bound profile and batch
    input binding, dispatches once through that producer, and returns the typed

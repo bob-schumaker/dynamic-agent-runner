@@ -2,7 +2,7 @@
 
 Status: complete through Slice 3 and T5.0 embedding planning; standalone
 embedding contract, T5.2 RED suite, and T5.3 implementation complete; T5.4
-validation/docs is next
+validation/docs complete; T5.5 terminal workflow integration is next
 
 ## Scope
 
@@ -385,3 +385,37 @@ validation/docs is next
   huge-integer, and Unicode validation corrections. Ponytail confirms reuse of
   the existing resolver and a private normalizer without a generic provider or
   consumer abstraction. T5.4 is the next validation/docs checkpoint.
+
+### T5.4 GREEN — producer boundary and fake-only validation receipt
+
+- Implementation: commit `27826d8` exposes only frozen embedding input/vector/
+  batch-result values, the immutable host-bound embedding config, typed
+  embedding errors, sync/async standalone factories, and adapters. It is not a
+  chat `ModelAdapter`.
+- Commands and results:
+  - `poetry run pytest tests/test_local_models.py tests/test_import.py -q`:
+    `141 passed in 2.15s`.
+  - `poetry run pytest -q`: `1535 passed, 1 skipped, 6 deselected, 66 warnings`
+    in 13.15s.
+  - `poetry run ruff check src/dynamic_agent_runner/local_models.py
+    src/dynamic_agent_runner/errors.py src/dynamic_agent_runner/__init__.py
+    tests/test_local_models.py tests/test_import.py`: passed.
+  - `poetry run ruff format --check src/dynamic_agent_runner/local_models.py
+    src/dynamic_agent_runner/errors.py src/dynamic_agent_runner/__init__.py
+    tests/test_local_models.py tests/test_import.py`: `5 files already formatted`.
+  - `poetry run pre-commit run --files
+    specs/llama-cpp-local-model/spec.md specs/llama-cpp-local-model/plan.md
+    specs/llama-cpp-local-model/tasks.md specs/llama-cpp-local-model/validation.md
+    src/dynamic_agent_runner/local_models.py src/dynamic_agent_runner/errors.py
+    src/dynamic_agent_runner/__init__.py tests/test_local_models.py
+    tests/test_import.py`: passed.
+- Fake-only evidence: tests cover frozen exports, no-I/O factory construction,
+  input rejection before resolution, local/cache/Hub/offline/download ordering,
+  forced separate `embedding=True` loader construction, sync/async one-call
+  execution, host identity and indexed bounded normalization, malformed Unicode
+  and scalar/vector cases, raw-data redaction, and no partial result.
+- Explicit exclusions: no chat adapter, executor/workflow node, registry tool,
+  approval path, capability advertisement, endpoint, RAG/vector store, live
+  llama.cpp/Hugging Face/model/network/server, Fastmail, OAuth, or manual
+  acceptance ran. T5.5 and T5.6 remain separate; a live embedding is a
+  separately human-authorized manual step.

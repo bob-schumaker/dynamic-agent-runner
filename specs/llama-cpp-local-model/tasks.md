@@ -1,8 +1,8 @@
 # llama.cpp Local-Model Adapter Task List
 
 Status: active feature record; Slices 1-3, T5.0 planning, T5.1 contract, T5.2
-RED tests, and T5.3 standalone implementation complete; T5.4 validation/docs
-is next
+RED tests, T5.3 standalone implementation, and T5.4 validation/docs complete;
+T5.5 terminal workflow integration is next
 
 ## Prerequisites
 
@@ -457,12 +457,23 @@ is next
     confirmed the parallel adapter reuses existing resolution and adds no
     generic provider, workflow, or tool abstraction.
 
-- [ ] T5.4 [validation/docs] Record consumer-boundary evidence and run final
+- [x] T5.4 [validation/docs] Record consumer-boundary evidence and run final
       fake-only regression.
   - Depends on: T5.3.
-  - Validation: focused local-model/import tests, `poetry run pytest -q`, Ruff,
-    formatter, and targeted pre-commit. A real embedding run remains a separate
+  - Receipt: name implementation commit `27826d8`, the public producer/export/
+    error surface, exact focused/full test commands and results, scoped Ruff and
+    formatter commands, and targeted pre-commit result.
+  - Evidence: prove fake-only frozen public values, no-I/O construction,
+    resolver/offline/download ordering, forced separate `embedding=True`
+    construction, sync/async one-call behavior, host identity/index/bound/
+    Unicode result validation, redaction, and no partial result.
+  - Boundary: state that no chat `ModelAdapter`, executor/workflow node,
+    registry/tool/approval, capability, endpoint, RAG/vector-store, live
+    llama.cpp/Hugging Face/network, Fastmail, OAuth, or manual acceptance ran.
+    T5.5 and T5.6 remain separate. A real embedding run remains a separately
     human-authorized manual step.
+  - Validation: focused local-model/import tests, `poetry run pytest -q`, Ruff,
+    formatter, and targeted pre-commit.
 
 - [ ] T5.5 [tests/implementation] Add a terminal `embedding_step` workflow node
       using the completed standalone batch producer.

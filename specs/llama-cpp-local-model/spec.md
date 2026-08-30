@@ -10,7 +10,8 @@
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model follow-up
   work
-- Next gate: T5.4 fake-only standalone embedding validation/docs, or a separate
+- Next gate: T5.5 fake-only terminal `embedding_step` workflow integration, or
+  a separate
   advisory feature such as
   `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md`
   remains the source of truth for fresh execution evidence
