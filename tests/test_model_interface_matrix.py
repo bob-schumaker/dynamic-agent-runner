@@ -51,6 +51,98 @@ def test_shared_catalog_contains_every_current_matrix_scenario() -> None:
     )
 
 
+def test_s3_allows_final_text_after_the_required_initial_tool_call() -> None:
+    scenario = next(item for item in controlled_tool_scenarios() if item.id == "S3")
+
+    policy = controlled_tool_workflow(scenario).runtime_manifest.execution_policy
+
+    assert policy["tool_choice_policy"] == {
+        "initial": "required",
+        "after_tool_result": "auto",
+    }
+    assert (
+        "Do not call any other tool until lookup_record has returned its result."
+        in (scenario.prompt)
+    )
+
+
+def test_controlled_workflow_passes_a_bounded_token_limit_to_the_model() -> None:
+    scenario = next(item for item in controlled_tool_scenarios() if item.id == "S3")
+
+    workflow = controlled_tool_workflow(
+        scenario,
+        model_parameters={"max_tokens": 256},
+    )
+
+    assert workflow.runtime_manifest.nodes[0].raw["model_parameters"] == {
+        "max_tokens": 256
+    }
+
+
+def test_live_runner_parser_defaults_to_a_bounded_token_limit() -> None:
+    module = _runner_module()
+
+    arguments = module._parser().parse_args(
+        ["--target", "endpoint", "--model", "test-model"]
+    )
+
+    assert arguments.max_tokens == 256
+
+
+def test_live_runner_uses_the_token_limit_only_for_local_targets() -> None:
+    module = _runner_module()
+
+    assert module._generation_settings(
+        SimpleNamespace(target="endpoint", max_tokens=256)
+    ) == {"max_tokens": 256}
+    assert (
+        module._generation_settings(SimpleNamespace(target="openai", max_tokens=256))
+        == {}
+    )
+
+
+def test_live_runner_omits_tool_choice_policy_for_native_tool_targets() -> None:
+    module = _runner_module()
+
+    assert module._uses_tool_choice_policy(SimpleNamespace(target="endpoint"))
+    assert not module._uses_tool_choice_policy(SimpleNamespace(target="apple"))
+    assert not module._uses_tool_choice_policy(SimpleNamespace(target="mlx_qwen3"))
+
+
+@pytest.mark.parametrize("asynchronous", (False, True))
+def test_live_runner_uses_codex_auth_for_litellm(
+    monkeypatch: pytest.MonkeyPatch,
+    asynchronous: bool,
+) -> None:
+    module = _runner_module()
+    calls: list[dict[str, object]] = []
+
+    def factory(**kwargs: object) -> object:
+        calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        module,
+        "create_litellm_codex_adapter_from_codex_auth",
+        factory,
+    )
+    monkeypatch.setattr(
+        module,
+        "create_async_litellm_codex_adapter_from_codex_auth",
+        factory,
+    )
+
+    adapter = module._adapter(
+        SimpleNamespace(target="litellm", model="gpt-5.4-mini", base_url=None),
+        asynchronous=asynchronous,
+    )
+
+    assert adapter is not None
+    assert calls[0]["model"] == "gpt-5.4-mini"
+    assert calls[0]["models"] == ("gpt-5.4-mini",)
+    assert calls[0]["model_list"]() == {"data": [{"id": "gpt-5.4-mini"}]}
+
+
 def test_shared_registry_is_harmless_and_records_one_invocation() -> None:
     registry, invocations, results = controlled_tool_registry()
 
@@ -325,6 +417,8 @@ def test_live_runner_executes_a_selected_shared_row_without_exposing_real_tools(
 
     assert receipt["format_version"] == 2
     assert receipt["status"] == "passed"
+    assert receipt["configuration"]["max_tokens"] == 256
+    assert receipt["rows"][0]["generation_settings"] == {}
     assert receipt["rows"][0]["status"] == "passed"
     assert receipt["manual_authorization"]["reference_digest"]
     assert "matrix-20260830" not in repr(receipt)
