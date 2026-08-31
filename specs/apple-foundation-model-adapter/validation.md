@@ -227,6 +227,17 @@ any binding work for DAR's required-first scenarios. It must not be treated as
 a remedy for S5 or any other response-normalization/model behavior until
 focused evidence separates those causes.
 
+## B5.1 Bridged-wrapper construction regression — 2026-08-30
+
+- Added the marked, construction-only real-SDK regression test for the
+  historical `DarTool2Arguments contains undefined references: [Annotated]`
+  failure. It builds one guide-producing admitted schema and DAR wrapper through
+  `apple_fm_sdk.Tool` without constructing `SystemLanguageModel`, opening a
+  `LanguageModelSession`, generating, or invoking a callback or handler.
+- `poetry run pytest -m apple_live tests/test_live_apple_foundation_models.py::test_live_apple_bridged_tool_construction -q` — 1 passed. The installed SDK
+  emitted its known `asyncio.iscoroutinefunction` deprecation warning.
+- `poetry run pytest tests/test_apple_foundation_models.py -q` — 101 passed.
+
 ## A2 B1.1 coordinator characterization — 2026-08-26
 
 - Added passing characterization coverage before B1.2 extraction. This is not a

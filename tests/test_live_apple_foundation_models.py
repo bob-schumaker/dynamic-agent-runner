@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import dynamic_agent_runner.apple_foundation_models as apple_foundation_models
 from dynamic_agent_runner.apple_foundation_models import (
     create_apple_foundation_model_async_adapter,
 )
@@ -28,6 +29,7 @@ from dynamic_agent_runner.tool_invocation import (
     ProviderDecisionState,
     ProviderToolDecision,
     ProviderToolTerminalError,
+    ProviderCallbackBudget,
     tool_context,
 )
 from dynamic_agent_runner.tracing import WorkflowTracer
@@ -51,10 +53,33 @@ def _require_live_apple() -> object:
     return sdk
 
 
+def _require_apple_tool_construction_sdk() -> object:
+    """Return the installed SDK without creating or checking a system model."""
+
+    if sys.platform != "darwin":
+        pytest.skip("Apple bridged-tool construction tests require macOS")
+    try:
+        sdk = importlib.import_module("apple_fm_sdk")
+    except Exception as exc:  # pragma: no cover - host prerequisite branch.
+        pytest.skip(f"apple-fm-sdk is unavailable: {exc}")
+    if not callable(getattr(sdk, "generable", None)) or not isinstance(
+        getattr(sdk, "Tool", None), type
+    ):
+        pytest.skip("apple-fm-sdk native tool construction is unavailable")
+    return sdk
+
+
 _LIVE_SENTINEL_SCHEMA = {
     "type": "object",
     "properties": {"token": {"type": "string"}},
     "required": ["token"],
+    "additionalProperties": False,
+}
+
+_LIVE_BRIDGED_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {"status": {"type": "string", "enum": ["ready"]}},
+    "required": ["status"],
     "additionalProperties": False,
 }
 
@@ -107,6 +132,33 @@ def _live_tool_request(
         tools=registry.to_openai_tools(("sentinel",)),
         adapter_context=context,
     )
+
+
+@pytest.mark.apple_live
+def test_live_apple_bridged_tool_construction() -> None:
+    """Construct DAR's guided wrapper through the installed SDK without a session."""
+
+    sdk = _require_apple_tool_construction_sdk()
+    arguments_type = apple_foundation_models._apple_generated_object_type(
+        _LIVE_BRIDGED_TOOL_SCHEMA,
+        sdk,
+        type_name="DarTool2Arguments",
+    )
+
+    wrapper = apple_foundation_models._apple_tool_wrapper(
+        sdk,
+        context=SimpleNamespace(),
+        callback_budget=ProviderCallbackBudget(limit=1),
+        callback_result_budget=None,
+        callback_session=apple_foundation_models._AppleCallbackSessionState(),
+        tool_id="constrained",
+        name="dar_tool_2",
+        description="Constructs a constrained local test wrapper.",
+        arguments_type=arguments_type,
+    )
+
+    assert isinstance(wrapper, sdk.Tool)
+    assert wrapper.arguments_schema is not None
 
 
 @pytest.mark.apple_live
