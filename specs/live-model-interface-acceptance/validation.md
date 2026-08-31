@@ -54,3 +54,19 @@ is defective. The final llama.cpp rerun uses the handler's native function-call
 grammar, adapts DAR's flat tool schema at the handler boundary, and renders
 tool results in the handler's supported message form. Its v5 receipt records
 all ten rows as passed.
+
+## T5.1 Baseline Diagnostic Observation — 2026-08-30
+
+The later authorized endpoint-only S1 diagnostic used the endpoint artifact
+and revision recorded above with vLLM Metal 0.28.0, `qwen3_xml`, automatic
+content-format detection, and auto tool choice. It observed two schema-valid,
+identical `create_record` calls in both sync and async mode, followed by no
+final text after their controlled results. Both row receipts record
+`adapter_error: 0`; this is a behavioral mismatch for that exact baseline,
+not an adapter-error conclusion.
+
+This observation refines the earlier aggregate endpoint receipt, whose
+adapter-error classification was produced before the endpoint-specific
+diagnostic evidence was available. It does not establish a model, parser,
+template, or DAR-adapter cause. T5.1 defines the bounded B0--B2 follow-up
+needed to make that attribution.

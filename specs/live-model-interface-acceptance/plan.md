@@ -2,7 +2,8 @@
 
 ## Metadata
 
-- Status: delivery complete; manual evidence recorded in `validation.md`
+- Status: initial delivery complete; T5.1 endpoint diagnosis and T5.2
+  compatibility resolution pending in `tasks.md`
 - Governing spec: `spec.md`
 - Parent deterministic contract: `../model-interface-parity/spec.md`
 - Delivery target: this repository's working tree at
@@ -30,6 +31,23 @@ for one target. Ordinary pytest remains fake-backed and offline.
 
 No package module, dependency, provider-specific diagnostic interface, or
 automated vLLM/MLX/llama.cpp lifecycle is required.
+
+### T5.1 bounded endpoint diagnosis
+
+T5.1 is a manual, post-delivery compatibility diagnosis. It tests only B0--B2
+defined in `tasks.md`: the recorded `qwen3_xml` baseline and the two documented
+content-format overrides. It freezes the model revision, parser, template
+source, tool policy, and generation settings, changes one setting per candidate,
+and uses a temporary server without changing the installed launchd definition.
+
+Each candidate begins with a same-scenario direct OpenAI-compatible endpoint
+control, including the post-tool-result continuation, then runs DAR S1 in sync
+and async mode. The retained direct evidence is structural and redacted; it is
+not a new package capture interface or receipt format. Matching direct and DAR
+invalid shapes establish an endpoint/model-configuration observation. A direct
+S1 pass paired with a DAR miss establishes an adapter discrepancy and requires
+a separately scoped test-first task. The task cannot infer a result beyond its
+three named candidates.
 
 ## Technical Design
 
@@ -225,6 +243,7 @@ pre-commit run --files \
   scripts/run_live_model_interface_matrix.py \
   specs/live-model-interface-acceptance/spec.md \
   specs/live-model-interface-acceptance/plan.md \
+  specs/live-model-interface-acceptance/tasks.md \
   specs/live-model-interface-acceptance/validation.md
 git diff --check
 ```

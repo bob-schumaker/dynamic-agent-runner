@@ -1,6 +1,7 @@
 # Live Model-Interface Acceptance Tasks
 
-Status: implementation-ready; execute T1 through T4 in order
+Status: T1--T4 complete; T5.1 diagnosis and T5.2 compatibility resolution
+pending
 
 ## Authority and Route
 
@@ -103,6 +104,76 @@ Status: implementation-ready; execute T1 through T4 in order
   - Acceptance: the receipt follows format version 2 and is retained without
     secret-bearing raw transport data.
 
+## T5 — vLLM Endpoint Compatibility Follow-up
+
+- [ ] T5.1 [manual diagnosis] Characterize the Qwen3 vLLM endpoint's
+      parser/template behavior for the recorded S1 mismatch before proposing a
+      DAR implementation change.
+  - Evidence: the authorized 2026-08-30 S1 sync and async receipts each show
+    two valid `create_record` calls followed by no text completion for
+    `mlx-community/Qwen3-4B-Instruct-2507-nvfp4` at revision
+    `111ab717db337468c86004a79bd9df19c6e3986d`, served by vLLM Metal 0.28.0
+    with `qwen3_xml`.
+  - Candidate set: test exactly B0--B2 against the pinned artifact and vLLM
+    0.28.0. B0 is the observed baseline: `qwen3_xml`, auto tool choice,
+    tokenizer-provided template, automatic content-format detection, and the
+    model's effective generation defaults. B1 is B0 with only
+    `--chat-template-content-format string`; B2 is B0 with only
+    `--chat-template-content-format openai`. Freeze all other settings. This
+    is the complete task-authorized set; a parser, template, or generation
+    change needs a new task and current authorization. The candidate options
+    come from vLLM 0.28.0's documented CLI arguments, not inferred parser
+    substitutions.
+  - Procedure: with explicit current authorization, start and stop a temporary
+    server for each candidate in a temporary Herdr workspace; do not modify
+    the installed launchd configuration. For each candidate, first run one
+    direct OpenAI-compatible `/v1/chat/completions` S1 control with the same
+    fixed model, messages, tool schema, tool choice, and post-tool-result
+    continuation as the runner scenario. Then run the bounded DAR S1 sync and
+    async probes. Retain format-version-2 redacted receipts for DAR and only a
+    bounded structural projection for the direct control: request/configuration
+    digest, returned tool-call count/names/argument-validity, and final-text
+    presence. Record non-secret provenance for vLLM version, model revision,
+    candidate ID and one-variable delta, parser, template source plus digest,
+    detected content format, frozen generation settings, and the documentation
+    version/source in `validation.md`.
+  - Attribution: if the direct control and DAR have the same invalid S1 shape,
+    attribute the observation to the tested endpoint/model configuration. If
+    the direct control meets S1 but DAR does not, record an adapter discrepancy
+    and create a separate test-first adapter task. If the direct control cannot
+    make the bounded request, record that candidate as unavailable; do not
+    substitute a different request or configuration.
+  - Acceptance: either record one B0--B2 configuration that produces one
+    schema-valid `create_record` call and a final text completion in both DAR
+    modes, or record the candidate-specific result for every B0--B2 probe.
+    A negative conclusion is limited to B0--B2, vLLM 0.28.0, and the pinned
+    model revision. Do not change a DAR adapter merely to force a tool call;
+    any adapter remedy needs the separate task justified by the paired evidence.
+  - Boundary: no pytest/CI live dependency, model download, external tool
+    dispatch, credentials, or unredacted provider capture. This task does not
+    authorize a durable package or launchd configuration change, a new
+    provider-specific capture interface, or additional candidates.
+
+- [ ] T5.2 [manual compatibility resolution] Address the model/parser behavior
+      mismatch only after T5.1 records its configuration-specific evidence.
+  - Prerequisite: T5.1 identifies either one configuration that satisfies S1
+    in sync and async mode, or a reproducible failure for its tested
+    configuration set.
+  - Procedure: if T5.1 identifies a passing configuration, record its exact
+    non-secret provenance as the endpoint target's supported manual-test
+    configuration and repeat the bounded S1 sync/async confirmation. If it
+    does not, record the model/parser combination as unsupported for this
+    acceptance target and retain the receipt references. If the evidence shows
+    DAR diverges from an otherwise conforming endpoint response, create a new
+    test-first DAR adapter task that names the affected adapter boundary and
+    its focused regression tests; do not implement that change under T5.2.
+  - Acceptance: `validation.md` records one of those three evidence-backed
+    outcomes. It makes no general compatibility claim beyond the exact model
+    revision, vLLM version, parser/template configuration, and S1 modes tested.
+  - Boundary: no speculative parser substitution, durable launchd/package
+    configuration change, model download, or DAR adapter modification. Any
+    source change requires its separately authorized task.
+
 ## Consistency Check
 
 - T1 maps to plan “Selection and eligibility” and spec acceptance requirements
@@ -113,3 +184,6 @@ Status: implementation-ready; execute T1 through T4 in order
   positive-invariant evaluation is deliberately established in T2 before its
   classifier is implemented.
 - T4 maps to plan “Validation” and the spec's manual-gate boundary.
+- T5 maps to the plan's unresolved affected-target rerun checklist and remains
+  manual evidence, not deterministic matrix coverage. T5.2 consumes T5.1's
+  evidence rather than presuming a model, parser, or DAR adapter cause.
