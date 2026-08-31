@@ -1,6 +1,8 @@
 # llama.cpp Local-Model Adapter Validation Log
 
-Status: complete through Slice 3; optional embedding follow-up not started
+Status: complete through Slice 3 and T5.0 embedding planning; standalone
+embedding contract, T5.2 RED suite, T5.3 implementation, T5.4 validation/docs,
+T5.5 terminal workflow integration, and T5.6 tool exposure complete
 
 ## Scope
 
@@ -16,8 +18,10 @@ Status: complete through Slice 3; optional embedding follow-up not started
   endpoint-failure translation is now implemented in `f4bcb0e`, T2.5 default
   Hub download wiring is now implemented in `d5857dd`, T2.6 authoritative
   model-identity preservation is now implemented in `9b7078f`, and Slice 3
-  direct in-process llama.cpp chat is implemented in `58136d9`; the feature is
-  complete through T3.5 and T4.5, with optional embedding follow-up unscheduled
+  direct in-process llama.cpp chat is implemented in `58136d9`; the standalone
+  embedding producer and terminal workflow are implemented in `27826d8` and
+  `52c4ace`, and model-selectable tool exposure is implemented in `29090bc`.
+  The feature is complete through T5.6.
 
 ## Executed Checks
 
@@ -272,6 +276,289 @@ Status: complete through Slice 3; optional embedding follow-up not started
 
 ## Pending Follow-up
 
-- T5.0 — add RED tests and a focused task breakdown for separate local embedding
-  configuration only if the optional embedding follow-up is explicitly
-  scheduled.
+### T5.0 — Separate local embedding planning
+
+- Date: 2026-08-29
+- Scope: planning-only. No source, dependency, model, network, endpoint, or
+  external-tool change was made.
+- Evidence: the refreshed spec, plan, and task breakdown isolate embedding
+  configuration from chat adapters, executor routing, workflow metadata,
+  server lifecycle, graph/RAG, and vector-store concerns.
+- Council/Ponytail: Council required a named internal consumer and a
+  source-inspected upstream method before execution. Ponytail accepted the
+  smallest outcome: do not add a generic embedding API before a consumer exists.
+- Next gate: T5.1 must resolve the consumer/output contract; it may stop for a
+  user decision when no consumer is available.
+
+### T5.1 — Standalone surface and contract readiness review
+
+- Date: 2026-08-29
+- Source inspection: installed `llama-cpp-python` is `0.3.35`.
+  `llama_cpp.Llama.embed(input, normalize=False, truncate=True,
+  return_count=False)` and `create_embedding(input, model=None)` are both
+  available upstream candidates. `create_embedding` delegates to batched
+  `embed`, returns indexed entries plus a model field, and is selected for the
+  standalone contract's exact ID correlation.
+- Consumer discovery: current DAR source has no `.embed(...)` or
+  `.create_embedding(...)` runtime caller and no local embedding protocol.
+  Context preparation keeps semantic/vector retrieval behind an injected
+  selector boundary; the RAG contract keeps embedding generation and retrieval
+  infrastructure caller-owned; graph-mutation explicitly defers local-embedding
+  transport.
+- Review: Council unanimously found no legitimate internal consumer. Ponytail
+  agrees that adding a generic embedding configuration or choosing an upstream
+  method now would be speculative package surface.
+- Scope decision: the user authorized a standalone embedding surface as new
+  scope. T5.1 remains unchecked until it specifies the caller-visible contract;
+  T5.2--T5.4, model loading, networking, and public exports remain unauthorized
+  until then. Graph/RAG, vector-store, executor, and chat-adapter work remain
+  excluded from this authorization.
+- Contract direction: the user requires batch-only `{id, string}` input and
+  `EmbeddingBatchResult(model, items)` output with `{id, vector}` items,
+  including a terminal one-node workflow use and
+  an optional model-selectable tool use. These are two later consumers, not one
+  shared implementation path: T5.5 owns the new terminal workflow node and
+  T5.6 owns the existing-registry tool exposure. The model selects invocation,
+  never embedding-model identity.
+- Limits decision: the user selected split transport limits. The producer and
+  terminal node admit 128 entries / 64 KiB each / 1 MiB total / 8,192
+  dimensions / 1,048,576 scalars / 16 MiB output. The model tool admits eight
+  entries / 8 KiB each / 64 KiB total / 2,048 dimensions / 16,384 scalars /
+  256 KiB output. Its structured result is `{model, items: [{id, vector}]}`.
+- Model identity decision: DAR supplies the resolved host-bound identity to
+  `create_embedding`; a returned model mismatch raises the existing
+  `LocalModelIdentityMismatchError` before output.
+- Error decision: the user approved `EmbeddingError(LocalModelError)` with
+  `EmbeddingInputError`, `EmbeddingResultError`, and
+  `EmbeddingExecutionError`; existing local resolution, offline, and identity
+  errors retain their current meanings. A failed batch has no partial result.
+- Public API decision: use frozen `EmbeddingInputItem` and
+  `EmbeddingVectorItem` dataclasses, `EmbeddingBatchResult`, dedicated
+  `LlamaCppLocalEmbeddingConfig` and sync/async embedding adapters with
+  `.embed(items)`, plus
+  `create_llama_cpp_local_embedding_adapter` /
+  `create_llama_cpp_local_async_embedding_adapter` factories. This is separate
+  from chat configuration and `ModelAdapter`.
+- Delivery review: Council unanimously approved the completed contract after
+  its result-shape, host-identity, and exact public-entry-point corrections.
+  Ponytail confirms one shared producer plus the existing coordinator is the
+  smallest design. T5.1 is implementation-ready and delivered as a
+  documentation-only decision slice; T5.2 is the next executable task.
+- Council/Ponytail: both integrations require separate manifest/executor and
+  registry/coordinator contracts. Reuse one host-bound batch producer; do not
+  add a second embedding path, remote fallback, model-selected profile, or
+  approval bypass. T5.1 remains the gate for fixed resource bounds and typed
+  error/result contracts.
+
+### T5.2 RED — standalone embedding configuration and execution contract
+
+- Date: 2026-08-29
+- Command: `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+- Observed result: `30 failed, 106 passed`; every failure is the intentionally
+  absent T5.3 embedding public API or error taxonomy.
+- Lint: `poetry run ruff check tests/test_local_models.py tests/test_import.py`
+  passed.
+- Coverage: immutable public values; sync/async factories; zero-I/O preflight;
+  explicit/caller-cache/default-Hub/download resolution order; offline policy;
+  UTF-8 and batch bounds; indexed response normalization; result/input/provider
+  errors; no partial output; and raw text/vector redaction.
+- Council/Ponytail: Council approved after checking resolver-path observation,
+  offline/download ordering, byte boundaries, and malformed-result coverage.
+  Ponytail retained the deliberately small test-local embedding fake and no
+  production-only test protocol. T5.3 is now the sole GREEN implementation
+  boundary.
+
+### T5.3 GREEN — standalone llama.cpp embedding producer
+
+- Date: 2026-08-29
+- Commands:
+  - `poetry run pytest tests/test_local_models.py tests/test_import.py -q`
+  - `poetry run pytest -q`
+- Observed result: `141 passed` for the focused local-model/import suite and
+  `1534 passed, 1 skipped, 6 deselected` for the full suite.
+- Scope: a distinct immutable embedding config and typed result/input values;
+  sync/async standalone adapters; lazy caller-controlled resolution and
+  embedding-only backend construction; strict bounded indexed-result
+  normalization; package-owned embedding errors; and package-root exports.
+- Boundaries: no chat adapter change, executor routing, workflow node, tool,
+  endpoint, capability, network, or live model use. Raw input/vector data is
+  excluded from errors, including malformed Unicode and oversized numeric cases.
+- Council/Ponytail: Council approved the final forced-loader, byte-vector,
+  huge-integer, and Unicode validation corrections. Ponytail confirms reuse of
+  the existing resolver and a private normalizer without a generic provider or
+  consumer abstraction. T5.4 is the next validation/docs checkpoint.
+
+### T5.4 GREEN — producer boundary and fake-only validation receipt
+
+- Implementation: commit `27826d8` exposes only frozen embedding input/vector/
+  batch-result values, the immutable host-bound embedding config, typed
+  embedding errors, sync/async standalone factories, and adapters. It is not a
+  chat `ModelAdapter`.
+- Commands and results:
+  - `poetry run pytest tests/test_local_models.py tests/test_import.py -q`:
+    `141 passed in 2.15s`.
+  - `poetry run pytest -q`: `1535 passed, 1 skipped, 6 deselected, 66 warnings`
+    in 13.15s.
+  - `poetry run ruff check src/dynamic_agent_runner/local_models.py
+    src/dynamic_agent_runner/errors.py src/dynamic_agent_runner/__init__.py
+    tests/test_local_models.py tests/test_import.py`: passed.
+  - `poetry run ruff format --check src/dynamic_agent_runner/local_models.py
+    src/dynamic_agent_runner/errors.py src/dynamic_agent_runner/__init__.py
+    tests/test_local_models.py tests/test_import.py`: `5 files already formatted`.
+  - `poetry run pre-commit run --files
+    specs/llama-cpp-local-model/spec.md specs/llama-cpp-local-model/plan.md
+    specs/llama-cpp-local-model/tasks.md specs/llama-cpp-local-model/validation.md
+    src/dynamic_agent_runner/local_models.py src/dynamic_agent_runner/errors.py
+    src/dynamic_agent_runner/__init__.py tests/test_local_models.py
+    tests/test_import.py`: passed.
+- Fake-only evidence: tests cover frozen exports, no-I/O factory construction,
+  input rejection before resolution, local/cache/Hub/offline/download ordering,
+  forced separate `embedding=True` loader construction, sync/async one-call
+  execution, host identity and indexed bounded normalization, malformed Unicode
+  and scalar/vector cases, raw-data redaction, and no partial result.
+- Explicit exclusions: no chat adapter, executor/workflow node, registry tool,
+  approval path, capability advertisement, endpoint, RAG/vector store, live
+  llama.cpp/Hugging Face/model/network/server, Fastmail, OAuth, or manual
+  acceptance ran. T5.5 and T5.6 remain separate; a live embedding is a
+  separately human-authorized manual step.
+
+### T5.5 readiness review — terminal embedding workflow contract
+
+- Date: 2026-08-29
+- Council finding: T5.5 was not executable as written because neither the
+  host-profile collaborator nor the exact batch-input binding was specified.
+  The existing `WorkflowExecutionContext` has only chat model collaborators,
+  and generic `inputs_from` cannot safely identify a one-node batch input.
+- Approved minimal contract: the complete manifest allowlist is `id`, `kind`,
+  optional `label`, opaque `embedding_profile`, and `embedding_input_from`.
+  The reusable execution context binds one immutable profile ID/producer/mode;
+  per-run batch input is the sole permitted public context overlay. The declared
+  ID must equal that one binding, so a package cannot select among profiles. A
+  workflow/model never supplies model/provider/path configuration or raw text in
+  its manifest. `embedding_step` is terminal; profile, producer mode, and batch
+  validation occur before the one allowed producer call. Sync/async mismatch
+  has zero dispatch; async accepts either direct or awaitable output.
+- Council/Ponytail: Council requires terminality and all pre-dispatch rejection
+  paths be tested in both sync and async execution. Ponytail accepts one new
+  primitive, one context binding, and one per-run input argument, reusing
+  normal workflow completion, tracing, and typed producer output; no tool,
+  registry, adapter, or profile control-plane abstraction is authorized.
+- Result: T5.5 is implementation-ready. Its RED suite must prove valid typed
+  terminal output, invalid manifest/profile/batch zero-dispatch behavior,
+  immutable host binding, malformed producer results, raw-data trace/error
+  redaction, and absence of model/tool/approval/remote interaction. Tests also
+  prove invalid manifests are `WorkflowValidationError`, invalid host values and
+  result types are pre-output `WorkflowExecutionError`, existing producer
+  exceptions retain their package-owned type, and rejected sync awaitables are
+  closed. T5.5 adds no network path; fake tests use local producers and guarded
+  downloaders while preserving the standalone producer's caller-owned offline
+  policy.
+
+### T5.5 delivery review
+
+- Reviewed artifact: commit `8961ad1` (`docs(llama-cpp): ready terminal
+  embedding workflow`).
+- Council: approved 3–0. The spec, plan, task, and readiness receipt agree on
+  a terminal host-bound primitive, its single permitted per-run overlay,
+  pre-dispatch validation, failure ownership, and explicit exclusion of T5.6
+  tool/approval/model-selection/network/vector-store scope.
+- Ponytail: approved the smallest complete shape—one primitive, one context
+  binding, and one per-run input argument. No control plane, registry, model
+  adapter, storage, or second embedding path is introduced.
+- Disposition: deliver-ready. The T5.5 RED suite followed.
+
+### T5.5 RED — terminal embedding workflow integration contract
+
+- Reviewed artifact: commit `b2e3d0c` (`test(llama-cpp): add embedding step
+  RED coverage`).
+- Command: `poetry run pytest tests/test_artifacts.py tests/test_validation.py
+  tests/test_executor.py -q --tb=no`.
+- Observed result: `44 failed, 287 passed in 0.71s`. Every failure is at the
+  intentionally absent `embedding_step` primitive or its corresponding
+  manifest/context/executor entry point. The suite introduces no production
+  code.
+- Checks: `poetry run ruff check tests/test_artifacts.py
+  tests/test_validation.py tests/test_executor.py` and `poetry run pre-commit
+  run --files tests/test_artifacts.py tests/test_validation.py
+  tests/test_executor.py` passed.
+- Coverage: exact terminal manifest allowlist and no outgoing edges; typed
+  sync/async result handoff; host-bound profile and mode validation before
+  dispatch; bounded copied batch input; rejection of malformed bindings and
+  results; preservation of package-owned producer errors; safe closure of an
+  unexpected sync awaitable; immutable context bindings; and trace/error
+  redaction of input text and vectors.
+- Council/Ponytail: Council approved the completed RED boundary 3–0. Ponytail
+  confirms the tests use only local fakes and existing test seams: no generic
+  producer registry, second execution path, or T5.6 tool surface was added.
+- Explicit exclusions: no model or tool adapter, approval flow, registry,
+  storage, network, live model, download, endpoint, or external service is
+  involved. The T5.5 GREEN implementation followed.
+
+### T5.5 GREEN — terminal embedding workflow integration
+
+- Command: `poetry run pytest tests/test_artifacts.py tests/test_validation.py
+  tests/test_executor.py -q --tb=no`.
+- Result: `331 passed in 0.68s`.
+- Final validation: `poetry run pytest -q` — `1578 passed, 1 skipped, 6
+  deselected in 11.94s`; `poetry run ruff check src tests` passed; targeted
+  `pre-commit run --files ...` passed after Ruff formatting.
+- Coverage: exact manifest allowlist and terminality; immutable host profile,
+  producer, and mode binding; copied tuple batch overlay; sync/async mode
+  admission; typed result handoff; producer-error preservation; awaitable
+  closure; and trace redaction.
+- Explicit exclusions: no model adapter, registry tool, approval path, remote
+  endpoint, network, model load, vector store, or T5.6 implementation.
+
+### T5.6 readiness review — model-selectable embedding tool
+
+- Council: Torvalds, Musashi, and Feynman independently found the original
+  T5.6 statement insufficient: it lacked a fixed tool ID/schema, a host-owned
+  binding seam, and pre-continuation result/redaction rules. Their challenge
+  round agreed on one fixed `local_embedding_batch` tool and one host-only
+  factory closing over the completed producer.
+- Ponytail: approved that minimum shape. Reuse the registry, coordinator, and
+  normal model-loop continuation; permit only an optional `ToolResult`
+  trace-output facet to separate the redacted trace summary from model
+  continuation. Do not add a producer/profile registry,
+  `WorkflowExecutionContext` extension, coordinator branch, approval bypass,
+  or generic nested-schema/budget abstraction.
+- Verified seams: the existing registry exposes registered tool schemas to
+  selected LLM nodes and validates root arguments before dispatch; the existing
+  coordinator owns approval, tracing, state, and continuation. The bound
+  handler must revalidate the complete nested object shape plus UTF-8 and
+  aggregate limits before calling the producer, then prove a typed result with
+  the same ordered IDs and finite uniform vectors before continuation. The
+  `tool_result` trace payload must be the fixed redacted summary, while existing
+  input events retain their normal sensitive marking and external summaries
+  redact text/vectors. Normal model continuation receives the bounded
+  structured result.
+- Result: implementation-ready. T5.6 RED tests are next; no production or test
+  implementation was added during this review.
+
+### T5.6 delivery review
+
+- Council: approved 3--0 after correcting three delivery findings: complete
+  nested input validation belongs in the bound handler; result identity and
+  submitted-ID order must be verified before continuation; and only the
+  `tool_result` trace payload can be replaced with a redacted summary while
+  existing input events retain their normal sensitive marking.
+- Ponytail: approved one host-only factory plus an optional default-compatible
+  `ToolResult.trace_output` facet. It rejected any profile/producer registry,
+  context extension, coordinator branch, approval bypass, or generic budget
+  framework.
+- Disposition: deliver-ready. The T5.6 RED suite followed.
+
+### T5.6 GREEN — model-selectable embedding tool
+
+- Focused validation: `poetry run pytest tests/test_local_models.py
+  tests/test_executor.py tests/test_registry.py tests/test_tool_invocation.py -q
+  --tb=no` — 427 passed in 3.06s.
+- Final validation: `poetry run pytest -q` — 1586 passed, 1 skipped, 6
+  deselected in 11.89s; `poetry run ruff check src tests` passed.
+- Coverage: fixed schema and metadata; private nested input and UTF-8 budget
+  validation before producer dispatch; sync/async producer handling; typed,
+  ordered result correlation; bounded normal model-loop continuation; redacted
+  `tool_result` traces; and no approval interruption.
+- Explicit exclusions: no producer/profile registry, context binding,
+  coordinator branch, approval bypass, remote fallback, endpoint, live model,
+  network, RAG, or vector store.

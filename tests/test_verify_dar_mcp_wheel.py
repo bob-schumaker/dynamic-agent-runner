@@ -1,0 +1,171 @@
+"""Tests for the local DAR-wheel MCP verification script."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import textwrap
+import zipfile
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+VERIFIER = REPOSITORY_ROOT / "scripts" / "verify_dar_mcp_wheel.py"
+
+
+def _record_digest(data: bytes) -> str:
+    return "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(data).digest()).decode(
+        "ascii"
+    ).rstrip("=")
+
+
+def _write_wheel(
+    path: Path, *, version: str = "9.8.7", corrupt_record: bool = False
+) -> None:
+    metadata_name = f"dynamic_agent_runner-{version}.dist-info/METADATA"
+    package_name = "dynamic_agent_runner/__init__.py"
+    record_name = f"dynamic_agent_runner-{version}.dist-info/RECORD"
+    metadata = f"Name: dynamic-agent-runner\nVersion: {version}\n".encode()
+    package = b'"""test package"""\n'
+    recorded_package = b"corrupted package\n" if corrupt_record else package
+    record = "\n".join(
+        (
+            f"{metadata_name},{_record_digest(metadata)},{len(metadata)}",
+            f"{package_name},{_record_digest(recorded_package)},{len(package)}",
+            f"{record_name},,",
+        )
+    )
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(metadata_name, metadata)
+        archive.writestr(package_name, package)
+        archive.writestr(record_name, record)
+
+
+def _write_fake_uvx(path: Path) -> None:
+    path.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            import json
+            import os
+            from pathlib import Path
+            import sys
+
+            Path(os.environ["FAKE_UVX_CAPTURE"]).write_text(
+                json.dumps(
+                    {
+                        "argv": sys.argv[1:],
+                        "cwd": os.getcwd(),
+                        "uv_cache_dir": os.environ.get("UV_CACHE_DIR"),
+                        "uv_tool_dir": os.environ.get("UV_TOOL_DIR"),
+                    }
+                )
+            )
+            for line in sys.stdin:
+                request = json.loads(line)
+                if request.get("id") == 1:
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "result": {
+                            "protocolVersion": "2025-06-18",
+                            "serverInfo": {
+                                "name": "Dynamic Agent Runner",
+                                "version": "9.8.7",
+                            },
+                        },
+                    }
+                elif request.get("id") == 2:
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": 2,
+                        "result": {"tools": []},
+                    }
+                else:
+                    continue
+                print(json.dumps(response), flush=True)
+            """
+        )
+    )
+    path.chmod(0o755)
+
+
+def test_verifier_runs_local_wheel_with_isolated_uvx_environment(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "dynamic_agent_runner-9.8.7-py3-none-any.whl"
+    fake_uvx = tmp_path / "uvx"
+    capture = tmp_path / "uvx-invocation.json"
+    _write_wheel(wheel)
+    _write_fake_uvx(fake_uvx)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(VERIFIER),
+            "--wheel",
+            str(wheel),
+            "--uvx",
+            str(fake_uvx),
+        ],
+        cwd=tmp_path,
+        env={**os.environ, "FAKE_UVX_CAPTURE": str(capture)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "server_name": "Dynamic Agent Runner",
+        "tools": [],
+        "version": "9.8.7",
+        "wheel": str(wheel.resolve()),
+    }
+    invocation = json.loads(capture.read_text())
+    assert invocation["argv"] == [
+        "--from",
+        str(wheel.resolve()),
+        "dynamic-agent-runner-mcp",
+        "--stdio",
+    ]
+    invocation_directory = Path(invocation["cwd"])
+    assert invocation_directory.name.startswith("dar-mcp-wheel-")
+    cache_directory = Path(invocation["uv_cache_dir"])
+    tool_directory = Path(invocation["uv_tool_dir"])
+    assert cache_directory.name == "uv-cache"
+    assert tool_directory.name == "uv-tools"
+    assert cache_directory.parent.name == invocation_directory.name
+    assert tool_directory.parent.name == invocation_directory.name
+
+
+def test_verifier_rejects_a_wheel_with_a_corrupted_record_hash(tmp_path: Path) -> None:
+    wheel = tmp_path / "dynamic_agent_runner-9.8.7-py3-none-any.whl"
+    fake_uvx = tmp_path / "uvx"
+    capture = tmp_path / "uvx-invocation.json"
+    _write_wheel(wheel, corrupt_record=True)
+    _write_fake_uvx(fake_uvx)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(VERIFIER),
+            "--wheel",
+            str(wheel),
+            "--uvx",
+            str(fake_uvx),
+        ],
+        cwd=tmp_path,
+        env={**os.environ, "FAKE_UVX_CAPTURE": str(capture)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "wheel RECORD hash is invalid" in result.stderr
+    assert not capture.exists()

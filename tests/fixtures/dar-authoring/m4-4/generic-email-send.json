@@ -1,0 +1,21 @@
+{
+  "expected_status": "pass",
+  "expected_terminal_phase": "invocation",
+  "format_version": "m4.4-v1",
+  "invocation_mode": "mcp_prompt_only",
+  "required_artifact_roles": [],
+  "required_gates": [
+    "G2",
+    "G5"
+  ],
+  "required_host_fixtures": [
+    "local-model-profile",
+    "reviewed-mcp-connection",
+    "approval-broker"
+  ],
+  "scenario_id": "generic-email-send-v1",
+  "zero_dispatch_assertions": [
+    "no-dispatch-on-dry-run",
+    "no-dispatch-on-denied-approval"
+  ]
+}

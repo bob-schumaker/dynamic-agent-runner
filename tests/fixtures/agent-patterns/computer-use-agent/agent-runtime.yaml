@@ -10,12 +10,19 @@ packaging:
   skill_bundle_dir: skill-bundle
 runtime:
   execution_policy:
-    autonomy_level: supervised agent
+    autonomy_level: supervised_agent
     allowed_execution_modes:
     - sequential_fallback
     external_backend_allowed: false
     max_iterations: 3
+    max_steps: 5
     timeout: runtime_default
+    exit_strategy:
+      terminal_conditions:
+      - hello_message emitted
+      - validation failure or unavailable fixture context
+      on_exhaustion: escalate
+      ambiguous_completion: clarify
     approval_required_for:
     - live write or mutation
     forbidden_actions:
@@ -57,12 +64,13 @@ skills:
 - id: agent-development
   label: Agent development skill
   source_type: repo_skill
-  source_path: skills/agent-development-skill/SKILL.md
+  source_path: corpus/capabilities/agent-development/SKILL.md
   packaging_mode: referenced_only
   notes: Provides agent pattern vocabulary for this fixture.
 tools:
 - id: screenshot_hello
   label: Screenshot Hello
+  tool_type: external_api
   description_for_llm: 'Hello-world fixture tool for the screenshot_hello capability.
 
     '
@@ -113,6 +121,12 @@ nodes:
   label: Confirm safe route
   decision_subtype: llm_route
   route_from: plan_ui_action
+  prompt:
+    user_template: 'Route the hello-world computer-use fixture result.
+
+      '
+    input_vars:
+    - prompt
   decision_contract:
     allowed_paths:
     - id: proceed
@@ -130,14 +144,14 @@ nodes:
     - prompt
     output_schema_ref: hello_message
 edges:
-- source: observe_screen
-  target: plan_ui_action
+- from: observe_screen
+  to: plan_ui_action
   edge_kind: sequential
-- source: plan_ui_action
-  target: confirm_safe
+- from: plan_ui_action
+  to: confirm_safe
   edge_kind: sequential
-- source: confirm_safe
-  target: report_ui_plan
+- from: confirm_safe
+  to: report_ui_plan
   edge_kind: branch
   condition: proceed
 output_contracts:

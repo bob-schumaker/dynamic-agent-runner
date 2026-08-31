@@ -1,6 +1,6 @@
 # Local Model Availability API Tasks
 
-Status: implemented through Slice A4
+Status: implemented through Slice A5.1
 
 ## Prerequisites
 
@@ -370,3 +370,95 @@ filesystem-only.
   - GREEN: `poetry run ruff check src tests` — passed
   - GREEN: targeted pre-commit passed for changed implementation, test, docs,
     and spec files
+
+## Slice A5 — Hugging Face Cache Default
+
+- [x] A5.1 [tests/implementation] Replace DAR's default local-model cache root
+      with Hugging Face's standard hub cache, and resolve declared Hub
+      references through its snapshot layout before any download.
+  - Implementation route: the repository's focused RED/GREEN
+    `test-driven-development` workflow in `tests/test_local_models.py`, followed
+    by the named focused/full validation commands below.
+  - Decision: the default root is `Path.home() / ".cache" / "huggingface" /
+    "hub"`; it is shared with the running vLLM-compatible model service. This
+    replaces the unused `~/.ollama/models` default. Explicit model paths and
+    explicit caller cache roots retain their existing precedence and behavior.
+  - Files/components: `src/dynamic_agent_runner/local_models.py`,
+    `src/dynamic_agent_runner/hugging_face_support.py`,
+    `tests/test_local_models.py`, `tests/test_hugging_face_support.py`,
+    `tests/test_mlx_models.py`, `specs/local-model-availability-api/spec.md`,
+    `specs/llama-cpp-local-model/spec.md`, and affected public docs.
+  - RED first: use temporary Hub-cache fixtures in the canonical
+    `models--<org>--<repo>/snapshots/<revision>/` form, including a cached
+    `mlx-community/Qwen2.5-Coder-7B-Instruct-4bit`-shaped converted MLX
+    snapshot. Prove an exact configured file or snapshot reference resolves
+    locally with `allow_network=False`, does not call either download helper,
+    and reports the default-cache source. Also prove cache misses retain the
+    existing explicit-path, explicit-cache-root, and offline failure semantics.
+  - GREEN: add a narrow, reference-directed Hub-cache resolver with this exact
+    order: explicit path, unchanged flat explicit caller root, declared default
+    Hub snapshot, then the existing authorized Hub download/offline failure.
+    For the declared repository only, resolve a supplied snapshot id directly;
+    use a supplied symbolic ref or omitted `refs/main` only as a bounded ref
+    pointer to an in-repository snapshot. Reject malformed/traversing
+    repository, ref, filename, pointer, and escaping symlink data; do not accept
+    a same-named flat file, foreign repository, or foreign revision. The later
+    already-authorized Hub download receives the same default cache root so
+    `huggingface_hub` reuses its own cache; A5.1 never calls it for a cache hit.
+  - Inventory: update default-root inventory only to classify bounded,
+    snapshot-backed Hub entries under that one default root. Do not scan other
+    provider caches, follow arbitrary symlinks, persist roots, migrate or
+    delete the former Ollama directory, load a model, configure/query a local
+    endpoint, or add a live Hub/vLLM test. Tests monkeypatch the default home,
+    assert an `.ollama/models` sentinel is untouched, and use fail-on-call
+    download, loading, and endpoint seams.
+  - Acceptance: the default cache consistently supports llama.cpp and MLX
+    reference resolution, availability, and inventory without an Ollama
+    dependency; explicit caller roots remain authoritative; a cache lookup
+    never starts, configures, or queries the local vLLM endpoint.
+  - Validation: focused RED then GREEN tests in the named modules; full
+    `poetry run pytest -q`; `poetry run ruff check src tests`; formatter;
+    targeted pre-commit; and a documentation/status refresh after the behavior
+    is delivered.
+  - RED: `poetry run pytest tests/test_local_models.py -q -k
+    'declared_default_hub or only_default_hub_snapshots'` — 3 expected failures:
+    the former Ollama root was still selected and Hub snapshots were not scanned.
+  - GREEN: focused local-model/MLX/Hugging Face/import suite passed
+    (`179 passed`); full `poetry run pytest -q` passed (`1478 passed, 1 skipped,
+    6 deselected`); Ruff lint and format checks passed. Targeted pre-commit is
+    recorded in the current A5.1 validation evidence.
+
+- [x] A5.2 [migration/validation] Reuse the existing Hugging Face-formatted
+      test artifacts currently stored under `~/.ollama/models` without a model
+      redownload.
+  - Depends on: A5.1.
+  - Scope: inventory only repository-cache entries with Hugging Face metadata,
+    including the existing `Qwen/Qwen2.5-3B-Instruct-GGUF` GGUF artifact and
+    `Qwen/Qwen3-4B-MLX-4bit` MLX safetensors snapshot. Do not treat the
+    `sha256-*-partial` files or any actual Ollama-managed content as model
+    artifacts to move.
+  - Procedure: first perform a dry-run manifest that records source repository,
+    revision/ref, required filenames, byte sizes, and content hashes. Reuse or
+    copy only the identified repository-cache entries into the Hugging Face hub
+    default root, validate the same manifest and DAR's offline A5.1 resolution
+    afterward, then retain the source intact. Do not blindly rename the
+    `.ollama/models` root, create symlinks, delete source data, or make a live
+    model/vLLM call.
+  - Acceptance: both artifacts resolve from the new default Hub cache with
+    `allow_network=False` and zero download-helper calls; the GGUF remains
+    accepted by its current backend and the MLX snapshot remains correctly
+    classified as native safetensors pending M6.3; the recorded manifest and
+    copy receipt prove content identity; and the source remains recoverable
+    pending a separate human-authorized cleanup task.
+  - Validation: dry-run manifest review; focused fake resolver tests; local
+    offline post-copy preflight only after A5.1; and targeted pre-commit for
+    changed task, implementation, test, and evidence files.
+  - Completion finding: the actual `Qwen/Qwen3-4B-MLX-4bit` snapshot is native
+    safetensors/tokenizer JSON, not DAR's currently accepted converted-MLX
+    layout. Its physical cache migration and generic offline snapshot resolution
+    completed on 2026-08-29, but it cannot satisfy MLX availability/inventory
+    acceptance without M6.3.
+  - Evidence: [`a5.2-dry-run-manifest.md`](a5.2-dry-run-manifest.md) records
+    the source inventory, and [`a5.2-copy-receipt.md`](a5.2-copy-receipt.md)
+    records the authorized migration and offline preflight. Do not infer future
+    copy or cleanup authority from this one bounded operation.

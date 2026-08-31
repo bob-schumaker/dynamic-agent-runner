@@ -15,7 +15,14 @@ runtime:
     - sequential_fallback
     external_backend_allowed: false
     max_iterations: 3
+    max_steps: 4
     timeout: runtime_default
+    exit_strategy:
+      terminal_conditions:
+      - hello_message emitted
+      - validation failure or unavailable fixture context
+      on_exhaustion: escalate
+      ambiguous_completion: clarify
     approval_required_for:
     - live write or mutation
     forbidden_actions:
@@ -57,12 +64,13 @@ skills:
 - id: agent-development
   label: Agent development skill
   source_type: repo_skill
-  source_path: skills/agent-development-skill/SKILL.md
+  source_path: corpus/capabilities/agent-development/SKILL.md
   packaging_mode: referenced_only
   notes: Provides agent pattern vocabulary for this fixture.
 tools:
 - id: speech_to_text_hello
   label: Speech To Text Hello
+  tool_type: external_api
   description_for_llm: 'Hello-world fixture tool for the speech_to_text_hello capability.
 
     '
@@ -109,8 +117,8 @@ nodes:
     - prompt
     output_schema_ref: hello_message
 edges:
-- source: transcribe_hello
-  target: summarize_transcript
+- from: transcribe_hello
+  to: summarize_transcript
   edge_kind: sequential
 output_contracts:
 - id: hello_message

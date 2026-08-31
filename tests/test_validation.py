@@ -90,10 +90,134 @@ def validate_mapping(mapping: dict[str, object]) -> None:
     validate_runtime_manifest(load_runtime_manifest(mapping))
 
 
+def embedding_step_manifest_data() -> dict[str, object]:
+    """Return the minimal terminal embedding-step manifest mapping."""
+
+    return {
+        "format_version": 1,
+        "package_type": "dynamic_agent_design",
+        "package_id": "embedding-step-agent",
+        "entrypoint": "embed",
+        "packaging": {"mode": "hybrid_bundle"},
+        "nodes": [
+            {
+                "id": "embed",
+                "kind": "embedding_step",
+                "embedding_profile": "host-embedding",
+                "embedding_input_from": "documents",
+            }
+        ],
+        "edges": [],
+    }
+
+
 def test_valid_runtime_manifest_passes_validation() -> None:
     """A minimally valid manifest passes the Slice 3 validation engine."""
 
     validate_mapping(valid_manifest_data())
+
+
+def test_embedding_step_manifest_passes_exact_terminal_shape() -> None:
+    """A terminal embedding node accepts only its declared runtime shape."""
+
+    data = embedding_step_manifest_data()
+    node = data["nodes"][0]
+    assert isinstance(node, dict)
+    node["label"] = "Embed documents"
+
+    validate_mapping(data)
+
+
+@pytest.mark.parametrize("field", ["embedding_profile", "embedding_input_from"])
+def test_embedding_step_manifest_requires_binding_fields(field: str) -> None:
+    """Both host binding keys are required rather than defaulted."""
+
+    data = embedding_step_manifest_data()
+    node = data["nodes"][0]
+    assert isinstance(node, dict)
+    del node[field]
+
+    with pytest.raises(WorkflowValidationError, match=field):
+        validate_mapping(data)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("embedding_profile", ""),
+        ("embedding_input_from", ""),
+        ("unexpected", True),
+        ("inputs", {"items": [{"id": "one", "text": "private"}]}),
+        ("outputs", {"state_key": "vectors"}),
+        ("text", "private literal text"),
+        ("model", "embedding-test"),
+        ("provider", "remote"),
+        ("model_path", "/private/model.gguf"),
+        ("tool_id", "embed"),
+        ("approval_required", "yes"),
+        ("retry_policy", {"max_attempts": 2}),
+        ("failure_behavior", "fallback"),
+        ("response_format", {"type": "json_object"}),
+        ("output_schema_ref", "embedding-output"),
+    ],
+)
+def test_embedding_step_manifest_rejects_undeclared_metadata(
+    field: str, value: object
+) -> None:
+    """Embedding steps fail closed rather than admitting alternate input routes."""
+
+    data = embedding_step_manifest_data()
+    node = data["nodes"][0]
+    assert isinstance(node, dict)
+    node[field] = value
+
+    with pytest.raises(WorkflowValidationError, match=field):
+        validate_mapping(data)
+
+
+def test_embedding_step_manifest_rejects_outgoing_edge() -> None:
+    """Embedding steps are terminal even when an edge target exists."""
+
+    data = embedding_step_manifest_data()
+    data["nodes"].append(
+        {
+            "id": "answer",
+            "kind": "llm_step",
+            "prompt": {"user_template": "Answer {prompt}"},
+        }
+    )
+    data["edges"] = [{"source": "embed", "target": "answer", "edge_kind": "sequential"}]
+
+    with pytest.raises(WorkflowValidationError, match="terminal"):
+        validate_mapping(data)
+
+
+def test_provider_context_compaction_policy_requires_capability_and_valid_fallback() -> (
+    None
+):
+    data = valid_manifest_data()
+    data["runtime"] = {
+        "execution_policy": {
+            "model": "gpt-test",
+            "prepare_model_input": {
+                "context_compaction": {
+                    "auto": {
+                        "enabled": True,
+                        "implementation": "provider",
+                        "strategy": "provider_remote",
+                        "remote": {"fallback": "model_summary"},
+                    }
+                }
+            },
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "provider_capability" in message
+    assert "fallback" in message
 
 
 def test_tool_descriptor_budget_policy_accepts_disabled_value() -> None:
@@ -705,8 +829,6 @@ def test_guardrail_metadata_is_preserved_and_validated() -> None:
                 {
                     "id": "safe_tool_args",
                     "phase": "tool_input",
-                    "behavior_on_tripwire": "reject_content",
-                    "reject_content_message": "Tool arguments were rejected.",
                 },
             ]
         }
@@ -722,8 +844,8 @@ def test_guardrail_metadata_is_preserved_and_validated() -> None:
         "input",
         "tool_input",
     ]
-    assert manifest.guardrails[1].behavior_on_tripwire == "reject_content"
-    assert manifest.guardrails[1].message == "Tool arguments were rejected."
+    assert manifest.guardrails[1].behavior_on_tripwire is None
+    assert manifest.guardrails[1].message is None
 
     validate_runtime_manifest(manifest)
 
@@ -770,6 +892,34 @@ def test_guardrail_reject_content_requires_message() -> None:
 
     with pytest.raises(WorkflowValidationError, match="must define message"):
         validate_mapping(data)
+
+
+@pytest.mark.parametrize("guardrail_id", [None, "", "   "])
+def test_tool_input_guardrails_require_nonblank_ids_and_abort_behavior(
+    guardrail_id: str | None,
+) -> None:
+    """Live tool-input guardrails only support fail-closed abort behavior."""
+
+    data = valid_manifest_data()
+    data["extensions"] = {
+        "guardrails": {
+            "declarations": [
+                {
+                    "id": guardrail_id,
+                    "phase": "tool_input",
+                    "behavior_on_tripwire": "reject_content",
+                    "reject_content_message": "Do not run this tool.",
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(WorkflowValidationError) as exc_info:
+        validate_mapping(data)
+
+    message = str(exc_info.value)
+    assert "nonblank id" in message
+    assert "abort behavior" in message
 
 
 def test_mcp_extension_metadata_is_preserved_and_validated() -> None:

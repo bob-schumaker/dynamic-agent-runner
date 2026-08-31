@@ -10,12 +10,19 @@ packaging:
   skill_bundle_dir: skill-bundle
 runtime:
   execution_policy:
-    autonomy_level: bounded autonomous
+    autonomy_level: bounded_autonomous
     allowed_execution_modes:
     - sequential_fallback
     external_backend_allowed: false
     max_iterations: 3
+    max_steps: 5
     timeout: runtime_default
+    exit_strategy:
+      terminal_conditions:
+      - hello_message emitted
+      - validation failure or unavailable fixture context
+      on_exhaustion: escalate
+      ambiguous_completion: clarify
     approval_required_for:
     - live write or mutation
     forbidden_actions:
@@ -57,12 +64,13 @@ skills:
 - id: agent-development
   label: Agent development skill
   source_type: repo_skill
-  source_path: skills/agent-development-skill/SKILL.md
+  source_path: corpus/capabilities/agent-development/SKILL.md
   packaging_mode: referenced_only
   notes: Provides agent pattern vocabulary for this fixture.
 tools:
 - id: status_hello
   label: Status Hello
+  tool_type: external_api
   description_for_llm: 'Hello-world fixture tool for the status_hello capability.
 
     '
@@ -99,6 +107,12 @@ nodes:
   label: Route workflow
   decision_subtype: llm_route
   route_from: check_status
+  prompt:
+    user_template: 'Route the hello-world workflow fixture result.
+
+      '
+    input_vars:
+    - prompt
   decision_contract:
     allowed_paths:
     - id: proceed
@@ -116,11 +130,11 @@ nodes:
     - prompt
     output_schema_ref: hello_message
 edges:
-- source: check_status
-  target: route_workflow
+- from: check_status
+  to: route_workflow
   edge_kind: sequential
-- source: route_workflow
-  target: draft_update
+- from: route_workflow
+  to: draft_update
   edge_kind: branch
   condition: proceed
 output_contracts:

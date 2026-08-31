@@ -107,10 +107,10 @@ contract, but it does not authorize replacing the global ChatGPT/Codex default:
    carries `client_version` and preserves provider priority/visibility. The
    wrapper supports an injected model-list callable, but LiteLLM does not yet
    provide an equivalent contract that can safely replace DAR's listing path.
-3. **The bundled fallback is not a Codex fallback.**
-   `dynamic_agent_runner.litellm` implements Chat Completions only. Native Codex
-   Responses requires the full upstream LiteLLM distribution and its runtime
-   dependencies.
+3. **Runtime packaging no longer blocks native Responses.** The bundled fallback
+   was retired after upstream LiteLLM became a Python 3.14-compatible runtime
+   dependency. This removes a packaging blocker but does not resolve the auth
+   and model-listing blockers above.
 
 Current decision: ordinary OpenAI-compatible requests may use LiteLLM; Codex
 through LiteLLM remains opt-in behind the explicit wrapper and model-list seam;

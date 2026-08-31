@@ -1,7 +1,9 @@
 # llama.cpp Local-Model Adapter Implementation Plan
 
-Status: active implementation record; Slices 1-3 complete, optional embedding
-follow-up unscheduled
+Status: active implementation record; Slices 1-3, T5.0 planning, T5.1
+standalone embedding contract, T5.2 RED suite, T5.3 implementation, T5.4
+validation/docs, T5.5 terminal workflow integration, and T5.6 tool exposure
+complete
 
 ## Goal
 
@@ -34,8 +36,8 @@ the existing OpenAI-compatible endpoint path when callers already provide one.
   overloading `executor.py` with provider-specific behavior.
 - Runtime-managed server launch, supervision, readiness, and shutdown remain
   out of scope.
-- Optional embedding follow-up should be planned as a later slice that extends
-  the same local-model helper surface without changing the core executor path.
+- Completed embedding work extends the same local-model helper surface without
+  changing the core executor path.
 
 ## Source Artifacts
 
@@ -124,7 +126,7 @@ surface so it can represent:
 
 - explicit local file paths
 - explicit cache roots
-- default cache lookup under `~/.ollama/models`
+- default declared-reference cache lookup under `~/.cache/huggingface/hub`
 - explicit Hugging Face file references
 - explicit Hugging Face snapshot references
 
@@ -154,6 +156,90 @@ server:
 This slice must remain separate from graph-mutation delivery and server
 lifecycle ownership.
 
+### Slice 5 — Separate local embedding configuration
+
+T5.0 made this a bounded follow-up rather than authorizing embedding runtime
+work. T5.1-T5.6 now complete the standalone embedding surface plus its terminal
+workflow and model-selectable tool integrations.
+
+1. T5.1 specifies the standalone caller-visible surface and records a
+   source-inspected upstream method, input batching shape, normalized ordered
+   vector result, finite and dimension/ragged validation, package-owned failure
+   taxonomy, bounded raw-data handling, and explicit same-artifact behavior.
+   It uses batch-only `{id, text}` input and `EmbeddingBatchResult(model,
+   items)` output, where items are same-order `{id, vector}` values.
+   `create_embedding(...)` is selected because its indexed response and model
+   field support exact correlation; DAR passes and requires the resolved
+   host-bound model identity. The direct/node limits are 128 entries, 128-byte
+   IDs, 64 KiB per
+   text, 1 MiB aggregate text, 8,192 dimensions, 1,048,576 scalars, and 16 MiB
+   output. The model tool limits are eight entries, 8 KiB per text, 64 KiB
+   aggregate text, 2,048 dimensions, 16,384 scalars, and 256 KiB output. Error
+   ownership is `EmbeddingError(LocalModelError)` with input, result, and
+   execution subclasses; existing local resolution/offline/identity errors are
+   preserved. The public surface is four frozen value/config dataclasses:
+   `EmbeddingInputItem`, `EmbeddingVectorItem`, `EmbeddingBatchResult` with
+   tuple-backed items, and `LlamaCppLocalEmbeddingConfig`; dedicated sync/async
+   `LlamaCppLocalEmbeddingAdapter` classes; and
+   `create_llama_cpp_local_embedding_adapter` /
+   `create_llama_cpp_local_async_embedding_adapter` factories. Until then, no
+   factory/export is authorized.
+2. T5.2 writes the complete focused fake-only RED suite against the distinct
+   immutable embedding config, its injected embedding-only backend/loader seam,
+   and resolver. `allow_network` is caller-owned config state. Test exact path,
+   caller-cache, and default-Hub precedence with fail-on-call downloaders;
+   offline misses fail before download, while one permitted miss uses only an
+   injected downloader. Assert zero optional import, model load, endpoint,
+   process, socket, auth discovery, chat-backend, or approval interaction at
+   construction/cache-only preflight. The RED suite also covers the selected
+   indexed response correlation, identity, bounds, malformed results, provider
+   exceptions, and sync/async parity; T5.3 makes it GREEN.
+3. T5.3 implements the separately chosen embedding protocol/factory only after
+   T5.1. Its loader forces `embedding=True`, rejects conflicting caller kwargs,
+   and keeps chat and embedding instances distinct even for the same artifact.
+   The embedding config requires a nonempty host-bound expected model identity;
+   its loader kwargs are immutable. A response vector has one or more finite
+   scalar values, and the 16 MiB output bound measures compact UTF-8 JSON of
+   `{model,items:[{id,vector}]}` with `ensure_ascii=False` and `allow_nan=False`.
+   Sync/async fake backend tests cover the selected upstream method, normalized
+   results, malformed/non-finite/ragged responses, and failure translation.
+4. T5.4 records focused/full fake-only validation and documents the exact
+   producer boundary. Its receipt names commit `27826d8`, the producer public
+   surface, focused/full test and formatter/lint/pre-commit results, and proves
+   no-I/O setup, resolution order, separate forced embedding mode, bounded
+   normalized results, and redaction. It explicitly excludes every consumer
+   path, live model load, network, and external authorization. A live model
+   load or embedding is a separate human-authorized manual acceptance step.
+5. T5.5 adds the terminal `embedding_step` workflow node after the standalone
+   producer is complete. Its raw-key allowlist is `id`, `kind`, optional
+   `label`, opaque `embedding_profile`, and `embedding_input_from`; it cannot
+   carry literal text or model/provider/path configuration. A
+   `WorkflowExecutionContext` binds one immutable profile ID, producer, and
+   `sync`/`async` mode. Each public execution call accepts copied per-run
+   `embedding_inputs` as the only context overlay; bare workflows reject it.
+   The declared ID must match the one binding, preventing package profile
+   selection. The executor validates primitive terminality, mode, profile,
+   producer, and batch before one dispatch, then returns the typed batch result
+   as the ordinary terminal workflow output. It must not add model selection,
+   remote fallback, or a separate embedding execution path.
+6. T5.6 adds one host-only `create_local_embedding_tool(producer)` factory that
+   returns a `RegisteredTool` with the fixed `local_embedding_batch` ID,
+   `side_effect="read"`, and `approval_required="no"`. Its strict
+   `{items: [{id, text}]}` schema is exposed through the existing registry; its
+   closed-over handler revalidates the complete root/item shape and all UTF-8
+   and aggregate input bounds before one producer call, then requires a typed
+   result with the same ordered IDs and revalidates its finite, uniform vectors
+   and tool bounds before normal coordinator continuation. Add only optional
+   `ToolResult.trace_output`,
+   defaulting to existing behavior; this tool supplies a fixed redacted trace
+   summary while continuation receives the bounded result. This uses neither
+   `WorkflowExecutionContext` nor a producer/profile registry, coordinator
+   branch, approval bypass, or generic budget framework.
+
+No Slice 5 task may add `ModelAdapter` chat behavior, remote fallback, server
+lifecycle, graph mutation, RAG, or a vector store. T5.5/T5.6 are the only
+authorized workflow/tool integration slices; neither may alter approval policy.
+
 ## Architectural Decision
 
 ### Chosen approach
@@ -167,8 +253,8 @@ direct `llama_cpp.Llama` adapter for in-process execution.
 
 - It preserves the current executor contract and adapter coverage behavior.
 - It keeps provider-specific configuration out of `executor.py`.
-- It creates one place to evolve local endpoint config, model references,
-  resolution helpers, direct llama.cpp adapters, and optional embeddings.
+- It creates one place for local endpoint config, model references, resolution
+  helpers, direct llama.cpp adapters, and embeddings.
 - It keeps response normalization and request shaping under current repository
   ownership.
 
@@ -450,5 +536,5 @@ Initial recorded evidence:
   `58136d9`. Slices 1-3 are now complete through endpoint helpers, model asset
   resolution, failure taxonomy, default Hub download wiring, authoritative
   mismatch-identity preservation, and direct in-process llama.cpp sync/async
-  adapters. Any next work is optional embedding or advisory profiling follow-up
-  rather than an unfinished direct-chat gate.
+  adapters. Future work requires a separately scoped advisory follow-up rather
+  than an unfinished direct-chat or embedding gate.

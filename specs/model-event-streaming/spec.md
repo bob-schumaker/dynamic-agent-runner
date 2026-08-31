@@ -20,6 +20,9 @@
   - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
     includes typed interrupt/reply and replay-oriented UI examples that inform
     future event contracts without making UI transport a DAR responsibility
+  - `https://mathspp.com/blog/write-a-coding-agent-from-first-principles`
+    highlights the user-facing value of visible tool progress while a coding
+    agent reads files, runs commands, and retries after recoverable tool errors.
 
 ## Objective
 
@@ -271,6 +274,10 @@ Acceptance criteria:
   events are emitted in order.
 - Max-iteration, tool-failure, model-failure, and approval-interruption stop
   reasons remain visible.
+- Future coding workspace tools can emit redacted progress such as command
+  started, command completed, file edit staged, file edit committed, and
+  verification failed without streaming raw file content or full command output
+  by default.
 - Approval-required model-emitted tool calls still pause before invocation.
 - Tool results are redacted or summarized by default; raw payload streaming is
   deferred to a separate explicit policy.

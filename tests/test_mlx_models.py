@@ -3,12 +3,33 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
+import sys
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from dynamic_agent_runner.errors import ModelExecutionError
+from dynamic_agent_runner import MLXToolCallCandidate, MLXToolCodecResponse
+from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
+from dynamic_agent_runner.executor import (
+    _model_tool_result_messages,
+    execute_workflow,
+    execute_workflow_async,
+)
 from dynamic_agent_runner.openai_client import OpenAIModelRequest
+from dynamic_agent_runner.registry import ToolResult
+from dynamic_agent_runner.tracing import InMemoryTraceSink
+from parity_support import (
+    install_parity_io_blocker,
+    parity_exposed_schemas,
+    parity_contract_projection,
+    parity_loop_workflow,
+    parity_no_tool_workflow,
+    parity_record,
+    parity_registry,
+)
 
 
 class FakeMLXBackend:
@@ -37,6 +58,429 @@ class FakeMLXBackendWithKwargs:
         return self.content
 
 
+class FakeToolCapableMLXBackend(FakeMLXBackend):
+    tool_codec_versions = frozenset({"test-v1"})
+
+    def __init__(self, generated: str) -> None:
+        super().__init__()
+        self.generated = generated
+        self.rendered_prompts: list[str] = []
+
+    def generate_rendered(self, prompt: str, **kwargs: object) -> str:
+        self.rendered_prompts.append(prompt)
+        return self.generated
+
+
+class SequencedToolCapableMLXBackend(FakeToolCapableMLXBackend):
+    def __init__(self, generated: list[str]) -> None:
+        super().__init__("")
+        self.generated = list(generated)
+
+    def generate_rendered(self, prompt: str, **kwargs: object) -> str:
+        self.rendered_prompts.append(prompt)
+        return self.generated.pop(0)
+
+
+class FakeMLXToolCodec:
+    version = "test-v1"
+
+    def __init__(self, *decoded: MLXToolCodecResponse) -> None:
+        self.decoded = list(decoded)
+        self.rendered_requests: list[OpenAIModelRequest] = []
+        self.generated: list[str] = []
+
+    def render(self, request: OpenAIModelRequest) -> str:
+        self.rendered_requests.append(request)
+        return "<tool-aware-prompt>"
+
+    def decode(self, generated: str) -> MLXToolCodecResponse:
+        self.generated.append(generated)
+        return self.decoded.pop(0)
+
+
+class _RecordingMLXAdapter:
+    def __init__(self, adapter: object, observed: list[object]) -> None:
+        self._adapter = adapter
+        self._observed = observed
+        self.requests: list[object] = []
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        return self._adapter.models
+
+    def create_response(self, request: object) -> object:
+        self.requests.append(request)
+        response = self._adapter.create_response(request)
+        self._observed.extend(response.tool_calls)
+        return response
+
+
+class _AsyncRecordingMLXAdapter:
+    def __init__(self, adapter: object, observed: list[object]) -> None:
+        self._adapter = adapter
+        self._observed = observed
+        self.requests: list[object] = []
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        return self._adapter.models
+
+    async def create_response(self, request: object) -> object:
+        self.requests.append(request)
+        response = await self._adapter.create_response(request)
+        self._observed.extend(response.tool_calls)
+        return response
+
+
+def _mlx_parity_generations(scenario: str) -> list[str]:
+    scenarios = {
+        "S1": [
+            '<tool_call>{"name":"create_record","arguments":{"title":"DAR","body":"controlled"}}</tool_call>',
+            "created",
+        ],
+        "S2": [
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":"record-seed","operation":"uppercase"}}</tool_call>',
+            "transformed",
+        ],
+        "S2-invalid": [
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":"record-seed"}}</tool_call>'
+        ],
+        "S2-wrong-type": [
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":1,"operation":"uppercase"}}</tool_call>'
+        ],
+        "S2-invalid-enum": [
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":"record-seed","operation":"lowercase"}}</tool_call>'
+        ],
+        "S2-unknown": [
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":"record-seed","operation":"uppercase","unknown":true}}</tool_call>'
+        ],
+        "S2-malformed": ["<tool_call>not-json</tool_call>"],
+        "S3": [
+            '<tool_call>{"name":"lookup_record","arguments":{"key":"seed"}}</tool_call>',
+            '<tool_call>{"name":"transform_record","arguments":{"record_id":"record-seed","operation":"uppercase"}}</tool_call>',
+            "SEED",
+        ],
+        "S4": [
+            '<tool_call>{"name":"fail_controlled","arguments":{"code":"planned"}}</tool_call>'
+        ],
+        "S5": ["no tool"],
+        "S6": ["<tool_call>not-json</tool_call>"],
+    }
+    return scenarios[scenario]
+
+
+def _run_mlx_parity(
+    scenario: str,
+    *,
+    asynchronous: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from dynamic_agent_runner import (
+        PINNED_QWEN3_MLX_MODEL_ID,
+        MLXLocalModelConfig,
+        create_qwen3_mlx_local_adapter,
+        create_qwen3_mlx_local_async_adapter,
+    )
+    import dynamic_agent_runner.mlx_models as mlx_models
+
+    model_path = tmp_path / f"inert-mlx-layout-{asynchronous}"
+    write_converted_mlx_model(model_path)
+    forbidden_calls: list[object] = []
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        forbidden_calls.append((args, kwargs))
+        raise AssertionError("parity tests must not load or download MLX")
+
+    monkeypatch.setattr(mlx_models, "_load_default_mlx_lm_backend", forbidden)
+    generations = _mlx_parity_generations(scenario)
+    rendered_prompts: list[str] = []
+
+    def generate(
+        _model: object,
+        _tokenizer: object,
+        *,
+        prompt: str,
+        **_kwargs: object,
+    ) -> str:
+        rendered_prompts.append(prompt)
+        return generations.pop(0)
+
+    monkeypatch.setitem(sys.modules, "mlx_lm", SimpleNamespace(generate=generate))
+    tokenizer = FakeQwen3Tokenizer()
+    factory = (
+        create_qwen3_mlx_local_async_adapter
+        if asynchronous
+        else create_qwen3_mlx_local_adapter
+    )
+    adapter = factory(
+        MLXLocalModelConfig(
+            model_aliases=("gpt-test",),
+            model_path=model_path,
+            expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+        ),
+        model=object(),
+        tokenizer=tokenizer,
+        platform_system=lambda: "Darwin",
+    )
+    observed: list[object] = []
+    recorder = (
+        _AsyncRecordingMLXAdapter(adapter, observed)
+        if asynchronous
+        else _RecordingMLXAdapter(adapter, observed)
+    )
+    registry, invocations, results = parity_registry()
+    sink = InMemoryTraceSink()
+    error = None
+    result = None
+    try:
+        workflow = (
+            parity_no_tool_workflow()
+            if scenario == "S5"
+            else parity_loop_workflow(include_tool_choice_policy=False)
+        )
+        if asynchronous:
+            result = asyncio.run(
+                execute_workflow_async(
+                    workflow,
+                    prompt="controlled parity",
+                    tool_registry=registry,
+                    model_adapter=recorder,
+                    trace_sink=sink,
+                )
+            )
+        else:
+            result = execute_workflow(
+                workflow,
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=recorder,
+                trace_sink=sink,
+            )
+    except Exception as caught:
+        error = caught
+    assert forbidden_calls == []
+    assert generations == []
+    return (
+        result,
+        parity_record(
+            interface="mlx_qwen3_owned_codec",
+            scenario=scenario,
+            asynchronous=asynchronous,
+            normalized_calls=tuple((call.name, call.arguments) for call in observed),
+            exposed_schemas=parity_exposed_schemas(recorder.requests[0].tools),
+            invocations=invocations,
+            results=results,
+            result=result,
+            error=error,
+            sink=sink,
+        ),
+        error,
+        tokenizer,
+        rendered_prompts,
+    )
+
+
+def _assert_mlx_parity_scenario(
+    *,
+    scenario: str,
+    invoked: tuple[str, ...],
+    fails: bool,
+    result: object | None,
+    record: object,
+    error: Exception | None,
+    tokenizer: FakeQwen3Tokenizer,
+    rendered_prompts: list[str],
+) -> None:
+    assert record.interface == "mlx_qwen3_owned_codec"
+    assert tuple(name for name, _ in record.invocations) == invoked
+    assert (error is not None) is fails
+    assert (result is None) is fails
+    if fails:
+        assert isinstance(error, WorkflowExecutionError | ModelExecutionError)
+        assert record.error_class in {"WorkflowExecutionError", "ModelExecutionError"}
+    if scenario in {
+        "S2-invalid",
+        "S2-wrong-type",
+        "S2-invalid-enum",
+        "S2-unknown",
+    }:
+        assert isinstance(error, WorkflowExecutionError)
+        assert record.error_class == "WorkflowExecutionError"
+        assert record.trace_event_types.count("model_tool_loop_tool_call") == 1
+    if scenario == "S2-malformed":
+        assert isinstance(error, ModelExecutionError)
+        assert record.error_class == "ModelExecutionError"
+        assert "model_tool_loop_tool_call" not in record.trace_event_types
+    if scenario == "S1":
+        assert result is not None
+        assert result.final_result == "created"
+        assert record.normalized_calls == (
+            ("create_record", '{"body":"controlled","title":"DAR"}'),
+        )
+    if scenario == "S3":
+        assert len(tokenizer.calls) == len(rendered_prompts) == 3
+        assert "record-seed" in str(tokenizer.calls[1]["conversation"])
+    if scenario == "S4":
+        assert len(tokenizer.calls) == len(rendered_prompts) == 1
+        assert record.stop_reasons == ("tool_failure",)
+        assert isinstance(error, WorkflowExecutionError)
+        assert "planned controlled failure" in str(error)
+        assert record.trace_event_types.count("model_tool_loop_tool_call") == 1
+    if scenario == "S6":
+        assert len(tokenizer.calls) == len(rendered_prompts) == 1
+        assert "tool_started" not in record.trace_event_types
+        assert "model_tool_loop_tool_call" not in record.trace_event_types
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    ("scenario", "invoked", "fails"),
+    [
+        ("S1", ("create_record",), False),
+        ("S2", ("transform_record",), False),
+        ("S2-invalid", (), True),
+        ("S2-wrong-type", (), True),
+        ("S2-invalid-enum", (), True),
+        ("S2-unknown", (), True),
+        ("S2-malformed", (), True),
+        ("S3", ("lookup_record", "transform_record"), False),
+        ("S4", ("fail_controlled",), True),
+        ("S5", (), False),
+        ("S6", (), True),
+    ],
+)
+def test_model_interface_parity_mlx_qwen3_owned_codec_native_scenarios(
+    scenario: str,
+    invoked: tuple[str, ...],
+    fails: bool,
+    asynchronous: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_parity_io_blocker(monkeypatch)
+    result, record, error, tokenizer, rendered_prompts = _run_mlx_parity(
+        scenario,
+        asynchronous=asynchronous,
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+    )
+    _assert_mlx_parity_scenario(
+        scenario=scenario,
+        invoked=invoked,
+        fails=fails,
+        result=result,
+        record=record,
+        error=error,
+        tokenizer=tokenizer,
+        rendered_prompts=rendered_prompts,
+    )
+    if not asynchronous:
+        _, async_record, _, _, _ = _run_mlx_parity(
+            scenario,
+            asynchronous=True,
+            tmp_path=tmp_path,
+            monkeypatch=monkeypatch,
+        )
+        assert parity_contract_projection(record) == parity_contract_projection(
+            async_record
+        )
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_stock_mlx_rejects_tools_before_dispatch(
+    asynchronous: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner import (
+        MLXLocalModelConfig,
+        create_mlx_local_adapter,
+        create_mlx_local_async_adapter,
+    )
+    import dynamic_agent_runner.mlx_models as mlx_models
+
+    install_parity_io_blocker(monkeypatch)
+    forbidden_calls: list[object] = []
+    generation_calls: list[object] = []
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        forbidden_calls.append((args, kwargs))
+        raise AssertionError("stock MLX parity must not load or download")
+
+    def forbidden_generate(*args: object, **kwargs: object) -> object:
+        generation_calls.append((args, kwargs))
+        raise AssertionError("stock MLX parity must not generate")
+
+    real_import = builtins.__import__
+
+    def forbid_mlx_import(
+        name: str,
+        globals_: object | None = None,
+        locals_: object | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "mlx_lm":
+            raise AssertionError("stock MLX tool rejection must not import mlx_lm")
+        return real_import(name, globals_, locals_, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", forbid_mlx_import)
+    monkeypatch.setattr(mlx_models, "_load_default_mlx_lm_backend", forbidden)
+    monkeypatch.setattr(mlx_models._MLXLMBackend, "generate", forbidden_generate)
+    stock_backend = mlx_models._MLXLMBackend(model=object(), tokenizer=object())
+    codec = FakeMLXToolCodec(MLXToolCodecResponse(content="must not decode"))
+    factory = (
+        create_mlx_local_async_adapter if asynchronous else create_mlx_local_adapter
+    )
+    adapter = factory(
+        MLXLocalModelConfig(
+            model_aliases=("gpt-test",),
+            model_path=tmp_path / "missing-stock-layout",
+        ),
+        backend=stock_backend,
+        dependency_loader=forbidden,
+        download_file=forbidden,
+        download_snapshot=forbidden,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+    registry, invocations, _ = parity_registry()
+    sink = InMemoryTraceSink()
+
+    assert adapter.capabilities["tool_calling"] is False
+    with pytest.raises(ModelExecutionError, match="does not support tool"):
+        if asynchronous:
+            asyncio.run(
+                execute_workflow_async(
+                    parity_loop_workflow(),
+                    prompt="controlled parity",
+                    tool_registry=registry,
+                    model_adapter=adapter,
+                    trace_sink=sink,
+                )
+            )
+        else:
+            execute_workflow(
+                parity_loop_workflow(),
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=adapter,
+                trace_sink=sink,
+            )
+
+    assert codec.rendered_requests == []
+    assert codec.generated == []
+    assert generation_calls == []
+    assert forbidden_calls == []
+    assert invocations == []
+    assert not [
+        event
+        for event in sink.events
+        if event.event_type in {"tool_started", "model_tool_loop_tool_call"}
+    ]
+
+
 def make_request(
     *,
     tools: tuple[dict[str, object], ...] = (),
@@ -48,6 +492,642 @@ def make_request(
         tools=tools,
         response_format=response_format,
     )
+
+
+def tool_request() -> OpenAIModelRequest:
+    return make_request(
+        tools=(
+            {
+                "type": "function",
+                "function": {
+                    "name": "lookup",
+                    "description": "Look up a value.",
+                    "parameters": {"type": "object"},
+                },
+            },
+        )
+    )
+
+
+class FakeQwen3Tokenizer:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def apply_chat_template(
+        self,
+        conversation: list[dict[str, object]],
+        *,
+        tools: list[dict[str, object]] | None = None,
+        add_generation_prompt: bool,
+        tokenize: bool,
+    ) -> str:
+        self.calls.append(
+            {
+                "conversation": conversation,
+                "tools": tools,
+                "add_generation_prompt": add_generation_prompt,
+                "tokenize": tokenize,
+            }
+        )
+        return "<native-qwen3-prompt>"
+
+
+def test_qwen3_helper_owns_native_envelope_codec_for_pinned_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner import (
+        PINNED_QWEN3_MLX_MODEL_ID,
+        MLXLocalModelConfig,
+        create_qwen3_mlx_local_adapter,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    prompts: list[str] = []
+
+    def generate(
+        _model: object, _tokenizer: object, *, prompt: str, **_kwargs: object
+    ) -> str:
+        prompts.append(prompt)
+        return '<tool_call>{"name":"lookup","arguments":{"key":"dar"}}</tool_call>'
+
+    monkeypatch.setitem(sys.modules, "mlx_lm", SimpleNamespace(generate=generate))
+    tokenizer = FakeQwen3Tokenizer()
+    adapter = create_qwen3_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("qwen3",),
+            model_path=model_path,
+            expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+        ),
+        model=object(),
+        tokenizer=tokenizer,
+        platform_system=lambda: "Darwin",
+    )
+
+    response = adapter.create_response(tool_request())
+
+    assert adapter.capabilities["tool_calling"] is True
+    assert prompts == ["<native-qwen3-prompt>"]
+    assert tokenizer.calls == [
+        {
+            "conversation": [{"role": "user", "content": "Hello"}],
+            "tools": [dict(tool_request().tools[0])],
+            "add_generation_prompt": True,
+            "tokenize": False,
+        }
+    ]
+    assert response.tool_calls[0].name == "lookup"
+    assert response.tool_calls[0].arguments == '{"key":"dar"}'
+
+    with pytest.raises(ValueError, match="pinned Qwen3 model ID"):
+        create_qwen3_mlx_local_adapter(
+            MLXLocalModelConfig(
+                model_aliases=("other",),
+                model_path=model_path,
+                expected_model_id="other",
+            ),
+            model=object(),
+            tokenizer=tokenizer,
+        )
+
+
+def test_qwen3_async_helper_owns_native_envelope_codec_for_pinned_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner import (
+        PINNED_QWEN3_MLX_MODEL_ID,
+        MLXLocalModelConfig,
+        create_qwen3_mlx_local_async_adapter,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+
+    def generate(
+        _model: object, _tokenizer: object, *, prompt: str, **_kwargs: object
+    ) -> str:
+        assert prompt == "<native-qwen3-prompt>"
+        return '<tool_call>{"name":"lookup","arguments":{"key":"dar"}}</tool_call>'
+
+    monkeypatch.setitem(sys.modules, "mlx_lm", SimpleNamespace(generate=generate))
+    adapter = create_qwen3_mlx_local_async_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("qwen3",),
+            model_path=model_path,
+            expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+        ),
+        model=object(),
+        tokenizer=FakeQwen3Tokenizer(),
+        platform_system=lambda: "Darwin",
+    )
+
+    response = asyncio.run(adapter.create_response(tool_request()))
+
+    assert adapter.capabilities["tool_calling"] is True
+    assert response.tool_calls[0].name == "lookup"
+
+
+@pytest.mark.parametrize(
+    ("generated", "message"),
+    [
+        (
+            '<tool_call>{"name":"lookup","name":"other","arguments":{}}</tool_call>',
+            "duplicate JSON key",
+        ),
+        (
+            '<tool_call>{"name":"lookup","arguments":{}}</tool_call><tool_call>{"name":"lookup","arguments":{}}</tool_call>',
+            "exactly one",
+        ),
+    ],
+)
+def test_qwen3_codec_rejects_ambiguous_native_tool_envelopes(
+    generated: str,
+    message: str,
+) -> None:
+    from dynamic_agent_runner import Qwen3MLXToolCodec
+
+    codec = Qwen3MLXToolCodec(FakeQwen3Tokenizer())
+
+    with pytest.raises(ValueError, match=message):
+        codec.decode(generated)
+
+
+@pytest.mark.parametrize(
+    "generated",
+    [
+        'prose <tool_call>{"name":"lookup","arguments":{}}</tool_call>',
+        '<tool_call>{"name":"lookup","arguments":{}}</tool_call> trailing',
+    ],
+)
+def test_qwen3_codec_uses_one_native_tool_envelope_when_prose_surrounds_it(
+    generated: str,
+) -> None:
+    from dynamic_agent_runner import Qwen3MLXToolCodec
+
+    response = Qwen3MLXToolCodec(FakeQwen3Tokenizer()).decode(generated)
+
+    assert response.tool_call is not None
+    assert response.tool_call.name == "lookup"
+    assert response.tool_call.arguments == {}
+
+
+def test_mlx_adapter_uses_compatible_codec_for_tool_text_response(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    backend = FakeToolCapableMLXBackend("native text")
+    codec = FakeMLXToolCodec(MLXToolCodecResponse(content="decoded text"))
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=backend,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+
+    request = tool_request()
+    response = adapter.create_response(request)
+
+    assert adapter.capabilities["tool_calling"] is True
+    assert codec.rendered_requests == [request]
+    assert backend.rendered_prompts == ["<tool-aware-prompt>"]
+    assert codec.generated == ["native text"]
+    assert response.content == "decoded text"
+    assert response.tool_calls == ()
+    assert response.response_id is not None
+    assert response.response_id.startswith("mlx-")
+
+
+def test_mlx_adapter_normalizes_one_codec_tool_call_with_response_scoped_id(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(
+            MLXToolCodecResponse(
+                tool_call=MLXToolCallCandidate(
+                    name="lookup",
+                    arguments='{"query":"DAR"}',
+                )
+            )
+        ),
+        platform_system=lambda: "Darwin",
+    )
+
+    response = adapter.create_response(tool_request())
+
+    assert response.content is None
+    assert response.response_id is not None
+    assert response.tool_calls[0].name == "lookup"
+    assert response.tool_calls[0].arguments == '{"query":"DAR"}'
+    assert response.tool_calls[0].id == f"{response.response_id}:1"
+
+
+def test_mlx_adapter_rejects_incompatible_tool_codec_before_generation(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    backend = FakeToolCapableMLXBackend("must not generate")
+    codec = FakeMLXToolCodec(MLXToolCodecResponse(content="not used"))
+    codec.version = "unsupported-v1"
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=backend,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+
+    assert adapter.capabilities["tool_calling"] is False
+    with pytest.raises(ModelExecutionError, match="does not support tool"):
+        adapter.create_response(tool_request())
+    assert backend.rendered_prompts == []
+
+
+def test_mlx_adapter_rejects_unpaired_codec_before_model_resolution(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    dependency_loader_called = False
+
+    def dependency_loader() -> object:
+        nonlocal dependency_loader_called
+        dependency_loader_called = True
+        raise AssertionError("tool codec must be paired before model loading")
+
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=tmp_path / "missing-model",
+        ),
+        dependency_loader=dependency_loader,
+        tool_codec=FakeMLXToolCodec(MLXToolCodecResponse(content="not used")),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match="does not support tool"):
+        adapter.create_response(tool_request())
+    assert dependency_loader_called is False
+
+
+def test_async_mlx_adapter_uses_compatible_tool_codec(tmp_path: Path) -> None:
+    from dynamic_agent_runner import (
+        MLXLocalModelConfig,
+        create_mlx_local_async_adapter,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_async_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native text"),
+        tool_codec=FakeMLXToolCodec(MLXToolCodecResponse(content="decoded text")),
+        platform_system=lambda: "Darwin",
+    )
+
+    response = asyncio.run(adapter.create_response(tool_request()))
+
+    assert adapter.capabilities["tool_calling"] is True
+    assert response.content == "decoded text"
+    assert response.response_id is not None
+
+
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("supplied_id", [None, "codec-call-id"])
+def test_mlx_adapter_renders_canonical_tool_result_continuation(
+    tmp_path: Path,
+    *,
+    is_async: bool,
+    supplied_id: str | None,
+) -> None:
+    from dynamic_agent_runner import (
+        MLXLocalModelConfig,
+        create_mlx_local_adapter,
+        create_mlx_local_async_adapter,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    backend = FakeToolCapableMLXBackend("native response")
+    codec = FakeMLXToolCodec(
+        MLXToolCodecResponse(
+            tool_call=MLXToolCallCandidate(
+                name="lookup",
+                arguments='{"z":1,"a":2}',
+                id=supplied_id,
+            )
+        ),
+        MLXToolCodecResponse(content="final answer"),
+    )
+    factory = create_mlx_local_async_adapter if is_async else create_mlx_local_adapter
+    adapter = factory(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=backend,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+    request = replace(
+        tool_request(),
+        messages=(
+            {"role": "system", "content": "Use tools when needed."},
+            {"role": "user", "content": "Look up DAR."},
+        ),
+        tool_choice="required",
+    )
+
+    if is_async:
+        first = asyncio.run(adapter.create_response(request))
+    else:
+        first = adapter.create_response(request)
+
+    tool_call = first.tool_calls[0]
+    expected_id = supplied_id or f"{first.response_id}:1"
+    assert tool_call.id == expected_id
+    assert tool_call.arguments == '{"a":2,"z":1}'
+    assistant_call, tool_result = _model_tool_result_messages(
+        tool_call,
+        expected_id,
+        ToolResult(
+            tool_id="lookup",
+            success=True,
+            output={"record": "DAR"},
+        ),
+    )
+    continuation = replace(
+        request,
+        messages=(*request.messages, assistant_call, tool_result),
+    )
+
+    if is_async:
+        second = asyncio.run(adapter.create_response(continuation))
+    else:
+        second = adapter.create_response(continuation)
+
+    assert codec.rendered_requests == [request, continuation]
+    assert backend.rendered_prompts == ["<tool-aware-prompt>"] * 2
+    assert continuation.tools == request.tools
+    assert continuation.tool_choice == "required"
+    assert continuation.messages[-2] == {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+            {
+                "id": expected_id,
+                "type": "function",
+                "function": {
+                    "name": "lookup",
+                    "arguments": '{"a":2,"z":1}',
+                },
+            }
+        ],
+        "_dar_transcript_type": "model_tool_call",
+        "call_id": expected_id,
+        "name": "lookup",
+        "arguments": '{"a":2,"z":1}',
+    }
+    assert continuation.messages[-1] == {
+        "role": "tool",
+        "tool_call_id": expected_id,
+        "name": "lookup",
+        "content": '{"record": "DAR"}',
+        "_dar_transcript_type": "model_tool_result",
+        "call_id": expected_id,
+        "output": '{"record": "DAR"}',
+    }
+    assert second.content == "final answer"
+    assert second.tool_calls == ()
+
+
+@pytest.mark.parametrize(
+    ("candidate", "message"),
+    [
+        (
+            MLXToolCallCandidate(name="lookup", arguments="{not json}"),
+            "valid JSON",
+        ),
+        (
+            MLXToolCallCandidate(name="lookup", arguments='{"query":NaN}'),
+            "non-finite",
+        ),
+        (
+            MLXToolCallCandidate(name="lookup", arguments='{"a":1,"a":2}'),
+            "duplicate",
+        ),
+        (MLXToolCallCandidate(name="lookup", arguments="[]"), "JSON object"),
+        (MLXToolCallCandidate(name="unknown", arguments="{}"), "unavailable"),
+    ],
+)
+def test_mlx_adapter_rejects_invalid_codec_tool_candidates(
+    tmp_path: Path,
+    candidate: MLXToolCallCandidate,
+    message: str,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(MLXToolCodecResponse(tool_call=candidate)),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match=message):
+        adapter.create_response(tool_request())
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (
+            '{"nested":' + "[" * 33 + "0" + "]" * 33 + "}",
+            "nesting limit",
+        ),
+        (
+            "{" + ",".join(f'"key{index}":{index}' for index in range(257)) + "}",
+            "member limit",
+        ),
+        ('{"query":"' + "x" * (64 * 1024) + '"}', "byte limit"),
+    ],
+)
+def test_mlx_adapter_rejects_tool_argument_bounds(
+    tmp_path: Path,
+    arguments: str,
+    message: str,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(
+            MLXToolCodecResponse(
+                tool_call=MLXToolCallCandidate(name="lookup", arguments=arguments)
+            )
+        ),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match=message):
+        adapter.create_response(tool_request())
+
+
+@pytest.mark.parametrize(
+    ("candidate", "message"),
+    [
+        (MLXToolCallCandidate(name=1, arguments="{}"), "must have a name"),  # type: ignore[arg-type]
+        (MLXToolCallCandidate(name="lookup", arguments="{}", id=1), "ID"),  # type: ignore[arg-type]
+        (MLXToolCallCandidate(name="lookup", arguments=1), "JSON object"),  # type: ignore[arg-type]
+    ],
+)
+def test_mlx_adapter_rejects_runtime_invalid_codec_candidate_types(
+    tmp_path: Path,
+    candidate: MLXToolCallCandidate,
+    message: str,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(MLXToolCodecResponse(tool_call=candidate)),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match=message):
+        adapter.create_response(tool_request())
+
+
+def test_mlx_adapter_rejects_codec_text_combined_with_tool_call(tmp_path: Path) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(
+            MLXToolCodecResponse(
+                content="trailing prose",
+                tool_call=MLXToolCallCandidate(name="lookup", arguments="{}"),
+            )
+        ),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match="text or exactly one tool call"):
+        adapter.create_response(tool_request())
+
+
+def test_mlx_adapter_rejects_runtime_invalid_codec_text(tmp_path: Path) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native text"),
+        tool_codec=FakeMLXToolCodec(MLXToolCodecResponse(content=1)),  # type: ignore[arg-type]
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match="text response must be a string"):
+        adapter.create_response(tool_request())
+
+
+def test_mlx_adapter_rejects_oversized_generated_tool_response(tmp_path: Path) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    codec = FakeMLXToolCodec(MLXToolCodecResponse(content="not decoded"))
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("x" * (128 * 1024 + 1)),
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match="response exceeds the byte limit"):
+        adapter.create_response(tool_request())
+    assert codec.generated == []
+
+
+def test_mlx_adapter_rejects_oversized_tool_call_candidate(tmp_path: Path) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_converted_mlx_model(model_path)
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=model_path,
+        ),
+        backend=FakeToolCapableMLXBackend("native call"),
+        tool_codec=FakeMLXToolCodec(
+            MLXToolCodecResponse(
+                tool_call=MLXToolCallCandidate(
+                    name="lookup",
+                    arguments="{}",
+                    id="x" * (66 * 1024),
+                )
+            )
+        ),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(ModelExecutionError, match="call exceeds the byte limit"):
+        adapter.create_response(tool_request())
 
 
 def test_mlx_config_and_sync_factory_create_local_adapter(tmp_path: Path) -> None:
@@ -106,6 +1186,22 @@ def write_converted_mlx_model(model_path: Path) -> None:
     (model_path / "weights.npz").write_text("weights", encoding="utf-8")
 
 
+def write_native_mlx_model(model_path: Path, *, indexed: bool = False) -> None:
+    model_path.mkdir(parents=True)
+    (model_path / "config.json").write_text("{}", encoding="utf-8")
+    (model_path / "tokenizer.json").write_text("{}", encoding="utf-8")
+    if not indexed:
+        (model_path / "model.safetensors").write_text("weights", encoding="utf-8")
+        return
+    shards = ("model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors")
+    for shard in shards:
+        (model_path / shard).write_text("weights", encoding="utf-8")
+    (model_path / "model.safetensors.index.json").write_text(
+        '{"weight_map":{"one":"model-00001-of-00002.safetensors","two":"model-00002-of-00002.safetensors"}}',
+        encoding="utf-8",
+    )
+
+
 def write_gguf_model(model_path: Path) -> None:
     model_path.parent.mkdir(parents=True, exist_ok=True)
     model_path.write_text("gguf", encoding="utf-8")
@@ -130,6 +1226,151 @@ def test_mlx_adapter_validates_converted_model_directory(tmp_path: Path) -> None
     response = adapter.create_response(make_request())
 
     assert response.content == "converted model answer"
+    assert backend.requests
+
+
+@pytest.mark.parametrize("indexed", (False, True))
+def test_mlx_adapter_validates_native_safetensors_directory(
+    tmp_path: Path,
+    indexed: bool,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path, indexed=indexed)
+    backend = FakeMLXBackend("native model answer")
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(model_aliases=("mlx-local-chat",), model_path=model_path),
+        backend=backend,
+        dependency_loader=lambda: pytest.fail("native validation must not load"),
+        platform_system=lambda: "Darwin",
+    )
+
+    assert adapter.create_response(make_request()).content == "native model answer"
+    assert backend.requests
+
+
+def test_async_mlx_adapter_validates_native_safetensors_directory(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_async_adapter
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path)
+    backend = FakeMLXBackend("native model answer")
+    adapter = create_mlx_local_async_adapter(
+        MLXLocalModelConfig(model_aliases=("mlx-local-chat",), model_path=model_path),
+        backend=backend,
+        dependency_loader=lambda: pytest.fail("native validation must not load"),
+        platform_system=lambda: "Darwin",
+    )
+
+    assert (
+        asyncio.run(adapter.create_response(make_request())).content
+        == "native model answer"
+    )
+    assert backend.requests
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    (
+        "missing-config",
+        "missing-tokenizer",
+        "missing-weights",
+        "malformed-index",
+        "escaping-shard",
+    ),
+)
+def test_mlx_adapter_rejects_invalid_native_safetensors_before_backend(
+    tmp_path: Path,
+    invalid: str,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+    from dynamic_agent_runner.errors import LocalModelResolutionError
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path, indexed=invalid == "escaping-shard")
+    if invalid == "missing-config":
+        (model_path / "config.json").unlink()
+    elif invalid == "missing-tokenizer":
+        (model_path / "tokenizer.json").unlink()
+    elif invalid == "missing-weights":
+        (model_path / "model.safetensors").unlink()
+    elif invalid == "malformed-index":
+        (model_path / "model.safetensors.index.json").write_text("{", encoding="utf-8")
+    else:
+        shard = model_path / "model-00001-of-00002.safetensors"
+        outside = tmp_path / "outside.safetensors"
+        outside.write_text("weights", encoding="utf-8")
+        shard.unlink()
+        shard.symlink_to(outside)
+    backend = FakeMLXBackend()
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(model_aliases=("mlx-local-chat",), model_path=model_path),
+        backend=backend,
+        dependency_loader=lambda: pytest.fail("validation must precede loading"),
+        platform_system=lambda: "Darwin",
+    )
+
+    with pytest.raises(LocalModelResolutionError):
+        adapter.create_response(make_request())
+
+    assert backend.requests == []
+
+
+@pytest.mark.parametrize("async_adapter", (False, True))
+def test_mlx_adapter_resolves_cached_native_hub_snapshot_without_download(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    async_adapter: bool,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig
+    from dynamic_agent_runner.local_models import HuggingFaceSnapshotReference
+    from dynamic_agent_runner.mlx_models import (
+        create_mlx_local_adapter,
+        create_mlx_local_async_adapter,
+    )
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    snapshot = (
+        home_dir
+        / ".cache/huggingface/hub/models--mlx-community--Qwen3-4B-MLX-4bit"
+        / "snapshots/commit-native"
+    )
+    write_native_mlx_model(snapshot)
+    downloads: list[object] = []
+
+    def deny_download(*args: object, **kwargs: object) -> Path:
+        downloads.append((args, kwargs))
+        raise AssertionError("cached snapshot must not download")
+
+    factory = (
+        create_mlx_local_async_adapter if async_adapter else create_mlx_local_adapter
+    )
+    backend = FakeMLXBackend("cached native answer")
+    adapter = factory(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=tmp_path / "not-present",
+            huggingface_snapshot=HuggingFaceSnapshotReference(
+                repo_id="mlx-community/Qwen3-4B-MLX-4bit", revision="commit-native"
+            ),
+        ),
+        backend=backend,
+        download_snapshot=deny_download,
+        platform_system=lambda: "Darwin",
+    )
+
+    response = (
+        asyncio.run(adapter.create_response(make_request()))
+        if async_adapter
+        else adapter.create_response(make_request())
+    )
+
+    assert response.content == "cached native answer"
+    assert downloads == []
     assert backend.requests
 
 
@@ -205,6 +1446,168 @@ def test_local_model_availability_supports_converted_mlx_directory(
 
     assert availability.status is LocalModelAvailabilityStatus.AVAILABLE
     assert availability.resolved_path == model_path
+
+
+@pytest.mark.parametrize("indexed", (False, True))
+def test_local_model_availability_supports_native_mlx_directory(
+    tmp_path: Path,
+    indexed: bool,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path, indexed=indexed)
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.AVAILABLE
+    assert availability.resolved_path == model_path
+
+
+@pytest.mark.parametrize(
+    ("index", "message"),
+    [
+        ('{"weight_map":{"one":"../model.safetensors"}}', "shard reference"),
+        ('{"weight_map":{"one":"model.safetensors","two":"model.safetensors"}}', None),
+        (
+            '{"weight_map":{"one":"model.safetensors","one":"model.safetensors"}}',
+            "index",
+        ),
+    ],
+)
+def test_local_model_availability_rejects_invalid_native_mlx_index(
+    tmp_path: Path,
+    index: str,
+    message: str | None,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path)
+    (model_path / "model.safetensors.index.json").write_text(index, encoding="utf-8")
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    expected = (
+        LocalModelAvailabilityStatus.AVAILABLE
+        if message is None
+        else LocalModelAvailabilityStatus.INVALID
+    )
+    assert availability.status is expected
+    if message is not None:
+        assert message in availability.message
+
+
+@pytest.mark.parametrize(
+    "filename", ("config.json", "tokenizer.json", "model.safetensors")
+)
+def test_local_model_availability_rejects_escaping_native_mlx_file_links(
+    tmp_path: Path,
+    filename: str,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path)
+    outside = tmp_path / f"outside-{filename}"
+    outside.write_text("outside", encoding="utf-8")
+    (model_path / filename).unlink()
+    (model_path / filename).symlink_to(outside)
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.INVALID
+
+
+def test_local_model_availability_rejects_native_mlx_direct_extra_shard(
+    tmp_path: Path,
+) -> None:
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path)
+    (model_path / "model-00001-of-00002.safetensors").write_text(
+        "weights", encoding="utf-8"
+    )
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.INVALID
+
+
+def test_local_model_availability_rejects_oversized_native_mlx_index_without_reading(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import dynamic_agent_runner.local_models as local_models
+    from dynamic_agent_runner import (
+        LocalModelAssetReference,
+        LocalModelAvailabilityStatus,
+        check_local_model_availability,
+    )
+
+    model_path = tmp_path / "mlx-model"
+    write_native_mlx_model(model_path)
+    index = model_path / "model.safetensors.index.json"
+    index.write_bytes(b" " * (local_models._NATIVE_MLX_INDEX_MAX_BYTES + 1))
+    original_read_bytes = Path.read_bytes
+
+    def fail_read_bytes(path: Path) -> bytes:
+        if path == index:
+            raise AssertionError("oversized index must not be read")
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", fail_read_bytes)
+    availability = check_local_model_availability(
+        LocalModelAssetReference(
+            provider="local_path",
+            explicit_path=model_path,
+            model_format="mlx",
+            backend="mlx",
+        )
+    )
+
+    assert availability.status is LocalModelAvailabilityStatus.INVALID
 
 
 def test_local_model_availability_rejects_incomplete_mlx_directory(
@@ -464,6 +1867,49 @@ def test_mlx_adapter_resolves_hub_snapshot_reference_without_network(
     response = adapter.create_response(make_request())
 
     assert response.content == "hub snapshot answer"
+
+
+def test_mlx_adapter_resolves_default_hub_cache_snapshot_without_download(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dynamic_agent_runner import MLXLocalModelConfig, create_mlx_local_adapter
+    from dynamic_agent_runner.local_models import HuggingFaceSnapshotReference
+
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: home_dir)
+    repo_id = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"
+    snapshot_root = (
+        home_dir
+        / ".cache"
+        / "huggingface"
+        / "hub"
+        / f"models--{repo_id.replace('/', '--')}"
+        / "snapshots"
+        / "commit-123"
+    )
+    write_converted_mlx_model(snapshot_root)
+    download_calls: list[object] = []
+
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(
+            model_aliases=("mlx-local-chat",),
+            model_path=tmp_path / "missing-model",
+            model_filename="config.json",
+            huggingface_snapshot=HuggingFaceSnapshotReference(
+                repo_id=repo_id,
+                revision="commit-123",
+            ),
+        ),
+        backend=FakeMLXBackend("cached hub snapshot answer"),
+        platform_system=lambda: "Darwin",
+        download_snapshot=lambda *_: download_calls.append("download"),  # type: ignore[arg-type]
+    )
+
+    response = adapter.create_response(make_request())
+
+    assert response.content == "cached hub snapshot answer"
+    assert download_calls == []
 
 
 def test_mlx_adapter_fails_clearly_on_unsupported_platform(tmp_path: Path) -> None:

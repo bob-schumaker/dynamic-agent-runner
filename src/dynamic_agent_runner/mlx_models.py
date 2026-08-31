@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import platform
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
+from uuid import uuid4
 
 from dynamic_agent_runner.local_models import (
     DownloadFileCallable,
@@ -15,12 +17,17 @@ from dynamic_agent_runner.local_models import (
     HuggingFaceModelFileReference,
     HuggingFaceSnapshotReference,
     LocalModelPathConfig,
+    _validate_mlx_model_directory,
     resolve_local_model_path,
     validate_local_model_identity,
 )
 from dynamic_agent_runner.errors import ModelExecutionError
 from dynamic_agent_runner.errors import LocalModelResolutionError
-from dynamic_agent_runner.openai_client import ModelResponse, OpenAIModelRequest
+from dynamic_agent_runner.openai_client import (
+    ModelResponse,
+    ModelToolCall,
+    OpenAIModelRequest,
+)
 
 
 PlatformSystemCallable = Callable[[], str]
@@ -33,6 +40,46 @@ class MLXLocalBackend(Protocol):
 
     def generate(self, request: OpenAIModelRequest, **kwargs: object) -> str:
         """Generate final text for a normalized model request."""
+
+
+@dataclass(frozen=True)
+class MLXToolCallCandidate:
+    """One model-family tool call before DAR normalization."""
+
+    name: str
+    arguments: str | Mapping[str, object]
+    id: str | None = None
+
+
+@dataclass(frozen=True)
+class MLXToolCodecResponse:
+    """Decoded MLX output containing text or one tool-call candidate."""
+
+    content: str | None = None
+    tool_call: MLXToolCallCandidate | None = None
+
+
+@runtime_checkable
+class MLXToolCodec(Protocol):
+    """Versioned caller-injected MLX tool prompt and response codec."""
+
+    version: str
+
+    def render(self, request: OpenAIModelRequest) -> str:
+        """Render a complete normalized DAR request for this model family."""
+
+    def decode(self, generated: str) -> MLXToolCodecResponse:
+        """Decode text or one candidate from a model-family response."""
+
+
+@runtime_checkable
+class MLXToolCapableBackend(MLXLocalBackend, Protocol):
+    """MLX backend that explicitly supports selected tool codec versions."""
+
+    tool_codec_versions: frozenset[str]
+
+    def generate_rendered(self, prompt: str, **kwargs: object) -> str:
+        """Generate from a codec-rendered prompt."""
 
 
 @dataclass(frozen=True)
@@ -100,6 +147,7 @@ class MLXLocalModelAdapter:
         platform_system: PlatformSystemCallable | None = None,
         download_file: DownloadFileCallable | None = None,
         download_snapshot: DownloadSnapshotCallable | None = None,
+        tool_codec: MLXToolCodec | None = None,
     ) -> None:
         self._config = config
         self._backend = backend
@@ -107,12 +155,20 @@ class MLXLocalModelAdapter:
         self._platform_system = platform_system or platform.system
         self._download_file = download_file
         self._download_snapshot = download_snapshot
+        self._tool_codec = tool_codec
 
     def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
         """Generate and normalize a local MLX model response."""
 
         _ensure_supported_platform(self._platform_system())
-        _validate_supported_request(request)
+        if request.tools and not _backend_supports_tool_codec(
+            self._backend,
+            self._tool_codec,
+        ):
+            raise ModelExecutionError(
+                f"MLX local model adapter does not support tool calls for {request.model!r}"
+            )
+        _validate_supported_request(request, tool_codec=self._tool_codec)
         model_path = self._resolve_model_path()
         backend = self._get_backend(model_path)
         validate_local_model_identity(
@@ -125,6 +181,18 @@ class MLXLocalModelAdapter:
         )
         try:
             generation_kwargs = _generation_kwargs(self._config, request)
+            _validate_supported_request(
+                request,
+                backend=backend,
+                tool_codec=self._tool_codec,
+            )
+            if request.tools:
+                return _generate_tool_response(
+                    backend,
+                    self._tool_codec,
+                    request,
+                    generation_kwargs,
+                )
             content = _generate_with_backend(backend, request, generation_kwargs)
         except ModelExecutionError:
             raise
@@ -160,7 +228,10 @@ class MLXLocalModelAdapter:
                 else self._config.model_format
             ),
             "streaming": False,
-            "tool_calling": False,
+            "tool_calling": _backend_supports_tool_codec(
+                self._backend,
+                self._tool_codec,
+            ),
             "structured_output": False,
             "embeddings": False,
             "multimodal": False,
@@ -234,6 +305,7 @@ class AsyncMLXLocalModelAdapter:
         platform_system: PlatformSystemCallable | None = None,
         download_file: DownloadFileCallable | None = None,
         download_snapshot: DownloadSnapshotCallable | None = None,
+        tool_codec: MLXToolCodec | None = None,
     ) -> None:
         self._sync_adapter = MLXLocalModelAdapter(
             config,
@@ -242,6 +314,7 @@ class AsyncMLXLocalModelAdapter:
             platform_system=platform_system,
             download_file=download_file,
             download_snapshot=download_snapshot,
+            tool_codec=tool_codec,
         )
 
     async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
@@ -276,6 +349,7 @@ def create_mlx_local_adapter(
     platform_system: PlatformSystemCallable | None = None,
     download_file: DownloadFileCallable | None = None,
     download_snapshot: DownloadSnapshotCallable | None = None,
+    tool_codec: MLXToolCodec | None = None,
 ) -> MLXLocalModelAdapter:
     """Build a sync local MLX adapter."""
 
@@ -286,6 +360,7 @@ def create_mlx_local_adapter(
         platform_system=platform_system,
         download_file=download_file,
         download_snapshot=download_snapshot,
+        tool_codec=tool_codec,
     )
 
 
@@ -297,6 +372,7 @@ def create_mlx_local_async_adapter(
     platform_system: PlatformSystemCallable | None = None,
     download_file: DownloadFileCallable | None = None,
     download_snapshot: DownloadSnapshotCallable | None = None,
+    tool_codec: MLXToolCodec | None = None,
 ) -> AsyncMLXLocalModelAdapter:
     """Build an async local MLX adapter."""
 
@@ -307,6 +383,7 @@ def create_mlx_local_async_adapter(
         platform_system=platform_system,
         download_file=download_file,
         download_snapshot=download_snapshot,
+        tool_codec=tool_codec,
     )
 
 
@@ -318,8 +395,19 @@ def _ensure_supported_platform(platform_system: str) -> None:
         )
 
 
-def _validate_supported_request(request: OpenAIModelRequest) -> None:
-    if request.tools:
+def _validate_supported_request(
+    request: OpenAIModelRequest,
+    *,
+    backend: MLXLocalBackend | None = None,
+    tool_codec: MLXToolCodec | None = None,
+) -> None:
+    if request.tools and (
+        tool_codec is None
+        or (
+            backend is not None
+            and not _backend_supports_tool_codec(backend, tool_codec)
+        )
+    ):
         raise ModelExecutionError(
             f"MLX local model adapter does not support tool calls for {request.model!r}"
         )
@@ -340,7 +428,9 @@ def _validate_resolved_mlx_model_path(
         _validate_gguf_model_file(model_path)
         return model_path
     model_directory = model_path if model_path.is_dir() else model_path.parent
-    _validate_converted_mlx_model_directory(model_directory)
+    validation_error = _validate_mlx_model_directory(model_directory)
+    if validation_error is not None:
+        raise LocalModelResolutionError(validation_error)
     return model_directory
 
 
@@ -362,28 +452,6 @@ def _validate_gguf_model_file(model_path: Path) -> None:
     if model_path.suffix.lower() != ".gguf":
         raise LocalModelResolutionError(
             f"MLX GGUF local model path {model_path!s} must use a .gguf suffix"
-        )
-
-
-def _validate_converted_mlx_model_directory(model_directory: Path) -> None:
-    if not model_directory.is_dir():
-        raise LocalModelResolutionError(
-            f"MLX local model path {model_directory!s} is not a directory"
-        )
-    missing_files = [
-        filename
-        for filename in ("config.json", "tokenizer.model")
-        if not (model_directory / filename).exists()
-    ]
-    if not (model_directory / "weights.npz").exists() and not list(
-        model_directory.glob("weights.*.npz")
-    ):
-        missing_files.append("weights.npz")
-    if missing_files:
-        raise LocalModelResolutionError(
-            "MLX local model directory "
-            f"{model_directory!s} is missing required file(s): "
-            f"{', '.join(missing_files)}"
         )
 
 
@@ -446,6 +514,11 @@ _SUPPORTED_GENERATION_KWARGS = frozenset(
         "seed",
     }
 )
+_MAX_TOOL_RESPONSE_BYTES = 128 * 1024
+_MAX_TOOL_CANDIDATE_BYTES = 66 * 1024
+_MAX_TOOL_ARGUMENT_BYTES = 64 * 1024
+_MAX_TOOL_ARGUMENT_DEPTH = 32
+_MAX_TOOL_ARGUMENT_MEMBERS = 256
 
 
 def _generation_kwargs(
@@ -465,6 +538,195 @@ def _generation_kwargs(
         }
     )
     return kwargs
+
+
+def _backend_supports_tool_codec(
+    backend: MLXLocalBackend | None,
+    tool_codec: MLXToolCodec | None,
+) -> bool:
+    return (
+        tool_codec is not None
+        and isinstance(backend, MLXToolCapableBackend)
+        and tool_codec.version in backend.tool_codec_versions
+    )
+
+
+def _generate_tool_response(
+    backend: MLXLocalBackend,
+    tool_codec: MLXToolCodec | None,
+    request: OpenAIModelRequest,
+    generation_kwargs: Mapping[str, object],
+) -> ModelResponse:
+    if tool_codec is None or not isinstance(backend, MLXToolCapableBackend):
+        raise ModelExecutionError(
+            f"MLX local model adapter does not support tool calls for {request.model!r}"
+        )
+    prompt = tool_codec.render(request)
+    generated = (
+        backend.generate_rendered(prompt, **dict(generation_kwargs))
+        if generation_kwargs
+        else backend.generate_rendered(prompt)
+    )
+    generated_text = str(generated)
+    if len(generated_text.encode("utf-8")) > _MAX_TOOL_RESPONSE_BYTES:
+        raise ModelExecutionError("MLX tool codec response exceeds the byte limit")
+    response_id = f"mlx-{uuid4().hex}"
+    decoded = tool_codec.decode(generated_text)
+    return _normalize_tool_codec_response(decoded, response_id, generated, request)
+
+
+def _normalize_tool_codec_response(
+    decoded: MLXToolCodecResponse,
+    response_id: str,
+    raw: object,
+    request: OpenAIModelRequest,
+) -> ModelResponse:
+    if not isinstance(decoded, MLXToolCodecResponse):
+        raise ModelExecutionError("MLX tool codec returned an invalid response")
+    if (decoded.content is None) == (decoded.tool_call is None):
+        raise ModelExecutionError(
+            "MLX tool codec response must contain text or exactly one tool call"
+        )
+    if decoded.content is not None:
+        if not isinstance(decoded.content, str):
+            raise ModelExecutionError("MLX tool codec text response must be a string")
+        return ModelResponse(content=decoded.content, response_id=response_id, raw=raw)
+
+    candidate = decoded.tool_call
+    assert candidate is not None
+    if not isinstance(candidate, MLXToolCallCandidate):
+        raise ModelExecutionError("MLX tool codec returned an invalid tool call")
+    if not isinstance(candidate.name, str) or not candidate.name:
+        raise ModelExecutionError("MLX tool codec call must have a name")
+    if candidate.name not in _tool_names(request):
+        raise ModelExecutionError(
+            f"MLX tool codec call requests unavailable tool {candidate.name!r}"
+        )
+    if candidate.id is not None and (
+        not isinstance(candidate.id, str) or not candidate.id
+    ):
+        raise ModelExecutionError("MLX tool codec call ID must be non-empty")
+    if _tool_candidate_byte_size(candidate) > _MAX_TOOL_CANDIDATE_BYTES:
+        raise ModelExecutionError("MLX tool codec call exceeds the byte limit")
+    call_id = candidate.id or f"{response_id}:1"
+    arguments = _normalize_tool_arguments(candidate.arguments)
+    return ModelResponse(
+        content=None,
+        tool_calls=(
+            ModelToolCall(
+                id=call_id,
+                name=candidate.name,
+                arguments=arguments,
+            ),
+        ),
+        response_id=response_id,
+        raw=raw,
+    )
+
+
+def _tool_names(request: OpenAIModelRequest) -> frozenset[str]:
+    names: set[str] = set()
+    for tool in request.tools:
+        function = tool.get("function")
+        name = (
+            function.get("name") if isinstance(function, Mapping) else tool.get("name")
+        )
+        if isinstance(name, str) and (
+            isinstance(function, Mapping) or tool.get("type") == "function"
+        ):
+            names.add(name)
+    return frozenset(names)
+
+
+def _tool_candidate_byte_size(candidate: MLXToolCallCandidate) -> int:
+    return sum(
+        len(value.encode("utf-8"))
+        for value in (
+            candidate.name,
+            candidate.id or "",
+            _tool_argument_source(candidate.arguments),
+        )
+    )
+
+
+def _normalize_tool_arguments(arguments: str | Mapping[str, object]) -> str:
+    source = _tool_argument_source(arguments)
+    if len(source.encode("utf-8")) > _MAX_TOOL_ARGUMENT_BYTES:
+        raise ModelExecutionError("MLX tool codec arguments exceed the byte limit")
+    try:
+        value = json.loads(
+            source,
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_non_finite_json_constant,
+        )
+    except json.JSONDecodeError as exc:
+        raise ModelExecutionError(
+            "MLX tool codec arguments must be valid JSON"
+        ) from exc
+    except ValueError as exc:
+        raise ModelExecutionError(str(exc)) from exc
+    if not isinstance(value, dict):
+        raise ModelExecutionError("MLX tool codec arguments must be a JSON object")
+    _validate_tool_argument_structure(value)
+    return json.dumps(value, allow_nan=False, separators=(",", ":"), sort_keys=True)
+
+
+def _tool_argument_source(arguments: str | Mapping[str, object]) -> str:
+    try:
+        source = (
+            arguments
+            if isinstance(arguments, str)
+            else json.dumps(
+                arguments,
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        )
+    except (TypeError, ValueError) as exc:
+        raise ModelExecutionError(
+            "MLX tool codec arguments must be JSON-compatible"
+        ) from exc
+    if not isinstance(source, str):
+        raise ModelExecutionError(
+            "MLX tool codec arguments must be a JSON string or object"
+        )
+    return source
+
+
+def _reject_duplicate_json_keys(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("MLX tool codec arguments contain duplicate JSON keys")
+        result[key] = value
+    return result
+
+
+def _reject_non_finite_json_constant(value: str) -> object:
+    raise ValueError(
+        f"MLX tool codec arguments contain non-finite JSON value {value!r}"
+    )
+
+
+def _validate_tool_argument_structure(value: object, depth: int = 0) -> int:
+    if depth > _MAX_TOOL_ARGUMENT_DEPTH:
+        raise ModelExecutionError("MLX tool codec arguments exceed the nesting limit")
+    if isinstance(value, dict):
+        members = len(value)
+        for item in value.values():
+            members += _validate_tool_argument_structure(item, depth + 1)
+    elif isinstance(value, list):
+        members = sum(
+            _validate_tool_argument_structure(item, depth + 1) for item in value
+        )
+    else:
+        members = 0
+    if members > _MAX_TOOL_ARGUMENT_MEMBERS:
+        raise ModelExecutionError("MLX tool codec arguments exceed the member limit")
+    return members
 
 
 def _generate_with_backend(

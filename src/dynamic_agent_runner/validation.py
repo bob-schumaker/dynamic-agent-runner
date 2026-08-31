@@ -295,8 +295,10 @@ SUPPORTED_CONTEXT_COMPACTION_STRATEGIES = {
     "basic",
     "rolling_summary",
     "provider",
+    "provider_remote",
     "off",
 }
+SUPPORTED_PROVIDER_CONTEXT_COMPACTION_FALLBACKS = {"basic", "error"}
 SUPPORTED_CONTEXT_COMPACTION_MODES = {"auto", "manual", "off"}
 SUPPORTED_CONTEXT_COMPACTION_MANUAL_MODES = {"disabled", "allowed", "required"}
 SUPPORTED_CONTEXT_COMPACTION_TRIGGERS = {
@@ -478,6 +480,7 @@ def validate_runtime_manifest(
     _extend(errors, _tool_definition_errors(manifest.tools, "runtime manifest tool"))
     _extend(errors, _tool_reference_errors(manifest, tool_index, tool_registry))
     _extend(errors, _llm_prompt_errors(manifest.nodes))
+    _extend(errors, _embedding_step_errors(manifest))
     _extend(errors, _context_pipeline_attachment_errors(manifest.nodes))
     _extend(errors, _model_requirements_errors(manifest))
     _extend(errors, _memory_pipeline_errors(manifest))
@@ -993,28 +996,54 @@ def _guardrail_declaration_errors(manifest: RuntimeManifest) -> list[str]:
         errors.append("guardrails declarations must be a list")
         return errors
     for index, declaration in enumerate(manifest.guardrails):
-        if not declaration.id:
-            errors.append(f"guardrail declaration at position {index} is missing id")
-        if declaration.phase not in SUPPORTED_GUARDRAIL_PHASES:
-            errors.append(
-                f"guardrail declaration {declaration.id!r} has unsupported phase "
-                f"{declaration.phase!r}"
-            )
-        if declaration.behavior_on_tripwire not in SUPPORTED_GUARDRAIL_BEHAVIORS:
-            errors.append(
-                f"guardrail declaration {declaration.id!r} has unsupported "
-                "behavior_on_tripwire "
-                f"{declaration.behavior_on_tripwire!r}"
-            )
-        if (
-            declaration.behavior_on_tripwire == "reject_content"
-            and declaration.message is None
-        ):
-            errors.append(
-                f"guardrail declaration {declaration.id!r} with reject_content "
-                "must define message or reject_content_message"
-            )
+        errors.extend(_guardrail_declaration_entry_errors(index, declaration))
     return errors
+
+
+def _guardrail_declaration_entry_errors(index: int, declaration: Any) -> list[str]:
+    errors: list[str] = []
+    if not declaration.id:
+        errors.append(f"guardrail declaration at position {index} is missing id")
+    if declaration.phase == "tool_input":
+        _append_tool_input_guardrail_errors(errors, index, declaration)
+    else:
+        _append_deferred_guardrail_errors(errors, declaration)
+    if declaration.phase not in SUPPORTED_GUARDRAIL_PHASES:
+        errors.append(
+            f"guardrail declaration {declaration.id!r} has unsupported phase "
+            f"{declaration.phase!r}"
+        )
+    return errors
+
+
+def _append_tool_input_guardrail_errors(
+    errors: list[str], index: int, declaration: Any
+) -> None:
+    if not str(declaration.id or "").strip():
+        errors.append(
+            f"tool_input guardrail declaration at position {index} requires a nonblank id"
+        )
+    if declaration.behavior_on_tripwire not in {None, "abort"}:
+        errors.append(
+            f"tool_input guardrail declaration {declaration.id!r} only supports abort behavior"
+        )
+
+
+def _append_deferred_guardrail_errors(errors: list[str], declaration: Any) -> None:
+    if declaration.behavior_on_tripwire not in SUPPORTED_GUARDRAIL_BEHAVIORS:
+        errors.append(
+            f"guardrail declaration {declaration.id!r} has unsupported "
+            "behavior_on_tripwire "
+            f"{declaration.behavior_on_tripwire!r}"
+        )
+    if (
+        declaration.behavior_on_tripwire == "reject_content"
+        and declaration.message is None
+    ):
+        errors.append(
+            f"guardrail declaration {declaration.id!r} with reject_content "
+            "must define message or reject_content_message"
+        )
 
 
 def _mcp_registry_source_errors(manifest: RuntimeManifest) -> list[str]:
@@ -1128,6 +1157,32 @@ def _llm_prompt_errors(nodes: Iterable[RuntimeNode]) -> list[str]:
             errors.append(
                 f"llm_step node {node.id!r} must define prompt or prompt_source"
             )
+    return errors
+
+
+def _embedding_step_errors(manifest: RuntimeManifest) -> list[str]:
+    errors: list[str] = []
+    allowed_keys = {
+        "id",
+        "kind",
+        "label",
+        "embedding_profile",
+        "embedding_input_from",
+    }
+    for node in manifest.nodes:
+        if node.kind != "embedding_step":
+            continue
+        for key in node.raw:
+            if key not in allowed_keys:
+                errors.append(
+                    f"embedding_step node {node.id!r} has unsupported field {key!r}"
+                )
+        for key in ("embedding_profile", "embedding_input_from"):
+            value = node.raw.get(key)
+            if not isinstance(value, str) or not value:
+                errors.append(f"embedding_step node {node.id!r} requires {key}")
+        if any(edge.source == node.id for edge in manifest.edges):
+            errors.append(f"embedding_step node {node.id!r} must be terminal")
     return errors
 
 
@@ -2852,6 +2907,45 @@ def _context_compaction_auto_errors(
         auto_label,
         errors,
     )
+    _provider_context_compaction_errors(auto, auto_label, errors)
+
+
+def _provider_context_compaction_errors(
+    auto: Mapping[str, Any],
+    auto_label: str,
+    errors: list[str],
+) -> None:
+    implementation = auto.get("implementation")
+    strategy = auto.get("strategy")
+    if implementation != "provider":
+        if strategy == "provider_remote":
+            errors.append(
+                f"{auto_label}.strategy 'provider_remote' requires implementation 'provider'"
+            )
+        return
+    if strategy != "provider_remote":
+        errors.append(
+            f"{auto_label}.implementation 'provider' requires strategy 'provider_remote'"
+        )
+    remote = auto.get("remote")
+    remote_label = f"{auto_label}.remote"
+    if not isinstance(remote, Mapping):
+        errors.append(f"{remote_label} must be a mapping for provider compaction")
+        return
+    provider_capability = remote.get("provider_capability")
+    if not isinstance(provider_capability, str) or not provider_capability.strip():
+        errors.append(f"{remote_label}.provider_capability must be a non-empty string")
+    _validate_optional_enum(
+        remote,
+        "fallback",
+        SUPPORTED_PROVIDER_CONTEXT_COMPACTION_FALLBACKS,
+        remote_label,
+        errors,
+    )
+    _validate_optional_positive_int(
+        remote, "max_replacement_messages", remote_label, errors
+    )
+    _validate_optional_bool(remote, "preserve_system_messages", remote_label, errors)
 
 
 def _context_compression_errors(

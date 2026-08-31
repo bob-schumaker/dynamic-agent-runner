@@ -59,6 +59,19 @@ class ToolRegistry(Protocol):
     ) -> ToolResult:
         """Invoke a registered tool through the async dispatch path."""
 
+    def prepare_tool_invocation(
+        self,
+        tool_id: str,
+        arguments: Mapping[str, Any] | None = None,
+    ) -> PreparedToolInvocation:
+        """Prepare a registered tool invocation without calling its handler."""
+
+    async def invoke_prepared_tool_async(
+        self,
+        prepared: PreparedToolInvocation,
+    ) -> ToolResult:
+        """Invoke one registry-prepared tool invocation."""
+
 
 @dataclass(frozen=True)
 class ToolResult:
@@ -72,6 +85,7 @@ class ToolResult:
     raw_output: Any | None = None
     log_preview: str | None = None
     event_payload: Mapping[str, Any] | None = None
+    trace_output: Any | None = None
     sensitive_fields: tuple[str, ...] = ()
 
     @property
@@ -87,7 +101,11 @@ class ToolResult:
             "tool_id": self.tool_id,
             "success": self.success,
             "error": self.error,
-            "output": self.model_facing_output,
+            "output": (
+                self.model_facing_output
+                if self.trace_output is None
+                else self.trace_output
+            ),
         }
         if self.raw_output is not None:
             payload["raw_output"] = self.raw_output
@@ -122,6 +140,14 @@ class RegisteredTool:
         if not self.definition.id:
             raise ToolRegistryError("registered tool definition is missing id")
         return self.definition.id
+
+
+@dataclass(frozen=True)
+class PreparedToolInvocation:
+    """Registry-owned resolved tool and normalized input for one invocation."""
+
+    tool: RegisteredTool
+    arguments: Mapping[str, Any]
 
 
 @dataclass(frozen=True)
@@ -545,14 +571,10 @@ class InMemoryToolRegistry:
         """Invoke a registered tool with simple input validation."""
 
         try:
-            tool, args = self._prepare_tool_invocation(tool_id, arguments)
-            if tool.handler_is_async:
-                output = _run_async_tool_handler_from_sync(tool.handler, args)
-            else:
-                output = tool.handler(args)
+            prepared = self.prepare_tool_invocation(tool_id, arguments)
+            return self._invoke_prepared_tool(prepared)
         except Exception as exc:  # noqa: BLE001 - convert all tool failures.
             return ToolResult(tool_id=tool_id, success=False, error=str(exc))
-        return _tool_result_from_output(tool_id, output)
 
     async def invoke_tool_async(
         self,
@@ -562,25 +584,64 @@ class InMemoryToolRegistry:
         """Invoke a registered tool without blocking the event loop."""
 
         try:
-            tool, args = self._prepare_tool_invocation(tool_id, arguments)
-            if tool.handler_is_async:
-                output = await tool.handler(args)
-            else:
-                output = await asyncio.to_thread(tool.handler, args)
+            prepared = self.prepare_tool_invocation(tool_id, arguments)
+            return await self.invoke_prepared_tool_async(prepared)
         except Exception as exc:  # noqa: BLE001 - convert all tool failures.
             return ToolResult(tool_id=tool_id, success=False, error=str(exc))
-        return _tool_result_from_output(tool_id, output)
+
+    def prepare_tool_invocation(
+        self,
+        tool_id: str,
+        arguments: Mapping[str, Any] | None = None,
+    ) -> PreparedToolInvocation:
+        """Resolve and validate a tool invocation without calling its handler."""
+
+        args = dict(arguments or {})
+        tool = self.get_tool(tool_id)
+        _validate_input_schema(tool.definition, args)
+        return PreparedToolInvocation(tool=tool, arguments=args)
+
+    async def invoke_prepared_tool_async(
+        self,
+        prepared: PreparedToolInvocation,
+    ) -> ToolResult:
+        """Invoke one prepared tool while preserving direct-callability checks."""
+
+        try:
+            _require_direct_callable(prepared.tool.definition)
+            if prepared.tool.handler_is_async:
+                output = await prepared.tool.handler(prepared.arguments)
+            else:
+                output = await asyncio.to_thread(
+                    prepared.tool.handler, prepared.arguments
+                )
+        except Exception as exc:  # noqa: BLE001 - convert all tool failures.
+            return ToolResult(
+                tool_id=prepared.tool.id,
+                success=False,
+                error=str(exc),
+            )
+        return _tool_result_from_output(prepared.tool.id, output)
+
+    def _invoke_prepared_tool(self, prepared: PreparedToolInvocation) -> ToolResult:
+        _require_direct_callable(prepared.tool.definition)
+        if prepared.tool.handler_is_async:
+            output = _run_async_tool_handler_from_sync(
+                prepared.tool.handler,
+                prepared.arguments,
+            )
+        else:
+            output = prepared.tool.handler(prepared.arguments)
+        return _tool_result_from_output(prepared.tool.id, output)
 
     def _prepare_tool_invocation(
         self,
         tool_id: str,
         arguments: Mapping[str, Any] | None,
     ) -> tuple[RegisteredTool, dict[str, Any]]:
-        args = dict(arguments or {})
-        tool = self.get_tool(tool_id)
-        _require_direct_callable(tool.definition)
-        _validate_input_schema(tool.definition, args)
-        return tool, args
+        prepared = self.prepare_tool_invocation(tool_id, arguments)
+        _require_direct_callable(prepared.tool.definition)
+        return prepared.tool, dict(prepared.arguments)
 
 
 def tool_from_function(
@@ -1419,6 +1480,35 @@ def _validate_input_schema(
         if field_name not in arguments:
             raise ToolRegistryError(
                 f"tool {definition.id!r} missing required input {field_name!r}"
+            )
+    properties = schema.get("properties", {})
+    if schema.get("additionalProperties") is False:
+        unknown = set(arguments) - set(properties)
+        if unknown:
+            raise ToolRegistryError(
+                f"tool {definition.id!r} received unknown input {sorted(unknown)[0]!r}"
+            )
+    for field_name, value in arguments.items():
+        property_schema = properties.get(field_name)
+        if not isinstance(property_schema, Mapping):
+            continue
+        allowed = property_schema.get("enum")
+        if (
+            schema.get("additionalProperties") is False
+            and isinstance(allowed, list)
+            and value not in allowed
+        ):
+            raise ToolRegistryError(
+                f"tool {definition.id!r} input {field_name!r} is not an allowed value"
+            )
+        expected_type = property_schema.get("type")
+        if (
+            schema.get("additionalProperties") is False
+            and expected_type == "string"
+            and not isinstance(value, str)
+        ):
+            raise ToolRegistryError(
+                f"tool {definition.id!r} input {field_name!r} must be a string"
             )
 
 

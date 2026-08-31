@@ -4,7 +4,7 @@
 
 - Python package.
 - Declared Python compatibility: `>=3.13,<3.14.1 || >3.14.1,<3.15`.
-- mise-selected local Python version: `3.14.6`.
+- mise-selected local Python version: `3.14.7`.
 
 ## Package and Dependency Management
 
@@ -16,8 +16,10 @@
   - `dev` optional group
   - `docs` optional group
   - `test` group
-- Console script: `dynamic-agent-runner` declared under `[project.scripts]` and
-  pointing to `dynamic_agent_runner.cli:console_main`.
+- Console scripts: `dynamic-agent-runner` points to
+  `dynamic_agent_runner.cli:console_main`; `dar-package` points to
+  `dynamic_agent_runner.dar_package_cli:console_main` for the DAR-authoring
+  skills-only control plane.
 - The Graphify cross-repository console script is
   `graphify-extract`; it delegates to the package Graphify
   extraction API and DAR-bounded worker workflow rather than adding a second
@@ -152,8 +154,9 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 
 ## Environment Setup
 
-- `.mise.toml` configures Poetry through pipx, in-project virtualenvs, and
-  shell enter/leave hooks.
+- `.mise.toml` selects Python `3.14.7`; `.mise.extra-shell-settings` supplies
+  the project `bin` path and `lib`/`src` Python paths. The former Poetry and
+  shell enter/leave hooks were removed in commit `41716ab`.
 - `env_setup` must be sourced, not executed directly.
 - `env_setup` conditionally sources `env_extra` and adds existing `lib`, `src`,
   and `bin` directories to the Python or execution path.
@@ -183,6 +186,12 @@ Latest intended runtime direction from `specs/dynamic-agent-runner/spec.md`:
 - Configured publish targets:
   - `indcon-release-pypi-local`
   - `indcon-dev-pypi-local`
+- Pre-release DAR-authoring M1 verification uses an `ocibuild -c` result wheel
+  and `scripts/verify_dar_package_wheel.py`. The current receipt is `0.2a3`;
+  resolving the future pinned `0.2.1` wheel from Artifactory is a separate
+  post-release check. The isolated verifier invokes the wheel through
+  `uv run --no-project --python 3.14 --with <absolute-wheel-path> dar-package
+  version --json`.
 
 ## Notes
 

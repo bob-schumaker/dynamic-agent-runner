@@ -13,6 +13,8 @@
     `timeout`, `retry_policy`, and `failure_behavior`
   - lifecycle hooks for permission-boundary observations
   - trace events for node, model, tool, workflow, and status observations
+  - `specs/tool-invocation-coordinator/spec.md` for the prepared shared
+    direct/model-loop implementation boundary
 - Evaluated supporting reference:
   - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
     demonstrates a pre-tool observation hook but not an enforceable approval
@@ -31,9 +33,10 @@ package.
 ## Existing Baseline
 
 The primary runtime preserves and validates approval-interruption metadata under
-`runtime.execution_policy.approval_interruption` and implements the v1 direct
-`tool_use_step` pause boundary. Durable checkpoints, approval UIs, approval
-engines, and resume/reject decisions remain deferred.
+`runtime.execution_policy.approval_interruption` and pauses direct `tool_use_step`
+and model-tool-loop calls before an approval-required handler invocation. Durable
+checkpoints, approval UIs, approval engines, and resume/reject decisions remain
+deferred.
 
 The current executor also has tool policy metadata, trace events, lifecycle
 hooks, async execution, cancellation behavior, and per-run state isolation. Those
@@ -61,9 +64,10 @@ side effect occurs before approval.
 
 ## V1 Live Slice Boundary
 
-The first implementation slice intentionally covers only direct `tool_use_step`
-approval interruption. It adds a typed interrupted workflow result and approval
-record before any registered handler is invoked. The high-level
+The first implementation slice began with direct `tool_use_step` approval
+interruption and now also covers normalized model-tool-loop calls. It adds a
+typed interrupted workflow result and approval record before any registered
+handler is invoked. The high-level
 `run_agent_workflow*` convenience APIs continue to represent completed workflows;
 if a workflow pauses, callers should use `execute_workflow*` to inspect the
 structured interruption.
@@ -73,6 +77,8 @@ V1 includes:
 - package-root exports for approval interruption state types
 - direct `tool_use_step` pause before invocation when the effective tool policy
   has `approval_required` set to a yes/true value
+- model-tool-loop pause before invocation when the effective exposed tool policy
+  has `approval_required` set to a yes/true value
 - stable run id, workflow/package id, node id, tool id, requested arguments,
   policy metadata, and redacted trace events
 - no tool side effect before the caller makes an approval decision
@@ -80,7 +86,6 @@ V1 includes:
 V1 defers:
 
 - durable resume and serialized run-state compatibility checks
-- model-emitted tool-call interruption
 - argument modification
 - parallel or multi-approval handling
 - built-in write, patch, delete, shell, or package-install workspace tools
@@ -91,13 +96,16 @@ V1 defers:
   `WorkflowInterruptedResult`.
 - Implemented direct `tool_use_step` interruption before lifecycle hooks, retry,
   registry invocation, output recording, or edge traversal.
+- Implemented model-tool-loop interruption before lifecycle hooks, registry
+  invocation, or handler execution; focused executor coverage proves no handler
+  invocation before the pause.
 - Implemented redacted `approval_requested` and `approval_paused` trace events.
 - Implemented high-level `run_agent_workflow*` guardrails that raise
   `WorkflowExecutionError` when a workflow pauses for approval.
 - Implemented capability-status reporting for the live direct-tool approval
   boundary when an approval-required registered tool is present.
-- Deferred durable resume, approval decisions, model-emitted tool-call
-  interruption, argument modification, and parallel approvals.
+- Deferred durable resume, approval decisions, argument modification, and
+  parallel approvals.
 
 ## Functional Requirements
 
@@ -255,7 +263,7 @@ Acceptance criteria:
 
 - RESOLVED for v1: expose `ApprovalInterruption` and
   `WorkflowInterruptedResult`, returned by `execute_workflow*` when execution
-  pauses before an approval-required direct tool step.
+  pauses before an approval-required direct or model-tool-loop call.
 - RESOLVED for v1: do not add resume APIs yet; interruption records are stable
   inspection surfaces only in the first slice.
 - RESOLVED for v1: approval outcomes remain deferred because v1 does not resume.
@@ -273,7 +281,7 @@ Acceptance criteria:
 ## Validation Checklist
 
 - [x] Approval-required direct tool step pauses before invocation.
-- [ ] Approval-required model-emitted tool call pauses before invocation.
+- [x] Approval-required model-emitted tool call pauses before invocation.
 - [ ] Serialized state excludes live process resources.
 - [ ] Resume with approval invokes exactly the pending action once.
 - [ ] Resume with rejection follows configured rejection behavior.

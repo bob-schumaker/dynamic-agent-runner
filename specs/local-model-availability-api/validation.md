@@ -209,6 +209,28 @@ Closed during Slice A4:
 - Interpretation: Slice A4 implementation, tests, docs, and spec artifacts pass
   focused validation together.
 
+### Slice A5.1 — Standard Hugging Face Hub Cache Default
+
+- RED command:
+  `poetry run pytest tests/test_local_models.py -q -k 'declared_default_hub or
+  only_default_hub_snapshots'`
+- RED observed result: `3 failed` — resolution still selected the former
+  Ollama root and inventory did not recognize Hub snapshots.
+- GREEN command:
+  `poetry run pytest tests/test_local_models.py tests/test_mlx_models.py
+  tests/test_hugging_face_support.py tests/test_import.py -q`
+- GREEN observed result: `179 passed in 0.75s`.
+- Interpretation: declared file and snapshot references resolve only from their
+  contained default-Hub snapshots; symbolic refs, alias rejection, escaping
+  links, bounded inventory, and the MLX adapter path are covered without model
+  loading, a download, or a local endpoint call.
+- Completion command: `poetry run pytest -q`
+- Observed result: `1478 passed, 1 skipped, 6 deselected in 10.60s`.
+- Completion checks: `poetry run ruff check src tests` and
+  `poetry run ruff format --check src tests` — passed.
+- Targeted pre-commit over the A5.1 implementation, tests, and updated specs —
+  passed (Ruff check/format and rumdl check/format).
+
 ## Deferred From V1
 
 - Broad local inventory remains deferred; Slice A4 implements only narrow

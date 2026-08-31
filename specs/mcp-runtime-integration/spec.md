@@ -13,6 +13,9 @@
   - `extensions.mcp_lifecycle_diagnostics`
   - tool provenance and portable `tool_type`
   - tool exposure states and registry-authoritative invocation
+  - `specs/mcp-oauth-discovery-registration/spec.md` for human-only OAuth
+    metadata discovery and dynamic public-client registration on configured
+    HTTPS MCP connections
 - Evaluated supporting reference:
   - `https://www.marktechpost.com/2026/06/26/build-a-nanobot-style-ai-agent-in-google-colab-with-tool-calling-session-memory-skills-and-mcp-servers/`
     uses an educational in-process `MCPServer` facade that is not protocol-level
@@ -34,6 +37,12 @@ The runtime preserves MCP registry-source metadata, MCP lifecycle diagnostics
 metadata, and v1 caller-supplied MCP registry injection. It does not currently
 launch MCP servers, connect to MCP transports, discover tool schemas, or manage
 MCP server lifecycle.
+
+The separately specified OAuth discovery/registration feature does not alter
+this v1 boundary. It bootstraps credentials only for an explicitly
+human-configured HTTPS connection; the transport, initialization,
+tool-surface, invocation, and lifecycle responsibilities remain this feature's
+concern.
 
 The evaluated MarkTechPost tutorial uses “MCP-style” for an in-process Python
 object that lists handlers and adapts them into local tool definitions. That

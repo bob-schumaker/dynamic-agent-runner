@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from dynamic_agent_runner.context_compaction import ProviderContextCompactor
 from dynamic_agent_runner.context_selection import ContextSelector
 from dynamic_agent_runner.models import CompiledAgentWorkflow, LoadedAgentWorkflow
 from dynamic_agent_runner.openai_client import (
@@ -41,6 +42,10 @@ class WorkflowExecutionContext:
     lifecycle_hooks: WorkflowLifecycleHooks | None = None
     model_adapter_coverage: str = "augmented"
     context_selector: ContextSelector | None = None
+    provider_context_compactor: ProviderContextCompactor | None = None
+    embedding_profile_id: str | None = None
+    embedding_producer: object | None = None
+    embedding_producer_mode: str | None = None
 
 
 RunContext = WorkflowExecutionContext

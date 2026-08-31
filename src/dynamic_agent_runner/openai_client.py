@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import inspect
 import json
 import os
@@ -45,7 +45,7 @@ class OpenAIResponsesResource(Protocol):
 
 
 class OpenAIClientProtocol(Protocol):
-    """Protocol-compatible OpenAI client for default and fake clients."""
+    """Operational OpenAI client boundary with injectable implementations."""
 
     responses: OpenAIResponsesResource
 
@@ -58,7 +58,7 @@ class AsyncOpenAIResponsesResource(Protocol):
 
 
 class AsyncOpenAIClientProtocol(Protocol):
-    """Protocol-compatible async OpenAI client for default and fake clients."""
+    """Operational async OpenAI client boundary with injectable implementations."""
 
     responses: AsyncOpenAIResponsesResource
 
@@ -186,6 +186,7 @@ class OpenAIModelRequest:
     tool_choice: str | Mapping[str, Any] | None = None
     response_format: Mapping[str, Any] | None = None
     extra: Mapping[str, Any] = field(default_factory=dict)
+    adapter_context: object | None = field(default=None, repr=False, compare=False)
 
     def to_kwargs(self) -> dict[str, Any]:
         """Return keyword arguments for ``client.responses.create``."""
@@ -258,6 +259,8 @@ class OpenAIClientAdapter:
         provider: OpenAIClientProvider | None = None,
         models: Sequence[str] | None = None,
         is_local: bool = False,
+        execution_profile_adapter_id: str | None = None,
+        model_id_mapping: Mapping[str, str] | None = None,
         error_translator: ErrorTranslator | None = None,
         response_validator: ResponseValidator | None = None,
     ) -> None:
@@ -268,6 +271,8 @@ class OpenAIClientAdapter:
         self._client_lock = RLock()
         self._models = tuple(str(model) for model in models or ())
         self._is_local = is_local
+        self._execution_profile_adapter_id = execution_profile_adapter_id
+        self._model_id_mapping = dict(model_id_mapping or {})
         self._error_translator = error_translator
         self._response_validator = response_validator
         self._available_model_ids: tuple[str, ...] | None = None
@@ -287,7 +292,9 @@ class OpenAIClientAdapter:
         """Send a request and normalize the returned model response."""
 
         client = self.client
+        original_request = request
         try:
+            request = replace(request, model=self.resolved_model_id(request.model))
             self._validate_request_model_available(client, request)
             response = create_openai_response(
                 client,
@@ -301,7 +308,7 @@ class OpenAIClientAdapter:
                 raise
             raise translated from exc
         if self._response_validator is not None:
-            self._response_validator(request, response)
+            self._response_validator(original_request, response)
         return response
 
     @property
@@ -309,6 +316,23 @@ class OpenAIClientAdapter:
         """Return advertised model names for capability-aware selection."""
 
         return self._models
+
+    @property
+    def capabilities(self) -> Mapping[str, object]:
+        """Return the baseline capabilities of this adapter boundary."""
+
+        return {"text_generation": True}
+
+    @property
+    def execution_profile_adapter_id(self) -> str | None:
+        """Return the host-factory identity used for profile admission."""
+
+        return self._execution_profile_adapter_id
+
+    def resolved_model_id(self, model_id: str) -> str:
+        """Resolve a host-owned execution alias without widening model access."""
+
+        return self._model_id_mapping.get(model_id, model_id)
 
     def list_supported_models(self, *, refresh: bool = False) -> tuple[str, ...]:
         """Return model ids supported by this adapter's configured provider."""
@@ -376,6 +400,8 @@ class AsyncOpenAIClientAdapter:
         provider: AsyncOpenAIClientProvider | None = None,
         models: Sequence[str] | None = None,
         is_local: bool = False,
+        execution_profile_adapter_id: str | None = None,
+        model_id_mapping: Mapping[str, str] | None = None,
         error_translator: ErrorTranslator | None = None,
         response_validator: ResponseValidator | None = None,
     ) -> None:
@@ -388,6 +414,8 @@ class AsyncOpenAIClientAdapter:
         self._client_lock = RLock()
         self._models = tuple(str(model) for model in models or ())
         self._is_local = is_local
+        self._execution_profile_adapter_id = execution_profile_adapter_id
+        self._model_id_mapping = dict(model_id_mapping or {})
         self._error_translator = error_translator
         self._response_validator = response_validator
         self._available_model_ids: tuple[str, ...] | None = None
@@ -407,7 +435,9 @@ class AsyncOpenAIClientAdapter:
         """Send a request asynchronously and normalize the model response."""
 
         client = self.client
+        original_request = request
         try:
+            request = replace(request, model=self.resolved_model_id(request.model))
             await self._validate_request_model_available(client, request)
             response = await create_async_openai_response(
                 client,
@@ -421,7 +451,7 @@ class AsyncOpenAIClientAdapter:
                 raise
             raise translated from exc
         if self._response_validator is not None:
-            self._response_validator(request, response)
+            self._response_validator(original_request, response)
         return response
 
     @property
@@ -429,6 +459,23 @@ class AsyncOpenAIClientAdapter:
         """Return advertised model names for capability-aware selection."""
 
         return self._models
+
+    @property
+    def capabilities(self) -> Mapping[str, object]:
+        """Return the baseline capabilities of this adapter boundary."""
+
+        return {"text_generation": True}
+
+    @property
+    def execution_profile_adapter_id(self) -> str | None:
+        """Return the host-factory identity used for profile admission."""
+
+        return self._execution_profile_adapter_id
+
+    def resolved_model_id(self, model_id: str) -> str:
+        """Resolve a host-owned execution alias without widening model access."""
+
+        return self._model_id_mapping.get(model_id, model_id)
 
     async def list_supported_models(self, *, refresh: bool = False) -> tuple[str, ...]:
         """Return model ids supported by this adapter's configured provider."""
@@ -542,6 +589,8 @@ def create_openai_adapter(
     provider: OpenAIClientProvider | None = None,
     models: Sequence[str] | None = None,
     is_local: bool = False,
+    execution_profile_adapter_id: str | None = None,
+    model_id_mapping: Mapping[str, str] | None = None,
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
 ) -> OpenAIClientAdapter:
@@ -552,6 +601,8 @@ def create_openai_adapter(
         provider=provider,
         models=models,
         is_local=is_local,
+        execution_profile_adapter_id=execution_profile_adapter_id,
+        model_id_mapping=model_id_mapping,
         error_translator=error_translator,
         response_validator=response_validator,
     )
@@ -562,6 +613,8 @@ def create_openai_adapter_from_provider_config(
     *,
     models: Sequence[str] | None = None,
     is_local: bool = False,
+    execution_profile_adapter_id: str | None = None,
+    model_id_mapping: Mapping[str, str] | None = None,
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
 ) -> OpenAIClientAdapter:
@@ -571,6 +624,8 @@ def create_openai_adapter_from_provider_config(
         provider=create_default_openai_provider(config),
         models=models,
         is_local=is_local,
+        execution_profile_adapter_id=execution_profile_adapter_id,
+        model_id_mapping=model_id_mapping,
         error_translator=error_translator,
         response_validator=response_validator,
     )
@@ -632,6 +687,8 @@ def create_async_openai_adapter(
     provider: AsyncOpenAIClientProvider | None = None,
     models: Sequence[str] | None = None,
     is_local: bool = False,
+    execution_profile_adapter_id: str | None = None,
+    model_id_mapping: Mapping[str, str] | None = None,
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
 ) -> AsyncOpenAIClientAdapter:
@@ -642,6 +699,8 @@ def create_async_openai_adapter(
         provider=provider,
         models=models,
         is_local=is_local,
+        execution_profile_adapter_id=execution_profile_adapter_id,
+        model_id_mapping=model_id_mapping,
         error_translator=error_translator,
         response_validator=response_validator,
     )
@@ -652,6 +711,8 @@ def create_async_openai_adapter_from_provider_config(
     *,
     models: Sequence[str] | None = None,
     is_local: bool = False,
+    execution_profile_adapter_id: str | None = None,
+    model_id_mapping: Mapping[str, str] | None = None,
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
 ) -> AsyncOpenAIClientAdapter:
@@ -661,6 +722,8 @@ def create_async_openai_adapter_from_provider_config(
         provider=create_default_async_openai_provider(config),
         models=models,
         is_local=is_local,
+        execution_profile_adapter_id=execution_profile_adapter_id,
+        model_id_mapping=model_id_mapping,
         error_translator=error_translator,
         response_validator=response_validator,
     )
@@ -673,6 +736,7 @@ def build_openai_request(
     tools: Iterable[Mapping[str, Any]] | None = None,
     tool_choice: str | Mapping[str, Any] | None = None,
     response_format: Mapping[str, Any] | None = None,
+    adapter_context: object | None = None,
     **extra: Any,
 ) -> OpenAIModelRequest:
     """Build a normalized OpenAI model request from rendered messages."""
@@ -689,6 +753,7 @@ def build_openai_request(
         tool_choice=tool_choice,
         response_format=dict(response_format) if response_format is not None else None,
         extra={key: value for key, value in extra.items() if value is not None},
+        adapter_context=adapter_context,
     )
 
 
@@ -997,6 +1062,7 @@ def _prepare_chatgpt_codex_request(
         tool_choice=request.tool_choice,
         response_format=request.response_format,
         extra=extra,
+        adapter_context=request.adapter_context,
     )
 
 
@@ -1025,7 +1091,9 @@ def _request_message_to_provider_input(message: Mapping[str, Any]) -> Mapping[st
         return dict(message)
     if message.get(_DAR_TRANSCRIPT_TYPE_KEY) == _DAR_MODEL_TOOL_CALL:
         return {
-            key: value for key, value in message.items() if key in {"role", "content"}
+            key: value
+            for key, value in message.items()
+            if key in {"role", "content", "tool_calls"}
         }
     return {
         key: value

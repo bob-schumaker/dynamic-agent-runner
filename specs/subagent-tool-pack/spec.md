@@ -5,7 +5,7 @@
 - Feature slug: `subagent-tool-pack`
 - Mode: `light`
 - Artifact type: implemented feature specification
-- Status: implemented v1 baseline
+- Status: v1 baseline implemented; A1 bounded `ask_llm` is implementation-ready
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Required predecessors:
   - `specs/persistent-agent-sessions/spec.md`
@@ -54,7 +54,7 @@ Deferred:
 - parent/child trace correlation and capability/status reporting
 - approval, sandbox, guardrail, and recursive-spawn policy enforcement beyond
   metadata defaults
-- optional `ask_llm`
+- optional `ask_llm`, specified as the next narrow LLM-as-tool slice below
 - durable child sessions, lifecycle APIs, and parent/child topology, which
   remain owned by `collaborative-agent-sessions`
 
@@ -106,6 +106,75 @@ extraction, review, compaction, or "ask a specialist model once" use cases.
 Session-as-tool behavior belongs to `collaborative-agent-sessions` unless the
 child session is caller-owned and already registered as an ordinary tool.
 
+### A1: Bounded `ask_llm`
+
+Implement `ask_llm` as an opt-in registry tool for exactly one caller-selected,
+bounded synchronous model interaction. It is not a new workflow node, a general
+provider API, or a child-session lifecycle feature.
+
+The model-facing schema is deliberately small:
+
+```json
+{
+  "preset_id": "reviewer",
+  "prompt": "Review this change for correctness."
+}
+```
+
+`preset_id` resolves only from caller-provided allowlisted presets. The model
+cannot choose a provider, model identifier, system instruction, tools, network
+access, or filesystem access. The request schema is exactly the two properties
+above, with `additionalProperties: false`.
+
+Extend `SubagentPreset` with caller-owned optional `model_requirements`,
+`system_prompt`, `max_system_prompt_bytes`, `max_prompt_bytes`, and
+`max_output_bytes` fields. The new fields default absent so existing workflow
+presets remain valid. When present, model requirements are a JSON-compatible
+mapping, deeply copied and immutable after preset construction; a system prompt
+is a nonempty string. An `ask_llm`-eligible preset has nonempty model
+requirements, positive UTF-8 byte limits for system prompt, prompt, and output,
+a system prompt within its system-prompt limit when present, a positive
+`timeout_seconds`, and `tool_ids == ()`. Registry construction must reject a
+preset-map key that differs from its `SubagentPreset.id`, so the allowlist
+identity is unambiguous. A registry may retain non-ask workflow presets;
+`ask_llm` rejects them before runner entry.
+
+Add a package-owned synchronous `AskLLMRunner` protocol with
+`ask_llm(*, preset, prompt) -> SubagentResult`. It receives only the validated
+caller-owned preset and prompt: never a parent registry, tool registry, request
+metadata, provider override, or model-facing system-prompt override. The
+injected runner owns use of the preset's explicit model requirements, system
+prompt, and timeout; DAR validates and passes that configuration but does not
+start a thread, process, or second event loop to interrupt a synchronous
+collaborator.
+
+`create_subagent_registry(...)` accepts independent optional `runner` and
+`ask_llm_runner` collaborators and requires at least one. It registers
+`run_subagent` and `run_subagents` only when `runner` is supplied, and registers
+`ask_llm` only when `ask_llm_runner` is supplied. An ask-only registry is valid.
+
+The handler rejects an unknown or ask-ineligible preset, invalid/over-limit
+system-prompt configuration, non-string or empty prompt, extra request field,
+or UTF-8-over-limit prompt before calling the runner. A valid invocation makes
+exactly one runner call. The runner must return `SubagentResult` with `status`
+`completed` or `failed`; arbitrary mappings, strings, and other values are
+malformed. A completed result is normalized exactly to
+`{"child_id": "ask:<preset_id>", "preset_id": "<preset_id>",
+"status": "completed", "summary": "<bounded summary>"}`; its summary must be
+a string within `max_output_bytes`. Every failed outcome is normalized exactly
+to `{"child_id": "ask:<preset_id>", "preset_id": "<preset_id>",
+"status": "failed", "summary": "", "error": "<category>"}`, where category
+is one of `runner_failed`, `invalid_result`, or `output_limit_exceeded`.
+Runner exceptions, malformed/invalid/failed results, and oversized output must
+discard runner-supplied summaries, errors, and citations in favor of that fixed
+bounded result; raw exception text, provider payloads, internal reasoning, and
+transcripts are omitted.
+
+This slice does not require async runner support, parallel child execution,
+durable sessions, child event streaming, model-tool loops, MCP, workspace
+access, or the deferred generic subagent policy work. It must preserve
+disabled-by-default registry exposure and ordinary `llm_step` tool dispatch.
+
 ## Scope
 
 This feature covers:
@@ -137,18 +206,18 @@ This feature must not introduce:
 Persistent spawned agents, resumable child sessions, child lifecycle APIs, and
 parent/child thread topology are owned by `collaborative-agent-sessions`.
 
-## Proposed Tool Pack Shape
+## Current and Planned Tool Pack Shape
 
 The first built-in pack should be named `subagent` and remain disabled by
 default.
 
-Candidate v1 tool ids:
+Implemented and planned tool ids:
 
 - `run_subagent` - run one bounded specialist prompt and return one result.
 - `run_subagents` - run a bounded list of specialist prompts, optionally in
   parallel, and return an aggregate result.
-- `ask_llm` - optional smaller adapter for a one-shot model interaction when a
-  full workflow child is unnecessary.
+- `ask_llm` - the planned next smaller adapter for a one-shot model interaction
+  when a full workflow child is unnecessary; its contract is defined above.
 
 The minimal useful slice may implement only `run_subagents` if that keeps the
 parent-facing contract closer to the external evidence.
@@ -312,8 +381,9 @@ and metadata-only subagent declarations.
 - Keep child execution behind a package-owned protocol so direct workflow,
   one-shot LLM, and session-backed implementations can share the same pack
   contract.
-- Treat `ask_llm` as optional. Do not add it unless the implementation can keep
-  model requirements, prompt schema, output contract, and trace redaction small.
+- Implement `ask_llm` only as the bounded next-task contract above: caller-owned
+  preset selection, injected `AskLLMRunner`, `preset_id`/`prompt` schema, and
+  normalized `SubagentResult` output.
 - Do not expose recursive subagent spawning in v1.
 - Route durable child state and lifecycle APIs to
   `collaborative-agent-sessions`.
@@ -334,9 +404,21 @@ Completed v1 slices:
 
 Deferred slices:
 
-1. RED: policy-limit tests; GREEN: max parallel, timeout, iteration, output
+1. A1 RED: add ask-only registry and disabled/unavailable schema tests; GREEN:
+   require at least one runner, register each tool family only for its injected
+   collaborator, and expose an exact `ask_llm` schema. RED: add unknown preset,
+   key/id mismatch, invalid ask-only limits or system prompt, tool-bearing ask
+   preset, non-string/empty/extra-field, and UTF-8-over-limit prompt cases;
+   GREEN: reject each with zero ask-runner calls.
+   RED: add one valid fake invocation, runner exception, malformed/invalid
+   result, and over-limit output cases; GREEN: make exactly one valid call,
+   return only the bounded normalized result, and emit package-owned failed
+   categories without raw runner data. RED: add a public parent `llm_step`
+   `ask_llm` call; GREEN: prove ordinary registry dispatch exactly once with no
+   live model, provider client, process, or child tool exposure.
+2. RED: policy-limit tests; GREEN: max parallel, timeout, iteration, output
    limit, and recursion-disabled enforcement.
-2. RED: trace/capability tests; GREEN: parent/child correlation, redaction, and
+3. RED: trace/capability tests; GREEN: parent/child correlation, redaction, and
    capability/status states.
 
 ## Validation Checklist

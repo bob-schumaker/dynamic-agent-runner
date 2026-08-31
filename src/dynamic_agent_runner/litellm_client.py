@@ -87,13 +87,25 @@ class _LiteLLMNativeAsyncResponsesResource:
 
 
 class _LiteLLMClient(OpenAIClientProtocol):
-    def __init__(self, completion: LiteLLMCompletion) -> None:
+    def __init__(
+        self,
+        completion: LiteLLMCompletion,
+        models: LiteLLMModelList | None = None,
+    ) -> None:
         self.responses = _LiteLLMResponsesResource(completion)
+        if models is not None:
+            self.models = _LiteLLMModelsResource(models)
 
 
 class _LiteLLMAsyncClient(AsyncOpenAIClientProtocol):
-    def __init__(self, completion: LiteLLMAsyncCompletion) -> None:
+    def __init__(
+        self,
+        completion: LiteLLMAsyncCompletion,
+        models: LiteLLMModelList | None = None,
+    ) -> None:
         self.responses = _LiteLLMAsyncResponsesResource(completion)
+        if models is not None:
+            self.models = _LiteLLMModelsResource(models)
 
 
 class _LiteLLMNativeClient(OpenAIClientProtocol):
@@ -130,20 +142,28 @@ class _LiteLLMModelsResource:
 class LiteLLMClientProvider(OpenAIClientProvider):
     config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
     completion: LiteLLMCompletion | None = field(default=None, repr=False)
+    responses: LiteLLMResponses | None = field(default=None, repr=False)
     router: object | None = field(default=None, repr=False)
     litellm_kwargs: Mapping[str, Any] = field(default_factory=dict, repr=False)
 
     def get_client(self) -> OpenAIClientProtocol:
+        _validate_litellm_transport(self.completion, self.responses)
+        configured = _provider_litellm_kwargs(self.config, self.litellm_kwargs)
+        if self.responses is not None:
+            return _LiteLLMNativeClient(
+                _LiteLLMNativeResponsesResource(
+                    _bind_litellm_responses(self.responses, configured)
+                ),
+                _router_model_list(self.router),
+            )
         completion = (
             self.completion
             or _router_callable(self.router, "completion")
             or _load_completion()
         )
         return _LiteLLMClient(
-            _bind_litellm_kwargs(
-                completion,
-                _provider_litellm_kwargs(self.config, self.litellm_kwargs),
-            )
+            _bind_litellm_kwargs(completion, configured),
+            _router_model_list(self.router),
         )
 
 
@@ -151,20 +171,28 @@ class LiteLLMClientProvider(OpenAIClientProvider):
 class AsyncLiteLLMClientProvider(AsyncOpenAIClientProvider):
     config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
     acompletion: LiteLLMAsyncCompletion | None = field(default=None, repr=False)
+    aresponses: LiteLLMAsyncResponses | None = field(default=None, repr=False)
     router: object | None = field(default=None, repr=False)
     litellm_kwargs: Mapping[str, Any] = field(default_factory=dict, repr=False)
 
     def get_client(self) -> AsyncOpenAIClientProtocol:
+        _validate_litellm_transport(self.acompletion, self.aresponses)
+        configured = _provider_litellm_kwargs(self.config, self.litellm_kwargs)
+        if self.aresponses is not None:
+            return _LiteLLMNativeAsyncClient(
+                _LiteLLMNativeAsyncResponsesResource(
+                    _bind_async_litellm_responses(self.aresponses, configured)
+                ),
+                _router_model_list(self.router),
+            )
         acompletion = (
             self.acompletion
             or _router_callable(self.router, "acompletion")
             or _load_async_completion()
         )
         return _LiteLLMAsyncClient(
-            _bind_async_litellm_kwargs(
-                acompletion,
-                _provider_litellm_kwargs(self.config, self.litellm_kwargs),
-            )
+            _bind_async_litellm_kwargs(acompletion, configured),
+            _router_model_list(self.router),
         )
 
 
@@ -172,6 +200,7 @@ class AsyncLiteLLMClientProvider(AsyncOpenAIClientProvider):
 class LiteLLMCodexClientProvider(OpenAIClientProvider):
     """Responses-native LiteLLM provider for an already-resolved Codex token."""
 
+    manages_codex_response_stream: bool = field(default=False, repr=False)
     config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
     token: str = field(repr=False, default="")
     responses: LiteLLMResponses | None = field(default=None, repr=False)
@@ -182,7 +211,11 @@ class LiteLLMCodexClientProvider(OpenAIClientProvider):
         responses = self.responses or _load_responses()
         return _LiteLLMNativeClient(
             _LiteLLMNativeResponsesResource(
-                _bind_codex_responses(responses, _codex_litellm_kwargs(self))
+                _bind_codex_responses(
+                    responses,
+                    _codex_litellm_kwargs(self),
+                    manages_codex_response_stream=self.manages_codex_response_stream,
+                )
             ),
             self.model_list,
         )
@@ -192,6 +225,7 @@ class LiteLLMCodexClientProvider(OpenAIClientProvider):
 class AsyncLiteLLMCodexClientProvider(AsyncOpenAIClientProvider):
     """Async Responses-native LiteLLM provider for a resolved Codex token."""
 
+    manages_codex_response_stream: bool = field(default=False, repr=False)
     config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
     token: str = field(repr=False, default="")
     aresponses: LiteLLMAsyncResponses | None = field(default=None, repr=False)
@@ -202,7 +236,11 @@ class AsyncLiteLLMCodexClientProvider(AsyncOpenAIClientProvider):
         aresponses = self.aresponses or _load_async_responses()
         return _LiteLLMNativeAsyncClient(
             _LiteLLMNativeAsyncResponsesResource(
-                _bind_async_codex_responses(aresponses, _codex_litellm_kwargs(self))
+                _bind_async_codex_responses(
+                    aresponses,
+                    _codex_litellm_kwargs(self),
+                    manages_codex_response_stream=self.manages_codex_response_stream,
+                )
             ),
             self.model_list,
         )
@@ -212,6 +250,7 @@ def create_litellm_adapter(
     *,
     model: str | None = None,
     completion: LiteLLMCompletion | None = None,
+    responses: LiteLLMResponses | None = None,
     router: object | None = None,
     models: Sequence[str] | None = None,
     is_local: bool = False,
@@ -220,10 +259,12 @@ def create_litellm_adapter(
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
 ) -> OpenAIClientAdapter:
+    _validate_litellm_transport(completion, responses)
     adapter_models = models or ((model,) if model is not None else None)
     provider = LiteLLMClientProvider(
         config=config or OpenAIProviderConfig(),
         completion=completion,
+        responses=responses,
         router=router,
         litellm_kwargs=dict(litellm_kwargs or {}),
     )
@@ -240,6 +281,7 @@ def create_async_litellm_adapter(
     *,
     model: str | None = None,
     acompletion: LiteLLMAsyncCompletion | None = None,
+    aresponses: LiteLLMAsyncResponses | None = None,
     router: object | None = None,
     models: Sequence[str] | None = None,
     is_local: bool = False,
@@ -248,10 +290,12 @@ def create_async_litellm_adapter(
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
 ) -> AsyncOpenAIClientAdapter:
+    _validate_litellm_transport(acompletion, aresponses)
     adapter_models = models or ((model,) if model is not None else None)
     provider = AsyncLiteLLMClientProvider(
         config=config or OpenAIProviderConfig(),
         acompletion=acompletion,
+        aresponses=aresponses,
         router=router,
         litellm_kwargs=dict(litellm_kwargs or {}),
     )
@@ -275,6 +319,7 @@ def create_litellm_codex_adapter(
     litellm_kwargs: Mapping[str, Any] | None = None,
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
+    manages_codex_response_stream: bool = False,
 ) -> OpenAIClientAdapter:
     adapter_models = models or ((model,) if model is not None else None)
     provider = LiteLLMCodexClientProvider(
@@ -283,6 +328,7 @@ def create_litellm_codex_adapter(
         responses=responses,
         model_list=model_list,
         litellm_kwargs=dict(litellm_kwargs or {}),
+        manages_codex_response_stream=manages_codex_response_stream,
     )
     return OpenAIClientAdapter(
         provider=provider,
@@ -303,6 +349,7 @@ def create_async_litellm_codex_adapter(
     litellm_kwargs: Mapping[str, Any] | None = None,
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
+    manages_codex_response_stream: bool = False,
 ) -> AsyncOpenAIClientAdapter:
     adapter_models = models or ((model,) if model is not None else None)
     provider = AsyncLiteLLMCodexClientProvider(
@@ -311,6 +358,7 @@ def create_async_litellm_codex_adapter(
         aresponses=aresponses,
         model_list=model_list,
         litellm_kwargs=dict(litellm_kwargs or {}),
+        manages_codex_response_stream=manages_codex_response_stream,
     )
     return AsyncOpenAIClientAdapter(
         provider=provider,
@@ -353,6 +401,7 @@ def create_litellm_codex_adapter_from_codex_auth(
         litellm_kwargs=litellm_kwargs,
         error_translator=error_translator,
         response_validator=response_validator,
+        manages_codex_response_stream=True,
     )
 
 
@@ -389,6 +438,7 @@ def create_async_litellm_codex_adapter_from_codex_auth(
         litellm_kwargs=litellm_kwargs,
         error_translator=error_translator,
         response_validator=response_validator,
+        manages_codex_response_stream=True,
     )
 
 
@@ -396,6 +446,7 @@ def create_litellm_adapter_from_provider_config(
     config: OpenAIProviderConfig,
     *,
     completion: LiteLLMCompletion | None = None,
+    responses: LiteLLMResponses | None = None,
     router: object | None = None,
     models: Sequence[str] | None = None,
     is_local: bool = False,
@@ -405,6 +456,7 @@ def create_litellm_adapter_from_provider_config(
 ) -> OpenAIClientAdapter:
     return create_litellm_adapter(
         completion=completion,
+        responses=responses,
         router=router,
         models=models,
         is_local=is_local,
@@ -449,12 +501,26 @@ def _translate_request(request: OpenAIModelRequest) -> dict[str, Any]:
     kwargs["model"] = request.model
     kwargs["messages"] = [dict(message) for message in request.messages]
     if request.tools:
-        kwargs["tools"] = [dict(tool) for tool in request.tools]
+        kwargs["tools"] = [_chat_completion_tool_schema(tool) for tool in request.tools]
     if request.tool_choice is not None:
         kwargs["tool_choice"] = request.tool_choice
     if request.response_format is not None:
         kwargs["response_format"] = dict(request.response_format)
     return kwargs
+
+
+def _chat_completion_tool_schema(tool: Mapping[str, Any]) -> dict[str, Any]:
+    """Nest one DAR Responses-style function tool for LiteLLM Chat Completions."""
+
+    normalized = dict(tool)
+    if normalized.get("type") != "function" or "function" in normalized:
+        return normalized
+    function = {
+        key: normalized.pop(key)
+        for key in ("name", "description", "parameters")
+        if key in normalized
+    }
+    return {**normalized, "function": function}
 
 
 def _translate_openai_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
@@ -503,6 +569,14 @@ def _bind_litellm_kwargs(
     return bound
 
 
+def _validate_litellm_transport(
+    completion: object | None,
+    responses: object | None,
+) -> None:
+    if completion is not None and responses is not None:
+        raise ValueError("provide only one LiteLLM transport callable")
+
+
 def _bind_async_litellm_kwargs(
     completion: LiteLLMAsyncCompletion,
     configured: Mapping[str, Any],
@@ -522,14 +596,56 @@ def _bind_async_litellm_kwargs(
     return bound
 
 
-def _bind_codex_responses(
+def _bind_litellm_responses(
     responses: LiteLLMResponses,
     configured: Mapping[str, Any],
 ) -> LiteLLMResponses:
     def bound(**kwargs: Any) -> Any:
         request_kwargs = dict(configured)
         request_kwargs.update(kwargs)
+        try:
+            return responses(**request_kwargs)
+        except ModelExecutionError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - provider exceptions vary.
+            raise ModelExecutionError(
+                f"LiteLLM Responses request failed: {_redact(str(exc))}"
+            ) from exc
+
+    return bound
+
+
+def _bind_async_litellm_responses(
+    aresponses: LiteLLMAsyncResponses,
+    configured: Mapping[str, Any],
+) -> LiteLLMAsyncResponses:
+    async def bound(**kwargs: Any) -> Any:
+        request_kwargs = dict(configured)
+        request_kwargs.update(kwargs)
+        try:
+            return await aresponses(**request_kwargs)
+        except ModelExecutionError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - provider exceptions vary.
+            raise ModelExecutionError(
+                f"LiteLLM Responses request failed: {_redact(str(exc))}"
+            ) from exc
+
+    return bound
+
+
+def _bind_codex_responses(
+    responses: LiteLLMResponses,
+    configured: Mapping[str, Any],
+    *,
+    manages_codex_response_stream: bool = False,
+) -> LiteLLMResponses:
+    def bound(**kwargs: Any) -> Any:
+        request_kwargs = dict(configured)
+        request_kwargs.update(kwargs)
         request_kwargs = _prepare_codex_responses_kwargs(request_kwargs)
+        if manages_codex_response_stream:
+            request_kwargs.pop("stream", None)
         request_kwargs["model"] = normalize_litellm_codex_model(
             str(request_kwargs["model"])
         )
@@ -546,11 +662,15 @@ def _bind_codex_responses(
 def _bind_async_codex_responses(
     aresponses: LiteLLMAsyncResponses,
     configured: Mapping[str, Any],
+    *,
+    manages_codex_response_stream: bool = False,
 ) -> LiteLLMAsyncResponses:
     async def bound(**kwargs: Any) -> Any:
         request_kwargs = dict(configured)
         request_kwargs.update(kwargs)
         request_kwargs = _prepare_codex_responses_kwargs(request_kwargs)
+        if manages_codex_response_stream:
+            request_kwargs.pop("stream", None)
         request_kwargs["model"] = normalize_litellm_codex_model(
             str(request_kwargs["model"])
         )
@@ -567,8 +687,10 @@ def _bind_async_codex_responses(
 def _load_completion() -> LiteLLMCompletion:
     try:
         from litellm import completion
-    except Exception:
-        return _load_bundled_completion()
+    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+        raise ModelExecutionError(
+            "LiteLLM Chat Completions transport is not available"
+        ) from exc
     return completion
 
 
@@ -581,11 +703,33 @@ def _router_callable(router: object | None, name: str) -> Callable[..., Any] | N
     return candidate
 
 
+def _router_model_list(router: object | None) -> LiteLLMModelList | None:
+    if router is None:
+        return None
+    get_model_list = getattr(router, "get_model_list", None)
+    if not callable(get_model_list):
+        return None
+
+    def model_list(**_kwargs: Any) -> dict[str, list[dict[str, str]]]:
+        return {
+            "data": [
+                {"id": model_name}
+                for deployment in get_model_list() or ()
+                if isinstance((model_name := _read(deployment, "model_name")), str)
+                and model_name.strip()
+            ]
+        }
+
+    return model_list
+
+
 def _provider_litellm_kwargs(
     config: OpenAIProviderConfig,
     configured: Mapping[str, Any],
 ) -> dict[str, Any]:
     kwargs = dict(configured)
+    if config.provider_name is not None:
+        kwargs.setdefault("custom_llm_provider", config.provider_name)
     if config.api_key is not None:
         kwargs.setdefault("api_key", config.api_key)
     if config.base_url is not None:
@@ -596,8 +740,10 @@ def _provider_litellm_kwargs(
 def _load_async_completion() -> LiteLLMAsyncCompletion:
     try:
         from litellm import acompletion
-    except Exception:
-        return _load_bundled_async_completion()
+    except Exception as exc:  # noqa: BLE001 - import errors vary by environment.
+        raise ModelExecutionError(
+            "LiteLLM async Chat Completions transport is not available"
+        ) from exc
     return acompletion
 
 
@@ -621,18 +767,6 @@ def _load_async_responses() -> LiteLLMAsyncResponses:
     return aresponses
 
 
-def _load_bundled_completion() -> LiteLLMCompletion:
-    from dynamic_agent_runner.litellm import completion
-
-    return completion
-
-
-def _load_bundled_async_completion() -> LiteLLMAsyncCompletion:
-    from dynamic_agent_runner.litellm import acompletion
-
-    return acompletion
-
-
 def _codex_litellm_kwargs(
     provider: LiteLLMCodexClientProvider | AsyncLiteLLMCodexClientProvider,
 ) -> dict[str, Any]:
@@ -642,7 +776,8 @@ def _codex_litellm_kwargs(
         kwargs.setdefault("api_base", provider.config.base_url)
     kwargs.setdefault("custom_llm_provider", "chatgpt")
     kwargs.setdefault("store", False)
-    kwargs.setdefault("stream", True)
+    if not provider.manages_codex_response_stream:
+        kwargs.setdefault("stream", True)
     if provider.config.chatgpt_account_id is not None:
         headers = dict(kwargs.get("extra_headers") or {})
         headers.setdefault("ChatGPT-Account-ID", provider.config.chatgpt_account_id)

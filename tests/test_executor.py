@@ -6,6 +6,8 @@ import asyncio
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
+import socket
+import subprocess
 import sys
 from types import SimpleNamespace
 from typing import Any
@@ -25,13 +27,19 @@ from dynamic_agent_runner.context_selection import (
     ContextSelectionCandidate,
 )
 from dynamic_agent_runner.errors import (
+    EmbeddingResultError,
     GuardrailExecutionError,
+    LocalModelIdentityMismatchError,
+    LocalModelOfflinePolicyError,
+    LocalModelResolutionError,
     ModelExecutionError,
     WorkflowExecutionError,
 )
 from dynamic_agent_runner.executor import (
     ApprovalInterruption,
     ApprovalInterruptionState,
+    _execute_model_tool_loop_async,
+    _invoke_model_tool_call_async,
     execute_workflow,
     execute_workflow_async,
     WorkflowInterruptedResult,
@@ -44,12 +52,21 @@ from dynamic_agent_runner.guardrails import (
     InMemoryGuardrailRegistry,
 )
 from dynamic_agent_runner.hooks import NodeHookContext, WorkflowLifecycleHooks
+from dynamic_agent_runner.host_integration import summarize_trace_events
 from dynamic_agent_runner.local_models import (
+    EmbeddingBatchResult,
+    EmbeddingInputItem,
+    EmbeddingVectorItem,
     LlamaCppLocalModelConfig,
+    create_local_embedding_tool,
     create_llama_cpp_local_adapter,
 )
+import dynamic_agent_runner.hugging_face_support as hugging_face_support
+import dynamic_agent_runner.local_models as local_models
 from dynamic_agent_runner.mlx_models import (
     MLXLocalModelConfig,
+    MLXToolCallCandidate,
+    MLXToolCodecResponse,
     create_mlx_local_adapter,
 )
 from dynamic_agent_runner.apple_foundation_models import (
@@ -63,17 +80,40 @@ from dynamic_agent_runner.models import (
 )
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
+    ModelToolCall,
     ModelResponse,
     OpenAIClientAdapter,
     OpenAIMessage,
+    OpenAIModelRequest,
     OpenAIProviderConfig,
+)
+from dynamic_agent_runner.tool_invocation import (
+    ActiveAdapterToolContext,
+    ProviderDecisionRequest,
+    ProviderDecisionState,
+    ProviderToolDecision,
+    ProviderToolInterruption,
+    ProviderToolTerminalError,
+    tool_context,
 )
 from dynamic_agent_runner.registry import (
     InMemoryToolRegistry,
     RegisteredTool,
     ToolResult,
+    tool_from_function,
 )
-from dynamic_agent_runner.tracing import WorkflowTracer
+from dynamic_agent_runner.retry import RetryPolicy
+from dynamic_agent_runner.tracing import InMemoryTraceSink, WorkflowTracer
+from parity_support import (
+    ParityRecord,
+    assert_parity_semantic_projection,
+    parity_exposed_schemas,
+    parity_contract_projection as shared_parity_contract_projection,
+    install_parity_io_blocker,
+    parity_loop_workflow as shared_parity_loop_workflow,
+    parity_registry as shared_parity_registry,
+    parity_tool_definitions as shared_parity_tool_definitions,
+)
 
 
 class FakeResponses:
@@ -151,6 +191,34 @@ class FakeMLXBackend:
         return self.content
 
 
+class FakeToolCapableMLXBackend(FakeMLXBackend):
+    tool_codec_versions = frozenset({"test-v1"})
+
+    def __init__(self, generated: str = "native tool response") -> None:
+        super().__init__()
+        self.generated = generated
+        self.rendered_prompts: list[str] = []
+
+    def generate_rendered(self, prompt: str, **_kwargs: object) -> str:
+        self.rendered_prompts.append(prompt)
+        return self.generated
+
+
+class FakeMLXToolCodec:
+    version = "test-v1"
+
+    def __init__(self, *decoded: MLXToolCodecResponse) -> None:
+        self.decoded = list(decoded)
+        self.rendered_requests: list[OpenAIModelRequest] = []
+
+    def render(self, request: OpenAIModelRequest) -> str:
+        self.rendered_requests.append(request)
+        return "<tool-aware-prompt>"
+
+    def decode(self, _generated: str) -> MLXToolCodecResponse:
+        return self.decoded.pop(0)
+
+
 class FakeLlamaCppBackend:
     def __init__(self, content: str = "llama.cpp local") -> None:
         self.content = content
@@ -193,6 +261,20 @@ def package_fixture_path(pattern_id: str = "basic-reasoning-agent") -> Path:
 
 def make_adapter(responses: list[object]) -> OpenAIClientAdapter:
     return OpenAIClientAdapter(FakeClient(responses))
+
+
+def _contains_identity(value: object, *candidates: object) -> bool:
+    if any(value is candidate for candidate in candidates):
+        return True
+    if isinstance(value, Mapping):
+        return any(
+            _contains_identity(item, *candidates)
+            for pair in value.items()
+            for item in pair
+        )
+    if isinstance(value, list | tuple):
+        return any(_contains_identity(item, *candidates) for item in value)
+    return False
 
 
 def make_async_adapter(responses: list[object]) -> AsyncOpenAIClientAdapter:
@@ -282,6 +364,623 @@ def make_async_tool(
 
 def workflow_from(data: dict[str, object]) -> LoadedAgentWorkflow:
     return LoadedAgentWorkflow(runtime_manifest=load_runtime_manifest(data))
+
+
+class _RecordingEmbeddingProducer:
+    def __init__(self, result: object) -> None:
+        self.result = result
+        self.calls: list[tuple[EmbeddingInputItem, ...]] = []
+
+    def embed(self, items: tuple[EmbeddingInputItem, ...]) -> object:
+        self.calls.append(items)
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+class _AsyncRecordingEmbeddingProducer(_RecordingEmbeddingProducer):
+    async def embed(self, items: tuple[EmbeddingInputItem, ...]) -> object:
+        self.calls.append(items)
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+class _BlockingAsyncEmbeddingProducer(_AsyncRecordingEmbeddingProducer):
+    def __init__(self, result: object) -> None:
+        super().__init__(result)
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def embed(self, items: tuple[EmbeddingInputItem, ...]) -> object:
+        self.calls.append(items)
+        self.started.set()
+        await self.release.wait()
+        return self.result
+
+
+class _ClosableEmbeddingAwaitable:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def __await__(self):
+        if False:
+            yield None
+        return embedding_result()
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def embedding_step_workflow(
+    *,
+    profile: str = "host-embedding",
+    input_key: str = "documents",
+) -> LoadedAgentWorkflow:
+    """Return one terminal embedding step for T5.5 execution coverage."""
+
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "embedding-step-agent",
+            "entrypoint": "embed",
+            "packaging": {"mode": "hybrid_bundle"},
+            "nodes": [
+                {
+                    "id": "embed",
+                    "kind": "embedding_step",
+                    "embedding_profile": profile,
+                    "embedding_input_from": input_key,
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+
+def embedding_items() -> tuple[EmbeddingInputItem, ...]:
+    """Return one bounded test-only embedding batch."""
+
+    return (EmbeddingInputItem(id="entry-1", text="private embedding text"),)
+
+
+def embedding_result() -> EmbeddingBatchResult:
+    """Return the typed result paired with ``embedding_items``."""
+
+    return EmbeddingBatchResult(
+        model="embedding-test",
+        items=(EmbeddingVectorItem(id="entry-1", vector=(0.25, 0.75)),),
+    )
+
+
+def test_embedding_step_sync_returns_typed_terminal_result_once() -> None:
+    """A host-bound sync producer supplies the ordinary terminal result."""
+
+    batch = embedding_items()
+    expected = embedding_result()
+    producer = _RecordingEmbeddingProducer(expected)
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    result = execute_workflow(
+        context,
+        prompt="Embed the controlled batch",
+        embedding_inputs={"documents": batch},
+    )
+
+    assert result.final_result is expected
+    assert result.state.node_outputs["embed"] is expected
+    assert result.state.executions[0].output is expected
+    assert producer.calls == [batch]
+
+
+def test_embedding_step_async_accepts_async_producer_once() -> None:
+    """The async executor awaits one host-bound async producer."""
+
+    batch = embedding_items()
+    expected = embedding_result()
+    producer = _AsyncRecordingEmbeddingProducer(expected)
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="async",
+    )
+
+    result = asyncio.run(
+        execute_workflow_async(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": batch},
+        )
+    )
+
+    assert result.final_result is expected
+    assert producer.calls == [batch]
+
+
+def test_embedding_step_async_accepts_direct_producer_result_once() -> None:
+    """Async execution also accepts the host's direct producer result."""
+
+    batch = embedding_items()
+    expected = embedding_result()
+    producer = _RecordingEmbeddingProducer(expected)
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="async",
+    )
+
+    result = asyncio.run(
+        execute_workflow_async(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": batch},
+        )
+    )
+
+    assert result.final_result is expected
+    assert producer.calls == [batch]
+
+
+def test_embedding_step_sync_rejects_async_binding_before_producer_dispatch() -> None:
+    """The sync executor refuses an async binding before calling its producer."""
+
+    producer = _AsyncRecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="async",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert producer.calls == []
+
+
+def test_embedding_step_rejects_unbound_profile_before_producer_dispatch() -> None:
+    """The manifest cannot retarget the single host-bound embedding profile."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(profile="other-profile"),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert producer.calls == []
+
+
+def test_embedding_step_rejects_invalid_batch_before_producer_dispatch() -> None:
+    """Host input values must be tuple-backed embedding batches."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding") as raised:
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={
+                "documents": [EmbeddingInputItem("entry-1", "sentinel-host-text")]
+            },
+        )
+
+    assert producer.calls == []
+    assert "sentinel-host-text" not in str(raised.value)
+
+
+def test_embedding_step_rejects_unsupported_producer_before_dispatch() -> None:
+    """A context binding must expose the one standalone producer operation."""
+
+    sink = InMemoryTraceSink()
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=object(),
+        embedding_producer_mode="sync",
+        trace_sink=sink,
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert not any(event.event_type == "node_completed" for event in sink.events)
+
+
+@pytest.mark.parametrize(
+    "inputs",
+    [
+        {},
+        {"other": embedding_items()},
+        {"documents": (object(),)},
+        {"": embedding_items(), "documents": embedding_items()},
+    ],
+)
+def test_embedding_step_rejects_missing_or_unknown_input_before_producer_dispatch(
+    inputs: dict[str, object],
+) -> None:
+    """The declared input key must resolve to one host-supplied batch."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            context, prompt="Embed the controlled batch", embedding_inputs=inputs
+        )
+
+    assert producer.calls == []
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_embedding_step_rejects_invalid_producer_mode_before_dispatch(
+    asynchronous: bool,
+) -> None:
+    """Only the two declared host producer modes may reach an embedding call."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="invalid",
+    )
+
+    if asynchronous:
+        invocation = execute_workflow_async(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+        with pytest.raises(WorkflowExecutionError, match="embedding"):
+            asyncio.run(invocation)
+    else:
+        with pytest.raises(WorkflowExecutionError, match="embedding"):
+            execute_workflow(
+                context,
+                prompt="Embed the controlled batch",
+                embedding_inputs={"documents": embedding_items()},
+            )
+
+    assert producer.calls == []
+
+
+def test_embedding_step_rejects_non_typed_producer_result_before_output() -> None:
+    """A producer cannot install an untyped terminal result."""
+
+    producer = _RecordingEmbeddingProducer(
+        {
+            "model": "embedding-test",
+            "text": "sentinel-producer-text",
+            "vector": [0.375],
+        }
+    )
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding") as raised:
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert producer.calls == [embedding_items()]
+    assert "sentinel-producer-text" not in str(raised.value)
+    assert "0.375" not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("error", "error_type"),
+    [
+        (EmbeddingResultError("embedding result is invalid"), EmbeddingResultError),
+        (
+            LocalModelResolutionError("model resolution failed"),
+            LocalModelResolutionError,
+        ),
+        (
+            LocalModelOfflinePolicyError("offline policy rejected resolution"),
+            LocalModelOfflinePolicyError,
+        ),
+        (
+            LocalModelIdentityMismatchError("model identity differs"),
+            LocalModelIdentityMismatchError,
+        ),
+    ],
+)
+def test_embedding_step_preserves_producer_error_without_partial_output(
+    error: Exception, error_type: type[Exception]
+) -> None:
+    """Existing embedding, resolution, offline, and identity errors pass through."""
+
+    producer = _RecordingEmbeddingProducer(error)
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(error_type) as raised:
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert raised.value is error
+    assert producer.calls == [embedding_items()]
+
+
+def test_embedding_step_closes_unexpected_sync_awaitable_before_error() -> None:
+    """A sync binding cannot leak an awaitable result after dispatch."""
+
+    awaitable = _ClosableEmbeddingAwaitable()
+    producer = _RecordingEmbeddingProducer(awaitable)
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+    assert producer.calls == [embedding_items()]
+    assert awaitable.closed is True
+
+
+def test_embedding_step_marks_batch_output_sensitive_in_external_trace() -> None:
+    """The public trace summary never exposes embedding text or vectors."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    sink = InMemoryTraceSink()
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+        trace_sink=sink,
+    )
+
+    execute_workflow(
+        context,
+        prompt="Embed the controlled batch",
+        embedding_inputs={"documents": embedding_items()},
+    )
+
+    completed = next(
+        event for event in sink.events if event.event_type == "node_completed"
+    )
+    assert completed.sensitive_fields == ("output",)
+    summary = str(summarize_trace_events(sink.events))
+    assert "private embedding text" not in summary
+    assert "0.25" not in summary
+
+
+def test_embedding_step_overlay_requires_host_execution_context() -> None:
+    """A bare workflow cannot inject a host-owned embedding batch."""
+
+    with pytest.raises(WorkflowExecutionError, match="embedding"):
+        execute_workflow(
+            embedding_step_workflow(),
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+        )
+
+
+def test_embedding_step_rejects_other_context_overlay_before_producer_dispatch() -> (
+    None
+):
+    """Embedding inputs are the context's only permitted per-run overlay."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=producer,
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="cannot be combined"):
+        execute_workflow(
+            context,
+            prompt="Embed the controlled batch",
+            embedding_inputs={"documents": embedding_items()},
+            model_adapter=make_adapter([]),
+        )
+
+    assert producer.calls == []
+
+
+def test_embedding_step_context_binding_is_immutable() -> None:
+    """The host profile cannot be reassigned after execution context creation."""
+
+    context = WorkflowExecutionContext(
+        workflow=embedding_step_workflow(),
+        embedding_profile_id="host-embedding",
+        embedding_producer=_RecordingEmbeddingProducer(embedding_result()),
+        embedding_producer_mode="sync",
+    )
+
+    with pytest.raises(AttributeError):
+        context.embedding_profile_id = "other-profile"  # type: ignore[misc]
+
+
+def test_embedding_step_copies_batch_before_async_producer_completion() -> None:
+    """Mutating caller input after dispatch cannot change the selected batch."""
+
+    async def invoke() -> tuple[
+        object, _BlockingAsyncEmbeddingProducer, EmbeddingBatchResult
+    ]:
+        original = embedding_items()
+        replacement = (EmbeddingInputItem(id="entry-2", text="replacement"),)
+        inputs = {"documents": original}
+        expected = embedding_result()
+        producer = _BlockingAsyncEmbeddingProducer(expected)
+        context = WorkflowExecutionContext(
+            workflow=embedding_step_workflow(),
+            embedding_profile_id="host-embedding",
+            embedding_producer=producer,
+            embedding_producer_mode="async",
+        )
+        task = asyncio.create_task(
+            execute_workflow_async(
+                context,
+                prompt="Embed the controlled batch",
+                embedding_inputs=inputs,
+            )
+        )
+        await producer.started.wait()
+        inputs["documents"] = replacement
+        producer.release.set()
+        return await task, producer, expected
+
+    result, producer, expected = asyncio.run(invoke())
+
+    assert result.final_result is expected
+    assert producer.calls == [embedding_items()]
+
+
+def test_local_embedding_tool_continues_model_loop_with_bounded_result() -> None:
+    """One model-selected embedding call continues through the normal tool loop."""
+
+    producer = _RecordingEmbeddingProducer(embedding_result())
+    registry = InMemoryToolRegistry([create_local_embedding_tool(producer)])
+    adapter = _ScriptedParityAdapter(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall(
+                        "embed-1",
+                        "local_embedding_batch",
+                        {
+                            "items": [
+                                {"id": "entry-1", "text": "private embedding text"}
+                            ]
+                        },
+                    ),
+                ),
+            ),
+            ModelResponse(content="embedded"),
+        ]
+    )
+
+    result = asyncio.run(
+        execute_workflow_async(
+            loop_tool_workflow(
+                tools=[{"id": "local_embedding_batch"}],
+                available_tools=["local_embedding_batch"],
+            ),
+            prompt="Embed the controlled batch",
+            tool_registry=registry,
+            model_adapter=adapter,
+        )
+    )
+
+    assert result.final_result == "embedded"
+    assert producer.calls == [embedding_items()]
+    assert len(adapter.requests) == 2
+    tool_result = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "tool_result"
+    )
+    assert tool_result.payload["output"] == {"status": "embedding_result_redacted"}
+    assert not any(
+        event.event_type == "approval_requested" for event in result.state.trace_events
+    )
+
+
+def provider_compaction_workflow(
+    *,
+    fallback: str,
+    retry_on_overflow: bool = False,
+    prompt_hierarchy: dict[str, list[str]] | None = None,
+) -> LoadedAgentWorkflow:
+    auto: dict[str, object] = {
+        "enabled": True,
+        "threshold_ratio": 0.01,
+        "implementation": "provider",
+        "strategy": "provider_remote",
+        "remote": {
+            "provider_capability": "responses_compact",
+            "fallback": fallback,
+        },
+    }
+    if retry_on_overflow:
+        auto["retry_on_overflow"] = True
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "provider-context-compaction-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "prompt_hierarchy": prompt_hierarchy or {},
+                        "context_compaction": {"auto": auto},
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
 
 
 def test_compile_agent_workflow_preserves_base_workflow_and_executes_from_compiled() -> (
@@ -2017,6 +2716,100 @@ def test_prepare_model_input_pre_turn_compaction_replaces_over_threshold_context
     )
 
 
+def test_prepare_model_input_provider_compaction_replaces_over_threshold_context() -> (
+    None
+):
+    from dynamic_agent_runner import (
+        ProviderContextCompactionRequest,
+        ProviderContextCompactionResult,
+    )
+
+    prompt = "finish " * 80
+
+    class FakeProviderCompactor:
+        capabilities = {"responses_compact": True}
+
+        def __init__(self) -> None:
+            self.requests: list[ProviderContextCompactionRequest] = []
+
+        def compact(
+            self, request: ProviderContextCompactionRequest
+        ) -> ProviderContextCompactionResult:
+            self.requests.append(request)
+            return ProviderContextCompactionResult(
+                messages=(
+                    OpenAIMessage(role="developer", content="Compacted history."),
+                    OpenAIMessage(role="user", content=f"Answer {prompt}"),
+                ),
+                provider_window_id="window-1",
+                token_baseline=3,
+            )
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "provider-pre-turn-compaction-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "threshold_ratio": 0.01,
+                                "implementation": "provider",
+                                "strategy": "provider_remote",
+                                "remote": {
+                                    "provider_capability": "responses_compact",
+                                    "fallback": "error",
+                                },
+                            }
+                        }
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    plan = prepare_execution_plan(workflow)
+    state = WorkflowExecutionState(prompt=prompt)
+    adapter = make_adapter([])
+    adapter.context_windows = {"gpt-test": 1000}
+    compactor = FakeProviderCompactor()
+    tracer = WorkflowTracer(events=state.trace_events)
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        provider_context_compactor=compactor,
+        tracer=tracer,
+    )
+
+    assert compactor.requests[0].phase == "pre_turn"
+    assert prepared_input.messages[0].content == "Compacted history."
+    assert prepared_input.preparation.pre_turn_compaction["status"] == "complete"
+    assert prepared_input.preparation.pre_turn_compaction["window_id"] != "window-1"
+    prepared_event = next(
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    )
+    assert "Compacted history." not in repr(prepared_event.payload)
+    assert "window-1" not in repr(prepared_event.payload)
+
+
 def test_prepare_model_input_new_window_reset_does_not_count_as_compaction() -> None:
     workflow = workflow_from(
         {
@@ -2134,6 +2927,309 @@ def test_execute_workflow_retries_once_after_context_overflow_with_compaction() 
         if event.event_type == "context_overflow_retry"
     ]
     assert retry_events[0].payload["status"] == "retrying"
+
+
+def test_execute_workflow_retries_once_after_context_overflow_with_provider_compaction() -> (
+    None
+):
+    from dynamic_agent_runner import (
+        ProviderContextCompactionRequest,
+        ProviderContextCompactionResult,
+    )
+
+    prompt = "finish " * 80
+
+    class FakeProviderCompactor:
+        capabilities = {"responses_compact": True}
+
+        def compact(
+            self, request: ProviderContextCompactionRequest
+        ) -> ProviderContextCompactionResult:
+            assert request.phase == "overflow_retry"
+            return ProviderContextCompactionResult(
+                messages=(OpenAIMessage(role="user", content=f"Answer {prompt}"),),
+                provider_window_id="window-retry",
+            )
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "provider-overflow-retry-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {
+                "execution_policy": {
+                    "model": "gpt-test",
+                    "prepare_model_input": {
+                        "context_compaction": {
+                            "auto": {
+                                "enabled": True,
+                                "implementation": "provider",
+                                "strategy": "provider_remote",
+                                "retry_on_overflow": True,
+                                "remote": {
+                                    "provider_capability": "responses_compact",
+                                    "fallback": "error",
+                                },
+                            }
+                        }
+                    },
+                }
+            },
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+    adapter = make_adapter(
+        [
+            RuntimeError("context_length_exceeded: too many tokens"),
+            {"id": "resp_retry", "output_text": "compacted answer"},
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt=prompt,
+        model_adapter=adapter,
+        provider_context_compactor=FakeProviderCompactor(),
+    )
+
+    assert result.final_result == "compacted answer"
+    retry_event = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "context_overflow_retry"
+    )
+    assert retry_event.payload["window_id"] != "window-retry"
+    assert retry_event.payload["tokens_after"] > 0
+    assert "window-retry" not in repr(retry_event.payload)
+    assert prompt not in repr(retry_event.payload)
+
+
+@pytest.mark.parametrize(
+    ("capability", "fallback", "expected_status"),
+    [
+        (None, "basic", "fallback"),
+        (False, "basic", "fallback"),
+        (None, "error", None),
+        (False, "error", None),
+    ],
+)
+def test_prepare_model_input_provider_compaction_handles_missing_collaborator_or_capability(
+    capability: bool | None,
+    fallback: str,
+    expected_status: str | None,
+) -> None:
+    workflow = provider_compaction_workflow(fallback=fallback)
+    plan = prepare_execution_plan(workflow)
+    adapter = make_adapter([])
+    adapter.context_windows = {"gpt-test": 1000}
+    state = WorkflowExecutionState(prompt="active prompt " * 80)
+
+    class Compactor:
+        capabilities = {"responses_compact": capability}
+
+    kwargs = {} if capability is None else {"provider_context_compactor": Compactor()}
+    if expected_status is None:
+        with pytest.raises(WorkflowExecutionError, match="provider context compaction"):
+            prepare_model_input(
+                plan.nodes_by_id["answer"],
+                plan,
+                state,
+                model_adapters=(adapter,),
+                **kwargs,
+            )
+        return
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        **kwargs,
+    )
+
+    assert prepared_input.preparation.pre_turn_compaction["status"] == expected_status
+    assert prepared_input.messages[-1].content == "Answer " + "active prompt " * 80
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        (OpenAIMessage(role="tool", content="unpaired tool history"),),
+        (
+            OpenAIMessage(role="developer", content="Pinned instruction."),
+            OpenAIMessage(role="user", content="rewritten active prompt"),
+        ),
+        [OpenAIMessage(role="user", content="not a tuple")],
+    ],
+)
+def test_prepare_model_input_provider_compaction_falls_back_for_invalid_replacement(
+    replacement: object,
+) -> None:
+    from dynamic_agent_runner import ProviderContextCompactionResult
+
+    class Compactor:
+        capabilities = {"responses_compact": True}
+
+        def compact(self, _request: object) -> ProviderContextCompactionResult:
+            return ProviderContextCompactionResult(messages=replacement)  # type: ignore[arg-type]
+
+    workflow = provider_compaction_workflow(
+        fallback="basic",
+        prompt_hierarchy={"developer": ["Pinned instruction."]},
+    )
+    plan = prepare_execution_plan(workflow)
+    adapter = make_adapter([])
+    adapter.context_windows = {"gpt-test": 1000}
+    state = WorkflowExecutionState(prompt="active prompt " * 80)
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        provider_context_compactor=Compactor(),
+    )
+
+    assert prepared_input.preparation.pre_turn_compaction["status"] == "fallback"
+    assert prepared_input.messages[-1].content == "Answer " + "active prompt " * 80
+
+
+def test_prepare_model_input_provider_compaction_redacts_invalid_token_baseline() -> (
+    None
+):
+    from dynamic_agent_runner import ProviderContextCompactionResult
+
+    prompt = "active prompt " * 80
+
+    class Compactor:
+        capabilities = {"responses_compact": True}
+
+        def compact(self, _request: object) -> ProviderContextCompactionResult:
+            return ProviderContextCompactionResult(
+                messages=(OpenAIMessage(role="user", content=f"Answer {prompt}"),),
+                token_baseline="raw-provider-baseline",  # type: ignore[arg-type]
+            )
+
+    workflow = provider_compaction_workflow(fallback="basic")
+    plan = prepare_execution_plan(workflow)
+    adapter = make_adapter([])
+    adapter.context_windows = {"gpt-test": 1000}
+    state = WorkflowExecutionState(prompt=prompt)
+    tracer = WorkflowTracer(events=state.trace_events)
+
+    prepared_input = prepare_model_input(
+        plan.nodes_by_id["answer"],
+        plan,
+        state,
+        model_adapters=(adapter,),
+        provider_context_compactor=Compactor(),
+        tracer=tracer,
+    )
+
+    assert prepared_input.preparation.pre_turn_compaction["status"] == "fallback"
+    prepared_event = next(
+        event
+        for event in state.trace_events
+        if event.event_type == "model_input_prepared"
+    )
+    assert "raw-provider-baseline" not in repr(prepared_event.payload)
+
+
+@pytest.mark.parametrize(
+    ("capability", "fallback", "should_retry"),
+    [
+        (None, "basic", True),
+        (False, "basic", True),
+        (None, "error", False),
+        (False, "error", False),
+    ],
+)
+def test_execute_workflow_handles_unavailable_provider_overflow_compaction(
+    capability: bool | None,
+    fallback: str,
+    should_retry: bool,
+) -> None:
+    class Compactor:
+        capabilities = {"responses_compact": capability}
+
+    workflow = provider_compaction_workflow(fallback=fallback, retry_on_overflow=True)
+    adapter = make_adapter(
+        [
+            RuntimeError("context_length_exceeded: too many tokens"),
+            {"id": "resp_retry", "output_text": "fallback answer"},
+        ]
+    )
+
+    kwargs = {} if capability is None else {"provider_context_compactor": Compactor()}
+    if not should_retry:
+        with pytest.raises(WorkflowExecutionError, match="provider context compaction"):
+            execute_workflow(
+                workflow,
+                prompt="active prompt " * 80,
+                model_adapter=adapter,
+                **kwargs,
+            )
+        assert len(adapter.client.responses.calls) == 1
+        return
+
+    result = execute_workflow(
+        workflow,
+        prompt="active prompt " * 80,
+        model_adapter=adapter,
+        **kwargs,
+    )
+
+    assert result.final_result == "fallback answer"
+    assert len(adapter.client.responses.calls) == 2
+    retry_event = next(
+        event
+        for event in result.state.trace_events
+        if event.event_type == "context_overflow_retry"
+    )
+    assert retry_event.payload["fallback"] == "basic"
+
+
+def test_execute_workflow_rejects_provider_overflow_replacement_that_changes_active_turn() -> (
+    None
+):
+    from dynamic_agent_runner import ProviderContextCompactionResult
+
+    class Compactor:
+        capabilities = {"responses_compact": True}
+
+        def compact(self, _request: object) -> ProviderContextCompactionResult:
+            return ProviderContextCompactionResult(
+                messages=(
+                    OpenAIMessage(role="user", content="rewritten active prompt"),
+                )
+            )
+
+    workflow = provider_compaction_workflow(fallback="error", retry_on_overflow=True)
+    adapter = make_adapter(
+        [
+            RuntimeError("context_length_exceeded: too many tokens"),
+            {"id": "resp_retry", "output_text": "must not be used"},
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="provider context compaction"):
+        execute_workflow(
+            workflow,
+            prompt="active prompt " * 80,
+            model_adapter=adapter,
+            provider_context_compactor=Compactor(),
+        )
+
+    assert len(adapter.client.responses.calls) == 1
 
 
 def test_prepare_model_input_reports_context_lanes() -> None:
@@ -2480,17 +3576,14 @@ def test_prepare_model_input_injected_semantic_selector_selects_low_overlap_turn
     )
 
     assert seen_query == ["How should we recover the tenant audit ledger?"]
-    assert seen_candidates == [
-        (
-            ContextSelectionCandidate(
-                turn_id="turn_1",
-                text="The WAL shard is corrupt\nRestore from replica delta",
-                roles=("user", "assistant"),
-                exact_match_count=0,
-                token_estimate=20,
-            ),
-        ),
-    ]
+    assert len(seen_candidates) == 1
+    assert len(seen_candidates[0]) == 1
+    candidate = seen_candidates[0][0]
+    assert candidate.turn_id == "turn_1"
+    assert candidate.text == "The WAL shard is corrupt\nRestore from replica delta"
+    assert candidate.roles == ("user", "assistant")
+    assert candidate.exact_match_count == 0
+    assert candidate.token_estimate > 0
     assert seen_metadata[0]["profile"] == "semantic"
     assert prepared_input.named_parts["selected_turn_1"].content.startswith(
         "Selected older turn turn_1:"
@@ -3800,7 +4893,11 @@ def test_execute_workflow_applies_descriptor_budget_to_model_tools() -> None:
         }
     )
     registry = InMemoryToolRegistry([make_tool("search_repo"), make_tool("read_file")])
-    adapter = make_adapter([{"id": "resp", "output_text": "done"}])
+    captured_requests: list[object] = []
+    adapter = OpenAIClientAdapter(
+        FakeClient([{"id": "resp", "output_text": "done"}]),
+        response_validator=lambda request, _response: captured_requests.append(request),
+    )
 
     result = execute_workflow(
         workflow,
@@ -3823,6 +4920,19 @@ def test_execute_workflow_applies_descriptor_budget_to_model_tools() -> None:
     assert diagnostics["omitted"][0]["reason"] == "max_tools"
     assert "Read pyproject" not in repr(diagnostics)
     assert "parameters" not in repr(diagnostics)
+    assert len(captured_requests) == 1
+    context = captured_requests[0].adapter_context
+    assert isinstance(context, ActiveAdapterToolContext)
+    assert context.allowed_tool_ids == frozenset({"read_file"})
+    assert [tool.id for tool in context.tools] == ["read_file"]
+    assert model_request.payload["request"] == adapter.client.responses.calls[0]
+    assert "adapter_context" not in model_request.payload["request"]
+    assert not _contains_identity(
+        model_request.payload,
+        context,
+        registry,
+        result.state,
+    )
 
 
 def test_execute_workflow_fails_before_dispatch_when_required_tool_excluded() -> None:
@@ -3983,7 +5093,17 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     assert len(adapter.client.responses.calls) == 2
     second_input = adapter.client.responses.calls[1]["input"]
     assert second_input[-2]["role"] == "assistant"
-    assert second_input[-2]["content"] == "Tool call call_1: search_repo"
+    assert second_input[-2]["content"] == ""
+    assert second_input[-2]["tool_calls"] == [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {
+                "name": "search_repo",
+                "arguments": '{"query":"agents"}',
+            },
+        }
+    ]
     assert second_input[-1] == {
         "role": "tool",
         "tool_call_id": "call_1",
@@ -3993,6 +5113,345 @@ def test_execute_workflow_loops_model_tool_call_with_policy() -> None:
     assert result.state.tool_results["analyze.call_1"].model_facing_output == {
         "summary": "agents found"
     }
+    model_requests = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "model_request"
+    ]
+    assert len(model_requests) == 2
+    for trace_event, provider_call in zip(
+        model_requests, adapter.client.responses.calls, strict=True
+    ):
+        assert trace_event.payload["request"] == provider_call
+        assert "adapter_context" not in trace_event.payload["request"]
+        assert not _contains_identity(trace_event.payload, registry, result.state)
+
+
+def test_execute_workflow_runs_injected_mlx_tool_call_through_registry(
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "mlx-model"
+    model_path.mkdir()
+    (model_path / "config.json").write_text("{}", encoding="utf-8")
+    (model_path / "tokenizer.model").write_text("", encoding="utf-8")
+    (model_path / "weights.npz").write_bytes(b"")
+    backend = FakeToolCapableMLXBackend()
+    codec = FakeMLXToolCodec(
+        MLXToolCodecResponse(
+            tool_call=MLXToolCallCandidate(
+                name="search_repo", arguments='{"query":"agents"}'
+            )
+        ),
+        MLXToolCodecResponse(content="final answer"),
+    )
+    handler_calls: list[object] = []
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {
+                        "id": "search_repo",
+                        "description_for_llm": "Search the repository.",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                            "required": ["query"],
+                        },
+                    }
+                ),
+                lambda arguments: (
+                    handler_calls.append(arguments)
+                    or ToolResult(
+                        tool_id="search_repo",
+                        success=True,
+                        output={"raw": "secret raw"},
+                        model_output={"summary": "agents found"},
+                    )
+                ),
+            )
+        ]
+    )
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(model_aliases=("mlx-local-chat",), model_path=model_path),
+        backend=backend,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+
+    result = execute_workflow(
+        loop_tool_workflow(execution_policy_extra={"model": "mlx-local-chat"}),
+        prompt="How?",
+        tool_registry=registry,
+        model_adapter=adapter,
+    )
+
+    assert result.final_result == "final answer"
+    assert handler_calls == [{"query": "agents"}]
+    assert backend.requests == []
+    assert backend.rendered_prompts == ["<tool-aware-prompt>"] * 2
+    assert len(codec.rendered_requests) == 2
+    continuation = codec.rendered_requests[1].messages
+    assistant_call, tool_result = continuation[-2:]
+    assert assistant_call["role"] == "assistant"
+    assert assistant_call["tool_calls"] == [
+        {
+            "id": assistant_call["call_id"],
+            "type": "function",
+            "function": {
+                "name": "search_repo",
+                "arguments": '{"query":"agents"}',
+            },
+        }
+    ]
+    assert tool_result == {
+        "role": "tool",
+        "tool_call_id": assistant_call["call_id"],
+        "name": "search_repo",
+        "content": '{"summary": "agents found"}',
+        "_dar_transcript_type": "model_tool_result",
+        "call_id": assistant_call["call_id"],
+        "output": '{"summary": "agents found"}',
+    }
+    tool_loop_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type == "model_tool_loop_tool_call"
+    ]
+    assert len(tool_loop_events) == 1
+    assert tool_loop_events[0].payload["tool_id"] == "search_repo"
+
+
+def test_execute_workflow_awaits_adapter_returning_awaitable_response() -> None:
+    class AwaitableAdapter:
+        models = ("gpt-test",)
+
+        def create_response(self, _request: object) -> object:
+            async def respond() -> ModelResponse:
+                return ModelResponse(content="awaited response")
+
+            return respond()
+
+    workflow = workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "awaitable-model-adapter-agent",
+            "entrypoint": "answer",
+            "packaging": {"mode": "hybrid_bundle"},
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "Answer {prompt}"},
+                }
+            ],
+            "edges": [],
+        }
+    )
+
+    result = execute_workflow(workflow, prompt="How?", model_adapter=AwaitableAdapter())
+
+    assert result.final_result == "awaited response"
+
+
+def test_execute_workflow_rejects_malformed_injected_mlx_tool_call_before_dispatch(
+    tmp_path: Path,
+) -> None:
+    model_path = tmp_path / "mlx-model"
+    model_path.mkdir()
+    (model_path / "config.json").write_text("{}", encoding="utf-8")
+    (model_path / "tokenizer.model").write_text("", encoding="utf-8")
+    (model_path / "weights.npz").write_bytes(b"")
+    backend = FakeToolCapableMLXBackend()
+    codec = FakeMLXToolCodec(
+        MLXToolCodecResponse(
+            tool_call=MLXToolCallCandidate(
+                name="search_repo", arguments='{"query":"first","query":"second"}'
+            )
+        )
+    )
+    handler_calls: list[object] = []
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "search_repo"}),
+                lambda arguments: handler_calls.append(arguments) or {"ok": True},
+            )
+        ]
+    )
+    adapter = create_mlx_local_adapter(
+        MLXLocalModelConfig(model_aliases=("mlx-local-chat",), model_path=model_path),
+        backend=backend,
+        tool_codec=codec,
+        platform_system=lambda: "Darwin",
+    )
+    sink = InMemoryTraceSink()
+
+    with pytest.raises(ModelExecutionError, match="duplicate JSON keys"):
+        execute_workflow(
+            loop_tool_workflow(execution_policy_extra={"model": "mlx-local-chat"}),
+            prompt="How?",
+            tool_registry=registry,
+            model_adapter=adapter,
+            trace_sink=sink,
+        )
+
+    assert handler_calls == []
+    assert backend.requests == []
+    assert backend.rendered_prompts == ["<tool-aware-prompt>"]
+    assert len(codec.rendered_requests) == 1
+    assert not [
+        event
+        for event in sink.events
+        if event.event_type == "model_tool_loop_tool_call"
+    ]
+
+
+def test_execute_workflow_rejects_initial_text_only_response_when_tool_required() -> (
+    None
+):
+    tool_invocations: list[object] = []
+    workflow = loop_tool_workflow()
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "search_repo"}),
+                lambda arguments: tool_invocations.append(arguments) or {"ok": True},
+            )
+        ]
+    )
+    adapter = make_adapter([{"id": "resp_1", "output_text": "I cannot do that."}])
+
+    with pytest.raises(WorkflowExecutionError, match="required tool call"):
+        execute_workflow(
+            workflow,
+            prompt="Search for DAR",
+            tool_registry=registry,
+            model_adapter=adapter,
+        )
+
+    assert len(adapter.client.responses.calls) == 1
+    assert tool_invocations == []
+
+
+def test_required_tool_loop_rejects_text_after_failed_provider_callback() -> None:
+    plan = prepare_execution_plan(loop_tool_workflow())
+    node = plan.nodes_by_id["analyze"]
+    state = WorkflowExecutionState(prompt="Search for DAR", run_id="failed-callback")
+    state.tool_results["analyze.apple-failed"] = ToolResult(
+        tool_id="search_repo",
+        success=False,
+        error="external action unavailable",
+    )
+    tracer = WorkflowTracer(events=state.trace_events, run_id=state.run_id)
+
+    with pytest.raises(WorkflowExecutionError, match="required tool call"):
+        asyncio.run(
+            _execute_model_tool_loop_async(
+                node,
+                plan,
+                state,
+                None,
+                None,
+                SimpleNamespace(),
+                ModelResponse(content="I cannot do that."),
+                (),
+                None,
+                tracer,
+                None,
+            )
+        )
+
+
+def test_execute_workflow_keeps_provider_tool_call_correlations_separate() -> None:
+    """Provider-origin call ids must remain bound to their own results and traces."""
+
+    calls: list[object] = []
+    result = execute_workflow(
+        loop_tool_workflow(),
+        prompt="Run",
+        tool_registry=InMemoryToolRegistry(
+            [
+                RegisteredTool(
+                    ToolDefinition.from_mapping({"id": "search_repo"}),
+                    lambda arguments: (
+                        calls.append(arguments) or {"summary": arguments["query"]}
+                    ),
+                )
+            ]
+        ),
+        model_adapter=make_adapter(
+            [
+                {
+                    "id": "response-1",
+                    "output": [
+                        {
+                            "type": "function_call",
+                            "call_id": "provider-call-a",
+                            "name": "search_repo",
+                            "arguments": '{"query":"first"}',
+                        }
+                    ],
+                },
+                {
+                    "id": "response-2",
+                    "output": [
+                        {
+                            "type": "function_call",
+                            "call_id": "provider-call-b",
+                            "name": "search_repo",
+                            "arguments": '{"query":"second"}',
+                        }
+                    ],
+                },
+                {"id": "response-3", "output_text": "done"},
+            ]
+        ),
+        run_id="provider-run",
+    )
+
+    assert calls == [{"query": "first"}, {"query": "second"}]
+    assert result.final_result == "done"
+    assert result.state.tool_results["analyze.provider-call-a"].model_facing_output == {
+        "summary": "first"
+    }
+    assert result.state.tool_results["analyze.provider-call-b"].model_facing_output == {
+        "summary": "second"
+    }
+    for call_id, query in (
+        ("provider-call-a", "first"),
+        ("provider-call-b", "second"),
+    ):
+        loop_events = [
+            event
+            for event in result.state.trace_events
+            if event.event_type == "model_tool_loop_tool_call"
+            and event.payload.get("tool_call_id") == call_id
+        ]
+        correlated_events = [
+            event
+            for event in result.state.trace_events
+            if event.event_type in {"tool_started", "tool_result", "tool_finished"}
+            and event.payload.get("tool_call_id") == call_id
+        ]
+        assert len(loop_events) == 1
+        assert loop_events[0].payload["tool_id"] == "search_repo"
+        assert loop_events[0].payload["arguments"] == {"query": query}
+        assert [event.event_type for event in correlated_events] == [
+            "tool_started",
+            "tool_result",
+            "tool_finished",
+        ]
+        assert {event.run_id for event in correlated_events} == {"provider-run"}
+        assert {event.node_id for event in correlated_events} == {"analyze"}
+        assert {event.payload["tool_id"] for event in correlated_events} == {
+            "search_repo"
+        }
+        result_event = next(
+            event for event in correlated_events if event.event_type == "tool_result"
+        )
+        assert result_event.payload["output"] == {"summary": query}
 
 
 def test_execute_workflow_renders_chatgpt_codex_tool_loop_follow_up_items() -> None:
@@ -4574,6 +6033,216 @@ def test_execute_workflow_pauses_approval_required_model_tool_before_invocation(
     assert result.state.tool_results == {}
 
 
+def test_tool_from_function_pauses_approval_required_tool_before_invocation() -> None:
+    calls: list[str] = []
+
+    def workspace_write(query: str) -> dict[str, bool]:
+        calls.append(query)
+        return {"ok": True}
+
+    workflow = loop_tool_workflow(
+        tools=[
+            {
+                "id": "workspace_write",
+                "approval_required": "yes",
+                "side_effect": "write",
+            }
+        ],
+        available_tools=["workspace_write"],
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "workspace_write",
+                        "arguments": '{"query":"notes"}',
+                    }
+                ],
+            }
+        ]
+    )
+
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=InMemoryToolRegistry(
+            [
+                tool_from_function(
+                    workspace_write,
+                    metadata={
+                        "id": "workspace_write",
+                        "approval_required": "yes",
+                        "side_effect": "write",
+                    },
+                )
+            ]
+        ),
+        model_adapter=adapter,
+    )
+
+    assert isinstance(result, WorkflowInterruptedResult)
+    assert calls == []
+    assert result.interruption.tool_id == "workspace_write"
+    assert result.interruption.action_id == "call_1"
+    assert result.interruption.arguments == {"query": "notes"}
+    assert result.state.tool_results == {}
+
+
+@pytest.mark.parametrize(
+    ("decision_state", "interrupted"),
+    [
+        (ProviderDecisionState.UNRESOLVED, True),
+        (ProviderDecisionState.DENIED, False),
+    ],
+)
+def test_provider_model_tool_decision_has_the_declared_executor_outcome(
+    decision_state: ProviderDecisionState,
+    interrupted: bool,
+) -> None:
+    calls: list[object] = []
+    workflow = loop_tool_workflow(
+        tools=[{"id": "workspace_write", "approval_required": "yes"}],
+        available_tools=["workspace_write"],
+    )
+    plan = prepare_execution_plan(workflow)
+    node = plan.nodes_by_id["analyze"]
+    tool = RegisteredTool(
+        ToolDefinition.from_mapping(
+            {
+                "id": "workspace_write",
+                "approval_required": "yes",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            }
+        ),
+        lambda arguments: calls.append(arguments) or {"ok": True},
+    )
+    registry = InMemoryToolRegistry([tool])
+    tool = registry.get_tool("workspace_write")
+    state = WorkflowExecutionState(prompt="How?", run_id="run-1")
+    tracer = WorkflowTracer(events=state.trace_events, run_id=state.run_id)
+
+    class Collaborator:
+        def decide(self, request: ProviderDecisionRequest) -> ProviderToolDecision:
+            return ProviderToolDecision(
+                state=decision_state,
+                invocation_id=request.invocation_id,
+                fingerprint=request.fingerprint,
+            )
+
+    adapter_context = tool_context(
+        plan=plan,
+        node=node,
+        tools=(tool,),
+        registry=registry,
+        state=state,
+        tracer=tracer,
+        lifecycle_hooks=None,
+        retry_policy=RetryPolicy(),
+        decision_collaborator=Collaborator(),
+    )
+
+    invocation = _invoke_model_tool_call_async(
+        node,
+        plan,
+        ModelToolCall(
+            id="call_1",
+            name="workspace_write",
+            arguments={"query": "notes"},
+        ),
+        "call_1",
+        1,
+        None,
+        adapter_context,
+        state,
+        tracer,
+        None,
+    )
+
+    if interrupted:
+        result = asyncio.run(invocation)
+        assert isinstance(result, WorkflowInterruptedResult)
+        assert result.interruption.state is ApprovalInterruptionState.PENDING
+    else:
+        with pytest.raises(WorkflowExecutionError, match="provider tool decision"):
+            asyncio.run(invocation)
+    assert calls == []
+    assert state.tool_results == {}
+    assert state.errors == []
+    assert state.retry_records == []
+
+
+def test_executor_converts_provider_callback_interruption_to_workflow_result() -> None:
+    workflow = loop_tool_workflow(available_tools=[])
+    approval = ApprovalInterruption(
+        interruption_id="approval-1",
+        run_id="provider-run",
+        workflow_id="loop-tool-agent",
+        node_id="analyze",
+        tool_id="send",
+        action_id="apple-call-1",
+        arguments={"message": "private"},
+        policy={"approval_required": "yes"},
+        reason="approval required",
+    )
+
+    class ProviderInterruptingAdapter(AsyncOpenAIClientAdapter):
+        async def create_response(self, _request: object) -> ModelResponse:
+            raise ProviderToolInterruption(approval, provider="apple_foundation_models")
+
+    adapter = ProviderInterruptingAdapter(models=("gpt-test",))
+
+    result = asyncio.run(
+        execute_workflow_async(workflow, prompt="Send", model_adapter=adapter)
+    )
+
+    assert isinstance(result, WorkflowInterruptedResult)
+    assert result.interruption is approval
+    assert result.state.tool_results == {}
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "provider tool decision is denied",
+        "tool input rejected by guardrail",
+        "send delivery failed",
+    ],
+)
+def test_executor_does_not_retry_provider_callback_terminal_failures(
+    message: str,
+) -> None:
+    calls = 0
+    workflow = loop_tool_workflow(
+        available_tools=[],
+        execution_policy_extra={"model_retry_policy": {"max_attempts": 2}},
+    )
+
+    class TerminalAdapter(AsyncOpenAIClientAdapter):
+        async def create_response(self, _request: object) -> ModelResponse:
+            nonlocal calls
+            calls += 1
+            raise ProviderToolTerminalError(message)
+
+    with pytest.raises(WorkflowExecutionError, match=message):
+        asyncio.run(
+            execute_workflow_async(
+                workflow,
+                prompt="Send",
+                model_adapter=TerminalAdapter(models=("gpt-test",)),
+            )
+        )
+
+    assert calls == 1
+
+
 def loop_tool_workflow(
     *,
     tools: list[dict[str, object]] | None = None,
@@ -4581,6 +6250,7 @@ def loop_tool_workflow(
     max_steps: int | None = None,
     execution_policy_extra: dict[str, object] | None = None,
     node_extra: dict[str, object] | None = None,
+    guardrails: list[dict[str, object]] | None = None,
 ) -> LoadedAgentWorkflow:
     execution_policy: dict[str, object] = {
         "model": "gpt-test",
@@ -4603,19 +6273,611 @@ def loop_tool_workflow(
         ),
     }
     llm_node.update(node_extra or {})
-    return workflow_from(
+    manifest: dict[str, object] = {
+        "format_version": 1,
+        "package_type": "dynamic_agent_design",
+        "package_id": "loop-tool-agent",
+        "entrypoint": "analyze",
+        "packaging": {"mode": "hybrid_bundle"},
+        "runtime": {"execution_policy": execution_policy},
+        "nodes": [llm_node],
+        "edges": [],
+        "tools": tool_entries,
+    }
+    if guardrails is not None:
+        manifest["extensions"] = {"guardrails": {"declarations": guardrails}}
+    return workflow_from(manifest)
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s1_selects_only_create_record(
+    asynchronous: bool,
+    parity_io_blocker: None,
+) -> None:
+    registry, invocations, results = _parity_registry()
+    result, _, record, error = _run_parity_loop(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall(
+                        "create-1",
+                        "create_record",
+                        {"title": "DAR", "body": "controlled"},
+                    ),
+                ),
+            ),
+            ModelResponse(content="created"),
+        ],
+        scenario="S1",
+        asynchronous=asynchronous,
+        registry=registry,
+        invocations=invocations,
+        results=results,
+    )
+
+    assert error is None
+    assert result is not None
+    assert result.final_result == "created"
+    assert record.interface == "executor_fake_adapter"
+    assert record.invocations == (
+        ("create_record", {"title": "DAR", "body": "controlled"}),
+    )
+    assert record.invocation_results == (
+        ("create_record", {"record_id": "record-created"}),
+    )
+    assert record.completion_class == "completed"
+
+
+class _ScriptedParityAdapter:
+    models = ("gpt-test",)
+
+    def __init__(self, responses: list[ModelResponse]) -> None:
+        self.responses = list(responses)
+        self.requests: list[OpenAIModelRequest] = []
+
+    def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        self.requests.append(request)
+        return self.responses.pop(0)
+
+
+class _AsyncScriptedParityAdapter(_ScriptedParityAdapter):
+    async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        self.requests.append(request)
+        await asyncio.sleep(0)
+        return self.responses.pop(0)
+
+
+@pytest.fixture
+def parity_io_blocker(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_parity_io_blocker(monkeypatch)
+
+
+def test_model_interface_parity_io_blocker_rejects_every_external_seam(
+    parity_io_blocker: None,
+) -> None:
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        socket.create_connection(("example.invalid", 443))
+    with (
+        socket.socket() as client,
+        pytest.raises(AssertionError, match="prohibit external I/O"),
+    ):
+        client.connect(("example.invalid", 443))
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        subprocess.Popen(["false"])
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        local_models.download_hub_file("repo", "file")
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        local_models.download_hub_snapshot("repo")
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        hugging_face_support.download_hub_file("repo", "file")
+    with pytest.raises(AssertionError, match="prohibit external I/O"):
+        hugging_face_support.download_hub_snapshot("repo")
+
+    async def assert_async_interceptors() -> None:
+        with pytest.raises(AssertionError, match="prohibit external I/O"):
+            await asyncio.create_subprocess_exec("false")
+        with pytest.raises(AssertionError, match="prohibit external I/O"):
+            await asyncio.create_subprocess_shell("false")
+
+    asyncio.run(assert_async_interceptors())
+
+
+def _parity_tool_definitions() -> list[dict[str, object]]:
+    return shared_parity_tool_definitions()
+
+
+def _parity_registry() -> tuple[
+    InMemoryToolRegistry,
+    list[tuple[str, Mapping[str, object]]],
+    list[tuple[str, object]],
+]:
+    return shared_parity_registry()
+
+
+def _parity_record(
+    *,
+    scenario: str,
+    asynchronous: bool,
+    calls: tuple[ModelToolCall, ...],
+    exposed_schemas: tuple[tuple[str, Mapping[str, object]], ...],
+    invocations: list[tuple[str, Mapping[str, object]]],
+    results: list[tuple[str, object]],
+    result: object | None,
+    error: WorkflowExecutionError | None,
+    sink: InMemoryTraceSink,
+) -> ParityRecord:
+    events = result.state.trace_events if result is not None else sink.events
+    record = ParityRecord(
+        interface="executor_fake_adapter",
+        scenario=scenario,
+        asynchronous=asynchronous,
+        exposed_schemas=exposed_schemas,
+        normalized_calls=tuple((call.name, call.arguments) for call in calls),
+        invocations=tuple(invocations),
+        invocation_results=tuple(results),
+        completion_class="error" if error is not None else "completed",
+        error_class=type(error).__name__ if error is not None else None,
+        trace_event_types=tuple(event.event_type for event in events),
+        stop_reasons=tuple(
+            str(event.payload["stop_reason"])
+            for event in events
+            if event.event_type == "model_tool_loop_stopped"
+        ),
+    )
+    assert result is None or not isinstance(result, WorkflowInterruptedResult)
+    assert not any("approval" in event_type for event_type in record.trace_event_types)
+    assert_parity_semantic_projection(record)
+    return record
+
+
+def _parity_loop_workflow() -> LoadedAgentWorkflow:
+    return shared_parity_loop_workflow()
+
+
+def _run_parity_loop(
+    responses: list[ModelResponse],
+    *,
+    scenario: str,
+    asynchronous: bool,
+    registry: InMemoryToolRegistry,
+    invocations: list[tuple[str, Mapping[str, object]]],
+    results: list[tuple[str, object]],
+) -> tuple[
+    object | None, _ScriptedParityAdapter, ParityRecord, WorkflowExecutionError | None
+]:
+    adapter = (
+        _AsyncScriptedParityAdapter(responses)
+        if asynchronous
+        else _ScriptedParityAdapter(responses)
+    )
+    sink = InMemoryTraceSink()
+    calls = tuple(call for response in responses for call in response.tool_calls)
+    try:
+        if asynchronous:
+            result = asyncio.run(
+                execute_workflow_async(
+                    _parity_loop_workflow(),
+                    prompt="controlled parity",
+                    tool_registry=registry,
+                    model_adapter=adapter,
+                    trace_sink=sink,
+                )
+            )
+        else:
+            result = execute_workflow(
+                _parity_loop_workflow(),
+                prompt="controlled parity",
+                tool_registry=registry,
+                model_adapter=adapter,
+                trace_sink=sink,
+            )
+    except WorkflowExecutionError as error:
+        return (
+            None,
+            adapter,
+            _parity_record(
+                scenario=scenario,
+                asynchronous=asynchronous,
+                calls=calls,
+                exposed_schemas=parity_exposed_schemas(adapter.requests[0].tools),
+                invocations=invocations,
+                results=results,
+                result=None,
+                error=error,
+                sink=sink,
+            ),
+            error,
+        )
+    return (
+        result,
+        adapter,
+        _parity_record(
+            scenario=scenario,
+            asynchronous=asynchronous,
+            calls=calls,
+            exposed_schemas=parity_exposed_schemas(adapter.requests[0].tools),
+            invocations=invocations,
+            results=results,
+            result=result,
+            error=None,
+            sink=sink,
+        ),
+        None,
+    )
+
+
+def _run_parity_no_tool(*, asynchronous: bool) -> tuple[object, ParityRecord]:
+    definitions = _parity_tool_definitions()
+    workflow = workflow_from(
         {
             "format_version": 1,
             "package_type": "dynamic_agent_design",
-            "package_id": "loop-tool-agent",
-            "entrypoint": "analyze",
+            "package_id": "parity-no-tool",
+            "entrypoint": "answer",
             "packaging": {"mode": "hybrid_bundle"},
-            "runtime": {"execution_policy": execution_policy},
-            "nodes": [llm_node],
+            "runtime": {"execution_policy": {"model": "gpt-test"}},
+            "nodes": [
+                {
+                    "id": "answer",
+                    "kind": "llm_step",
+                    "prompt": {"user_template": "{prompt}"},
+                    "available_tools": [str(tool["id"]) for tool in definitions],
+                }
+            ],
             "edges": [],
-            "tools": tool_entries,
+            "tools": definitions,
         }
     )
+    registry, invocations, results = _parity_registry()
+    adapter = (
+        _AsyncScriptedParityAdapter([ModelResponse(content="no tool")])
+        if asynchronous
+        else _ScriptedParityAdapter([ModelResponse(content="no tool")])
+    )
+    sink = InMemoryTraceSink()
+    if asynchronous:
+        result = asyncio.run(
+            execute_workflow_async(
+                workflow,
+                prompt="answer",
+                tool_registry=registry,
+                model_adapter=adapter,
+                trace_sink=sink,
+            )
+        )
+    else:
+        result = execute_workflow(
+            workflow,
+            prompt="answer",
+            tool_registry=registry,
+            model_adapter=adapter,
+            trace_sink=sink,
+        )
+    return result, _parity_record(
+        scenario="S5",
+        asynchronous=asynchronous,
+        calls=(),
+        exposed_schemas=parity_exposed_schemas(adapter.requests[0].tools),
+        invocations=invocations,
+        results=results,
+        result=result,
+        error=None,
+        sink=sink,
+    )
+
+
+def _parity_contract_projection(record: ParityRecord) -> tuple[object, ...]:
+    return shared_parity_contract_projection(record)
+
+
+@pytest.mark.parametrize(
+    ("scenario", "responses"),
+    [
+        (
+            "S1",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall(
+                            "create-1",
+                            "create_record",
+                            {"title": "DAR", "body": "controlled"},
+                        ),
+                    ),
+                ),
+                ModelResponse(content="created"),
+            ],
+        ),
+        (
+            "S2-valid",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall(
+                            "transform-1",
+                            "transform_record",
+                            {"record_id": "record-seed", "operation": "uppercase"},
+                        ),
+                    ),
+                ),
+                ModelResponse(content="transformed"),
+            ],
+        ),
+        (
+            "S2-invalid-enum",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall(
+                            "invalid",
+                            "transform_record",
+                            {"record_id": "record-seed", "operation": "lowercase"},
+                        ),
+                    ),
+                )
+            ],
+        ),
+        (
+            "S3",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall("lookup-1", "lookup_record", {"key": "seed"}),
+                    ),
+                ),
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall(
+                            "transform-1",
+                            "transform_record",
+                            {"record_id": "record-seed", "operation": "uppercase"},
+                        ),
+                    ),
+                ),
+                ModelResponse(content="SEED"),
+            ],
+        ),
+        (
+            "S4",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall("fail-1", "fail_controlled", {"code": "planned"}),
+                    ),
+                )
+            ],
+        ),
+        (
+            "S6",
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(ModelToolCall("bad-1", "lookup_record", "not-json"),),
+                )
+            ],
+        ),
+    ],
+)
+def test_model_interface_parity_sync_and_async_records_match(
+    scenario: str,
+    responses: list[ModelResponse],
+    parity_io_blocker: None,
+) -> None:
+    def run(asynchronous: bool) -> ParityRecord:
+        registry, invocations, results = _parity_registry()
+        _, _, record, _ = _run_parity_loop(
+            responses,
+            scenario=scenario,
+            asynchronous=asynchronous,
+            registry=registry,
+            invocations=invocations,
+            results=results,
+        )
+        return record
+
+    assert _parity_contract_projection(run(False)) == _parity_contract_projection(
+        run(True)
+    )
+
+
+def test_model_interface_parity_s5_sync_and_async_records_match(
+    parity_io_blocker: None,
+) -> None:
+    _, sync_record = _run_parity_no_tool(asynchronous=False)
+    _, async_record = _run_parity_no_tool(asynchronous=True)
+
+    assert _parity_contract_projection(sync_record) == _parity_contract_projection(
+        async_record
+    )
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s2_valid_and_invalid_arguments(
+    asynchronous: bool, parity_io_blocker: None
+) -> None:
+    registry, invocations, results = _parity_registry()
+    result, _, record, error = _run_parity_loop(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall(
+                        "transform-1",
+                        "transform_record",
+                        {"record_id": "record-seed", "operation": "uppercase"},
+                    ),
+                ),
+            ),
+            ModelResponse(content="transformed"),
+        ],
+        scenario="S2-valid",
+        asynchronous=asynchronous,
+        registry=registry,
+        invocations=invocations,
+        results=results,
+    )
+    assert error is None
+    assert result is not None
+    assert result.final_result == "transformed"
+    assert invocations == [
+        ("transform_record", {"record_id": "record-seed", "operation": "uppercase"})
+    ]
+    assert record.error_class is None
+    for name, arguments in (
+        ("missing", {"record_id": "record-seed"}),
+        ("wrong-type", {"record_id": 1, "operation": "uppercase"}),
+        ("invalid-enum", {"record_id": "record-seed", "operation": "lowercase"}),
+        (
+            "unknown",
+            {"record_id": "record-seed", "operation": "uppercase", "unknown": True},
+        ),
+        ("malformed", "not-json"),
+    ):
+        registry, invocations, results = _parity_registry()
+        _, _, invalid_record, invalid_error = _run_parity_loop(
+            [
+                ModelResponse(
+                    content=None,
+                    tool_calls=(
+                        ModelToolCall("invalid", "transform_record", arguments),
+                    ),
+                )
+            ],
+            scenario=f"S2-{name}",
+            asynchronous=asynchronous,
+            registry=registry,
+            invocations=invocations,
+            results=results,
+        )
+        assert isinstance(invalid_error, WorkflowExecutionError)
+        assert invalid_record.error_class == "WorkflowExecutionError"
+        assert invocations == []
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s3_continues_with_lookup_identifier(
+    asynchronous: bool, parity_io_blocker: None
+) -> None:
+    registry, invocations, results = _parity_registry()
+    result, adapter, record, error = _run_parity_loop(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall("lookup-1", "lookup_record", {"key": "seed"}),
+                ),
+            ),
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall(
+                        "transform-1",
+                        "transform_record",
+                        {"record_id": "record-seed", "operation": "uppercase"},
+                    ),
+                ),
+            ),
+            ModelResponse(content="SEED"),
+        ],
+        scenario="S3",
+        asynchronous=asynchronous,
+        registry=registry,
+        invocations=invocations,
+        results=results,
+    )
+    assert error is None
+    assert result is not None
+    assert result.final_result == "SEED"
+    assert invocations == [
+        ("lookup_record", {"key": "seed"}),
+        ("transform_record", {"record_id": "record-seed", "operation": "uppercase"}),
+    ]
+    assert record.invocation_results[-1] == (
+        "transform_record",
+        {"record_id": "record-seed", "body": "SEED"},
+    )
+    assert len(adapter.requests) == 3
+    continuation = adapter.requests[1].messages
+    assert continuation[-1]["_dar_transcript_type"] == "model_tool_result"
+    assert continuation[-1]["name"] == "lookup_record"
+    assert "record-seed" in str(continuation[-1]["content"])
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s4_reports_controlled_failure(
+    asynchronous: bool, parity_io_blocker: None
+) -> None:
+    registry, invocations, results = _parity_registry()
+    result, adapter, record, error = _run_parity_loop(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(
+                    ModelToolCall("fail-1", "fail_controlled", {"code": "planned"}),
+                ),
+            )
+        ],
+        scenario="S4",
+        asynchronous=asynchronous,
+        registry=registry,
+        invocations=invocations,
+        results=results,
+    )
+    assert result is None
+    assert isinstance(error, WorkflowExecutionError)
+    assert "planned controlled failure" in str(error)
+    assert invocations == [("fail_controlled", {"code": "planned"})]
+    assert len(adapter.requests) == 1
+    assert record.completion_class == "error"
+    assert record.error_class == "WorkflowExecutionError"
+    assert record.trace_event_types.count("model_tool_loop_tool_call") == 1
+    assert record.stop_reasons == ("tool_failure",)
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s5_completes_without_a_tool(
+    asynchronous: bool, parity_io_blocker: None
+) -> None:
+    result, record = _run_parity_no_tool(asynchronous=asynchronous)
+    assert result.final_result == "no tool"
+    assert record.invocations == ()
+    assert record.invocation_results == ()
+    assert "model_tool_result" not in record.trace_event_types
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_model_interface_parity_s6_rejects_malformed_normalized_call_before_dispatch(
+    asynchronous: bool, parity_io_blocker: None
+) -> None:
+    registry, invocations, results = _parity_registry()
+    result, adapter, record, error = _run_parity_loop(
+        [
+            ModelResponse(
+                content=None,
+                tool_calls=(ModelToolCall("bad-1", "lookup_record", "not-json"),),
+            )
+        ],
+        scenario="S6",
+        asynchronous=asynchronous,
+        registry=registry,
+        invocations=invocations,
+        results=results,
+    )
+    assert result is None
+    assert isinstance(error, WorkflowExecutionError)
+    assert "arguments must be JSON" in str(error)
+    assert record.error_class == "WorkflowExecutionError"
+    assert invocations == []
+    assert len(adapter.requests) == 1
+    assert "model_tool_loop_tool_call" not in record.trace_event_types
+    assert "tool_started" not in record.trace_event_types
 
 
 def test_execute_workflow_uses_model_facing_tool_output_in_context_and_trace() -> None:
@@ -6479,6 +8741,416 @@ def test_execute_workflow_aborts_on_input_guardrail_tripwire() -> None:
         )
 
     assert adapter.client.responses.calls == []
+
+
+def tool_input_guardrail_workflow(
+    *,
+    approval_required: bool = False,
+    declarations: list[dict[str, object]] | None = None,
+) -> LoadedAgentWorkflow:
+    tool: dict[str, object] = {"id": "search_repo"}
+    if approval_required:
+        tool["approval_required"] = "yes"
+    return workflow_from(
+        {
+            "format_version": 1,
+            "package_type": "dynamic_agent_design",
+            "package_id": "tool-input-guardrail-agent",
+            "entrypoint": "lookup",
+            "packaging": {"mode": "hybrid_bundle"},
+            "extensions": {
+                "guardrails": {
+                    "declarations": declarations
+                    or [{"id": "safe_tool_args", "phase": "tool_input"}]
+                }
+            },
+            "nodes": [
+                {
+                    "id": "lookup",
+                    "kind": "tool_use_step",
+                    "tool_id": "search_repo",
+                    "inputs": {"query": {"terms": ["agents"]}},
+                }
+            ],
+            "edges": [],
+            "tools": [tool],
+        }
+    )
+
+
+def test_execute_workflow_runs_tool_input_guardrail_after_validation() -> None:
+    observed_subjects: list[object] = []
+    observed_handler_arguments: list[object] = []
+    invocation_order: list[str] = []
+
+    def guardrail(subject: object) -> GuardrailResult:
+        observed_subjects.append(deepcopy(subject))
+        assert isinstance(subject, dict)
+        subject["arguments"]["query"]["terms"].append("mutated")
+        return GuardrailResult(guardrail_id="safe_tool_args", phase="tool_input")
+
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "search_repo"}),
+                lambda arguments: (
+                    observed_handler_arguments.append(arguments)
+                    or invocation_order.append("handler")
+                    or {"ok": True}
+                ),
+            )
+        ]
+    )
+
+    result = execute_workflow(
+        tool_input_guardrail_workflow(),
+        prompt="Run",
+        tool_registry=registry,
+        guardrail_registry=InMemoryGuardrailRegistry({"safe_tool_args": guardrail}),
+        lifecycle_hooks=WorkflowLifecycleHooks(
+            before_tool=lambda _context: invocation_order.append("before_tool"),
+            after_tool=lambda _context: invocation_order.append("after_tool"),
+        ),
+        run_id="direct-tool-run",
+    )
+
+    assert observed_subjects == [
+        {
+            "phase": "tool_input",
+            "tool_id": "search_repo",
+            "node_id": "lookup",
+            "arguments": {"query": {"terms": ["agents"]}},
+        }
+    ]
+    assert observed_handler_arguments == [{"query": {"terms": ["agents"]}}]
+    assert invocation_order == ["before_tool", "handler", "after_tool"]
+    assert result.final_result == {"ok": True}
+    assert result.state.tool_results["lookup"].model_facing_output == {"ok": True}
+    assert result.state.node_outputs["lookup"].model_facing_output == {"ok": True}
+    assert [event.event_type for event in result.state.trace_events] == [
+        "workflow_started",
+        "node_started",
+        "guardrail_started",
+        "guardrail_passed",
+        "tool_started",
+        "tool_invocation",
+        "retry_recorded",
+        "tool_result",
+        "tool_finished",
+        "node_completed",
+        "workflow_completed",
+    ]
+    direct_tool_events = [
+        event
+        for event in result.state.trace_events
+        if event.event_type
+        in {"tool_started", "tool_invocation", "tool_result", "tool_finished"}
+    ]
+    assert {event.run_id for event in direct_tool_events} == {"direct-tool-run"}
+    assert all("tool_call_id" not in event.payload for event in direct_tool_events)
+
+
+def test_execute_workflow_aborts_tool_input_guardrail_before_approval_or_tool_hooks() -> (
+    None
+):
+    calls: list[object] = []
+    hooks: list[str] = []
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping(
+                    {"id": "search_repo", "approval_required": "yes"}
+                ),
+                lambda arguments: calls.append(arguments) or {"ok": True},
+            )
+        ]
+    )
+    guardrails = InMemoryGuardrailRegistry(
+        {
+            "safe_tool_args": lambda _subject: GuardrailResult(
+                guardrail_id="safe_tool_args",
+                phase="tool_input",
+                decision=GuardrailDecision.ABORT,
+                reason_code="unsafe_arguments",
+            )
+        }
+    )
+
+    with pytest.raises(GuardrailExecutionError, match="unsafe_arguments"):
+        execute_workflow(
+            tool_input_guardrail_workflow(approval_required=True),
+            prompt="Run",
+            tool_registry=registry,
+            guardrail_registry=guardrails,
+            lifecycle_hooks=WorkflowLifecycleHooks(
+                before_tool=lambda _context: hooks.append("before_tool"),
+                after_tool=lambda _context: hooks.append("after_tool"),
+            ),
+        )
+
+    assert calls == []
+    assert hooks == []
+
+
+def test_execute_workflow_fails_closed_for_missing_tool_input_guardrail_adapter() -> (
+    None
+):
+    calls: list[object] = []
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "search_repo"}),
+                lambda arguments: calls.append(arguments) or {"ok": True},
+            )
+        ]
+    )
+
+    with pytest.raises(GuardrailExecutionError, match="missing_adapter"):
+        execute_workflow(
+            tool_input_guardrail_workflow(),
+            prompt="Run",
+            tool_registry=registry,
+        )
+
+    assert calls == []
+
+
+def test_execute_workflow_runs_tool_input_guardrails_in_manifest_order() -> None:
+    observed: list[str] = []
+    calls: list[object] = []
+    guardrails = InMemoryGuardrailRegistry(
+        {
+            "first": lambda _subject: (
+                observed.append("first")
+                or GuardrailResult(guardrail_id="first", phase="tool_input")
+            ),
+            "second": lambda _subject: (
+                observed.append("second")
+                or GuardrailResult(
+                    guardrail_id="second",
+                    phase="tool_input",
+                    decision=GuardrailDecision.ABORT,
+                    reason_code="second_blocks",
+                )
+            ),
+        }
+    )
+
+    with pytest.raises(GuardrailExecutionError, match="second_blocks"):
+        execute_workflow(
+            tool_input_guardrail_workflow(
+                declarations=[
+                    {"id": "first", "phase": "tool_input"},
+                    {"id": "second", "phase": "tool_input"},
+                ]
+            ),
+            prompt="Run",
+            tool_registry=InMemoryToolRegistry(
+                [
+                    RegisteredTool(
+                        ToolDefinition.from_mapping({"id": "search_repo"}),
+                        lambda arguments: calls.append(arguments) or {"ok": True},
+                    )
+                ]
+            ),
+            guardrail_registry=guardrails,
+        )
+
+    assert observed == ["first", "second"]
+    assert calls == []
+
+
+def test_execute_workflow_fails_closed_for_invalid_tool_input_guardrail_result() -> (
+    None
+):
+    secret = "do-not-trace-this"
+    registry = InMemoryToolRegistry([make_tool("search_repo", output={"ok": True})])
+    guardrails = InMemoryGuardrailRegistry(
+        {"safe_tool_args": lambda _subject: object()}  # type: ignore[dict-item]
+    )
+    sink = InMemoryTraceSink()
+
+    with pytest.raises(GuardrailExecutionError, match="malformed_result"):
+        execute_workflow(
+            tool_input_guardrail_workflow(),
+            prompt=secret,
+            tool_registry=registry,
+            guardrail_registry=guardrails,
+            trace_sink=sink,
+        )
+
+    error_event = next(
+        event for event in sink.events if event.event_type == "guardrail_errored"
+    )
+    assert error_event.payload == {
+        "guardrail_id": "safe_tool_args",
+        "phase": "tool_input",
+        "tool_id": "search_repo",
+        "node_id": "lookup",
+        "reason": "malformed_result",
+    }
+    assert secret not in repr(error_event.payload)
+
+
+def test_execute_workflow_aborts_guarded_model_tool_call_before_dispatch() -> None:
+    observed_subjects: list[object] = []
+    tool_calls: list[object] = []
+    workflow = loop_tool_workflow(
+        guardrails=[{"id": "safe_tool_args", "phase": "tool_input"}]
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            }
+        ]
+    )
+    registry = InMemoryToolRegistry(
+        [
+            RegisteredTool(
+                ToolDefinition.from_mapping({"id": "search_repo"}),
+                lambda arguments: tool_calls.append(arguments) or {"ok": True},
+            )
+        ]
+    )
+    guardrails = InMemoryGuardrailRegistry(
+        {
+            "safe_tool_args": lambda subject: (
+                observed_subjects.append(subject)
+                or GuardrailResult(
+                    guardrail_id="safe_tool_args",
+                    phase="tool_input",
+                    decision=GuardrailDecision.ABORT,
+                    reason_code="unsafe_arguments",
+                )
+            )
+        }
+    )
+
+    with pytest.raises(GuardrailExecutionError, match="unsafe_arguments"):
+        execute_workflow(
+            workflow,
+            prompt="How?",
+            tool_registry=registry,
+            model_adapter=adapter,
+            guardrail_registry=guardrails,
+        )
+
+    assert observed_subjects == [
+        {
+            "phase": "tool_input",
+            "tool_id": "search_repo",
+            "node_id": "analyze",
+            "tool_call_id": "call_1",
+            "arguments": {"query": "agents"},
+        }
+    ]
+    assert tool_calls == []
+    assert len(adapter.client.responses.calls) == 1
+
+
+def test_execute_workflow_runs_passing_guardrail_for_model_tool_call() -> None:
+    subjects: list[object] = []
+    workflow = loop_tool_workflow(
+        guardrails=[{"id": "safe_tool_args", "phase": "tool_input"}]
+    )
+    adapter = make_adapter(
+        [
+            {
+                "id": "resp_1",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_1",
+                        "name": "search_repo",
+                        "arguments": '{"query":"agents"}',
+                    }
+                ],
+            },
+            {"id": "resp_2", "output_text": "final answer"},
+        ]
+    )
+    result = execute_workflow(
+        workflow,
+        prompt="How?",
+        tool_registry=InMemoryToolRegistry(
+            [make_tool("search_repo", output={"answer": "42"})]
+        ),
+        model_adapter=adapter,
+        guardrail_registry=InMemoryGuardrailRegistry(
+            {
+                "safe_tool_args": lambda subject: (
+                    subjects.append(subject)
+                    or GuardrailResult(
+                        guardrail_id="safe_tool_args", phase="tool_input"
+                    )
+                )
+            }
+        ),
+    )
+
+    assert result.final_result == "final answer"
+    assert subjects[0]["tool_call_id"] == "call_1"
+    assert result.state.tool_results["analyze.call_1"].success
+
+
+@pytest.mark.parametrize(
+    ("handler", "reason"),
+    [
+        (
+            lambda _subject: GuardrailResult(
+                guardrail_id="wrong_id", phase="tool_input"
+            ),
+            "result_identity_mismatch",
+        ),
+        (
+            lambda _subject: GuardrailResult(
+                guardrail_id="safe_tool_args", phase="input"
+            ),
+            "result_phase_mismatch",
+        ),
+        (
+            lambda _subject: (_ for _ in ()).throw(RuntimeError("adapter failed")),
+            "handler_error",
+        ),
+    ],
+)
+def test_execute_workflow_fails_closed_for_tool_input_guardrail_errors(
+    handler: object,
+    reason: str,
+) -> None:
+    sink = InMemoryTraceSink()
+    with pytest.raises(GuardrailExecutionError, match=reason):
+        execute_workflow(
+            tool_input_guardrail_workflow(),
+            prompt="Run",
+            tool_registry=InMemoryToolRegistry([make_tool("search_repo")]),
+            guardrail_registry=InMemoryGuardrailRegistry(
+                {"safe_tool_args": handler}  # type: ignore[dict-item]
+            ),
+            trace_sink=sink,
+        )
+
+    guardrail_events = [
+        event
+        for event in sink.events
+        if event.event_type
+        in {"guardrail_started", "guardrail_errored", "workflow_error"}
+    ]
+    assert [event.event_type for event in guardrail_events] == [
+        "guardrail_started",
+        "guardrail_errored",
+        "workflow_error",
+    ]
+    assert guardrail_events[1].payload["reason"] == reason
 
 
 def test_run_agent_workflow_returns_final_result() -> None:

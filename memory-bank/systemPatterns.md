@@ -279,14 +279,40 @@
 
 ## Guidance for Future Work
 
-- Apple Foundation Models A1 is implemented and validated for standalone local text, structured output, and strict workflow paths. The pytest-native SDK harness remains a tracked follow-up because native status 255 can occur despite successful availability; keep A2 tool callbacks behind a separate coordinator and approval contract.
+- Apple Foundation Models is implemented through A4. The adapter turns only
+  the active sealed-host tool snapshot into Apple wrappers; wrappers enter
+  DAR's coordinator rather than exposing handlers or a registry. Directly
+  Apple-admissible schemas use generated wrappers. An eligible read-only
+  `authorized-mcp:` tool with a non-admissible upstream schema may instead use
+  one closed Apple envelope containing an opaque response-local token and JSON
+  arguments. Resolve the token exactly once, parse bounded JSON defensively,
+  validate the original upstream schema, then use the ordinary coordinator.
+  Never expose tool identity through the gateway, and never use it for
+  side-effecting or non-MCP tools. Host-owned `authorized-mcp:` side effects
+  still require DAR approval and source-registry currentness; with no decision
+  collaborator, they remain an unresolved typed provider interruption before
+  handler entry. Preserve this narrow projection and do not add an
+  Apple-specific decision path.
+- Apple callback provenance is an adapter-transport concern, not a relaxation
+  of host provenance. When Apple returns one of its compact source-list or
+  top-level envelope forms, the adapter may emit DAR's canonical prompt-span
+  proofs only when every string argument occurs exactly once in the sealed
+  original prompt. Provider byte offsets, lengths, and duplicate serialized
+  envelopes are not evidence; unknown or ambiguous forms remain for the host's
+  fail-closed verification path.
 - Interpreter middleware has a resolved gateway and custom-adapter direction but
   is not implementation-ready. Prototype candidate backends and resolve safety,
   redaction, descriptor-budget, and nested approval/resume questions first.
 - Use `specs/README.md` as the current spec inventory and completion matrix.
   Future live-runtime work should start from the relevant feature spec under
   `specs/` and resolve its `NEEDS CLARIFICATION` items before implementation.
-- The current roadmap has capability status, approval/sandbox v1, MCP v1, guardrail v1, iterative loops, skill source resolution, host integration, local-model availability, Apple A1 implementation, and LiteLLM L1 plus opt-in Codex L2 slices complete. Apple pytest-native harness isolation, A2 callbacks, memory retrieval/persistence, and provider-backed compaction remain follow-up work; upstream LiteLLM publication and global default Codex replacement remain deferred.
+- The current roadmap has capability status, approval/sandbox v1, MCP v1,
+  guardrail v1, iterative loops, skill source resolution, host integration,
+  local-model availability, Apple A4, Apple C4's verified Fastmail note
+  acceptance, and LiteLLM L1 plus opt-in Codex L2 slices complete. Distinct
+  Apple Fastmail/O7 operations, memory retrieval/persistence, and
+  provider-backed compaction remain follow-up work; upstream LiteLLM
+  publication and global default Codex replacement remain deferred.
 - `specs/capability-status-report/spec.md` owns the implemented preflight
   reporting direction for live, metadata-only, missing-collaborator, disabled,
   unsupported, and invalid capabilities.

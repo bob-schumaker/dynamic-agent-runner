@@ -10,12 +10,19 @@ packaging:
   skill_bundle_dir: skill-bundle
 runtime:
   execution_policy:
-    autonomy_level: supervised agent
+    autonomy_level: supervised_agent
     allowed_execution_modes:
     - sequential_fallback
     external_backend_allowed: false
     max_iterations: 3
+    max_steps: 5
     timeout: runtime_default
+    exit_strategy:
+      terminal_conditions:
+      - hello_message emitted
+      - validation failure or unavailable fixture context
+      on_exhaustion: escalate
+      ambiguous_completion: clarify
     approval_required_for:
     - live write or mutation
     forbidden_actions:
@@ -57,12 +64,13 @@ skills:
 - id: agent-development
   label: Agent development skill
   source_type: repo_skill
-  source_path: skills/agent-development-skill/SKILL.md
+  source_path: corpus/capabilities/agent-development/SKILL.md
   packaging_mode: referenced_only
   notes: Provides agent pattern vocabulary for this fixture.
 tools:
 - id: hello_lookup
   label: Hello Lookup
+  tool_type: structured_data_query
   description_for_llm: 'Hello-world fixture tool for the hello_lookup capability.
 
     '
@@ -122,11 +130,11 @@ nodes:
     - prompt
     output_schema_ref: hello_message
 edges:
-- source: plan_tool_call
-  target: lookup_hello
+- from: plan_tool_call
+  to: lookup_hello
   edge_kind: sequential
-- source: lookup_hello
-  target: summarize_tool_result
+- from: lookup_hello
+  to: summarize_tool_result
   edge_kind: sequential
 output_contracts:
 - id: hello_message

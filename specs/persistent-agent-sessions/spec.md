@@ -11,6 +11,15 @@
   - `specs/async-session-memory-pipeline/spec.md`
   - `specs/context-management-prepare-stage/spec.md`
   - `specs/iterative-agent-loop-runtime/spec.md`
+- Evaluated external session-continuity provenance:
+  - [`sickn33/antigravity-awesome-skills`](https://github.com/sickn33/antigravity-awesome-skills)
+  - `/Users/roschuma/Repos/github/antigravity-awesome-skills/skills/context-agent/SKILL.md`
+  - `/Users/roschuma/Repos/github/antigravity-awesome-skills/skills/context-agent/references/context-format.md`
+  - `/private/tmp/antigravity-awesome-skills-focused-graph/graphify-out/GRAPH_REPORT.md`
+  - `https://mathspp.com/blog/write-a-coding-agent-from-first-principles`
+    for user-level conversation controls such as clearing or trimming context,
+    importing/exporting history, and distinguishing host commands from
+    model-visible prompts
 
 ## Objective
 
@@ -239,6 +248,26 @@ Acceptance criteria:
 - Given external checkpoint persistence is requested, then v1 does not report a
   live persistent-session capability.
 
+### FR-9: Expose a structured session snapshot summary shape
+
+Session snapshots may carry a structured summary projection that helps callers
+resume work without replaying raw transcripts.
+
+Acceptance criteria:
+
+- Given a caller supplies or preserves summary metadata, when
+  `current_state().to_mapping()` is called, then the snapshot can include
+  structured fields for intent, decisions, pending tasks, modified files,
+  blockers, next action, and metrics.
+- Given the runtime has no caller-provided summary metadata, then it must not
+  invent model-backed summaries or infer file modifications from raw text.
+- Given a snapshot with structured summary metadata is restored, then the
+  metadata is preserved as caller-owned state without requiring DAR-owned
+  durable storage or full-text search.
+- Given summary metadata contains sensitive prompt or output content, then
+  snapshot documentation must make redaction and external persistence the
+  caller's responsibility.
+
 ## Non-Functional Requirements
 
 - Session APIs must be async-first, with synchronous wrappers only where they
@@ -259,6 +288,8 @@ Acceptance criteria:
 - Passing restored session messages into workflow execution.
 - Updating session transcript after successful runs.
 - State retrieval and restart from saved state.
+- Optional structured snapshot summary metadata for caller-owned intent,
+  decisions, pending tasks, modified files, blockers, next action, and metrics.
 - Focused tests for multi-turn prompt continuity, snapshot/restore,
   session isolation, and same-session concurrency behavior.
 - Documentation updates that honestly distinguish in-memory v1 from durable
@@ -267,7 +298,9 @@ Acceptance criteria:
 ## Out of Scope
 
 - Durable filesystem, database, Redis, cloud, or OCI-backed session stores.
+- Host slash-command handling such as `/help`, `/exit`, or `/quit`.
 - Automatic semantic memory or vector retrieval.
+- Runner-owned session archive, full-text search, or durable memory database.
 - Model-backed summary generation.
 - Branching transcript DAGs.
 - Multi-agent shared memory.
@@ -275,6 +308,19 @@ Acceptance criteria:
 - Approval decision persistence or durable approval resume.
 - Raw tool transcript replay by default.
 - Cross-process locking.
+
+## Future Session Control APIs
+
+The mathspp coding-agent reference treats user commands as a host/UI concern,
+but it also identifies useful session operations: import/export history,
+clearing context, and dropping recent messages. Those are not a new feature
+family. Future approved slices should extend this spec with explicit APIs such
+as `clear_history`, `drop_last_turn`, `export_snapshot`, or
+`restore_snapshot` if callers need them.
+
+Those APIs must preserve the existing boundary: DAR owns structured session
+state operations, while callers own command parsing, UI labels, durable storage,
+and redaction policy for exported snapshots.
 
 ## Data Model Expectations
 
@@ -288,6 +334,8 @@ The v1 implementation defines dataclasses and state with these concepts:
 - last run id
 - last result value or compact result record
 - optional caller metadata
+- optional structured summary metadata with intent, decisions, pending tasks,
+  modified files, blockers, next action, and metrics
 
 Snapshots should be copy-safe: mutating a returned snapshot must not mutate the
 store unless explicitly saved back.
@@ -322,6 +370,10 @@ they must not be added to retained chat history by default.
   in-memory store behavior.
 - `context-management-prepare-stage` owns pruning, compaction, lane assembly,
   and prompt preparation from supplied session messages.
+- `context-management-prepare-stage` and `model-backed-context-summaries` own
+  prompt-visible summaries and summarizer behavior. This spec may preserve
+  caller-supplied summary metadata in snapshots, but it does not generate
+  model-backed summaries.
 - `iterative-agent-loop-runtime` owns bounded model-tool loops inside one run.
   This spec owns continuity between runs.
 - `approval-interruption-resume` remains the owner for durable approval resume.
@@ -340,6 +392,8 @@ The implementation provides focused tests for:
 - preserving ordinary input guardrail and approval interruption behavior
 - not appending assistant history for failed or interrupted runs
 - retaining only user/assistant messages by default, without raw tool payloads
+- preserving caller-supplied structured snapshot summary metadata without
+  generating summaries or persisting external indexes
 
 Validation commands include:
 
@@ -375,3 +429,9 @@ Implemented scope includes public `AgentSession`, `AgentSessionState`,
 state retrieval, copy-safe snapshots, snapshot restart, history policies,
 session-id state injection, same-session concurrency rejection, sync wrapper
 parity, documentation, and live in-memory session capability/status reporting.
+
+Future approved slices may extend the snapshot schema with structured
+caller-owned summary metadata for intent, decisions, pending tasks, modified
+files, blockers, next action, and metrics. That extension should preserve and
+round-trip supplied metadata only; durable stores, FTS indexes, archival session
+files, and model-generated summaries remain caller-owned or separately scoped.

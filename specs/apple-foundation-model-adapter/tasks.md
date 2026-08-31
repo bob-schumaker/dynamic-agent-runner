@@ -1,7 +1,9 @@
 <!-- markdownlint-disable MD013 -->
 # Apple Foundation Models Adapter Tasks
 
-Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification blocked
+Status: A1–A4 implementation complete; A3 C4 eligible-Mac Fastmail read-only
+acceptance complete; standalone direct release gate established; full test suite
+green; Apple bridged-wrapper annotation regression tracked as A2 B5
 
 ## Prerequisites
 
@@ -10,6 +12,7 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - Existing adapter boundary: `AsyncOpenAIClientAdapter`
 - Strict local-only selection uses `model_adapter_coverage="strict"`.
 - Unit tests use fakes; live Apple tests are separate and eligibility-gated.
+- A3 plan: `a3-plan.md`; canonical A3 task list: `a3-tasks.md`.
 
 ## Slice 1 — Contract and portability RED tests
 
@@ -68,13 +71,36 @@ Status: A1 implementation complete; standalone eligible-Mac live paths verified;
 - [x] T6.1 Run focused Apple, executor, and import tests.
 - [x] T6.2 Run full tests, Ruff, `poetry check`, package build, and focused
       pre-commit.
-- [x] T6.3 Run eligible-Mac standalone live text, structured-output, and strict-workflow verification; record pytest-native status-255 limitation.
+- [x] T6.3 Run eligible-Mac standalone live text, structured-output, and strict-workflow verification; record the pytest-native SDK result.
 - [x] T6.4 Check spec links/status consistency and update `specs/README.md`.
-- [x] T6.5 Confirm A2 remains deferred and record the native SDK validation limitation.
-- [ ] T6.6 Resolve or replace the pytest-native Apple SDK harness before using it as a release gate.
+- [x] T6.5 Record the approved A2 handoff and the native SDK validation result.
+- [x] T6.6 Replace pytest-native Apple SDK generation as the A1 release gate
+      with the standalone direct-runtime runner. Keep marked pytest-native
+      checks as diagnostic evidence only.
+  - Evidence: `scripts/run_apple_live_release_gate.py` and
+    `validation.md` (2026-08-27); the elevated eligible-Mac runner passed text,
+    structured-output, and strict-workflow checks with a redacted receipt.
+- [x] T6.7 Preserve the configured-host MCP ``tools/list`` contract: hide
+      ``run_dar_workflow`` when the local host cannot open and expose it only
+      when a host is configured. Replace the environment-dependent fixture with
+      explicit unavailable-host coverage and rerun the full suite.
+  - Evidence: `tests/test_mcp_server.py` and `validation.md` (2026-08-27);
+    focused MCP coverage passed and the full suite is green.
 
-## Deferred A2 tasks
+## A2 handoff
 
-Apple `Tool` wrappers, the DAR-owned invocation coordinator, approval pause /
-resume, callback lifecycle tracing, and live callback tests require a separate
-approved plan and are not tasks in this A1 list.
+Apple `Tool` wrappers, provider ingress, callback lifecycle tracing, and live
+callback tests are governed by the approved `a2-plan.md` and `a2-tasks.md`.
+Durable approval pause/resume remains outside A2 scope.
+
+The live interface matrix discovered a bridge construction failure before Apple
+model generation: `DarTool2Arguments contains undefined references:
+[Annotated]`. Canonical bug task B5.1 in `a2-tasks.md` owns its reproduction,
+fix, and eligible-Mac regression proof.
+
+## A3 handoff
+
+Apple selection inside the sealed DAR-authoring host is governed by
+`a3-plan.md` and `a3-tasks.md`. A3 C4 completed the Apple-backed Fastmail O7
+read-only acceptance with redacted evidence. This completed slice does not
+reopen A1/A2 or change generic OAuth/MCP ownership.

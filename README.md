@@ -247,11 +247,8 @@ modes are not treated as OpenAI API keys in this path.
 
 Ordinary OpenAI-compatible requests use LiteLLM's Chat Completions transport;
 ChatGPT/Codex auth continues through the repository-owned SDK backend until the
-separate Responses-aware LiteLLM slice is implemented. DAR includes a small
-`dynamic_agent_runner.litellm` OpenAI-compatible fallback so the ordinary
-transport works even when the full upstream LiteLLM package is unavailable.
-The OCI wheelhouse may additionally include the checked-in upstream LiteLLM
-wheel as a temporary distribution boundary.
+separate Responses-aware LiteLLM slice is implemented. LiteLLM is an installed
+DAR dependency.
 
 For an explicit LiteLLM adapter with injected dispatch or router behavior:
 
@@ -365,10 +362,59 @@ model resolution or dependency loading. The default in-process backend lazily
 imports `mlx-lm`, expects a caller-controlled converted MLX model directory,
 explicit `.gguf` file (`model_format="gguf"`), or explicit Hugging Face
 reference, and does not start a server or wrap MLX as hosted OpenAI. Install
-with the `huggingface` extra before using Hugging Face-backed model discovery
-or asset downloads. The in-process adapter remains plain text generation only:
-tool calling, structured output, embeddings, multimodal IO, streaming public
-APIs, conversion, and server lifecycle helpers are separate feature surfaces.
+with the `mlx` extra before using the default in-process MLX backend, and with
+the `huggingface` extra before using Hugging Face-backed model discovery or
+asset downloads. The default in-process backend remains text-only:
+`tool_calling=False`, and a tool-bearing request fails before model resolution
+or generation. An advanced caller may opt into tool calling only by injecting
+both an `MLXToolCodec` and a version-compatible `MLXToolCapableBackend`; this
+does not make arbitrary MLX models, tokenizers, or stock `mlx-lm` tool-capable.
+The injected pair emits DAR's strict tool-call contract, while DAR retains
+exposure and schema validation, approval, coordinator dispatch, tracing, and
+tool-result continuation. Structured output, embeddings, multimodal IO,
+streaming public APIs, conversion, and server lifecycle helpers remain separate
+unsupported feature surfaces.
+
+For the pinned `mlx-community/Qwen3-4B-Instruct-2507-nvfp4` artifact, DAR also
+ships explicit sync and async convenience helpers. Load that exact local model
+first, then pass its pair to `create_qwen3_mlx_local_adapter` or
+`create_qwen3_mlx_local_async_adapter`; the configuration must use
+`PINNED_QWEN3_MLX_MODEL_ID` as `expected_model_id`:
+
+```python
+from mlx_lm import load
+
+from dynamic_agent_runner import (
+    PINNED_QWEN3_MLX_MODEL_ID,
+    MLXLocalModelConfig,
+    create_qwen3_mlx_local_adapter,
+    create_qwen3_mlx_local_async_adapter,
+)
+
+model, tokenizer = load("path/to/Qwen3-4B-Instruct-2507-nvfp4")
+qwen3_config = MLXLocalModelConfig(
+    model_aliases=("qwen3-local",),
+    model_path="path/to/Qwen3-4B-Instruct-2507-nvfp4",
+    expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+)
+qwen3_adapter = create_qwen3_mlx_local_adapter(
+    qwen3_config,
+    model=model,
+    tokenizer=tokenizer,
+)
+
+qwen3_async_adapter = create_qwen3_mlx_local_async_adapter(
+    qwen3_config,
+    model=model,
+    tokenizer=tokenizer,
+)
+```
+
+This helper owns strict parsing of exactly one pure native
+`<tool_call>…</tool_call>` envelope. It accepts only an omitted `tool_choice`;
+mixed prose, malformed envelopes, duplicate JSON keys, and non-object arguments
+fail before a tool is dispatched. It does not detect arbitrary Qwen models or
+change the text-only behavior of `create_mlx_local_adapter()`.
 
 For Apple's system-managed Foundation Model, install the optional Apple SDK
 extra on an eligible Apple-silicon Mac with Apple Intelligence enabled:
@@ -399,19 +445,58 @@ result = run_agent_workflow(
 ```
 
 The adapter uses Apple's in-process `apple-fm-sdk`; it does not need an API
-key, model path, Hugging Face reference, or local HTTP server. A1 supports
-final text and explicit JSON Schema output only. Tools, provider-native
-streaming, images/audio, persistent Apple sessions, Private Cloud Compute, and
-external HTTP clients are not supported. If Apple Intelligence is disabled,
-the Mac is ineligible, the model is still preparing, or generation fails after
-preflight, the adapter reports a package-owned diagnostic with the SDK failure
-preserved as its cause.
+key, model path, Hugging Face reference, or local HTTP server. It supports
+final text, explicit JSON Schema output, and tools exposed to the active DAR
+node. For each exposed tool, DAR creates an opaque Apple wrapper and routes its
+callback through DAR's normal tool coordinator. That preserves exposure,
+argument validation, guardrails, approvals, lifecycle hooks, tracing, state,
+and model-facing result shaping; the Apple callback never invokes a handler or
+registry directly.
 
-The opt-in live checks require an eligible Mac and can be run with:
+An approved callback dispatches exactly once. Denied, cancelled, or expired
+decisions do not invoke the handler; an unresolved decision ends the provider
+turn as a DAR workflow interruption before any handler runs. Apple tool input
+schemas must be finite objects with every property required and
+`additionalProperties: false`. The admitted subset includes nested objects and
+arrays, `string`, `integer`, `number`, and `boolean` values, string enums,
+numeric minimum/maximum, and array minimum/maximum item counts. DAR rejects
+untranslatable schemas before creating an Apple session, including optional
+properties, map objects, `$ref`, composition, null types, non-string enums,
+`const`, patterns/formats, string-length limits, unknown keywords, and property
+names that are not Python identifiers or are Python keywords.
+
+Provider-native streaming, images/audio, persistent Apple sessions, Private
+Cloud Compute, embeddings, and external HTTP clients are not supported. If
+Apple Intelligence is disabled, the Mac is ineligible, the model is still
+preparing, or generation fails after preflight, the adapter reports a
+package-owned diagnostic with the SDK failure preserved as its cause.
+
+The standalone A1 release gate uses direct runtime calls rather than
+pytest-native model generation. Run it on an eligible Mac outside the Codex
+execution sandbox:
 
 ```bash
-DAR_RUN_LIVE_APPLE=1 poetry run pytest -m apple_live -q
+poetry run python scripts/run_apple_live_release_gate.py
 ```
+
+It emits a redacted receipt after real text, structured-output, and strict
+workflow execution. Default pytest runs exclude Apple live tests. Select those
+diagnostic and A2 callback smokes on an eligible Mac with:
+
+```bash
+poetry run pytest -m apple_live -q
+```
+
+The tests themselves require macOS, the optional `apple-fm-sdk`, and an
+available `SystemLanguageModel`; they skip when a prerequisite is absent. An
+historical native `GenerationError` with status 255 occurred inside the Codex
+execution sandbox despite successful availability. It did not recur in the
+restored environment, but the native callback sentinel should still run from an
+elevated host terminal outside that sandbox here. Pytest-native Apple tests are
+diagnostic evidence, not the A1 release gate. This is a local harness
+constraint, not a requirement for all Apple Foundation Models hosts. The SDK
+also emits a known deprecation warning and ignored teardown ``TypeError`` after
+successful native tests.
 
 Use `load_agent_workflow(...)` when callers only need to load and validate the
 package relationship without executing model or tool calls.
@@ -710,6 +795,24 @@ DAR_RUN_LIVE_CODEX_PARITY=1 poetry run pytest \
 
 It uses an isolated temporary Codex home and is not part of the normal unit
 suite.
+
+The same controlled S1--S6 tool catalog used by the offline parity suite also
+drives a manually gated live matrix. It exposes only in-memory record tools,
+but it calls the selected real model or local server:
+
+```bash
+DAR_RUN_LIVE_MODEL_INTERFACE_MATRIX=1 poetry run python \
+  scripts/run_live_model_interface_matrix.py \
+  --target endpoint --model qwen3-local \
+  --base-url http://127.0.0.1:8000/v1
+```
+
+Targets are `codex`, `openai`, `litellm`, `endpoint`, `llama_cpp`,
+`mlx_qwen3`, and `apple`. `endpoint` requires `--base-url`; direct llama.cpp
+and MLX require `--model-path`; MLX uses the pinned package-owned Qwen3 codec.
+Use `--scenario S1` or `--mode sync` to narrow a deliberately manual run.
+The legacy Codex comparison and Apple native probes are marked `live_matrix`
+supporting rows and remain opt-in.
 
 ## Graphify Navigation
 

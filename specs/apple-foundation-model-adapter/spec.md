@@ -6,8 +6,10 @@
 - Feature slug: `apple-foundation-model-adapter`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: A1 implementation complete; standalone eligible-Mac live paths verified; pytest-native SDK verification blocked; A2 separately gated
-- Version: `0.4`
+- Status: A1–A4 implementation complete; A3 C4 eligible-Mac Fastmail read-only
+  acceptance complete; standalone direct release gate established; pytest-native
+  SDK checks remain diagnostic
+- Version: `0.5`
 - Date: 2026-07-01
 - Owner: dynamic-agent-runner model-provider boundary
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
@@ -17,12 +19,17 @@
   - `specs/openai-responses-tool-loop-compat/spec.md`
   - `specs/iterative-agent-loop-runtime/spec.md`
   - `specs/approval-interruption-resume/spec.md`
+  - `specs/tool-invocation-coordinator/spec.md`
   - `specs/model-event-streaming/spec.md`
   - `specs/mlx-local-model-adapter/spec.md`
+  - `specs/model-interface-parity/spec.md`
 - Related implementation surfaces:
   - `src/dynamic_agent_runner/openai_client.py`
   - `src/dynamic_agent_runner/executor.py`
   - `src/dynamic_agent_runner/errors.py`
+  - `src/dynamic_agent_runner/workflow_host/host.py`
+  - `src/dynamic_agent_runner/workflow_host/profiles.py`
+  - `src/dynamic_agent_runner/workflow_host/runner.py`
   - `src/dynamic_agent_runner/__init__.py`
   - `tests/test_openai_client.py`
   - `tests/test_executor.py`
@@ -114,8 +121,8 @@ but they do not replace repeatable unit coverage or release validation.
   returned to DAR as JSON text in the normalized `ModelResponse.content`.
 - **Local execution**: DAR makes no provider network request; model execution is
   delegated in process to the macOS Foundation Models framework.
-- **Tool invocation coordinator**: a DAR-owned execution boundary that receives
-  provider-originated tool requests and applies DAR exposure, approval,
+- **Tool invocation coordinator**: a DAR-owned execution boundary whose first
+  slice supports direct and model-loop tool requests and applies DAR exposure, approval,
   lifecycle-hook, tracing, registry, state, and result-shaping behavior before
   any registered tool handler can run.
 
@@ -181,9 +188,9 @@ execution ownership into the provider adapter:
    `ToolResult.model_facing_output` selection
 5. approval-required calls cannot reach the registered handler before DAR
    records and resolves the approval decision
-6. an in-process approval resolver may keep the Apple callback suspended while
-   DAR obtains a decision; hosts without such a resolver must receive a DAR
-   interruption or fail before the tool handler runs
+6. a synchronous, trusted decision collaborator may return an exact approved,
+   denied, cancelled, or expired result before dispatch; unresolved approval
+   must become a provider-aware DAR interruption before the tool handler runs
 7. Apple receives only the coordinator's serialized model-facing result or a
    provider-safe representation of a DAR-controlled failure
 8. live tests prove that an Apple callback enters DAR behavior before the test
@@ -194,11 +201,11 @@ DAR tool and a single schema-constrained gateway tool. Per-tool wrappers are
 preferred when DAR schemas can be translated without loss; a gateway remains an
 allowed fallback only if it preserves the same coordinator and allowlist.
 
-A2 is not authorized for implementation by the A1 release boundary. Its plan
-must either depend on an approved model-emitted tool-call approval/resume
-contract or define a separately approved in-process approval resolver that
-preserves equivalent DAR state and correlation. The currently implemented
-direct `tool_use_step` interruption alone is not sufficient for Apple callbacks.
+A2 is authorized by its separately approved plan. Its implementation depends on
+the completed direct/model-loop coordinator slice, then extracts a provider-safe
+ingress seam and an explicit synchronous approval-decision contract that preserve
+DAR state and correlation. The current coordinator does not itself enable Apple
+callbacks.
 
 ### Deferred releases
 
@@ -579,16 +586,22 @@ Acceptance criteria:
   handler or registry is not invoked until approval succeeds.
 - Given the tool requires approval, when no approval decision exists, then the
   coordinator enters DAR's approval behavior and does not invoke the handler.
-- Given an in-process approval resolver approves the call, when the coordinator
-  resumes the suspended invocation, then it invokes the handler once with the
-  approved arguments and records the approval and tool lifecycle events.
+- Given a synchronous trusted decision collaborator approves the exact normalized
+  invocation, then the coordinator invokes the handler once with the approved
+  arguments and records the approval and tool lifecycle events.
 - Given approval is rejected, cancelled, expires, or cannot be resolved through
-  the active host contract, then the handler is not invoked and the outcome is
-  represented through DAR-owned interruption or failure behavior rather than an
+  the active host contract, then the handler is not invoked; unresolved approval
+  is represented through a provider-aware DAR interruption rather than an
   unclassified direct callback error.
 - Given the registry returns a `ToolResult`, when the callback completes, then
-  Apple receives only a serialized form of `ToolResult.model_facing_output` and
-  DAR retains the full result in workflow state.
+  Apple receives only a serialized, token-bounded form of
+  `ToolResult.model_facing_output` and DAR retains the full result in workflow
+  state. When the active system model exposes its context size and token-count
+  API, DAR reserves three quarters of that context and bounds the callback to
+  the remaining quarter; older SDKs use a conservative fallback. The bounded
+  form is valid JSON, marks truncation, and retains the first five structured
+  items so a provider context limit cannot prevent a read-only result from being
+  summarized.
 - Given tool output declares sensitive fields, when trace events are emitted,
   then the coordinator preserves the current DAR redaction contract.
 - Given Apple invokes more tools or iterations than DAR policy permits, then the
@@ -597,6 +610,70 @@ Acceptance criteria:
 - Given an A2 tool schema cannot be represented safely as an Apple
   `GenerationSchema`, then adapter preparation rejects that tool before session
   generation instead of weakening its validation silently.
+
+### FR-17: Support Apple Foundation Models in the sealed DAR-authoring host
+
+The human-configured local host must be able to select the Apple adapter for a
+saved workflow without turning it into an HTTP or LiteLLM profile.
+
+Acceptance criteria:
+
+- Given a human configures an Apple host profile on an eligible Mac, then it
+  records an Apple provider selection and model alias without a base URL, API
+  key, model-path, or downloaded-model reference.
+- Given an unsupported platform, missing optional SDK, or unavailable system
+  model, then profile setup and host opening fail with a package-owned,
+  redacted eligibility error before any workflow, MCP, or tool dispatch.
+- Given a saved workflow is registered to the Apple profile, then the host
+  constructs the canonical Apple async adapter rather than the HTTP local-model
+  adapter, while preserving registered execution-profile and strict adapter
+  coverage checks and binding the run to that exact profile. A workflow model
+  alias outside the selected
+  adapter's strict coverage must fail before input consumption, provider work,
+  MCP initialization, or handler dispatch.
+- Given a saved workflow exposes a reviewed MCP tool, then an Apple callback
+  reaches the existing DAR coordinator and preserves reviewed-surface binding,
+  approval, lifecycle hooks, state, trace redaction, result shaping, and tool
+  budgets.
+- Given the configured host remains HTTP-backed, then its profile, adapter
+  selection, registration, and invocation behavior remain unchanged.
+- Given the eligible-Mac Fastmail read-only acceptance is run after A3, then it
+  first verifies from a redacted current-surface digest that the reviewed
+  `search_email` schema is admissible for an Apple wrapper, then uses the saved
+  Apple-backed workflow and calls only that tool. It records only
+  package/transcript digests, terminal status, and dispatch counts; no email
+  content, OAuth value, raw tool result, or raw schema enters checked-in
+  evidence. An inadmissible schema blocks the acceptance rather than weakening
+  the schema or starting the live run.
+
+### FR-18: Schema-preserving Apple gateway fallback
+
+Apple's generated-tool schema is a provider constraint, not an upstream MCP
+contract. DAR must retain direct per-tool wrappers for losslessly representable
+schemas, but select one Apple-admissible gateway wrapper for an active tool with
+ordinary JSON Schema that Apple cannot represent directly. The gateway accepts
+only `{tool_token: string, arguments_json: string}`, with both fields required
+and `additionalProperties: false`. Tokens use an Apple-safe lowercase-hex
+encoding while retaining 192 bits of random entropy. Tokens are per-response
+opaque capabilities
+bound only to fallback tools in the exact active snapshot; they are never DAR
+ids, remote names, schemas, or reusable across responses. DAR rejects payloads
+over its fixed byte/depth/key limits, duplicate keys, non-object JSON, unknown,
+inactive, stale, or reused tokens. It must run full JSON Schema validation
+(`check_schema` plus validation) against the exact original active schema before
+the existing coordinator runs; registry preparation remains a later DAR
+mechanic, not the schema validator. DAR must not invent required fields, drop
+validation-relevant constraints, or broaden accepted input. Currentness,
+approval, hooks, tracing, state, budgets, and dispatch remain coordinator-owned.
+Raw schemas and gateway arguments remain private; redacted evidence contains
+only digests, status, and dispatch counts.
+
+FR-18 supersedes FR-16's direct-wrapper rejection only when this gateway
+contract is fully available; otherwise an unrepresentable schema still rejects
+before session generation. A4 implementation regenerated C4.3 as a digest-bound
+`direct`, `gateway`, or `blocked` classification. The recorded C4/O7 read-only
+acceptance required A4 parity tests, eligible-Mac evidence, and human review
+before its one permitted Fastmail dispatch.
 
 ## Non-Functional Requirements
 
@@ -677,7 +754,7 @@ and exposed tool set.
 
 ## Non-Goals
 
-The first release does not include:
+The A1 release does not include:
 
 - any dependency on or runtime invocation of `fmx`
 - an Apple-specific executor branch or workflow node kind
@@ -685,7 +762,7 @@ The first release does not include:
 - an HTTP `/v1/responses`, `/v1/chat/completions`, or `/v1/models` server
 - use of the official OpenAI SDK for Apple model calls
 - sync Apple SDK client emulation as a separate public provider surface
-- Apple SDK tool registration or DAR tool calling
+- Apple SDK tool registration or DAR tool calling (added by A2)
 - provider-native token or snapshot streaming
 - image, audio, or other multimodal prompts
 - persistent Apple sessions, transcript save/load, or durable memory
@@ -696,6 +773,11 @@ The first release does not include:
 - automatic retry of unclassified SDK failures
 - benchmarks, model-quality evaluation, or parity claims against hosted models
 
+The A3 release does not add a generic provider-profile framework, an Apple HTTP
+server, a non-Apple host behavior change, workflow-selected provider routing,
+or a bypass around the existing sealed registration, MCP, approval, and trace
+boundaries.
+
 The A2 release additionally does not include direct callback-to-handler or
 direct callback-to-registry invocation, ambient access to all registered tools,
 or silent fallback around approval and schema constraints.
@@ -705,50 +787,71 @@ or silent fallback around approval and schema constraints.
 The first-release implementation is not complete until all applicable checks
 pass:
 
-- [ ] Package import succeeds without `apple-fm-sdk`.
-- [ ] Adapter configuration and construction succeed on non-macOS platforms
+- [x] Package import succeeds without `apple-fm-sdk`.
+- [x] Adapter configuration and construction succeed on non-macOS platforms
       without importing `apple-fm-sdk`.
-- [ ] First generation on an unsupported platform fails before SDK import.
-- [ ] Missing SDK, unavailable model, and SDK generation errors translate to
+- [x] First generation on an unsupported platform fails before SDK import.
+- [x] Missing SDK, unavailable model, and SDK generation errors translate to
       package-owned errors with preserved causes.
-- [ ] Fake-backed text generation returns a normalized `ModelResponse`.
-- [ ] Instructions and ordered text history translate without silent loss.
-- [ ] Unsupported content, tools, streaming, and unrecognized request fields
+- [x] Fake-backed text generation returns a normalized `ModelResponse`.
+- [x] Instructions and ordered text history translate without silent loss.
+- [x] Unsupported content, streaming, and unrecognized request fields
       fail closed.
-- [ ] Explicit JSON Schema generation returns valid JSON text.
-- [ ] Schema-less `json_object` mode fails clearly.
-- [ ] Temperature, `max_tokens`, and `max_output_tokens` map correctly, and
+- [x] Explicit JSON Schema generation returns valid JSON text.
+- [x] Schema-less `json_object` mode fails clearly.
+- [x] Temperature, `max_tokens`, and `max_output_tokens` map correctly, and
       conflicting token-limit aliases fail before generation.
-- [ ] A fresh SDK session is created per request.
-- [ ] Concurrent requests do not share mutable sessions.
-- [ ] Strict coverage selects the Apple alias and prevents default OpenAI
+- [x] A fresh SDK session is created per request.
+- [x] Concurrent requests do not share mutable sessions.
+- [x] Strict coverage selects the Apple alias and prevents default OpenAI
       fallback for missing coverage.
-- [ ] Structured capability selection works through existing model metadata.
-- [ ] Unit tests make no live Apple model calls.
-- [ ] Standalone live text, structured-output, and full DAR workflow checks pass on the designated eligible Mac; pytest-native status-255 behavior is recorded as an SDK harness limitation.
-- [ ] Live tests skip cleanly with an actionable reason when Apple prerequisites
+- [x] Structured capability selection works through existing model metadata.
+- [x] Unit tests make no live Apple model calls.
+- [x] Standalone live text, structured-output, and full DAR workflow checks pass on the designated eligible Mac; the separate pytest-native SDK result is recorded.
+- [x] Live tests skip cleanly with an actionable reason when Apple prerequisites
       are unavailable.
-- [ ] Focused tests, full tests, lint, package build, and import checks pass.
-- [ ] Documentation covers installation, prerequisites, strict local usage,
+- [x] Focused tests, full tests, lint, package build, and import checks pass.
+- [x] Documentation covers installation, prerequisites, registered
+      execution-profile usage,
       capabilities, limitations, and diagnostics.
 
 ### A2 validation checklist
 
-- [ ] Apple sessions receive only wrappers for tools exposed to the active node.
-- [ ] Callback arguments enter the DAR-owned tool invocation coordinator.
-- [ ] No callback can invoke a handler or registry directly.
-- [ ] DAR argument validation runs before the test handler.
-- [ ] Approval-required tools cannot run before approval resolution.
-- [ ] Approved calls run once with the approved arguments.
-- [ ] Rejected, cancelled, expired, and unresolved approvals never invoke the
+- [x] Apple sessions receive only wrappers for tools exposed to the active node.
+- [x] Callback arguments enter the DAR-owned tool invocation coordinator.
+- [x] No callback can invoke a handler or registry directly.
+- [x] DAR argument validation runs before the test handler.
+- [x] Approval-required tools cannot run before approval resolution.
+- [x] Approved calls run once with the approved arguments.
+- [x] Rejected, cancelled, expired, and unresolved approvals never invoke the
       handler.
-- [ ] DAR lifecycle hooks, trace events, state storage, sensitive-field
+- [x] DAR lifecycle hooks, trace events, state storage, sensitive-field
       redaction, and model-facing output behavior are preserved.
-- [ ] Tool iteration and completion limits are enforced before further handler
+- [x] Tool iteration and completion limits are enforced before further handler
       invocation.
-- [ ] Unsupported Apple argument-schema translations fail before generation.
-- [ ] Fake-backed unit tests and live Apple callback tests cover the complete
+- [x] Unsupported Apple argument-schema translations fail before generation.
+- [x] Fake-backed unit tests and live Apple callback tests cover the complete
       coordinator path.
+
+### A3 validation checklist
+
+- [x] Apple profile configuration does not accept or persist HTTP transport,
+      credential, model-path, or downloaded-model fields.
+- [x] Unsupported host/platform/SDK/model states fail before MCP initialization
+      or any handler dispatch.
+- [x] A saved Apple-backed workflow constructs the canonical async adapter and
+      retains exact profile-registration binding and strict adapter coverage;
+      an unmatched package model fails before input consumption or dispatch.
+- [x] Existing HTTP-backed host profiles retain their current adapter and
+      behavior.
+- [x] Apple-backed saved workflows preserve reviewed MCP binding, coordinator
+      ingress, approval, lifecycle, state, trace redaction, result shaping, and
+      callback budgets.
+- [x] Fake tests cover all host profile and runner paths; eligible-Mac live
+      tests prove direct Apple-backed saved-workflow execution.
+- [x] The Fastmail read-only acceptance records only redacted evidence and
+      preflights the redacted `search_email` surface digest for Apple-schema
+      admissibility, then succeeds through the Apple-backed saved workflow.
 
 ## Resolved Decisions
 
@@ -774,9 +877,12 @@ pass:
     the Apple SDK itself exposes more.
 11. Apple tool callbacks are provider ingress points and must pass through a
     DAR-owned tool invocation coordinator before any handler can run.
-12. A2 approval-required callbacks use DAR approval behavior; the coordinator
-    may await an in-process host decision, but it may not bypass approval or
-    disguise a DAR interruption as an ordinary direct tool invocation.
+12. A2 approval-required callbacks may dispatch once only when a synchronous
+    trusted decision approves the exact normalized invocation. Denied,
+    cancelled, and expired decisions do not dispatch; unresolved approval
+    returns a provider-aware DAR interruption before any handler runs. A2 does
+    not wait for durable approval resume inside the Apple callback, bypass
+    approval, or disguise an interruption as an ordinary direct tool invocation.
 
 ## Open Questions
 
@@ -785,7 +891,6 @@ boundary. Exact class names, optional dependency version constraints, request
 renderer structure, error subtype reuse, and test-file placement belong to the
 technical plan and must not widen the approved first-release scope.
 
-The A2 technical plan must resolve whether the first approved host contract
-waits for approval in process or exits through a provider-aware DAR interruption.
-That mechanism may vary by host, but direct callback invocation of the handler or
-registry is not an allowed alternative.
+The approved A2 plan selects provider-aware interruption before handler
+invocation. Durable cross-process approval resume remains a later feature; direct
+callback invocation of the handler or registry is not an allowed alternative.

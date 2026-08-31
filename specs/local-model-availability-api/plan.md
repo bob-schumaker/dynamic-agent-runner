@@ -1,6 +1,6 @@
 # Local Model Availability API Implementation Plan
 
-Status: implemented through Slice A4
+Status: implemented through Slice A5.1
 
 ## Goal
 
@@ -72,6 +72,32 @@ Slices A1-A4 defer:
 - `tests/test_mlx_models.py` already has temporary converted MLX directory and
   GGUF fixtures.
 - `tests/test_import.py` is the current package-root export smoke test.
+
+## Slice A5.1 — Standard Hub Cache Default
+
+Use the existing shared local resolver. Its ordered lookup becomes: explicit
+path, unchanged flat explicit caller-root hit, reference-directed default Hub
+cache hit, then the existing authorized Hub download or offline failure. The
+new default root is `~/.cache/huggingface/hub`; do not read or modify
+`~/.ollama/models`.
+
+Keep the implementation small: a helper derives the requested repository cache
+directory and safely resolves a supplied snapshot id or repository-local ref
+pointer. It accepts only contained candidates in that repository's snapshot
+layout, allowing ordinary contained snapshot-to-blob links. Missing, malformed,
+or escaping references are cache misses. Do not create a cache abstraction or
+change explicit caller-root behavior.
+
+Apply the same reference-directed lookup to availability. Update inventory only
+for the default root: enumerate direct `models--*/snapshots/*` candidates and
+classify contained GGUF files or converted-MLX directories deterministically;
+continue direct-child scanning for caller-provided roots. Do not recurse into
+Hub blobs, refs, locks, unrelated provider directories, or escaping links.
+
+Focused TDD proof must use temporary Hub fixtures and deny spies for download,
+adapter/model-load, and local endpoint paths. Include explicit/symbolic/missing
+refs, cross-repository same-filename rejection, malformed/traversal data,
+escaping symlinks, no-`.ollama` sentinel access, and valid snapshot inventory.
 
 ## Public Contract Decisions
 
@@ -156,7 +182,8 @@ metadata_lookup=None)` should follow this order:
    - return `missing` or `invalid` without fallback unless the reference also
      explicitly identifies cache lookup behavior
 3. Check explicit cache root plus model filename.
-4. Check the default local-model cache root plus model filename.
+4. For a declared Hub reference, check only its contained default-Hub snapshot
+   candidate; otherwise check the default root plus model filename.
 5. If local checks found a candidate, validate it for the requested backend and
    format before reporting `available`.
 6. If local checks miss and no remote reference exists, return `missing`.
@@ -178,9 +205,9 @@ include_default_cache_root=True)` should follow this order:
    by current caller-provided roots.
 2. Normalize and de-duplicate roots by resolved path without requiring missing
    roots to exist.
-3. For each existing directory root, inspect direct children only, except for
-   the minimum directory check needed to recognize converted MLX model
-   directories.
+3. For the default Hub root, inspect only direct repository snapshot entries;
+   for caller-provided roots, inspect direct children only, except for the
+   minimum directory check needed to recognize converted MLX model directories.
 4. Classify supported direct `.gguf` files as GGUF assets.
 5. Classify directories that match converted MLX structure as MLX assets.
 6. For unsupported or invalid direct children, either skip with bounded warnings
@@ -240,7 +267,9 @@ Keep inventory classification intentionally shallower than runtime resolution:
 
 ## Compatibility
 
-- Existing `resolve_local_model_path(...)` behavior remains unchanged.
+- Existing `resolve_local_model_path(...)` behavior remains unchanged except for
+  A5.1's documented default Hub root and ordered declared-Hub cache resolution;
+  explicit paths, caller roots, and download/offline semantics remain unchanged.
 - Existing llama.cpp and MLX adapter construction remains unchanged.
 - Existing automatic download behavior during model execution remains unchanged.
 - Public search through `search_hugging_face_models(...)` remains the remote

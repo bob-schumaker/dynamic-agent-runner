@@ -5,14 +5,13 @@
 - Feature slug: `llama-cpp-local-model`
 - Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: implemented feature record; Slices 1-3 complete; optional embedding
-  follow-up remains unscheduled
+- Status: implemented through Slices 1-3 and T5.6 local embedding-tool
+  integration
 - Version: `1.0`
 - Owner: repository maintainers and future implementers of local-model follow-up
   work
-- Next gate: optional embedding follow-up or a separate advisory feature such as
-  `specs/llama-cpp-memory-fit-profile/spec.md`; `validation.md` remains the
-  source of truth for fresh execution evidence
+- Next gate: no remaining planned task; `validation.md` remains the source of
+  truth for fresh execution evidence
 - Approval state: user-directed refresh to make this file the authoritative SDD
   spec for the feature
   - first-slice local endpoint helper implementation landed in commit `6d269ad`
@@ -309,6 +308,162 @@ Acceptance criteria:
   later slice of this feature rather than expanding the first endpoint-backed
   chat slice into graph-mutation delivery.
 
+#### Embedding execution gate
+
+T5.0 records the implementation breakdown only. It does not add an embedding
+API, instantiate a model, or advertise capability. A standalone embedding
+surface is authorized as a new scope, while graph/RAG consumers remain out of
+scope. Before T5.2 begins, T5.1 must specify the caller-visible input,
+ordered-output, dimension, batching, malformed-result, and package-owned error
+contract.
+
+That contract is batch-only: callers provide ordered `{id, text}` entries and
+receive `EmbeddingBatchResult(model, items)` with same-order `{id, vector}`
+items. IDs are opaque, nonempty,
+and unique within the batch. The configured embedding profile, resolved asset,
+and reported model identity are host-bound; a caller or model may never choose a
+model path, alias, or provider. The selected `create_embedding(...)` upstream
+response must contain exactly one valid indexed result for every submitted
+entry. DAR correlates those indexes back to the submitted IDs and rejects
+missing, extra, duplicate, out-of-range, non-finite, nested, ragged, or
+dimension-inconsistent vectors before returning a result. T5.1 fixes explicit
+batch, text-byte, total-byte, dimension, scalar-count, and output-byte bounds.
+Raw texts and vectors must not enter external trace summaries or errors.
+
+The direct producer and terminal `embedding_step` accept at most 128 entries,
+each with an ID of at most 128 UTF-8 bytes and text of at most 64 KiB, with no
+more than 1 MiB of total text. They accept at least one and at most 8,192
+dimensions and 1,048,576 total finite scalar values, and return at most 16 MiB
+of encoded
+result data. The model-selectable tool uses the same shape but admits at most
+eight entries, 8 KiB text per entry, 64 KiB total text, 2,048 dimensions,
+16,384 total scalars, and 256 KiB encoded result data. Its structured result is
+`{model, items: [{id, vector}]}`; each `vector` is one ordered finite numeric
+array, represented as `tuple[float, ...]` in Python and a JSON number array on
+the tool boundary. It contains every requested ID/vector and the one host-bound
+model identity without repeating the model for every item.
+
+`LlamaCppLocalEmbeddingConfig.expected_model_id` is a required nonempty
+host-bound identity. DAR passes it to `create_embedding(...)`.
+The returned `model` must equal that identity; a mismatch raises the existing
+`LocalModelIdentityMismatchError` before a batch result is returned.
+
+The package exposes `EmbeddingError` under `LocalModelError`, with
+`EmbeddingInputError` for invalid caller data or declared bounds,
+`EmbeddingResultError` for an invalid upstream batch/result, and
+`EmbeddingExecutionError` for an otherwise failed embedding invocation. Existing
+`LocalModelResolutionError`, `LocalModelOfflinePolicyError`, and
+`LocalModelIdentityMismatchError` remain their established more-specific
+failures. A failed batch returns no partial result.
+
+The caller-visible producer surface is
+`LlamaCppLocalEmbeddingConfig`, `EmbeddingInputItem(id, text)`,
+`EmbeddingVectorItem(id, vector)`, and `EmbeddingBatchResult(model, items)`.
+All four public dataclasses, including `LlamaCppLocalEmbeddingConfig`, are
+frozen dataclasses; `EmbeddingBatchResult.items` is a tuple of
+`EmbeddingVectorItem`. The synchronous
+`LlamaCppLocalEmbeddingAdapter.embed(items)` and asynchronous
+`AsyncLlamaCppLocalEmbeddingAdapter.embed(items)` return
+`EmbeddingBatchResult`; factories are `create_llama_cpp_local_embedding_adapter`
+and `create_llama_cpp_local_async_embedding_adapter`. The embedding config is
+independent from `LlamaCppLocalModelConfig` and has no chat aliases or
+`ModelAdapter` contract.
+
+`LlamaCppLocalEmbeddingConfig.allow_network` is caller-owned and defaults to
+`True`; it is the only offline-policy control passed to local-path resolution.
+The adapter accepts an injected embedding-only backend/loader seam for tests,
+separate from the chat backend seam. Configuration and factory construction do
+not invoke it. An explicit local path wins a caller cache root, which wins an
+exact default-Hub snapshot; each hit invokes neither download helper. A missing
+Hub reference with `allow_network=False` raises
+`LocalModelOfflinePolicyError` before any download attempt. A permitted miss
+uses only the injected download helper.
+
+The 16 MiB producer output limit is the UTF-8 byte length of the canonical
+JSON object `{model,items:[{id,vector}]}`, encoded with `ensure_ascii=False`,
+`allow_nan=False`, and compact `(",", ":")` separators. Empty vectors are
+invalid upstream results. Embedding loader keyword arguments, when supplied,
+are copied into an immutable mapping; a caller-supplied `embedding` argument is
+invalid because the default loader owns and forces `embedding=True`.
+
+After the shared contract is delivered, two independent consumer slices are in
+scope: an `embedding_step` terminal workflow node that consumes batch input and
+ends a one-node workflow with that result, and a model-selectable local tool.
+The latter is one host-only `create_local_embedding_tool(producer)` factory
+returning a `RegisteredTool` with fixed ID `local_embedding_batch`; its closure
+owns one already-configured producer, so no manifest, model call, or argument
+can select a profile, model, provider, path, alias, or mode. Its schema is the
+strict object `{items: [{id, text}]}`: `items` is required with 1--8 entries;
+root and item objects forbid additional properties; every item requires string
+`id` and string `text`. The bound handler revalidates that entire root/item
+contract before it enforces nonempty unique IDs, IDs up to 128 UTF-8 bytes,
+text up to 8 KiB UTF-8 each and 64 KiB total before one producer dispatch. It
+accepts only an `EmbeddingBatchResult`, direct or awaitable, whose nonempty
+model identity and ordered item IDs exactly match the submitted batch. It then
+revalidates the existing finite, uniform-dimension vector invariants plus
+1--2,048 dimensions, 16,384 scalars, and 256 KiB canonical UTF-8
+`{model, items: [{id, vector}]}` before returning it as `ToolResult.model_output`.
+T5.6 adds only optional
+`ToolResult.trace_output` (defaulting to the current model-facing output); this
+tool sets it to the fixed `{"status": "embedding_result_redacted"}` summary,
+so its `tool_result` event contains no vectors while model continuation receives
+the bounded structured result. Existing tool-input events retain their normal
+sensitive marking; external trace summaries redact both input text and vectors.
+The tool is
+`side_effect="read"` and
+`approval_required="no"`; it uses the existing registry, coordinator, and
+model-loop continuation without an approval bypass. Do not add a producer or
+profile registry, context binding, generic nested-schema/budget framework,
+coordinator branch, model-adapter capability, remote fallback, or vector store.
+
+T5.5 has one deliberately narrow workflow contract. An `embedding_step` is a
+terminal primitive with exactly these raw keys: `id`, `kind`, optional `label`,
+nonempty opaque `embedding_profile`, and nonempty `embedding_input_from`. The
+manifest contains neither a model identity, path, alias, provider, cache
+reference, backend option, nor literal embedding text. It has no outgoing
+control edge and rejects every other raw key, including generic inputs/outputs,
+model, tool, approval, retry, fallback, and output-schema metadata.
+
+The host binds exactly one immutable embedding profile to a
+`WorkflowExecutionContext`: its opaque identifier, an already-configured
+standalone producer, and an explicit producer mode (`sync` or `async`). The
+manifest identifier must equal that host binding; it cannot select among
+multiple profiles. Each public execution call accepts `embedding_inputs` as its
+sole permitted per-run overlay when passed an execution context; a bare workflow
+cannot accept that overlay because it has no host profile. All other
+context-plus-keyword combinations retain their current rejection. The mapping's
+nonempty string keys identify tuple-backed ordered `EmbeddingInputItem` batches.
+
+The executor copies and validates that mapping, the primitive shape and
+terminality, binding match, declared producer mode, producer `.embed`
+capability, and resolved batch before calling the producer once. A mode mismatch
+raises `WorkflowExecutionError` with zero producer calls. Async execution may
+then accept a direct result or await an awaitable one. Validation rejects an
+invalid manifest/edges/raw keys with `WorkflowValidationError`; missing or
+malformed binding/input, an unsupported producer, and a non-
+`EmbeddingBatchResult` result raise `WorkflowExecutionError` before output is
+recorded. Producer-raised package embedding, resolution, offline, and identity
+errors retain their established types. The sync path never admits an async
+producer; its defensive awaitable-result rejection closes the awaitable before
+raising. The typed `EmbeddingBatchResult` is the ordinary one-node workflow
+result. Raw batch texts and vectors remain sensitive trace values and never
+appear in errors. T5.5 adds no network path; a host-bound producer retains its
+existing caller-owned local-resolution and offline policy.
+
+The later implementation must use a separate immutable runtime-owned embedding
+configuration rather than chat aliases or endpoint config.
+It may reuse existing local-path/cache/Hub-reference resolution and identity
+checks. Configuration construction and cache-only preflight perform no download,
+import, load, endpoint, or network I/O. A later lazy embedding invocation may
+use the existing explicit-Hub file/snapshot download seam on a cache miss, under
+its normal offline policy; it must never fall back to a remote embedding
+endpoint. It must not silently reuse a chat backend constructed without
+`embedding=True`, own a server, or change RAG/graph or vector-store paths.
+`embedding_step` and the model-selectable local tool are instead separately
+gated by T5.5 and T5.6; they must not change approval semantics. The documented
+llama.cpp `create_embedding` collaborator and exact result normalization remain
+the recorded T5.1 decision.
+
 ### FR-4: Preserve repository-owned response normalization
 
 The runtime must preserve its repository-owned request and response ownership
@@ -358,7 +513,7 @@ Acceptance criteria:
   workflow manifest fields.
 - Given a caller configures the adapter, when no explicit model-cache folder is
   provided, then the adapter defaults its model-cache path to
-  `~/.ollama/models`.
+  `~/.cache/huggingface/hub`.
 - Given local-model support is implemented, when workflow packages are moved
   across environments, then the package does not require baked-in local
   filesystem paths to remain valid as a portable artifact.
@@ -392,11 +547,11 @@ Acceptance criteria:
   then the adapter should apply this precedence order:
   1. explicit local file path
   2. explicit cache-folder lookup
-  3. default cache-folder lookup at `~/.ollama/models`
+  3. declared-reference lookup in the default Hugging Face Hub cache
   4. Hugging Face download from an explicit remote reference
 - Given no explicit model-cache folder is provided, when Hub-backed download or
-  cache resolution occurs, then the adapter should use `~/.ollama/models` as
-  the default cache root.
+  cache resolution occurs, then the adapter should use
+  `~/.cache/huggingface/hub` as the default cache root.
 - Given the requested asset is already present in the Hugging Face local cache,
   when the adapter resolves the model path, then cached files should be reused
   instead of being redundantly downloaded.
@@ -530,7 +685,7 @@ this specification.
 - Supporting caller-owned or deployer-owned OpenAI-compatible local endpoints as
   an alternate wrapper path when the caller already has one.
 - Defining the runtime-owned local model-resolution contract, including explicit
-  local paths, cache lookup, default cache lookup at `~/.ollama/models`, and
+  local paths, cache lookup, default Hub-cache lookup, and
   explicit Hugging Face references.
 - Preserving repository-owned response normalization and tool-call shaping.
 - Defining the future contract for optional local embedding-capable
@@ -606,22 +761,23 @@ this specification.
 ### Assumptions
 
 - The repository now has local endpoint helpers, local model asset resolution,
-  and direct in-process llama.cpp chat adapters. Broader llama.cpp follow-up
-  work still requires fresh validation as each slice lands.
+  direct in-process llama.cpp chat adapters, standalone embeddings, and both
+  authorized embedding integrations. Broader llama.cpp follow-up work still
+  requires fresh validation as each slice lands.
 - Direct llama.cpp execution should use the installed `llama-cpp-python`
   dependency without the `server` extra.
 - The caller or deployer can own endpoint provisioning, credentials, readiness,
   and lifecycle when choosing the server-backed wrapper path.
-- Local embedding support may be deferred, but the contract defined in this spec
-  must remain stable enough for later planning and implementation to build on it.
+- The completed embedding contract must remain stable enough for future
+  follow-up work to build on it.
 
 ## Open Questions and Next Planning Decisions
 
-- No blocking `NEEDS CLARIFICATION` items remain for completed Slices 1-3.
-- The next SDD gate may plan the optional embedding follow-up or a separate
-  advisory feature such as llama.cpp memory-fit profiling.
-- `tasks.md` should keep optional embedding or advisory profiling work separate
-  from completed direct in-process local chat.
+- No blocking `NEEDS CLARIFICATION` items remain for the completed feature.
+- Any next SDD gate must define a separate advisory feature, such as llama.cpp
+  memory-fit profiling.
+- `tasks.md` should keep any future advisory profiling work separate from
+  completed local chat and embedding integrations.
 
 ## Design Constraints
 
@@ -643,7 +799,7 @@ this specification.
   portable workflow-package semantics.
 - Default cache-path behavior should remain runtime-owned: callers may provide a
   model-cache folder explicitly, but when omitted the adapter uses
-  `~/.ollama/models`.
+  `~/.cache/huggingface/hub`.
 - Keep any local server process ownership, launch scripts, packaged runtimes,
   endpoint readiness, and shutdown behavior outside the library's core portable-
   workflow contract.

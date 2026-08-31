@@ -1,0 +1,65 @@
+{
+  "artifact_contracts": [
+    {
+      "artifact": "agent-runtime.yaml",
+      "format": "yaml",
+      "required": {
+        "skills": [],
+        "tools": []
+      }
+    },
+    {
+      "artifact": "workflow-descriptor.yaml",
+      "format": "yaml",
+      "required": {
+        "model": {
+          "profile_requirement": "gpt-5.6-terra"
+        },
+        "purpose": "Answer one bounded question using only supplied text with gpt-5.6-terra and no tools.",
+        "skills": [],
+        "task_invocation": {
+          "max_total_tool_calls": 0
+        },
+        "tools": []
+      }
+    }
+  ],
+  "behavioral_cases": [
+    {
+      "expected_output_contains": "bounded workflows from a saved package",
+      "expected_tool_dispatch_count": 0,
+      "id": "bounded-answer",
+      "prompt": "Reference text: Dynamic Agent Runner executes bounded workflows from a saved package. Question: What does Dynamic Agent Runner execute?"
+    }
+  ],
+  "expected_artifacts": [
+    "agent-design.md",
+    "agent-runtime.yaml",
+    "agent-graph.mmd",
+    "workflow-descriptor.yaml",
+    "package-manifest.json"
+  ],
+  "expected_capability_or_refusal": "no_tools_required",
+  "private_material_exclusions": [
+    "physical_path",
+    "unselected_source_text",
+    "credentials"
+  ],
+  "request": "Design a bounded DAR workflow that answers questions about supplied text using gpt-5.6-terra and these examples.",
+  "required_dar_package_commands": [
+    "project-authoring-materials --material-set-id <opaque-id>",
+    "create-authored-package --package-name <user-requested-name>",
+    "write-authored-package-file --authoring-output-id <opaque-id> --relative-path <package-relative-path> --content-stdin",
+    "finalize-authored-package --authoring-output-id <opaque-id> --material-set-id <opaque-id>"
+  ],
+  "schema_version": 1,
+  "selected_materials": [
+    {
+      "artifact_id": "authoring-material-text-sample-v1",
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "disposition": "reference_only",
+      "role": "example_text"
+    }
+  ],
+  "skill": "agent-development"
+}

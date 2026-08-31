@@ -19,6 +19,10 @@
   - `https://github.com/MARKTECHPOST-AI-MEDIA-INC/AI-Agents-Projects-Tutorials`
     contains bounded plan/execute/self-check and cost-aware planning examples;
     they are design evidence, not runtime dependencies
+  - `https://mathspp.com/blog/write-a-coding-agent-from-first-principles`
+    illustrates provider-native tool-use blocks, immediate tool-result
+    follow-ups, model-visible tool error flags, and simple coding-agent repair
+    attempts after failed file or command operations.
 
 ## Objective
 
@@ -234,6 +238,8 @@ Acceptance criteria:
 - What serialized state is required to resume approval-required model tool calls?
 - Should future loop transcripts become public state, exported artifacts, or
   trace-only diagnostics?
+- Which tool failures should be returned as model-visible `is_error`-style
+  observations for self-repair, and which should abort the workflow immediately?
 
 ## Future Work
 
@@ -256,6 +262,12 @@ slices may add:
 - bounded repair/self-check policy with explicit maximum attempts, evidence of
   progress, and a terminal `repair_exhausted` reason rather than recursive
   unbounded retries
+- model-visible tool-error observations for recoverable failures, such as a
+  missing file or failed allowlisted verification command, without treating every
+  tool exception as safe input for another model turn
+- coding-agent repair loops that consume the enclosing iteration, token, time,
+  tool-call, and command budgets instead of creating a separate unbounded
+  retry surface
 - caller-supplied cost budgets and per-step estimates that remain advisory until
   the selected adapter reports authoritative usage
 

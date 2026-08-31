@@ -3,8 +3,9 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: Slice L1 TDD tasks complete; upstream publication remains open
-- Date: 2026-07-02
+- Status: Slices L1-L3.2 TDD tasks complete; upstream dependency adopted and
+  shim retired
+- Date: 2026-08-22
 - Owning spec: `specs/litellm-provider-adapter/spec.md`
 - Plan: `specs/litellm-provider-adapter/plan.md`
 
@@ -25,11 +26,8 @@
       token-shaped value in the fake provider exception.
 - [x] L1.7 Add RED tests for public factory exports and explicit official
       OpenAI SDK compatibility factory behavior.
-- [ ] L1.8 Publish or otherwise make the LiteLLM package available from the
-      configured package source, then add a portable versioned runtime
-      dependency and refresh `poetry.lock`. Current attempt is blocked because
-      Artifactory has no matching LiteLLM release and a local file dependency
-      emits a non-portable wheel URL.
+- [x] L1.8 Add the portable `litellm = "^1.97.0"` runtime dependency and refresh
+      `poetry.lock` (resolved to 1.98.0).
 - [x] L1.8a Verify the checked-in
       `vendor/wheels/litellm-1.92.0-py3-none-any.whl` is present, pure Python,
       and compatible with Python `<3.15`.
@@ -37,7 +35,8 @@
       checked-in LiteLLM wheel in `dist/` before `python -m build`; retain OCI
       trigger coverage for the vendored wheel.
 - [x] L1.8c Add the minimal bundled `dynamic_agent_runner.litellm` transport and
-      make it the fallback when the full upstream package is unavailable.
+      make it the fallback when the full upstream package is unavailable
+      (historical; retired by L1.22).
 - [x] L1.9 Implement sync and async LiteLLM provider/client shims behind the
       existing provider protocols.
 - [x] L1.10 Implement package-owned request translation from
@@ -63,6 +62,10 @@
 - [x] L1.21 Run the standard package build under Python 3.13 and verify the OCI
       package tar contains both package wheels and the LiteLLM wheel hash
       matches the checked-in artifact.
+- [x] L1.22 Retire `dynamic_agent_runner.litellm` after upstream LiteLLM gained
+      Python 3.14 support: require the installed sync/async Chat Completions
+      callables, add package-owned missing-transport errors, update docs, and
+      verify `680 passed, 4 skipped`, Ruff, and the Sphinx HTML build.
 
 ## Deferred Follow-Up: ChatGPT/Codex Through LiteLLM
 
@@ -97,10 +100,58 @@
 
 ## Deferred Follow-Up: Provider Breadth Polish
 
-- [ ] L3.1 Add live-router model listing only if a caller needs it.
-- [ ] L3.2 Add LiteLLM Responses API dispatch only if a caller needs
-      Responses-specific behavior outside Codex.
+- [x] L3.1 [tests/implementation] Add caller-requested live-router model
+      listing through the existing adapter discovery API.
+  - Scope: only `litellm.Router.get_model_list(model_name=None, team_id=None)`
+    on an explicitly supplied router. Convert nonblank deployment `model_name`
+    values to the existing OpenAI-compatible catalog bridge; do not add a new
+    public listing API or a generic provider catalog.
+  - Files/components: `src/dynamic_agent_runner/litellm_client.py`,
+    `tests/test_litellm_provider_adapter.py`, and these artifacts.
+  - Contract: sync and async `create_*_litellm_adapter(..., router=...)`
+    continue to expose listing only via `list_supported_models()` /
+    `default_model()`. Explicit adapter `models` metadata remains authoritative
+    except on `refresh=True`; discovery is lazy, cached, refreshable, deduped,
+    and version-sorted by existing adapter behavior. An absent router method
+    uses the existing unavailable-listing error; router exceptions use the
+    existing listing-failure error.
+  - Tests: fake-only sync/async router list success, cache and refresh,
+    explicit-model bypass, malformed/empty values, missing method, and raised
+    listing failure. No LiteLLM import, gateway, OAuth, network, or live model.
+  - Exclusions: direct LiteLLM global or gateway catalogs, Codex listing/auth,
+    aliases, executor routing, capability/status reporting, and manifest work.
+  - Readiness: implementation-ready. This plan is ready to execute under its
+    stated gates.
+  - GREEN: `poetry run pytest tests/test_litellm_provider_adapter.py -q` — 48
+    passed; combined with `tests/test_openai_client.py` — 134 passed; scoped
+    Ruff passed. Final validation: `poetry run pytest -q` — 1592 passed, 1
+    skipped, 6 deselected; targeted pre-commit passed. Council and Ponytail
+    approved the delivered boundary.
+- [x] L3.2 [tests/implementation] Add caller-requested LiteLLM Responses API
+      dispatch outside Codex.
+  - Scope: explicit generic `responses` / `aresponses` factory injection only.
+    The existing generic Chat Completions route remains the default.
+  - Contract: reuse the existing native Responses resource; forward ordinary
+    provider config and DAR's Responses-shaped request unchanged. A direct
+    completion/Responses callable pair is rejected before dispatch.
+  - Tests: fake-only sync/async native dispatch, generic provider-config
+    forwarding, Responses-only `parallel_tool_calls`, native normalization, and
+    conflicting direct transport callables. Existing Chat and Codex regression
+    tests remain the proof of unchanged default and Codex routes.
+  - Exclusions: global LiteLLM Responses loading, Router Responses inference,
+    Codex shaping/auth/aliases, executor changes, capability/status reporting,
+    live provider calls, and new dependencies.
 - [ ] L3.3 Add provider-specific capability/status reporting only after the
       default transport is stable.
+  - Readiness: deferred. The generic OpenAI adapters expose only baseline
+    `text_generation`; existing capability preflight consumes model coverage,
+    not adapter capability metadata, and no host currently consumes a LiteLLM
+    provider-status value.
+  - Reopen only when a host names one admission, preflight, or execution
+    decision; supplies the closed fields/states and their authority; and defines
+    unknown, stale, failure, precedence, and no-network behavior. Prove that
+    consumer outcome with fake sync/async inputs before adding adapter metadata.
+  - Exclusions while deferred: static provider/transport labels, LiteLLM probes
+    or catalogs, Router Responses inference, and a new generic status registry.
 - [ ] L3.4 Add PyInstaller hooks only when a concrete freeze validation fails or
       a downstream frozen client requires them.

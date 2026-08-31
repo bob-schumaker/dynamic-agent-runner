@@ -57,6 +57,14 @@ def test_package_imports() -> None:
     assert dynamic_agent_runner.list_local_model_assets is not None
     assert dynamic_agent_runner.create_llama_cpp_local_adapter is not None
     assert dynamic_agent_runner.create_llama_cpp_local_async_adapter is not None
+    assert dynamic_agent_runner.LlamaCppLocalEmbeddingConfig is not None
+    assert dynamic_agent_runner.EmbeddingInputItem is not None
+    assert dynamic_agent_runner.EmbeddingVectorItem is not None
+    assert dynamic_agent_runner.EmbeddingBatchResult is not None
+    assert dynamic_agent_runner.create_llama_cpp_local_embedding_adapter is not None
+    assert (
+        dynamic_agent_runner.create_llama_cpp_local_async_embedding_adapter is not None
+    )
     assert dynamic_agent_runner.MLXLocalModelConfig is not None
     assert dynamic_agent_runner.create_mlx_local_adapter is not None
     assert dynamic_agent_runner.create_mlx_local_async_adapter is not None

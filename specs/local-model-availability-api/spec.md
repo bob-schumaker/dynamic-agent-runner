@@ -5,7 +5,7 @@
 - Feature slug: `local-model-availability-api`
 - Mode: `light`
 - Artifact type: proposed feature specification
-- Status: implemented through Slice A4
+- Status: implemented through Slice A5.1
 - Version: `0.1`
 - Date: 2026-06-22
 - Owner: local-model adapter and Hugging Face support boundaries
@@ -101,8 +101,9 @@ asset.
   `resolve_local_model_path(...)`, default cache-root behavior, Hugging Face
   download helper routing, local endpoint helpers, direct llama.cpp adapter
   construction, and local model identity validation.
-- The default local-model cache root is currently `Path.home() / ".ollama" /
-  "models"`.
+- The default local-model cache root is `Path.home() / ".cache" /
+  "huggingface" / "hub"`; it does not migrate or modify the former
+  `~/.ollama/models` directory.
 - `mlx_models.py` reuses `resolve_local_model_path(...)` and then validates
   resolved assets as explicit GGUF files or converted MLX model directories.
 - `hugging_face_support.py` owns the lazy `huggingface_hub` import and
@@ -406,6 +407,50 @@ Acceptance criteria:
 - Given package exports are added, when import tests run, then they verify the
   public surface without requiring optional Hugging Face dependencies.
 
+### FR-9: Use the standard Hugging Face Hub cache as the default
+
+Slice A5.1 must replace only DAR's default cache root with
+`Path.home() / ".cache" / "huggingface" / "hub"`. It must leave explicit paths
+and caller-provided cache roots unchanged, and must not migrate, read, write,
+delete, or link `~/.ollama/models`.
+
+For a declared Hub reference, runtime resolution and availability must use this
+exact order: an existing explicit path; an existing flat hit in the explicit
+caller cache root; a reference-directed hit in the default Hub cache; then the
+already-authorized Hub download path (or its existing offline failure). A Hub
+reference must never accept a same-named flat file, other repository, or other
+revision as a default-cache hit. A caller-provided root is not implicitly
+reinterpreted as a Hub cache.
+
+The reference-directed candidate must be confined to
+`models--<repo>/snapshots/<revision>` for the declared repository. A supplied
+revision first identifies that snapshot; a supplied symbolic revision or an
+omitted revision may resolve only the matching repository-local `refs/<name>`
+pointer (`refs/main` when omitted). Repository ids, ref names, filenames, and
+the ref value must be safe relative components. Missing, malformed, or escaping
+refs and candidates outside that repository are local misses. Same-repository
+snapshot-to-blob links may be used; no escaping link may be followed.
+
+Default-root inventory may enumerate only direct
+`models--*/snapshots/*` entries in deterministic order. It must ignore Hub
+`blobs`, `refs`, locks, unrelated provider directories, nested arbitrary
+directories, and escaping symlinks; it classifies valid GGUF files and converted
+MLX snapshot directories once with default-root attribution.
+
+Acceptance criteria:
+
+- Given a cached declared file or snapshot reference, when network is disabled,
+  then runtime resolution and availability select only that snapshot and make no
+  download, model-load, adapter, or local-endpoint call.
+- Given `refs/main` or a supplied symbolic ref points to an in-repository
+  snapshot, when the declared reference has no direct snapshot id, then it
+  resolves that exact snapshot; malformed or escaping ref data is an offline
+  miss with no helper call.
+- Given test fixtures contain an `.ollama/models` sentinel, when A5.1
+  resolution or inventory runs, then the sentinel is untouched and unobserved.
+- Given a default-root inventory contains valid and foreign/escaping snapshot
+  entries, when it runs, then it lists only the valid contained entries.
+
 ## Non-Functional Requirements
 
 ### NFR-1: Preserve ownership boundaries
@@ -622,8 +667,7 @@ poetry run ruff check src tests
 
 ## Implementation Readiness
 
-The feature is implemented through Slice A4. It now includes explicit-reference
-availability preflight and narrow cached inventory over DAR-owned/default
-download cache locations and current caller-provided roots. Broad inventory,
-native Hugging Face cache introspection, persistent root management, and strict
-exception behavior remain deferred unless this spec is revised.
+The feature is implemented through Slice A5.1, including the standard Hub
+default and bounded snapshot resolution/inventory defined in FR-9. Broad
+inventory, migration, persistent root management, and strict exception behavior
+remain deferred unless this spec is revised.

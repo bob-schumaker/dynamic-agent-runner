@@ -73,6 +73,27 @@ intentional:
 The test is opt-in, uses an isolated temporary Codex home, and does not run as
 part of the normal unit suite.
 
+.. header2:: Manually gated live model-interface matrix
+
+The deterministic and live matrices share one controlled S1--S6 tool catalog.
+The live runner exposes only in-memory record tools, but it calls the selected
+real model or local server. It requires an explicit environment gate and one
+configured target:
+
+.. code-block:: bash
+
+   DAR_RUN_LIVE_MODEL_INTERFACE_MATRIX=1 poetry run python \
+     scripts/run_live_model_interface_matrix.py \
+     --target endpoint --model qwen3-local \
+     --base-url http://127.0.0.1:8000/v1
+
+Supported targets are ``codex``, ``openai``, ``litellm``, ``endpoint``,
+``llama_cpp``, ``mlx_qwen3``, and ``apple``. Direct llama.cpp and MLX require
+``--model-path``; the MLX target uses the pinned package-owned Qwen3 helper.
+Use ``--scenario`` and ``--mode`` to narrow a manual run. Existing Codex and
+Apple native checks are marked ``live_matrix`` supporting rows; they remain
+separately opt-in because they require their own credentials or eligible host.
+
 .. header2:: Docs validation
 
 The docs authoring source lives in ``docs/files/``. Generated Sphinx source lives

@@ -314,6 +314,24 @@ Experiment constraints:
   runtime overhead, package size, and setup friction
 - use fixed local fixtures and no live model or external service calls
 
+The fixture corpus is an evaluator-only contract at
+`tests/fixtures/tool-descriptor-budgeting/benchmark-v1.json`. Each case records
+a prompt, self-contained eligible tool descriptors, expected required tools,
+acceptable optional tools, and explicit false-omission checks. The fixture
+contract must not execute or encode the behavior of `ToolSelector`; T2.2 owns
+applying competing scorers to it and T2.3 owns measurements.
+
+T2.2 keeps its corpus-free NLTK comparison in the `test` Poetry dependency
+group and `tests/tool_descriptor_benchmark.py`; it does not introduce a
+runtime strategy or import NLTK from `src/`.
+
+T2.3 measures the fixed corpus with canonical OpenAI function-descriptor
+serialization and `estimate_text_tokens(..., model="gpt-4o-mini")`. It records
+estimator encoding/fallback metadata, selected-tool recall, false-omission IDs,
+median local scorer time, and direct, full-closure, and incremental NLTK
+installed bytes. These measurements are observational evidence, not performance
+gates.
+
 Promotion criteria:
 
 - NLTK must improve relevant-tool recall or reduce false omissions enough to
@@ -321,6 +339,16 @@ Promotion criteria:
 - The implementation must be deterministic without downloading corpora at
   runtime.
 - Failure modes must degrade to the no-dependency scorer.
+
+## T2.4 Promotion Decision
+
+T2.3 did not meet the promotion criterion: the deterministic and NLTK scorers
+both achieved 4/6 required-tool recall, two false omissions, and 45.90%
+descriptor-token reduction. NLTK also added an incremental 7,531,654-byte
+test-only dependency surface and slower local scoring. Therefore no optional
+parser strategy is promoted; `deterministic_metadata` remains the only runtime
+strategy. Any future candidate must define its quality and cost threshold before
+another promotion evaluation.
 
 ## Validation Checklist
 

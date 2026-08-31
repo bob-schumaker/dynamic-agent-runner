@@ -213,6 +213,14 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Treat a user-requested Graphify refresh as authorization to transmit the
   `.graphifyignore`-allowlisted corpus to the approved Osaurus OpenAI model;
   run the extraction with escalation immediately instead of asking first.
+- Use deterministic, local controlled tools for cross-model parity; test human
+  approval as a separate coordinator pass rather than coupling it to tool-path
+  parity or external-service credentials.
+- Treat repository work-item artifacts as authoritative; do not route a task
+  identifier to Jira unless the user explicitly asks for Jira.
+- Require both Council deliberation and Ponytail review for every
+  `review-to-readiness` and `deliver-ready-item` workflow; report their
+  conclusions before declaring the artifact ready.
 
 ---
 

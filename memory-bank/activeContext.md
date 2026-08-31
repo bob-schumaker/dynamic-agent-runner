@@ -3,6 +3,141 @@
 
 ## Current Focus
 
+- `dar-authoring` is now a skills-only Codex plugin: it ships the adapted
+  authoring skills and DAR support assets, but no plugin MCP server, session
+  broker, or `run_dar_workflow` tool. Skills invoke DAR only through the
+  checked-in `uv run ... dar-package <command>` control plane. M1's local
+  package/CLI gate is complete through `417bc1e`: the `dar-package version
+  --json` receipt is packaged, verifies from the `ocibuild -c` result wheel in
+  an isolated temporary directory, and passed final Council and Ponytail review.
+  The OCI wheel reports pre-release version `0.2a3`; Artifactory resolution of
+  the pinned `dynamic-agent-runner==0.2.1` is deliberately a post-release
+  check. The `0.2.1` release-pin contract is committed in `8e79f34`; the
+  local-wheel verifier and skills-only plugin smoke checks passed against the
+  `0.2a3` artifact. M0–M7 are implemented; M8's clean consumer installation
+  and published-index digest record remain post-publication work.
+- Commit `f219dc0` makes the ordinary suite default-deny for outbound IP
+  sockets while preserving Unix-domain broker IPC; all provider/MCP unit paths
+  use fakes. Commit `bef2d5d` records G0–G5's positive fixture map in
+  `specs/dar-authoring-plugin/validation.md` and tests that each named fixture
+  remains present. The full suite passed with 1072 tests and 4 explicit live
+  skips; the mapped positive fixtures passed with 13 tests.
+- `dar-authoring-plugin` M0 (RA0 reproducible authoring baseline) is complete
+  through `8fb3435`. The plugin ships portable adapted `agent-development`,
+  `agent-tool-contract-design`, and `agent-evaluation` assets with source
+  revision `967c9f621b017f042c55c6ae73019588ee426e30`, an explicit
+  user-authorized adaptation record, fixture-contract tests, and canonical
+  no-tool and bounded read-only-MCP package templates. The offline suite passed
+  with 171 tests. The source checkout had no top-level license/notice; the
+  provenance file records that fact rather than asserting a license.
+- `dar-authoring-plugin` M6 (G4 trusted file ingress) is complete through
+  `7b17158`. Caller files are copied through descriptor-relative, no-follow,
+  non-blocking descriptors into owner-only workspaces; outside-root paths,
+  symlinks, directories/FIFOs, oversize files, invalid UTF-8 text, and a
+  parent-swap race fail closed. The public ingress/CLI receipt contains only an
+  opaque ID, hash, byte count, and expiry. Preparation binds IDs to the exact
+  registration; paths and raw bodies are absent from the current CLI result,
+  model request, and runner trace. Future G5 audit and approval surfaces must
+  preserve that invariant.
+- `dar-authoring-plugin` M5 (G2) is complete through `8c8522f`; M7 (G5) is
+  complete for reviewed generic MCP bindings through `65f4882`. The generic
+  control plane offers human-only
+  API-token or OAuth PKCE-loopback setup, reviewed MCP surfaces, package
+  bindings, and read/write/delete classifications. A saved workflow executes
+  with its declared generic MCP tool through DAR; no Fastmail-specific behavior
+  exists. Stored OAuth refresh configuration is host-owned and its token bundle
+  remains in the credential store. An expired credential refreshes before
+  setup; a 401/403 setup rejection permits one refresh-and-reconnect attempt.
+  The credential reference stays stable, peer-pin/surface checks revalidate,
+  refresh failure or a second rejection is `authentication_required`, and
+  remote tool calls are never retried. Identity or schema drift fails closed
+  before remote dispatch.
+- Side effects use descriptor-declared authority/provenance rules, immutable
+  registration-bound handlers, a durable `workflow_auto` action ledger, and
+  local atomic `--ask` approvals. Focused G5 tests now prove approval invalidates
+  on package/profile/snapshot/argument/artifact changes, audit failure blocks
+  dispatch, unknown post-dispatch outcomes do not retry, and concurrent prepared
+  input consumption has one winner. Default `workflow_auto` dispatches a
+  pre-built workflow's reviewed action; `--dry-run` dispatches nothing.
+  Multiple independently configured MCP clients per workflow remain deferred.
+- `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
+  through `50e928d`. Its base path has a host-managed strict-local
+  loopback OpenAI-compatible profile, private immutable registration, sealed
+  preparation, and DAR preflight. The one model-facing MCP tool now accepts
+  only `{format_version, workflow_id, prompt}`, seals the prompt internally,
+  and never returns a prepared-input ID. A real local-wheel Codex smoke with a
+  temporary configured host discovered exactly that tool; the temporary
+  marketplace and host state were removed. Human-only `dar-workflow invoke`
+  composes source selection, registration, preparation, and execution for a
+  local directory or ZIP; it accepts an optional already-reviewed opaque MCP
+  binding, preserves `--dry-run` plus local `--ask`, and accepts
+  `--workspace-file` only when the registered workspace contract has exactly
+  one role and one media type. Dry run rejects files before package selection
+  or ingress. Full validation passed with 964 tests and 4 skips.
+- `dar-authoring-plugin` M2 (G1 runtime core) is implemented through
+  `8a08669`. A human-selected directory receives a principal/expiry-bound
+  opaque source handle, is copied through descriptor-relative no-follow file
+  descriptors into a bounded private staging root, validated by DAR, cataloged
+  by immutable package/revision digest, compiled into `WorkflowPolicy`, and
+  returned only through package-handle-only `PackagePreflightService` results.
+  The runtime host modules live under `src/dynamic_agent_runner/workflow_host/`;
+  focused M2 coverage is offline and uses fixture packages, local state files,
+  and fake/local collaborators only.
+- M0 owns static adapted-skill assets and package templates. M4.0/M4.1 now
+  provide opaque selected-material projection, host-owned atomic output writes,
+  deterministic finalization, and redacted evidence records; the remaining M4
+  gate is an external authoring-model harness over the checked-in corpus. The
+  packaged entry skill supports authoring, companion artifact routing, and later
+  generic saved-package invocation by configured-root name. M8 owns portable
+  ZIP exchange and publication. M1 local-wheel/Codex discovery is proven;
+  published-index resolution for pinned
+  `dynamic-agent-runner==0.2.1` is a post-release verification rather than a
+  pre-release launch blocker.
+- Runtime core authority remains deliberately split: M2 preflight accepts only
+  an opaque package-source handle and returns package/policy/capability data;
+  it cannot accept invocation input, create a registration or alias, issue a
+  prepared input, or invoke DAR. M3 binds an eligible local profile, seals
+  `PreparedWorkflowInput`, and runs the saved package. Trusted file ingress and
+  `workflow_auto`/`--ask` side effects remain later G4 and G5 work.
+- `live-guardrail-execution` V2 is implemented in `78f9d9c`: caller-registered
+  pass-or-abort `tool_input` guardrails run after validated preparation and
+  before approval, hooks, retry, or dispatch for direct `tool_use_step` and
+  model-tool-loop origins. Declarations run in manifest order, subjects are
+  recursively copied, and missing, malformed, or mismatched outcomes fail
+  closed with redacted trace events. Focused validation passed with 251 tests;
+  the full suite passed with 694 tests and 4 skips, alongside Ruff, pre-commit,
+  package, and docs builds.
+- V2 adopts the internal coordinator from `bda6333` through a private
+  executor-supplied guardrail runner; it adds no public coordinator API. Output
+  and tool-output guardrails, reject-content, retries, timeouts, and external
+  adapters remain deferred. The next highest-ROI preparation target is
+  `provider-backed-context-compaction`; memory-aware context has already
+  completed its passive first slice and needs only its exit-gate reassessment.
+- The shared DAR tool-invocation coordinator is implemented in `bda6333`.
+  Direct `tool_use_step` and model-tool-loop calls now share approval,
+  lifecycle, tracing, and registry-dispatch behavior. Approval-required input
+  validation happens before an interruption; registry preparation binds the
+  validated arguments to a resolved tool. Provider, interpreter, and sandbox
+  ingress remain separately scoped follow-up adopters; tool-input guardrails
+  are now the implementation-ready V2 adopter described above.
+- LiteLLM is now an upstream `^1.97.0` runtime dependency. The temporary
+  `dynamic_agent_runner.litellm` shim and vendored-wheel packaging flow are
+  retired; direct sync/async Chat Completions transport remains the implemented
+  L1 boundary, while broader Codex migration is deferred.
+- Latest committed spec-context slice: `a1f3011` added
+  `specs/scratchpad-context-manager/spec.md` and recorded
+  `sickn33/antigravity-awesome-skills` provenance across `specs/README.md`,
+  `context-management-prepare-stage`, `skill-source-resolution`, and
+  `persistent-agent-sessions`. Scratchpad remains spec-only: v1 is a
+  caller-owned `ScratchpadStore` protocol plus automatic large tool-result
+  offload to compact artifact refs, with read/list/search/delete tools and
+  durable storage deferred.
+- Antigravity-derived context follow-ups are now assigned to existing spec
+  owners rather than a new feature area: `artifact_trail`, probe-based
+  compression tests, and degradation fixtures belong to
+  `context-management-prepare-stage`; lazy skill loading/token budgets and
+  `overflow_behavior: error` belong to `skill-source-resolution`; structured
+  session snapshot summary metadata belongs to `persistent-agent-sessions`.
 - The latest committed Graphify spec alignment is `54ac838`. T7 is implemented
   as opt-in token/file chunking with adaptive splitting, summary-only
   reconciliation, and safety-constrained partial merge/duplicate repair. T8 is implemented as a pure advisory policy selector. The T8.7 benchmark
@@ -33,7 +168,25 @@
   catalog parity bug-fix slice (`6d5d7a1`). TDD work remains: preserve catalog
   priority and visibility, choose the first visible model as default, forward
   `ChatGPT-Account-ID`, and retain generic-provider fallback behavior.
-- `specs/apple-foundation-model-adapter/` records A1 as implemented for local text and explicit JSON Schema output through the existing async facade. Standalone live text, structured, and strict-workflow paths succeeded; pytest-native Apple SDK generation remains blocked by opaque status 255 despite availability preflight. A2 remains a separately gated Apple tool-callback bridge through DAR approval and tool-runtime behavior.
+- `specs/apple-foundation-model-adapter/` is implemented through A4 in
+  `f37168c`. Apple receives only wrappers for the sealed host's active tool
+  snapshot. Eligible read-only reviewed MCP tools whose upstream schemas are
+  not directly Apple-admissible use one opaque-token gateway envelope; DAR
+  validates the original upstream schema before its existing coordinator
+  dispatch. The gateway is response-local, single-use, bounded, and exposes no
+  tool identity or handler. Ineligible schemas fail closed. Full validation
+  passed with 1228 tests, one skipped, and six deselected, plus Ruff, Poetry
+  package checks, and a package build. C4's live Fastmail/O7 operations are
+  human-gated: obtain a current eligible-Mac receipt from
+  `preflight-apple-mcp-tool`, review it, then separately authorize each live
+  dispatch.
+- Apple C4 live Fastmail acceptance is now complete. The human-authorized,
+  sealed Apple-backed `create_note` workflow created and was manually verified
+  as one Fastmail note. Commit `28472f5` hardens the callback bridge for the
+  compact provenance transports observed from Apple: DAR reconstructs only
+  unambiguous UTF-8 prompt spans from the sealed original prompt and emits its
+  canonical envelope before the existing approval and dispatch path. Apple
+  source offsets, lengths, and duplicate malformed text are not trusted.
 - `specs/llm-step-interpreter-middleware/spec.md` now records the recommended
   multi-interpreter contract in commit `c9f505f`: one DAR-owned
   `run_interpreter` model gateway, bounded package-local or caller-supplied
@@ -353,11 +506,14 @@
   session-id state injection, same-session concurrency rejection, sync wrapper
   parity, docs, and live capability/status reporting.
 - `model-event-streaming` v1 is implemented on top of persistent sessions.
-- The next ROI actions are Apple Foundation Models A1 and
-  `memory-aware-context-pipeline` first-slice validation. LiteLLM Slice L1 is
-  complete with a bundled fallback and temporary OCI wheelhouse artifact;
-  OpenAI Responses R1 and semantic context selector Slice S1 are already
-  implemented.
+- Apple Foundation Models C4 is complete, including its manually verified live
+  Fastmail `create_note` acceptance. Any distinct Fastmail/OAuth operation
+  still requires its own current eligible-Mac receipt and human authorization;
+  receipt mode is informational and never grants dispatch authority.
+  `memory-aware-context-pipeline` first-slice validation remains separately
+  scheduled. LiteLLM Slice L1 is complete with a bundled fallback and
+  temporary OCI wheelhouse artifact; OpenAI Responses R1 and semantic context
+  selector Slice S1 are already implemented.
 
 ## Recent Completed Work
 
@@ -497,12 +653,10 @@
 
 ## Next Steps
 
-- Approve Apple Foundation Models A1 and execute its bounded `plan.md`,
-  `tasks.md`, and `validation.md` without pulling A2 tool callbacks into the
-  first release.
-- Keep Apple A2 and interpreter middleware aligned on one future DAR-owned tool
-  invocation coordinator. Do not let provider callbacks or interpreter bridges
-  call handlers or `ToolRegistry.invoke_tool_async(...)` directly.
+- No Fastmail action is currently pending. For any distinct live operation,
+  obtain and review a current eligible-Mac `preflight-apple-mcp-tool` receipt,
+  then obtain separate human dispatch authorization; do not treat a `gateway`
+  receipt as authorization.
 - Before planning interpreter implementation, resolve the five remaining
   clarification items and run backend prototypes/benchmarks. Keep executable
   adapters caller-provided and descriptor frontmatter non-executable.

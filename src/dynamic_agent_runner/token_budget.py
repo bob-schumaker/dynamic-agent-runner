@@ -11,6 +11,17 @@ from dynamic_agent_runner.errors import WorkflowExecutionError
 _FALLBACK_ENCODING = "cl100k_base"
 
 
+class _ConservativeCharacterEncoding:
+    """Offline-safe token-count fallback that cannot undercount text."""
+
+    name = "conservative-character-v1"
+
+    def encode(self, text: str) -> bytes:
+        """Return UTF-8 bytes as a conservative token-count upper bound."""
+
+        return text.encode("utf-8")
+
+
 @dataclass(frozen=True)
 class TokenBudgetPolicy:
     """Optional token-budget policy for rendered model input messages."""
@@ -112,8 +123,13 @@ def _encoding_for_model(model: str) -> tuple[Any, str, bool]:
     try:
         encoding = tiktoken.encoding_for_model(model)
         return encoding, encoding.name, False
-    except KeyError:
+    except Exception:  # noqa: BLE001 - tiktoken can require a remote BPE asset.
+        pass
+    try:
         encoding = tiktoken.get_encoding(_FALLBACK_ENCODING)
+        return encoding, encoding.name, True
+    except Exception:  # noqa: BLE001 - offline callers cannot download BPE assets.
+        encoding = _ConservativeCharacterEncoding()
         return encoding, encoding.name, True
 
 

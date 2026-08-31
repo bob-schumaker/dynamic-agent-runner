@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, TypeVar
+from typing import Any, Protocol, TypeVar
 from uuid import uuid4
 
 from openai_model_registry import ModelRegistry
@@ -17,6 +18,11 @@ from openai_model_registry.errors import ModelNotSupportedError
 
 from dynamic_agent_runner.behavior import effective_node_behavior
 from dynamic_agent_runner.context import WorkflowExecutionContext
+from dynamic_agent_runner.context_compaction import (
+    ProviderContextCompactionRequest,
+    ProviderContextCompactionResult,
+    ProviderContextCompactor,
+)
 from dynamic_agent_runner.context_selection import (
     ContextSelection,
     ContextSelectionCandidate,
@@ -28,19 +34,24 @@ from dynamic_agent_runner.errors import (
     ToolRegistryError,
     WorkflowExecutionError,
 )
-from dynamic_agent_runner.guardrails import GuardrailDecision, InMemoryGuardrailRegistry
+from dynamic_agent_runner.guardrails import (
+    GuardrailDecision,
+    GuardrailResult,
+    InMemoryGuardrailRegistry,
+)
 from dynamic_agent_runner.graph_mutation import ContextPruningMutation
 from dynamic_agent_runner.hooks import (
     ModelHookContext,
     NodeHookContext,
-    ToolHookContext,
     WorkflowHookContext,
     WorkflowLifecycleHooks,
     invoke_lifecycle_hook_async,
 )
+from dynamic_agent_runner.local_models import EmbeddingBatchResult, EmbeddingInputItem
 from dynamic_agent_runner.models import (
     CompiledAgentWorkflow,
     ExecutionPlan,
+    GuardrailDeclaration,
     LoadedAgentWorkflow,
     PreparedNode,
     RuntimeEdge,
@@ -60,6 +71,7 @@ from dynamic_agent_runner.prompt_cache import (
     prompt_cache_policy_from_value,
 )
 from dynamic_agent_runner.registry import (
+    PreparedToolInvocation,
     RegisteredTool,
     ToolRegistry,
     ToolResult,
@@ -84,11 +96,34 @@ from dynamic_agent_runner.token_budget import (
     estimate_messages_tokens,
     token_budget_policy_from_value,
 )
+from dynamic_agent_runner.tool_invocation import (
+    ActiveAdapterToolContext,
+    ApprovalInterruption,
+    ApprovalInterruptionState,  # noqa: F401 - public executor compatibility export
+    ProviderToolDecisionTerminalOutcome,
+    ProviderToolInterruption,
+    ProviderToolTerminalError,
+    coordinate_tool_invocation_async,
+    tool_context,
+    unwrap_provider_tool_interruption,
+)
 from dynamic_agent_runner.tracing import TraceEvent, TraceSink, WorkflowTracer
 
 
 T = TypeVar("T")
-ModelAdapter = OpenAIClientAdapter | AsyncOpenAIClientAdapter
+
+
+class ModelAdapter(Protocol):
+    """One sync or async model adapter accepted by the executor."""
+
+    @property
+    def models(self) -> tuple[str, ...]: ...
+
+    def create_response(
+        self, request: Any
+    ) -> ModelResponse | Awaitable[ModelResponse]: ...
+
+
 ContextCompactor = Callable[
     [tuple[OpenAIMessage, ...], Mapping[str, Any]],
     tuple[OpenAIMessage, ...],
@@ -107,34 +142,6 @@ class NodeExecution:
     kind: str
     output: Any = None
     error: str | None = None
-
-
-class ApprovalInterruptionState(str, Enum):
-    """Lifecycle state for an approval interruption."""
-
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    CANCELLED = "cancelled"
-    EXPIRED = "expired"
-    FAILED = "failed"
-
-
-@dataclass(frozen=True)
-class ApprovalInterruption:
-    """Structured pause record for an approval-required runtime action."""
-
-    interruption_id: str
-    run_id: str
-    workflow_id: str
-    node_id: str
-    tool_id: str | None = None
-    action_id: str | None = None
-    arguments: Mapping[str, Any] = field(default_factory=dict)
-    policy: Mapping[str, Any] = field(default_factory=dict)
-    reason: str = ""
-    state: ApprovalInterruptionState = ApprovalInterruptionState.PENDING
-    schema_version: int = 1
 
 
 @dataclass
@@ -263,6 +270,7 @@ class PreparedModelInput:
     tool_choice_policy: Any = None
     response_format: Mapping[str, Any] | None = None
     context_compactor: ContextCompactor | None = None
+    provider_context_compactor: ProviderContextCompactor | None = None
 
     @property
     def part_names(self) -> tuple[str, ...]:
@@ -285,15 +293,24 @@ async def execute_workflow_async(
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
+    provider_context_compactor: ProviderContextCompactor | None = None,
     context_summarizer: ContextSummarizer | None = None,
     context_selector: ContextSelector | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
     initial_node_outputs: Mapping[str, Any] | None = None,
+    embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None = None,
+    _sync_execution: bool = False,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt asynchronously."""
 
     if not prompt:
         raise WorkflowExecutionError("workflow execution requires a non-empty prompt")
+    if embedding_inputs is not None and not isinstance(
+        workflow, WorkflowExecutionContext
+    ):
+        raise WorkflowExecutionError(
+            "embedding inputs require a workflow execution context"
+        )
     context = _normalize_execution_context(
         workflow,
         tool_registry=tool_registry,
@@ -305,6 +322,7 @@ async def execute_workflow_async(
         lifecycle_hooks=lifecycle_hooks,
         model_adapter_coverage=model_adapter_coverage,
         context_selector=context_selector,
+        provider_context_compactor=provider_context_compactor,
     )
     plan = prepare_execution_plan(context.workflow)
     nodes = plan.nodes_by_id
@@ -370,6 +388,7 @@ async def execute_workflow_async(
                     plan,
                     state,
                     context.tool_registry,
+                    context.guardrail_registry,
                     adapters,
                     tracer,
                     context.prompt_cache,
@@ -378,6 +397,12 @@ async def execute_workflow_async(
                     context_compactor,
                     context_summarizer,
                     context.context_selector,
+                    context.provider_context_compactor,
+                    context.embedding_profile_id,
+                    context.embedding_producer,
+                    context.embedding_producer_mode,
+                    embedding_inputs,
+                    _sync_execution,
                 )
             except Exception as exc:
                 tracer.emit(
@@ -448,10 +473,12 @@ def execute_workflow(
     model_adapter_coverage: str | None = None,
     run_id: str | None = None,
     context_compactor: ContextCompactor | None = None,
+    provider_context_compactor: ProviderContextCompactor | None = None,
     context_summarizer: ContextSummarizer | None = None,
     context_selector: ContextSelector | None = None,
     session_messages: Sequence[OpenAIMessage] = (),
     initial_node_outputs: Mapping[str, Any] | None = None,
+    embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None = None,
 ) -> WorkflowResult | WorkflowInterruptedResult:
     """Execute a validated workflow from a user prompt."""
 
@@ -469,10 +496,13 @@ def execute_workflow(
             model_adapter_coverage=model_adapter_coverage,
             run_id=run_id,
             context_compactor=context_compactor,
+            provider_context_compactor=provider_context_compactor,
             context_summarizer=context_summarizer,
             context_selector=context_selector,
             session_messages=session_messages,
             initial_node_outputs=initial_node_outputs,
+            embedding_inputs=embedding_inputs,
+            _sync_execution=True,
         )
     )
 
@@ -487,6 +517,7 @@ def prepare_model_input(
     prompt_cache: bool | None = None,
     model_adapter_coverage: str = "augmented",
     context_compactor: ContextCompactor | None = None,
+    provider_context_compactor: ProviderContextCompactor | None = None,
     context_summarizer: ContextSummarizer | None = None,
     context_selector: ContextSelector | None = None,
 ) -> PreparedModelInput:
@@ -517,6 +548,7 @@ def prepare_model_input(
         model=model,
         adapter=adapter,
         context_compactor=context_compactor,
+        provider_context_compactor=provider_context_compactor,
         context_summarizer=context_summarizer,
         context_selector=context_selector,
     )
@@ -596,6 +628,7 @@ def prepare_model_input(
         tool_choice_policy=node.tool_choice_policy,
         response_format=node.response_format,
         context_compactor=context_compactor,
+        provider_context_compactor=provider_context_compactor,
     )
 
 
@@ -624,6 +657,7 @@ def _normalize_execution_context(
     lifecycle_hooks: WorkflowLifecycleHooks | None,
     model_adapter_coverage: str | None,
     context_selector: ContextSelector | None,
+    provider_context_compactor: ProviderContextCompactor | None,
 ) -> WorkflowExecutionContext:
     if isinstance(workflow, WorkflowExecutionContext):
         if any(
@@ -638,6 +672,7 @@ def _normalize_execution_context(
                 lifecycle_hooks,
                 model_adapter_coverage,
                 context_selector,
+                provider_context_compactor,
             )
         ):
             raise WorkflowExecutionError(
@@ -657,6 +692,7 @@ def _normalize_execution_context(
         lifecycle_hooks=lifecycle_hooks,
         model_adapter_coverage=normalized_coverage,
         context_selector=context_selector,
+        provider_context_compactor=provider_context_compactor,
     )
 
 
@@ -665,6 +701,7 @@ async def _execute_node_async(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     model_adapters: Sequence[ModelAdapter],
     tracer: WorkflowTracer,
     prompt_cache: bool | None,
@@ -673,6 +710,12 @@ async def _execute_node_async(
     context_compactor: ContextCompactor | None,
     context_summarizer: ContextSummarizer | None,
     context_selector: ContextSelector | None,
+    provider_context_compactor: ProviderContextCompactor | None,
+    embedding_profile_id: str | None,
+    embedding_producer: object | None,
+    embedding_producer_mode: str | None,
+    embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None,
+    sync_execution: bool,
 ) -> Any:
     if node.kind == "llm_step":
         return await _execute_llm_step_async(
@@ -680,6 +723,7 @@ async def _execute_node_async(
             plan,
             state,
             registry,
+            guardrail_registry,
             model_adapters,
             tracer,
             prompt_cache,
@@ -688,45 +732,78 @@ async def _execute_node_async(
             context_compactor,
             context_summarizer,
             context_selector,
+            provider_context_compactor,
         )
     if node.kind == "tool_use_step":
         return await _execute_tool_step_async(
-            node, plan, state, registry, tracer, lifecycle_hooks
+            node, plan, state, registry, guardrail_registry, tracer, lifecycle_hooks
         )
     if node.kind == "decision_step":
         return _execute_decision_step(node, state, tracer)
+    if node.kind == "embedding_step":
+        return await _execute_embedding_step_async(
+            node,
+            embedding_profile_id,
+            embedding_producer,
+            embedding_producer_mode,
+            embedding_inputs,
+            sync_execution,
+        )
     raise WorkflowExecutionError(f"unsupported node kind {node.kind!r}")
+
+
+async def _execute_embedding_step_async(
+    node: PreparedNode,
+    embedding_profile_id: str | None,
+    embedding_producer: object | None,
+    embedding_producer_mode: str | None,
+    embedding_inputs: Mapping[str, tuple[EmbeddingInputItem, ...]] | None,
+    sync_execution: bool,
+) -> EmbeddingBatchResult:
+    """Execute one host-bound embedding batch without exposing its contents."""
+
+    profile = node.raw.get("embedding_profile")
+    input_key = node.raw.get("embedding_input_from")
+    if (
+        not isinstance(profile, str)
+        or profile != embedding_profile_id
+        or not isinstance(input_key, str)
+        or embedding_producer_mode not in {"sync", "async"}
+        or embedding_producer_mode != ("sync" if sync_execution else "async")
+        or embedding_producer is None
+    ):
+        raise WorkflowExecutionError("embedding step has an invalid host binding")
+    if embedding_inputs is None or set(embedding_inputs) != {input_key}:
+        raise WorkflowExecutionError("embedding step has invalid host inputs")
+    batch = embedding_inputs.get(input_key)
+    if (
+        not isinstance(batch, tuple)
+        or not batch
+        or any(not isinstance(item, EmbeddingInputItem) for item in batch)
+    ):
+        raise WorkflowExecutionError("embedding step has an invalid host batch")
+    producer = getattr(embedding_producer, "embed", None)
+    if not callable(producer):
+        raise WorkflowExecutionError("embedding step has an invalid host producer")
+    result = producer(tuple(batch))
+    if embedding_producer_mode == "sync" and inspect.isawaitable(result):
+        close = getattr(result, "close", None)
+        if callable(close):
+            close()
+        raise WorkflowExecutionError(
+            "embedding step sync producer returned an awaitable"
+        )
+    if embedding_producer_mode == "async" and inspect.isawaitable(result):
+        result = await result
+    if not isinstance(result, EmbeddingBatchResult):
+        raise WorkflowExecutionError(
+            "embedding step producer returned an invalid result"
+        )
+    return result
 
 
 def _new_run_id() -> str:
     return str(uuid4())
-
-
-def _new_approval_id() -> str:
-    return str(uuid4())
-
-
-def _approval_required(tool: RegisteredTool) -> bool:
-    value = (
-        tool.definition.policy.approval_required or tool.definition.approval_required
-    )
-    return str(value).strip().lower() in {"1", "true", "yes", "required"}
-
-
-def _tool_policy_payload(tool: RegisteredTool) -> dict[str, str]:
-    policy = tool.definition.policy
-    payload: dict[str, str] = {}
-    for key, value in (
-        ("approval_required", policy.approval_required),
-        ("side_effect", policy.side_effect),
-        ("sandbox", policy.sandbox),
-        ("timeout", policy.timeout),
-        ("retry_policy", policy.retry_policy),
-        ("failure_behavior", policy.failure_behavior),
-    ):
-        if value is not None:
-            payload[key] = str(value)
-    return payload
 
 
 def _run_input_guardrails(
@@ -794,11 +871,166 @@ def _run_input_guardrails(
         raise GuardrailExecutionError(error)
 
 
+def _tool_input_guardrail_runner(
+    plan: ExecutionPlan,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
+    tracer: WorkflowTracer,
+    node: PreparedNode,
+    tool_call_id: str | None = None,
+) -> Callable[[PreparedToolInvocation], None] | None:
+    declarations = _tool_input_guardrail_declarations(plan)
+    if not declarations:
+        return None
+
+    def run(prepared: PreparedToolInvocation) -> None:
+        for declaration in declarations:
+            _run_tool_input_guardrail(
+                declaration,
+                prepared,
+                guardrail_registry,
+                tracer,
+                node,
+                tool_call_id,
+            )
+
+    return run
+
+
+def _tool_input_guardrail_declarations(
+    plan: ExecutionPlan,
+) -> tuple[GuardrailDeclaration, ...]:
+    return tuple(
+        declaration
+        for declaration in plan.workflow.runtime_manifest.guardrails
+        if declaration.phase == "tool_input"
+    )
+
+
+def _run_tool_input_guardrail(
+    declaration: GuardrailDeclaration,
+    prepared: PreparedToolInvocation,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
+    tracer: WorkflowTracer,
+    node: PreparedNode,
+    tool_call_id: str | None,
+) -> None:
+    guardrail_id = str(declaration.id)
+    payload = _tool_input_guardrail_payload(guardrail_id, prepared, node, tool_call_id)
+    tracer.emit("guardrail_started", node_id=str(node.id), payload=payload)
+    if guardrail_registry is None or not guardrail_registry.has_guardrail(guardrail_id):
+        _raise_tool_input_guardrail_error(
+            tracer, node, payload, "missing_adapter", guardrail_id
+        )
+    result = _run_tool_input_guardrail_handler(
+        guardrail_registry, guardrail_id, prepared, node, tool_call_id, tracer, payload
+    )
+    _record_tool_input_guardrail_result(result, guardrail_id, tracer, node, payload)
+
+
+def _tool_input_guardrail_payload(
+    guardrail_id: str,
+    prepared: PreparedToolInvocation,
+    node: PreparedNode,
+    tool_call_id: str | None,
+) -> dict[str, Any]:
+    payload = {
+        "guardrail_id": guardrail_id,
+        "phase": "tool_input",
+        "tool_id": prepared.tool.id,
+        "node_id": str(node.id),
+    }
+    if tool_call_id is not None:
+        payload["tool_call_id"] = tool_call_id
+    return payload
+
+
+def _run_tool_input_guardrail_handler(
+    guardrail_registry: InMemoryGuardrailRegistry,
+    guardrail_id: str,
+    prepared: PreparedToolInvocation,
+    node: PreparedNode,
+    tool_call_id: str | None,
+    tracer: WorkflowTracer,
+    payload: Mapping[str, Any],
+) -> GuardrailResult:
+    subject: dict[str, Any] = {
+        "phase": "tool_input",
+        "tool_id": prepared.tool.id,
+        "node_id": str(node.id),
+        "arguments": deepcopy(dict(prepared.arguments)),
+    }
+    if tool_call_id is not None:
+        subject["tool_call_id"] = tool_call_id
+    try:
+        result = guardrail_registry.run(guardrail_id, subject)
+    except Exception:  # noqa: BLE001 - adapters are caller-owned.
+        _raise_tool_input_guardrail_error(
+            tracer, node, payload, "handler_error", guardrail_id
+        )
+    if not isinstance(result, GuardrailResult):
+        _raise_tool_input_guardrail_error(
+            tracer, node, payload, "malformed_result", guardrail_id
+        )
+    return result
+
+
+def _record_tool_input_guardrail_result(
+    result: GuardrailResult,
+    guardrail_id: str,
+    tracer: WorkflowTracer,
+    node: PreparedNode,
+    payload: Mapping[str, Any],
+) -> None:
+    if result.guardrail_id != guardrail_id:
+        _raise_tool_input_guardrail_error(
+            tracer, node, payload, "result_identity_mismatch", guardrail_id
+        )
+    if result.phase != "tool_input":
+        _raise_tool_input_guardrail_error(
+            tracer, node, payload, "result_phase_mismatch", guardrail_id
+        )
+    if result.decision is GuardrailDecision.PASS:
+        tracer.emit("guardrail_passed", node_id=str(node.id), payload=payload)
+        return
+    if result.decision is GuardrailDecision.ABORT:
+        tracer.emit(
+            "guardrail_aborted",
+            node_id=str(node.id),
+            payload={**payload, "reason_code": result.reason_code},
+        )
+        error = f"tool-input guardrail {guardrail_id!r} aborted tool invocation"
+        if result.reason_code:
+            error = f"{error}: {result.reason_code}"
+        tracer.emit("workflow_error", node_id=str(node.id), payload={"error": error})
+        raise GuardrailExecutionError(error)
+    _raise_tool_input_guardrail_error(
+        tracer, node, payload, "unsupported_decision", guardrail_id
+    )
+
+
+def _raise_tool_input_guardrail_error(
+    tracer: WorkflowTracer,
+    node: PreparedNode,
+    payload: Mapping[str, Any],
+    reason: str,
+    guardrail_id: str,
+) -> None:
+    tracer.emit(
+        "guardrail_errored",
+        node_id=str(node.id),
+        payload={**payload, "reason": reason},
+    )
+    error = f"tool-input guardrail {guardrail_id!r} failed: {reason}"
+    tracer.emit("workflow_error", node_id=str(node.id), payload={"error": error})
+    raise GuardrailExecutionError(error)
+
+
 async def _execute_llm_step_async(
     node: PreparedNode,
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     model_adapters: Sequence[ModelAdapter],
     tracer: WorkflowTracer,
     prompt_cache: bool | None,
@@ -807,7 +1039,8 @@ async def _execute_llm_step_async(
     context_compactor: ContextCompactor | None,
     context_summarizer: ContextSummarizer | None,
     context_selector: ContextSelector | None,
-) -> ModelResponse:
+    provider_context_compactor: ProviderContextCompactor | None,
+) -> ModelResponse | WorkflowInterruptedResult:
     prepared_input = prepare_model_input(
         node,
         plan,
@@ -817,6 +1050,7 @@ async def _execute_llm_step_async(
         prompt_cache=prompt_cache,
         model_adapter_coverage=model_adapter_coverage,
         context_compactor=context_compactor,
+        provider_context_compactor=provider_context_compactor,
         context_summarizer=context_summarizer,
         context_selector=context_selector,
     )
@@ -825,6 +1059,17 @@ async def _execute_llm_step_async(
         plan,
         prepared_input,
         registry,
+    )
+    adapter_context = _active_adapter_tool_context(
+        node,
+        plan,
+        state,
+        registry,
+        guardrail_registry,
+        tools,
+        exposed_tools,
+        tracer,
+        lifecycle_hooks,
     )
     request = build_openai_request(
         model=prepared_input.model,
@@ -836,6 +1081,7 @@ async def _execute_llm_step_async(
             phase="initial",
         ),
         response_format=prepared_input.response_format,
+        adapter_context=adapter_context,
         **prepared_input.model_parameters,
     )
     model_request_payload = {
@@ -870,6 +1116,14 @@ async def _execute_llm_step_async(
             policy=_exception_retry_policy(policy, "model_error"),
             retry_exceptions=(ModelExecutionError,),
         )
+    except ProviderToolInterruption as interruption:
+        return WorkflowInterruptedResult(
+            final_result=None,
+            state=state,
+            interruption=unwrap_provider_tool_interruption(interruption),
+        )
+    except ProviderToolTerminalError as exc:
+        raise WorkflowExecutionError(str(exc)) from exc
     except ModelExecutionError as exc:
         retry_response = await _retry_model_after_context_overflow_async(
             exc,
@@ -878,6 +1132,7 @@ async def _execute_llm_step_async(
             state,
             prepared_input,
             tools,
+            adapter_context,
             tracer,
         )
         if retry_response is not None:
@@ -927,10 +1182,11 @@ async def _execute_llm_step_async(
             plan,
             state,
             registry,
+            guardrail_registry,
             prepared_input,
             response,
             tools,
-            exposed_tools,
+            adapter_context,
             tracer,
             lifecycle_hooks,
         )
@@ -976,6 +1232,68 @@ def _llm_step_tools(
     return selection.tools, exposed_tools, selection.diagnostics.to_trace_payload()
 
 
+def _active_adapter_tool_context(
+    node: PreparedNode,
+    plan: ExecutionPlan,
+    state: WorkflowExecutionState,
+    registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
+    tools: Sequence[Mapping[str, Any]],
+    exposed_tools: Sequence[RegisteredTool],
+    tracer: WorkflowTracer,
+    lifecycle_hooks: WorkflowLifecycleHooks | None,
+) -> ActiveAdapterToolContext | None:
+    """Bind only the model-facing tool surface to this active node request."""
+
+    if registry is None or not exposed_tools:
+        return None
+    model_tool_ids = {
+        str(tool["name"]) for tool in tools if isinstance(tool.get("name"), str)
+    }
+    return tool_context(
+        plan=plan,
+        node=node,
+        tools=tuple(tool for tool in exposed_tools if tool.id in model_tool_ids),
+        registry=registry,
+        state=state,
+        tracer=tracer,
+        lifecycle_hooks=lifecycle_hooks,
+        retry_policy=RetryPolicy(),
+        provider_guardrail_runner=_provider_tool_input_guardrail_runner(
+            plan,
+            guardrail_registry,
+            tracer,
+            node,
+        ),
+        executor_loop=asyncio.get_running_loop(),
+    )
+
+
+def _provider_tool_input_guardrail_runner(
+    plan: ExecutionPlan,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
+    tracer: WorkflowTracer,
+    node: PreparedNode,
+) -> Callable[[PreparedToolInvocation, str], None] | None:
+    """Bind active tool-input guardrails to provider callback action identifiers."""
+
+    if not _tool_input_guardrail_declarations(plan):
+        return None
+
+    def run(prepared: PreparedToolInvocation, action_id: str) -> None:
+        guardrail_runner = _tool_input_guardrail_runner(
+            plan,
+            guardrail_registry,
+            tracer,
+            node,
+            action_id,
+        )
+        if guardrail_runner is not None:
+            guardrail_runner(prepared)
+
+    return run
+
+
 async def _retry_model_after_context_overflow_async(
     exc: ModelExecutionError,
     node: PreparedNode,
@@ -983,27 +1301,34 @@ async def _retry_model_after_context_overflow_async(
     state: WorkflowExecutionState,
     prepared_input: PreparedModelInput,
     tools: Sequence[Mapping[str, Any]],
+    adapter_context: ActiveAdapterToolContext | None,
     tracer: WorkflowTracer,
 ) -> ModelResponse | None:
     auto = _context_compaction_auto_policy(
         _prepare_model_input_policy(plan.execution_policy)
     )
-    if (
-        not is_context_overflow_error(exc)
-        or auto.get("retry_on_overflow") is not True
-        or prepared_input.context_compactor is None
-    ):
+    if not is_context_overflow_error(exc) or auto.get("retry_on_overflow") is not True:
         return None
-    metadata = {
-        "phase": "overflow_retry",
-        "trigger": "provider_context_overflow",
-        "implementation": str(auto.get("implementation") or "injected"),
-        "status": "retrying",
-        "reason": "context_overflow",
-    }
-    replacement_messages = tuple(
-        prepared_input.context_compactor(prepared_input.messages, metadata)
-    )
+    implementation = str(auto.get("implementation") or "injected")
+    if implementation == "provider":
+        replacement_messages, metadata = _provider_overflow_replacement(
+            prepared_input, auto
+        )
+        if replacement_messages is None:
+            return None
+    elif prepared_input.context_compactor is not None:
+        metadata = {
+            "phase": "overflow_retry",
+            "trigger": "provider_context_overflow",
+            "implementation": implementation,
+            "status": "retrying",
+            "reason": "context_overflow",
+        }
+        replacement_messages = tuple(
+            prepared_input.context_compactor(prepared_input.messages, metadata)
+        )
+    else:
+        return None
     retry_request = build_openai_request(
         model=prepared_input.model,
         messages=replacement_messages,
@@ -1014,6 +1339,7 @@ async def _retry_model_after_context_overflow_async(
             phase="initial",
         ),
         response_format=prepared_input.response_format,
+        adapter_context=adapter_context,
         **prepared_input.model_parameters,
     )
     state.node_inputs[str(node.id)] = retry_request.to_kwargs()
@@ -1026,6 +1352,108 @@ async def _retry_model_after_context_overflow_async(
         },
     )
     return await _create_model_response_async(prepared_input.adapter, retry_request)
+
+
+def _provider_overflow_replacement(
+    prepared_input: PreparedModelInput,
+    auto: Mapping[str, Any],
+) -> tuple[tuple[OpenAIMessage, ...] | None, Mapping[str, Any]]:
+    remote = auto.get("remote")
+    remote = remote if isinstance(remote, Mapping) else {}
+    capability = str(remote.get("provider_capability") or "")
+    fallback = str(remote.get("fallback") or "basic")
+    compactor = prepared_input.provider_context_compactor
+    messages = prepared_input.messages
+    tokens_before = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content} for message in messages
+        ),
+        model=prepared_input.model,
+    ).token_count
+    base_metadata = {
+        "phase": "overflow_retry",
+        "trigger": "provider_context_overflow",
+        "implementation": "provider",
+        "provider_capability": capability,
+        "tokens_before": tokens_before,
+    }
+    if compactor is None or compactor.capabilities.get(capability) is not True:
+        reason = (
+            "provider_context_compactor_unavailable"
+            if compactor is None
+            else "provider_capability_unavailable"
+        )
+        return _provider_overflow_fallback(
+            messages,
+            base_metadata,
+            fallback=fallback,
+            reason=reason,
+            model=prepared_input.model,
+        )
+    try:
+        result = compactor.compact(
+            ProviderContextCompactionRequest(
+                messages=messages,
+                model=prepared_input.model,
+                phase="overflow_retry",
+                provider_capability=capability,
+                max_replacement_messages=int(
+                    remote.get("max_replacement_messages") or 32
+                ),
+                preserve_system_messages=remote.get("preserve_system_messages")
+                is not False,
+                tokens_before=tokens_before,
+            )
+        )
+        replacement_messages = _validated_provider_replacement_messages(
+            result,
+            messages=messages,
+            remote=remote,
+        )
+    except Exception:
+        return _provider_overflow_fallback(
+            messages,
+            base_metadata,
+            fallback=fallback,
+            reason="invalid_replacement",
+            model=prepared_input.model,
+        )
+    return replacement_messages, {
+        **base_metadata,
+        "status": "retrying",
+        "reason": "context_overflow",
+        "window_id": str(uuid4()),
+        "token_baseline": result.token_baseline,
+        "tokens_after": estimate_messages_tokens(
+            tuple(
+                {"role": message.role, "content": message.content}
+                for message in replacement_messages
+            ),
+            model=prepared_input.model,
+        ).token_count,
+    }
+
+
+def _provider_overflow_fallback(
+    messages: Sequence[OpenAIMessage],
+    base_metadata: Mapping[str, Any],
+    *,
+    fallback: str,
+    reason: str,
+    model: str,
+) -> tuple[tuple[OpenAIMessage, ...], Mapping[str, Any]]:
+    parts = [
+        (f"overflow_retry_message_{index}", message)
+        for index, message in enumerate(messages, start=1)
+    ]
+    replacement_parts, metadata = _provider_compaction_fallback(
+        parts,
+        base_metadata,
+        fallback=fallback,
+        reason=reason,
+        model=model,
+    )
+    return tuple(message for _part_name, message in replacement_parts), metadata
 
 
 def _iterative_loop_enabled(plan: ExecutionPlan) -> bool:
@@ -1055,15 +1483,37 @@ async def _execute_model_tool_loop_async(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     prepared_input: PreparedModelInput,
     initial_response: ModelResponse,
     tools: Sequence[Mapping[str, Any]],
-    exposed_tools: Sequence[RegisteredTool],
+    adapter_context: ActiveAdapterToolContext | None,
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ModelResponse | WorkflowInterruptedResult:
-    if not initial_response.tool_calls:
-        return initial_response
+    max_iterations = plan.max_steps or 8
+    tracer.emit(
+        "model_tool_loop_started",
+        node_id=str(node.id),
+        payload={
+            "max_iterations": max_iterations,
+            "tool_count": len(adapter_context.allowed_tool_ids)
+            if adapter_context is not None
+            else 0,
+        },
+    )
+    if not initial_response.tool_calls and not any(
+        result_key.startswith(f"{node.id}.") and result.success
+        for result_key, result in state.tool_results.items()
+    ):
+        tracer.emit(
+            "model_tool_loop_stopped",
+            node_id=str(node.id),
+            payload={"iteration": 0, "stop_reason": "required_tool_not_called"},
+        )
+        raise WorkflowExecutionError(
+            f"llm_step node {node.id!r} completed without a required tool call"
+        )
     if registry is None:
         raise WorkflowExecutionError(
             f"llm_step node {node.id!r} requested tools but no registry was provided"
@@ -1071,12 +1521,6 @@ async def _execute_model_tool_loop_async(
 
     response = initial_response
     transcript: list[Mapping[str, Any]] = []
-    max_iterations = plan.max_steps or 8
-    tracer.emit(
-        "model_tool_loop_started",
-        node_id=str(node.id),
-        payload={"max_iterations": max_iterations, "tool_count": len(exposed_tools)},
-    )
     for iteration in range(1, max_iterations + 1):
         if not response.tool_calls:
             _emit_model_tool_loop_stop(
@@ -1105,8 +1549,8 @@ async def _execute_model_tool_loop_async(
                     tool_call,
                     tool_call_id,
                     iteration,
-                    registry,
-                    exposed_tools,
+                    guardrail_registry,
+                    adapter_context,
                     state,
                     tracer,
                     lifecycle_hooks,
@@ -1151,6 +1595,7 @@ async def _execute_model_tool_loop_async(
             prepared_input,
             tuple(tools),
             tuple(transcript),
+            adapter_context,
             tracer,
             lifecycle_hooks,
         )
@@ -1171,6 +1616,7 @@ async def _request_loop_model_response_async(
     prepared_input: PreparedModelInput,
     tools: Sequence[Mapping[str, Any]],
     transcript: Sequence[Mapping[str, Any]],
+    adapter_context: ActiveAdapterToolContext | None,
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ModelResponse:
@@ -1199,6 +1645,7 @@ async def _request_loop_model_response_async(
             phase="after_tool_result",
         ),
         response_format=prepared_input.response_format,
+        adapter_context=adapter_context,
         **prepared_input.model_parameters,
     )
     state.node_inputs[str(node.id)] = request.to_kwargs()
@@ -1280,6 +1727,7 @@ def _apply_mid_turn_compaction(
         prepared_input.adapter,
         model=prepared_input.model,
         context_compactor=prepared_input.context_compactor,
+        provider_context_compactor=None,
     )
     if not metadata:
         return tuple(messages), {}
@@ -1306,13 +1754,17 @@ async def _invoke_model_tool_call_async(
     tool_call: ModelToolCall,
     tool_call_id: str,
     iteration: int,
-    registry: ToolRegistry,
-    exposed_tools: Sequence[RegisteredTool],
+    guardrail_registry: InMemoryGuardrailRegistry | None,
+    adapter_context: ActiveAdapterToolContext | None,
     state: WorkflowExecutionState,
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ToolResult | WorkflowInterruptedResult:
-    tool = _exposed_model_tool(tool_call, exposed_tools)
+    if adapter_context is None:
+        raise WorkflowExecutionError(
+            f"model requested unavailable tool {tool_call.name!r}"
+        )
+    tool = _exposed_model_tool(tool_call, adapter_context.tools)
     arguments = _model_tool_arguments(tool_call)
     tracer.emit(
         "model_tool_loop_tool_call",
@@ -1325,94 +1777,36 @@ async def _invoke_model_tool_call_async(
         },
         sensitive_fields=("arguments",),
     )
-    if _approval_required(tool):
-        interruption = ApprovalInterruption(
-            interruption_id=_new_approval_id(),
-            run_id=str(state.run_id),
-            workflow_id=str(plan.workflow.runtime_manifest.package_id),
-            node_id=str(node.id),
+    coordinated = await coordinate_tool_invocation_async(
+        adapter_context.request(
             tool_id=tool.id,
+            arguments=arguments,
+            result_key=f"{node.id}.{tool_call_id}",
             action_id=tool_call_id,
-            arguments=arguments,
-            policy=_tool_policy_payload(tool),
-            reason=f"model tool {tool.id!r} requires approval",
+            invoke=lambda prepared: (
+                adapter_context.registry.invoke_prepared_tool_async(prepared)
+                if prepared is not None
+                else adapter_context.registry.invoke_tool_async(tool.id, arguments)
+            ),
+            approval_reason=f"model tool {tool.id!r} requires approval",
+            guardrail_runner=_tool_input_guardrail_runner(
+                plan,
+                guardrail_registry,
+                tracer,
+                node,
+                tool_call_id,
+            ),
         )
-        tracer.emit(
-            "approval_requested",
-            node_id=str(node.id),
-            payload={
-                "interruption_id": interruption.interruption_id,
-                "tool_id": tool.id,
-                "tool_call_id": tool_call_id,
-                "arguments": arguments,
-                "policy": interruption.policy,
-                "reason": interruption.reason,
-            },
-            sensitive_fields=("arguments",),
-        )
-        tracer.emit(
-            "approval_paused",
-            node_id=str(node.id),
-            payload={
-                "interruption_id": interruption.interruption_id,
-                "tool_id": tool.id,
-                "tool_call_id": tool_call_id,
-                "state": interruption.state.value,
-            },
-        )
+    )
+    if isinstance(coordinated, ApprovalInterruption):
         return WorkflowInterruptedResult(
-            final_result=None,
-            state=state,
-            interruption=interruption,
+            final_result=None, state=state, interruption=coordinated
         )
-    tracer.emit(
-        "tool_started",
-        node_id=str(node.id),
-        payload={
-            "tool_id": tool.id,
-            "tool_call_id": tool_call_id,
-            "arguments": arguments,
-        },
-        sensitive_fields=("arguments",),
-    )
-    await invoke_lifecycle_hook_async(
-        lifecycle_hooks.registered_hook("before_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=tool.id,
-            arguments=arguments,
-            run_id=state.run_id,
-        ),
-    )
-    result = await registry.invoke_tool_async(tool.id, arguments)
-    state.tool_results[f"{node.id}.{tool_call_id}"] = result
-    tracer.emit(
-        "tool_result",
-        node_id=str(node.id),
-        payload={"tool_call_id": tool_call_id, **result.trace_payload()},
-        sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
-    )
-    tracer.emit(
-        "tool_finished",
-        node_id=str(node.id),
-        payload={
-            "tool_id": tool.id,
-            "tool_call_id": tool_call_id,
-            "success": result.success,
-            "error": result.error,
-        },
-    )
-    await invoke_lifecycle_hook_async(
-        lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=tool.id,
-            arguments=arguments,
-            result=result,
-            error=result.error,
-            run_id=state.run_id,
-        ),
-    )
+    if isinstance(coordinated, ProviderToolDecisionTerminalOutcome):
+        raise WorkflowExecutionError(
+            f"provider tool decision is {coordinated.state.value}"
+        )
+    result = coordinated
     if not result.success:
         raise WorkflowExecutionError(result.error or f"tool {tool.id!r} failed")
     return result
@@ -1481,16 +1875,27 @@ def _model_tool_call_id(tool_call: ModelToolCall, iteration: int) -> str:
 def _model_tool_result_messages(
     tool_call: ModelToolCall, tool_call_id: str, result: ToolResult
 ) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
-    model_output = json.dumps(result.model_facing_output)
-    arguments = (
-        tool_call.arguments
-        if isinstance(tool_call.arguments, str)
-        else json.dumps(tool_call.arguments)
+    uses_artifact = _model_tool_call_uses_artifact(tool_call)
+    model_output = json.dumps(
+        {"status": "artifact_result_redacted"}
+        if uses_artifact
+        else result.model_facing_output
     )
+    arguments = _model_tool_transcript_arguments(tool_call)
     return (
         {
             "role": "assistant",
-            "content": f"Tool call {tool_call_id}: {tool_call.name}",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": tool_call_id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.name,
+                        "arguments": arguments,
+                    },
+                }
+            ],
             "_dar_transcript_type": "model_tool_call",
             "call_id": tool_call_id,
             "name": tool_call.name,
@@ -1505,6 +1910,58 @@ def _model_tool_result_messages(
             "call_id": tool_call_id,
             "output": model_output,
         },
+    )
+
+
+def _model_tool_transcript_arguments(tool_call: ModelToolCall) -> str:
+    """Keep artifact-backed provenance values out of the next model turn."""
+
+    arguments = (
+        tool_call.arguments
+        if isinstance(tool_call.arguments, str)
+        else json.dumps(tool_call.arguments)
+    )
+    if _model_tool_call_uses_artifact(tool_call):
+        return "{}"
+    return arguments
+
+
+def _model_tool_call_uses_artifact(tool_call: ModelToolCall) -> bool:
+    """Return whether an authorized tool call claims any artifact source."""
+
+    arguments = tool_call.arguments
+    try:
+        parsed_arguments = (
+            json.loads(arguments) if isinstance(arguments, str) else arguments
+        )
+        envelope = (
+            parsed_arguments.get("provenance_envelope")
+            if isinstance(parsed_arguments, Mapping)
+            else None
+        )
+        parsed_envelope = json.loads(envelope) if isinstance(envelope, str) else None
+        sources = (
+            parsed_envelope.get("sources")
+            if isinstance(parsed_envelope, Mapping)
+            else None
+        )
+    except (TypeError, json.JSONDecodeError):
+        return False
+    return isinstance(sources, Mapping) and any(
+        _provenance_source_contains_artifact(source) for source in sources.values()
+    )
+
+
+def _provenance_source_contains_artifact(source: object) -> bool:
+    """Return whether one provenance source can disclose ingressed content."""
+
+    if not isinstance(source, Mapping):
+        return False
+    if source.get("kind") == "artifact":
+        return True
+    inputs = source.get("inputs")
+    return isinstance(inputs, list) and any(
+        _provenance_source_contains_artifact(item) for item in inputs
     )
 
 
@@ -1524,12 +1981,15 @@ def _tool_sources_payload(tools: Sequence[RegisteredTool]) -> dict[str, Any]:
 
 
 async def _create_model_response_async(
-    adapter: OpenAIClientAdapter | AsyncOpenAIClientAdapter,
+    adapter: ModelAdapter,
     request: Any,
 ) -> ModelResponse:
-    if isinstance(adapter, AsyncOpenAIClientAdapter):
+    if inspect.iscoroutinefunction(adapter.create_response):
         return await adapter.create_response(request)
-    return await asyncio.to_thread(adapter.create_response, request)
+    response = await asyncio.to_thread(adapter.create_response, request)
+    if inspect.isawaitable(response):
+        return await response
+    return response
 
 
 def _record_prompt_cache_provider_telemetry(
@@ -1567,6 +2027,7 @@ async def _execute_tool_step_async(
     plan: ExecutionPlan,
     state: WorkflowExecutionState,
     registry: ToolRegistry | None,
+    guardrail_registry: InMemoryGuardrailRegistry | None,
     tracer: WorkflowTracer,
     lifecycle_hooks: WorkflowLifecycleHooks | None,
 ) -> ToolResult | WorkflowInterruptedResult:
@@ -1581,97 +2042,42 @@ async def _execute_tool_step_async(
     arguments = _tool_arguments(node, state)
     state.node_inputs[str(node.id)] = arguments
     tool = registry.get_tool(str(node.tool_id))
-    if _approval_required(tool):
-        interruption = ApprovalInterruption(
-            interruption_id=_new_approval_id(),
-            run_id=str(state.run_id),
-            workflow_id=str(plan.workflow.runtime_manifest.package_id),
-            node_id=str(node.id),
-            tool_id=str(node.tool_id),
-            arguments=arguments,
-            policy=_tool_policy_payload(tool),
-            reason=f"tool {node.tool_id!r} requires approval",
-        )
-        tracer.emit(
-            "approval_requested",
-            node_id=str(node.id),
-            payload={
-                "interruption_id": interruption.interruption_id,
-                "tool_id": node.tool_id,
-                "arguments": arguments,
-                "policy": interruption.policy,
-                "reason": interruption.reason,
-            },
-            sensitive_fields=("arguments",),
-        )
-        tracer.emit(
-            "approval_paused",
-            node_id=str(node.id),
-            payload={
-                "interruption_id": interruption.interruption_id,
-                "tool_id": node.tool_id,
-                "state": interruption.state.value,
-            },
-        )
-        return WorkflowInterruptedResult(
-            final_result=None,
+    coordinated = await coordinate_tool_invocation_async(
+        tool_context(
+            plan=plan,
+            node=node,
+            tools=(tool,),
+            registry=registry,
             state=state,
-            interruption=interruption,
-        )
-    tracer.emit(
-        "tool_started",
-        node_id=str(node.id),
-        payload={"tool_id": node.tool_id, "arguments": arguments},
-        sensitive_fields=("arguments",),
-    )
-    tracer.emit(
-        "tool_invocation",
-        node_id=str(node.id),
-        payload={"tool_id": node.tool_id, "arguments": arguments},
-        sensitive_fields=("arguments",),
-    )
-    await invoke_lifecycle_hook_async(
-        lifecycle_hooks.registered_hook("before_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=str(node.tool_id),
+            tracer=tracer,
+            lifecycle_hooks=lifecycle_hooks,
+            retry_policy=_tool_retry_policy(node, registry),
+        ).request(
+            tool_id=tool.id,
             arguments=arguments,
-            run_id=state.run_id,
-        ),
+            result_key=str(node.id),
+            invoke=lambda prepared: _invoke_tool_with_retry_async(
+                node, registry, prepared or arguments, state, tracer
+            ),
+            approval_reason=f"tool {node.tool_id!r} requires approval",
+            emit_tool_invocation=True,
+            guardrail_runner=_tool_input_guardrail_runner(
+                plan, guardrail_registry, tracer, node
+            ),
+        )
     )
-    result = await _invoke_tool_with_retry_async(
-        node, registry, arguments, state, tracer
-    )
-    state.tool_results[str(node.id)] = result
-    tracer.emit(
-        "tool_result",
-        node_id=str(node.id),
-        payload=result.trace_payload(),
-        sensitive_fields=tuple(dict.fromkeys(("output", *result.sensitive_fields))),
-    )
+    if isinstance(coordinated, ApprovalInterruption):
+        return WorkflowInterruptedResult(
+            final_result=None, state=state, interruption=coordinated
+        )
+    if isinstance(coordinated, ProviderToolDecisionTerminalOutcome):
+        raise WorkflowExecutionError(
+            f"provider tool decision is {coordinated.state.value}"
+        )
+    result = coordinated
     if not result.success and _failure_behavior(node) == "error":
         error = result.error or f"tool {node.tool_id!r} failed"
         state.errors.append(error)
-        tracer.emit(
-            "tool_finished",
-            node_id=str(node.id),
-            payload={
-                "tool_id": node.tool_id,
-                "success": result.success,
-                "error": error,
-            },
-        )
-        await invoke_lifecycle_hook_async(
-            lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
-            ToolHookContext(
-                node_id=str(node.id),
-                tool_id=str(node.tool_id),
-                arguments=arguments,
-                result=result,
-                error=error,
-                run_id=state.run_id,
-            ),
-        )
         raise WorkflowExecutionError(error)
     if not result.success:
         _emit_status_notice(
@@ -1685,26 +2091,6 @@ async def _execute_tool_step_async(
             ),
             payload={"tool_id": node.tool_id, "error": result.error},
         )
-    tracer.emit(
-        "tool_finished",
-        node_id=str(node.id),
-        payload={
-            "tool_id": node.tool_id,
-            "success": result.success,
-            "error": result.error,
-        },
-    )
-    await invoke_lifecycle_hook_async(
-        lifecycle_hooks.registered_hook("after_tool") if lifecycle_hooks else None,
-        ToolHookContext(
-            node_id=str(node.id),
-            tool_id=str(node.tool_id),
-            arguments=arguments,
-            result=result,
-            error=result.error,
-            run_id=state.run_id,
-        ),
-    )
     _record_outputs(node, result, state)
     return result
 
@@ -1730,7 +2116,7 @@ def _emit_status_notice(
 async def _invoke_tool_with_retry_async(
     node: PreparedNode,
     registry: ToolRegistry,
-    arguments: Mapping[str, Any],
+    arguments: Mapping[str, Any] | PreparedToolInvocation,
     state: WorkflowExecutionState,
     tracer: WorkflowTracer,
 ) -> ToolResult:
@@ -1740,7 +2126,11 @@ async def _invoke_tool_with_retry_async(
     last_result: ToolResult | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            result = await registry.invoke_tool_async(str(node.tool_id), arguments)
+            result = (
+                await registry.invoke_prepared_tool_async(arguments)
+                if isinstance(arguments, PreparedToolInvocation)
+                else await registry.invoke_tool_async(str(node.tool_id), arguments)
+            )
         except ToolRegistryError as exc:
             _record_retry(
                 state,
@@ -2181,6 +2571,7 @@ def _apply_prepare_model_input_stage(
     model: str,
     adapter: ModelAdapter,
     context_compactor: ContextCompactor | None,
+    provider_context_compactor: ProviderContextCompactor | None,
     context_summarizer: ContextSummarizer | None,
     context_selector: ContextSelector | None,
 ) -> tuple[tuple[tuple[str, OpenAIMessage], ...], PreparedInputMetadata]:
@@ -2298,6 +2689,7 @@ def _apply_prepare_model_input_stage(
         adapter,
         model=model,
         context_compactor=context_compactor,
+        provider_context_compactor=provider_context_compactor,
     )
 
     context_lanes = _context_lane_metadata(
@@ -3175,12 +3567,13 @@ def _apply_pre_turn_compaction(
     *,
     model: str,
     context_compactor: ContextCompactor | None,
+    provider_context_compactor: ProviderContextCompactor | None,
 ) -> tuple[list[tuple[str, OpenAIMessage]], Mapping[str, Any]]:
     auto = _context_compaction_auto_policy(policy)
     if auto.get("enabled") is not True:
         return list(parts), {}
     implementation = str(auto.get("implementation") or "metadata_only")
-    if implementation != "injected":
+    if implementation not in {"injected", "provider"}:
         return list(parts), {}
     messages = tuple(message for _part_name, message in parts)
     tokens_before = estimate_messages_tokens(
@@ -3204,6 +3597,15 @@ def _apply_pre_turn_compaction(
             "reason": "under_threshold",
             "tokens_after": tokens_before,
         }
+    if implementation == "provider":
+        return _apply_provider_pre_turn_compaction(
+            parts,
+            messages,
+            auto,
+            base_metadata,
+            model=model,
+            provider_context_compactor=provider_context_compactor,
+        )
     if context_compactor is None:
         return list(parts), {
             **base_metadata,
@@ -3229,6 +3631,187 @@ def _apply_pre_turn_compaction(
         "reason": "token_threshold_exceeded",
         "tokens_after": tokens_after,
     }
+
+
+def _apply_provider_pre_turn_compaction(
+    parts: Sequence[tuple[str, OpenAIMessage]],
+    messages: tuple[OpenAIMessage, ...],
+    auto: Mapping[str, Any],
+    base_metadata: Mapping[str, Any],
+    *,
+    model: str,
+    provider_context_compactor: ProviderContextCompactor | None,
+) -> tuple[list[tuple[str, OpenAIMessage]], Mapping[str, Any]]:
+    remote = auto.get("remote")
+    remote = remote if isinstance(remote, Mapping) else {}
+    capability = str(remote.get("provider_capability") or "")
+    fallback = str(remote.get("fallback") or "basic")
+    if (
+        provider_context_compactor is None
+        or provider_context_compactor.capabilities.get(capability) is not True
+    ):
+        reason = (
+            "provider_context_compactor_unavailable"
+            if provider_context_compactor is None
+            else "provider_capability_unavailable"
+        )
+        return _provider_compaction_fallback(
+            parts, base_metadata, fallback=fallback, reason=reason, model=model
+        )
+    try:
+        result = provider_context_compactor.compact(
+            ProviderContextCompactionRequest(
+                messages=messages,
+                model=model,
+                phase="pre_turn",
+                provider_capability=capability,
+                max_replacement_messages=int(
+                    remote.get("max_replacement_messages") or 32
+                ),
+                preserve_system_messages=remote.get("preserve_system_messages")
+                is not False,
+                tokens_before=int(base_metadata["tokens_before"]),
+            )
+        )
+        replacement_messages = _validated_provider_replacement_messages(
+            result,
+            messages=messages,
+            remote=remote,
+        )
+    except Exception:
+        return _provider_compaction_fallback(
+            parts,
+            base_metadata,
+            fallback=fallback,
+            reason="invalid_replacement",
+            model=model,
+        )
+    tokens_after = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content}
+            for message in replacement_messages
+        ),
+        model=model,
+    ).token_count
+    return [
+        (f"pre_turn_compacted_{index}", message)
+        for index, message in enumerate(replacement_messages, start=1)
+    ], {
+        **base_metadata,
+        "status": "complete",
+        "reason": "token_threshold_exceeded",
+        "provider_capability": capability,
+        "window_id": str(uuid4()),
+        "token_baseline": result.token_baseline,
+        "tokens_after": tokens_after,
+    }
+
+
+def _validated_provider_replacement_messages(
+    result: object,
+    *,
+    messages: Sequence[OpenAIMessage],
+    remote: Mapping[str, Any],
+) -> tuple[OpenAIMessage, ...]:
+    if (
+        not isinstance(result, ProviderContextCompactionResult)
+        or not isinstance(result.messages, tuple)
+        or not result.messages
+        or not all(isinstance(message, OpenAIMessage) for message in result.messages)
+        or (
+            result.token_baseline is not None
+            and (
+                not isinstance(result.token_baseline, int)
+                or isinstance(result.token_baseline, bool)
+                or result.token_baseline < 0
+            )
+        )
+    ):
+        raise WorkflowExecutionError(
+            "provider context compaction returned invalid messages"
+        )
+    replacement_messages = result.messages
+    if len(replacement_messages) > int(remote.get("max_replacement_messages") or 32):
+        raise WorkflowExecutionError(
+            "provider context compaction exceeded replacement limit"
+        )
+    if any(message.role == "tool" for message in replacement_messages):
+        raise WorkflowExecutionError(
+            "provider context compaction returned tool history"
+        )
+    if remote.get("preserve_system_messages") is not False:
+        pinned_messages = tuple(
+            message for message in messages if message.role in {"system", "developer"}
+        )
+        if (
+            pinned_messages
+            and replacement_messages[: len(pinned_messages)] != pinned_messages
+        ):
+            raise WorkflowExecutionError(
+                "provider context compaction did not preserve pinned messages"
+            )
+    active_user = next(
+        (message for message in reversed(messages) if message.role == "user"), None
+    )
+    if active_user is not None and replacement_messages[-1] != active_user:
+        raise WorkflowExecutionError(
+            "provider context compaction did not preserve the active user message"
+        )
+    return replacement_messages
+
+
+def _provider_compaction_fallback(
+    parts: Sequence[tuple[str, OpenAIMessage]],
+    base_metadata: Mapping[str, Any],
+    *,
+    fallback: str,
+    reason: str,
+    model: str,
+) -> tuple[list[tuple[str, OpenAIMessage]], Mapping[str, Any]]:
+    if fallback == "error":
+        raise WorkflowExecutionError(
+            f"provider context compaction unavailable: {reason}"
+        )
+    replacement_parts = _basic_provider_fallback_parts(parts)
+    tokens_after = estimate_messages_tokens(
+        tuple(
+            {"role": message.role, "content": message.content}
+            for _part, message in replacement_parts
+        ),
+        model=model,
+    ).token_count
+    return replacement_parts, {
+        **base_metadata,
+        "status": "fallback",
+        "reason": reason,
+        "fallback": "basic",
+        "tokens_after": tokens_after,
+    }
+
+
+def _basic_provider_fallback_parts(
+    parts: Sequence[tuple[str, OpenAIMessage]],
+) -> list[tuple[str, OpenAIMessage]]:
+    messages = tuple(message for _part, message in parts)
+    pinned_count = 0
+    for message in messages:
+        if message.role not in {"system", "developer"}:
+            break
+        pinned_count += 1
+    if len(messages) <= pinned_count + 1:
+        return list(parts)
+    replacement = list(parts[:pinned_count])
+    replacement.append(
+        (
+            "pre_turn_fallback_summary",
+            OpenAIMessage(
+                role="developer",
+                content="Earlier context compacted by deterministic fallback.",
+            ),
+        )
+    )
+    replacement.append(("pre_turn_fallback_active", messages[-1]))
+    return replacement
 
 
 def _pre_turn_compaction_threshold(
@@ -3880,7 +4463,7 @@ def _normalize_model_adapters(
 ) -> tuple[ModelAdapter, ...]:
     if value is None:
         return ()
-    if isinstance(value, (OpenAIClientAdapter, AsyncOpenAIClientAdapter)):
+    if callable(getattr(value, "create_response", None)):
         return (value,)
     return tuple(value)
 

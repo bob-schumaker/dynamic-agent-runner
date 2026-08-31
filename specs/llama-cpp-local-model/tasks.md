@@ -1,7 +1,8 @@
 # llama.cpp Local-Model Adapter Task List
 
-Status: active feature record; Slices 1-3 complete, optional embedding follow-up
-unscheduled
+Status: active feature record; Slices 1-3, T5.0 planning, T5.1 contract, T5.2
+RED tests, T5.3 standalone implementation, T5.4 validation/docs, and T5.5
+terminal workflow integration and T5.6 tool exposure complete
 
 ## Prerequisites
 
@@ -36,11 +37,10 @@ unscheduled
   (`feat(local-models): preserve authoritative model identity`); the Slice 2
   validation checkpoint is complete through T4.4 and the first validation pass
   remains complete through T4.5
-- Current execution gate: direct in-process llama.cpp chat is implemented
-  through T3.5; optional embedding follow-up remains unscheduled
-- Scope rule: keep completed endpoint-wrapper work separate from the next direct
-  in-process llama.cpp chat slice; do not merge graph-mutation or
-  runtime-managed server work into these tasks
+- Current execution gate: no remaining planned task; direct in-process
+  llama.cpp chat and all authorized embedding work are complete through T5.6
+- Scope rule: keep completed endpoint-wrapper, direct-chat, and embedding work
+  separate from any future graph-mutation or runtime-managed server slice
 
 ## Slice 1 — Endpoint-backed local chat through the existing provider seam
 
@@ -348,17 +348,203 @@ unscheduled
     - `poetry run pytest tests/test_local_models.py tests/test_executor.py
       tests/test_import.py -q` — `92 passed in 0.45s`
 
-## Slice 5 — Optional embedding follow-up
+## Slice 5 — Separate Local Embedding Configuration
 
-- [ ] T5.0 [planning] Add a focused embedding task breakdown before implementing
+- [x] T5.0 [planning] Add a focused embedding task breakdown before implementing
       separate local embedding configuration.
   - Spec: FR-3
-  - Plan: optional embedding follow-up
-  - Files/components: `specs/llama-cpp-local-model/tasks.md`,
-    `src/dynamic_agent_runner/local_models.py`, `tests/test_local_models.py`
+  - Plan: Slice 5 — Separate Local Embedding Configuration
+  - Files/components: `specs/llama-cpp-local-model/{spec,plan,tasks,validation}.md`
   - Depends on: Slice 3
   - Validation: spec/task review
-  - Evidence: chat and embedding configuration can remain related but distinct
+  - Evidence: chat and embedding configuration can remain related but distinct.
+    T5.0 delivered the gated T5.1–T5.4 breakdown without changing runtime code.
+  - Review: Council required a separate runtime-owned embedding boundary,
+    `embedding=True` loader gate, source-inspected method selection, fake-only
+    tests, and an explicit internal consumer/output contract. Ponytail rejected
+    an embedding API, generic provider, executor change, RAG/graph work, and
+    vector-store work while no consumer exists.
+
+- [x] T5.1 [discovery/decision] Specify the authorized standalone embedding
+      surface and record the source-inspected embedding method and normalized
+      contract.
+  - Authorization: a standalone embedding surface is approved as new scope;
+    it replaces the former requirement to name an internal consumer.
+  - Decide: caller-visible API shape; one string versus bounded batch input;
+    ordered finite vector output; dimension/ragged/empty policy; package-owned
+    error taxonomy; and whether two explicit configs for the same artifact
+    create distinct model instances (default: yes).
+  - Contract direction: batch-only ordered `{id, text}` input and
+    `EmbeddingBatchResult(model, items)` output, with same-order `{id, vector}`
+    items. IDs are opaque, nonempty, and unique. Each `vector` is one finite
+    ordered numeric vector, represented as `tuple[float, ...]` in Python and a
+    JSON number array at the tool boundary. `create_embedding` receives and
+    must return the resolved host-bound model identity; mismatch raises
+    `LocalModelIdentityMismatchError`. The
+    model selects only whether to invoke a later embedding tool; the host binds
+    the embedding profile, model identity, and asset.
+  - Gate: inspect the installed/pinned `llama_cpp.Llama` API before selecting
+    `embed` or `create_embedding`; no implementation, model load, network, or
+    export occurs here. `create_embedding` must have exactly one indexed result
+    per submitted entry; normalize its indexes to submitted IDs and reject
+    missing, extra, duplicate, out-of-range, non-finite, nested, ragged, or
+    dimension-inconsistent vectors. Direct/node limits: 128 entries, 128-byte
+    IDs, 64 KiB per text, 1 MiB total text, 8,192 dimensions, 1,048,576
+    scalars, and 16 MiB output. Tool limits: eight entries, 8 KiB per text,
+    64 KiB total text, 2,048 dimensions, 16,384 scalars, and 256 KiB output.
+    Tool results serialize `EmbeddingBatchResult` as `{model, items: [{id,
+    vector}]}`. Raw texts and vectors
+    are excluded from traces and errors.
+  - Error contract: add `EmbeddingError(LocalModelError)` with
+    `EmbeddingInputError`, `EmbeddingResultError`, and
+    `EmbeddingExecutionError`. Preserve the existing local resolution, offline,
+    and identity exceptions. A failing batch returns no partial result.
+  - Public surface: frozen `EmbeddingInputItem(id, text)` and
+    `EmbeddingVectorItem(id, vector)` values; `EmbeddingBatchResult(model,
+    items: tuple[EmbeddingVectorItem, ...])`; frozen
+    `LlamaCppLocalEmbeddingConfig`; sync/async
+    `LlamaCppLocalEmbeddingAdapter.embed(items)`; and matching
+    `create_llama_cpp_local_embedding_adapter` /
+    `create_llama_cpp_local_async_embedding_adapter` factories. This config is
+    separate from the chat config and is not a `ModelAdapter`.
+  - Validation: source inspection record plus spec/task review. Completed:
+    the standalone public contract is implementation-ready; T5.2 is next.
+
+- [x] T5.2 [tests] Add focused fake-only RED configuration/resolution tests.
+  - Depends on: T5.1.
+  - Seams: use a test-local fake embedding backend/loader with only
+    `create_embedding`; do not reuse the chat backend fake or add a production
+    protocol solely for tests. `LlamaCppLocalEmbeddingConfig.allow_network`
+    controls its resolver's offline policy and defaults to `True`.
+  - Config/preflight RED: public imports and exact sync/async factory
+    signatures; frozen input/result/config values; distinct chat and embedding
+    configs/backends for one artifact; invalid/ambiguous config negatives; and
+    construction/cache-only preflight with zero optional import, loader,
+    download, endpoint, socket, process, or auth-discovery calls.
+  - Resolution RED: explicit path wins caller cache, caller cache wins exact
+    default-Hub snapshot, and each hit leaves fail-on-call downloaders untouched.
+    An offline Hub miss raises `LocalModelOfflinePolicyError` before download;
+    the one allowed online miss invokes only its injected downloader. No remote
+    embedding fallback or silent chat-config/backend reuse is allowed.
+  - Invocation/result RED: sync and async use the fake's `create_embedding`
+    once only after valid resolution. Cover input IDs/text and every declared
+    bound; exact shuffled-index reordering; host-model mismatch; missing, extra,
+    duplicate, or out-of-range upstream indexes; missing model; non-finite,
+    nested, ragged, dimension/scalar/output-limit vector failures; provider
+    exception; and no partial result. Every rejection before provider entry
+    asserts zero loader/backend/downloader calls and sentinel text/vector data
+    absent from errors or traces.
+  - Validation: `poetry run pytest tests/test_local_models.py`
+    `tests/test_import.py -q` must fail before T5.3 implementation with the
+    missing public API, then pass only in T5.3. Completed: 30 focused RED
+    failures and 106 existing passes; Ruff passed. Council approved the full
+    fake-only matrix; Ponytail retained a test-local fake seam rather than a
+    production abstraction.
+
+- [x] T5.3 [implementation] Add the selected standalone embedding protocol and
+      lazy sync/async execution path.
+  - Depends on: T5.2.
+  - Scope: force `embedding=True` at separate backend construction, reject a
+    conflicting caller value, require a nonempty host-bound expected identity,
+    keep loader kwargs immutable, normalize only the T5.1-selected upstream result,
+    and map malformed/backend failures through package-owned errors. Do not
+    extend `LlamaCppLocalModelAdapter`, executor routing, workflow metadata, or
+    capability reporting without a separately approved consumer requirement.
+  - Validation: focused fake backend/import tests and the full suite pass;
+    formatter/lint checks pass. Council approved the isolated producer,
+    including strict malformed-result and Unicode-input boundaries. Ponytail
+    confirmed the parallel adapter reuses existing resolution and adds no
+    generic provider, workflow, or tool abstraction.
+
+- [x] T5.4 [validation/docs] Record consumer-boundary evidence and run final
+      fake-only regression.
+  - Depends on: T5.3.
+  - Receipt: name implementation commit `27826d8`, the public producer/export/
+    error surface, exact focused/full test commands and results, scoped Ruff and
+    formatter commands, and targeted pre-commit result.
+  - Evidence: prove fake-only frozen public values, no-I/O construction,
+    resolver/offline/download ordering, forced separate `embedding=True`
+    construction, sync/async one-call behavior, host identity/index/bound/
+    Unicode result validation, redaction, and no partial result.
+  - Boundary: state that no chat `ModelAdapter`, executor/workflow node,
+    registry/tool/approval, capability, endpoint, RAG/vector-store, live
+    llama.cpp/Hugging Face/network, Fastmail, OAuth, or manual acceptance ran.
+    T5.5 and T5.6 remain separate. A real embedding run remains a separately
+    human-authorized manual step.
+  - Validation: focused local-model/import tests, `poetry run pytest -q`, Ruff,
+    formatter, and targeted pre-commit.
+
+- [x] T5.5 [tests/implementation] Add a terminal `embedding_step` workflow node
+      using the completed standalone batch producer.
+  - Depends on: T5.4.
+  - Contract: an `embedding_step` raw-key allowlist is `id`, `kind`, optional
+    `label`, nonempty opaque `embedding_profile`, and
+    `embedding_input_from`. It is terminal and rejects every other raw key,
+    including generic inputs/outputs plus model/tool/approval/retry/fallback/
+    output-schema metadata, literal embedding text, and profile configuration.
+    `WorkflowExecutionContext` owns one immutable profile-ID/producer/mode
+    binding. Each public execute call accepts copied `embedding_inputs` as its
+    sole permitted context overlay; a bare workflow rejects it. Its keys are
+    nonempty strings and its values are tuple-backed ordered
+    `EmbeddingInputItem` batches. The manifest ID must match that one binding.
+    The executor must validate primitive, terminality, producer mode, producer,
+    and resolved batch before dispatch. A mode mismatch has zero producer calls;
+    async supports direct or awaitable results, while defensive sync rejection
+    closes any awaitable before raising.
+  - Scope: execute the selected producer exactly once; return its typed batch
+    output; and let a one-node workflow end normally. Add only the manifest
+    validation and executor dispatch required for this node kind.
+  - RED/GREEN: fake-only sync/async tests cover accepted terminal output,
+    malformed or missing input, unavailable profile, invalid producer result,
+    terminality and forbidden metadata, immutable host binding, malformed
+    per-run inputs, sync/async producer admission, exact validation/execution/
+    producer-error ownership, trace redaction, zero producer dispatch before
+    validation, and no model/remote/network or approval interaction. Do not add
+    a chat `ModelAdapter` capability or vector storage.
+  - GREEN: `poetry run pytest tests/test_artifacts.py tests/test_validation.py
+    tests/test_executor.py -q --tb=no` — 331 passed in 0.68s.
+  - Final validation: `poetry run pytest -q` — 1578 passed, 1 skipped, 6
+    deselected in 11.94s; `poetry run ruff check src tests` passed; targeted
+    `pre-commit` checks passed after formatting.
+
+- [x] T5.6 [tests/implementation] Expose the completed standalone producer as
+      a model-selectable local embedding tool.
+  - Depends on: T5.4.
+  - Scope: add only `create_local_embedding_tool(producer) -> RegisteredTool`.
+    It returns the fixed `local_embedding_batch` tool with a strict
+    `{items: [{id, text}]}` schema, `side_effect="read"`, and
+    `approval_required="no"`. The closed-over producer is the sole host-owned
+    binding; the model cannot select profile, model, provider, path, alias, or
+    mode. Reuse ordinary registry/coordinator continuation; add only optional
+    `ToolResult.trace_output` (defaulting to existing behavior) so this tool
+    emits a fixed redacted trace summary rather than text or vectors. Do not add
+    a second embedding path or approval bypass.
+  - Limits: the handler must revalidate root/item additional-property rejection,
+    required string `id` / `text`, and 1--8 items. It then requires nonempty
+    unique IDs <=128 UTF-8 bytes; text <=8 KiB UTF-8 each and <=64 KiB total
+    before producer dispatch. Accept only a direct or awaitable
+    `EmbeddingBatchResult` with the same ordered submitted IDs and a nonempty
+    model; revalidate finite uniform vectors with 1--2,048 dimensions, <=16,384
+    total scalars, and <=256 KiB canonical UTF-8 `{model, items: [{id, vector}]}`
+    before state or continuation output.
+  - RED/GREEN: fake-only model-loop tests prove strict schema rejection and
+    malformed nested structure and Unicode byte-budget rejection with zero
+    producer calls; one valid tool call reaches the producer once and supplies
+    exactly the bounded result to the second model request; the `tool_result`
+    trace contains only the fixed redacted summary, while existing input events
+    remain sensitive and external summaries redact text and vectors;
+    no approval interruption, remote, downloader, backend, network, or real
+    model call occurs. Cover foreign, duplicate, missing, reordered, or
+    dimension-inconsistent result IDs/vectors and producer errors without
+    partial output.
+  - Boundary: do not add `WorkflowExecutionContext` binding, a producer/profile
+    registry, generic nested-schema or budget framework, coordinator branch,
+    model-adapter capability, endpoint fallback, RAG, or vector storage.
+  - GREEN: `poetry run pytest tests/test_local_models.py tests/test_executor.py
+    tests/test_registry.py tests/test_tool_invocation.py -q --tb=no` — 427
+    passed in 3.06s.
+  - Final validation: `poetry run pytest -q` — 1586 passed, 1 skipped, 6
+    deselected in 11.89s; `poetry run ruff check src tests` passed.
 
 ## Slice 4 — Validation and artifact completion
 
@@ -451,7 +637,7 @@ unscheduled
 - Slice 2 should not begin until the endpoint-backed local chat checkpoint is
   stable.
 - Slice 3 direct in-process llama.cpp chat is complete through T3.5.
-- Slice 5 embedding follow-up remains optional and should not block direct local
+- Slice 5 embedding work is complete and remains separate from direct local
   chat delivery.
 
 ## Checkpoints
@@ -462,8 +648,8 @@ unscheduled
   work without taking ownership of server lifecycle.
 - Checkpoint 3 — direct in-process llama.cpp chat works without requiring a
   server.
-- Checkpoint 4 — optional embedding follow-up remains separate from
-  graph-mutation delivery.
+- Checkpoint 4 — completed embedding work remains separate from graph-mutation
+  delivery.
 
 ## Validation Commands
 

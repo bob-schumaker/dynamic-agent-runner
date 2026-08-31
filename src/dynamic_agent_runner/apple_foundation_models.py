@@ -3,23 +3,64 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 import asyncio
 import importlib
 import json
+import keyword
+import secrets
 import sys
-from typing import Any
+import warnings
+from threading import Lock
+from typing import Annotated, Any, get_args, get_origin
 from uuid import uuid4
 
-from dynamic_agent_runner.errors import ModelExecutionError
+from jsonschema import FormatChecker, SchemaError, ValidationError
+from jsonschema.validators import validator_for
+
+from dynamic_agent_runner.errors import (
+    GuardrailExecutionError,
+    ModelExecutionError,
+    ToolRegistryError,
+)
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
+    ModelResponse,
     OpenAIModelRequest,
+    normalize_openai_response,
+)
+from dynamic_agent_runner.registry import (
+    PreparedToolInvocation,
+    RegisteredTool,
+    ToolResult,
+)
+from dynamic_agent_runner.tool_invocation import (
+    ActiveAdapterToolContext,
+    ApprovalInterruption,
+    ProviderToolDecisionTerminalOutcome,
+    ProviderToolInterruption,
+    ProviderToolTerminalError,
+    ProviderCallbackBudget,
+    ToolInvocationRequest,
+    coordinate_tool_invocation_async,
 )
 
 
 AvailabilityChecker = Callable[[], tuple[bool, str | None]]
 SessionFactory = Callable[[str | None], Any]
+_APPLE_CALLBACK_RESULT_MAX_CHARS = 2_048
+_APPLE_CALLBACK_RESULT_MAX_STRING_CHARS = 64
+_APPLE_CALLBACK_RESULT_MAX_ITEMS = 5
+_APPLE_CALLBACK_RESULT_MAX_FIELDS = 4
+_APPLE_CALLBACK_RESULT_MAX_DEPTH = 6
+_APPLE_CALLBACK_RESULT_PRIORITY_FIELDS = (
+    "subject",
+    "title",
+    "name",
+    "summary",
+    "id",
+)
 
 
 @dataclass(frozen=True)
@@ -39,6 +80,60 @@ class AppleFoundationModelConfig:
         object.__setattr__(self, "model_aliases", aliases)
 
 
+@dataclass(frozen=True)
+class AppleToolSchemaPreflight:
+    """Redacted Apple-tool schema mode for one current tool definition."""
+
+    mode: str
+
+
+@dataclass(frozen=True)
+class _AppleGatewayTarget:
+    """One response-local fallback target retained behind an opaque token."""
+
+    tool: RegisteredTool
+    validator: Any
+
+
+@dataclass(frozen=True)
+class _AppleCallbackResultBudget:
+    """One active Apple model's safe callback-result token allowance."""
+
+    limit: int
+    token_count: Callable[[str], Any]
+
+
+class _AppleGatewayCapabilities:
+    """One-shot gateway targets that disappear with their Apple response."""
+
+    def __init__(self, targets: Mapping[str, _AppleGatewayTarget]) -> None:
+        self._targets = dict(targets)
+        self._lock = Lock()
+
+    def resolve(
+        self,
+        token: str,
+        *,
+        context: ActiveAdapterToolContext,
+        callback_session: "_AppleCallbackSessionState",
+    ) -> _AppleGatewayTarget:
+        """Atomically revalidate and consume one response-local target."""
+
+        with self._lock:
+            callback_session.require_active()
+            target = self._targets.pop(token, None)
+            if target is None:
+                raise ToolRegistryError("Apple gateway capability is unavailable")
+            context.require_current_tool(target.tool)
+            return target
+
+    def clear(self) -> None:
+        """Discard every unconsumed target when the response ends."""
+
+        with self._lock:
+            self._targets.clear()
+
+
 def create_apple_foundation_model_async_adapter(
     config: AppleFoundationModelConfig | None = None,
 ):
@@ -53,8 +148,124 @@ def create_apple_foundation_model_async_adapter(
     )
 
 
+def preflight_apple_foundation_models(
+    config: AppleFoundationModelConfig | None = None,
+) -> None:
+    """Verify platform, SDK, and system-model availability without a session."""
+
+    _require_macos()
+    resolved = config or AppleFoundationModelConfig()
+    sdk = _load_sdk() if resolved.availability_checker is None else None
+    available, reason = _check_availability(resolved, sdk)
+    if not available:
+        raise ModelExecutionError(
+            f"Apple Foundation Models are unavailable: {reason or 'unknown reason'}"
+        )
+
+
+def preflight_apple_tool_schema(
+    schema: Mapping[str, Any], *, sdk: Any | None = None
+) -> AppleToolSchemaPreflight:
+    """Classify one in-memory schema without creating an Apple session."""
+
+    if not isinstance(schema, Mapping):
+        raise ModelExecutionError("Apple tool preflight schema is invalid")
+    return AppleToolSchemaPreflight(
+        mode=_apple_tool_schema_mode(schema, sdk or _load_sdk())
+    )
+
+
+def _apple_tool_schema_mode(schema: Mapping[str, Any], sdk: Any) -> str:
+    """Classify one active schema for direct, gateway, or blocked use."""
+
+    try:
+        _apple_generated_object_type(
+            schema,
+            sdk,
+            type_name="DarPreflightArguments",
+        )
+    except ModelExecutionError:
+        if _is_gateway_schema(schema):
+            return "gateway"
+        return "blocked"
+    return "direct"
+
+
+def _is_gateway_schema(schema: Mapping[str, Any]) -> bool:
+    """Return whether jsonschema accepts an otherwise non-direct tool schema."""
+
+    try:
+        _gateway_validator(schema)
+    except SchemaError:
+        return False
+    return True
+
+
+def _gateway_validator(schema: Mapping[str, Any]) -> Any:
+    """Build the exact-json-schema validator retained for one gateway target."""
+
+    formats = _gateway_formats(schema)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        validator_type = validator_for(schema)
+    declared_dialect = schema.get("$schema")
+    if declared_dialect is not None and (
+        not isinstance(declared_dialect, str)
+        or validator_type.META_SCHEMA.get("$id") != declared_dialect
+    ):
+        raise SchemaError("gateway schema dialect is unsupported")
+    validator_type.check_schema(schema)
+    return validator_type(schema, format_checker=FormatChecker(formats=formats))
+
+
+def _gateway_formats(schema: Mapping[str, Any]) -> frozenset[str]:
+    """Reject unresolved resources and unsupported format semantics."""
+
+    formats: set[str] = set()
+
+    def visit(value: object) -> None:
+        if isinstance(value, Mapping):
+            if any(
+                key in value for key in ("$ref", "$dynamicRef", "$recursiveRef", "$id")
+            ):
+                raise SchemaError("gateway schema references are unsupported")
+            format_name = value.get("format")
+            if format_name is not None:
+                if (
+                    not isinstance(format_name, str)
+                    or format_name not in FormatChecker.checkers
+                ):
+                    raise SchemaError("gateway schema format is unsupported")
+                formats.add(format_name)
+            for item in value.values():
+                visit(item)
+        elif isinstance(value, list):
+            for item in value:
+                visit(item)
+
+    visit(schema)
+    return frozenset(formats)
+
+
 class AppleFoundationModelAsyncAdapter(AsyncOpenAIClientAdapter):
     """Existing DAR async adapter with conservative Apple capability metadata."""
+
+    async def create_response(self, request: OpenAIModelRequest) -> ModelResponse:
+        """Preserve trusted Apple tool context outside OpenAI wire kwargs."""
+
+        if request.adapter_context is None:
+            return await super().create_response(request)
+        try:
+            raw_response = await self.client.responses.create_request(request)
+        except ModelExecutionError as exc:
+            raise ModelExecutionError(f"OpenAI model request failed: {exc}") from exc
+        return normalize_openai_response(raw_response)
+
+    @property
+    def execution_profile_adapter_id(self) -> str:
+        """Identify the concrete Apple adapter factory for profile admission."""
+
+        return "apple-foundation-models-adapter-v1"
 
     @property
     def capabilities(self) -> Mapping[str, Any]:
@@ -63,9 +274,10 @@ class AppleFoundationModelAsyncAdapter(AsyncOpenAIClientAdapter):
             "execution": "in_process",
             "local": True,
             "model_identity": "system_managed",
+            "text_generation": True,
             "structured_output": True,
             "streaming": False,
-            "tool_calling": False,
+            "tool_calling": True,
             "multimodal": False,
             "embeddings": False,
         }
@@ -81,19 +293,45 @@ class _AppleResponsesResource:
         self._config = config
 
     async def create(self, **kwargs: Any) -> Mapping[str, Any]:
+        return await self.create_request(_request_from_kwargs(kwargs))
+
+    async def create_request(self, request: OpenAIModelRequest) -> Mapping[str, Any]:
+        """Create one Apple response while retaining non-wire adapter context."""
+
         _require_macos()
-        request = _request_from_kwargs(kwargs)
-        _validate_request(request)
         sdk = _load_sdk() if self._config.availability_checker is None else None
-        available, reason = _check_availability(self._config, sdk)
-        if not available:
-            raise ModelExecutionError(
-                f"Apple Foundation Models are unavailable: {reason or 'unknown reason'}"
+        callback_session = _AppleCallbackSessionState()
+        try:
+            callback_result_budget = (
+                _apple_callback_result_budget(sdk) if sdk is not None else None
             )
-        if self._config.session_factory is None:
-            sdk = sdk or _load_sdk()
-        prompt, instructions = _render_messages(request.messages)
-        session = _make_session(self._config, sdk, request, instructions)
+            wrappers = _apple_tool_wrappers(
+                request,
+                sdk,
+                callback_session,
+                callback_result_budget=callback_result_budget,
+            )
+            _validate_request(request, tool_bridge_active=bool(wrappers))
+            available, reason = _check_availability(self._config, sdk)
+            if not available:
+                raise ModelExecutionError(
+                    "Apple Foundation Models are unavailable: "
+                    f"{reason or 'unknown reason'}"
+                )
+            if self._config.session_factory is None:
+                sdk = sdk or _load_sdk()
+            prompt, instructions = _render_messages(request.messages)
+            instructions = _append_apple_gateway_instruction(instructions, wrappers)
+            session = _make_session(
+                self._config,
+                sdk,
+                request,
+                instructions,
+                tools=wrappers,
+            )
+        except BaseException:
+            callback_session.close()
+            raise
         options = _make_generation_options(sdk, request.extra)
         schema = _extract_json_schema(request.response_format)
         if schema is not None and self._config.session_factory is None:
@@ -105,12 +343,18 @@ class _AppleResponsesResource:
                 result = await session.respond(
                     prompt, json_schema=schema, options=options
                 )
-        except asyncio.CancelledError:
+        except (
+            asyncio.CancelledError,
+            ProviderToolInterruption,
+            ProviderToolTerminalError,
+        ):
             raise
         except Exception as exc:  # noqa: BLE001 - SDK errors vary by release.
             raise ModelExecutionError(
                 "Apple Foundation Models generation failed"
             ) from exc
+        finally:
+            callback_session.close()
         content = (
             result.to_json()
             if schema is not None and hasattr(result, "to_json")
@@ -124,6 +368,1018 @@ class _AppleResponsesResource:
                     "Apple Foundation Models structured output was not valid JSON"
                 ) from exc
         return {"id": f"apple-{uuid4().hex}", "output_text": content}
+
+
+def _apple_tool_wrappers(
+    request: OpenAIModelRequest,
+    sdk: Any | None,
+    callback_session: "_AppleCallbackSessionState",
+    *,
+    callback_result_budget: _AppleCallbackResultBudget | None = None,
+) -> tuple[object, ...]:
+    """Translate the trusted active DAR tool snapshot into Apple SDK wrappers."""
+
+    context = _active_apple_tool_context(request)
+    if context is None:
+        return ()
+    if sdk is None:
+        raise ModelExecutionError("Apple Foundation Models SDK is unavailable")
+    tool_ids = [tool.id for tool in context.tools]
+    if len(set(tool_ids)) != len(tool_ids):
+        raise ModelExecutionError("Apple tool bridge has duplicate active tool ids")
+    callback_budget = _apple_callback_budget(context)
+    wrappers: list[object] = []
+    gateway_targets: dict[str, _AppleGatewayTarget] = {}
+    for index, tool in enumerate(context.tools):
+        try:
+            context.require_current_tool(tool)
+        except ToolRegistryError as exc:
+            raise ModelExecutionError(
+                "Apple tool bridge active tool context is stale"
+            ) from exc
+        schema = _tool_input_schema(tool.definition.raw)
+        mode = _apple_tool_schema_mode(schema, sdk)
+        if mode == "direct":
+            arguments_type = _apple_generated_object_type(
+                schema,
+                sdk,
+                type_name=f"DarTool{index}Arguments",
+            )
+            wrappers.append(
+                _apple_tool_wrapper(
+                    sdk,
+                    context=context,
+                    callback_budget=callback_budget,
+                    callback_result_budget=callback_result_budget,
+                    callback_session=callback_session,
+                    tool_id=tool.id,
+                    name=f"dar_tool_{index}",
+                    description=_apple_tool_description(tool.definition.raw, tool.id),
+                    arguments_type=arguments_type,
+                )
+            )
+            continue
+        if mode != "gateway" or not _is_gateway_mcp_tool(tool):
+            raise ModelExecutionError("Apple tool has an untranslatable schema")
+        gateway_targets[secrets.token_hex(24)] = _AppleGatewayTarget(
+            tool=tool,
+            validator=_gateway_validator(schema),
+        )
+    if gateway_targets:
+        capabilities = _AppleGatewayCapabilities(gateway_targets)
+        callback_session.add_close_callback(capabilities.clear)
+        wrappers.append(
+            _apple_gateway_wrapper(
+                sdk,
+                context=context,
+                callback_budget=callback_budget,
+                callback_result_budget=callback_result_budget,
+                callback_session=callback_session,
+                capabilities=capabilities,
+                description=_apple_gateway_description(gateway_targets),
+            )
+        )
+    return tuple(wrappers)
+
+
+def _active_apple_tool_context(
+    request: OpenAIModelRequest,
+) -> ActiveAdapterToolContext | None:
+    context = request.adapter_context
+    if isinstance(context, ActiveAdapterToolContext) and context.tools:
+        return context
+    if request.tools:
+        raise ModelExecutionError("Apple tool bridge requires an active tool context")
+    return None
+
+
+def _tool_input_schema(raw: Mapping[str, Any]) -> Mapping[str, Any]:
+    schema = raw.get("input_schema")
+    if schema is None:
+        return {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        }
+    if not isinstance(schema, Mapping):
+        raise ModelExecutionError("Apple tool has an untranslatable input schema")
+    return schema
+
+
+def _apple_tool_description(raw: Mapping[str, Any], tool_id: str) -> str:
+    value = raw.get("description_for_llm") or raw.get("label") or tool_id
+    description = str(value).strip()
+    if not description:
+        raise ModelExecutionError("Apple tool has an invalid description")
+    return description
+
+
+def _is_gateway_mcp_tool(tool: RegisteredTool) -> bool:
+    """Limit the A4 fallback to current reviewed read-only MCP bindings."""
+
+    canonical_id = tool.definition.raw.get("host_canonical_id")
+    return (
+        tool.definition.side_effect == "read"
+        and isinstance(canonical_id, str)
+        and canonical_id.startswith(("authorized-mcp:", "mcp:"))
+    )
+
+
+def _apple_gateway_description(
+    targets: Mapping[str, _AppleGatewayTarget],
+) -> str:
+    """Return the bounded, opaque capability catalog visible to Apple."""
+
+    entries: list[str] = []
+    for token, target in targets.items():
+        raw = target.tool.definition.raw
+        description = raw.get("description_for_llm") or raw.get("label")
+        if not isinstance(description, str) or not description.strip():
+            raise ModelExecutionError("Apple gateway tool description is invalid")
+        entries.append(f"{token}: {description.strip()}")
+    catalog = "Use one opaque tool token for one reviewed capability:\n" + "\n".join(
+        entries
+    )
+    if len(catalog.encode("utf-8")) > 16 * 1024:
+        raise ModelExecutionError("Apple gateway capability catalog is too large")
+    return catalog
+
+
+def _append_apple_gateway_instruction(
+    instructions: str | None, wrappers: Sequence[object]
+) -> str | None:
+    """Tell Apple how to select the fixed gateway without exposing MCP schemas."""
+
+    descriptions = tuple(
+        description
+        for wrapper in wrappers
+        if getattr(wrapper, "name", None) == "dar_gateway"
+        and isinstance((description := getattr(wrapper, "description", None)), str)
+    )
+    if not descriptions:
+        return instructions
+    gateway_instruction = (
+        "Call dar_gateway for fallback capabilities; do not call a logical tool name "
+        "from the task instructions. Its arguments must contain tool_token and "
+        "arguments_json; arguments_json is a JSON object encoded as a string. Use "
+        "only the opaque capability token in this catalog:\n" + "\n".join(descriptions)
+    )
+    return (
+        f"{instructions}\n{gateway_instruction}"
+        if instructions
+        else gateway_instruction
+    )
+
+
+def _apple_tool_wrapper(
+    sdk: Any,
+    *,
+    context: ActiveAdapterToolContext,
+    callback_budget: ProviderCallbackBudget,
+    callback_result_budget: _AppleCallbackResultBudget | None,
+    callback_session: "_AppleCallbackSessionState",
+    tool_id: str,
+    name: str,
+    description: str,
+    arguments_type: type[object],
+) -> object:
+    """Build one SDK wrapper that enters DAR through its coordinator."""
+
+    async def call(_self: object, arguments: object) -> str:
+        try:
+            action_id = f"apple-{uuid4().hex}"
+            callback_session.require_active()
+            if not callback_budget.claim():
+                await _emit_apple_callback_budget_exhausted(
+                    context,
+                    tool_id=tool_id,
+                    action_id=action_id,
+                    callback_budget=callback_budget,
+                )
+                raise ProviderToolTerminalError(
+                    "Apple provider callback budget is exhausted"
+                )
+            callback_arguments = _apple_callback_arguments(
+                arguments,
+                original_prompt=_apple_original_prompt(context),
+            )
+            guardrail_runner = _apple_guardrail_runner(context, action_id)
+            request = context.request(
+                tool_id=tool_id,
+                arguments=callback_arguments,
+                result_key=f"{context.node.id}.{action_id}",
+                action_id=action_id,
+                approval_reason=f"Apple tool {tool_id!r} requires approval",
+                guardrail_runner=guardrail_runner,
+                continuation_guard=callback_session.require_active,
+                result_commit_guard=callback_session.result_commit_guard,
+                invoke=lambda prepared: _invoke_apple_tool_async(
+                    context,
+                    tool_id,
+                    callback_arguments,
+                    prepared,
+                ),
+            )
+            coordinated = await _coordinate_apple_callback_async(context, request)
+            if isinstance(coordinated, ApprovalInterruption):
+                raise ProviderToolInterruption(
+                    coordinated,
+                    provider="apple_foundation_models",
+                )
+            if isinstance(coordinated, ProviderToolDecisionTerminalOutcome):
+                raise ProviderToolTerminalError(
+                    f"provider tool decision is {coordinated.state.value}"
+                )
+            if not coordinated.success:
+                raise ProviderToolTerminalError(
+                    coordinated.error or f"tool {tool_id!r} failed"
+                )
+            return await _apple_tool_result_output(
+                coordinated,
+                callback_result_budget=callback_result_budget,
+            )
+        except (GuardrailExecutionError, ToolRegistryError) as exc:
+            raise ProviderToolTerminalError(str(exc)) from exc
+
+    def arguments_schema(_self: object) -> object:
+        return arguments_type.generation_schema()
+
+    wrapper_type = type(
+        f"{arguments_type.__name__}Tool",
+        (sdk.Tool,),
+        {
+            "name": name,
+            "description": description,
+            "dar_tool_id": tool_id,
+            "arguments_schema": property(arguments_schema),
+            "call": call,
+        },
+    )
+    return wrapper_type()
+
+
+def _apple_gateway_wrapper(
+    sdk: Any,
+    *,
+    context: ActiveAdapterToolContext,
+    callback_budget: ProviderCallbackBudget,
+    callback_result_budget: _AppleCallbackResultBudget | None,
+    callback_session: "_AppleCallbackSessionState",
+    capabilities: _AppleGatewayCapabilities,
+    description: str,
+) -> object:
+    """Build the one fixed-schema Apple gateway wrapper for fallback tools."""
+
+    envelope_type = _apple_generated_object_type(
+        {
+            "type": "object",
+            "properties": {
+                "tool_token": {"type": "string"},
+                "arguments_json": {"type": "string"},
+            },
+            "required": ["tool_token", "arguments_json"],
+            "additionalProperties": False,
+        },
+        sdk,
+        type_name="DarGatewayArguments",
+    )
+
+    async def call(_self: object, arguments: object) -> str:
+        try:
+            action_id = f"apple-{uuid4().hex}"
+            callback_session.require_active()
+            if not callback_budget.claim():
+                await _emit_apple_callback_budget_exhausted(
+                    context,
+                    tool_id="dar_gateway",
+                    action_id=action_id,
+                    callback_budget=callback_budget,
+                )
+                raise ProviderToolTerminalError(
+                    "Apple provider callback budget is exhausted"
+                )
+            tool_id, callback_arguments = _apple_gateway_callback_arguments(
+                arguments,
+                capabilities=capabilities,
+                context=context,
+                callback_session=callback_session,
+            )
+            guardrail_runner = _apple_guardrail_runner(context, action_id)
+            request = context.request(
+                tool_id=tool_id,
+                arguments=callback_arguments,
+                result_key=f"{context.node.id}.{action_id}",
+                action_id=action_id,
+                approval_reason=f"Apple tool {tool_id!r} requires approval",
+                guardrail_runner=guardrail_runner,
+                continuation_guard=callback_session.require_active,
+                result_commit_guard=callback_session.result_commit_guard,
+                invoke=lambda prepared: _invoke_apple_tool_async(
+                    context,
+                    tool_id,
+                    callback_arguments,
+                    prepared,
+                ),
+            )
+            coordinated = await _coordinate_apple_callback_async(context, request)
+            if isinstance(coordinated, ApprovalInterruption):
+                raise ProviderToolInterruption(
+                    coordinated,
+                    provider="apple_foundation_models",
+                )
+            if isinstance(coordinated, ProviderToolDecisionTerminalOutcome):
+                raise ProviderToolTerminalError(
+                    f"provider tool decision is {coordinated.state.value}"
+                )
+            if not coordinated.success:
+                raise ProviderToolTerminalError(
+                    coordinated.error or f"tool {tool_id!r} failed"
+                )
+            return await _apple_tool_result_output(
+                coordinated,
+                callback_result_budget=callback_result_budget,
+            )
+        except (GuardrailExecutionError, ToolRegistryError) as exc:
+            raise ProviderToolTerminalError(str(exc)) from exc
+
+    def arguments_schema(_self: object) -> object:
+        return envelope_type.generation_schema()
+
+    wrapper_type = type(
+        "DarGatewayTool",
+        (sdk.Tool,),
+        {
+            "name": "dar_gateway",
+            "description": description,
+            "arguments_schema": property(arguments_schema),
+            "call": call,
+        },
+    )
+    return wrapper_type()
+
+
+class _AppleCallbackSessionState:
+    """Thread-safe liveness guard for callbacks owned by one Apple response."""
+
+    def __init__(self) -> None:
+        self._active = True
+        self._lock = Lock()
+        self._close_callbacks: list[Callable[[], None]] = []
+
+    def add_close_callback(self, callback: Callable[[], None]) -> None:
+        """Register response-local cleanup before Apple session construction."""
+
+        with self._lock:
+            if not self._active:
+                callback()
+                return
+            self._close_callbacks.append(callback)
+
+    def close(self) -> None:
+        """Prevent any later callback from entering or completing DAR work."""
+
+        with self._lock:
+            self._active = False
+            callbacks = tuple(self._close_callbacks)
+            self._close_callbacks.clear()
+        for callback in callbacks:
+            callback()
+
+    def require_active(self) -> None:
+        """Fail closed once the owning Apple response has completed or cancelled."""
+
+        with self._lock:
+            if not self._active:
+                raise ToolRegistryError("Apple callback session is no longer active")
+
+    @contextmanager
+    def result_commit_guard(self):
+        """Keep closure from racing DAR's result-state and trace finalization."""
+
+        with self._lock:
+            if not self._active:
+                raise ToolRegistryError("Apple callback session is no longer active")
+            yield
+
+
+def _apple_callback_budget(context: ActiveAdapterToolContext) -> ProviderCallbackBudget:
+    """Create one callback budget for one Apple provider session."""
+
+    limit = getattr(context.plan, "max_steps", None) or 8
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 0:
+        raise ModelExecutionError("Apple callback tool-call limit is invalid")
+    return ProviderCallbackBudget(limit=limit)
+
+
+def _apple_callback_result_budget(sdk: Any) -> _AppleCallbackResultBudget | None:
+    """Reserve three quarters of the active model context for the session itself."""
+
+    try:
+        model = sdk.SystemLanguageModel()
+        context_size = model.context_size
+        token_count = model.token_count
+    except Exception:  # noqa: BLE001 - older SDKs expose neither API consistently.
+        return None
+    if (
+        not isinstance(context_size, int)
+        or isinstance(context_size, bool)
+        or context_size < 4
+        or not callable(token_count)
+    ):
+        return None
+    return _AppleCallbackResultBudget(limit=context_size // 4, token_count=token_count)
+
+
+async def _emit_apple_callback_budget_exhausted(
+    context: ActiveAdapterToolContext,
+    *,
+    tool_id: str,
+    action_id: str,
+    callback_budget: ProviderCallbackBudget,
+) -> None:
+    """Record callback exhaustion on DAR's executor loop without arguments."""
+
+    async def emit() -> None:
+        context.tracer.emit(
+            "provider_callback_budget_exhausted",
+            node_id=str(context.node.id),
+            payload={
+                "tool_id": tool_id,
+                "tool_call_id": action_id,
+                "limit": callback_budget.limit,
+                "claimed": callback_budget.claimed,
+            },
+        )
+
+    executor_loop = context.executor_loop
+    if executor_loop is None or executor_loop is asyncio.get_running_loop():
+        await emit()
+        return
+    if not executor_loop.is_running():
+        raise ProviderToolTerminalError(
+            "executor loop is unavailable for Apple callback"
+        )
+    future = asyncio.run_coroutine_threadsafe(emit(), executor_loop)
+    await asyncio.wrap_future(future)
+
+
+async def _coordinate_apple_callback_async(
+    context: ActiveAdapterToolContext,
+    request: ToolInvocationRequest,
+) -> ToolResult | ApprovalInterruption | ProviderToolDecisionTerminalOutcome:
+    """Run one Apple callback on the executor loop when it differs from Apple's."""
+
+    executor_loop = context.executor_loop
+    if executor_loop is None or executor_loop is asyncio.get_running_loop():
+        return await coordinate_tool_invocation_async(request)
+    if not executor_loop.is_running():
+        raise ProviderToolTerminalError(
+            "executor loop is unavailable for Apple callback"
+        )
+    future = asyncio.run_coroutine_threadsafe(
+        coordinate_tool_invocation_async(request), executor_loop
+    )
+    return await asyncio.wrap_future(future)
+
+
+def _apple_guardrail_runner(
+    context: ActiveAdapterToolContext,
+    action_id: str,
+) -> Callable[[PreparedToolInvocation], None] | None:
+    """Bind DAR's active guardrail runner to one Apple callback action."""
+
+    if context.provider_guardrail_runner is None:
+        return None
+
+    def run(prepared: PreparedToolInvocation) -> None:
+        context.provider_guardrail_runner(prepared, action_id)
+
+    return run
+
+
+def _apple_callback_arguments(
+    arguments: object,
+    *,
+    original_prompt: str | None = None,
+) -> dict[str, Any]:
+    try:
+        value = arguments.to_json()
+    except Exception as exc:  # noqa: BLE001 - SDK content objects vary by release.
+        raise ToolRegistryError("Apple tool callback arguments are invalid") from exc
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ToolRegistryError("Apple tool callback arguments are invalid") from exc
+    if not isinstance(parsed, Mapping):
+        raise ToolRegistryError("Apple tool callback arguments must be an object")
+    return _canonicalize_apple_provenance_envelope(
+        dict(parsed),
+        original_prompt=original_prompt,
+    )
+
+
+def _apple_gateway_callback_arguments(
+    arguments: object,
+    *,
+    capabilities: _AppleGatewayCapabilities,
+    context: ActiveAdapterToolContext,
+    callback_session: _AppleCallbackSessionState,
+) -> tuple[str, dict[str, Any]]:
+    """Resolve and validate one strict gateway callback before coordinator entry."""
+
+    envelope = _apple_gateway_json_object(arguments)
+    if set(envelope) != {"tool_token", "arguments_json"}:
+        raise ToolRegistryError("Apple gateway envelope is invalid")
+    token = envelope["tool_token"]
+    arguments_json = envelope["arguments_json"]
+    if not isinstance(token, str) or not isinstance(arguments_json, str):
+        raise ToolRegistryError("Apple gateway envelope is invalid")
+    target = capabilities.resolve(
+        token,
+        context=context,
+        callback_session=callback_session,
+    )
+    decoded = _apple_gateway_json_object(arguments_json, bounded=True)
+    try:
+        target.validator.validate(decoded)
+    except ValidationError as exc:
+        raise ToolRegistryError("Apple gateway arguments are invalid") from exc
+    return target.tool.id, _canonicalize_apple_provenance_envelope(
+        decoded,
+        original_prompt=_apple_original_prompt(context),
+    )
+
+
+def _apple_original_prompt(context: ActiveAdapterToolContext) -> str | None:
+    """Return the sealed prompt available to the active DAR invocation."""
+
+    prompt = getattr(context.state, "prompt", None)
+    return prompt if isinstance(prompt, str) else None
+
+
+def _canonicalize_apple_provenance_envelope(
+    arguments: dict[str, Any],
+    *,
+    original_prompt: str | None = None,
+) -> dict[str, Any]:
+    """Normalize Apple JSON transport without relaxing provenance verification."""
+
+    serialized = arguments.get("provenance_envelope")
+    top_level = False
+    try:
+        if not isinstance(serialized, str):
+            raise TypeError("Apple provenance envelope is not text")
+        envelope, _ = json.JSONDecoder(
+            object_pairs_hook=_apple_gateway_object_pairs,
+            parse_constant=_reject_apple_gateway_constant,
+        ).raw_decode(serialized.lstrip())
+    except (TypeError, ValueError, json.JSONDecodeError, RecursionError):
+        envelope = _apple_top_level_provenance_envelope(arguments)
+        top_level = envelope is not None
+        if envelope is None:
+            return arguments
+    if not isinstance(envelope, dict):
+        return arguments
+    envelope = _normalize_apple_prompt_span_sources(
+        envelope,
+        original_prompt=original_prompt,
+    )
+    normalized = {} if top_level else dict(arguments)
+    normalized["provenance_envelope"] = json.dumps(
+        envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    return normalized
+
+
+def _apple_top_level_provenance_envelope(
+    arguments: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Extract Apple's top-level fallback form without preserving duplicate text."""
+
+    fields = ("format_version", "arguments", "sources")
+    if not all(field in arguments for field in fields):
+        return None
+    return {field: arguments[field] for field in fields}
+
+
+def _normalize_apple_prompt_span_sources(
+    envelope: dict[str, Any],
+    *,
+    original_prompt: str | None,
+) -> dict[str, Any]:
+    """Translate Apple's compact prompt-span list to DAR's strict source map."""
+
+    values = envelope.get("arguments")
+    source_list = envelope.get("sources")
+    if (
+        not isinstance(values, dict)
+        or not isinstance(source_list, list)
+        or original_prompt is None
+    ):
+        return envelope
+    if not _apple_prompt_span_sources_are_valid(source_list):
+        return envelope
+    normalized_envelope = (
+        {**envelope, "format_version": 1}
+        if envelope.get("format_version") == "1.0"
+        else envelope
+    )
+    normalized_sources: dict[str, dict[str, object]] = {}
+    for name, value in values.items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            return envelope
+        try:
+            encoded_value = value.encode("utf-8")
+            encoded_prompt = original_prompt.encode("utf-8")
+        except UnicodeError:
+            return envelope
+        start_byte = encoded_prompt.find(encoded_value)
+        if start_byte < 0 or encoded_prompt.find(encoded_value, start_byte + 1) >= 0:
+            return envelope
+        normalized_sources[name] = {
+            "kind": "prompt_span",
+            "start_byte": start_byte,
+            "end_byte": start_byte + len(encoded_value),
+            "normalization": "identity",
+        }
+    return {**normalized_envelope, "sources": normalized_sources}
+
+
+def _apple_prompt_span_sources_are_valid(source_list: list[Any]) -> bool:
+    """Validate Apple prompt-span hints without treating their offsets as proof."""
+
+    if not source_list:
+        return False
+    for source in source_list:
+        if not isinstance(source, dict):
+            return False
+        if _apple_named_prompt_span_source_is_valid(source):
+            continue
+        if _apple_normalized_prompt_span_source_is_valid(source):
+            continue
+        return False
+    return True
+
+
+def _apple_named_prompt_span_source_is_valid(source: dict[str, Any]) -> bool:
+    """Validate Apple's named prompt-span source representation."""
+
+    if not {"identity", "byte_offset"} <= set(source):
+        return False
+    offset = source["byte_offset"]
+    if (
+        not _is_apple_prompt_span_identity(source["identity"])
+        or not isinstance(offset, int)
+        or isinstance(offset, bool)
+        or offset < 0
+    ):
+        return False
+    if "text" in source and not isinstance(source["text"], str):
+        return False
+    if "length" in source and (
+        not isinstance(source["length"], int)
+        or isinstance(source["length"], bool)
+        or source["length"] < 0
+    ):
+        return False
+    return True
+
+
+def _apple_normalized_prompt_span_source_is_valid(source: dict[str, Any]) -> bool:
+    """Validate Apple's normalized prompt-span source representation."""
+
+    if set(source) != {"identity_normalization", "byte_offsets"}:
+        return False
+    value = source["identity_normalization"]
+    offsets = source["byte_offsets"]
+    if not isinstance(value, str) or not isinstance(offsets, list) or len(offsets) != 2:
+        return False
+    return all(
+        isinstance(offset, int) and not isinstance(offset, bool) and offset >= 0
+        for offset in offsets
+    )
+
+
+def _is_apple_prompt_span_identity(value: object) -> bool:
+    """Return whether an Apple source identity names a provider prompt span."""
+
+    if not isinstance(value, str):
+        return False
+    if value == "prompt_span":
+        return True
+    prefix = "prompt_span_"
+    return value.startswith(prefix) and value.removeprefix(prefix).isdigit()
+
+
+def _apple_gateway_json_object(
+    value: object,
+    *,
+    bounded: bool = False,
+) -> dict[str, Any]:
+    """Decode JSON without duplicate or non-finite values."""
+
+    text = _apple_gateway_json_text(value)
+    if bounded and len(_apple_gateway_utf8(text)) > 16 * 1024:
+        raise ToolRegistryError("Apple gateway arguments are too large")
+    try:
+        parsed = json.loads(
+            text,
+            object_pairs_hook=_apple_gateway_object_pairs,
+            parse_constant=_reject_apple_gateway_constant,
+        )
+    except (TypeError, ValueError, json.JSONDecodeError, RecursionError) as exc:
+        raise ToolRegistryError("Apple gateway arguments are invalid") from exc
+    if not isinstance(parsed, dict):
+        raise ToolRegistryError("Apple gateway arguments must be an object")
+    if bounded and (_json_depth(parsed) > 16 or _json_object_keys(parsed) > 64):
+        raise ToolRegistryError("Apple gateway arguments exceed limits")
+    return parsed
+
+
+def _apple_gateway_json_text(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    try:
+        text = value.to_json()
+    except Exception as exc:  # noqa: BLE001 - SDK content objects vary by release.
+        raise ToolRegistryError("Apple gateway arguments are invalid") from exc
+    if not isinstance(text, str):
+        raise ToolRegistryError("Apple gateway arguments are invalid")
+    return text
+
+
+def _apple_gateway_utf8(value: str) -> bytes:
+    try:
+        return value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ToolRegistryError("Apple gateway arguments are invalid") from exc
+
+
+def _apple_gateway_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in result:
+            raise ValueError("duplicate key")
+        result[key] = item
+    return result
+
+
+def _reject_apple_gateway_constant(_value: str) -> None:
+    raise ValueError("non-finite value")
+
+
+def _json_depth(value: object) -> int:
+    if isinstance(value, dict):
+        return 1 + max((_json_depth(item) for item in value.values()), default=0)
+    if isinstance(value, list):
+        return 1 + max((_json_depth(item) for item in value), default=0)
+    return 0
+
+
+def _json_object_keys(value: object) -> int:
+    if isinstance(value, dict):
+        return len(value) + sum(_json_object_keys(item) for item in value.values())
+    if isinstance(value, list):
+        return sum(_json_object_keys(item) for item in value)
+    return 0
+
+
+async def _invoke_apple_tool_async(
+    context: ActiveAdapterToolContext,
+    tool_id: str,
+    arguments: Mapping[str, Any],
+    prepared: PreparedToolInvocation | None,
+) -> ToolResult:
+    if prepared is not None:
+        return await context.registry.invoke_prepared_tool_async(prepared)
+    return await context.registry.invoke_tool_async(tool_id, arguments)
+
+
+async def _apple_tool_result_output(
+    result: ToolResult,
+    *,
+    callback_result_budget: _AppleCallbackResultBudget | None = None,
+) -> str:
+    try:
+        serialized = json.dumps(result.model_facing_output)
+    except (TypeError, ValueError) as exc:
+        raise ProviderToolTerminalError(
+            "Apple tool result is not JSON serializable"
+        ) from exc
+    if await _apple_callback_result_fits(serialized, callback_result_budget):
+        return serialized
+    bounded = {
+        "truncated": True,
+        "result": _bounded_apple_callback_result(json.loads(serialized)),
+    }
+    serialized = json.dumps(bounded, separators=(",", ":"))
+    if await _apple_callback_result_fits(serialized, callback_result_budget):
+        return serialized
+    return json.dumps(
+        {
+            "truncated": True,
+            "result": "Tool result exceeds the Apple callback result limit.",
+        },
+        separators=(",", ":"),
+    )
+
+
+async def _apple_callback_result_fits(
+    serialized: str,
+    callback_result_budget: _AppleCallbackResultBudget | None,
+) -> bool:
+    """Use native token counting when available, with a stable fallback."""
+
+    if callback_result_budget is None:
+        return len(serialized) <= _APPLE_CALLBACK_RESULT_MAX_CHARS
+    try:
+        token_count = await callback_result_budget.token_count(serialized)
+    except Exception:  # noqa: BLE001 - token counting is an optional SDK feature.
+        return len(serialized) <= _APPLE_CALLBACK_RESULT_MAX_CHARS
+    if (
+        not isinstance(token_count, int)
+        or isinstance(token_count, bool)
+        or token_count < 0
+    ):
+        return len(serialized) <= _APPLE_CALLBACK_RESULT_MAX_CHARS
+    return token_count <= callback_result_budget.limit
+
+
+def _bounded_apple_callback_result(value: Any, *, depth: int = 0) -> Any:
+    """Return a compact JSON-safe result for Apple's bounded callback context."""
+
+    if depth >= _APPLE_CALLBACK_RESULT_MAX_DEPTH:
+        return "[truncated]"
+    if isinstance(value, Mapping):
+        if "structuredContent" in value:
+            fields = [("structuredContent", value["structuredContent"])]
+        else:
+            priorities = {
+                field_name: index
+                for index, field_name in enumerate(
+                    _APPLE_CALLBACK_RESULT_PRIORITY_FIELDS
+                )
+            }
+            fields = sorted(
+                value.items(),
+                key=lambda item: priorities.get(str(item[0]).lower(), len(priorities)),
+            )[:_APPLE_CALLBACK_RESULT_MAX_FIELDS]
+        return {
+            str(key): _bounded_apple_callback_result(item, depth=depth + 1)
+            for key, item in fields
+        }
+    if isinstance(value, list):
+        return [
+            _bounded_apple_callback_result(item, depth=depth + 1)
+            for item in value[:_APPLE_CALLBACK_RESULT_MAX_ITEMS]
+        ]
+    if isinstance(value, str) and len(value) > _APPLE_CALLBACK_RESULT_MAX_STRING_CHARS:
+        return value[:_APPLE_CALLBACK_RESULT_MAX_STRING_CHARS] + "…"
+    return value
+
+
+def _apple_generated_object_type(
+    schema: Mapping[str, Any],
+    sdk: Any,
+    *,
+    type_name: str,
+) -> type[object]:
+    """Translate an admitted finite object schema into an SDK-generable class."""
+
+    _require_schema_keys(
+        schema,
+        {"type", "properties", "required", "additionalProperties"},
+    )
+    if schema.get("type") != "object":
+        raise ModelExecutionError("Apple tool has an untranslatable object schema")
+    properties = schema.get("properties")
+    required = schema.get("required")
+    if not isinstance(properties, Mapping) or not isinstance(required, list):
+        raise ModelExecutionError("Apple tool has an untranslatable object schema")
+    property_names = tuple(properties)
+    if (
+        not all(
+            isinstance(name, str)
+            and name.isidentifier()
+            and not keyword.iskeyword(name)
+            for name in property_names
+        )
+        or not all(isinstance(name, str) for name in required)
+        or set(required) != set(property_names)
+        or schema.get("additionalProperties") is not False
+    ):
+        raise ModelExecutionError("Apple tool has an untranslatable object schema")
+    annotations: dict[str, object] = {}
+    attributes: dict[str, object] = {"__annotations__": annotations}
+    for field_name, field_schema in properties.items():
+        if not isinstance(field_schema, Mapping):
+            raise ModelExecutionError("Apple tool has an untranslatable schema")
+        annotation = _apple_annotation(
+            field_schema,
+            sdk,
+            type_name=f"{type_name}{field_name.title()}",
+        )
+        if get_origin(annotation) is Annotated:
+            base_annotation, guide = get_args(annotation)
+            annotations[field_name] = base_annotation
+            attributes[field_name] = guide
+        else:
+            annotations[field_name] = annotation
+    generated_type = type(type_name, (), attributes)
+    try:
+        return sdk.generable(f"DAR tool arguments for {type_name}")(generated_type)
+    except Exception as exc:  # noqa: BLE001 - SDK construction errors vary.
+        raise ModelExecutionError("Apple tool has an untranslatable schema") from exc
+
+
+def _apple_annotation(schema: Mapping[str, Any], sdk: Any, *, type_name: str) -> object:
+    schema_type = schema.get("type")
+    if schema_type == "object":
+        return _apple_generated_object_type(schema, sdk, type_name=type_name)
+    if schema_type == "array":
+        return _apple_array_annotation(schema, sdk, type_name=type_name)
+    if isinstance(schema_type, str) and schema_type in {
+        "string",
+        "integer",
+        "number",
+        "boolean",
+    }:
+        return _apple_scalar_annotation(schema, sdk)
+    raise ModelExecutionError("Apple tool has an untranslatable schema")
+
+
+def _apple_scalar_annotation(schema: Mapping[str, Any], sdk: Any) -> object:
+    schema_type = str(schema["type"])
+    allowed = {"type"}
+    constraints: dict[str, object] = {}
+    if schema_type == "string":
+        allowed.add("enum")
+        enum = schema.get("enum")
+        if enum is not None:
+            if (
+                not isinstance(enum, list)
+                or not enum
+                or not all(isinstance(value, str) for value in enum)
+            ):
+                raise ModelExecutionError("Apple tool has an untranslatable schema")
+            constraints["anyOf"] = list(enum)
+        annotation: object = str
+    elif schema_type in {"integer", "number"}:
+        allowed.update({"minimum", "maximum"})
+        minimum = schema.get("minimum")
+        maximum = schema.get("maximum")
+        for key, value in (("minimum", minimum), ("maximum", maximum)):
+            if value is not None:
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise ModelExecutionError("Apple tool has an untranslatable schema")
+                constraints[key] = value
+        if minimum is not None and maximum is not None and minimum > maximum:
+            raise ModelExecutionError("Apple tool has an untranslatable schema")
+        annotation = int if schema_type == "integer" else float
+    else:
+        annotation = bool
+    _require_schema_keys(schema, allowed)
+    return _guided_annotation(annotation, sdk, constraints)
+
+
+def _apple_array_annotation(
+    schema: Mapping[str, Any], sdk: Any, *, type_name: str
+) -> object:
+    _require_schema_keys(schema, {"type", "items", "minItems", "maxItems"})
+    items = schema.get("items")
+    if not isinstance(items, Mapping):
+        raise ModelExecutionError("Apple tool has an untranslatable schema")
+    constraints: dict[str, object] = {}
+    minimum = schema.get("minItems")
+    maximum = schema.get("maxItems")
+    for key, value in (("minItems", minimum), ("maxItems", maximum)):
+        if value is not None:
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ModelExecutionError("Apple tool has an untranslatable schema")
+            constraints[key] = value
+    if minimum is not None and maximum is not None and minimum > maximum:
+        raise ModelExecutionError("Apple tool has an untranslatable schema")
+    item_annotation = _apple_annotation(items, sdk, type_name=f"{type_name}Item")
+    return _guided_annotation(list[item_annotation], sdk, constraints)
+
+
+def _guided_annotation(
+    annotation: object,
+    sdk: Any,
+    constraints: Mapping[str, object],
+) -> object:
+    if not constraints:
+        return annotation
+    try:
+        return Annotated[annotation, sdk.guide(**dict(constraints))]
+    except Exception as exc:  # noqa: BLE001 - SDK guide construction errors vary.
+        raise ModelExecutionError("Apple tool has an untranslatable schema") from exc
+
+
+def _require_schema_keys(schema: Mapping[str, Any], allowed: set[str]) -> None:
+    if set(schema) - allowed:
+        raise ModelExecutionError("Apple tool has an untranslatable schema")
 
 
 def _require_macos() -> None:
@@ -160,13 +1416,19 @@ def _make_session(
     sdk: Any | None,
     request: OpenAIModelRequest,
     instructions: str | None = None,
+    *,
+    tools: Sequence[object] = (),
 ) -> Any:
     try:
         if config.session_factory is not None:
+            if tools:
+                raise ModelExecutionError(
+                    "Apple Foundation Models tool bridge requires native session setup"
+                )
             return config.session_factory(instructions)
         if sdk is None:
             raise ModelExecutionError("Apple Foundation Models SDK is unavailable")
-        return sdk.LanguageModelSession(instructions=instructions)
+        return sdk.LanguageModelSession(instructions=instructions, tools=list(tools))
     except ModelExecutionError:
         raise
     except Exception as exc:  # noqa: BLE001 - SDK errors vary by release.
@@ -190,8 +1452,12 @@ def _request_from_kwargs(kwargs: Mapping[str, Any]) -> OpenAIModelRequest:
     )
 
 
-def _validate_request(request: OpenAIModelRequest) -> None:
-    if request.tools or request.tool_choice is not None:
+def _validate_request(
+    request: OpenAIModelRequest,
+    *,
+    tool_bridge_active: bool = False,
+) -> None:
+    if (request.tools and not tool_bridge_active) or request.tool_choice is not None:
         raise ModelExecutionError("Apple Foundation Models tool calling is unsupported")
     for message in request.messages:
         content = message.get("content") if isinstance(message, Mapping) else None

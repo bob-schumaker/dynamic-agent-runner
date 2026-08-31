@@ -15,7 +15,14 @@ runtime:
     - sequential_fallback
     external_backend_allowed: false
     max_iterations: 3
+    max_steps: 5
     timeout: runtime_default
+    exit_strategy:
+      terminal_conditions:
+      - hello_message emitted
+      - validation failure or unavailable fixture context
+      on_exhaustion: escalate
+      ambiguous_completion: clarify
     approval_required_for:
     - live write or mutation
     forbidden_actions:
@@ -57,12 +64,13 @@ skills:
 - id: agent-development
   label: Agent development skill
   source_type: repo_skill
-  source_path: skills/agent-development-skill/SKILL.md
+  source_path: corpus/capabilities/agent-development/SKILL.md
   packaging_mode: referenced_only
   notes: Provides agent pattern vocabulary for this fixture.
 tools:
 - id: read_hello_event
   label: Read Hello Event
+  tool_type: structured_data_query
   description_for_llm: 'Hello-world fixture tool for the read_hello_event capability.
 
     '
@@ -99,6 +107,12 @@ nodes:
   label: Detect anomaly
   decision_subtype: llm_route
   route_from: read_event
+  prompt:
+    user_template: 'Route the hello-world monitoring fixture result.
+
+      '
+    input_vars:
+    - prompt
   decision_contract:
     allowed_paths:
     - id: proceed
@@ -116,11 +130,11 @@ nodes:
     - prompt
     output_schema_ref: hello_message
 edges:
-- source: read_event
-  target: detect_anomaly
+- from: read_event
+  to: detect_anomaly
   edge_kind: sequential
-- source: detect_anomaly
-  target: explain_observation
+- from: detect_anomaly
+  to: explain_observation
   edge_kind: branch
   condition: proceed
 output_contracts:

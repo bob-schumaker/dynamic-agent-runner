@@ -28,9 +28,11 @@ Status: v1 live-action baseline complete
 
 ## Evidence
 
-- Planning checkpoint resolves the v1 boundary: direct `tool_use_step`
-  interruption only, no durable resume, no model-emitted tool-call pause, and no
-  new write/shell workspace tools.
+- Historical planning checkpoint resolved the original v1 boundary: direct
+  `tool_use_step` interruption only, no durable resume, no model-emitted
+  tool-call pause, and no new write/shell workspace tools. The iterative
+  model-tool-loop slice subsequently added the model-emitted pause; the current
+  feature boundary is authoritative in [`spec.md`](spec.md).
 - Planning checkpoint committed in `2fe5b94`
   (`docs(specs): plan approval interruption slice`).
 

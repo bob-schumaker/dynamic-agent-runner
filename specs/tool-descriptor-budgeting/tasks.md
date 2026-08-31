@@ -57,15 +57,20 @@
 
 ## Deferred Follow-Up: Scoring Quality Experiments
 
-- [ ] T2.1 Build a local benchmark fixture set with prompts, eligible tools,
+- [x] T2.1 Build a local benchmark fixture set with prompts, eligible tools,
       expected required tools, acceptable optional tools, and false-omission
-      checks.
-- [ ] T2.2 Compare the no-dependency deterministic scorer against an optional
+      checks. The evaluator-only contract is validated by
+      `tests/test_tool_descriptor_benchmark_fixtures.py`.
+- [x] T2.2 Compare the no-dependency deterministic scorer against an optional
       NLTK-backed lexical scorer without adding NLTK to runtime dependencies.
-- [ ] T2.3 Measure descriptor token reduction, selected-tool recall, false
-      omissions, runtime overhead, dependency size, and setup friction.
-- [ ] T2.4 Promote an optional parser strategy only if benchmark evidence beats
-      the deterministic baseline enough to justify the dependency surface.
+      The test-only comparison uses corpus-free tokenization and stemming.
+- [x] T2.3 Measure descriptor token reduction, selected-tool recall, false
+      omissions, runtime overhead, dependency size, and setup friction. The
+      evaluator-only measurement is locked by
+      `tests/test_tool_descriptor_benchmark_measurements.py`.
+- [x] T2.4 Evaluate promotion of an optional parser strategy only if benchmark
+      evidence beats the deterministic baseline enough to justify the dependency
+      surface. Decision: no promotion; T2.3 showed no quality gain.
 
 ## Deferred Follow-Up: Policy Polish
 
@@ -75,3 +80,23 @@
       hosts need preflight visibility.
 - [ ] T3.3 Add descriptor compression or summarization only as a separate spec
       after selection/packing behavior is stable.
+
+### T3 Readiness Receipt (2026-08-30)
+
+Council shipping-triad and Ponytail reviews found no deliverable runtime change
+for these conditional follow-ups; all three checkboxes remain open.
+
+- **T3.1:** the Slice T1 trace covers an intentional `max_tools` omission, not
+  a fallback failure. T2.3's false omissions are evaluator-only evidence, not a
+  scorer-tuning target. Reopen with a redacted runtime trace showing a concrete
+  unsafe omission or low-confidence outcome, then name the fallback behavior
+  and add a focused RED/GREEN test.
+- **T3.2:** no current host capability/preflight consumer reads descriptor
+  budgeting. Static policy reporting would duplicate manifest metadata, while
+  selected tools and fit depend on the prepared prompt and exposed registry.
+  Reopen when a host names its pre-execution decision and the required input and
+  bounded report contract.
+- **T3.3:** the T1/T2 selection and packing boundary is stable, but no measured
+  descriptor-payload pressure case is recorded after packing. Reopen with a
+  measured case that selection cannot solve, a chosen transformation class, and
+  schema-preservation, provider-compatibility, and fake-test acceptance gates.

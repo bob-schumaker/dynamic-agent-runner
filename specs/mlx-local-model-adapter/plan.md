@@ -34,9 +34,8 @@ lifecycle behavior.
 - `tests/test_local_models.py` covers local model path resolution and local
   endpoint failure behavior without live infrastructure.
 - `tests/test_executor.py` covers strict and augmented model-adapter coverage.
-- `pyproject.toml` currently has mandatory llama.cpp and Hugging Face
-  dependencies; MLX should not become a mandatory dependency unless explicitly
-  approved.
+- `pyproject.toml` provides MLX through the optional `mlx` extra and keeps it in
+  the development group. MLX must not become mandatory for all runtime installs.
 
 ## Planning Decisions
 
@@ -51,7 +50,8 @@ lifecycle behavior.
   tests can inject fake loaders/generators.
 - Implement converted MLX model directory and explicit GGUF file support while
   keeping conversion, server lifecycle, embeddings, multimodal IO, streaming,
-  tool calling, and structured output outside this text-generation slice.
+  tool calling, and structured output outside this text-generation slice. The
+  separate `mlx-local-model-tool-use` follow-up owns tool calling.
 - Preserve Hugging Face references through existing local-model reference types
   where possible, but test network behavior only with injected fake download
   callables.

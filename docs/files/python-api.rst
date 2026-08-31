@@ -203,9 +203,7 @@ inject a completion callable or LiteLLM router for tests and host-managed
 routing. The factory's ``model`` value is adapter metadata and does not
 override an individual request model.
 
-The temporary OCI distribution path includes the checked-in pure-Python
-LiteLLM wheel until the configured package source publishes a portable
-Python-compatible release.
+LiteLLM is installed as a DAR dependency.
 
 .. header2:: Local OpenAI-compatible endpoints
 
@@ -326,12 +324,145 @@ resolution or dependency loading. The default in-process backend lazily imports
 ``mlx-lm``. MLX helpers validate converted model directories, explicit ``.gguf``
 files with ``model_format="gguf"``, and Hugging Face-resolved assets before
 generation. They normalize generated text into the package ``ModelResponse``
-contract and reject unsupported tool-call or structured-output requests. Use
-strict coverage for local-only execution. If a caller already exposes an MLX
-model through an OpenAI-compatible local server, use
-``LocalOpenAIEndpointConfig`` instead. Embeddings, multimodal IO, streaming
-public APIs, conversion, and server lifecycle helpers are separate feature
-surfaces.
+contract. The default in-process backend remains text-only: it reports
+``tool_calling=False`` and rejects tool-bearing requests before model resolution
+or generation. An advanced caller can opt into tool calling only by injecting
+both an ``MLXToolCodec`` and a version-compatible ``MLXToolCapableBackend``.
+That does not claim tool support for arbitrary MLX models, tokenizers, or stock
+``mlx-lm``; DAR still owns tool exposure and schema validation, approval,
+coordinator dispatch, tracing, and tool-result continuation. Install the
+``mlx`` extra before using the default in-process backend. Use strict coverage
+for local-only execution. If a caller already exposes an MLX model through an
+OpenAI-compatible local server, use ``LocalOpenAIEndpointConfig`` instead.
+Structured output, embeddings, multimodal IO, streaming public APIs,
+conversion, and server lifecycle helpers remain unsupported feature surfaces.
+
+For the pinned ``mlx-community/Qwen3-4B-Instruct-2507-nvfp4`` artifact,
+``create_qwen3_mlx_local_adapter(...)`` and
+``create_qwen3_mlx_local_async_adapter(...)`` package a strict native-envelope
+codec with a compatible backend. The caller loads the exact local model and
+passes its ``(model, tokenizer)`` pair; ``expected_model_id`` must be
+``PINNED_QWEN3_MLX_MODEL_ID``:
+
+.. code-block:: python
+
+   from mlx_lm import load
+
+   from dynamic_agent_runner import (
+       PINNED_QWEN3_MLX_MODEL_ID,
+       MLXLocalModelConfig,
+       create_qwen3_mlx_local_adapter,
+       create_qwen3_mlx_local_async_adapter,
+   )
+
+   model, tokenizer = load("path/to/Qwen3-4B-Instruct-2507-nvfp4")
+   qwen3_config = MLXLocalModelConfig(
+       model_aliases=("qwen3-local",),
+       model_path="path/to/Qwen3-4B-Instruct-2507-nvfp4",
+       expected_model_id=PINNED_QWEN3_MLX_MODEL_ID,
+   )
+   adapter = create_qwen3_mlx_local_adapter(
+       qwen3_config,
+       model=model,
+       tokenizer=tokenizer,
+   )
+
+   async_adapter = create_qwen3_mlx_local_async_adapter(
+       qwen3_config,
+       model=model,
+       tokenizer=tokenizer,
+   )
+
+It accepts only an omitted ``tool_choice`` and exactly one pure native
+``<tool_call>…</tool_call>`` envelope. Mixed prose, malformed envelopes,
+duplicate JSON keys, and non-object arguments fail before tool dispatch. This
+is explicit opt-in, not Qwen-family detection; the generic MLX helpers remain
+text-only unless a caller supplies their own compatible codec/backend pair.
+
+.. header2:: Apple Foundation Models
+
+Use ``AppleFoundationModelConfig`` with
+``create_apple_foundation_model_async_adapter(...)`` to run a workflow on
+Apple's system-managed on-device language model. The optional
+``apple-foundation-models`` extra, macOS on eligible Apple silicon, Apple
+Intelligence, and an available ``SystemLanguageModel`` are required for
+generation:
+
+.. code-block:: python
+
+   from dynamic_agent_runner import (
+       AppleFoundationModelConfig,
+       create_apple_foundation_model_async_adapter,
+       run_agent_workflow_async,
+   )
+
+   apple_adapter = create_apple_foundation_model_async_adapter(
+       AppleFoundationModelConfig()
+   )
+
+   result = await run_agent_workflow_async(
+       prompt="Run this workflow on Apple's system model.",
+       package_directory="path/to/agent-package",
+       tool_registry=my_tool_registry,
+       model_adapter=[apple_adapter],
+       model_adapter_coverage="strict",
+   )
+
+The default model alias is ``apple-system-language-model``. The adapter is
+local and supports final text, structured JSON output, and tool calling; it
+does not support streaming, multimodal input, embeddings, persistent sessions,
+Private Cloud Compute, or external HTTP clients.
+
+For tool calling, DAR creates one opaque Apple wrapper per tool exposed to the
+active node. A callback becomes a DAR invocation request and enters the shared
+tool coordinator rather than a handler or registry directly. Consequently,
+DAR still owns exposure checks, normalized-argument validation, guardrails,
+approval decisions, hooks, traces, result state, and the model-facing tool
+result. The callback budget is derived from the active DAR tool-call limit.
+
+An exact approved decision invokes the prepared tool once. Denied, cancelled,
+or expired decisions do not run the handler, hooks, registry invocation, or
+state writes. An unresolved decision becomes a DAR workflow interruption before
+the handler runs; the Apple adapter does not implement durable approval resume.
+Callbacks after cancellation or response completion fail closed.
+
+Apple tool argument schemas are deliberately a strict subset of JSON Schema.
+The root must be a finite object whose properties are all required with
+``additionalProperties: false``; property names must be Python identifiers and
+not Python keywords. Nested objects and arrays are allowed, as are ``string``,
+``integer``, ``number``, and ``boolean`` values, string enums, numeric
+``minimum``/``maximum``, and array ``minItems``/``maxItems``. DAR rejects a
+schema before creating the Apple session when it contains caller-supplied
+``$ref``, composition, map objects, optional properties, null types,
+non-string enums, ``const``, patterns/formats, string-length constraints, or
+unknown keywords. SDK-generated references for nested classes do not make
+caller-supplied references admissible.
+
+The standalone A1 release gate uses direct runtime calls rather than
+pytest-native model generation. Run it on an eligible Mac outside the Codex
+execution sandbox:
+
+.. code-block:: bash
+
+   poetry run python scripts/run_apple_live_release_gate.py
+
+It emits a redacted receipt after text, structured-output, and strict-workflow
+execution. The marked Apple pytest suite remains an opt-in diagnostic and A2
+callback smoke:
+
+.. code-block:: bash
+
+   poetry run pytest -m apple_live -q
+
+They skip when macOS, the optional SDK, or model availability is missing. A
+historical native ``GenerationError`` with status 255 occurred inside the Codex
+execution sandbox despite successful availability; the restored environment
+has not reproduced it. In this Codex/macOS environment, run the native callback
+sentinel from an elevated host terminal outside that sandbox. This is a local
+harness constraint, not an Apple Foundation Models requirement on all hosts.
+Pytest-native Apple results are diagnostic evidence, not the A1 release gate.
+The current SDK also emits a known deprecation warning and ignored teardown
+``TypeError`` after otherwise successful native tests.
 
 .. header2:: Local model availability preflight
 

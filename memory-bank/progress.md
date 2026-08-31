@@ -3,6 +3,117 @@
 
 ## Working
 
+- `dar-authoring` is a skills-only Codex plugin, not a plugin MCP server.
+  The `0.2.1` release-pin contract is committed in `8e79f34`; an `ocibuild -c`
+  build produced and isolated-wheel verification passed for
+  `dynamic_agent_runner-0.2a3-py3-none-any.whl`. This local prerelease receipt
+  is not evidence for the future published `0.2.1` Artifactory artifact.
+  Commit `bef2d5d` records and tests the positive fake-fixture map for every
+  currently live G0–G5 capability. The full suite passed with 1072 tests and
+  4 explicit live skips. Remaining release work is published-index resolution
+  with wheel digest and M8's clean consumer-installation exchange proof.
+- `dar-authoring-plugin` M0 (RA0) is complete through `8fb3435`. Commits
+  `3ee1068` and `8fb3435` add the three portable DAR-adapted skills, immutable
+  source/provenance and user-authorized redistribution record, offline fixture
+  checks, and shipped canonical no-tool/read-only-MCP templates. The selected
+  source revision is `967c9f621b017f042c55c6ae73019588ee426e30`; no top-level
+  license or notice existed in that checkout, which the record states plainly.
+  Full DAR-authoring verification passed with 171 tests.
+- `dar-authoring-plugin` M5 (G2) is complete through `8c8522f`; M7 (G5) is
+  complete for reviewed generic MCP bindings through `65f4882`. Commits
+  `d2d20bf`–`8c8522f` compose the configured generic HTTPS
+  MCP client into the local host, expose human-only API-token/OAuth setup and
+  reviewed surface/binding CLI paths, construct the model-facing host registry,
+  and prove a saved workflow's fake MCP call end to end. A same-endpoint
+  reconnect refreshes an expired token before setup, and a 401/403 setup
+  rejection gets one bounded refresh retry. The replacement keeps the credential
+  reference stable, revalidates the configured peer/surface, and otherwise
+  reports `authentication_required` without browser flow or remote tool-call
+  retry. Full authoring verification passed with 227 tests.
+- `dar-authoring-plugin` M6 (G4 trusted file ingress) is complete through
+  `7b17158`. Commits `cf98017`–`7b17158` provide descriptor-relative no-follow
+  bounded copies, private workspaces, opaque registration-bound artifacts, CLI
+  ingress/preparation, UTF-8 validation from the private copy, parent-swap
+  coverage, and non-blocking rejection of FIFOs/non-regular files. Focused
+  evidence proves public receipts and prepared inputs omit paths/content and
+  runner model requests/traces omit artifact IDs and bodies. Full authoring
+  verification passed with 128 tests.
+- Side effects are live only through declared, reviewed generic MCP bindings:
+  `ArgumentProvenanceEnvelope` checks, registration-bound handlers, an
+  at-most-once `workflow_auto` action ledger, local `--ask` approval, and
+  prepared-input consumption protect dispatch. Commits `76bb846`, `05ba226`,
+  and `6d40581` add action-change invalidation, audit-failure/unknown-outcome,
+  and concurrent-consumption proof. Default auto approval is for a pre-built
+  workflow; `--dry-run` is non-dispatching. Broader multi-client MCP composition
+  and live-provider acceptance remain deferred.
+- `dar-authoring-plugin` M3 (G3 sealed local workflow runner) is complete
+  through `50e928d`. `0084bc0` changes the single model-facing MCP tool to
+  accept only workflow ID plus prompt and seal input internally; caller-supplied
+  prepared IDs and hybrid fields fail before preparation. `bcb86a1` proves a
+  configured host exposes that exact tool, `35b9ac9` records a real temporary
+  Codex local-wheel discovery, `14dfbf5` adds human-only local directory/ZIP
+  composition, and `88ff0a4` permits only an already-reviewed opaque MCP
+  binding while preserving `--dry-run` and local `--ask`. `50e928d` adds
+  `--workspace-file` only for an unambiguous one-role/one-media-type workspace
+  contract; dry run rejects files before package selection or ingress. The full
+  suite passed with 964 tests and 4 skips. Production plugin launch still awaits
+  the signed Artifactory DAR 0.2.1 release and trusted launcher integration.
+- `dar-authoring-plugin` M2 (G1 runtime core) is complete through
+  `8a08669`: private authenticated state (`61088c1`), OS-user identity and
+  immutable local profiles (`35da5e6`), no-tool descriptor validation
+  (`ced9982`), source handles (`e22bc18`), no-follow private package staging
+  (`355debb`), immutable package catalog (`1518086`), policy compilation
+  (`ab75e37`), and package-only preflight (`8a08669`). The standalone plugin
+  pins DAR `0.2.1` for its production Artifactory launch contract and permits
+  an absolute local-wheel override only for pre-publication verification. M4
+  authoring evidence and M8 portable publication remain.
+- The original first vertical slice expressly omitted MCP, external side
+  effects, trusted caller-file ingress, ZIP/signature exchange, tool-argument
+  provenance, and adapted-skill behavior. M0, M5, M6, and M7 now cover the
+  static authoring, MCP, ingress, and side-effect additions; M4 supplies
+  external authoring evidence and M8 gates portable exchange/publication.
+  `PackagePreflightService` is package-only, while the later
+  `WorkflowInvocationPreparationService` is the sole issuer of sealed,
+  normally single-use `PreparedWorkflowInput`.
+- M4 now has host-controlled authoring material and package-output support:
+  `agent-development` issues/projects selected material, writes canonical files
+  only through opaque output handles, and finalizes the package; companion tool
+  and evaluation skills use the same handle. A later natural-language request
+  can invoke a configured-root saved package by name through the generic
+  wrapper. The external model corpus harness and human intent-fidelity review
+  are still required before calling M4 complete.
+- `live-guardrail-execution` V2 is implemented in `78f9d9c`. It adopts the
+  shared coordinator for direct and model-loop tool-input guardrails after
+  validated preparation and before approval or dispatch. The TDD evidence
+  covers pass, abort, missing-id/adapter, handler failures, malformed or
+  mismatched results, ordered declarations, nested subject-mutation isolation,
+  and redacted error traces. Focused validation passed with 251 tests; the full
+  suite passed with 694 tests and 4 skips, alongside Ruff, pre-commit, package,
+  and docs builds.
+- Shared DAR tool-invocation coordination is implemented in `bda6333`:
+  direct-step and model-loop dispatch share approval, lifecycle hooks, tracing,
+  result recording, and registry invocation. Registry preparation validates
+  approval-required input before interruption without invoking the handler.
+  Focused tests passed (192); the full suite passed (681 passed, 4 skipped),
+  along with Ruff, package build, and docs build.
+- LiteLLM provider-adapter L1 now uses upstream LiteLLM 1.97.0 directly; the
+  package-owned fallback shim and vendored wheel are retired. OCI cleanup and
+  broader Codex migration remain deferred.
+- Spec-context follow-up commit `a1f3011` is complete. It added the draft
+  `scratchpad-context-manager` spec and folded Antigravity Awesome Skills
+  provenance into existing owners instead of creating a duplicate context
+  feature area.
+- The scratchpad spec is deliberately storage-neutral and spec-only. Its v1
+  target is a caller-supplied `ScratchpadStore` protocol, canonical
+  `ScratchpadArtifactRef` projections, and automatic large tool-result offload;
+  model-visible scratchpad tools, read/search/list/delete APIs, durable resume,
+  and bundled stores are deferred.
+- Context-management follow-ups now include first-class derived
+  `artifact_trail` diagnostics, probe-based compression tests, and named
+  degradation fixtures. Skill-source follow-ups now include lazy-loading tests,
+  token-aware skill budgets, `max_skills_per_turn`, and
+  `overflow_behavior: error`. Persistent-session follow-ups now include
+  caller-owned structured snapshot summary metadata.
 - Graphify T8.7 benchmark evidence is recorded in commit 438d03a and the gpt-5.4 rerun in dc6272d. Across 13 sibling repositories, fixed8 remains the runtime default; token-aware is advisory/opt-in because live probes mostly timed out.
 - The memory-aware context pipeline first slice is implemented in ae1c0f5. It validates passive memory metadata, reports capabilities, and preserves the declared pipeline without invoking retrieval or persistence.
 - LiteLLM provider-adapter Slice L1 is implemented and validated. DAR includes
@@ -51,7 +162,20 @@
   The full suite passes with 626 tests and one skip. Spec commit `54ac838`
   prepares T8, a pure advisory selector that compares fixed8 and token-aware
   estimates without changing the runtime default.
-- Apple Foundation Models A1 is implemented in `specs/apple-foundation-model-adapter/` and committed in `9984bd9`, with standalone live text, structured-output, and strict-workflow evidence. Pytest-native Apple SDK generation remains blocked by status 255 despite availability preflight; A2 separately requires DAR-managed callback routing through the approval and tool-runtime stack.
+- Apple Foundation Models A4 is implemented and documented through `f37168c`.
+  The sealed host passes active wrappers only; eligible read-only MCP schemas
+  that cannot be emitted directly use a closed, opaque-token Apple envelope,
+  then receive exact upstream schema validation before DAR coordinator
+  dispatch. The callback map is response-local, atomic, single-use, bounded,
+  and cleared on session close. Non-MCP or side-effecting tools do not gain this
+  fallback. The full suite passed 1228 tests with one skipped and six
+  deselected; Ruff, Poetry package checks, and package build also passed.
+- Apple C4 live acceptance is complete and manually verified. Commit `28472f5`
+  normalizes the Apple callback's compact provenance transports into DAR's
+  canonical prompt-span envelope using only uniquely reconstructible spans from
+  the sealed original prompt; provider offsets, lengths, and malformed duplicate
+  envelope text do not become authority. The human-authorized sealed workflow
+  then created one Fastmail `create_note` successfully.
 - Interpreter middleware now has a resolved model-facing design direction:
   one `run_interpreter` gateway tool, multiple node-allowed ids, bounded
   non-executable usage descriptors, caller-provided async-first adapters, and
@@ -499,6 +623,16 @@
 
 ## Remaining
 
+- DAR-authoring's immediate implementation slice is a closed, role-scoped
+  `dar-package invoke` command: it must accept only a saved package name,
+  prompt, and descriptor-declared inputs; prepare inputs internally; and
+  preserve `--dry-run` and local `--ask`. Package selection, prepared IDs,
+  profiles, and tool provisioning remain human/DAR-owned controls. Follow with
+  declared workspace-file ingress, adapted-skill CLI routing, and M4.4's clean
+  Codex author-then-run acceptance harness.
+- After publication of `dynamic-agent-runner==0.2.1`, independently resolve it
+  from the approved Artifactory index and record the resolved wheel identity
+  and digest. Do not substitute a local OCI wheel for this release check.
 - Historical note: LiteLLM provider work was once spec-only while upstream
   Python 3.14 metadata was unavailable. Slice L1 now uses the bundled DAR
   transport; only upstream publication and Responses-specific follow-ups remain.
@@ -517,9 +651,13 @@
   Do not implement salience execution, ingestion execution, background jobs,
   runner-owned stores, embeddings, or `memlayer` dependencies in the first
   slice.
-- Context-window follow-up implementation remains future. Start from the
-  prepared specs for provider-backed context compaction, model-backed context
-  summaries, or semantic context profiles before editing runtime code.
+- Context-window and scratchpad follow-up implementation remains future. Start
+  from the owning specs before editing runtime code:
+  `context-management-prepare-stage` for artifact trail/probe/degradation
+  validation, `skill-source-resolution` for token-aware skill-source overflow,
+  `persistent-agent-sessions` for structured caller-owned snapshot summary
+  metadata, `scratchpad-context-manager` for tool-result offload, or the
+  prepared provider/model/semantic compaction specs for richer compression.
 - Optional local-model advisory work remains deferred until local-model
   ergonomics is the immediate driver:
   - `llmfit-model-fit-filter` for pre-download filtering
@@ -547,7 +685,10 @@
   multi-interpreter, custom-adapter, and descriptor contracts are now specified,
   but implementation planning still requires backend evidence, safety/redaction
   decisions, descriptor budgets, and nested approval/resume semantics.
-- Apple Foundation Models A1 is implemented; standalone live paths are verified, while pytest-native SDK verification is a tracked harness follow-up. A2 tool callbacks remain a separate approval-gated release.
+- Apple Foundation Models implementation, C4 package validation, and the
+  manually verified C4 live Fastmail `create_note` acceptance are complete. Any
+  distinct live Fastmail/OAuth workflow still requires its own eligible-Mac
+  receipt and human dispatch authorization; receipt modes never grant it.
 
 ## Risks or Follow-ups
 
@@ -559,8 +700,10 @@
 - Sandbox runtime is partial: approval-before-side-effect exists, but write
   tools, shell tools, workspace grants, sandbox adapters, and changed-path audits
   remain deferred.
-- MCP runtime is v1 only: live transports, process lifecycle, discovery,
-  reconnect, schema cache, and diagnostics beyond metadata remain deferred.
+- The base DAR MCP registry remains metadata/host-injection only. The separate
+  dar-authoring host owns its configured HTTPS transport, bounded discovery,
+  reviewed schema cache, and safe automatic same-endpoint reconnect. Stdio and
+  unreviewed transports remain deferred.
 - Guardrails are v1 only: output phases, tool phases, reject-content behavior,
   warning-only behavior, retries, timeouts, and external adapters remain
   deferred.

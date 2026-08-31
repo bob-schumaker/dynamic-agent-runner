@@ -3,9 +3,9 @@
 ## Metadata
 
 - Feature slug: `provider-backed-context-compaction`
-- Mode: `light`
-- Artifact type: future feature specification
-- Status: prepared for future implementation planning
+- Mode: `guided`
+- Artifact type: authoritative SDD feature specification
+- Status: implemented first slice; provider transport remains caller-owned
 - Owner: context-management prepare stage plus model-provider adapters
 - Primary predecessor:
   - `specs/context-management-prepare-stage/spec.md`
@@ -56,7 +56,7 @@ This feature covers:
    policy and provider capability both allow it
 4. validation of replacement history before installation
 5. compaction window id and token-baseline metadata
-6. pre-turn and eligible mid-turn use through existing compaction phases
+6. pre-turn and overflow-retry use through existing compaction phases
 7. redacted trace and capability/status reporting
 8. fake-provider unit tests only
 
@@ -100,8 +100,60 @@ runtime:
             window_baseline: carried_prefix
 ```
 
-Names are draft. Implementation planning should keep the public policy compact
-and avoid exposing provider-specific wire details.
+The first slice recognizes only `implementation: provider` with
+`strategy: provider_remote`; it does not reinterpret existing
+`implementation: injected` policies. `remote.fallback` is `basic` or `error`.
+`model_summary` is deliberately excluded because it has a separate collaborator
+and failure contract. `remote.provider_capability` is required, while
+`max_replacement_messages` defaults to 32 and `preserve_system_messages`
+defaults to `true`.
+
+## First-Slice Contract
+
+The runtime adds a package-owned `context_compaction.py` contract rather than
+overloading the existing untyped `ContextCompactor` callback. The caller owns
+transport and authentication; DAR owns policy selection, capability checks,
+replacement validation, metadata, and tracing.
+
+```python
+@dataclass(frozen=True)
+class ProviderContextCompactionRequest:
+    messages: tuple[OpenAIMessage, ...]
+    model: str
+    phase: Literal["pre_turn", "overflow_retry"]
+    provider_capability: str
+    max_replacement_messages: int
+    preserve_system_messages: bool
+    tokens_before: int
+
+@dataclass(frozen=True)
+class ProviderContextCompactionResult:
+    messages: tuple[OpenAIMessage, ...]
+    provider_window_id: str | None = None
+    token_baseline: int | None = None
+
+class ProviderContextCompactor(Protocol):
+    capabilities: Mapping[str, bool]
+    def compact(
+        self, request: ProviderContextCompactionRequest
+    ) -> ProviderContextCompactionResult: ...
+```
+
+The synchronous contract is intentional: `prepare_model_input(...)` is
+synchronous today and current injected compaction shares that property. A later
+async-only provider path requires a separately approved executor preparation
+refactor; it is not silently introduced in this slice.
+
+`WorkflowExecutionContext` and the sync/async execution entry points receive an
+optional `provider_context_compactor` collaborator. A context cannot be mixed
+with this keyword, matching the existing context-selector rule. The package
+root re-exports the three public contract types.
+
+The first slice invokes the collaborator only for `pre_turn` threshold
+compaction and the existing one-shot `overflow_retry`. It does not run during
+an iterative model tool loop, between a tool call and result, or after a model
+response. Mid-turn provider compaction remains deferred because preserving a
+tool-call/result pair needs a dedicated state-and-transcript contract.
 
 ## Functional Requirements
 
@@ -161,30 +213,31 @@ conversation content or provider replacement payloads by default.
   provider capability allow it.
 - Replacement history is validated before installation.
 - Window id and baseline metadata are emitted after successful replacement.
-- Pre-turn compaction can replace over-threshold prepared input through the
-  remote provider path.
-- Mid-turn compaction remains opt-in and preserves iterative-loop safety.
-- Fallback behavior is deterministic: `basic`, `model_summary`, or fail-closed.
+- Pre-turn and overflow-retry compaction can replace eligible prepared input
+  through the remote provider path.
+- Missing capability or collaborator follows the declared deterministic
+  fallback: `basic` or fail-closed `error`.
+- Mid-turn compaction remains deferred and does not claim iterative-loop safety.
 - Unit tests use fake provider compaction collaborators only.
 
 ## Implementation Planning Notes
 
 - Start with RED tests around `prepare_model_input(...)` and executor retry
   paths before adding provider contracts.
-- Reuse the existing `context_compactor` seam only if it can carry provider
-  capability and baseline metadata without becoming an untyped escape hatch.
-- Add capability/status reporting in the same slice or explicitly mark it
-  metadata-only until implemented.
-- Coordinate with `litellm-provider-adapter` before binding any LiteLLM-specific
-  transport shape.
+- Do not reuse the existing `context_compactor` seam: it cannot carry typed
+  capability, request, result, and baseline invariants.
+- Add capability/status reporting in the same slice for disabled, missing
+  collaborator, missing capability, fallback, and live states.
+- Do not bind a LiteLLM transport shape. A caller may adapt LiteLLM or another
+  provider behind `ProviderContextCompactor` without adding a dependency.
 
 ## Validation Checklist
 
 Future implementation should include:
 
 - validation tests for supported and unsupported remote-compaction policy
-- executor tests for provider compaction success, missing capability, malformed
-  replacement history, fallback, and fail-closed behavior
+- executor tests for provider compaction success, missing collaborator or
+  capability, malformed replacement history, fallback, and fail-closed behavior
 - tests proving pinned hierarchy/current turn/tool pairs are preserved
 - tests proving window id and baseline metadata are present and redacted
 - capability/status tests for live, missing-collaborator, fallback, and disabled
@@ -198,11 +251,20 @@ poetry run pytest \
 poetry run ruff check src tests
 ```
 
-## Open Questions
+## Implementation Handoff
 
-- Should the provider-compaction collaborator live in `openai_client.py`, a new
-  context-management module, or a provider capability registry?
-- Should the runtime support provider-returned window ids directly, or always
-  wrap them in package-owned ids?
-- Should fallback to model-backed summaries be allowed in the same run, or only
-  in a separately configured policy?
+- Plan: [`plan.md`](plan.md)
+- Tasks: [`tasks.md`](tasks.md)
+- Validation record: [`validation.md`](validation.md)
+- Durable decisions: [`decision-log.md`](decision-log.md)
+- Status: implemented first slice. The first slice is bounded to the resolved
+  contract above; no runtime implementation is authorized by this review alone.
+
+## Resolved Questions
+
+- Resolved: the collaborator contract lives in a new context-management module,
+  not `openai_client.py` or a provider registry.
+- Resolved: trace metadata uses a DAR-generated `compaction_window_id`; a
+  provider-returned id is retained only as redacted provenance metadata.
+- Resolved: model-summary fallback is out of scope; first-slice fallback is
+  `basic` or `error` only.

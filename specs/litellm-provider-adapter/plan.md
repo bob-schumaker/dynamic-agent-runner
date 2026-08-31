@@ -3,8 +3,8 @@
 ## Metadata
 
 - Feature slug: `litellm-provider-adapter`
-- Status: Slice L1 implementation plan; implementation complete
-- Date: 2026-07-02
+- Status: Slices L1-L3.2 implementation plan; implementation complete
+- Date: 2026-08-22
 - Owning spec: `specs/litellm-provider-adapter/spec.md`
 
 ## Scope
@@ -13,9 +13,11 @@ Slice L1 makes LiteLLM the
 default direct SDK transport for ordinary OpenAI-format chat-completions
 dispatch while preserving the existing repository-owned adapter boundary.
 
-Slice L1 does not implement LiteLLM Responses API dispatch, ChatGPT/Codex helper
-replacement, live LiteLLM gateway calls, LiteLLM-managed OAuth, live model
-listing, or workflow manifest schema changes.
+Slice L1 originally did not implement LiteLLM Responses API dispatch,
+ChatGPT/Codex helper replacement, live LiteLLM gateway calls, LiteLLM-managed
+OAuth, live model listing, or workflow manifest schema changes. L3.2 adds only
+an explicit caller-supplied generic Responses callable; all other exclusions
+remain in force.
 
 ## L2 Codex Follow-Up Boundary
 
@@ -50,11 +52,9 @@ Chat Completions-shaped `completion(...)` / `acompletion(...)` APIs.
 
 ## Technical Approach
 
-1. Make the required OpenAI-compatible transport available in every DAR
-   install through the small bundled `dynamic_agent_runner.litellm` module. Add
-   a versioned upstream LiteLLM dependency only after the configured package
-   source publishes a portable Python 3.14-compatible release; retain the
-   checked-in wheel as an optional temporary OCI wheelhouse artifact.
+1. Make the required OpenAI-compatible transport available in every DAR install
+   through the upstream LiteLLM dependency. The dependency constraint is
+   `^1.97.0` and the resolved release is 1.98.0; the bundled fallback is retired.
 2. Add small sync/async LiteLLM provider classes or client shims that satisfy
    the existing provider protocols.
 3. Add package-owned request translation from `OpenAIModelRequest` to LiteLLM
@@ -75,9 +75,8 @@ Chat Completions-shaped `completion(...)` / `acompletion(...)` APIs.
    dedicated follow-up slice handles LiteLLM Responses semantics for Codex.
 8. Add focused fake tests before implementation behavior is completed.
 9. Update README/API docs only after helper names are final.
-10. Preserve the validated OCI packaging path: keep
-    `vendor/wheels/litellm-1.92.0-py3-none-any.whl` checked in, copy it into
-    `dist/`, and verify the resulting artifact hash and metadata.
+10. Retire the legacy OCI checked-in wheel, copy step, and trigger separately;
+    this is not required for the upstream dependency and shim-retirement slice.
 
 ## Public API Direction
 
@@ -106,9 +105,19 @@ update the spec before finalizing docs.
   validation.
 - Unit tests must use fake LiteLLM callables, fake routers, or monkeypatched
   modules; no live provider, gateway, OAuth, or network calls.
-- OCI packaging must run under Python 3.13 or newer and must not rebuild
-  LiteLLM in OCI until upstream Python 3.14 support makes the vendored wheel
-  unnecessary.
+- L3.1 uses only a caller-supplied `litellm.Router.get_model_list()` through
+  the existing adapter `.models.list()` bridge. Convert its deployment
+  `model_name` values to the existing OpenAI-compatible `{"data": [{"id": ...}]}`
+  shape, so `OpenAIClientAdapter` and its async counterpart retain all catalog
+  normalization, caching, refresh, and default-model ownership.
+- L3.2 uses only a caller-supplied `responses` or `aresponses` callable through
+  the existing native Responses resource. Generic Chat Completions remains the
+  default; direct completion/Responses pairs fail before dispatch. The generic
+  path forwards only ordinary provider config and deliberately excludes global
+  loading, Router Responses inference, Codex shaping/auth, executor changes,
+  and capability/status reporting.
+- OCI packaging must run under Python 3.13 or newer. The legacy vendored-wheel
+  cleanup remains separate from the completed runtime dependency change.
 
 ## Compatibility and Migration
 

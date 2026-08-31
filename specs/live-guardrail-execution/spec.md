@@ -3,10 +3,9 @@
 ## Metadata
 
 - Feature slug: `live-guardrail-execution`
-- Mode: `light`
+- Mode: `guided`
 - Artifact type: authoritative SDD feature specification
-- Status: implemented v1 input-guardrail baseline; output/tool phases remain
-  deferred
+- Status: implemented v1 input-guardrail baseline and v2 tool-input slice
 - Primary spec: `specs/dynamic-agent-runner/spec.md`
 - Related runtime surfaces:
   - `extensions.guardrails.declarations`
@@ -71,7 +70,7 @@ V1 includes:
 
 V1 defers:
 
-- output, tool-input, and tool-output phase enforcement
+- output and tool-output phase enforcement
 - reject-content behavior
 - warning-only behavior
 - retries, timeout policy, and external provider adapters
@@ -88,8 +87,78 @@ V1 defers:
 - Implemented redacted guardrail trace events.
 - Implemented capability-status reporting for missing and live input guardrail
   adapter coverage.
-- Deferred output, tool-input, tool-output, reject-content, warning-only,
-  retries, timeouts, and external guardrail provider adapters.
+- Deferred output, tool-output, reject-content, warning-only, retries, timeouts,
+  and external guardrail provider adapters. Tool-input V2 is implemented under
+  the boundary below.
+
+## V2 Tool-Input Slice Boundary
+
+The next slice adopts the implemented DAR-owned tool-invocation coordinator for
+caller-registered tool-input guardrails. It runs a pass-or-abort decision after
+registered-tool input validation and before approval, tool lifecycle hooks, retry,
+or handler invocation. It applies only to existing direct `tool_use_step` and
+model-tool-loop origins.
+
+V2 includes:
+
+- `phase: tool_input` declarations applied in manifest order to every supported
+  tool origin
+- every V2 `tool_input` declaration is required and has a nonblank id; optional
+  or degraded tool-input policy is deferred
+- `behavior_on_tripwire` is omitted (which means `abort`) or `abort`; any other
+  declared behavior fails manifest validation during preparation because V2 does
+  not support model-visible rejection or warning semantics
+- a private executor-supplied guardrail runner, not a raw guardrail registry,
+  receives the selected declarations and a recursively copied subject mapping
+  with `phase`, `tool_id`, `node_id`, optional `tool_call_id`, and validated
+  `arguments`
+- fail-closed missing-adapter behavior for every declaration
+- pass and abort decisions only
+- redacted tool-input guardrail trace events
+- direct and model-loop fake-backed tests proving an abort invokes no handler
+
+V2 defers tool-output, reject-content, warning-only, argument rewriting,
+retries, timeouts, external adapters, provider callbacks, and interpreter
+bridges. A guardrail cannot change a tool id or arguments in this slice.
+
+For V2, each result must name the declaration id and `tool_input` phase; a
+mismatch, handler exception, or malformed result fails closed with
+`GuardrailExecutionError`. Multiple declarations run in manifest order and stop
+at the first abort or error. A guarded request is prepared and input-validated
+before its first guardrail, whether or not approval is required. Invalid guarded
+requests fail with the existing registry validation error before a guardrail,
+approval, tool lifecycle hook, retry, or handler; a model-loop call retains its
+existing pre-validation call observation. A guardrail must not be able to mutate
+the prepared invocation through nested subject values. Unguarded requests retain
+the current validation timing.
+
+For each selected declaration, V2 emits `guardrail_started`, then exactly one
+of `guardrail_passed`, `guardrail_aborted`, or `guardrail_errored`. Missing
+adapters, handler exceptions, malformed results, and id/phase mismatches use
+`guardrail_errored` before the terminal `workflow_error`. Its payload contains
+the declaration id, `tool_input` phase, node id, tool id, optional tool-call id,
+and a reason category; it excludes the subject, arguments, and details. An
+abort or error runs before `before_tool`/`after_tool`, retry, state-result
+writes, node output, or handler invocation. Existing node and workflow
+lifecycle observations remain outside this tool-input boundary.
+
+## V2 Delivery Handoff
+
+- Delivery target: this repository's `src/dynamic_agent_runner/`, tests, and
+  existing live-guardrail spec package.
+- Primary implementation surfaces: `executor.py`, `guardrails.py`,
+  `validation.py`, `tests/test_executor.py`, `tests/test_tracing.py`, and
+  `tests/test_validation.py`; extend capability reporting only if V2 coverage
+  is actually exposed.
+- Implementation route: test-driven development through
+  [`tool-input-tasks.md`](tool-input-tasks.md), starting with Slice 0.
+- Acceptance: direct and model-loop tool-input abort and missing-adapter paths
+  fail closed before approval or handler invocation, while pass paths preserve
+  existing behavior; invalid tool-input behavior policy and nested
+  guardrail-subject mutation cannot alter approval or handler arguments.
+- Validation: [`tool-input-validation.md`](tool-input-validation.md).
+- Status: implemented; the observed validation evidence is recorded in
+  [`tool-input-validation.md`](tool-input-validation.md).
 
 ## Functional Requirements
 
@@ -238,7 +307,8 @@ should not introduce a built-in external evaluation provider.
 - RESOLVED for v1: support pass and abort only.
 - What retry policy applies to guardrail adapter failures?
 - What timeout defaults apply per phase?
-- How should multiple guardrails at the same phase compose?
+- RESOLVED for V2 tool input: declarations run in manifest order and stop at
+  the first abort or error; composition for other phases remains deferred.
 - RESOLVED for v1: input guardrails inspect the initial user prompt only; raw
   tool output and sensitive trace fields remain out of scope.
 
