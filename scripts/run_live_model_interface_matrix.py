@@ -30,8 +30,8 @@ from dynamic_agent_runner.apple_foundation_models import (
 from dynamic_agent_runner.errors import ModelExecutionError, WorkflowExecutionError
 from dynamic_agent_runner.executor import execute_workflow, execute_workflow_async
 from dynamic_agent_runner.litellm_client import (
-    create_async_litellm_adapter,
-    create_litellm_adapter,
+    create_async_litellm_codex_adapter_from_codex_auth,
+    create_litellm_codex_adapter_from_codex_auth,
 )
 from dynamic_agent_runner.local_models import (
     LlamaCppLocalModelConfig,
@@ -110,6 +110,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-path")
     parser.add_argument("--expected-model-id")
     parser.add_argument("--authorization-reference")
+    parser.add_argument("--max-tokens", type=int, default=256)
     return parser
 
 
@@ -244,7 +245,22 @@ def _configuration(arguments: argparse.Namespace) -> dict[str, object]:
             "basename": Path(arguments.model_path).name,
             "digest": _digest(str(arguments.model_path)),
         }
+    configuration["max_tokens"] = getattr(arguments, "max_tokens", 256)
     return configuration
+
+
+def _generation_settings(arguments: argparse.Namespace) -> dict[str, object]:
+    """Return only the generation controls supported by the selected target."""
+
+    if arguments.target in {"endpoint", "llama_cpp", "mlx_qwen3"}:
+        return {"max_tokens": getattr(arguments, "max_tokens", 256)}
+    return {}
+
+
+def _uses_tool_choice_policy(arguments: argparse.Namespace) -> bool:
+    """Return whether the target supports DAR's explicit tool-choice policy."""
+
+    return arguments.target not in {"apple", "mlx_qwen3"}
 
 
 def _source_revision() -> str:
@@ -263,7 +279,7 @@ def _row_base(
             "model_path", "not_applicable"
         ),
         "adapter_backend_parser": "unavailable",
-        "generation_settings": "unavailable",
+        "generation_settings": _generation_settings(arguments),
         "actual_rendered_tools_digest": "unavailable",
         "tool_choice": "unavailable",
         "normalized_calls": [],
@@ -478,14 +494,30 @@ def _adapter(arguments: argparse.Namespace, *, asynchronous: bool) -> object:
         base_url=arguments.base_url,
         api_key=None,
         codex_auth_preference=(
-            "chatgpt_first" if arguments.target == "codex" else "api_key_first"
+            "chatgpt_first"
+            if arguments.target in {"codex", "litellm"}
+            else "api_key_first"
         ),
     )
     if arguments.target == "litellm":
+
+        def model_list(**_kwargs: object) -> dict[str, list[dict[str, str]]]:
+            return {"data": [{"id": model}]}
+
         return (
-            create_async_litellm_adapter(model=model, config=config)
+            create_async_litellm_codex_adapter_from_codex_auth(
+                model=model,
+                models=(model,),
+                config=config,
+                model_list=model_list,
+            )
             if asynchronous
-            else create_litellm_adapter(model=model, config=config)
+            else create_litellm_codex_adapter_from_codex_auth(
+                model=model,
+                models=(model,),
+                config=config,
+                model_list=model_list,
+            )
         )
     return (
         create_async_openai_adapter_from_provider_config(config, models=(model,))
@@ -506,7 +538,8 @@ def _run_scenario(
     workflow = controlled_tool_workflow(
         scenario,
         model=_target_model(arguments),
-        include_tool_choice_policy=arguments.target != "mlx_qwen3",
+        include_tool_choice_policy=_uses_tool_choice_policy(arguments),
+        model_parameters=_generation_settings(arguments) or None,
     )
     error: Exception | None = None
     result: object | None = None
@@ -557,7 +590,7 @@ def _run_scenario(
     contract_matches = _adapter_contract_matches(
         scenario,
         facts,
-        includes_tool_choice_policy=arguments.target != "mlx_qwen3",
+        includes_tool_choice_policy=_uses_tool_choice_policy(arguments),
     )
     normalized_calls_outcome = _normalized_calls_outcome(scenario, facts)
     completed = error is None and normal_text

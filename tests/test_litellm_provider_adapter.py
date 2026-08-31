@@ -405,6 +405,7 @@ def test_litellm_codex_auth_factory_uses_dar_resolved_chatgpt_token(
 
     assert calls[0]["api_key"] == "resolved-token"
     assert calls[0]["extra_headers"] == {"ChatGPT-Account-ID": "acct-2"}
+    assert calls[0].get("stream") is not True
 
 
 def test_litellm_codex_auth_factory_keeps_api_key_on_ordinary_transport(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import inspect
 import json
 import math
@@ -1425,6 +1426,13 @@ def _read_llama_cpp_response_content(raw_response: Mapping[str, object]) -> str 
 def _read_llama_cpp_tool_calls(
     raw_response: Mapping[str, object],
 ) -> tuple[ModelToolCall, ...]:
+    calls = _read_llama_cpp_explicit_tool_calls(raw_response)
+    return calls or _read_llama_cpp_chatml_function_text(raw_response)
+
+
+def _read_llama_cpp_explicit_tool_calls(
+    raw_response: Mapping[str, object],
+) -> tuple[ModelToolCall, ...]:
     choices = raw_response.get("choices")
     if not isinstance(choices, Sequence) or isinstance(choices, str):
         return ()
@@ -1459,6 +1467,36 @@ def _read_llama_cpp_tool_calls(
                 )
             )
     return tuple(calls)
+
+
+def _read_llama_cpp_chatml_function_text(
+    raw_response: Mapping[str, object],
+) -> tuple[ModelToolCall, ...]:
+    """Decode one escaped ChatML handler function call emitted as message text."""
+
+    content = _read_llama_cpp_response_content(raw_response)
+    if content is None:
+        return ()
+    matched = re.fullmatch(
+        r"\s*functions\.([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(\{.*\})\s*",
+        html.unescape(content),
+        flags=re.DOTALL,
+    )
+    if matched is None:
+        return ()
+    try:
+        arguments = json.loads(matched.group(2))
+    except json.JSONDecodeError:
+        return ()
+    if not isinstance(arguments, Mapping):
+        return ()
+    return (
+        ModelToolCall(
+            id=None,
+            name=matched.group(1),
+            arguments=dict(arguments),
+        ),
+    )
 
 
 def _load_default_llama_cpp_backend(

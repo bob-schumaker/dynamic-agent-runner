@@ -3467,6 +3467,32 @@ def test_llama_cpp_chatml_function_adapter_maps_required_tool_choice_to_auto(
     }
 
 
+def test_llama_cpp_normalizes_escaped_chatml_function_text() -> None:
+    from dynamic_agent_runner.local_models import _normalize_llama_cpp_chat_response
+
+    response = _normalize_llama_cpp_chat_response(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            "functions.transform_record:\n"
+                            "{&#34;record_id&#34;: &#34;record-seed&#34;, "
+                            "&#34;operation&#34;: &#34;uppercase&#34;}"
+                        )
+                    }
+                }
+            ]
+        }
+    )
+
+    assert response.tool_calls[0].name == "transform_record"
+    assert response.tool_calls[0].arguments == {
+        "record_id": "record-seed",
+        "operation": "uppercase",
+    }
+
+
 def test_llama_cpp_local_adapter_translates_missing_dependency(
     tmp_path: Path,
 ) -> None:

@@ -637,14 +637,6 @@ def test_qwen3_async_helper_owns_native_envelope_codec_for_pinned_model(
             "duplicate JSON key",
         ),
         (
-            'prose <tool_call>{"name":"lookup","arguments":{}}</tool_call>',
-            "cannot be mixed",
-        ),
-        (
-            '<tool_call>{"name":"lookup","arguments":{}}</tool_call> trailing',
-            "cannot be mixed",
-        ),
-        (
             '<tool_call>{"name":"lookup","arguments":{}}</tool_call><tool_call>{"name":"lookup","arguments":{}}</tool_call>',
             "exactly one",
         ),
@@ -660,6 +652,25 @@ def test_qwen3_codec_rejects_ambiguous_native_tool_envelopes(
 
     with pytest.raises(ValueError, match=message):
         codec.decode(generated)
+
+
+@pytest.mark.parametrize(
+    "generated",
+    [
+        'prose <tool_call>{"name":"lookup","arguments":{}}</tool_call>',
+        '<tool_call>{"name":"lookup","arguments":{}}</tool_call> trailing',
+    ],
+)
+def test_qwen3_codec_uses_one_native_tool_envelope_when_prose_surrounds_it(
+    generated: str,
+) -> None:
+    from dynamic_agent_runner import Qwen3MLXToolCodec
+
+    response = Qwen3MLXToolCodec(FakeQwen3Tokenizer()).decode(generated)
+
+    assert response.tool_call is not None
+    assert response.tool_call.name == "lookup"
+    assert response.tool_call.arguments == {}
 
 
 def test_mlx_adapter_uses_compatible_codec_for_tool_text_response(

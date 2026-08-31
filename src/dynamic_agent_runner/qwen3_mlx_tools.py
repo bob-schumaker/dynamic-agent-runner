@@ -93,10 +93,8 @@ class Qwen3MLXToolCodec:
             or generated.count(_TOOL_CALL_END) != 1
         ):
             raise ValueError("Qwen3 response must contain exactly one tool envelope")
-        prefix, payload = generated.split(_TOOL_CALL_START, 1)
-        payload, suffix = payload.split(_TOOL_CALL_END, 1)
-        if prefix.strip() or suffix.strip():
-            raise ValueError("Qwen3 tool envelope cannot be mixed with prose")
+        _prefix, payload = generated.split(_TOOL_CALL_START, 1)
+        payload, _suffix = payload.split(_TOOL_CALL_END, 1)
         decoded = json.loads(
             payload.strip(),
             object_pairs_hook=_reject_duplicate_keys,

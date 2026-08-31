@@ -145,7 +145,10 @@ def controlled_tool_scenarios() -> tuple[ControlledToolScenario, ...]:
         ),
         ControlledToolScenario(
             "S3",
-            "First call lookup_record with key seed. Then call transform_record with record_id from that result and operation uppercase. Give a brief final answer.",
+            "Call lookup_record with key seed. Do not call any other tool until "
+            "lookup_record has returned its result. After its result is available, "
+            "call transform_record with that result's record_id and operation "
+            "uppercase. Then give a brief final answer.",
             (
                 ("lookup_record", {"key": "seed"}),
                 (
@@ -153,7 +156,6 @@ def controlled_tool_scenarios() -> tuple[ControlledToolScenario, ...]:
                     {"record_id": "record-seed", "operation": "uppercase"},
                 ),
             ),
-            after_tool_result_tool_choice="required",
         ),
         ControlledToolScenario(
             "S4",
@@ -180,6 +182,7 @@ def controlled_tool_workflow(
     *,
     model: str = "gpt-test",
     include_tool_choice_policy: bool = True,
+    model_parameters: Mapping[str, object] | None = None,
 ) -> LoadedAgentWorkflow:
     """Build the same harmless workflow shape for one scenario."""
 
@@ -211,6 +214,11 @@ def controlled_tool_workflow(
                         "kind": "llm_step",
                         "prompt": {"user_template": "{prompt}"},
                         "available_tools": [str(tool["id"]) for tool in definitions],
+                        **(
+                            {"model_parameters": dict(model_parameters)}
+                            if model_parameters
+                            else {}
+                        ),
                     }
                 ],
                 "edges": [],

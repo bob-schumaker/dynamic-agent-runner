@@ -200,6 +200,7 @@ class AsyncLiteLLMClientProvider(AsyncOpenAIClientProvider):
 class LiteLLMCodexClientProvider(OpenAIClientProvider):
     """Responses-native LiteLLM provider for an already-resolved Codex token."""
 
+    manages_codex_response_stream: bool = field(default=False, repr=False)
     config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
     token: str = field(repr=False, default="")
     responses: LiteLLMResponses | None = field(default=None, repr=False)
@@ -210,7 +211,11 @@ class LiteLLMCodexClientProvider(OpenAIClientProvider):
         responses = self.responses or _load_responses()
         return _LiteLLMNativeClient(
             _LiteLLMNativeResponsesResource(
-                _bind_codex_responses(responses, _codex_litellm_kwargs(self))
+                _bind_codex_responses(
+                    responses,
+                    _codex_litellm_kwargs(self),
+                    manages_codex_response_stream=self.manages_codex_response_stream,
+                )
             ),
             self.model_list,
         )
@@ -220,6 +225,7 @@ class LiteLLMCodexClientProvider(OpenAIClientProvider):
 class AsyncLiteLLMCodexClientProvider(AsyncOpenAIClientProvider):
     """Async Responses-native LiteLLM provider for a resolved Codex token."""
 
+    manages_codex_response_stream: bool = field(default=False, repr=False)
     config: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
     token: str = field(repr=False, default="")
     aresponses: LiteLLMAsyncResponses | None = field(default=None, repr=False)
@@ -230,7 +236,11 @@ class AsyncLiteLLMCodexClientProvider(AsyncOpenAIClientProvider):
         aresponses = self.aresponses or _load_async_responses()
         return _LiteLLMNativeAsyncClient(
             _LiteLLMNativeAsyncResponsesResource(
-                _bind_async_codex_responses(aresponses, _codex_litellm_kwargs(self))
+                _bind_async_codex_responses(
+                    aresponses,
+                    _codex_litellm_kwargs(self),
+                    manages_codex_response_stream=self.manages_codex_response_stream,
+                )
             ),
             self.model_list,
         )
@@ -309,6 +319,7 @@ def create_litellm_codex_adapter(
     litellm_kwargs: Mapping[str, Any] | None = None,
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
+    manages_codex_response_stream: bool = False,
 ) -> OpenAIClientAdapter:
     adapter_models = models or ((model,) if model is not None else None)
     provider = LiteLLMCodexClientProvider(
@@ -317,6 +328,7 @@ def create_litellm_codex_adapter(
         responses=responses,
         model_list=model_list,
         litellm_kwargs=dict(litellm_kwargs or {}),
+        manages_codex_response_stream=manages_codex_response_stream,
     )
     return OpenAIClientAdapter(
         provider=provider,
@@ -337,6 +349,7 @@ def create_async_litellm_codex_adapter(
     litellm_kwargs: Mapping[str, Any] | None = None,
     error_translator: ErrorTranslator | None = None,
     response_validator: ResponseValidator | None = None,
+    manages_codex_response_stream: bool = False,
 ) -> AsyncOpenAIClientAdapter:
     adapter_models = models or ((model,) if model is not None else None)
     provider = AsyncLiteLLMCodexClientProvider(
@@ -345,6 +358,7 @@ def create_async_litellm_codex_adapter(
         aresponses=aresponses,
         model_list=model_list,
         litellm_kwargs=dict(litellm_kwargs or {}),
+        manages_codex_response_stream=manages_codex_response_stream,
     )
     return AsyncOpenAIClientAdapter(
         provider=provider,
@@ -387,6 +401,7 @@ def create_litellm_codex_adapter_from_codex_auth(
         litellm_kwargs=litellm_kwargs,
         error_translator=error_translator,
         response_validator=response_validator,
+        manages_codex_response_stream=True,
     )
 
 
@@ -423,6 +438,7 @@ def create_async_litellm_codex_adapter_from_codex_auth(
         litellm_kwargs=litellm_kwargs,
         error_translator=error_translator,
         response_validator=response_validator,
+        manages_codex_response_stream=True,
     )
 
 
@@ -621,11 +637,15 @@ def _bind_async_litellm_responses(
 def _bind_codex_responses(
     responses: LiteLLMResponses,
     configured: Mapping[str, Any],
+    *,
+    manages_codex_response_stream: bool = False,
 ) -> LiteLLMResponses:
     def bound(**kwargs: Any) -> Any:
         request_kwargs = dict(configured)
         request_kwargs.update(kwargs)
         request_kwargs = _prepare_codex_responses_kwargs(request_kwargs)
+        if manages_codex_response_stream:
+            request_kwargs.pop("stream", None)
         request_kwargs["model"] = normalize_litellm_codex_model(
             str(request_kwargs["model"])
         )
@@ -642,11 +662,15 @@ def _bind_codex_responses(
 def _bind_async_codex_responses(
     aresponses: LiteLLMAsyncResponses,
     configured: Mapping[str, Any],
+    *,
+    manages_codex_response_stream: bool = False,
 ) -> LiteLLMAsyncResponses:
     async def bound(**kwargs: Any) -> Any:
         request_kwargs = dict(configured)
         request_kwargs.update(kwargs)
         request_kwargs = _prepare_codex_responses_kwargs(request_kwargs)
+        if manages_codex_response_stream:
+            request_kwargs.pop("stream", None)
         request_kwargs["model"] = normalize_litellm_codex_model(
             str(request_kwargs["model"])
         )
@@ -752,7 +776,8 @@ def _codex_litellm_kwargs(
         kwargs.setdefault("api_base", provider.config.base_url)
     kwargs.setdefault("custom_llm_provider", "chatgpt")
     kwargs.setdefault("store", False)
-    kwargs.setdefault("stream", True)
+    if not provider.manages_codex_response_stream:
+        kwargs.setdefault("stream", True)
     if provider.config.chatgpt_account_id is not None:
         headers = dict(kwargs.get("extra_headers") or {})
         headers.setdefault("ChatGPT-Account-ID", provider.config.chatgpt_account_id)
