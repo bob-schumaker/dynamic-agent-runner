@@ -13,7 +13,7 @@ import secrets
 import sys
 import warnings
 from threading import Lock
-from typing import Annotated, Any
+from typing import Annotated, Any, get_args, get_origin
 from uuid import uuid4
 
 from jsonschema import FormatChecker, SchemaError, ValidationError
@@ -1271,15 +1271,22 @@ def _apple_generated_object_type(
     ):
         raise ModelExecutionError("Apple tool has an untranslatable object schema")
     annotations: dict[str, object] = {}
+    attributes: dict[str, object] = {"__annotations__": annotations}
     for field_name, field_schema in properties.items():
         if not isinstance(field_schema, Mapping):
             raise ModelExecutionError("Apple tool has an untranslatable schema")
-        annotations[field_name] = _apple_annotation(
+        annotation = _apple_annotation(
             field_schema,
             sdk,
             type_name=f"{type_name}{field_name.title()}",
         )
-    generated_type = type(type_name, (), {"__annotations__": annotations})
+        if get_origin(annotation) is Annotated:
+            base_annotation, guide = get_args(annotation)
+            annotations[field_name] = base_annotation
+            attributes[field_name] = guide
+        else:
+            annotations[field_name] = annotation
+    generated_type = type(type_name, (), attributes)
     try:
         return sdk.generable(f"DAR tool arguments for {type_name}")(generated_type)
     except Exception as exc:  # noqa: BLE001 - SDK construction errors vary.

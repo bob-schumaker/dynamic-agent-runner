@@ -1329,27 +1329,30 @@ def test_apple_tool_bridge_constructs_only_opaque_active_wrappers(
     generated_type = wrappers[0].arguments_schema.generated_type
     annotations = get_type_hints(generated_type, include_extras=True)
     assert set(annotations) == {"title", "count", "scores", "target", "recipients"}
-    assert _annotation_base(annotations["title"]) is str
-    assert _annotation_guides(annotations["title"]) == {"anyOf": ["brief", "full"]}
-    assert _annotation_base(annotations["count"]) is int
-    assert _annotation_guides(annotations["count"]) == {
-        "minimum": 1,
-        "maximum": 5,
-    }
-    scores_type = _annotation_base(annotations["scores"])
-    assert get_origin(scores_type) is list
-    assert get_args(scores_type) == (float,)
-    assert _annotation_guides(annotations["scores"]) == {
-        "minItems": 1,
-        "maxItems": 3,
-    }
-    target_type = _annotation_base(annotations["target"])
+    assert annotations["title"] is str
+    assert generated_type.title == FakeAppleGuide({"anyOf": ["brief", "full"]})
+    assert annotations["count"] is int
+    assert generated_type.count == FakeAppleGuide(
+        {
+            "minimum": 1,
+            "maximum": 5,
+        }
+    )
+    assert get_origin(annotations["scores"]) is list
+    assert get_args(annotations["scores"]) == (float,)
+    assert generated_type.scores == FakeAppleGuide(
+        {
+            "minItems": 1,
+            "maxItems": 3,
+        }
+    )
+    target_type = annotations["target"]
     target_annotations = get_type_hints(target_type, include_extras=True)
     assert target_annotations == {"enabled": bool}
     assert isinstance(target_type.generation_schema(), FakeAppleGenerationSchema)
-    recipients_type = _annotation_base(annotations["recipients"])
+    recipients_type = annotations["recipients"]
     assert get_origin(recipients_type) is list
-    recipient_type = _annotation_base(get_args(recipients_type)[0])
+    recipient_type = get_args(recipients_type)[0]
     assert get_type_hints(recipient_type, include_extras=True) == {"address": str}
     assert isinstance(recipient_type.generation_schema(), FakeAppleGenerationSchema)
 
