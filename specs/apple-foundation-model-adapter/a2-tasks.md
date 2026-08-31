@@ -2,7 +2,7 @@
 # Apple Foundation Models A2 Task List
 
 Status: B0--B4 implementation, documentation, and validation complete; B5
-bridged-wrapper annotation regression open
+bridge verification and tool-choice capability spike open
 
 This is the canonical task list for A2. `tasks.md` remains the completed A1
 record and must not duplicate A2 implementation work. This list implements the
@@ -177,3 +177,51 @@ fixed decisions in `a2-plan.md`.
   - Files/components: `src/dynamic_agent_runner/apple_foundation_models.py`,
     `tests/test_apple_foundation_models.py`, and, if needed,
     `tests/test_live_apple_foundation_models.py`.
+  - Current state: the field-guide change and focused fake tests are complete,
+    and the later authorized live rerun had no wrapper-construction
+    `adapter_error`. The required real installed-SDK construction test remains
+    unimplemented, so B5.1 stays open. That rerun is evidence for B5.2 only;
+    it does not close B5.1's regression proof.
+
+- [ ] B5.2 [spike/tests] Establish whether Apple tool-choice control is both
+      available through the current Python/Swift bridge and causally relevant
+      to DAR's required-first scenarios before authorizing a production binding.
+  - Evidence to explain: the post-wrapper-fix receipt
+    `ed567b59e6244eff9ef02ef851cb414d` has no `adapter_error`, but its S1--S4
+    rows contain neither a native callback nor final text and S5 also lacks
+    final text. This does not isolate a tool-choice cause.
+  - RED: write a focused, no-model-session binding characterization for the
+    exact Swift `GenerationOptions.ToolCallingMode` API, its macOS/Xcode
+    availability floor, enum cases, and JSON/C/Python path. The installed
+    bridge currently exposes only sampling, temperature, and response-token
+    fields. When the native symbol is unavailable, the characterization must
+    record that fact without a fallback or invented option.
+  - Test-only route: use an isolated Swift Foundation Models probe under
+    `/private/tmp`, compiled and run outside the Codex sandbox. It may exercise
+    the native API directly but must not modify DAR or the vendored bridge.
+    The Python/C inspection and this probe together establish the current
+    missing-binding boundary and the native-control result.
+  - Manual gate: run the temporary probe and native controls only with current
+    explicit authorization that names the no-op tool, eligible host, modes,
+    S5 control, and out-of-sandbox execution. Record only the approved
+    authorization/evidence reference in `validation.md`, never credentials or
+    raw model output.
+  - Manual control: on an eligible Mac and outside the Codex sandbox when
+    required, compare an approval-free no-op native tool under default
+    `allowed` and under `required`, holding model, wrapper, prompt, and
+    generation settings fixed. If the API supports a required-to-allowed
+    transition, exercise that transition and record whether it yields exactly
+    one callback followed by final text. Run the no-tool S5 control in the
+    same environment to distinguish a final-response failure from selection.
+  - Acceptance: record one bounded outcome in `validation.md`: unavailable
+    API; no selection-policy delta; selection changes but no supported
+    required-to-allowed exit or final text; or a reproducible
+    required-to-allowed native result with the exact availability and bridge
+    facts. Only the last outcome authorizes a separate test-first production
+    task for a private DAR mapping of initial `required` and post-callback
+    `allowed`. Do not add `disallowed`, public configuration, or a general
+    binding API under B5.2.
+  - Boundary: no DAR production code, approval interaction, external tool,
+    package release, or claim that tool choice explains S5. The spike must not
+    change callback authority, admitted schemas, or existing default `allowed`
+    behavior.

@@ -204,6 +204,29 @@ the restored-environment B0 result is investigated.
   `asyncio.iscoroutinefunction` warning and ignored teardown deallocator error;
   neither changed the successful callback assertions.
 
+## B5 Live Matrix Rerun — 2026-08-30
+
+After the bridged-wrapper field-guide change, the authorized positive live
+matrix ran the Apple target for S1--S5 in both selected modes with opaque
+authorization reference `matrix-20260830`. The sync rows were correctly
+skipped because Apple is async-only. All five async rows were
+`behavioral_mismatch` with `positive_invariant_failed`; none was an
+`adapter_error` or `unavailable` row.
+
+The redacted receipt run ID is `ed567b59e6244eff9ef02ef851cb414d`. Each async
+row recorded one rendered request, no normalized provider tool call, no DAR
+tool invocation sequence, and no qualifying final completion. This establishes
+that the former wrapper-construction failure no longer prevents reaching the
+native request, but it does not establish a tool-selection-only cause: S5 also
+lacked final text while requiring no tool.
+
+The installed `apple-fm-sdk` 0.2.1 documents native `Tool` registration and
+callback handling, but its Python `GenerationOptions` surface lacks Apple's
+Swift `toolCallingMode`. B5.2 owns the capability-and-causality spike before
+any binding work for DAR's required-first scenarios. It must not be treated as
+a remedy for S5 or any other response-normalization/model behavior until
+focused evidence separates those causes.
+
 ## A2 B1.1 coordinator characterization — 2026-08-26
 
 - Added passing characterization coverage before B1.2 extraction. This is not a
