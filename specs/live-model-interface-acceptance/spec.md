@@ -126,7 +126,7 @@ settings, normalized calls, invocation sequence, completion class, and
 - [x] Add common bounded/redacted provenance and diagnostic references to that
       receipt; do not add target-specific diagnostic abstractions unless the
       common fields prove insufficient.
-- [ ] Re-run affected targets with their resolved configuration and classify
+- [x] Re-run affected targets with their resolved configuration and classify
       remaining mismatches from the receipt evidence.
 
 ## Out of Scope

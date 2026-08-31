@@ -99,3 +99,25 @@ DAR runs both fail S1, but with different shapes, so this evidence does not
 establish an endpoint/model-configuration cause or a DAR adapter discrepancy.
 It supports no adapter modification. T5.2 remains the separate compatibility
 resolution decision, limited to this artifact, vLLM version, and candidate set.
+
+## Cross-target S1--S5 receipt completion — 2026-08-30
+
+The manually gated S1--S5 receipt matrix now has one classified full receipt
+for every supported target. All runs exposed only the shared in-memory
+controlled tools. A completed receipt records an observation; it does not turn
+a behavioral mismatch or adapter error into a DAR implementation defect.
+
+| Target | Model / configuration | Receipt | Classification |
+| --- | --- | --- | --- |
+| `apple` | eligible system model; async only | `457e6abd88a14409a39f2027137abd8b` | 5 async `behavioral_mismatch`; 5 sync `skipped` as unsupported. Native callbacks entered DAR, but no qualifying final completion; S5 selected tools. Detailed controls are retained in `../apple-foundation-model-adapter/validation.md`. |
+| `codex` | `gpt-5.4-mini` | `76c1569e7ce74e17a3babb3afbf9c195` | 10 passed. The runner emitted a non-fatal HTTP client shutdown warning after receipt emission. |
+| `openai` | `gpt-5.4-mini` | `e79f7562529f493eb8607f5eff6adde6` | 10 passed. The runner emitted a non-fatal HTTP client shutdown warning after receipt emission. |
+| `litellm` | `gpt-5.4-mini` via the configured LiteLLM target | `8a44e1b067464a749a45ab1e58f6424e` | 10 passed. |
+| `endpoint` | pinned Qwen3 via vLLM Metal 0.28.0 with `qwen3_xml` | T4.2 receipt | 10 `adapter_error`; later T5.1 narrows S1 to behavioral mismatches for B0--B2. T5.2 remains open. |
+| `mlx_qwen3` | pinned Qwen3 MLX helper | T4.2 receipt | 2 passed (S5 sync/async), 8 `adapter_error` (S1--S4 sync/async). |
+| `llama_cpp` | cached Qwen2.5-3B-Instruct Q4_K_M GGUF with `chatml-function-calling` | T4.2 v5 receipt | 10 passed. |
+
+The Codex, OpenAI, and LiteLLM receipts used the opaque
+`cross-target-20260830` authorization reference, retained by the receipts only
+as a digest. The temporary redacted local receipt files are not authoritative;
+the identifiers and classifications above are the retained evidence.
