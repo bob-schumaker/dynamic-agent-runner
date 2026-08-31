@@ -218,6 +218,9 @@ When the user corrects your approach, append a one-line rule here before ending 
   parity or external-service credentials.
 - Treat repository work-item artifacts as authoritative; do not route a task
   identifier to Jira unless the user explicitly asks for Jira.
+- Require both Council deliberation and Ponytail review for every
+  `review-to-readiness` and `deliver-ready-item` workflow; report their
+  conclusions before declaring the artifact ready.
 
 ---
 
