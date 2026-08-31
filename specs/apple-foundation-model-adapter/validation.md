@@ -227,6 +227,25 @@ any binding work for DAR's required-first scenarios. It must not be treated as
 a remedy for S5 or any other response-normalization/model behavior until
 focused evidence separates those causes.
 
+## B5 Follow-up Apple controls — 2026-08-30
+
+- The operator-authorized full Apple matrix receipt
+  `457e6abd88a14409a39f2027137abd8b` ran S1--S5 in both modes under the
+  redacted `apple-full-row-20260830` reference. Sync rows were correctly
+  skipped because Apple is async-only. All async rows were
+  `behavioral_mismatch`, not `adapter_error`: native callbacks entered DAR and
+  recorded controlled in-memory invocations, but no row produced qualifying
+  final text. S5 selected tools despite its explicit no-tool instruction.
+- Four S1 wording controls varied only the instruction. Two explicit variants
+  produced exactly the requested `create_record` call, whereas baseline and
+  short wording produced surplus calls. None produced final text. This shows
+  prompt wording can affect surplus selection but does not restore post-callback
+  completion.
+- With no tools exposed, the direct Apple adapter returned the exact plain-text
+  `READY` control. The exact JSON control returned non-empty text that was
+  neither the requested JSON value nor an equivalent JSON object. This isolates
+  prompt-only JSON conformance from the tool-exposure/continuation failure.
+
 ## B5.1 Bridged-wrapper construction regression — 2026-08-30
 
 - Added the marked, construction-only real-SDK regression test for the

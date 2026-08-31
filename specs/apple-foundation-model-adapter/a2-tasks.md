@@ -199,10 +199,15 @@ fixed decisions in `a2-plan.md`.
 - [ ] B5.2 [spike/tests] Establish whether Apple tool-choice control is both
       available through the current Python/Swift bridge and causally relevant
       to DAR's required-first scenarios before authorizing a production binding.
-  - Evidence to explain: the post-wrapper-fix receipt
+  - Evidence to explain: the earlier post-wrapper-fix receipt
     `ed567b59e6244eff9ef02ef851cb414d` has no `adapter_error`, but its S1--S4
     rows contain neither a native callback nor final text and S5 also lacks
-    final text. This does not isolate a tool-choice cause.
+    final text. The later receipt `457e6abd88a14409a39f2027137abd8b` confirms
+    native callbacks and controlled invocations in every async S1--S5 row, but
+    no qualifying final completion; S5 selected tools despite its no-tool
+    instruction. Follow-up S1 wording can suppress surplus calls but not
+    restore final text; no-tool plain text succeeds, while prompt-only JSON
+    does not conform. This does not isolate a tool-choice cause.
   - RED: write a focused, no-model-session binding characterization for the
     exact Swift `GenerationOptions.ToolCallingMode` API, its macOS/Xcode
     availability floor, enum cases, and JSON/C/Python path. The installed
