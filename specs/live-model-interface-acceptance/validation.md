@@ -70,3 +70,32 @@ adapter-error classification was produced before the endpoint-specific
 diagnostic evidence was available. It does not establish a model, parser,
 template, or DAR-adapter cause. T5.1 defines the bounded B0--B2 follow-up
 needed to make that attribution.
+
+## T5.1 B0--B2 Endpoint Diagnosis — 2026-08-30
+
+Authorization scope: the cached endpoint artifact only; S1 sync and async;
+temporary vLLM server lifecycle in the temporary Herdr workspace
+`dar-t5-1-vllm`; opaque authorization reference `matrix-20260830`, retained
+by DAR receipts only as a digest. The workspace and server were closed after
+the run. The DAR endpoint base URL was `http://127.0.0.1:8011/v1`; the direct
+control posted to its `/chat/completions` suffix.
+
+All candidates used vLLM Metal 0.28.0, the pinned
+`mlx-community/Qwen3-4B-Instruct-2507-nvfp4` revision
+`111ab717db337468c86004a79bd9df19c6e3986d`, `qwen3_xml`, auto tool choice,
+the tokenizer-provided template, and model generation defaults: temperature
+0.7, top-k 20, and top-p 0.8. The direct control retained request digest
+`85cf2c4e4f3f80e7d93a2e7a2aaf5c633e5b42d2879b88fe8c5db6bbe2e5faff` and
+only the structural result shown below.
+
+| Candidate | One-variable setting | Direct control | DAR S1 sync and async |
+| --- | --- | --- | --- |
+| B0 | automatic content format (detected `string`) | zero tool calls; final text present | two valid `create_record` invocations; no final completion; `behavioral_mismatch` |
+| B1 | explicit `--chat-template-content-format string` | zero tool calls; final text present | two valid `create_record` invocations; no final completion; `behavioral_mismatch` |
+| B2 | explicit `--chat-template-content-format openai` | zero tool calls; final text present | one valid `create_record` invocation; no final completion; `behavioral_mismatch` |
+
+No B0--B2 candidate satisfies S1 in both DAR modes. The direct controls and
+DAR runs both fail S1, but with different shapes, so this evidence does not
+establish an endpoint/model-configuration cause or a DAR adapter discrepancy.
+It supports no adapter modification. T5.2 remains the separate compatibility
+resolution decision, limited to this artifact, vLLM version, and candidate set.

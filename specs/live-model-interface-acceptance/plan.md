@@ -2,8 +2,8 @@
 
 ## Metadata
 
-- Status: initial delivery complete; T5.1 endpoint diagnosis and T5.2
-  compatibility resolution pending in `tasks.md`
+- Status: T5.1 endpoint diagnosis complete; T5.2 compatibility resolution
+  pending in `tasks.md`
 - Governing spec: `spec.md`
 - Parent deterministic contract: `../model-interface-parity/spec.md`
 - Delivery target: this repository's working tree at

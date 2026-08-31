@@ -1,7 +1,6 @@
 # Live Model-Interface Acceptance Tasks
 
-Status: T1--T4 complete; T5.1 diagnosis and T5.2 compatibility resolution
-pending
+Status: T1--T5.1 complete; T5.2 compatibility resolution pending
 
 ## Authority and Route
 
@@ -106,7 +105,7 @@ pending
 
 ## T5 — vLLM Endpoint Compatibility Follow-up
 
-- [ ] T5.1 [manual diagnosis] Characterize the Qwen3 vLLM endpoint's
+- [x] T5.1 [manual diagnosis] Characterize the Qwen3 vLLM endpoint's
       parser/template behavior for the recorded S1 mismatch before proposing a
       DAR implementation change.
   - Evidence: the authorized 2026-08-30 S1 sync and async receipts each show
@@ -136,7 +135,8 @@ pending
     presence. Record non-secret provenance for vLLM version, model revision,
     candidate ID and one-variable delta, parser, template source plus digest,
     detected content format, frozen generation settings, and the documentation
-    version/source in `validation.md`.
+    version/source in `validation.md`. Give the DAR endpoint runner an HTTP(S)
+    base URL ending in `/v1`; it adds the chat-completions suffix itself.
   - Attribution: if the direct control and DAR have the same invalid S1 shape,
     attribute the observation to the tested endpoint/model configuration. If
     the direct control meets S1 but DAR does not, record an adapter discrepancy
