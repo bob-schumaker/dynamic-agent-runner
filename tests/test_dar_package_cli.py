@@ -876,6 +876,43 @@ def test_invoke_can_use_a_controller_owned_host_opener() -> None:
     assert len(opened) == 1
 
 
+def test_invoke_can_use_a_controller_owned_approval_broker() -> None:
+    broker = object()
+
+    class Host:
+        def invoke_saved(
+            self, *, approval_broker: object | None, **_kwargs: object
+        ) -> object:
+            assert approval_broker is broker
+            return type(
+                "Result",
+                (),
+                {
+                    "status": "completed",
+                    "run_id": "run-1",
+                    "output": {"summary": "done"},
+                },
+            )()
+
+    assert (
+        dar_package_cli.main(
+            [
+                "invoke",
+                "--package-name",
+                "document-summary",
+                "--prompt-stdin",
+                "--ask",
+            ],
+            stdin=StringIO("Summarize this document."),
+            stdout=StringIO(),
+            stderr=StringIO(),
+            host_opener=lambda _root: Host(),
+            approval_broker_factory=lambda: broker,
+        )
+        == 0
+    )
+
+
 def test_invoke_redacts_a_saved_package_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

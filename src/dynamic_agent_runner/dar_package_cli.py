@@ -28,6 +28,7 @@ def main(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
     host_opener: Callable[[Path], LocalWorkflowHost] | None = None,
+    approval_broker_factory: Callable[[], object] | None = None,
 ) -> int:
     """Run the narrow v1 DAR package discovery or saved-workflow command."""
 
@@ -36,6 +37,7 @@ def main(
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
     host_opener = host_opener or LocalWorkflowHost.open
+    approval_broker_factory = approval_broker_factory or TerminalApprovalBroker
     if arguments == ["version", "--json"]:
         return _version(stdout=stdout, stderr=stderr)
     if not arguments:
@@ -62,6 +64,7 @@ def main(
         stdout=stdout,
         stderr=stderr,
         host_opener=host_opener,
+        approval_broker_factory=approval_broker_factory,
     )
 
 
@@ -106,6 +109,7 @@ def _invoke(
     stdout: TextIO,
     stderr: TextIO,
     host_opener: Callable[[Path], LocalWorkflowHost],
+    approval_broker_factory: Callable[[], object],
 ) -> int:
     try:
         invocation = _parse_invoke(arguments)
@@ -123,7 +127,7 @@ def _invoke(
             prompt=prompt,
             workspace_files=invocation.workspace_files,
             dry_run=invocation.dry_run,
-            approval_broker=TerminalApprovalBroker() if invocation.ask else None,
+            approval_broker=approval_broker_factory() if invocation.ask else None,
             now=datetime.now(UTC),
         )
     except RunDarWorkflowError:
