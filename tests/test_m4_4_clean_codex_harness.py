@@ -201,12 +201,20 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
     module = _harness_module()
     records = {record.scenario_id: record for record in _manifest_records(module)}
     calls: list[dict[str, object]] = []
+    fixture_contracts: list[str] = []
 
     def run_case(**kwargs: object) -> object:
         calls.append(kwargs)
         return records[module.load_m44_scenario(kwargs["scenario"]).scenario_id]
 
     monkeypatch.setattr(module, "run_scenario", run_case)
+    monkeypatch.setattr(
+        module,
+        "run_fixture_contract",
+        lambda scenario: (
+            fixture_contracts.append(scenario.scenario_id) or {"model_calls": 0}
+        ),
+    )
 
     aggregate = module.run_manifest(
         coverage=REPO_ROOT / "tests" / "fixtures" / "m4-4-successor-coverage.json",
@@ -232,6 +240,7 @@ def test_manifest_runner_replays_every_plan_entry_before_aggregating(
     )
 
     assert len(calls) == 23
+    assert set(fixture_contracts) == set(records)
     assert {call["evidence"] for call in calls} == {None}
     assert len(json.loads(aggregate.read_text(encoding="utf-8"))["records"]) == 23
 

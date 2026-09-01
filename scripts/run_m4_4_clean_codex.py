@@ -42,6 +42,7 @@ from m4_4_clean_codex import (  # noqa: E402 - repository test corpus import.
     create_marketplace,
     stage_dar_package,
 )
+from m4_4_deterministic import run_fixture_contract  # noqa: E402
 from m4_4_scenarios import (  # noqa: E402 - repository test corpus import.
     M44Coverage,
     M44ExternalScenarioPlan,
@@ -173,6 +174,7 @@ def run_manifest(
         plan, coverage=coverage_contract, scenario_roots=scenario_roots
     )
     sources = _scenario_sources(scenario_roots)
+    _verify_fixture_contracts(plan, sources)
     records = tuple(
         run_scenario(
             scenario=sources[entry.scenario_id],
@@ -581,6 +583,18 @@ def _scenario_sources(scenario_roots: tuple[Path, ...]) -> dict[str, Path]:
     if not sources:
         raise HarnessError("scenario roots are empty")
     return sources
+
+
+def _verify_fixture_contracts(
+    plan: M44ExternalScenarioPlan, sources: dict[str, Path]
+) -> None:
+    for entry in plan.entries:
+        try:
+            run_fixture_contract(load_m44_scenario(sources[entry.scenario_id]))
+        except (KeyError, ValueError) as error:
+            raise HarnessError(
+                "deterministic fixture contract is unavailable"
+            ) from error
 
 
 def _validate_deterministic_model(model_id: str, base_url: str) -> None:

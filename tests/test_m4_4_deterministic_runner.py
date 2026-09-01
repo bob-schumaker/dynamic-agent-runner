@@ -28,6 +28,7 @@ from m4_4_deterministic import (
     run_portable_package_handoff,
     run_side_effect_recovery,
     run_structured_single_model_review,
+    run_fixture_contract,
     supported_scenario_adapter_ids,
 )
 from m4_4_scenarios import load_m44_coverage, load_m44_scenario
@@ -45,6 +46,26 @@ def test_each_positive_successor_scenario_has_a_feature_specific_adapter() -> No
         for entry in coverage.entries
         if entry.expected_status == "pass"
     }
+
+
+def test_fixture_contract_dispatches_every_external_manifest_scenario() -> None:
+    coverage = load_m44_coverage(FIXTURE_ROOT / "m4-4-successor-coverage.json")
+    sources = {
+        load_m44_scenario(source).scenario_id: source
+        for root in (
+            FIXTURE_ROOT / "dar-authoring" / "m4-4",
+            FIXTURE_ROOT / "m4-4-successor",
+        )
+        for source in root.glob("*.json")
+    }
+
+    results = {
+        scenario_id: run_fixture_contract(load_m44_scenario(sources[scenario_id]))
+        for scenario_id in {entry.scenario_id for entry in coverage.entries}
+    }
+
+    assert set(results) == set(sources)
+    assert all(result["model_calls"] >= 0 for result in results.values())
 
 
 def test_authoring_boundary_attack_refuses_before_finalization_or_dispatch() -> None:

@@ -72,6 +72,46 @@ def supported_scenario_adapter_ids() -> frozenset[str]:
     return _SUPPORTED_SCENARIO_ADAPTER_IDS
 
 
+def run_fixture_contract(scenario) -> dict[str, object]:
+    """Exercise the deterministic host fixture contract for one manifest case."""
+
+    adapters: dict[str, Callable[[object], dict[str, object]]] = {
+        "authoring-boundary-attack-v1": run_authoring_boundary_attack,
+        "council-request-v1": run_council_request,
+        "deferred-runtime-boundaries-v1": run_deferred_runtime_boundaries,
+        "document-embedding-v1": run_document_embedding,
+        "document-summary-v1": run_document_summary,
+        "email-file-body-v1": run_email_file_body,
+        "file-provenance-missing-ingress-v1": run_file_provenance_missing_ingress,
+        "generic-email-send-v1": run_generic_email_send,
+        "guardrail-input-missing-v1": run_guardrail_missing_registry,
+        "guardrail-input-v1": run_guardrail_input,
+        "guardrail-tool-input-missing-v1": run_tool_input_guardrail_missing_registry,
+        "guardrail-tool-input-v1": run_guardrail_tool_input,
+        "hybrid-brief-v1": run_hybrid_brief,
+        "invocation-schema-boundary-attack-v1": run_invocation_schema_boundary_attack,
+        "mailbox-triage-v1": run_mailbox_triage,
+        "no-tool-graph-and-skill-v1": run_no_tool_graph_and_skill,
+        "oauth-reconnect-v1": run_oauth_reconnect,
+        "portable-package-handoff-v1": run_portable_package_handoff,
+        "side-effect-recovery-v1": run_side_effect_recovery,
+        "structured-single-model-review-v1": run_structured_single_model_review,
+    }
+    missing_connection_rewrites = {
+        "mcp-tooling-missing-connection-v1": "write",
+        "oauth-missing-connection-v1": "read",
+        "read-only-mcp-missing-connection-v1": "read",
+    }
+    if scenario.scenario_id in missing_connection_rewrites:
+        return run_mcp_missing_connection(
+            scenario, rewrite=missing_connection_rewrites[scenario.scenario_id]
+        )
+    try:
+        return adapters[scenario.scenario_id](scenario)
+    except KeyError as error:
+        raise ValueError("scenario has no deterministic fixture contract") from error
+
+
 _TEMPLATE_ROOT = (
     Path(__file__).resolve().parents[1]
     / "specs"
