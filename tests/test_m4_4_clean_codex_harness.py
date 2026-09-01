@@ -375,6 +375,24 @@ def test_controller_provisions_only_declared_positive_collaborators() -> None:
     assert "reviewed-mcp-connection" in mcp.fixture_ids
 
 
+def test_controller_fixture_inventory_covers_every_positive_scenario() -> None:
+    module = _harness_module()
+    roots = (
+        REPO_ROOT / "tests" / "fixtures" / "dar-authoring" / "m4-4",
+        REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
+    )
+    contracts = {
+        contract.scenario_id: contract
+        for root in roots
+        for source in root.glob("*.json")
+        if (contract := module.load_m44_scenario(source)).expected_status == "pass"
+    }
+
+    for contract in contracts.values():
+        fixtures = module._controller_fixtures(contract)
+        assert set(contract.required_host_fixtures).issubset(fixtures.fixture_ids)
+
+
 def test_controller_mcp_fixture_reviews_without_a_network_transport(
     tmp_path: Path,
 ) -> None:
