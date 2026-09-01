@@ -16,6 +16,7 @@ from m4_4_deterministic import (
     run_tool_input_guardrail_missing_registry,
     run_guardrail_tool_input,
     run_hybrid_brief,
+    run_invocation_schema_boundary_attack,
     run_mailbox_triage,
     run_mcp_missing_connection,
     run_no_tool_graph_and_skill,
@@ -108,6 +109,23 @@ def test_tool_input_guardrail_missing_registry_stops_before_model_dispatch() -> 
         "tool_dispatches": 0,
         "retry_model_calls": 2,
         "retry_tool_dispatches": 1,
+    }
+
+
+def test_invocation_schema_attack_refuses_before_model_or_tool_dispatch() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT
+        / "dar-authoring"
+        / "m4-4"
+        / "invocation-schema-boundary-attack.json"
+    )
+
+    result = run_invocation_schema_boundary_attack(scenario)
+
+    assert result == {
+        "terminal_phase": "invocation",
+        "model_calls": 0,
+        "tool_dispatches": 0,
     }
 
 

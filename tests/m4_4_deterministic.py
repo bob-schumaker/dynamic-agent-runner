@@ -39,7 +39,10 @@ from dynamic_agent_runner.workflow_host.mcp_client import (
 )
 from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool
 from dynamic_agent_runner.workflow_host.oauth import OAuthTokenBundle
-from dynamic_agent_runner.workflow_host.runner import RunDarWorkflowError
+from dynamic_agent_runner.workflow_host.runner import (
+    RunDarWorkflowError,
+    RunDarWorkflowRequest,
+)
 
 
 _SUPPORTED_SCENARIO_ADAPTER_IDS = frozenset(
@@ -588,6 +591,72 @@ def run_authoring_boundary_attack(scenario) -> dict[str, object]:
     return {
         "terminal_phase": "authoring_validation",
         "finalized": False,
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
+def run_invocation_schema_boundary_attack(scenario) -> dict[str, object]:
+    """Reject a host-tool field outside the sealed invocation request shape."""
+
+    if scenario.scenario_id != "invocation-schema-boundary-attack-v1":
+        raise ValueError("invocation-boundary adapter received the wrong scenario")
+    with tempfile.TemporaryDirectory(
+        dir="/private/tmp", prefix="m44-acceptance-"
+    ) as temporary:
+        root = Path(temporary)
+        package_root = root / "packages"
+        state_root = root / "state"
+        package_root.mkdir(mode=0o700)
+        client = _Client()
+        configure_local_host(
+            root=state_root,
+            package_root=package_root,
+            model_id="local-model",
+            base_url="http://127.0.0.1:11434/v1",
+        )
+        with patch(
+            "dynamic_agent_runner.workflow_host.host.create_local_adapter",
+            lambda profile: OpenAIClientAdapter(
+                client,
+                models=[profile.execution_model_id],
+                is_local=True,
+                model_id_mapping={profile.execution_model_id: profile.model_id},
+                execution_profile_adapter_id=profile.adapter_id,
+            ),
+        ):
+            host = LocalWorkflowHost.open(state_root)
+            now = datetime.now(UTC)
+            source_handle = _author_package(host, scenario.scenario_id, now)
+            registration = host.register(
+                workflow_id=scenario.scenario_id,
+                package_source_handle=source_handle,
+                now=now,
+            )
+            prepared = host.prepare(
+                workflow_id=registration.workflow_id,
+                prompt="Answer the request.",
+                now=now,
+            )
+            try:
+                RunDarWorkflowRequest.from_mapping(
+                    {
+                        "format_version": 1,
+                        "workflow_id": registration.workflow_id,
+                        "prepared_input_id": prepared.prepared_input_id,
+                        "host_tool_input": {"adapter": "host.shell"},
+                    }
+                )
+            except RunDarWorkflowError:
+                pass
+            else:
+                raise ValueError("model-facing host tool input was accepted")
+            if client.responses.calls or host.run_traces():
+                raise ValueError(
+                    "invocation schema boundary reached workflow execution"
+                )
+    return {
+        "terminal_phase": "invocation",
         "model_calls": 0,
         "tool_dispatches": 0,
     }
