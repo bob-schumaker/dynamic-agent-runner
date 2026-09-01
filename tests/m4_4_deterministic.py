@@ -767,6 +767,115 @@ def run_mcp_missing_connection(scenario, *, rewrite: str) -> dict[str, object]:
     }
 
 
+def run_file_provenance_missing_ingress(scenario) -> dict[str, object]:
+    """Require configured trusted ingress before a file-backed task can prepare."""
+
+    if scenario.scenario_id != "file-provenance-missing-ingress-v1":
+        raise ValueError("missing-ingress adapter received the wrong scenario")
+    with tempfile.TemporaryDirectory(
+        dir="/private/tmp", prefix="m44-acceptance-"
+    ) as temporary:
+        root = Path(temporary)
+        package_root = root / "packages"
+        state_root = root / "state"
+        package_root.mkdir(mode=0o700)
+        _Secrets.values.clear()
+        _ReadOnlyMCP.calls.clear()
+        client = _WriteClient(artifact_role="vendor-ticket")
+        with (
+            patch(
+                "dynamic_agent_runner.workflow_host.connections.KeyringSecretStore",
+                _Secrets,
+            ),
+            patch(
+                "dynamic_agent_runner.workflow_host.host.MCPConnectionClient",
+                _ReadOnlyMCP,
+            ),
+            patch(
+                "dynamic_agent_runner.workflow_host.host.create_local_adapter",
+                lambda profile: OpenAIClientAdapter(
+                    client,
+                    models=[profile.execution_model_id],
+                    is_local=True,
+                    model_id_mapping={profile.execution_model_id: profile.model_id},
+                    execution_profile_adapter_id=profile.adapter_id,
+                ),
+            ),
+        ):
+            configure_local_host(
+                root=state_root,
+                package_root=package_root,
+                model_id="local-model",
+                base_url="http://127.0.0.1:11434/v1",
+            )
+            connection = create_mcp_connection(
+                root=state_root,
+                endpoint="https://mcp.example.test/v1",
+                scopes={"mail.send"},
+                authentication_method="api_token",
+            )
+            authentication = configure_mcp_api_token(
+                root=state_root,
+                connection_id=connection.connection_id,
+                token="secret-token",
+            )
+            attach_mcp_client(
+                root=state_root,
+                connection_id=connection.connection_id,
+                authentication_id=authentication.authentication_id,
+                peer_certificate_sha256="a" * 64,
+                timeout_seconds=10,
+                max_response_bytes=32768,
+            )
+            host = LocalWorkflowHost.open(state_root)
+            now = datetime.now(UTC)
+            source_handle = _author_package(
+                host,
+                scenario.scenario_id,
+                now,
+                rewrite=lambda name, content: _write_package(
+                    name, content, artifact_role="vendor-ticket"
+                ),
+            )
+            snapshot = host.review_mcp_surface(
+                approved_read_only_tool_names=(),
+                approved_tool_side_effects={"send_email": "write"},
+            )
+            binding = host.bind_mcp_package(
+                package_source_handle=source_handle,
+                snapshot_id=snapshot.snapshot_id,
+                now=now,
+            )
+            registration = host.register(
+                workflow_id=scenario.scenario_id,
+                package_source_handle=source_handle,
+                mcp_binding_id=binding.binding_id,
+                now=now,
+            )
+            source = root / "body.txt"
+            source.write_text("Body from artifact", encoding="utf-8")
+            try:
+                host.ingress_file(
+                    workflow_id=registration.workflow_id,
+                    path=source,
+                    role="vendor-ticket",
+                    media_type="text/plain",
+                    now=now,
+                )
+            except LocalWorkflowHostError:
+                pass
+            else:
+                raise ValueError("file-backed task accepted missing ingress")
+            if client.responses.calls or _ReadOnlyMCP.calls or host.run_traces():
+                raise ValueError("missing ingress reached dispatch")
+    return {
+        "terminal_phase": "capability_preflight",
+        "prepared": False,
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
 def run_hybrid_brief(scenario) -> dict[str, object]:
     """Execute the no-tool workflow after sealing two trusted workspace inputs."""
 

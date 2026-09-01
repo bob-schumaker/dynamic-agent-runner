@@ -10,6 +10,7 @@ from m4_4_deterministic import (
     run_authoring_boundary_attack,
     run_document_summary,
     run_email_file_body,
+    run_file_provenance_missing_ingress,
     run_generic_email_send,
     run_guardrail_input,
     run_guardrail_missing_registry,
@@ -63,7 +64,6 @@ def test_authoring_boundary_attack_refuses_before_finalization_or_dispatch() -> 
     (
         ("mcp-tooling-missing-connection.json", "write"),
         ("read-only-mcp-missing-connection.json", "read"),
-        ("file-provenance-missing-ingress.json", "file"),
         ("oauth-missing-connection.json", "read"),
     ),
 )
@@ -77,6 +77,21 @@ def test_mcp_missing_connection_stops_before_registration_or_dispatch(
     assert result == {
         "terminal_phase": "capability_preflight",
         "registered": False,
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
+def test_file_provenance_missing_ingress_stops_before_preparation_or_dispatch() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "m4-4-successor" / "file-provenance-missing-ingress.json"
+    )
+
+    result = run_file_provenance_missing_ingress(scenario)
+
+    assert result == {
+        "terminal_phase": "capability_preflight",
+        "prepared": False,
         "model_calls": 0,
         "tool_dispatches": 0,
     }
