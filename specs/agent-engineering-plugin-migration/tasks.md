@@ -79,7 +79,10 @@ plugin-acceptance framework.
       deterministic local transport; do not monkeypatch the external command
       or expose transport configuration to either actor. Configure trusted
       ingress from a controller-private input root and pass only the resulting
-      opaque artifact IDs through invocation.
+      opaque artifact IDs through invocation. The fixture inventory is not
+      acceptance evidence by itself: the deterministic model must emit the
+      scenario-bound tool/continuation sequence needed to drive each supported
+      fixture through the controller, not one generic text or tool response.
 - [ ] RED/GREEN: add and pass fixture-backed contract tests for two separately
       launched clean Codex actors: author/finalize, then saved-package invoke.
       The second actor receives only the finalized package name and text request;
@@ -87,7 +90,10 @@ plugin-acceptance framework.
       configure the package, access author state, or receive controller
       credentials or tool roots. The controller provides narrow authoring and
       invoke-only launchers that mediate private state without exposing a
-      state-root path or state-root environment variable to either actor.
+      state-root path or state-root environment variable to either actor. The
+      test must launch both actor commands as subprocesses and prove the
+      registered invocation receives only the finalized package name, text,
+      and controller-injected opaque fixture artifacts.
 - [x] RED/GREEN: add and pass a deterministic, fake-backed scenario runner for
       every successor scenario. It must execute each positive case through
       authoring, finalization, staging/registration, preparation, and invocation;
