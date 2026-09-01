@@ -13,6 +13,7 @@ from m4_4_deterministic import (
     run_generic_email_send,
     run_guardrail_input,
     run_guardrail_missing_registry,
+    run_tool_input_guardrail_missing_registry,
     run_guardrail_tool_input,
     run_hybrid_brief,
     run_mailbox_triage,
@@ -91,6 +92,22 @@ def test_input_guardrail_missing_registry_stops_before_model_dispatch() -> None:
         "model_calls": 0,
         "tool_dispatches": 0,
         "retry_model_calls": 1,
+    }
+
+
+def test_tool_input_guardrail_missing_registry_stops_before_model_dispatch() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "m4-4-successor" / "guardrail-tool-input-missing.json"
+    )
+
+    result = run_tool_input_guardrail_missing_registry(scenario)
+
+    assert result == {
+        "terminal_phase": "capability_preflight",
+        "model_calls": 0,
+        "tool_dispatches": 0,
+        "retry_model_calls": 2,
+        "retry_tool_dispatches": 1,
     }
 
 
