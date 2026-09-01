@@ -102,6 +102,7 @@ def create_marketplace(*, plugin_root: Path, destination: Path) -> Path:
         raise M44CleanCodexError("marketplace destination is unavailable")
     if any(path.is_symlink() for path in plugin_root.rglob("*")):
         raise M44CleanCodexError("plugin root contains a symbolic link")
+    _validate_successor_plugin_surface(plugin_root)
     if not (
         (plugin_root / "skills" / "agent-development" / "SKILL.md").is_file()
         and (plugin_root / "references" / "dar-runtime-profile.md").is_file()
@@ -136,6 +137,25 @@ def create_marketplace(*, plugin_root: Path, destination: Path) -> Path:
         encoding="utf-8",
     )
     return manifest
+
+
+def _validate_successor_plugin_surface(plugin_root: Path) -> None:
+    """Reject legacy or plugin-owned control-plane surfaces before copying."""
+
+    try:
+        manifest = json.loads(
+            (plugin_root / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise M44CleanCodexError("plugin manifest is invalid") from error
+    if not isinstance(manifest, dict) or {"mcpServers", "mcp"} & set(manifest):
+        raise M44CleanCodexError("plugin control-plane surface is invalid")
+    for path in plugin_root.rglob("*"):
+        relative_parts = path.relative_to(plugin_root).parts
+        if any(part in {"dar-authoring", "broker"} for part in relative_parts):
+            raise M44CleanCodexError("plugin legacy surface is invalid")
+        if path.name in {".mcp.json", "session-broker", "dar-mcp"}:
+            raise M44CleanCodexError("plugin control-plane surface is invalid")
 
 
 def _absolute_not_symlink(path: object, label: str) -> None:

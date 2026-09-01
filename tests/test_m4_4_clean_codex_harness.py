@@ -94,6 +94,37 @@ def test_marketplace_contains_only_the_copied_plugin(tmp_path: Path) -> None:
     assert "dar-authoring" not in marketplace.read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize(
+    "manifest,extra_path",
+    (
+        ('{"mcpServers":{"test":{}}}', None),
+        ("{}", "scripts/session-broker"),
+        ("{}", "skills/dar-authoring/SKILL.md"),
+    ),
+)
+def test_marketplace_rejects_legacy_or_plugin_control_plane_surface(
+    tmp_path: Path, manifest: str, extra_path: str | None
+) -> None:
+    plugin = tmp_path / "plugin"
+    (plugin / ".codex-plugin").mkdir(parents=True)
+    (plugin / "skills" / "agent-development").mkdir(parents=True)
+    (plugin / "references").mkdir(parents=True)
+    (plugin / ".codex-plugin" / "plugin.json").write_text(manifest, encoding="utf-8")
+    (plugin / "skills" / "agent-development" / "SKILL.md").write_text(
+        "# Agent development\n", encoding="utf-8"
+    )
+    (plugin / "references" / "dar-runtime-profile.md").write_text(
+        "# DAR runtime profile\n", encoding="utf-8"
+    )
+    if extra_path is not None:
+        extra = plugin / extra_path
+        extra.parent.mkdir(parents=True, exist_ok=True)
+        extra.write_text("legacy", encoding="utf-8")
+
+    with pytest.raises(M44CleanCodexError):
+        create_marketplace(plugin_root=plugin, destination=tmp_path / "marketplace")
+
+
 def test_receipt_reader_finds_nested_redacted_cli_receipts() -> None:
     module = _harness_module()
     transcript = "\n".join(
