@@ -12,6 +12,7 @@ from dynamic_agent_runner import (
     load_agent_package_workflow,
     run_agent_workflow,
 )
+from dynamic_agent_runner.guardrails import InMemoryGuardrailRegistry
 from dynamic_agent_runner.openai_client import (
     AsyncOpenAIClientAdapter,
     OpenAIClientAdapter,
@@ -155,6 +156,7 @@ class WorkflowRunner:
         *,
         now: datetime,
         approval_broker: LocalActionApprovalBroker | None = None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
     ) -> RunDarWorkflowResult:
         """Preflight, consume, and execute one sealed saved workflow."""
 
@@ -187,6 +189,7 @@ class WorkflowRunner:
                 prompt=prompt,
                 model_adapter=self._model_adapter,
                 tool_registry=tool_registry,
+                guardrail_registry=guardrail_registry,
                 max_steps=policy.limits.max_steps,
                 model_adapter_coverage="strict",
                 run_id=run_id,

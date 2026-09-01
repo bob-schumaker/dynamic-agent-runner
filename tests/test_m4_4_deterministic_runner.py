@@ -1,0 +1,167 @@
+"""Deterministic successor-lifecycle acceptance tests."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from m4_4_deterministic import (
+    run_document_summary,
+    run_email_file_body,
+    run_generic_email_send,
+    run_guardrail_input,
+    run_hybrid_brief,
+    run_mailbox_triage,
+    run_no_tool_graph_and_skill,
+    run_side_effect_recovery,
+    run_structured_single_model_review,
+    supported_scenario_adapter_ids,
+)
+from m4_4_scenarios import load_m44_coverage, load_m44_scenario
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures"
+
+
+def test_each_positive_successor_scenario_has_a_feature_specific_adapter() -> None:
+    coverage = load_m44_coverage(FIXTURE_ROOT / "m4-4-successor-coverage.json")
+
+    assert supported_scenario_adapter_ids() == {
+        entry.scenario_id
+        for entry in coverage.entries
+        if entry.expected_status == "pass"
+    }
+
+
+def test_document_summary_runs_the_complete_no_tool_host_lifecycle() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "document-summary.json"
+    )
+
+    result = run_document_summary(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 1,
+        "tool_dispatches": 0,
+    }
+
+
+def test_mailbox_triage_runs_a_reviewed_read_only_mcp_lifecycle() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "mailbox-triage.json"
+    )
+
+    result = run_mailbox_triage(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 2,
+        "tool_dispatches": 1,
+    }
+
+
+def test_generic_email_send_runs_an_approved_mcp_write_lifecycle() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "generic-email-send.json"
+    )
+
+    result = run_generic_email_send(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 2,
+        "tool_dispatches": 1,
+        "approval_requests": 1,
+    }
+
+
+def test_email_file_body_runs_trusted_ingress_and_artifact_provenance() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "email-file-body.json"
+    )
+
+    result = run_email_file_body(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 2,
+        "tool_dispatches": 1,
+        "approval_requests": 1,
+    }
+
+
+def test_side_effect_recovery_rejects_replay_after_one_dispatch() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "side-effect-recovery.json"
+    )
+
+    result = run_side_effect_recovery(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 2,
+        "tool_dispatches": 1,
+        "approval_requests": 1,
+    }
+
+
+def test_hybrid_brief_ingresses_each_declared_artifact_role() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "hybrid-brief.json"
+    )
+
+    result = run_hybrid_brief(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 1,
+        "tool_dispatches": 0,
+        "artifact_count": 2,
+    }
+
+
+def test_no_tool_graph_and_skill_bundles_evaluation_artifacts_and_runs() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "m4-4-successor" / "no-tool-graph-and-skill.json"
+    )
+
+    result = run_no_tool_graph_and_skill(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 2,
+        "tool_dispatches": 0,
+        "skill_count": 1,
+        "evaluation_artifact_count": 3,
+    }
+
+
+def test_structured_single_model_review_returns_the_registered_terminal_shape() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "structured-single-model-review.json"
+    )
+
+    result = run_structured_single_model_review(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 1,
+        "tool_dispatches": 0,
+        "terminal_output": {"message": "review complete"},
+    }
+
+
+def test_input_guardrail_runs_in_the_saved_package_host_lifecycle() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "m4-4-successor" / "guardrail-input.json"
+    )
+
+    result = run_guardrail_input(scenario)
+
+    assert result == {
+        "lifecycle": ("authored", "finalized", "registered", "prepared", "invoked"),
+        "model_calls": 1,
+        "tool_dispatches": 0,
+        "guardrail_calls": 1,
+    }

@@ -39,6 +39,7 @@ from dynamic_agent_runner.workflow_host.authoring_outputs import (
 from dynamic_agent_runner.workflow_host.authorized_tools import (
     LocalActionApprovalBroker,
 )
+from dynamic_agent_runner.guardrails import InMemoryGuardrailRegistry
 from dynamic_agent_runner.workflow_host.connections import (
     MCPAuthentication,
     MCPConnection,
@@ -1139,6 +1140,7 @@ class LocalWorkflowHost:
         prepared_input_id: str,
         now: datetime,
         approval_broker: LocalActionApprovalBroker | None = None,
+        guardrail_registry: InMemoryGuardrailRegistry | None = None,
     ) -> RunDarWorkflowResult:
         """Execute a sealed local no-tool workflow through the one runner."""
 
@@ -1147,6 +1149,7 @@ class LocalWorkflowHost:
             _request(workflow_id, prepared_input_id),
             now=now,
             approval_broker=approval_broker,
+            guardrail_registry=guardrail_registry,
         )
 
     def run_traces(self) -> tuple[RedactedRunTrace, ...]:
