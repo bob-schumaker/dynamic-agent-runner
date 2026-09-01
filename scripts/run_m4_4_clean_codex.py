@@ -41,15 +41,64 @@ from m4_4_clean_codex import (  # noqa: E402 - repository test corpus import.
     stage_dar_package,
 )
 from m4_4_scenarios import (  # noqa: E402 - repository test corpus import.
+    M44Coverage,
+    M44ExternalScenarioPlan,
     M44Scenario,
     M44ScenarioError,
+    load_m44_coverage,
+    load_m44_external_scenario_plan,
     load_m44_scenario,
+    validate_m44_external_scenario_plan,
     validate_m44_evidence,
 )
 
 
 class HarnessError(ValueError):
     """Raised when M4.4 cannot produce a valid redacted acceptance record."""
+
+
+def write_manifest_evidence(
+    *,
+    evidence_directory: Path,
+    coverage_source: Path,
+    scenario_plan_source: Path,
+    scenario_roots: tuple[Path, ...],
+    records: tuple[AuthorThenRunEvidence, ...],
+) -> Path:
+    """Write one complete redacted evidence set for the closed external replay."""
+
+    coverage = load_m44_coverage(coverage_source)
+    plan = load_m44_external_scenario_plan(scenario_plan_source)
+    validate_m44_external_scenario_plan(
+        plan, coverage=coverage, scenario_roots=scenario_roots
+    )
+    _validate_manifest_records(records, coverage=coverage, plan=plan)
+    if evidence_directory.exists() or not evidence_directory.is_absolute():
+        raise HarnessError("external evidence directory must be fresh and absolute")
+    evidence_directory.mkdir(mode=0o700, parents=True)
+    aggregate_records: list[dict[str, str]] = []
+    for record in sorted(records, key=lambda value: value.scenario_id):
+        destination = evidence_directory / record.scenario_id / "author-then-run.json"
+        write_author_then_run_evidence(destination, record)
+        aggregate_records.append(
+            {
+                "scenario_id": record.scenario_id,
+                "observed_status": record.observed_status,
+                "record_digest": _digest_file(destination),
+            }
+        )
+    aggregate = {
+        "format_version": "m4.4-external-evidence-v1",
+        "coverage_digest": _digest_file(coverage_source),
+        "scenario_plan_digest": _digest_file(scenario_plan_source),
+        "records": aggregate_records,
+    }
+    destination = evidence_directory / "aggregate.json"
+    destination.write_text(
+        json.dumps(aggregate, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+    os.chmod(destination, 0o600)
+    return destination
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -386,6 +435,32 @@ def _failure(
         reviewer_id=None,
         reviewer_decision="pending",
     )
+
+
+def _validate_manifest_records(
+    records: tuple[AuthorThenRunEvidence, ...],
+    *,
+    coverage: M44Coverage,
+    plan: M44ExternalScenarioPlan,
+) -> None:
+    if not isinstance(records, tuple) or not records:
+        raise HarnessError("external evidence records are invalid")
+    expected_statuses = {
+        entry.scenario_id: entry.expected_status for entry in coverage.entries
+    }
+    record_ids = [record.scenario_id for record in records]
+    if len(set(record_ids)) != len(record_ids) or set(record_ids) != set(
+        expected_statuses
+    ):
+        raise HarnessError("external evidence records are incomplete")
+    if set(record_ids) != {entry.scenario_id for entry in plan.entries}:
+        raise HarnessError("external evidence records do not match the scenario plan")
+    if any(
+        not isinstance(record, AuthorThenRunEvidence)
+        or record.expected_status != expected_statuses[record.scenario_id]
+        for record in records
+    ):
+        raise HarnessError("external evidence records are invalid")
 
 
 def _validate_inputs(

@@ -30,6 +30,50 @@ def _harness_module() -> object:
     return module
 
 
+def _manifest_records(module: object) -> tuple[object, ...]:
+    coverage = json.loads(
+        (REPO_ROOT / "tests" / "fixtures" / "m4-4-successor-coverage.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    expected_statuses = {
+        entry["scenario_id"]: entry["expected_status"] for entry in coverage["entries"]
+    }
+    digest = "a" * 64
+    records = []
+    for scenario_id, expected_status in expected_statuses.items():
+        positive = expected_status == "pass"
+        records.append(
+            module.AuthorThenRunEvidence(
+                scenario_id=scenario_id,
+                scenario_contract_version="m4.4-v1",
+                checker_version="m4.4-cli-first-v1",
+                expected_status=expected_status,
+                observed_status="pending_human_review" if positive else expected_status,
+                terminal_phase="invocation" if positive else "capability_preflight",
+                invocation_mode="mcp_prompt_only",
+                plugin_identity="agent-engineering",
+                skill_identity="agent-development@agent-engineering",
+                wheel_digest=digest,
+                harness_policy_digest=digest,
+                executable_identity="codex@clean",
+                module_identity="m4.4",
+                authoring_material_set_id="materials" if positive else None,
+                authoring_output_id="output" if positive else None,
+                authoring_receipt_digest=digest if positive else None,
+                final_package_digest=digest if positive else None,
+                catalog_revision_digest=digest if positive else None,
+                registration_digest=digest if positive else None,
+                prepared_input_registration_digest=digest if positive else None,
+                action_trace_digest=digest if positive else None,
+                dispatch_count=0,
+                reviewer_id=None,
+                reviewer_decision="pending",
+            )
+        )
+    return tuple(records)
+
+
 def test_clean_codex_environment_exposes_successor_path_not_legacy_state(
     tmp_path: Path,
 ) -> None:
@@ -64,6 +108,52 @@ def test_stage_dar_package_rejects_non_absolute_state_root(
             wheel=tmp_path / "dynamic_agent_runner.whl",
             state_root=Path("state"),
             destination=tmp_path / "dar-bin",
+        )
+
+
+def test_manifest_evidence_requires_complete_fresh_redacted_record_set(
+    tmp_path: Path,
+) -> None:
+    module = _harness_module()
+    evidence_directory = (tmp_path / "evidence").resolve()
+
+    aggregate = module.write_manifest_evidence(
+        evidence_directory=evidence_directory,
+        coverage_source=(
+            REPO_ROOT / "tests" / "fixtures" / "m4-4-successor-coverage.json"
+        ),
+        scenario_plan_source=(
+            REPO_ROOT / "tests" / "fixtures" / "m4-4-external-scenario-plan.json"
+        ),
+        scenario_roots=(
+            REPO_ROOT / "tests" / "fixtures" / "dar-authoring" / "m4-4",
+            REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
+        ),
+        records=_manifest_records(module),
+    )
+
+    value = json.loads(aggregate.read_text(encoding="utf-8"))
+    assert value["format_version"] == "m4.4-external-evidence-v1"
+    assert len(value["records"]) == 23
+    assert all(
+        set(record) == {"scenario_id", "observed_status", "record_digest"}
+        for record in value["records"]
+    )
+    assert str(tmp_path) not in aggregate.read_text(encoding="utf-8")
+    with pytest.raises(module.HarnessError):
+        module.write_manifest_evidence(
+            evidence_directory=evidence_directory,
+            coverage_source=(
+                REPO_ROOT / "tests" / "fixtures" / "m4-4-successor-coverage.json"
+            ),
+            scenario_plan_source=(
+                REPO_ROOT / "tests" / "fixtures" / "m4-4-external-scenario-plan.json"
+            ),
+            scenario_roots=(
+                REPO_ROOT / "tests" / "fixtures" / "dar-authoring" / "m4-4",
+                REPO_ROOT / "tests" / "fixtures" / "m4-4-successor",
+            ),
+            records=_manifest_records(module)[:-1],
         )
 
 
