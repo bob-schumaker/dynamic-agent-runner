@@ -69,7 +69,9 @@ Each scenario is a full end-to-end chain:
 2. A separate clean Codex invocation receives only the finalized saved package
    name and text run request. It must use `dar-package invoke`; it cannot select
    a package, register a revision, configure a profile or connection, or access
-   the first process's state.
+   the first process's state. The controller supplies narrow authoring and
+   invoke-only launchers that mediate its private state; they must not expose a
+   state-root path or state-root environment variable to either actor.
 3. The harness verifies the generated package, finalization receipt, staged
    catalog revision, registration/preparation linkage, invocation receipt, and
    tool/approval traces against the checked-in scenario contract. Success is
@@ -92,6 +94,13 @@ entry is under-gated or mismatches its terminal phase, or a scenario claims a
 capability absent from the matrix. Guardrails require configured `input` and
 `tool_input` phase coverage and their missing-fixture boundaries.
 
+The coverage manifest is not an actor-input source. A checked-in, versioned
+external scenario plan must map every unique coverage scenario ID to its package
+name, workflow ID, author request, run request, and declared fixture set. The
+external command accepts both artifacts, verifies their exact scenario-set and
+fixture agreement, and rejects an unknown, missing, duplicate, or partial plan
+entry before launching Codex.
+
 The original 13 M4.4 scenario contracts remain the regression minimum,
 including `document-summary-v1` as a positive case and `council-request-v1` as
 an unavailable case; successor coverage may add scenarios but may not replace
@@ -109,6 +118,12 @@ marketplace manifest digest, scenario/prompt/harness versions, final package
 digest, staged catalog revision, registration/preparation linkage, terminal
 result, and dispatch count without persisting prompt bodies, material content,
 credentials, or physical paths.
+
+One fresh evidence directory contains one redacted record per unique scenario
+ID plus a versioned aggregate manifest. The aggregate binds the coverage and
+scenario-plan digests and every record's identifier, status, and digest. It
+must reject missing, duplicate, or unknown records; neither the records nor the
+aggregate may retain physical paths, prompt bodies, material content, or secrets.
 
 This proves the externally observable contract of a clean successor-only Codex
 environment; it does not claim access to unobservable model reasoning or a

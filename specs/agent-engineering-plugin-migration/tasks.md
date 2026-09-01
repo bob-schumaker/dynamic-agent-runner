@@ -26,7 +26,7 @@ plugin-acceptance framework.
       status or terminal-phase mismatch, an under-gated capability, a scenario
       not represented in the manifest, or a missing required fixture. Allow one
       scenario to cover multiple related capability IDs.
-- [ ] GREEN: add the complete successor scenario corpus and coverage checker.
+- [x] GREEN: add the complete successor scenario corpus and coverage checker.
       Each `supported` capability has at least one deterministic, fake-backed
       full end-to-end case; each `conditional` capability has both configured
       positive and missing-fixture negative coverage; each `deferred` capability
@@ -62,7 +62,10 @@ plugin-acceptance framework.
       tests that load the versioned successor coverage manifest, derive its
       complete scenario set, reject a scenario-only or partial-manifest request,
       and retain the checked-in scenario contract and capability assertions for
-      each replayed entry.
+      each replayed entry. Add a versioned external scenario-plan fixture that
+      maps each unique scenario ID to its package name, workflow ID, author
+      request, run request, and declared fixture set; reject unknown, missing,
+      duplicate, or fixture-mismatched plan entries before launching Codex.
 - [ ] RED/GREEN: add a deterministic external-harness controller for the
       complete manifest. It owns fake model, MCP/tool, approval, ingress,
       guardrail, and capability collaborators and passes only declared fixture
@@ -73,7 +76,9 @@ plugin-acceptance framework.
       The second actor receives only the finalized package name and text request;
       it has a separate workspace and cannot select, register, recreate, or
       configure the package, access author state, or receive controller
-      credentials or tool roots.
+      credentials or tool roots. The controller provides narrow authoring and
+      invoke-only launchers that mediate private state without exposing a
+      state-root path or state-root environment variable to either actor.
 - [x] RED/GREEN: add and pass a deterministic, fake-backed scenario runner for
       every successor scenario. It must execute each positive case through
       authoring, finalization, staging/registration, preparation, and invocation;
@@ -86,7 +91,11 @@ plugin-acceptance framework.
       Each record binds plugin/skill identities, marketplace digest,
       scenario/prompt/harness versions, package/catalog/registration/preparation
       linkage, terminal status, and dispatch count; it rejects prompt bodies,
-      material content, credentials, tool roots, and physical paths.
+      material content, credentials, tool roots, and physical paths. Write one
+      record per unique scenario ID into a fresh evidence directory and a
+      versioned aggregate manifest that binds coverage/scenario-plan digests
+      plus every record digest and status; reject missing, duplicate, or unknown
+      records.
 - [ ] RED/GREEN: add the separately authorized external clean-Codex acceptance
       command that composes the manifest admission, deterministic controller,
       two isolated actors, ordinary-runner assertions, and redacted evidence.
