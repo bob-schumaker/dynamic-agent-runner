@@ -39,6 +39,9 @@ from dynamic_agent_runner.workflow_host.mcp_client import (
 )
 from dynamic_agent_runner.workflow_host.mcp_surfaces import MCPDiscoveredTool
 from dynamic_agent_runner.workflow_host.oauth import OAuthTokenBundle
+from dynamic_agent_runner.workflow_host.package_sources import (
+    PackageSourceSelectionError,
+)
 from dynamic_agent_runner.workflow_host.runner import (
     RunDarWorkflowError,
     RunDarWorkflowRequest,
@@ -657,6 +660,53 @@ def run_invocation_schema_boundary_attack(scenario) -> dict[str, object]:
                 )
     return {
         "terminal_phase": "invocation",
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
+def run_portable_package_handoff(scenario) -> dict[str, object]:
+    """Refuse a recipient host's direct access to an unpublished package."""
+
+    if scenario.scenario_id != "portable-package-handoff-v1":
+        raise ValueError("portable-handoff adapter received the wrong scenario")
+    with tempfile.TemporaryDirectory(
+        dir="/private/tmp", prefix="m44-acceptance-"
+    ) as temporary:
+        root = Path(temporary)
+        author_packages = root / "author-packages"
+        author_state = root / "author-state"
+        recipient_packages = root / "recipient-packages"
+        recipient_state = root / "recipient-state"
+        author_packages.mkdir(mode=0o700)
+        recipient_packages.mkdir(mode=0o700)
+        configure_local_host(
+            root=author_state,
+            package_root=author_packages,
+            model_id="local-model",
+            base_url="http://127.0.0.1:11434/v1",
+        )
+        configure_local_host(
+            root=recipient_state,
+            package_root=recipient_packages,
+            model_id="local-model",
+            base_url="http://127.0.0.1:11434/v1",
+        )
+        author = LocalWorkflowHost.open(author_state)
+        recipient = LocalWorkflowHost.open(recipient_state)
+        now = datetime.now(UTC)
+        _author_package(author, scenario.scenario_id, now)
+        try:
+            recipient.select_package(author_packages / scenario.scenario_id, now=now)
+        except PackageSourceSelectionError:
+            pass
+        else:
+            raise ValueError("recipient selected an unpublished package")
+        if recipient.run_traces():
+            raise ValueError("recipient dispatched an unpublished package")
+    return {
+        "terminal_phase": "source_selection",
+        "recipient_registered": False,
         "model_calls": 0,
         "tool_dispatches": 0,
     }

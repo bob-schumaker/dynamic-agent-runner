@@ -21,6 +21,7 @@ from m4_4_deterministic import (
     run_mcp_missing_connection,
     run_no_tool_graph_and_skill,
     run_oauth_reconnect,
+    run_portable_package_handoff,
     run_side_effect_recovery,
     run_structured_single_model_review,
     supported_scenario_adapter_ids,
@@ -124,6 +125,21 @@ def test_invocation_schema_attack_refuses_before_model_or_tool_dispatch() -> Non
 
     assert result == {
         "terminal_phase": "invocation",
+        "model_calls": 0,
+        "tool_dispatches": 0,
+    }
+
+
+def test_unpublished_package_cannot_be_selected_by_a_recipient_host() -> None:
+    scenario = load_m44_scenario(
+        FIXTURE_ROOT / "dar-authoring" / "m4-4" / "portable-package-handoff.json"
+    )
+
+    result = run_portable_package_handoff(scenario)
+
+    assert result == {
+        "terminal_phase": "source_selection",
+        "recipient_registered": False,
         "model_calls": 0,
         "tool_dispatches": 0,
     }
