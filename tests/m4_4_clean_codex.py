@@ -148,14 +148,25 @@ def _validate_successor_plugin_surface(plugin_root: Path) -> None:
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise M44CleanCodexError("plugin manifest is invalid") from error
-    if not isinstance(manifest, dict) or {"mcpServers", "mcp"} & set(manifest):
+    if not isinstance(manifest, dict) or _contains_control_plane_key(manifest):
         raise M44CleanCodexError("plugin control-plane surface is invalid")
     for path in plugin_root.rglob("*"):
         relative_parts = path.relative_to(plugin_root).parts
         if any(part in {"dar-authoring", "broker"} for part in relative_parts):
             raise M44CleanCodexError("plugin legacy surface is invalid")
-        if path.name in {".mcp.json", "session-broker", "dar-mcp"}:
+        if path.name in {".mcp.json", "mcp.json", "session-broker", "dar-mcp"}:
             raise M44CleanCodexError("plugin control-plane surface is invalid")
+
+
+def _contains_control_plane_key(value: object) -> bool:
+    if isinstance(value, dict):
+        return any(
+            key in {"mcpServers", "mcp"} or _contains_control_plane_key(child)
+            for key, child in value.items()
+        )
+    if isinstance(value, list):
+        return any(_contains_control_plane_key(item) for item in value)
+    return False
 
 
 def _absolute_not_symlink(path: object, label: str) -> None:

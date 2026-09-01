@@ -98,6 +98,8 @@ def test_marketplace_contains_only_the_copied_plugin(tmp_path: Path) -> None:
     "manifest,extra_path",
     (
         ('{"mcpServers":{"test":{}}}', None),
+        ('{"metadata":{"mcpServers":{"test":{}}}}', None),
+        ("{}", "mcp.json"),
         ("{}", "scripts/session-broker"),
         ("{}", "skills/dar-authoring/SKILL.md"),
     ),
